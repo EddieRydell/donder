@@ -39,6 +39,12 @@ are retained once, and the existing patch lowering assigns buffer slots only to
 the retained branches. Source cell spans determine the element cells to keep.
 Their storage addresses become dense, including disjoint ranges of one element.
 
+Reachable spatial signal queries widen that retained domain: local pixel queries
+keep each selected color element in full, while global pixel queries keep the full
+rig color domain. Unpatched pixels may therefore remain as signal dependencies.
+Global indices do not change with controller selection. Packing still writes only
+selected ports; retained upstream pixels increase evaluation and memory costs.
+
 Effects targeting no retained cells are removed, as are effects in disabled or
 unreachable layers. Referenced signal inputs remain connected, including temporal
 operator inputs. An empty layer feeding an operator remains a valid input: an

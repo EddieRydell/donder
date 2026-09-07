@@ -45,7 +45,7 @@ appropriate only on a trusted LAN; this is not an Internet-facing service.
 
 `crates/dawn-runtime/src/wire.rs` owns `encode_sequence`, `decode_sequence`,
 `LoadLimits`, and `LoadError`. Runtime and codec remain `no_std + alloc`. The
-16-byte header contains `DAWN`, the current `u32` version 3, payload length, and CRC32. The
+16-byte header contains `DAWN`, the current `u32` version 4, payload length, and CRC32. The
 payload is a 32-bit, little-endian rkyv archive validated before deserialization.
 CRC detects corruption, not authenticity.
 

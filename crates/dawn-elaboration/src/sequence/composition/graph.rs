@@ -4,7 +4,6 @@ use dawn_language::sequence::{
     AutomationTarget, CompositionGraphNodeId, CompositionGraphNodeKind, GraphPortId, Sequence,
     SequenceCompositionGraph,
 };
-use dawn_runtime::BuiltinOperator;
 use dawn_runtime::signal::{
     PreparedOperator, PreparedOperatorNode, PreparedSignalKind, PreparedSignalNode, SignalPlan,
 };
@@ -403,8 +402,8 @@ fn frame_inputs(node: &PreparedSignalNode) -> &[usize] {
         PreparedSignalKind::Operator {
             operator, inputs, ..
         } => match operator.implementation {
-            PreparedOperator::Native(BuiltinOperator::Delay | BuiltinOperator::Echo)
-            | PreparedOperator::Dsl(_) => &[],
+            PreparedOperator::Native(builtin) if builtin.resamples_time() => &[],
+            PreparedOperator::Dsl(_) => &[],
             PreparedOperator::Native(_) => inputs,
         },
         PreparedSignalKind::Output { inputs } => inputs,

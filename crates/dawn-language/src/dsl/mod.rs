@@ -13,7 +13,7 @@ use compiler::{compile_checked_effects, compile_checked_operators};
 pub use dawn_runtime::dsl::{
     BoundParams, CompiledEffect, CompiledOperator, DslBindCache, EffectKind, GeneratedEffect,
     GeneratedEffectSlot, GeneratorContext, OperatorInputDecl, OperatorRunContext, ParamDecl,
-    RunContext, RuntimeError, SignalSampler, VmWorkspace, bytecode::BytecodeProgram,
+    RunContext, RuntimeError, SignalPixel, SignalSampler, VmWorkspace, bytecode::BytecodeProgram,
 };
 pub use diagnostic::Diagnostic;
 use parser::parse_module;

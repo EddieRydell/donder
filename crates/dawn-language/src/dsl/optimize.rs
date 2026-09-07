@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use super::bytecode::{Instruction, SlotLayout, ValueSlot};
+use super::bytecode::{
+    ColorSlot, FloatSlot, Instruction, IntSlot, SignalPixel, SlotLayout, ValueSlot,
+};
 use super::types::{Identifier, Type, Value};
 
 /// Move pure, single-assignment scalar expressions to a frame initialization
@@ -156,7 +158,7 @@ pub(super) fn cleanup(
 ) {
     let targets = code.iter().filter_map(jump_target).collect::<HashSet<_>>();
     let mut copies = HashMap::<ValueSlot, ValueSlot>::new();
-    let mut samples = HashMap::new();
+    let mut samples = HashMap::<(usize, FloatSlot, SignalPixel<IntSlot>), ColorSlot>::new();
     for (offset, op) in code.iter_mut().enumerate() {
         if targets.contains(&offset) {
             copies.clear();
@@ -173,26 +175,31 @@ pub(super) fn cleanup(
         });
         if let Some(dst) = written {
             copies.retain(|key, value| *key != dst && *value != dst);
-            samples.retain(|(_, time), color| {
-                ValueSlot::Float(*time) != dst && ValueSlot::Color(*color) != dst
+            samples.retain(|(_, time, pixel), color| {
+                ValueSlot::Float(*time) != dst
+                    && ValueSlot::Color(*color) != dst
+                    && pixel
+                        .index()
+                        .is_none_or(|index| ValueSlot::Int(*index) != dst)
             });
         }
         // Signals are stateless: preserve the first read (and its errors), then
-        // reuse its value while the time and result slots remain unchanged.
+        // reuse its value while the time, coordinate, and result slots remain unchanged.
         if let Instruction::SignalSample {
             dst,
             input,
             seconds,
+            pixel,
             ..
         } = *op
         {
-            if let Some(&src) = samples.get(&(input, seconds)) {
+            if let Some(&src) = samples.get(&(input, seconds, pixel)) {
                 *op = Instruction::Move {
                     dst: ValueSlot::Color(dst),
                     src: ValueSlot::Color(src),
                 };
             } else {
-                samples.insert((input, seconds), dst);
+                samples.insert((input, seconds, pixel), dst);
             }
         }
         if let Instruction::Move { dst, src } = op
@@ -388,8 +395,18 @@ fn slots(
             typed!(false, Float, position);
             typed!(true, Color, dst);
         }
-        Instruction::SignalSample { dst, seconds, .. } => {
+        Instruction::SignalSample {
+            dst,
+            seconds,
+            pixel,
+            ..
+        } => {
             typed!(false, Float, seconds);
+            *pixel = pixel.map(|mut slot| {
+                let index = &mut slot;
+                typed!(false, Int, index);
+                slot
+            });
             typed!(true, Color, dst);
         }
         Instruction::IntToFloat { dst, src } => {

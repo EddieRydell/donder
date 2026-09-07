@@ -123,6 +123,26 @@ fn prepared_controller_sampling_does_not_allocate() {
         &[7150, 7151, 7152],
         "automated native effect",
     );
+    for query in [
+        "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
+        "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
+    ] {
+        let compiled = dawn_language::dsl::compile_operators(&format!(
+            "operator TimeWarp {{ input Signal source; param float offset_seconds = 0.0; color sample() {{ return {query}; }} }}"
+        )).unwrap().remove(0);
+        let definition = project
+            .definitions
+            .operators
+            .definitions
+            .values_mut()
+            .find(|definition| definition.declaration_name == "TimeWarp")
+            .unwrap();
+        definition.implementation =
+            dawn_language::operator::OperatorImplementation::Dsl(Box::new(compiled));
+        let output =
+            PreparedSequenceOutput::prepare(&project, &project.root.setup, &sequence_id).unwrap();
+        assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 7152, 0], query);
+    }
 }
 
 fn assert_prepared_sampling_does_not_allocate(

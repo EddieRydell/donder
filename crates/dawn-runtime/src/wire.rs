@@ -10,7 +10,7 @@ use rkyv::{Archive, Archived, Place};
 
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DAWN";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {

@@ -3,7 +3,7 @@ use dawn_language::dsl::{
     SignalSampler, TargetValue, Value, VmWorkspace, compile_effects, compile_operators,
 };
 use dawn_language::values::{SampleDuration, SampleTime};
-use dawn_runtime::dsl::bytecode::Instruction;
+use dawn_runtime::dsl::bytecode::{Instruction, SignalPixel};
 use indexmap::IndexMap;
 
 #[test]
@@ -677,6 +677,84 @@ fn required_parameters_and_integer_remainder_fail_without_panicking() {
 struct ConstantSignal(Color);
 
 #[test]
+fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {
+    #[derive(Default)]
+    struct Samples(Vec<SignalPixel<i32>>);
+    impl SignalSampler for Samples {
+        fn sample_signal(
+            &mut self,
+            _input: usize,
+            _time: SampleTime,
+            pixel: SignalPixel<i32>,
+            _frame_cache: Option<usize>,
+        ) -> Result<Color, RuntimeError> {
+            self.0.push(pixel);
+            let value = pixel.index().copied().unwrap_or_default() as u8;
+            Ok(Color {
+                red: value,
+                green: value,
+                blue: value,
+            })
+        }
+    }
+    let operator = compile_operators(
+        "operator Spatial {
+        input Signal source;
+        color sample() {
+            float t = seconds();
+            int p = pixel_index();
+            color a = source.at(t, p);
+            color b = source.at_global(t, p);
+            color c = source.at(t);
+            color d = source.at(t, p);
+            p = p + 1;
+            return max(max(max(a, b), max(c, d)), source.at(t, p));
+        }
+    }",
+    )
+    .unwrap()
+    .remove(0);
+    let params = operator.bind_params(&IndexMap::new()).unwrap();
+    let context = OperatorRunContext {
+        progress: 0.25,
+        time: SampleDuration::from_ticks(250000),
+        duration: SampleDuration::from_ticks(1000000),
+        pixel_index: 3,
+        pixel_count: 10,
+        pixel_fraction: 0.3,
+    };
+    let mut samples = Samples::default();
+    let result = operator
+        .sample_bound(&params, &context, &mut samples, &mut VmWorkspace::default())
+        .unwrap();
+    assert_eq!(
+        samples.0,
+        [
+            SignalPixel::Local(3),
+            SignalPixel::Global(3),
+            SignalPixel::Current,
+            SignalPixel::Local(4)
+        ]
+    );
+    assert_eq!(result.red, 4);
+    for query in [
+        "source.at()",
+        "source.at(0.0, 1.0)",
+        "source.at(0.0, 1, 2)",
+        "source.at_global(0.0)",
+        "source.at_global(0.0, true)",
+    ] {
+        assert!(
+            compile_operators(&format!(
+                "operator Invalid {{ input Signal source; color sample() {{ return {query}; }} }}"
+            ))
+            .is_err(),
+            "{query}"
+        );
+    }
+}
+
+#[test]
 fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
     #[derive(Default)]
     struct Samples(Vec<(usize, u32)>);
@@ -685,6 +763,7 @@ fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
             &mut self,
             input: usize,
             time: SampleTime,
+            _pixel: SignalPixel<i32>,
             _frame_cache: Option<usize>,
         ) -> Result<Color, RuntimeError> {
             self.0.push((input, time.as_ticks()));
@@ -759,6 +838,7 @@ impl SignalSampler for ConstantSignal {
         &mut self,
         _input: usize,
         _sample_time: SampleTime,
+        _pixel: SignalPixel<i32>,
         _frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError> {
         Ok(self.0)

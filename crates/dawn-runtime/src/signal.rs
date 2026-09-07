@@ -277,6 +277,7 @@ pub(crate) struct CachedVmSample {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CachedSignal {
     pub(crate) sample_time: SampleTime,
+    pub(crate) flat_pixel_index: usize,
     pub(crate) color: Color,
 }
 
@@ -304,11 +305,10 @@ impl PreparedSignalGraph {
     pub(crate) fn frame_scratch_count(&self) -> usize {
         let samples_frames = |node: &PreparedSignalNode| match &node.kind {
             PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
-                PreparedOperator::Native(BuiltinOperator::Delay | BuiltinOperator::Echo) => true,
+                PreparedOperator::Native(builtin) => builtin.resamples_time(),
                 PreparedOperator::Dsl(program) => {
                     self.programs[program as usize].frame_cache_count() != 0
                 }
-                _ => false,
             },
             _ => false,
         };
@@ -324,16 +324,10 @@ impl PreparedSignalGraph {
                     inputs, operator, ..
                 } => (
                     &inputs[..],
-                    usize::from(matches!(
-                        operator.implementation,
-                        PreparedOperator::Native(
-                            BuiltinOperator::Echo
-                                | BuiltinOperator::Max
-                                | BuiltinOperator::Add
-                                | BuiltinOperator::Multiply
-                                | BuiltinOperator::IntensityModulate
-                        )
-                    )),
+                    match operator.implementation {
+                        PreparedOperator::Native(builtin) => builtin.scratch_frames(),
+                        PreparedOperator::Dsl(_) => 0,
+                    },
                 ),
                 PreparedSignalKind::Output { inputs } => {
                     (&inputs[..], usize::from(inputs.len() > 1))
@@ -421,19 +415,15 @@ impl PreparedSignalGraph {
             signal_cache: vec![
                 None;
                 if self.plan.frame_nodes.iter().any(|&index| {
-                    matches!(
-                        self.plan.nodes[index].kind,
-                        PreparedSignalKind::Operator {
-                            operator: PreparedOperatorNode {
-                                implementation: PreparedOperator::Dsl(_)
-                                    | PreparedOperator::Native(
-                                        BuiltinOperator::Delay | BuiltinOperator::Echo
-                                    ),
-                                ..
-                            },
-                            ..
+                    match &self.plan.nodes[index].kind {
+                        PreparedSignalKind::Operator { operator, .. } => {
+                            match operator.implementation {
+                                PreparedOperator::Dsl(_) => true,
+                                PreparedOperator::Native(builtin) => builtin.resamples_time(),
+                            }
                         }
-                    )
+                        _ => false,
+                    }
                 }) {
                     self.plan.nodes.len()
                 } else {

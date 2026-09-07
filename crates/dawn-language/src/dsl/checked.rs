@@ -88,6 +88,7 @@ pub(crate) enum CheckedExprKind {
     SignalSample {
         input: Identifier,
         seconds: Box<CheckedExpr>,
+        pixel: super::bytecode::SignalPixel<Box<CheckedExpr>>,
     },
     Unary {
         op: UnaryOp,

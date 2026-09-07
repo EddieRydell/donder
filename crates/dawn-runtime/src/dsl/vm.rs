@@ -2,7 +2,7 @@ use super::GeneratedEffectSlot;
 use super::bytecode::{
     ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorSlot, CompareOp, ContextRead,
     FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction, IntArithmeticOp, IntSlot,
-    MarkOp, RefSlot, SlotLayout, TargetItemsOp, ValueSlot,
+    MarkOp, RefSlot, SignalPixel, SlotLayout, TargetItemsOp, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
 use super::types::{TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue};
@@ -38,13 +38,14 @@ pub struct RunContext {
 
 pub type OperatorRunContext = RunContext;
 
-/// Samples an immutable signal for the current pixel. Identical input/time
+/// Samples an immutable signal. Identical input/time/pixel
 /// queries must produce the same result; compilation and evaluation may reuse it.
 pub trait SignalSampler {
     fn sample_signal(
         &mut self,
         input: usize,
         sample_time: SampleTime,
+        pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError>;
 }
@@ -1022,9 +1023,15 @@ impl<'a> Vm<'a> {
                     dst,
                     input,
                     seconds,
+                    pixel,
                     frame_cache,
                 } => {
                     let seconds = self.float(*seconds)?;
+                    let pixel = match *pixel {
+                        SignalPixel::Current => SignalPixel::Current,
+                        SignalPixel::Local(index) => SignalPixel::Local(self.int(index)?),
+                        SignalPixel::Global(index) => SignalPixel::Global(self.int(index)?),
+                    };
                     let color = match crate::values::sample_time_from_seconds_f32(seconds) {
                         Ok(sample_time) => self
                             .signal_sampler
@@ -1033,6 +1040,7 @@ impl<'a> Vm<'a> {
                             .sample_signal(
                                 *input,
                                 sample_time,
+                                pixel,
                                 (*frame_cache != u32::MAX).then_some(*frame_cache as usize),
                             )?,
                         Err(SampleTimeError::Negative) => black(),

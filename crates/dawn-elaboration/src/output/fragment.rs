@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
+use dawn_runtime::dsl::bytecode::{Instruction, SignalPixel};
 use dawn_runtime::element::ElementLayout;
 use dawn_runtime::patch::PatchStep;
 use dawn_runtime::sequence::PreparedSequence;
@@ -18,6 +19,49 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         if let PatchStep::Source { source, .. } = step {
             for span in &source.spans {
                 cells[span.element as usize].extend(span.cells.clone());
+            }
+        }
+    }
+    // Spatial queries depend on pixels that need not be patched to this device.
+    // Keep the complete coordinate domain whenever a reachable operator can
+    // address it; packing remains restricted to the selected output ports.
+    let mut reachable = vec![false; sequence.signals.plan.nodes.len()];
+    reachable[sequence.signals.plan.output_index] = true;
+    let mut local = false;
+    let mut global = false;
+    for index in (0..reachable.len()).rev() {
+        if !reachable[index] {
+            continue;
+        }
+        match &sequence.signals.plan.nodes[index].kind {
+            PreparedSignalKind::Layer { .. } => {}
+            PreparedSignalKind::Operator {
+                operator, inputs, ..
+            } => {
+                for &input in inputs {
+                    reachable[input] = true;
+                }
+                if let PreparedOperator::Dsl(program) = operator.implementation {
+                    for instruction in &sequence.signals.programs[program as usize].instructions {
+                        if let Instruction::SignalSample { pixel, .. } = instruction {
+                            local |= matches!(pixel, SignalPixel::Local(_));
+                            global |= matches!(pixel, SignalPixel::Global(_));
+                        }
+                    }
+                }
+            }
+            PreparedSignalKind::Output { inputs } => {
+                for &input in inputs {
+                    reachable[input] = true;
+                }
+            }
+        }
+    }
+    if cells.iter().any(|cells| !cells.is_empty()) && (local || global) {
+        for &(element, ref span) in &sequence.color_spans {
+            let cells = &mut cells[element as usize];
+            if global || !cells.is_empty() {
+                cells.extend(0..span.end - span.start);
             }
         }
     }

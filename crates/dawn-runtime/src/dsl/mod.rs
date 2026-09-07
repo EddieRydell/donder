@@ -4,6 +4,8 @@ mod vm;
 
 use alloc::{boxed::Box, vec::Vec};
 
+pub use bytecode::SignalPixel;
+
 pub use types::{
     Identifier, TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue, Type, Value,
 };

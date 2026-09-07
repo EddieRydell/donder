@@ -577,8 +577,16 @@ impl FunctionCompiler {
                 };
                 self.compile_builtin_call(name, args, result_ty)
             }
-            CheckedExprKind::SignalSample { input, seconds } => {
+            CheckedExprKind::SignalSample {
+                input,
+                seconds,
+                pixel,
+            } => {
                 let seconds = self.float_slot_from_expr(*seconds);
+                let pixel = pixel.map(|expr| {
+                    let slot = self.compile_expr(*expr);
+                    self.int_slot(slot)
+                });
                 let dst = self.allocate_slot(&Type::Color);
                 let input = self
                     .signal_inputs
@@ -589,6 +597,7 @@ impl FunctionCompiler {
                     dst: self.color_slot(dst),
                     input,
                     seconds,
+                    pixel,
                     frame_cache: u32::MAX,
                 });
                 dst

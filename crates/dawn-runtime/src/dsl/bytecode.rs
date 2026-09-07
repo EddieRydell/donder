@@ -6,6 +6,34 @@ pub type LocalId = ValueSlot;
 pub type ParamId = usize;
 pub type Target = usize;
 
+/// Coordinate domain of a signal query. Global indices use the prepared rig's
+/// full color-pixel order; local indices stay within the current element.
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+pub enum SignalPixel<T> {
+    Current,
+    Local(T),
+    Global(T),
+}
+
+impl<T> SignalPixel<T> {
+    pub fn map<U>(self, mut map: impl FnMut(T) -> U) -> SignalPixel<U> {
+        match self {
+            Self::Current => SignalPixel::Current,
+            Self::Local(index) => SignalPixel::Local(map(index)),
+            Self::Global(index) => SignalPixel::Global(map(index)),
+        }
+    }
+
+    pub fn index(&self) -> Option<&T> {
+        match self {
+            Self::Current => None,
+            Self::Local(index) | Self::Global(index) => Some(index),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct BytecodeProgram {
     pub instructions: Box<[Instruction]>,
@@ -276,6 +304,7 @@ pub enum Instruction {
         dst: ColorSlot,
         input: usize,
         seconds: FloatSlot,
+        pixel: SignalPixel<IntSlot>,
         frame_cache: u32,
     },
     Member {

@@ -10,6 +10,7 @@ pub mod element;
 mod evaluation;
 pub mod fixture;
 pub mod native_effect;
+mod operator;
 pub mod patch;
 pub mod sampling;
 pub mod sequence;

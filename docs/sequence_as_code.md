@@ -5,6 +5,32 @@ effect instances, a composition graph, automation clips, and control clips. It
 is loaded into the typed `dawn_language::sequence::Sequence`; YAML is never an
 editable runtime model after load.
 
+## Operator signal coordinates
+
+An operator samples an immutable input signal by time and pixel:
+
+- `source.at(seconds)` samples the current pixel.
+- `source.at(seconds, pixel)` samples a zero-based pixel in the current fixture
+  (color element). For example, `source.at(seconds(), pixel_count() - 1 -
+  pixel_index())` mirrors each fixture independently.
+- `source.at_global(seconds, pixel)` samples a zero-based pixel in the full
+  prepared rig's color-element order, with each element's pixels contiguous.
+  This order is independent of selected controller ports and output packing.
+
+Time arguments are seconds (float); pixel arguments are integers. Negative or
+out-of-range pixels return black, as do times outside the sequence. Non-finite or
+unrepresentable times are errors. Local coordinates never wrap across fixtures.
+These queries can combine spatial and temporal transformations and can sample
+other operators. Repeated queries are immutable; caches include every coordinate
+that affects their result.
+
+Controller preparation retains upstream pixels reachable through spatial reads,
+even when they are not patched to that controller. Local reads require the whole
+selected fixture; unrestricted global reads require the full rig color domain.
+This can increase device memory requirements; output packing still includes only
+the selected ports. Authored effect targets and per-fixture/whole-target scope
+remain separate, fixed settings, not automatable effect parameters.
+
 ## Preservation contract
 
 Semantic, source-aware serialization is the intended level of preservation.

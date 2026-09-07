@@ -477,21 +477,42 @@ impl Checker {
             }
             ExprKind::Call { callee, args } => {
                 if let ExprKind::Member { target, member } = &callee.kind
-                    && member.as_str() == "at"
+                    && matches!(member.as_str(), "at" | "at_global")
                     && let ExprKind::Variable(input) = &target.kind
                     && env.get(input) == Some(&Type::Signal)
                 {
-                    self.require_arg_count("Signal.at", args.len(), 1, span);
+                    use super::bytecode::SignalPixel;
+                    let global = member.as_str() == "at_global";
+                    if global {
+                        self.require_arg_count("Signal.at_global", args.len(), 2, span);
+                    } else if !(1..=2).contains(&args.len()) {
+                        self.error(
+                            span,
+                            "Signal.at requires a time and optionally a local pixel index",
+                        );
+                    }
                     let seconds = args.first().cloned().unwrap_or(Expr {
                         kind: ExprKind::Literal(Value::Float(0.0)),
                         span,
                     });
                     let seconds = self.check_expr(seconds, env, Some(&Type::Float));
                     self.require_assignable(&Type::Float, &seconds.ty, seconds.span);
+                    let pixel = if let Some(index) = args.get(1) {
+                        let index = self.check_expr(index.clone(), env, Some(&Type::Int));
+                        self.require_assignable(&Type::Int, &index.ty, index.span);
+                        if global {
+                            SignalPixel::Global(Box::new(index))
+                        } else {
+                            SignalPixel::Local(Box::new(index))
+                        }
+                    } else {
+                        SignalPixel::Current
+                    };
                     return CheckedExpr {
                         kind: CheckedExprKind::SignalSample {
                             input: input.clone(),
                             seconds: Box::new(seconds),
+                            pixel,
                         },
                         span,
                         ty: Type::Color,

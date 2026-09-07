@@ -178,6 +178,62 @@ fn split_element_keeps_original_context_and_compacts_disjoint_cells() {
     for id in &project.root.sequences {
         compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
     }
+    // Spatial reads must not see the compacted 37-cell output domain. Local
+    // reads need the whole original fixture; global reads can reach unpatched
+    // fixtures. This also exercises nested temporal/spatial operator sampling.
+    for (query, expected_pixels) in [
+        (
+            "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
+            113,
+        ),
+        (
+            "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
+            3390,
+        ),
+    ] {
+        let compiled = dawn_language::dsl::compile_operators(&format!(
+            "operator TimeWarp {{ input Signal source; param float offset_seconds = 0.0; color sample() {{ return {query}; }} }}"
+        )).unwrap().remove(0);
+        let definition = project
+            .definitions
+            .operators
+            .definitions
+            .values_mut()
+            .find(|definition| definition.declaration_name == "TimeWarp")
+            .unwrap();
+        definition.implementation =
+            dawn_language::operator::OperatorImplementation::Dsl(Box::new(compiled));
+        let id = project
+            .root
+            .sequences
+            .iter()
+            .find(|id| id.0.object() == "layer_test")
+            .unwrap();
+        let fragment = compare(&project, id, &ports[1..2]);
+        assert_eq!(fragment.signals.pixel_count, expected_pixels, "{query}");
+        // Exercise the serialized representation as well as live preparation.
+        let encoded = dawn_runtime::wire::encode_sequence(&fragment).unwrap();
+        let decoded = dawn_runtime::wire::decode_sequence(
+            &encoded,
+            dawn_runtime::wire::LoadLimits {
+                workspace_bytes: 4 * 1024 * 1024,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut original_workspace = fragment.workspace();
+        let mut decoded_workspace = decoded.workspace();
+        let mut original = vec![vec![0; fragment.output_widths[0] as usize]];
+        let mut restored = original.clone();
+        let time = SampleTime::from_ticks(59_000_000);
+        fragment
+            .evaluate(time, &mut original, &mut original_workspace)
+            .unwrap();
+        decoded
+            .evaluate(time, &mut restored, &mut decoded_workspace)
+            .unwrap();
+        assert_eq!(restored, original);
+    }
 }
 
 #[test]

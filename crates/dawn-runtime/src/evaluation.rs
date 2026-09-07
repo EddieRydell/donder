@@ -1,18 +1,16 @@
-use crate::BuiltinOperator;
+use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{
     BoundParams, OperatorRunContext, RunContext, RuntimeError, SignalSampler, VmWorkspace,
 };
 use crate::native_effect::{self, NativeSample, NativeSampleCache};
-use crate::sampling::{
-    add_colors as add_color, color_intensity as intensity, invert_color, max_colors as max_color,
-    multiply_colors as multiply_color, scale_color,
-};
+use crate::operator::{Echo, NativeOperator};
+use crate::sampling::scale_color;
 use crate::signal::{
     CachedSignal, CachedSignalFrame, CachedVmSample, EffectAutomationWorkspace, EvaluationError,
     EvaluationWorkspace, PreparedEffect, PreparedEffectImplementation, PreparedOperator,
     PreparedOperatorNode, PreparedSignalGraph, PreparedSignalKind,
 };
-use crate::values::{Color, SampleDuration, SampleTime, sample_duration_from_seconds_f32};
+use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::string::ToString;
 use alloc::{boxed::Box, format};
 
@@ -436,22 +434,26 @@ fn sample_operator_frame(
         return Ok(());
     };
 
-    if matches!(builtin, BuiltinOperator::Delay | BuiltinOperator::Echo) {
+    let operation = builtin.bind(params)?;
+    if matches!(
+        operation,
+        NativeOperator::Delay(_) | NativeOperator::Echo(_)
+    ) {
         let mut cache = core::mem::take(&mut workspace.signal_cache);
-        let result = match builtin {
-            BuiltinOperator::Delay => sample_delay_frame(
+        let result = match operation {
+            NativeOperator::Delay(delay) => sample_delay_frame(
                 renderer,
                 inputs[0],
-                params,
+                delay,
                 sample_time,
                 &mut buffers[destination],
                 &mut cache,
                 workspace,
             ),
-            BuiltinOperator::Echo => sample_echo_frame(
+            NativeOperator::Echo(echo) => sample_echo_frame(
                 renderer,
                 inputs[0],
-                params,
+                echo,
                 sample_time,
                 &mut buffers[destination],
                 &mut cache,
@@ -462,33 +464,18 @@ fn sample_operator_frame(
         workspace.signal_cache = cache;
         return result;
     }
-    match builtin {
-        BuiltinOperator::Max => binary_graph_op(renderer, inputs, destination, buffers, max_color),
-        BuiltinOperator::Add => binary_graph_op(renderer, inputs, destination, buffers, add_color),
-        BuiltinOperator::Multiply => {
-            binary_graph_op(renderer, inputs, destination, buffers, multiply_color)
-        }
-        BuiltinOperator::IntensityModulate => {
-            binary_graph_op(renderer, inputs, destination, buffers, |source, mask| {
-                scale_color(source, intensity(mask))
+    match operation {
+        NativeOperator::Binary(op) => {
+            binary_graph_op(renderer, inputs, destination, buffers, |a, b| {
+                op.apply(a, b)
             })
         }
-        BuiltinOperator::Dim => {
-            let amount = params.float(0)?.clamp(0.0, 1.0);
+        NativeOperator::Unary(op) => {
             map_graph_op(renderer, inputs[0], destination, buffers, |color| {
-                scale_color(color, amount)
+                op.apply(color)
             })
         }
-        BuiltinOperator::Invert => {
-            map_graph_op(renderer, inputs[0], destination, buffers, invert_color)
-        }
-        BuiltinOperator::Colorize => {
-            let tint = params.color(0)?;
-            map_graph_op(renderer, inputs[0], destination, buffers, |color| {
-                scale_color(tint, intensity(color))
-            })
-        }
-        BuiltinOperator::Delay | BuiltinOperator::Echo => unreachable!(),
+        NativeOperator::Delay(_) | NativeOperator::Echo(_) => unreachable!(),
     }
 }
 
@@ -524,29 +511,20 @@ fn map_graph_op(
 fn sample_echo_frame(
     renderer: &PreparedSignalGraph,
     input: usize,
-    params: &BoundParams,
+    echo: Echo,
     sample_time: SampleTime,
     output: &mut [Color],
     cache: &mut [Option<CachedSignal>],
     workspace: &mut EvaluationWorkspace,
 ) -> Result<(), EvaluationError> {
-    let delay = operator_delay(params, "echo")?;
-    let repeats = params.int(1)?.clamp(1, 32);
-    let decay = params.float(2)?.clamp(0.0, 1.0);
     output.fill(black());
     let mut frame = workspace
         .frame_scratch
         .pop()
         .ok_or(EvaluationError::InvalidWorkspace)?;
     let result = (|| {
-        for repeat in 0..=repeats {
-            let Some(delayed_time) = sample_time.checked_sub_duration(SampleDuration::from_ticks(
-                delay.as_ticks().saturating_mul(repeat as u32),
-            )) else {
-                continue;
-            };
+        for (delayed_time, amount) in echo.samples(sample_time) {
             sample_signal_frame(renderer, input, delayed_time, &mut frame, cache, workspace)?;
-            let amount = powi_nonnegative(decay, repeat as u32);
             for (target, source) in output.iter_mut().zip(frame.iter()) {
                 compose_max(target, scale_color(*source, amount));
             }
@@ -560,25 +538,17 @@ fn sample_echo_frame(
 fn sample_delay_frame(
     renderer: &PreparedSignalGraph,
     input: usize,
-    params: &BoundParams,
+    delay: SampleDuration,
     sample_time: SampleTime,
     output: &mut [Color],
     cache: &mut [Option<CachedSignal>],
     workspace: &mut EvaluationWorkspace,
 ) -> Result<(), EvaluationError> {
     output.fill(black());
-    let Some(delayed_time) = sample_time.checked_sub_duration(operator_delay(params, "delay")?)
-    else {
+    let Some(delayed_time) = sample_time.checked_sub_duration(delay) else {
         return Ok(());
     };
     sample_signal_frame(renderer, input, delayed_time, output, cache, workspace)
-}
-
-fn operator_delay(params: &BoundParams, operator: &str) -> Result<SampleDuration, EvaluationError> {
-    let seconds = params.float(0)?.max(0.0);
-    sample_duration_from_seconds_f32(seconds).map_err(|_| EvaluationError::InvalidTiming {
-        reason: format!("{operator} delay exceeds the runtime clock range"),
-    })
 }
 
 fn sample_signal_pixel(
@@ -591,6 +561,7 @@ fn sample_signal_pixel(
 ) -> Result<Color, EvaluationError> {
     if let Some(Some(cached)) = cache.get(node_index)
         && cached.sample_time == sample_time
+        && cached.flat_pixel_index == flat_pixel_index
     {
         return Ok(cached.color);
     }
@@ -702,7 +673,11 @@ fn sample_signal_pixel(
     };
     // One latest sample per node: different times replace rather than grow
     // storage. Stateless signals may be recomputed without changing results.
-    cache[node_index] = Some(CachedSignal { sample_time, color });
+    cache[node_index] = Some(CachedSignal {
+        sample_time,
+        flat_pixel_index,
+        color,
+    });
     Ok(color)
 }
 
@@ -864,57 +839,24 @@ fn sample_operator_pixel(
             workspace,
         )
     };
-    Ok(match builtin {
-        BuiltinOperator::Max => max_color(
+    Ok(match builtin.bind(params)? {
+        NativeOperator::Binary(op) => op.apply(
             sample(0, sample_time, cache, workspace)?,
             sample(1, sample_time, cache, workspace)?,
         ),
-        BuiltinOperator::Add => add_color(
-            sample(0, sample_time, cache, workspace)?,
-            sample(1, sample_time, cache, workspace)?,
-        ),
-        BuiltinOperator::Multiply => multiply_color(
-            sample(0, sample_time, cache, workspace)?,
-            sample(1, sample_time, cache, workspace)?,
-        ),
-        BuiltinOperator::IntensityModulate => {
-            let source = sample(0, sample_time, cache, workspace)?;
-            scale_color(source, intensity(sample(1, sample_time, cache, workspace)?))
-        }
-        BuiltinOperator::Dim => scale_color(
-            sample(0, sample_time, cache, workspace)?,
-            params.float(0)?.clamp(0.0, 1.0),
-        ),
-        BuiltinOperator::Invert => invert_color(sample(0, sample_time, cache, workspace)?),
-        BuiltinOperator::Colorize => {
-            let source = sample(0, sample_time, cache, workspace)?;
-            scale_color(params.color(0)?, intensity(source))
-        }
-        BuiltinOperator::Delay => {
-            let Some(delayed_time) =
-                sample_time.checked_sub_duration(operator_delay(params, "delay")?)
-            else {
+        NativeOperator::Unary(op) => op.apply(sample(0, sample_time, cache, workspace)?),
+        NativeOperator::Delay(delay) => {
+            let Some(delayed_time) = sample_time.checked_sub_duration(delay) else {
                 return Ok(black());
             };
             sample(0, delayed_time, cache, workspace)?
         }
-        BuiltinOperator::Echo => {
-            let delay = operator_delay(params, "echo")?;
-            let repeats = params.int(1)?.clamp(1, 32);
-            let decay = params.float(2)?.clamp(0.0, 1.0);
+        NativeOperator::Echo(echo) => {
             let mut output = black();
-            for repeat in 0..=repeats {
-                let Some(delayed_time) = sample_time.checked_sub_duration(
-                    SampleDuration::from_ticks(delay.as_ticks().saturating_mul(repeat as u32)),
-                ) else {
-                    continue;
-                };
+            for (delayed_time, amount) in echo.samples(sample_time) {
                 compose_max(
                     &mut output,
-                    scale_color(
-                        sample(0, delayed_time, cache, workspace)?,
-                        powi_nonnegative(decay, repeat as u32),
-                    ),
+                    scale_color(sample(0, delayed_time, cache, workspace)?, amount),
                 );
             }
             output
@@ -937,6 +879,42 @@ impl SignalSampler for GraphSignalSampler<'_> {
         &mut self,
         input: usize,
         sample_time: SampleTime,
+        pixel: SignalPixel<i32>,
+        frame_cache: Option<usize>,
+    ) -> Result<Color, RuntimeError> {
+        let index = match pixel {
+            SignalPixel::Current => self.flat_pixel_index,
+            SignalPixel::Global(index) => {
+                let Ok(index) = usize::try_from(index) else {
+                    return Ok(black());
+                };
+                if index >= self.renderer.pixel_count {
+                    return Ok(black());
+                }
+                index
+            }
+            SignalPixel::Local(index) => {
+                let Ok(index) = usize::try_from(index) else {
+                    return Ok(black());
+                };
+                let current =
+                    &self.renderer.target(self.renderer.plan.target)[self.flat_pixel_index];
+                if index >= current.pixel_count as usize {
+                    return Ok(black());
+                }
+                self.flat_pixel_index - current.pixel_index as usize + index
+            }
+        };
+        self.sample_at_pixel(input, sample_time, index, frame_cache)
+    }
+}
+
+impl GraphSignalSampler<'_> {
+    fn sample_at_pixel(
+        &mut self,
+        input: usize,
+        sample_time: SampleTime,
+        flat_pixel_index: usize,
         frame_cache: Option<usize>,
     ) -> Result<Color, RuntimeError> {
         if sample_time.as_ticks() >= self.duration.as_ticks() {
@@ -987,7 +965,7 @@ impl SignalSampler for GraphSignalSampler<'_> {
             }
             let color = stored
                 .colors
-                .get(self.flat_pixel_index)
+                .get(flat_pixel_index)
                 .copied()
                 .ok_or_else(|| RuntimeError {
                     message: "Signal frame pixel is out of bounds".to_string(),
@@ -999,7 +977,7 @@ impl SignalSampler for GraphSignalSampler<'_> {
             self.renderer,
             node,
             sample_time,
-            self.flat_pixel_index,
+            flat_pixel_index,
             self.cache,
             self.workspace,
         )
@@ -1050,23 +1028,24 @@ fn sample_signal_frame(
                     let params = state
                         .as_ref()
                         .map_or(&operator.params, |(params, _)| params);
-                    match builtin {
-                        BuiltinOperator::Delay => {
+                    let operation = builtin.bind(params)?;
+                    match operation {
+                        NativeOperator::Delay(delay) => {
                             return sample_delay_frame(
                                 renderer,
                                 inputs[0],
-                                params,
+                                delay,
                                 sample_time,
                                 output,
                                 cache,
                                 workspace,
                             );
                         }
-                        BuiltinOperator::Echo => {
+                        NativeOperator::Echo(echo) => {
                             return sample_echo_frame(
                                 renderer,
                                 inputs[0],
-                                params,
+                                echo,
                                 sample_time,
                                 output,
                                 cache,
@@ -1083,25 +1062,13 @@ fn sample_signal_frame(
                         cache,
                         workspace,
                     )?;
-                    match builtin {
-                        BuiltinOperator::Dim => {
-                            let amount = params.float(0)?.clamp(0.0, 1.0);
+                    match operation {
+                        NativeOperator::Unary(op) => {
                             for color in output {
-                                *color = scale_color(*color, amount);
+                                *color = op.apply(*color);
                             }
                         }
-                        BuiltinOperator::Invert => {
-                            for color in output {
-                                *color = invert_color(*color);
-                            }
-                        }
-                        BuiltinOperator::Colorize => {
-                            let tint = params.color(0)?;
-                            for color in output {
-                                *color = scale_color(tint, intensity(*color));
-                            }
-                        }
-                        _ => {
+                        NativeOperator::Binary(op) => {
                             let mut right = workspace
                                 .frame_scratch
                                 .pop()
@@ -1115,22 +1082,14 @@ fn sample_signal_frame(
                                 workspace,
                             );
                             if sampled.is_ok() {
-                                let op = match builtin {
-                                    BuiltinOperator::Max => max_color,
-                                    BuiltinOperator::Add => add_color,
-                                    BuiltinOperator::Multiply => multiply_color,
-                                    BuiltinOperator::IntensityModulate => {
-                                        |a, b| scale_color(a, intensity(b))
-                                    }
-                                    _ => unreachable!(),
-                                };
                                 for (a, b) in output.iter_mut().zip(right.iter()) {
-                                    *a = op(*a, *b);
+                                    *a = op.apply(*a, *b);
                                 }
                             }
                             workspace.frame_scratch.push(right);
                             sampled?;
                         }
+                        NativeOperator::Delay(_) | NativeOperator::Echo(_) => unreachable!(),
                     }
                     Ok(())
                 })();
@@ -1236,19 +1195,6 @@ fn compose_max(target: &mut Color, source: Color) {
     target.red = target.red.max(source.red);
     target.green = target.green.max(source.green);
     target.blue = target.blue.max(source.blue);
-}
-
-#[inline]
-fn powi_nonnegative(mut base: f32, mut exponent: u32) -> f32 {
-    let mut result = 1.0;
-    while exponent != 0 {
-        if exponent & 1 != 0 {
-            result *= base;
-        }
-        base *= base;
-        exponent >>= 1;
-    }
-    result
 }
 
 const fn black() -> Color {
