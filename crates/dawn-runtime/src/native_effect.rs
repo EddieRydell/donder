@@ -1,7 +1,5 @@
 use crate::BuiltinEffect;
-use crate::dsl::{
-    BoundParams, PreparedCurveCrossings, RunContext, RuntimeError, prepared_curve_crossing,
-};
+use crate::dsl::{BoundParams, CurveCrossings, RunContext, RuntimeError};
 use crate::sampling::{hsv, mix_colors, sample_curve, sample_gradient, scale_color};
 use crate::values::{Color, Curve, Gradient, SampleDuration, SampleTime};
 #[cfg(not(feature = "atomic"))]
@@ -30,6 +28,73 @@ pub enum NativeSample {
     },
     MarkPulseChild(MarkPulseChild),
     MarkChaseChild(MarkChaseChild),
+}
+
+/// Fixed child identity with rendering inputs resolved from its lexical
+/// generator environment at the requested time.
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub enum NativeParameterSample {
+    Sample(BuiltinEffect),
+    MarkPulse {
+        #[rkyv(with = crate::wire::Microseconds)]
+        parent_start: SampleTime,
+        #[rkyv(with = crate::wire::Microseconds)]
+        parent_duration: SampleDuration,
+    },
+    MarkChase {
+        mark_index: u32,
+        #[rkyv(with = crate::wire::Microseconds)]
+        parent_start: SampleTime,
+        #[rkyv(with = crate::wire::Microseconds)]
+        parent_duration: SampleDuration,
+    },
+}
+
+impl NativeParameterSample {
+    pub fn resolve(&self, params: &BoundParams) -> Result<NativeSample, RuntimeError> {
+        Ok(match *self {
+            Self::Sample(builtin) => return prepare_sample(builtin, params),
+            Self::MarkPulse {
+                parent_start,
+                parent_duration,
+            } => NativeSample::MarkPulseChild(MarkPulseChild {
+                base: params.color(1)?,
+                accent: params.gradient(2)?,
+                hue: params.curve(3)?,
+                hue_mix: params.float(4)?,
+                section_width_pixels: params.int(7)?,
+                section_edge_fade_pixels: params.float(8)?,
+                parent_start,
+                parent_duration,
+            }),
+            Self::MarkChase {
+                mark_index,
+                parent_start,
+                parent_duration,
+            } => {
+                let gradients = params.array_len(3)?;
+                let positions = params.array_len(10)?;
+                if gradients == 0 || positions == 0 {
+                    return Err(error(
+                        "mark chase requires non-empty gradients and chase_positions",
+                    ));
+                }
+                NativeSample::MarkChaseChild(MarkChaseChild {
+                    base: params.color(1)?,
+                    gradient_mode: parse_gradient_mode(params.enum_name(2)?)?,
+                    gradient: params.gradient_at(3, mark_index as usize % gradients)?,
+                    hue: params.curve(4)?,
+                    hue_mix: params.float(5)?,
+                    pulse_overlap: params.float(8)?,
+                    section_width_pixels: params.int(9)?,
+                    chase_position: params.curve_at(10, mark_index as usize % positions)?,
+                    pulse_shape: params.curve(11)?,
+                    parent_start,
+                    parent_duration,
+                })
+            }
+        })
+    }
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -69,7 +134,7 @@ pub struct Chase {
     gradient_mode: GradientMode,
     pulse_overlap: f32,
     section_width_pixels: i32,
-    chase_position: Arc<PreparedCurveCrossings>,
+    chase_position: CurveCrossings,
     reverse: bool,
     extend_to_start: bool,
     extend_to_end: bool,
@@ -260,12 +325,10 @@ fn sample_chase(
             }
             let hit = geometry.start
                 + (geometry.end - geometry.start)
-                    * prepared_curve_crossing(
-                        &chase.chase_position,
-                        virtual_position,
-                        virtual_position,
-                    )?
-                    .clamp(0.0, 1.0);
+                    * chase
+                        .chase_position
+                        .crossing(virtual_position, virtual_position)?
+                        .clamp(0.0, 1.0);
             let elapsed = context.progress - hit;
             if (0.0..=geometry.duration).contains(&elapsed) {
                 let pulse_progress = elapsed * geometry.duration_scale;
@@ -290,7 +353,9 @@ fn sample_chase(
     };
     let hit = geometry.start
         + (geometry.end - geometry.start)
-            * prepared_curve_crossing(&chase.chase_position, chase_value, chase_value)?
+            * chase
+                .chase_position
+                .crossing(chase_value, chase_value)?
                 .clamp(0.0, 1.0);
     let pulse_progress = (context.progress - hit) / geometry.duration;
     let level = if (0.0..=1.0).contains(&pulse_progress) {

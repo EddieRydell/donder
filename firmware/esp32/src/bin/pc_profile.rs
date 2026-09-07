@@ -90,8 +90,10 @@ fn main() -> ! {
     while attach.elapsed().as_millis() < 3000 {}
 
     println!("DAWN PC BEGIN cpu_mhz=240 core=1 stack_samples=false");
-    for case in
-        0..fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() + workload::MARK_CASES.len()
+    for case in 0..fixtures::NAMES.len()
+        + workload::CHASE_PULSE_CASES.len()
+        + workload::MARK_CASES.len()
+        + fixtures::GENERATOR_NAMES.len()
     {
         let (name, show, golden) = if case < fixtures::NAMES.len() {
             let (program, params) = fixtures::case(case);
@@ -109,7 +111,9 @@ fn main() -> ! {
                 workload::chase_pulse_show(200, layers, program),
                 &fixtures::CHASE_PULSE_GOLDEN[index],
             )
-        } else {
+        } else if case
+            < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() + workload::MARK_CASES.len()
+        {
             let index = case - fixtures::NAMES.len() - workload::CHASE_PULSE_CASES.len();
             let (name, _, _) = workload::MARK_CASES[index];
             (
@@ -120,6 +124,20 @@ fn main() -> ! {
                 )
                 .unwrap(),
                 &fixtures::MARK_GOLDEN[index],
+            )
+        } else {
+            let index = case
+                - fixtures::NAMES.len()
+                - workload::CHASE_PULSE_CASES.len()
+                - workload::MARK_CASES.len();
+            (
+                fixtures::GENERATOR_NAMES[index],
+                dawn_runtime::wire::decode_sequence(
+                    fixtures::GENERATOR_SEQUENCES[index],
+                    Default::default(),
+                )
+                .unwrap(),
+                &fixtures::GENERATOR_GOLDEN[index],
             )
         };
         let mut workspace = show.workspace();

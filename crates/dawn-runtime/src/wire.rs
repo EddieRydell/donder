@@ -10,7 +10,7 @@ use rkyv::{Archive, Archived, Place};
 
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DAWN";
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -157,6 +157,16 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         Ok(())
     };
     reserve(1, size_of::<crate::sequence::SequenceWorkspace>())?;
+    crate::bindings::PreparedParameterEnvironment::validate_all(&signal.parameter_environments)
+        .map_err(|_| bad)?;
+    reserve(
+        1,
+        crate::bindings::ParameterWorkspace::storage_estimate(
+            &signal.parameter_environments,
+            signal.parameter_time_slots(),
+        )
+        .ok_or(LoadError::Limit)?,
+    )?;
     reserve(
         signal.pixel_count,
         usize::from(plan.frame_buffer_count) * size_of::<Color>(),
@@ -314,10 +324,38 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         {
             return Err(bad);
         }
-        if let PreparedEffectImplementation::Dsl { program, .. } = effect.implementation
-            && program as usize >= signal.programs.len()
-        {
-            return Err(bad);
+        match &effect.implementation {
+            PreparedEffectImplementation::Dsl {
+                program,
+                bound_params,
+            } => {
+                if *program as usize >= signal.programs.len() || !bound_params.is_frozen() {
+                    return Err(bad);
+                }
+            }
+            PreparedEffectImplementation::Native { params, .. } => {
+                if params
+                    .as_ref()
+                    .is_some_and(|(_, params)| !params.is_frozen())
+                {
+                    return Err(bad);
+                }
+            }
+            PreparedEffectImplementation::Bound {
+                environment,
+                implementation,
+            } => {
+                if *environment as usize >= signal.parameter_environments.len()
+                    || effect.automation.is_some()
+                {
+                    return Err(bad);
+                }
+                if let crate::signal::BoundEffectImplementation::Dsl(program) = implementation
+                    && *program as usize >= signal.programs.len()
+                {
+                    return Err(bad);
+                }
+            }
         }
         if let Some(automation) = &effect.automation {
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
@@ -376,6 +414,9 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                 if let PreparedOperator::Dsl(program) = operator.implementation
                     && program as usize >= signal.programs.len()
                 {
+                    return Err(bad);
+                }
+                if !operator.params.is_frozen() {
                     return Err(bad);
                 }
                 if !automation.is_empty() {

@@ -113,6 +113,7 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
 #[test]
 fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
     let declarations = [ParamDecl {
+        fixed: false,
         name: Identifier::new("shape".to_string()).expect("valid identifier"),
         ty: Type::Curve,
         default: Some(Value::Curve(Arc::new(Curve { points: Vec::new() }))),
@@ -176,6 +177,7 @@ fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
     let options =
         ["short", "much_longer_option"].map(|value| Identifier::new(value.into()).unwrap());
     let declarations = [ParamDecl {
+        fixed: false,
         name: Identifier::new("mode".into()).unwrap(),
         ty: Type::Enum(options.to_vec()),
         default: Some(Value::Enum(options[0].clone())),
@@ -659,4 +661,72 @@ fn preview_cell_reads_do_not_allocate_or_copy_element_buffers() {
     assert!(fixture.preview_color(1).is_none());
     COUNTING.set(false);
     assert_eq!(ALLOCATIONS.get(), 0);
+}
+
+#[test]
+fn retained_nested_array_results_forward_without_first_or_repeated_sample_allocations() {
+    use dawn_language::dsl::{
+        GeneratorBinding, GeneratorContext, RunContext, TargetValue, VmWorkspace, compile_effects,
+    };
+    use dawn_language::values::{SampleDuration, SampleTime};
+    let generator = compile_effects("effect Parent { void generate() { timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } }").unwrap()
+        .remove(0).generator.unwrap().specialize(&[], &GeneratorContext {
+            start_time: SampleTime::from_ticks(0), duration: SampleDuration::from_ticks(1_000_000),
+            target: Arc::new(TargetValue { groups: Vec::new() }),
+        }, 1).unwrap();
+    let GeneratorBinding::Calculation { index, output } = generator.children[0].params[0].1 else {
+        panic!("live calculation")
+    };
+    let calculation = &generator.calculations[index as usize];
+    assert!(calculation.inputs.is_empty());
+    let child = compile_effects("effect Child { param array<array<float>> values; color sample() { return rgb(values[0][0], values[0][1] * 0.25, values[1][0] * 0.25); } }").unwrap().remove(0).effect;
+    let mut vm = VmWorkspace::for_program(&calculation.program);
+    let mut child_vm = VmWorkspace::for_program(&child.bytecode);
+    let mut results = BoundParams::result_workspace(
+        calculation.output_types.len(),
+        calculation.program.array_capacity,
+        calculation.program.array_width,
+    );
+    let mut child_params = BoundParams::result_workspace(
+        1,
+        calculation.program.array_capacity,
+        calculation.program.array_width,
+    );
+    for tick in [0, 750_000, 250_000, 999_999, 0] {
+        let context = RunContext {
+            progress: tick as f32 / 1_000_000.0,
+            time: SampleDuration::from_ticks(tick),
+            duration: SampleDuration::from_ticks(1_000_000),
+            pixel_index: 0,
+            pixel_count: 1,
+            pixel_fraction: 0.0,
+        };
+        ALLOCATIONS.set(0);
+        COUNTING.set(true);
+        let result = (|| {
+            child_params.clear_results();
+            calculation.program.evaluate_bindings(
+                &BoundParams::default(),
+                &context,
+                &mut vm,
+                &mut results,
+                &calculation.output_types,
+            )?;
+            child_params.copy_parameter(0, &results, usize::from(output), &child.params[0].ty)?;
+            child.sample_bound(&child_params, &context, &mut child_vm)
+        })();
+        COUNTING.set(false);
+        let actual = result.unwrap();
+        assert_eq!(ALLOCATIONS.get(), 0);
+        let expected_params = child
+            .bind_params([(
+                &child.params[0].name,
+                &results.value(usize::from(output)).unwrap(),
+            )])
+            .unwrap();
+        let expected = child
+            .sample_bound(&expected_params, &context, &mut VmWorkspace::default())
+            .unwrap();
+        assert_eq!(actual, expected);
+    }
 }

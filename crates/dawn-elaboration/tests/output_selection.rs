@@ -14,6 +14,60 @@ fn starter() -> DawnProject {
     load_package(&root).unwrap().session.project
 }
 
+#[test]
+fn controller_fragments_retain_nested_generator_parameter_dependencies() {
+    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut sources = dawn_project_io::project_source_texts(&root).unwrap();
+    sources.insert(
+        "effects/mark-impact-burst.effect.dawn".into(),
+        r#"
+        effect MarkImpactBurst {
+            void generate() {
+                timeline.emit Inner { start: 0.0, duration: duration(), target: target, value: progress() };
+            }
+        }
+        effect Inner {
+            param float value;
+            void generate() {
+                timeline.emit Leaf { start: 0.0, duration: duration(), target: target, value: value * 0.5 + progress() * 0.5 };
+            }
+        }
+        effect Leaf {
+            param float value;
+            color sample() { return rgb(value, 0.0, 0.0); }
+        }
+        "#.into(),
+    );
+    let report = dawn_project_io::check_package_with_overrides(&root, &sources);
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let mut project = report.session.unwrap().project;
+    let generator = project
+        .definitions
+        .effects
+        .definitions
+        .keys()
+        .find(|id| id.0.object() == "MarkImpactBurst")
+        .unwrap()
+        .clone();
+    for sequence in project.sequences.values_mut() {
+        sequence.automation_clips.clear();
+        for effect in &mut sequence.effects {
+            effect.definition = dawn_language::effect::EffectRef::Custom(generator.clone());
+            effect.param_overrides.clear();
+        }
+    }
+    let ports = ports(&project);
+    let mut retained = false;
+    for id in project.sequences.keys() {
+        let fragment = compare(&project, id, &ports[..1]);
+        retained |= !fragment.signals.parameter_environments.is_empty();
+        let bytes = dawn_runtime::wire::encode_sequence(&fragment).unwrap();
+        dawn_runtime::wire::decode_sequence(&bytes, dawn_runtime::wire::LoadLimits::default())
+            .unwrap();
+    }
+    assert!(retained);
+}
+
 fn ports(project: &DawnProject) -> Vec<(ControllerId, ControllerPortId)> {
     project.setups[&project.root.setup]
         .controllers

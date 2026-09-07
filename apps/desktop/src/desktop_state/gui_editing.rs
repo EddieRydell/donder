@@ -306,3 +306,170 @@ impl DesktopState {
             })
     }
 }
+
+#[cfg(test)]
+mod fixed_parameter_tests {
+    use super::*;
+    use crate::dto::{
+        DocumentViewId, GuiDocument, SequenceAutomationMapping, SequenceAutomationTarget,
+        SequenceEffectParamValue, SequenceEffectReference, SequenceGuiEdit,
+    };
+    use dawn_language::effect::EffectParamValue;
+
+    #[test]
+    fn fixed_edits_history_detachment_and_persistence_use_canonical_metadata() {
+        let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
+        std::fs::write(root.join("effects/mark-impact-burst.effect.dawn"), "effect MarkImpactBurst { fixed param float level = 0.5; color sample() { return rgb(level, level, level); } } effect LiveLevel { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
+        let state = DesktopState::new(|_| {});
+        state.open_project_path(root.as_str());
+        let mut settings = state.snapshot().settings;
+        settings.autosave_project_edits = false;
+        state.update_app_settings(settings);
+        let initial = state.project_session().unwrap();
+        let sequence = initial
+            .project
+            .sequences
+            .values()
+            .find(|sequence| !sequence.effects.is_empty())
+            .unwrap();
+        let sequence_id = sequence.id.clone();
+        let effect_id = sequence.effects[0].id.0;
+        let module_id = sequence.id.0.module_id().to_string();
+        let request = || GuiDocumentRequest {
+            project_revision: state.snapshot().project_revision,
+            path: sequence_id.0.document().to_string(),
+            view: DocumentViewId::Sequence,
+            object_key: Some(sequence_id.0.object().into()),
+        };
+        let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
+        let reference = |name: &str| SequenceEffectReference::Custom {
+            module_id: module_id.clone(),
+            path: "effects/mark-impact-burst.effect.dawn".into(),
+            effect_name: name.into(),
+        };
+        let result = edit(SequenceGuiEdit::ChangeEffectDefinition {
+            id: effect_id,
+            effect: reference("MarkImpactBurst"),
+        });
+        let GuiDocument::Sequence { document } = result.document else {
+            panic!("definition edit rejected")
+        };
+        let param = &document
+            .effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .unwrap()
+            .params[0];
+        assert!(param.fixed);
+        assert!(!param.supports_automation);
+        let result = edit(SequenceGuiEdit::UpdateEffectParam {
+            id: effect_id,
+            name: "level".into(),
+            value: SequenceEffectParamValue::Float { value: 0.8 },
+        });
+        assert!(matches!(result.document, GuiDocument::Sequence { .. }));
+        let level = dawn_language::dsl::Identifier::new("level".into()).unwrap();
+        let current_level = || {
+            state.project_session().unwrap().project.sequences[&sequence_id]
+                .effects
+                .iter()
+                .find(|effect| effect.id.0 == effect_id)
+                .unwrap()
+                .param_overrides
+                .get(&level)
+                .cloned()
+        };
+        assert_eq!(current_level(), Some(EffectParamValue::Float(0.8)));
+        state.undo_active_edit();
+        assert_eq!(current_level(), None);
+        state.redo_active_edit();
+        assert_eq!(current_level(), Some(EffectParamValue::Float(0.8)));
+        let target = || SequenceAutomationTarget::EffectParam {
+            effect_id,
+            param: "level".into(),
+        };
+        let mapping = || SequenceAutomationMapping::Float { min: 0.0, max: 1.0 };
+        let before = state.project_session().unwrap();
+        let revision = state.snapshot().project_revision;
+        let rejected = edit(SequenceGuiEdit::CreateAndBindAutomationClip {
+            target: target(),
+            mapping: mapping(),
+        });
+        assert!(
+            matches!(rejected.document, GuiDocument::Blocked { reason, .. } if reason.contains("fixed"))
+        );
+        assert_eq!(state.snapshot().project_revision, revision);
+        assert!(Arc::ptr_eq(&before, &state.project_session().unwrap()));
+        assert!(matches!(
+            edit(SequenceGuiEdit::ChangeEffectDefinition {
+                id: effect_id,
+                effect: reference("LiveLevel")
+            })
+            .document,
+            GuiDocument::Sequence { .. }
+        ));
+        assert!(matches!(
+            edit(SequenceGuiEdit::CreateAndBindAutomationClip {
+                target: target(),
+                mapping: mapping()
+            })
+            .document,
+            GuiDocument::Sequence { .. }
+        ));
+        let clip_id = state.project_session().unwrap().project.sequences[&sequence_id]
+            .automation_clips
+            .iter()
+            .find(|clip| {
+                clip.bindings.iter().any(|binding| {
+                    binding
+                        .effect_param()
+                        .is_some_and(|(id, name)| id.0 == effect_id && name == &level)
+                })
+            })
+            .unwrap()
+            .id
+            .0;
+        assert!(matches!(
+            edit(SequenceGuiEdit::ChangeEffectDefinition {
+                id: effect_id,
+                effect: reference("MarkImpactBurst")
+            })
+            .document,
+            GuiDocument::Sequence { .. }
+        ));
+        let detached = state.project_session().unwrap();
+        let clip = detached.project.sequences[&sequence_id]
+            .automation_clips
+            .iter()
+            .find(|clip| clip.id.0 == clip_id)
+            .unwrap();
+        assert!(clip.bindings.is_empty());
+        assert_eq!(clip.detached_bindings.len(), 1);
+        let rejected = edit(SequenceGuiEdit::RebindDetachedAutomation {
+            clip_id,
+            detached_index: 0,
+            target: target(),
+            mapping: mapping(),
+        });
+        assert!(
+            matches!(rejected.document, GuiDocument::Blocked { reason, .. } if reason.contains("fixed"))
+        );
+        assert!(Arc::ptr_eq(&detached, &state.project_session().unwrap()));
+        state.undo_active_edit();
+        assert_eq!(
+            state.project_session().unwrap().project.sequences[&sequence_id]
+                .automation_clips
+                .iter()
+                .find(|clip| clip.id.0 == clip_id)
+                .unwrap()
+                .bindings
+                .len(),
+            1
+        );
+        state.redo_active_edit();
+        let final_session = state.project_session().unwrap();
+        dawn_project_io::save_project(&final_session).unwrap();
+        let reloaded = dawn_project_io::load_package(&root).unwrap().session;
+        assert_eq!(reloaded.project, final_session.project);
+    }
+}

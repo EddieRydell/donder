@@ -94,6 +94,39 @@ pub enum Value {
 }
 
 impl Type {
+    pub fn accepts(&self, actual: &Self) -> bool {
+        self == actual
+            || matches!((self, actual), (Self::Float, Self::Int))
+            || match (self, actual) {
+                (Self::Enum(options), Self::Enum(values)) => {
+                    values.iter().all(|value| options.contains(value))
+                }
+                (Self::Array(expected), Self::Array(actual)) => expected.accepts(actual),
+                _ => false,
+            }
+    }
+
+    pub fn accepts_value(&self, value: &Value) -> bool {
+        match (self, value) {
+            (Self::Void, Value::Void)
+            | (Self::Int, Value::Int(_))
+            | (Self::Float, Value::Float(_) | Value::Int(_))
+            | (Self::Bool, Value::Bool(_))
+            | (Self::Color, Value::Color(_))
+            | (Self::Marks, Value::Marks(_))
+            | (Self::Target, Value::Target(_))
+            | (Self::TargetItems, Value::TargetItems(_))
+            | (Self::TargetItem, Value::TargetItem(_))
+            | (Self::Curve, Value::Curve(_))
+            | (Self::Gradient, Value::Gradient(_)) => true,
+            (Self::Enum(options), Value::Enum(value)) => options.contains(value),
+            (Self::Array(ty), Value::Array(values)) => {
+                values.iter().all(|value| ty.accepts_value(value))
+            }
+            _ => false,
+        }
+    }
+
     pub fn array(item_type: Self) -> Self {
         Self::Array(Box::new(item_type))
     }

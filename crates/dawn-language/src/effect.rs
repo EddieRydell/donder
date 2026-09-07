@@ -97,6 +97,7 @@ pub enum GradientSource {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {
+    pub generator: Option<crate::dsl::GeneratorProgram>,
     /// Statically linked generator child targets, in the same order as the
     /// compiled effect's emitted-child slots.
     pub generated_effect_targets: Box<[EffectRef]>,
@@ -119,6 +120,7 @@ impl EffectDefinition {
     pub fn custom(id: EffectDefinitionId, compilation: crate::dsl::EffectCompilation) -> Self {
         let compiled = compilation.effect;
         Self {
+            generator: compilation.generator,
             generated_effect_targets: Box::new([]),
             emitted_references: compilation.emitted_references,
             id: EffectRef::Custom(id),
@@ -172,8 +174,14 @@ fn identifier(name: &str) -> crate::dsl::Identifier {
         .unwrap_or_else(|_| unreachable!("static identifier is valid"))
 }
 
+fn fixed(mut param: ParamDecl) -> ParamDecl {
+    param.fixed = true;
+    param
+}
+
 fn required(name: &str, ty: Type) -> ParamDecl {
     ParamDecl {
+        fixed: false,
         name: identifier(name),
         ty,
         default: None,
@@ -181,6 +189,7 @@ fn required(name: &str, ty: Type) -> ParamDecl {
 }
 fn optional(name: &str, ty: Type, default: Value) -> ParamDecl {
     ParamDecl {
+        fixed: false,
         name: identifier(name),
         ty,
         default: Some(default),
@@ -220,6 +229,7 @@ static BUILTIN_EFFECT_DEFINITIONS: LazyLock<[EffectDefinition; 5]> = LazyLock::n
         ]
     };
     let make = |builtin, source_name: &str, display_name: &str, kind, params| EffectDefinition {
+        generator: None,
         generated_effect_targets: Box::new([]),
         emitted_references: Box::new([]),
         id: EffectRef::Builtin(builtin),
@@ -258,17 +268,17 @@ static BUILTIN_EFFECT_DEFINITIONS: LazyLock<[EffectDefinition; 5]> = LazyLock::n
             "Mark Pulse",
             EffectKind::Generator,
             vec![
-                required("beats", Type::Marks),
+                fixed(required("beats", Type::Marks)),
                 optional("base", Type::Color, black()),
                 required("accent", Type::Gradient),
                 required("hue", Type::Curve),
                 optional("hue_mix", Type::Float, Value::Float(0.35)),
-                optional("offset_seconds", Type::Float, Value::Float(0.0)),
-                optional("decay_seconds", Type::Float, Value::Float(0.18)),
-                optional("section_width_pixels", Type::Int, Value::Int(5)),
+                fixed(optional("offset_seconds", Type::Float, Value::Float(0.0))),
+                fixed(optional("decay_seconds", Type::Float, Value::Float(0.18))),
+                fixed(optional("section_width_pixels", Type::Int, Value::Int(5))),
                 optional("section_edge_fade_pixels", Type::Float, Value::Float(0.0)),
-                optional("sections_per_mark", Type::Int, Value::Int(3)),
-                optional("seed", Type::Float, Value::Float(0.0)),
+                fixed(optional("sections_per_mark", Type::Int, Value::Int(3))),
+                fixed(optional("seed", Type::Float, Value::Float(0.0))),
             ],
         ),
         make(
@@ -277,7 +287,7 @@ static BUILTIN_EFFECT_DEFINITIONS: LazyLock<[EffectDefinition; 5]> = LazyLock::n
             "Mark Chase",
             EffectKind::Generator,
             vec![
-                required("beats", Type::Marks),
+                fixed(required("beats", Type::Marks)),
                 optional("base", Type::Color, black()),
                 optional(
                     "gradient_mode",
@@ -287,8 +297,8 @@ static BUILTIN_EFFECT_DEFINITIONS: LazyLock<[EffectDefinition; 5]> = LazyLock::n
                 required("gradients", Type::Array(Box::new(Type::Gradient))),
                 required("hue", Type::Curve),
                 optional("hue_mix", Type::Float, Value::Float(0.35)),
-                optional("offset_seconds", Type::Float, Value::Float(0.0)),
-                optional("chase_seconds", Type::Float, Value::Float(0.5)),
+                fixed(optional("offset_seconds", Type::Float, Value::Float(0.0))),
+                fixed(optional("chase_seconds", Type::Float, Value::Float(0.5))),
                 optional("pulse_overlap", Type::Float, Value::Float(8.0)),
                 optional("section_width_pixels", Type::Int, Value::Int(5)),
                 required("chase_positions", Type::Array(Box::new(Type::Curve))),

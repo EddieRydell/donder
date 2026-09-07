@@ -23,7 +23,7 @@ pub fn bind_cached(
 
 use dawn_language::dsl::{GeneratorContext, TargetItemValue, TargetPixelValue};
 use dawn_language::values::{
-    Color, Curve, Gradient, Marks, SampleDuration, SampleTime, sample_duration_from_seconds_f32,
+    Marks, SampleDuration, SampleTime, sample_duration_from_seconds_f32,
     sample_duration_seconds_f32, sample_time_with_seconds_offset,
 };
 use dawn_runtime::sampling::deterministic_random;
@@ -48,34 +48,30 @@ pub struct NativeGeneratedEffect {
 }
 
 #[derive(Clone, Debug)]
+pub struct NativeGeneratedStructure {
+    pub start_time: SampleTime,
+    pub duration: SampleDuration,
+    pub target: Arc<TargetItemValue>,
+    pub sample: NativeParameterSample,
+}
+
+#[derive(Clone, Debug)]
 pub struct MarkPulse {
+    params: BoundParams,
     beats: Arc<Marks>,
-    base: Color,
-    accent: Arc<Gradient>,
-    hue: Arc<Curve>,
-    hue_mix: f32,
     offset_seconds: f32,
     decay: SampleDuration,
     section_width_pixels: i32,
-    section_edge_fade_pixels: f32,
     sections_per_mark: i32,
     seed: f32,
 }
 
 #[derive(Clone, Debug)]
 pub struct MarkChase {
+    params: BoundParams,
     beats: Arc<Marks>,
-    base: Color,
-    gradient_mode: GradientMode,
-    gradients: Vec<Arc<Gradient>>,
-    hue: Arc<Curve>,
-    hue_mix: f32,
     offset_seconds: f32,
     chase_duration: SampleDuration,
-    pulse_overlap: f32,
-    section_width_pixels: i32,
-    chase_positions: Vec<Arc<Curve>>,
-    pulse_shape: Arc<Curve>,
 }
 
 pub fn bind_prepared(
@@ -89,30 +85,18 @@ pub fn bind_prepared(
         }
         BuiltinEffect::MarkPulse => BoundNativeEffect::MarkPulse(MarkPulse {
             beats: params.marks(0)?,
-            base: params.color(1)?,
-            accent: params.gradient(2)?,
-            hue: params.curve(3)?,
-            hue_mix: params.float(4)?,
             offset_seconds: params.float(5)?,
             decay: positive_duration(params.float(6)?, "decay_seconds")?,
             section_width_pixels: params.int(7)?,
-            section_edge_fade_pixels: params.float(8)?,
             sections_per_mark: params.int(9)?,
             seed: params.float(10)?,
+            params,
         }),
         BuiltinEffect::MarkChase => BoundNativeEffect::MarkChase(MarkChase {
             beats: params.marks(0)?,
-            base: params.color(1)?,
-            gradient_mode: parse_gradient_mode(params.enum_name(2)?)?,
-            gradients: gradient_array(params.array(3)?, "gradients")?,
-            hue: params.curve(4)?,
-            hue_mix: params.float(5)?,
             offset_seconds: params.float(6)?,
             chase_duration: positive_duration(params.float(7)?, "chase_seconds")?,
-            pulse_overlap: params.float(8)?,
-            section_width_pixels: params.int(9)?,
-            chase_positions: curve_array(params.array(10)?, "chase_positions")?,
-            pulse_shape: params.curve(11)?,
+            params,
         }),
     })
 }
@@ -122,6 +106,28 @@ impl BoundNativeEffect {
         &self,
         context: &GeneratorContext,
     ) -> Result<Vec<NativeGeneratedEffect>, RuntimeError> {
+        let params = match self {
+            Self::MarkPulse(value) => &value.params,
+            Self::MarkChase(value) => &value.params,
+            Self::Sample { .. } => return Err(error("sample effect cannot generate children")),
+        };
+        self.generate_structure(context)?
+            .into_iter()
+            .map(|child| {
+                Ok(NativeGeneratedEffect {
+                    start_time: child.start_time,
+                    duration: child.duration,
+                    target: child.target,
+                    sample: child.sample.resolve(params)?,
+                })
+            })
+            .collect()
+    }
+
+    pub fn generate_structure(
+        &self,
+        context: &GeneratorContext,
+    ) -> Result<Vec<NativeGeneratedStructure>, RuntimeError> {
         match self {
             Self::MarkPulse(value) => value.generate(context),
             Self::MarkChase(value) => value.generate(context),
@@ -134,7 +140,7 @@ impl MarkPulse {
     fn generate(
         &self,
         context: &GeneratorContext,
-    ) -> Result<Vec<NativeGeneratedEffect>, RuntimeError> {
+    ) -> Result<Vec<NativeGeneratedStructure>, RuntimeError> {
         let width = self.section_width_pixels.max(1);
         let mut sections: Vec<Vec<TargetPixelValue>> = Vec::new();
         for group in &context.target.groups {
@@ -169,22 +175,16 @@ impl MarkPulse {
                 let start_time =
                     sample_time_with_seconds_offset(context.start_time, hit + self.offset_seconds)
                         .map_err(|_| error("generated effect start is out of range"))?;
-                generated.push(NativeGeneratedEffect {
+                generated.push(NativeGeneratedStructure {
                     start_time,
                     duration: self.decay,
                     target: Arc::new(TargetItemValue {
                         pixels: Arc::from(sections[choice].clone()),
                     }),
-                    sample: NativeSample::MarkPulseChild(MarkPulseChild {
-                        base: self.base,
-                        accent: Arc::clone(&self.accent),
-                        hue: Arc::clone(&self.hue),
-                        hue_mix: self.hue_mix,
-                        section_width_pixels: self.section_width_pixels,
-                        section_edge_fade_pixels: self.section_edge_fade_pixels,
+                    sample: NativeParameterSample::MarkPulse {
                         parent_start: context.start_time,
                         parent_duration: context.duration,
-                    }),
+                    },
                 });
             }
         }
@@ -196,11 +196,15 @@ impl MarkChase {
     fn generate(
         &self,
         context: &GeneratorContext,
-    ) -> Result<Vec<NativeGeneratedEffect>, RuntimeError> {
-        if self.gradients.is_empty() || self.chase_positions.is_empty() {
-            return Err(error(
-                "mark chase requires non-empty gradients and chase_positions",
-            ));
+    ) -> Result<Vec<NativeGeneratedStructure>, RuntimeError> {
+        for index in [3, 10] {
+            if !matches!(self.params.value(index)?, Value::Void)
+                && self.params.array_len(index)? == 0
+            {
+                return Err(error(
+                    "mark chase requires non-empty gradients and chase_positions",
+                ));
+            }
         }
         let target = if context.target.groups.len() == 1 {
             Arc::clone(&context.target.groups[0])
@@ -225,25 +229,15 @@ impl MarkChase {
                 let start_time =
                     sample_time_with_seconds_offset(context.start_time, hit + self.offset_seconds)
                         .map_err(|_| error("generated effect start is out of range"))?;
-                Ok(NativeGeneratedEffect {
+                Ok(NativeGeneratedStructure {
                     start_time,
                     duration: self.chase_duration,
                     target: Arc::clone(&target),
-                    sample: NativeSample::MarkChaseChild(MarkChaseChild {
-                        base: self.base,
-                        gradient_mode: self.gradient_mode,
-                        gradient: Arc::clone(&self.gradients[index % self.gradients.len()]),
-                        hue: Arc::clone(&self.hue),
-                        hue_mix: self.hue_mix,
-                        pulse_overlap: self.pulse_overlap,
-                        section_width_pixels: self.section_width_pixels,
-                        chase_position: Arc::clone(
-                            &self.chase_positions[index % self.chase_positions.len()],
-                        ),
-                        pulse_shape: Arc::clone(&self.pulse_shape),
+                    sample: NativeParameterSample::MarkChase {
+                        mark_index: u32::try_from(index).map_err(|_| error("too many marks"))?,
                         parent_start: context.start_time,
                         parent_duration: context.duration,
-                    }),
+                    },
                 })
             })
             .collect::<Result<Vec<_>, _>>()
@@ -257,25 +251,6 @@ fn positive_duration(seconds: f32, name: &str) -> Result<SampleDuration, Runtime
         return Err(error(format!("native parameter `{name}` must be positive")));
     }
     Ok(duration)
-}
-
-fn gradient_array(values: &[Value], name: &str) -> Result<Vec<Arc<Gradient>>, RuntimeError> {
-    values
-        .iter()
-        .map(|value| match value {
-            Value::Gradient(value) => Ok(Arc::clone(value)),
-            _ => Err(error(format!("native parameter `{name}` has wrong type"))),
-        })
-        .collect()
-}
-fn curve_array(values: &[Value], name: &str) -> Result<Vec<Arc<Curve>>, RuntimeError> {
-    values
-        .iter()
-        .map(|value| match value {
-            Value::Curve(value) => Ok(Arc::clone(value)),
-            _ => Err(error(format!("native parameter `{name}` has wrong type"))),
-        })
-        .collect()
 }
 
 fn error(message: impl Into<String>) -> RuntimeError {

@@ -4,9 +4,17 @@ mod bytecode;
 mod checked;
 mod compiler;
 mod diagnostic;
+mod emission;
 mod optimize;
 mod parser;
+mod specialization;
+mod staging;
+pub use specialization::{
+    GeneratorBinding, GeneratorCalculation, GeneratorInput, GeneratorProgram, SpecializedChild,
+    SpecializedGenerator,
+};
 mod typecheck;
+pub use emission::validate_emission;
 
 use crate::imports::ImportDeclaration;
 use compiler::{compile_checked_effects, compile_checked_operators};
@@ -49,19 +57,37 @@ pub struct CompiledEffectDocument {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectCompilation {
+    pub generator: Option<GeneratorProgram>,
     pub effect: CompiledEffect,
     pub emitted_references: Box<[EmittedReference]>,
 }
 
 #[derive(Clone, Debug)]
 pub struct EmittedReference {
+    pub arguments: Vec<EmittedArgument>,
     pub reference: crate::imports::SourceReference,
     pub span: lexer::TextSpan,
 }
 
 impl PartialEq for EmittedReference {
     fn eq(&self, other: &Self) -> bool {
-        self.reference == other.reference
+        self.reference == other.reference && self.arguments == other.arguments
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EmittedArgument {
+    pub name: Identifier,
+    pub ty: Type,
+    pub live_dependency: Option<Identifier>,
+    pub span: lexer::TextSpan,
+}
+
+impl PartialEq for EmittedArgument {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.ty == other.ty
+            && self.live_dependency == other.live_dependency
     }
 }
 
@@ -168,6 +194,7 @@ fn hash_bytecode<H: Hasher>(bytecode: &BytecodeProgram, state: &mut H) {
 fn hash_param_decls<H: Hasher>(params: &[ParamDecl], state: &mut H) {
     params.len().hash(state);
     for param in params {
+        param.fixed.hash(state);
         param.name.hash(state);
         param.ty.hash(state);
         hash_optional_value(&param.default, state);

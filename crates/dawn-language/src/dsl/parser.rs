@@ -190,7 +190,9 @@ impl<'source> Parser<'source> {
                     self.error_here("operator inputs must have type `Signal`");
                 }
                 inputs.push(OperatorInputDecl { name });
-            } else if self.consume_keyword(Keyword::Param) {
+            } else if self.at(TokenKind::Keyword(Keyword::Param))
+                || self.at(TokenKind::Keyword(Keyword::Fixed))
+            {
                 if let Some(param) = self.parse_param() {
                     params.push(param);
                 }
@@ -232,7 +234,9 @@ impl<'source> Parser<'source> {
 
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
             let start_cursor = self.cursor;
-            if self.consume_keyword(Keyword::Param) {
+            if self.at(TokenKind::Keyword(Keyword::Param))
+                || self.at(TokenKind::Keyword(Keyword::Fixed))
+            {
                 if let Some(param) = self.parse_param() {
                     params.push(param);
                 }
@@ -275,6 +279,11 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_param(&mut self) -> Option<ParamDecl> {
+        let fixed = self.consume_keyword(Keyword::Fixed);
+        if !self.consume_keyword(Keyword::Param) {
+            self.error_here("expected `param` after `fixed`");
+            return None;
+        }
         if self.consume_keyword(Keyword::Enum) {
             let name = self.parse_identifier()?;
             let ty = self.parse_enum_options()?;
@@ -285,7 +294,12 @@ impl<'source> Parser<'source> {
                 None
             };
             self.expect(TokenKind::Semicolon, "expected `;` after param");
-            return Some(ParamDecl { name, ty, default });
+            return Some(ParamDecl {
+                name,
+                ty,
+                default,
+                fixed,
+            });
         }
 
         let ty = self.parse_type()?;
@@ -297,7 +311,12 @@ impl<'source> Parser<'source> {
             None
         };
         self.expect(TokenKind::Semicolon, "expected `;` after param");
-        Some(ParamDecl { name, ty, default })
+        Some(ParamDecl {
+            name,
+            ty,
+            default,
+            fixed,
+        })
     }
 
     fn parse_function(&mut self) -> Option<FunctionDecl> {
@@ -432,6 +451,7 @@ impl<'source> Parser<'source> {
         let start = self.current().span.start;
         let reference = self.parse_generated_effect_ref()?;
         let effect = super::EmittedReference {
+            arguments: Vec::new(),
             reference,
             span: TextSpan {
                 start,

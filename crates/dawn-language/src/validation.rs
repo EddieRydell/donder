@@ -536,7 +536,7 @@ fn validate_param_references(
     }
 }
 
-fn automation_target_type<'a>(
+pub fn automation_target_type<'a>(
     project: &'a DawnProject,
     sequence: &'a Sequence,
     target: &AutomationTarget,
@@ -558,8 +558,14 @@ fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
-                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
+                .and_then(|declaration| {
+                    if declaration.fixed {
+                        Err(sequence_error(format!("fixed parameter `{}` requires preparation and cannot receive automation", declaration.name.as_str())))
+                    } else {
+                        Ok(&declaration.ty)
+                    }
+                })
         }
         AutomationTarget::CompositionNodeParam { node_id, param } => {
             let operator = sequence
@@ -582,8 +588,14 @@ fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
-                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
+                .and_then(|declaration| {
+                    if declaration.fixed {
+                        Err(sequence_error(format!("fixed parameter `{}` requires preparation and cannot receive automation", declaration.name.as_str())))
+                    } else {
+                        Ok(&declaration.ty)
+                    }
+                })
         }
     }
 }

@@ -36,6 +36,7 @@ impl PreparedEffect {
         programs: &[P],
         sample_time: SampleTime,
         automation: Option<&mut EffectAutomationWorkspace>,
+        bound: Option<&BoundParams>,
         run: impl FnOnce(&mut EffectSampler<'_>) -> Result<R, RuntimeError>,
     ) -> Result<R, EvaluationError> {
         if self.automation.is_some() && automation.is_none() {
@@ -45,6 +46,18 @@ impl PreparedEffect {
         // The pixel loop always sees a plain borrow, never an ownership branch.
         let prepared_native;
         let implementation = match &self.implementation {
+            PreparedEffectImplementation::Bound { implementation, .. } => {
+                let params = bound.ok_or(EvaluationError::InvalidWorkspace)?;
+                match implementation {
+                    crate::signal::BoundEffectImplementation::Dsl(program) => {
+                        SampleImplementation::Dsl(programs[*program as usize].borrow(), params)
+                    }
+                    crate::signal::BoundEffectImplementation::Native(recipe) => {
+                        prepared_native = recipe.resolve(params)?;
+                        SampleImplementation::Native(&prepared_native)
+                    }
+                }
+            }
             PreparedEffectImplementation::Dsl {
                 program,
                 bound_params,
@@ -102,7 +115,8 @@ impl PreparedEffect {
                 bound_params,
                 &automation.bindings,
             )),
-            PreparedEffectImplementation::Native { params: None, .. } => None,
+            PreparedEffectImplementation::Native { params: None, .. }
+            | PreparedEffectImplementation::Bound { .. } => None,
         };
         Some(EffectAutomationWorkspace {
             params,
@@ -311,7 +325,17 @@ fn sample_layer_frame(
             .automation
             .as_ref()
             .map(|automation| &mut workspace.effect_automation[automation.workspace_slot as usize]);
-        effect.with_sampler(&renderer.programs, sample_time, state, |sampler| {
+        let bound = match effect.implementation {
+            PreparedEffectImplementation::Bound { environment, .. } => {
+                Some(workspace.parameters.resolve(
+                    &renderer.parameter_environments,
+                    environment,
+                    sample_time,
+                )?)
+            }
+            _ => None,
+        };
+        effect.with_sampler(&renderer.programs, sample_time, state, bound, |sampler| {
             let uniform = sampler.uniform();
             let target = renderer.target(effect.target);
             if uniform {
@@ -736,8 +760,8 @@ fn sample_layer_pixel(
                 .effect_vm_sample
                 .filter(|(sample, ..)| sample.index == *effect_index && sample.time == sample_time);
             if let Some((_, _, color)) = cached
-                && let PreparedEffectImplementation::Dsl { program, .. } = &effect.implementation
-                && !renderer.programs[*program as usize].uses_pixel_context
+                && let Some(program) = effect.implementation.dsl_program()
+                && !renderer.programs[program as usize].uses_pixel_context
             {
                 compose_max(&mut rendered, color);
                 continue;
@@ -752,17 +776,28 @@ fn sample_layer_pixel(
             let state = effect.automation.as_ref().map(|automation| {
                 &mut workspace.effect_automation[automation.workspace_slot as usize]
             });
-            let color = effect.with_sampler(&renderer.programs, sample_time, state, |sampler| {
-                sampler.context.progress = progress;
-                sampler.context.time = local_time;
-                sampler.reuse_uniform = reuse_uniform;
-                sampler.sample(
-                    effect_pixel.pixel_index(),
-                    effect_pixel.pixel_count(),
-                    effect_pixel.pixel_fraction,
-                    &mut workspace.effect_vm,
-                )
-            })?;
+            let bound = match effect.implementation {
+                PreparedEffectImplementation::Bound { environment, .. } => {
+                    Some(workspace.parameters.resolve(
+                        &renderer.parameter_environments,
+                        environment,
+                        sample_time,
+                    )?)
+                }
+                _ => None,
+            };
+            let color =
+                effect.with_sampler(&renderer.programs, sample_time, state, bound, |sampler| {
+                    sampler.context.progress = progress;
+                    sampler.context.time = local_time;
+                    sampler.reuse_uniform = reuse_uniform;
+                    sampler.sample(
+                        effect_pixel.pixel_index(),
+                        effect_pixel.pixel_count(),
+                        effect_pixel.pixel_fraction,
+                        &mut workspace.effect_vm,
+                    )
+                })?;
             workspace.effect_vm_sample = Some((
                 CachedVmSample {
                     index: *effect_index,

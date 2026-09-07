@@ -104,6 +104,7 @@ pub fn mark_show(
         .into_iter()
         .enumerate()
         .map(|(index, (ty, value))| ParamDecl {
+            fixed: false,
             name: Identifier::new(alloc::format!("p{index}")).unwrap(),
             ty,
             default: Some(value),

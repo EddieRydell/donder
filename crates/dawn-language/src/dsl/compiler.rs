@@ -26,6 +26,33 @@ pub(crate) fn compile_checked_operators(
     module.operators.into_iter().map(compile_operator).collect()
 }
 
+pub(super) fn compile_value(
+    params: &[super::ParamDecl],
+    mut statements: Vec<CheckedStmt>,
+    result: CheckedExpr,
+) -> Result<BytecodeProgram, super::Diagnostic> {
+    statements.push(CheckedStmt::Return(result));
+    FunctionCompiler::new(params, EffectKind::Generator).compile(CheckedBlock { statements })
+}
+
+pub(super) fn compile_emission(
+    effect: super::EmittedReference,
+    fields: Vec<(Identifier, CheckedExpr)>,
+) -> Result<CompiledEffect, super::Diagnostic> {
+    let mut compiler = FunctionCompiler::new(&[], EffectKind::Generator);
+    let bytecode = compiler.compile(CheckedBlock {
+        statements: vec![CheckedStmt::Emit { effect, fields }],
+    })?;
+    Ok(CompiledEffect {
+        name: static_identifier("prepared_emission"),
+        params: Vec::new(),
+        kind: EffectKind::Generator,
+        bytecode,
+        emit_fields: compiler.emit_fields.into_boxed_slice(),
+        generated_effect_count: 1,
+    })
+}
+
 fn compile_effect(
     effect: CheckedEffectDecl,
 ) -> Result<super::EffectCompilation, super::Diagnostic> {
@@ -35,8 +62,16 @@ fn compile_effect(
         EffectKind::Sample
     };
     let mut compiler = FunctionCompiler::new(&effect.params, kind);
+    let generator_body = (kind == EffectKind::Generator).then(|| effect.body.clone());
     let bytecode = compiler.compile(effect.body)?;
     Ok(super::EffectCompilation {
+        generator: generator_body.map(|body| {
+            super::GeneratorProgram::new(
+                effect.params.clone(),
+                body,
+                compiler.generated_effects.clone(),
+            )
+        }),
         effect: CompiledEffect {
             name: effect.name,
             params: effect.params,

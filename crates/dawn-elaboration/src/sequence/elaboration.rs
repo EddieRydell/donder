@@ -70,6 +70,7 @@ pub(crate) fn prepare_validated_sequence(
     let mut generated_child_count = 0usize;
     let mut bind_cache = DslBindCache::default();
     let mut sample_programs = IndexMap::new();
+    let mut environments = Vec::new();
     let mut target_cache = PreparedTargetCache::default();
     let layers = sequence
         .layers
@@ -93,6 +94,7 @@ pub(crate) fn prepare_validated_sequence(
         let first_prepared_effect = effects.len();
         prepare_effect_inst(
             PrepareEffectContext {
+                environments: &mut environments,
                 project,
                 sequence,
                 elements: &elements,
@@ -161,7 +163,11 @@ pub(crate) fn prepare_validated_sequence(
             })
         })
         .collect::<Result<Box<[_]>, RenderError>>()?;
+    let mut environments = environments.into_boxed_slice();
+    super::effects::retained::compact_environments(&mut environments, &mut effects)?;
+    dawn_runtime::bindings::PreparedParameterEnvironment::validate_all(&environments)?;
     Ok(PreparedSignalGraph {
+        parameter_environments: environments,
         workspace_key: NEXT_SEQUENCE_ID.fetch_add(1, Ordering::Relaxed),
         frame_rate,
         frame_count: timing.frame_count,

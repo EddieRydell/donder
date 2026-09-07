@@ -6,6 +6,8 @@ use dawn_runtime::dsl::bytecode::Instruction;
 #[allow(dead_code)]
 #[path = "../../crates/dawn-language/benches/fixtures/mod.rs"]
 mod fixtures;
+#[path = "src/generator_workload.rs"]
+mod generator_workload;
 #[path = "src/mark_workload.rs"]
 mod mark_workload;
 #[path = "src/workload.rs"]
@@ -22,11 +24,14 @@ fn main() {
     println!("cargo:rerun-if-changed=../../examples/starter/effects");
     println!("cargo:rerun-if-changed=src/workload.rs");
     println!("cargo:rerun-if-changed=src/mark_workload.rs");
+    println!("cargo:rerun-if-changed=src/generator_workload.rs");
     println!(
         "cargo:rerun-if-changed=../../crates/dawn-language/tests/fixtures/array-lifetimes.effect.dawn"
     );
     let mut generated = String::from(
-        "use alloc::{boxed::Box, vec, rc::Rc as Arc};\n\
+        "use alloc::{boxed::Box, vec};\n\
+         #[cfg(not(feature = \"i2s-output\"))] use alloc::rc::Rc as Arc;\n\
+         #[cfg(feature = \"i2s-output\")] use alloc::sync::Arc;\n\
          use dawn_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};\n\
          use dawn_runtime::dsl::bytecode::*;\n\
          use dawn_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
@@ -95,7 +100,8 @@ fn main() {
         for param in &effect.params {
             writeln!(
                 generated,
-                "ParamDecl {{ name: Identifier::new({:?}.into()).unwrap(), ty: {}, default: {} }},",
+                "ParamDecl {{ fixed: {}, name: Identifier::new({:?}.into()).unwrap(), ty: {}, default: {} }},",
+                param.fixed,
                 param.name.as_str(),
                 type_source(&param.ty),
                 param
@@ -388,6 +394,48 @@ fn main() {
         .unwrap();
     }
     writeln!(generated, "];").unwrap();
+    let generator_golden = generator_workload::CASES.map(|(case, name)| {
+        let show = generator_workload::show(200, case, true, true);
+        let reference = generator_workload::show(200, case, false, true);
+        let golden = export_fixture(name, &show);
+        let mut workspace = reference.workspace();
+        let mut output = [vec![0; 600]];
+        for (frame, expected) in golden.iter().enumerate() {
+            reference
+                .evaluate(workload::time(frame), &mut output, &mut workspace)
+                .unwrap();
+            assert_eq!(workload::checksum(&output[0]), *expected, "{name}/{frame}");
+        }
+        golden
+    });
+    writeln!(
+        generated,
+        "#[allow(dead_code)] pub const GENERATOR_GOLDEN: [[u32; {}]; {}] = {generator_golden:?};",
+        workload::FRAMES,
+        generator_workload::CASES.len()
+    )
+    .unwrap();
+    let generator_names = generator_workload::CASES.map(|(_, name)| name);
+    writeln!(
+        generated,
+        "#[allow(dead_code)] pub const GENERATOR_NAMES: [&str; {}] = {generator_names:?};",
+        generator_names.len()
+    )
+    .unwrap();
+    writeln!(
+        generated,
+        "#[allow(dead_code)] pub const GENERATOR_SEQUENCES: [&[u8]; {}] = [",
+        generator_names.len()
+    )
+    .unwrap();
+    for name in generator_names {
+        writeln!(
+            generated,
+            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.dawnseq\")),"
+        )
+        .unwrap();
+    }
+    writeln!(generated, "];").unwrap();
     fs::write(
         PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("fixtures.rs"),
         generated,
@@ -507,4 +555,5 @@ fn instruction_source(instruction: &Instruction) -> String {
     source
         .replace("read: ", "read: ContextRead::")
         .replace("member: ", "member: TargetMember::")
+        .replace("pixel: ", "pixel: SignalPixel::")
 }

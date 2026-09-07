@@ -36,8 +36,8 @@ effect Spin {
 }
 
 effect MarkPulse {
-  param marks beats; param color base=#000000; param gradient accent; param curve hue; param float hue_mix=0.35; param float offset_seconds=0.0; param float decay_seconds=0.18;
-  param int section_width_pixels=5; param float section_edge_fade_pixels=0.0; param int sections_per_mark=3; param float seed=0.0;
+  fixed param marks beats; param color base=#000000; param gradient accent; param curve hue; param float hue_mix=0.35; fixed param float offset_seconds=0.0; fixed param float decay_seconds=0.18;
+  fixed param int section_width_pixels=5; param float section_edge_fade_pixels=0.0; fixed param int sections_per_mark=3; fixed param float seed=0.0;
   void generate(){TargetItems items=sections(target,section_width_pixels);int section_count=count(items);if(section_count>0){for(int mark=0;mark<mark_count(beats);mark=mark+1){float hit_time=mark_at(beats,mark,-999.0);for(int i=0;i<sections_per_mark;i=i+1){float choice=floor(rand(seed+hit_time*1000.0,i)*section_count);timeline.emit MarkPulseChild {start:hit_time+offset_seconds,duration:max(0.000000001,decay_seconds),target:pick(items,choice),base:base,accent:accent,hue:hue,hue_mix:hue_mix,section_width_pixels:section_width_pixels,section_edge_fade_pixels:section_edge_fade_pixels,parent_duration:duration,child_start:hit_time+offset_seconds};}}}}
 }
 effect MarkPulseChild {
@@ -46,7 +46,7 @@ effect MarkPulseChild {
 }
 
 effect MarkChase {
-  param marks beats; param color base=#000000; param enum gradient_mode { through_effect, across_items, per_pulse }=per_pulse; param array<gradient> gradients; param curve hue; param float hue_mix=0.35; param float offset_seconds=0.0; param float chase_seconds=0.5; param float pulse_overlap=8.0; param int section_width_pixels=5; param array<curve> chase_positions; param curve pulse_shape;
+  fixed param marks beats; param color base=#000000; param enum gradient_mode { through_effect, across_items, per_pulse }=per_pulse; fixed param array<gradient> gradients; param curve hue; param float hue_mix=0.35; fixed param float offset_seconds=0.0; fixed param float chase_seconds=0.5; param float pulse_overlap=8.0; param int section_width_pixels=5; fixed param array<curve> chase_positions; param curve pulse_shape;
   void generate(){int gradient_count=len(gradients);int chase_position_count=len(chase_positions);if(gradient_count>0&&chase_position_count>0){for(int mark=0;mark<mark_count(beats);mark=mark+1){float hit_time=mark_at(beats,mark,-999.0);timeline.emit MarkChaseChild {start:hit_time+offset_seconds,duration:max(0.000000001,chase_seconds),target:target,base:base,gradient_mode:gradient_mode,gradient:gradients[mark%gradient_count],hue:hue,hue_mix:hue_mix,pulse_overlap:pulse_overlap,section_width_pixels:section_width_pixels,chase_position:chase_positions[mark%chase_position_count],pulse_shape:pulse_shape,parent_duration:duration,child_start:hit_time+offset_seconds};}}}
 }
 effect MarkChaseChild {

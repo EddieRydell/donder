@@ -38,7 +38,7 @@ class Port:
 
 def records():
     lines = [b"DAWN PC BEGIN\n"]
-    for effect in range(15):
+    for effect in range(21):
         for period in [0, 997, 1999, 0]:
             count = int(period != 0)
             lines.append(f"PC CASE effect=effect{effect} period_us={period} frames=128 elapsed_us=2000000 samples={count}\n".encode())
@@ -61,8 +61,8 @@ class CollectorTests(unittest.TestCase):
 
     def test_complete_capture_and_symbolization(self):
         result = self.collect(records())
-        self.assertEqual(result.count("SYMBOL 100.00% samples=1 sample_effect"), 30)
-        self.assertEqual(result.count("SOURCE 100.00% samples=1 sample_effect at effect.rs:12"), 30)
+        self.assertEqual(result.count("SYMBOL 100.00% samples=1 sample_effect"), 42)
+        self.assertEqual(result.count("SOURCE 100.00% samples=1 sample_effect at effect.rs:12"), 42)
 
     def test_source_attribution_rejects_wrong_addresses(self):
         with patch.object(capture_pc.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "0x40000020\nwrong\nwrong.rs:1\n")), contextlib.redirect_stdout(io.StringIO()):

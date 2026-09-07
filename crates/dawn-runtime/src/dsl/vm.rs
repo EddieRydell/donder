@@ -82,9 +82,191 @@ impl RuntimeError {
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct BoundParams {
     values: Vec<BoundParamValue>,
+    /// Playback-only storage for calculated arrays. Frozen parameters never
+    /// contain handles into this arena.
+    #[rkyv(with = rkyv::with::Skip)]
+    arrays: Option<Box<ArrayStorage>>,
 }
 
 impl BoundParams {
+    pub(crate) fn result_storage_estimate(
+        count: usize,
+        capacity: u32,
+        width: u32,
+    ) -> Option<usize> {
+        count
+            .checked_mul(size_of::<BoundParamValue>())?
+            .checked_add(if capacity == 0 {
+                0
+            } else {
+                size_of::<ArrayStorage>()
+                    .checked_add((capacity as usize).checked_mul(3 * size_of::<u32>())?)?
+                    .checked_add(
+                        (capacity as usize)
+                            .checked_mul(width as usize)?
+                            .checked_mul(size_of::<RuntimeValue>())?,
+                    )?
+            })
+    }
+    /// Allocate typed-result storage during workspace creation.
+    pub fn result_workspace(count: usize, array_capacity: u32, array_width: u32) -> Self {
+        Self {
+            values: vec![BoundParamValue::Void; count],
+            arrays: (array_capacity != 0)
+                .then(|| Box::new(ArrayStorage::new(array_capacity, array_width))),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    /// Materialize an owned value during host preparation or inspection.
+    pub fn value(&self, index: usize) -> Result<Value, RuntimeError> {
+        let value = self
+            .values
+            .get(index)
+            .ok_or_else(|| RuntimeError::new("invalid parameter slot"))?;
+        Ok(runtime_to_value(
+            value.to_runtime(),
+            None,
+            self.arrays.as_deref(),
+        ))
+    }
+
+    /// Release forwarded resources before changing an ancestor's automation.
+    /// The arena and parameter slots remain allocated.
+    pub fn clear_results(&mut self) {
+        for index in 0..self.values.len() {
+            self.clear_parameter(index);
+        }
+    }
+
+    pub(crate) fn clear_parameter(&mut self, index: usize) {
+        if let BoundParamValue::CalculatedArray(index) =
+            core::mem::replace(&mut self.values[index], BoundParamValue::Void)
+        {
+            self.arrays
+                .as_mut()
+                .expect("prepared result arena")
+                .release(RuntimeValue::ArraySlot(index));
+        }
+    }
+
+    pub(crate) fn reserve_result_arrays(&mut self, capacity: u32, width: u32) {
+        if capacity != 0 {
+            self.arrays = Some(Box::new(ArrayStorage::new(capacity, width)));
+        }
+    }
+
+    pub fn bind_slots(
+        types: &[Type],
+        values: &[Option<Value>],
+        cache: &mut DslBindCache,
+    ) -> Result<Self, RuntimeError> {
+        if types.len() != values.len() {
+            return Err(RuntimeError::new(
+                "parameter slot count does not match its types",
+            ));
+        }
+        Ok(Self {
+            values: types
+                .iter()
+                .zip(values)
+                .map(|(ty, value)| {
+                    value.as_ref().map_or(BoundParamValue::Void, |value| {
+                        bind_param_value(ty, value.clone(), cache)
+                    })
+                })
+                .collect(),
+            arrays: None,
+        })
+    }
+
+    pub(crate) fn is_frozen(&self) -> bool {
+        self.arrays.is_none()
+            && self
+                .values
+                .iter()
+                .all(|value| !matches!(value, BoundParamValue::CalculatedArray(_)))
+    }
+
+    /// Forward a typed slot, copying calculated array storage into the prepared
+    /// destination arena while retaining resource identities.
+    pub fn copy_parameter(
+        &mut self,
+        destination: usize,
+        source: &Self,
+        index: usize,
+        ty: &Type,
+    ) -> Result<(), RuntimeError> {
+        let value = source
+            .values
+            .get(index)
+            .ok_or_else(|| RuntimeError::new("invalid parameter binding source"))?
+            .to_runtime();
+        self.write_result(destination, value, ty, None, source.arrays.as_deref())
+    }
+
+    fn write_result(
+        &mut self,
+        index: usize,
+        value: RuntimeValue,
+        ty: &Type,
+        arrays: Option<&ArrayStorage>,
+        parameters: Option<&ArrayStorage>,
+    ) -> Result<(), RuntimeError> {
+        let output = self
+            .values
+            .get_mut(index)
+            .ok_or_else(|| RuntimeError::new("invalid parameter binding destination"))?;
+        if let BoundParamValue::CalculatedArray(index) =
+            core::mem::replace(output, BoundParamValue::Void)
+        {
+            self.arrays
+                .as_mut()
+                .expect("prepared result arena")
+                .release(RuntimeValue::ArraySlot(index));
+        }
+        *output = match (ty, value) {
+            (Type::Float, RuntimeValue::Int(value)) => BoundParamValue::Float(value as f32),
+            (_, RuntimeValue::Void) => BoundParamValue::Void,
+            (_, RuntimeValue::Int(value)) => BoundParamValue::Int(value),
+            (_, RuntimeValue::Float(value)) => BoundParamValue::Float(value),
+            (_, RuntimeValue::Bool(value)) => BoundParamValue::Bool(value),
+            (_, RuntimeValue::Color(value)) => BoundParamValue::Color(value),
+            (_, RuntimeValue::Marks(value)) => BoundParamValue::Marks(value),
+            (_, RuntimeValue::Target(value)) => BoundParamValue::Target(value),
+            (_, RuntimeValue::TargetItems(value)) => BoundParamValue::TargetItems(value),
+            (_, RuntimeValue::TargetItem(value)) => BoundParamValue::TargetItem(value),
+            (_, RuntimeValue::Curve(value)) => BoundParamValue::RawCurve(value),
+            (_, RuntimeValue::PreparedCurve(value)) => BoundParamValue::Curve(value),
+            (_, RuntimeValue::Gradient(value)) => BoundParamValue::Gradient(value),
+            (_, RuntimeValue::Array(value)) => BoundParamValue::Array(value),
+            (_, value @ (RuntimeValue::ArraySlot(_) | RuntimeValue::ParameterArray(_))) => {
+                let arena = self
+                    .arrays
+                    .as_mut()
+                    .ok_or_else(|| RuntimeError::new("missing result array storage"))?;
+                let RuntimeValue::ArraySlot(index) =
+                    arena.copy_array(&value, arrays, parameters)?
+                else {
+                    unreachable!("copy_array returns an owned array slot")
+                };
+                BoundParamValue::CalculatedArray(index)
+            }
+            (_, RuntimeValue::Enum(value)) => BoundParamValue::Enum(value),
+            (_, RuntimeValue::Timeline) => {
+                return Err(RuntimeError::new("timeline cannot be a parameter"));
+            }
+        };
+        Ok(())
+    }
+
     /// Conservative load-time budget for the detached automation copy, including
     /// curve windows. This does not allocate or change frame evaluation.
     pub(crate) fn automation_storage_estimate(
@@ -137,6 +319,7 @@ impl BoundParams {
                     value => value.clone(),
                 })
                 .collect(),
+            arrays: self.arrays.clone(),
         }
     }
 
@@ -273,6 +456,7 @@ impl BoundParams {
     pub fn curve(&self, index: usize) -> Result<Arc<Curve>, RuntimeError> {
         match self.values.get(index) {
             Some(BoundParamValue::Curve(value)) => Ok(value.raw()),
+            Some(BoundParamValue::RawCurve(value)) => Ok(Arc::clone(value)),
             _ => Err(RuntimeError::new("expected curve parameter")),
         }
     }
@@ -280,9 +464,12 @@ impl BoundParams {
     pub(crate) fn prepared_curve_crossings(
         &self,
         index: usize,
-    ) -> Result<Arc<PreparedCurveCrossings>, RuntimeError> {
+    ) -> Result<CurveCrossings, RuntimeError> {
         match self.values.get(index) {
-            Some(BoundParamValue::Curve(value)) => Ok(Arc::clone(&value.crossings)),
+            Some(BoundParamValue::Curve(value)) => {
+                Ok(CurveCrossings::Prepared(Arc::clone(&value.crossings)))
+            }
+            Some(BoundParamValue::RawCurve(value)) => Ok(CurveCrossings::Raw(Arc::clone(value))),
             _ => Err(RuntimeError::new("expected curve parameter")),
         }
     }
@@ -301,6 +488,43 @@ impl BoundParams {
         }
     }
 
+    pub fn array_len(&self, index: usize) -> Result<usize, RuntimeError> {
+        let value = self
+            .values
+            .get(index)
+            .ok_or_else(|| RuntimeError::new("invalid array parameter"))?
+            .to_runtime();
+        array_length(&value, None, self.arrays.as_deref())
+    }
+
+    pub fn gradient_at(
+        &self,
+        parameter: usize,
+        index: usize,
+    ) -> Result<Arc<Gradient>, RuntimeError> {
+        match self.array_value(parameter, index)? {
+            RuntimeValue::Gradient(value) => Ok(value),
+            _ => Err(RuntimeError::new("expected gradient array element")),
+        }
+    }
+
+    pub fn curve_at(&self, parameter: usize, index: usize) -> Result<Arc<Curve>, RuntimeError> {
+        match self.array_value(parameter, index)? {
+            RuntimeValue::Curve(value) => Ok(value),
+            RuntimeValue::PreparedCurve(value) => Ok(value.raw()),
+            _ => Err(RuntimeError::new("expected curve array element")),
+        }
+    }
+
+    fn array_value(&self, parameter: usize, index: usize) -> Result<RuntimeValue, RuntimeError> {
+        let value = self
+            .values
+            .get(parameter)
+            .ok_or_else(|| RuntimeError::new("invalid array parameter"))?
+            .to_runtime();
+        array_item(&value, index, None, self.arrays.as_deref())
+    }
+
     pub fn enum_name(&self, index: usize) -> Result<&str, RuntimeError> {
         match self.values.get(index) {
             Some(BoundParamValue::Enum(value)) => Ok(value.as_str()),
@@ -311,6 +535,7 @@ impl BoundParams {
     pub fn sample_curve(&self, index: usize, position: f32) -> Result<f32, RuntimeError> {
         match self.values.get(index) {
             Some(BoundParamValue::Curve(value)) => sample_prepared_curve(value, position),
+            Some(BoundParamValue::RawCurve(value)) => Ok(sample_curve(value, position)),
             _ => Err(RuntimeError::new("expected curve parameter")),
         }
     }
@@ -323,6 +548,9 @@ impl BoundParams {
     ) -> Result<f32, RuntimeError> {
         let curve = match self.values.get(index) {
             Some(BoundParamValue::Curve(value)) => value,
+            Some(BoundParamValue::RawCurve(curve)) => {
+                return Ok(curve_crossing_raw(curve, value, fallback));
+            }
             _ => return Err(RuntimeError::new("expected curve parameter")),
         };
         prepared_curve_crossing(&curve.crossings, value, fallback)
@@ -353,8 +581,10 @@ enum BoundParamValue {
     TargetItems(Arc<TargetItemsValue>),
     TargetItem(Arc<TargetItemValue>),
     Curve(Arc<PreparedCurve>),
+    RawCurve(Arc<Curve>),
     Gradient(Arc<Gradient>),
     Array(Arc<[Value]>),
+    CalculatedArray(u32),
     Enum(Identifier),
 }
 
@@ -389,8 +619,10 @@ impl BoundParamValue {
             Self::TargetItems(value) => RuntimeValue::TargetItems(Arc::clone(value)),
             Self::TargetItem(value) => RuntimeValue::TargetItem(Arc::clone(value)),
             Self::Curve(value) => RuntimeValue::PreparedCurve(Arc::clone(value)),
+            Self::RawCurve(value) => RuntimeValue::Curve(Arc::clone(value)),
             Self::Gradient(value) => RuntimeValue::Gradient(Arc::clone(value)),
             Self::Array(value) => RuntimeValue::Array(Arc::clone(value)),
+            Self::CalculatedArray(index) => RuntimeValue::ParameterArray(*index),
             Self::Enum(value) => RuntimeValue::Enum(value.clone()),
         }
     }
@@ -434,6 +666,21 @@ pub(crate) enum PreparedCurveCrossings {
     Increasing(Vec<CrossingSegment>),
     Decreasing(Vec<CrossingSegment>),
     Mixed(Vec<CrossingSegment>),
+}
+
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub(crate) enum CurveCrossings {
+    Prepared(Arc<PreparedCurveCrossings>),
+    Raw(Arc<Curve>),
+}
+
+impl CurveCrossings {
+    pub(crate) fn crossing(&self, value: f32, fallback: f32) -> Result<f32, RuntimeError> {
+        match self {
+            Self::Prepared(curve) => prepared_curve_crossing(curve, value, fallback),
+            Self::Raw(curve) => Ok(curve_crossing_raw(curve, value, fallback)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -497,6 +744,12 @@ pub struct VmWorkspace {
 }
 
 impl VmWorkspace {
+    pub fn for_program(program: &BytecodeProgram) -> Self {
+        let mut workspace = Self::default();
+        workspace.reserve(program);
+        workspace
+    }
+
     pub(crate) fn storage_estimate(
         registers: [usize; 5],
         capacity: usize,
@@ -526,7 +779,7 @@ impl VmWorkspace {
         Some(bytes)
     }
 
-    pub(crate) fn reserve(&mut self, bytecode: &BytecodeProgram) {
+    pub fn reserve(&mut self, bytecode: &BytecodeProgram) {
         self.registers.reserve(bytecode.layout);
         self.reserve_arrays(bytecode);
     }
@@ -550,6 +803,7 @@ impl VmWorkspace {
 // Slots have a compiler-bounded width, so allocation cannot fragment the value
 // buffer. Counts represent register roots and array children, not temporary
 // borrowed handles returned by value()/index_value(). No atomics or GC pass.
+#[derive(Clone)]
 struct ArrayStorage {
     free: Vec<u32>,
     references: Vec<u32>,
@@ -568,6 +822,33 @@ impl core::fmt::Debug for ArrayStorage {
 }
 
 impl ArrayStorage {
+    fn copy_array(
+        &mut self,
+        value: &RuntimeValue,
+        arrays: Option<&Self>,
+        parameters: Option<&Self>,
+    ) -> Result<RuntimeValue, RuntimeError> {
+        let length = array_length(value, arrays, parameters)?;
+        let slot = self.allocate(length)?;
+        let result = (|| {
+            for index in 0..length {
+                let value = array_item(value, index, arrays, parameters)?;
+                let value = match value {
+                    RuntimeValue::ArraySlot(_) | RuntimeValue::ParameterArray(_) => {
+                        self.copy_array(&value, arrays, parameters)?
+                    }
+                    value => value,
+                };
+                self.values[slot as usize * self.width as usize + index] = value;
+            }
+            Ok(RuntimeValue::ArraySlot(slot))
+        })();
+        if result.is_err() {
+            self.release(RuntimeValue::ArraySlot(slot));
+        }
+        result
+    }
+
     fn new(capacity: u32, width: u32) -> Self {
         Self {
             free: (0..capacity).rev().collect(),
@@ -752,6 +1033,33 @@ pub(crate) fn run_generator_effect(
     Ok(generated)
 }
 
+pub(super) fn evaluate_value(
+    program: &BytecodeProgram,
+    params: &BoundParams,
+    context: &RunContext,
+    workspace: &mut VmWorkspace,
+    remaining_iterations: &mut usize,
+) -> Result<Value, RuntimeError> {
+    let mut vm = Vm::new(
+        program,
+        params,
+        VmContext::Sample(context),
+        workspace,
+        None,
+        None,
+        0,
+    );
+    let result = vm.run()?;
+    *remaining_iterations = remaining_iterations
+        .checked_sub(vm.loop_iterations)
+        .ok_or_else(|| RuntimeError::new("loop iteration limit exceeded"))?;
+    Ok(runtime_to_value(
+        result,
+        vm.workspace.arrays.as_deref(),
+        params.arrays.as_deref(),
+    ))
+}
+
 pub(crate) fn run_operator(
     operator: &CompiledOperator,
     params: &BoundParams,
@@ -799,6 +1107,8 @@ enum RuntimeValue {
     PreparedCurve(Arc<PreparedCurve>),
     Array(Arc<[Value]>),
     ArraySlot(u32),
+    /// Borrowed from the invocation's immutable parameter arena.
+    ParameterArray(u32),
     Enum(Identifier),
 }
 
@@ -839,8 +1149,98 @@ fn clone_runtime(value: &RuntimeValue) -> RuntimeValue {
         RuntimeValue::PreparedCurve(value) => RuntimeValue::PreparedCurve(Arc::clone(value)),
         RuntimeValue::Array(value) => RuntimeValue::Array(Arc::clone(value)),
         RuntimeValue::ArraySlot(index) => RuntimeValue::ArraySlot(*index),
+        RuntimeValue::ParameterArray(index) => RuntimeValue::ParameterArray(*index),
         RuntimeValue::Enum(value) => RuntimeValue::Enum(value.clone()),
     }
+}
+
+pub(super) fn evaluate_bindings(
+    program: &BytecodeProgram,
+    params: &BoundParams,
+    context: &RunContext,
+    workspace: &mut VmWorkspace,
+    output: &mut BoundParams,
+    types: &[Type],
+) -> Result<(), RuntimeError> {
+    output.clear_results();
+    let mut vm = Vm::new(
+        program,
+        params,
+        VmContext::Sample(context),
+        workspace,
+        None,
+        None,
+        0,
+    );
+    let result = vm.run()?;
+    let arrays = vm.workspace.arrays.as_deref();
+    let parameter_arrays = params.arrays.as_deref();
+    if output.len() != types.len()
+        || array_length(&result, arrays, parameter_arrays)? != types.len()
+    {
+        return Err(RuntimeError::new(
+            "parameter calculation returned an invalid output count",
+        ));
+    }
+    for (index, ty) in types.iter().enumerate() {
+        output.write_result(
+            index,
+            array_item(&result, index, arrays, parameter_arrays)?,
+            ty,
+            arrays,
+            parameter_arrays,
+        )?;
+    }
+    Ok(())
+}
+
+fn parameter_array_value(value: &RuntimeValue) -> RuntimeValue {
+    match value {
+        RuntimeValue::ArraySlot(index) => RuntimeValue::ParameterArray(*index),
+        value => clone_runtime(value),
+    }
+}
+
+fn array_length(
+    value: &RuntimeValue,
+    arrays: Option<&ArrayStorage>,
+    parameters: Option<&ArrayStorage>,
+) -> Result<usize, RuntimeError> {
+    match value {
+        RuntimeValue::Array(values) => return Ok(values.len()),
+        RuntimeValue::ArraySlot(index) => {
+            arrays.and_then(|arrays| arrays.lengths.get(*index as usize))
+        }
+        RuntimeValue::ParameterArray(index) => {
+            parameters.and_then(|arrays| arrays.lengths.get(*index as usize))
+        }
+        _ => return Err(RuntimeError::new("expected array")),
+    }
+    .map(|length| *length as usize)
+    .ok_or_else(|| RuntimeError::new("invalid calculated array"))
+}
+
+fn array_item(
+    value: &RuntimeValue,
+    index: usize,
+    arrays: Option<&ArrayStorage>,
+    parameters: Option<&ArrayStorage>,
+) -> Result<RuntimeValue, RuntimeError> {
+    if index >= array_length(value, arrays, parameters)? {
+        return Err(RuntimeError::new("array index out of bounds"));
+    }
+    Ok(match value {
+        RuntimeValue::Array(values) => RuntimeValue::from_value(&values[index]),
+        RuntimeValue::ArraySlot(slot) => {
+            clone_runtime(&arrays.expect("validated array storage").items(*slot)[index])
+        }
+        RuntimeValue::ParameterArray(slot) => parameter_array_value(
+            &parameters
+                .expect("validated parameter storage")
+                .items(*slot)[index],
+        ),
+        _ => return Err(RuntimeError::new("expected array")),
+    })
 }
 
 struct Vm<'a> {
@@ -1007,8 +1407,7 @@ impl<'a> Vm<'a> {
                     position,
                 } => {
                     let position = self.float(*position)?;
-                    let curve = self.prepared_curve_param(*param)?;
-                    self.set_float(*dst, sample_prepared_curve(curve, position)?)?;
+                    self.set_float(*dst, self.params.sample_curve(*param, position)?)?;
                 }
                 Instruction::GradientParamSample {
                     dst,
@@ -1390,8 +1789,7 @@ impl<'a> Vm<'a> {
                     let position = self.float(*position)?;
                     let min = self.float(*min)?;
                     let max = self.float(*max)?;
-                    let curve = self.prepared_curve_param(*param)?;
-                    let value = sample_prepared_curve(curve, position)?.clamp(min, max);
+                    let value = self.params.sample_curve(*param, position)?.clamp(min, max);
                     self.set_float(*dst, value)?;
                 }
                 Instruction::GradientColorScaled {
@@ -1452,23 +1850,17 @@ impl<'a> Vm<'a> {
                         .map(|fallback| self.float(fallback))
                         .transpose()?
                         .unwrap_or(value);
-                    let curve = self.prepared_curve_param(*param)?;
-                    self.set_float(
-                        *dst,
-                        prepared_curve_crossing(&curve.crossings, value, fallback)?,
-                    )?;
+                    self.set_float(*dst, self.params.curve_crossing(*param, value, fallback)?)?;
                 }
                 Instruction::Len { dst, value } => {
                     let value = match self.ref_value(*value)? {
-                        RuntimeValue::Array(items) => i32::try_from(items.len())
-                            .map_err(|_| RuntimeError::new("array length exceeds int range"))?,
-                        RuntimeValue::ArraySlot(index) => i32::try_from(
-                            self.workspace
-                                .arrays
-                                .as_ref()
-                                .expect("prepared array storage")
-                                .lengths[*index as usize],
-                        )
+                        value @ (RuntimeValue::Array(_)
+                        | RuntimeValue::ArraySlot(_)
+                        | RuntimeValue::ParameterArray(_)) => i32::try_from(array_length(
+                            value,
+                            self.workspace.arrays.as_deref(),
+                            self.params.arrays.as_deref(),
+                        )?)
                         .map_err(|_| RuntimeError::new("array length exceeds int range"))?,
                         RuntimeValue::Marks(marks) => i32::try_from(marks.marks.len())
                             .map_err(|_| RuntimeError::new("mark count exceeds int range"))?,
@@ -1962,25 +2354,17 @@ impl<'a> Vm<'a> {
         index: &RuntimeValue,
     ) -> Result<RuntimeValue, RuntimeError> {
         match target {
-            RuntimeValue::ArraySlot(array) => {
+            RuntimeValue::ArraySlot(_)
+            | RuntimeValue::ParameterArray(_)
+            | RuntimeValue::Array(_) => {
                 let index = usize::try_from(to_int_runtime(index, self.params)?)
                     .map_err(|_| RuntimeError::new("array index cannot be negative"))?;
-                self.workspace
-                    .arrays
-                    .as_ref()
-                    .expect("prepared array storage")
-                    .items(*array)
-                    .get(index)
-                    .map(clone_runtime)
-                    .ok_or_else(|| RuntimeError::new("array index out of bounds"))
-            }
-            RuntimeValue::Array(items) => {
-                let index = usize::try_from(to_int_runtime(index, self.params)?)
-                    .map_err(|_| RuntimeError::new("array index cannot be negative"))?;
-                let value = items
-                    .get(index)
-                    .ok_or_else(|| RuntimeError::new("array index out of bounds"))?;
-                Ok(RuntimeValue::from_value(value))
+                array_item(
+                    target,
+                    index,
+                    self.workspace.arrays.as_deref(),
+                    self.params.arrays.as_deref(),
+                )
             }
             RuntimeValue::TargetItems(items) => {
                 let index = usize::try_from(to_int_runtime(index, self.params)?)
@@ -2007,14 +2391,6 @@ impl<'a> Vm<'a> {
             _ => Err(RuntimeError::new(
                 "index target is not an array, curve, or gradient",
             )),
-        }
-    }
-
-    fn prepared_curve_param(&self, param: usize) -> Result<&PreparedCurve, RuntimeError> {
-        match self.params.values.get(param) {
-            Some(BoundParamValue::Curve(curve)) => Ok(curve),
-            Some(_) => Err(RuntimeError::new("expected curve")),
-            None => Err(RuntimeError::new("invalid param slot")),
         }
     }
 
@@ -2088,7 +2464,11 @@ impl<'a> Vm<'a> {
                     let value = self.value(*slot)?;
                     params.push((
                         field.clone(),
-                        runtime_to_value(value, self.workspace.arrays.as_deref()),
+                        runtime_to_value(
+                            value,
+                            self.workspace.arrays.as_deref(),
+                            self.params.arrays.as_deref(),
+                        ),
                     ));
                 }
             }
@@ -2144,7 +2524,11 @@ fn bind_param_value(ty: &Type, value: Value, cache: &mut DslBindCache) -> BoundP
     }
 }
 
-fn runtime_to_value(value: RuntimeValue, arrays: Option<&ArrayStorage>) -> Value {
+fn runtime_to_value(
+    value: RuntimeValue,
+    arrays: Option<&ArrayStorage>,
+    parameter_arrays: Option<&ArrayStorage>,
+) -> Value {
     match value {
         RuntimeValue::Void => Value::Void,
         RuntimeValue::Int(value) => Value::Int(value),
@@ -2165,7 +2549,18 @@ fn runtime_to_value(value: RuntimeValue, arrays: Option<&ArrayStorage>) -> Value
                 .expect("prepared array storage")
                 .items(index)
                 .iter()
-                .map(|value| runtime_to_value(clone_runtime(value), arrays))
+                .map(|value| runtime_to_value(clone_runtime(value), arrays, parameter_arrays))
+                .collect::<Vec<_>>()
+                .into(),
+        ),
+        RuntimeValue::ParameterArray(index) => Value::Array(
+            parameter_arrays
+                .expect("prepared parameter array storage")
+                .items(index)
+                .iter()
+                .map(|value| {
+                    runtime_to_value(parameter_array_value(value), arrays, parameter_arrays)
+                })
                 .collect::<Vec<_>>()
                 .into(),
         ),

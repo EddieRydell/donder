@@ -846,6 +846,14 @@ pub(super) fn edit_sequence(
         }
         SequenceGuiEdit::CreateAndBindAutomationClip { target, mapping } => {
             let target = automation_target_from_gui(target)?;
+            dawn_language::validation::automation_target_type(
+                &session.project,
+                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence was not found.".to_string())
+                })?,
+                &target,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let mapping = automation_mapping_from_gui(mapping)?;
             let (start, duration, anchor_lane_index) = {
                 let sequence = session.project.sequences.get(&sequence_id).ok_or_else(|| {
@@ -903,6 +911,14 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
+            dawn_language::validation::automation_target_type(
+                &session.project,
+                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence was not found.".to_string())
+                })?,
+                &target,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let binding = automation_clip_mut(sequence_mut(session, &sequence_id)?, clip_id)?
                 .bindings
                 .iter_mut()
@@ -923,6 +939,14 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
+            dawn_language::validation::automation_target_type(
+                &session.project,
+                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence was not found.".to_string())
+                })?,
+                &target,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let sequence = sequence_mut(session, &sequence_id)?;
             ensure_automation_target_available(sequence, &target, Some(clip_id))?;
             automation_clip_mut(sequence, clip_id)?
@@ -988,6 +1012,14 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
+            dawn_language::validation::automation_target_type(
+                &session.project,
+                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence was not found.".to_string())
+                })?,
+                &target,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let mapping = automation_mapping_from_gui(mapping)?;
             let sequence = sequence_mut(session, &sequence_id)?;
             ensure_automation_target_available(sequence, &target, Some(clip_id))?;

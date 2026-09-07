@@ -283,6 +283,61 @@ fn main() -> ! {
             }
         }
     }
+    for (index, name) in fixtures::GENERATOR_NAMES.iter().enumerate() {
+        let heap_before = esp_alloc::HEAP.used();
+        REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
+        let start = Instant::now();
+        let show = dawn_runtime::wire::decode_sequence(
+            fixtures::GENERATOR_SEQUENCES[index],
+            Default::default(),
+        )
+        .unwrap();
+        let mut workspace = show.workspace();
+        let mut output = [vec![0; 600]];
+        let setup_us = start.elapsed().as_micros() as u32;
+        let first_allocations = ALLOCATIONS.load(Relaxed);
+        let start = Instant::now();
+        show.evaluate(workload::time(0), &mut output, &mut workspace)
+            .unwrap();
+        let first_us = start.elapsed().as_micros() as u32;
+        let first_allocations = ALLOCATIONS.load(Relaxed) - first_allocations;
+        let mut times = [0u32; workload::FRAMES];
+        let allocations_before = ALLOCATIONS.load(Relaxed);
+        let mut mismatches = 0;
+        for (frame, elapsed) in times.iter_mut().enumerate() {
+            let start = Instant::now();
+            show.evaluate(workload::time(frame), &mut output, &mut workspace)
+                .unwrap();
+            black_box(&output);
+            *elapsed = start.elapsed().as_micros() as u32;
+            mismatches += usize::from(
+                workload::checksum(&output[0]) != fixtures::GENERATOR_GOLDEN[index][frame],
+            );
+        }
+        report(
+            "generator",
+            name,
+            200,
+            setup_us,
+            esp_alloc::HEAP.used() - heap_before,
+            ALLOCATIONS.load(Relaxed) - allocations_before,
+            mismatches,
+            &mut times,
+        );
+        println!(
+            "first_frame_us={} first_alloc_calls={} peak_requested_bytes={} heap_free={}",
+            first_us,
+            first_allocations,
+            REQUESTED_PEAK.load(Relaxed),
+            esp_alloc::HEAP.free()
+        );
+        drop((show, workspace, output));
+        assert_eq!(
+            esp_alloc::HEAP.used(),
+            heap_before,
+            "generator case leaked heap"
+        );
+    }
     println!("DAWN PROFILE END heap_free={}", esp_alloc::HEAP.free());
     loop {
         core::hint::spin_loop();

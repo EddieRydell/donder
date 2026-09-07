@@ -9,11 +9,12 @@ pub use bytecode::SignalPixel;
 pub use types::{
     Identifier, TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue, Type, Value,
 };
+pub(crate) use vm::CurveCrossings;
 pub use vm::{
-    BoundParams, DslBindCache, GeneratedEffect, GeneratorContext, OperatorRunContext, RunContext,
-    RuntimeError, SignalSampler, VmWorkspace,
+    BoundParams, DslBindCache, GeneratedEffect, GeneratorContext,
+    MAX_VM_INSTRUCTIONS_PER_INVOCATION, OperatorRunContext, RunContext, RuntimeError,
+    SignalSampler, VmWorkspace,
 };
-pub(crate) use vm::{PreparedCurveCrossings, prepared_curve_crossing};
 
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
@@ -27,9 +28,20 @@ pub struct OperatorInputDecl {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamDecl {
+    pub fixed: bool,
     pub name: Identifier,
     pub ty: Type,
     pub default: Option<Value>,
+}
+
+impl ParamDecl {
+    pub fn supports_automation(&self) -> bool {
+        !self.fixed
+            && matches!(
+                self.ty,
+                Type::Float | Type::Int | Type::Bool | Type::Enum(_) | Type::Curve
+            )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

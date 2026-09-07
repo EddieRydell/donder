@@ -33,6 +33,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct PreparedEffectRasterRenderer {
+    environments: Box<[dawn_runtime::bindings::PreparedParameterEnvironment]>,
     frame_rate: u32,
     frame_count: u32,
     index_start_frame: u32,
@@ -52,6 +53,7 @@ pub struct PreparedEffectRasterSample {
 
 #[derive(Debug)]
 pub struct EffectRasterWorkspace {
+    parameters: dawn_runtime::bindings::ParameterWorkspace,
     effect_vm: VmWorkspace,
     automation: Vec<Option<dawn_runtime::signal::EffectAutomationWorkspace>>,
 }
@@ -71,8 +73,18 @@ pub struct EffectRasterPrepareBatch<'a> {
 
 impl PreparedEffectRasterRenderer {
     pub fn workspace(&self) -> EffectRasterWorkspace {
+        let mut effect_vm = VmWorkspace::default();
+        for effect in &self.effects {
+            if let Some(program) = effect.implementation.dsl_program() {
+                effect_vm.reserve(&self.programs[program as usize]);
+            }
+        }
         EffectRasterWorkspace {
-            effect_vm: VmWorkspace::default(),
+            parameters: dawn_runtime::bindings::ParameterWorkspace::new(
+                &self.environments,
+                usize::from(!self.environments.is_empty()),
+            ),
+            effect_vm,
             automation: self
                 .effects
                 .iter()
@@ -213,6 +225,14 @@ impl PreparedEffectRasterRenderer {
             let Some(effect_pixels) = sample.effect_pixels.get(effect_index) else {
                 continue;
             };
+            let bound = match effect.implementation {
+                crate::PreparedEffectImplementation::Bound { environment, .. } => Some(
+                    workspace
+                        .parameters
+                        .resolve(&self.environments, environment, sample_time)?,
+                ),
+                _ => None,
+            };
             render_sampled_effect_target_colors(
                 &self.programs,
                 effect,
@@ -220,7 +240,7 @@ impl PreparedEffectRasterRenderer {
                 &mut rendered,
                 sample_time,
                 &mut workspace.effect_vm,
-                workspace.automation[effect_index].as_mut(),
+                (workspace.automation[effect_index].as_mut(), bound),
             )?;
         }
 
@@ -291,8 +311,10 @@ impl<'a> EffectRasterPrepareBatch<'a> {
             })?;
         let mut effects = Vec::new();
         let mut generated_child_count = 0usize;
+        let mut environments = Vec::new();
         let target = prepare_effect_inst(
             PrepareEffectContext {
+                environments: &mut environments,
                 project: self.project,
                 sequence: self.sequence,
                 elements: &self.elements,
@@ -318,7 +340,11 @@ impl<'a> EffectRasterPrepareBatch<'a> {
                 reason: "effect duration exceeds the runtime clock range".to_string(),
             })?;
         let index_start_frame = first_frame_at_or_after(start_time, self.frame_rate);
+        let mut environments = environments.into_boxed_slice();
+        crate::sequence::effects::retained::compact_environments(&mut environments, &mut effects)?;
+        dawn_runtime::bindings::PreparedParameterEnvironment::validate_all(&environments)?;
         Ok(PreparedEffectRasterRenderer {
+            environments,
             frame_rate: self.frame_rate,
             frame_count: self.frame_count,
             index_start_frame,

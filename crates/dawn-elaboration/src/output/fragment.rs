@@ -5,7 +5,8 @@ use dawn_runtime::element::ElementLayout;
 use dawn_runtime::patch::PatchStep;
 use dawn_runtime::sequence::PreparedSequence;
 use dawn_runtime::signal::{
-    PreparedEffectImplementation, PreparedOperator, PreparedSignalKind, PreparedTarget,
+    BoundEffectImplementation, PreparedEffectImplementation, PreparedOperator, PreparedSignalKind,
+    PreparedTarget,
 };
 
 use crate::RenderError;
@@ -316,7 +317,12 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         Ok(())
     };
     for effect in &mut effects {
-        if let PreparedEffectImplementation::Dsl { program, .. } = &mut effect.implementation {
+        if let PreparedEffectImplementation::Dsl { program, .. }
+        | PreparedEffectImplementation::Bound {
+            implementation: BoundEffectImplementation::Dsl(program),
+            ..
+        } = &mut effect.implementation
+        {
             retain_program(program)?;
         }
     }
@@ -331,6 +337,10 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
     signal.elements = signal_elements.into_boxed_slice();
     signal.element_cell_offsets = offsets.into_boxed_slice();
     signal.pixel_count = pixel_count;
+    crate::sequence::effects::retained::compact_environments(
+        &mut signal.parameter_environments,
+        &mut effects,
+    )?;
     signal.effects = effects.into_boxed_slice();
     signal.effects_by_layer = effects_by_layer.into_boxed_slice();
     signal.layers = layers.into_boxed_slice();

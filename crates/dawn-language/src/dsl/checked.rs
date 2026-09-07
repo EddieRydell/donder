@@ -61,11 +61,17 @@ pub(crate) enum CheckedStmt {
     Return(CheckedExpr),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub(crate) struct CheckedExpr {
     pub kind: CheckedExprKind,
     pub span: TextSpan,
     pub ty: Type,
+}
+
+impl PartialEq for CheckedExpr {
+    fn eq(&self, other: &Self) -> bool {
+        self.ty == other.ty && self.kind == other.kind
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

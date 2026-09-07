@@ -367,6 +367,8 @@ pub enum SequenceGradientSource {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectParam {
+    pub fixed: bool,
+    pub supports_automation: bool,
     pub name: String,
     pub kind: SequenceEffectParamKind,
     pub options: Vec<String>,
@@ -449,6 +451,8 @@ pub struct SequenceEffectDefinition {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinitionParam {
+    pub fixed: bool,
+    pub supports_automation: bool,
     pub name: String,
     pub kind: SequenceEffectParamKind,
 }

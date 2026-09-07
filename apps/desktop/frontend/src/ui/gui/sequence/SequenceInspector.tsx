@@ -5,6 +5,7 @@ import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type {
   SequenceEditorDocument,
+  SequenceAutomationTarget,
   SequenceEffect,
   SequenceMarkCollection,
   SequenceMarkRef,
@@ -59,6 +60,16 @@ function effectReferenceKey(reference: SequenceEffectDefinition["effect"]) {
 function defaultLayerColor(index: number) {
   const colors = [THEME_COLORS.graphBlue, THEME_COLORS.graphRed, THEME_COLORS.graphGreen, THEME_COLORS.graphYellow, THEME_COLORS.graphPurple, THEME_COLORS.graphPink];
   return colors[index % colors.length] ?? THEME_COLORS.graphBlue;
+}
+
+function supportsAutomation(document: SequenceEditorDocument, target: SequenceAutomationTarget) {
+  if (target.type === "effectParam") {
+    return document.effects.find((effect) => effect.id === target.effectId)?.params
+      .find((param) => param.name === target.param)?.supportsAutomation === true;
+  }
+  const node = document.compositionGraph.nodes.find((node) => node.id === target.nodeId);
+  return node?.kind.type === "operator" && node.kind.params
+    .find((param) => param.name === target.param)?.supportsAutomation === true;
 }
 
 export function SequenceInspector({
@@ -208,6 +219,7 @@ function EffectInspectorPanel({
             <div className="effect-param-actions">
               <button
                 type="button"
+                disabled={!supportsAutomation(document, binding.target)}
                 onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request, 
                   automationClip.id,
                   index,

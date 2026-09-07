@@ -585,11 +585,15 @@ export type SequenceEffectDefinition = {
 export type SequenceEffectDefinitionKind = "sample" | "generator";
 
 export type SequenceEffectDefinitionParam = {
+	fixed: boolean,
+	supportsAutomation: boolean,
 	name: string,
 	kind: SequenceEffectParamKind,
 };
 
 export type SequenceEffectParam = {
+	fixed: boolean,
+	supportsAutomation: boolean,
 	name: string,
 	kind: SequenceEffectParamKind,
 	options: string[],

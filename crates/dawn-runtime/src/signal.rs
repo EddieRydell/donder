@@ -36,6 +36,7 @@ impl From<RuntimeError> for EvaluationError {
 /// Frozen effects, operators, targets, and execution plan; evaluates logical colors.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedSignalGraph {
+    pub parameter_environments: Box<[crate::bindings::PreparedParameterEnvironment]>,
     pub workspace_key: u32,
     pub frame_rate: u32,
     pub frame_count: u32,
@@ -109,6 +110,10 @@ impl PreparedEffect {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PreparedEffectImplementation {
+    Bound {
+        environment: u32,
+        implementation: BoundEffectImplementation,
+    },
     Dsl {
         program: u32,
         bound_params: BoundParams,
@@ -117,6 +122,25 @@ pub enum PreparedEffectImplementation {
         sample: NativeSample,
         params: Option<(BuiltinEffect, BoundParams)>,
     },
+}
+
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub enum BoundEffectImplementation {
+    Dsl(u32),
+    Native(crate::native_effect::NativeParameterSample),
+}
+
+impl PreparedEffectImplementation {
+    pub fn dsl_program(&self) -> Option<u32> {
+        match self {
+            Self::Dsl { program, .. }
+            | Self::Bound {
+                implementation: BoundEffectImplementation::Dsl(program),
+                ..
+            } => Some(*program),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -254,6 +278,7 @@ impl PreparedPixel {
 
 #[derive(Debug)]
 pub struct EvaluationWorkspace {
+    pub(crate) parameters: crate::bindings::ParameterWorkspace,
     pub(crate) effect_vm: VmWorkspace,
     pub(crate) effect_vm_sample: Option<(CachedVmSample, SampleDuration, Color)>,
     pub(crate) operator_vm: Vec<(VmWorkspace, Option<CachedVmSample>)>,
@@ -300,6 +325,37 @@ pub struct EffectAutomationWorkspace {
 }
 
 impl PreparedSignalGraph {
+    /// Keep independent temporal query sites resident while visiting pixels.
+    /// Looping sites can replace their own old requested times in this bounded
+    /// cache; identities always include the exact requested SampleTime.
+    pub(crate) fn parameter_time_slots(&self) -> usize {
+        if self.parameter_environments.is_empty() {
+            return 0;
+        }
+        let mut slots = 1usize;
+        for node in &self.plan.nodes {
+            if let PreparedSignalKind::Operator { operator, .. } = &node.kind {
+                slots = slots.saturating_add(match operator.implementation {
+                    PreparedOperator::Dsl(program) => {
+                        self.programs.get(program as usize).map_or(0, |program| {
+                            program
+                                .instructions
+                                .iter()
+                                .filter(|instruction| {
+                                    matches!(
+                                        instruction,
+                                        crate::dsl::bytecode::Instruction::SignalSample { .. }
+                                    )
+                                })
+                                .count()
+                        })
+                    }
+                    PreparedOperator::Native(builtin) => usize::from(builtin.resamples_time()),
+                });
+            }
+        }
+        slots
+    }
     /// Maximum number of temporary frames held by nested whole-frame sampling.
     /// DSL frame caches own their storage separately, but may sample native inputs.
     pub(crate) fn frame_scratch_count(&self) -> usize {
@@ -385,6 +441,10 @@ impl PreparedSignalGraph {
                 operator_frame_counts[usize::from(*vm_slot)].max(count);
         }
         let mut workspace = EvaluationWorkspace {
+            parameters: crate::bindings::ParameterWorkspace::new(
+                &self.parameter_environments,
+                self.parameter_time_slots(),
+            ),
             effect_vm: VmWorkspace::default(),
             frame_scratch: (0..self.frame_scratch_count())
                 .map(|_| vec![crate::element::black(); self.pixel_count].into_boxed_slice())
@@ -478,10 +538,10 @@ impl PreparedSignalGraph {
             workspace_key: Some(self.workspace_key),
         };
         for effect in self.effects.iter() {
-            if let PreparedEffectImplementation::Dsl { program, .. } = &effect.implementation {
+            if let Some(program) = effect.implementation.dsl_program() {
                 workspace
                     .effect_vm
-                    .reserve(&self.programs[*program as usize]);
+                    .reserve(&self.programs[program as usize]);
             }
         }
         for node in self.plan.nodes.iter() {

@@ -80,13 +80,16 @@ impl Checker {
                 );
             }
         }
-        let (body, returns) =
+        let (mut body, returns) =
             self.check_block(operator.entrypoint.body.clone(), &mut env, &Type::Color);
         if !returns {
             self.error(
                 TextSpan { start: 0, end: 0 },
                 "`sample` must return a color on all paths",
             );
+        }
+        if let Err(diagnostics) = super::staging::check(&operator.params, &mut body, false) {
+            self.diagnostics.extend(diagnostics);
         }
         CheckedOperatorDecl {
             name: operator.name,
@@ -141,13 +144,16 @@ impl Checker {
             env.insert(static_identifier("duration"), Type::Float);
         }
 
-        let (body, returns) =
+        let (mut body, returns) =
             self.check_block(effect.entrypoint.body.clone(), &mut env, &expected_return);
         if is_sample && !returns {
             self.error(
                 TextSpan { start: 0, end: 0 },
                 "`sample` must return a color on all paths",
             );
+        }
+        if let Err(diagnostics) = super::staging::check(&effect.params, &mut body, is_generator) {
+            self.diagnostics.extend(diagnostics);
         }
         CheckedEffectDecl {
             name: effect.name,
@@ -854,14 +860,7 @@ impl Checker {
     }
 
     fn require_assignable(&mut self, expected: &Type, actual: &Type, span: TextSpan) {
-        if expected == actual || (expected == &Type::Float && actual == &Type::Int) {
-            return;
-        }
-        if let (Type::Enum(options), Type::Enum(actual_options)) = (expected, actual)
-            && actual_options
-                .iter()
-                .all(|value| options.iter().any(|option| option == value))
-        {
+        if expected.accepts(actual) {
             return;
         }
         self.error(span, format!("expected {expected:?}, got {actual:?}"));

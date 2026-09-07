@@ -45,11 +45,11 @@ appropriate only on a trusted LAN; this is not an Internet-facing service.
 
 `crates/dawn-runtime/src/wire.rs` owns `encode_sequence`, `decode_sequence`,
 `LoadLimits`, and `LoadError`. Runtime and codec remain `no_std + alloc`. The
-16-byte header contains `DAWN`, the current `u32` version 4, payload length, and CRC32. The
+16-byte header contains `DAWN`, the current `u32` version 5, payload length, and CRC32. The
 payload is a 32-bit, little-endian rkyv archive validated before deserialization.
 CRC detects corruption, not authenticity.
 
-Version 3 removes redundant prepared gradient/forward-curve tables. Native effects,
+The current representation has no redundant prepared gradient/forward-curve tables. Native effects,
 DSL values and controls share forward sampling rules; prepared curve crossings
 remain available for inverse queries. Regenerate archives when updating firmware.
 Workspace admission now uses the actual register/value sizes and reserved layouts,
@@ -64,7 +64,7 @@ after the upload buffer and any active sequence, leaving 16 KiB untouched. This
 allows an archive to replace the active sequence without stopping output. These
 are admission policies, not proofs against OOM.
 
-The current four-port starter fragment is 25,268 bytes for 452 pixels and ten
+The current four-port starter fragment is 25,361 bytes for 452 pixels and ten
 selected effects. It contains effects and prepared sequence data, not precomputed
 RGB frames.
 
@@ -72,9 +72,11 @@ The classic ESP32 has 520 KiB of on-chip SRAM, but it is split among executable
 data, static data, stacks, caches and heap; it is not a 520 KiB application heap.
 The I2S build explicitly provides a 160 KiB allocator. Its two 15,120-byte DMA
 buffers are static and hold one complete 200-pixel transmission each, including a
-300-us low reset. In the current combined run 117,132 heap bytes were free before
-loading; playback ranged from 79,676 to 81,376 free bytes and finished at 81,376.
+300-us low reset. The September 7 run reported 117,268 heap bytes free before
+loading and a minimum of 81,208 during the representative playback capture.
 Frame evaluation allocated nothing; network tasks can allocate independently.
+See [the current measurements](signal_model_work.md) for exact images, payloads,
+the 10,800-frame deadline result, and live-generator workload validation.
 
 A representative synthetic 100-effect fragment, made from the starter's Spin
 and Pulse effects over the same 113 pixels with one shared program, encoded to
@@ -125,9 +127,10 @@ written to evidence files.
 
 ## Current validation and historical measurements
 
-See [the execution audit report](execution_audit_2026-09-06.md) for the current
-runtime, archive, loader image and Wi-Fi measurements. Its six 200-pixel fixtures
-exercise stacked chases and generated marks through the same uploader. The
+See [the signal model record](signal_model_work.md) for the current runtime,
+archive, loader image, live generators, and representative I2S measurements.
+The earlier [execution audit](execution_audit_2026-09-06.md) records six 200-pixel
+fixtures with stacked chases and generated marks through the same uploader. The
 `/frame` handler releases its playback lock before sending the HTTP response;
 frame verification still shares the workspace with continuous playback.
 

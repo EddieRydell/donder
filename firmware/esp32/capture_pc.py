@@ -113,7 +113,7 @@ def capture(elf, raw=None):
                     profiles.append((*cases[-1], pcs))
                 pcs = []
                 if line == "DAWN PC END":
-                    if len(cases) != 60 or len({name for name, _ in cases}) != 15:
+                    if len(cases) != 84 or len({name for name, _ in cases}) != 21:
                         raise RuntimeError("Incomplete fixture coverage")
                     for index in range(0, len(cases), 4):
                         group = cases[index:index + 4]

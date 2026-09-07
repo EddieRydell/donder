@@ -108,6 +108,7 @@ pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -
             .into_iter()
             .enumerate()
             .map(|(slot, (ty, value))| ParamDecl {
+                fixed: false,
                 name: Identifier::new(alloc::format!("p{slot}")).unwrap(),
                 ty,
                 default: Some(value),
@@ -240,6 +241,7 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
         ("shape", Type::Curve, Value::Curve(curve.clone().into())),
     ];
     let declarations = values.map(|(name, ty, value)| ParamDecl {
+        fixed: false,
         name: Identifier::new(name.into()).unwrap(),
         ty,
         default: Some(value),
@@ -413,6 +415,7 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
     PreparedSequence {
         workspace_key: 1,
         signals: PreparedSignalGraph {
+            parameter_environments: vec![].into_boxed_slice(),
             workspace_key: 1,
             frame_rate: 120,
             frame_count: 960,

@@ -72,7 +72,7 @@ This records interrupted instruction addresses, not call stacks. The collector
 resolves leaf symbols using the supplied ELF, leaving unknown addresses explicit.
 Preserve that ELF alongside the result: a later build can move symbols.
 
-Each of 15 fixtures renders 200 pixels in four windows: sampling disabled, 997-us
+Each of 21 fixtures renders 200 pixels in four windows: sampling disabled, 997-us
 sampling, 1999-us sampling, then disabled again. The 4096-entry PC buffer occupies
 16 KiB; the profiler uses a separate 96-KiB heap. UART records are emitted after
 timing and interrupts stop. Successful timed frames must not allocate, and the last
@@ -163,7 +163,13 @@ fixtures, UniformFade, PixelRamp, ArrayRamp and DynamicArray, also measure 4 and
 16 fully overlapping layers. ArrayRamp produces the same colors as PixelRamp
 through fixed-index array syntax, now lowered to scalar operations by the
 compiler. DynamicArray uses runtime-selected indices over a fixed-size array,
-now lowered to direct value-slot selection. The collector expects 168 measurements total:
+now lowered to direct value-slot selection. The collector expects 174 measurements total:
+
+- `generator`: six host-elaborated live-parameter generators covering forwarding,
+  derived arithmetic, nesting, resource selection, overlapping children, and
+  automated curves with crossing queries. Each matches an ordinary sample-effect
+  reference. These archives and checksum sidecars also run through the Wi-Fi/I2S
+  loader. See [the current results](../../docs/signal_model_work.md).
 
 - `uniform_full` / `uniform_reuse`: UniformFade sampled through an identity operator,
   with conservative metadata forcing per-pixel effect evaluation or the real compiler

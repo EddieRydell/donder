@@ -1,8 +1,6 @@
 use crate::RenderError;
 use crate::native_effect::{self, BoundNativeEffect};
-use crate::sequence::effects::generators::{
-    GeneratorExpansion, GeneratorPrepareContext, expand_generator, expand_native_generator,
-};
+use crate::sequence::effects::generators::{GeneratorExpansion, GeneratorPrepareContext};
 use crate::sequence::effects::parameters::{EffectParamTiming, prepare_params};
 use crate::sequence::elements::PreparedElement;
 use crate::sequence::targets::{
@@ -19,7 +17,6 @@ use dawn_language::effect::{EffectDefinitionId, EffectImplementation, EffectInst
 use dawn_language::element::ElementNodeId;
 use dawn_language::model::DawnProject;
 use dawn_language::sequence::{AutomationBinding, AutomationClip, AutomationTarget, Sequence};
-use dawn_runtime::signal::apply_bound_automation;
 use indexmap::{IndexMap, IndexSet};
 use std::sync::Arc;
 
@@ -29,6 +26,7 @@ pub(crate) struct PrepareEffectContext<'a> {
     pub(crate) elements: &'a [PreparedElement],
     pub(crate) element_ids: &'a IndexSet<ElementNodeId>,
     pub(crate) groups: &'a IndexMap<ElementNodeId, Vec<ElementNodeId>>,
+    pub(crate) environments: &'a mut Vec<dawn_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,
     pub(crate) generated_child_count: &'a mut usize,
     pub(crate) bind_cache: &'a mut DslBindCache,
@@ -127,10 +125,49 @@ pub(crate) fn prepare_effect_inst(
             });
         }
         EffectKind::Generator => {
-            let mut params =
-                BoundParams::bind_cached(&definition.params, &params, context.bind_cache)?;
-            apply_bound_automation(&mut params, &automation, start_time)?;
+            let params = BoundParams::bind_cached(&definition.params, &params, context.bind_cache)?;
+            let mut inputs = (0..definition.params.len())
+                .map(|index| {
+                    params
+                        .value(index)
+                        .map(super::retained::ParameterInput::Constant)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if !automation.is_empty() {
+                let environment = u32::try_from(context.environments.len()).map_err(|_| {
+                    RenderError::GeneratorPrepare {
+                        message: "too many parameter environments".to_string(),
+                    }
+                })?;
+                for binding in &automation {
+                    inputs[usize::from(binding.param_index)] =
+                        super::retained::ParameterInput::Source(
+                            dawn_runtime::bindings::ParameterSource {
+                                environment,
+                                parameter: binding.param_index,
+                            },
+                        );
+                }
+                context
+                    .environments
+                    .push(dawn_runtime::bindings::PreparedParameterEnvironment {
+                        start_time,
+                        duration,
+                        params: params.clone(),
+                        types: definition
+                            .params
+                            .iter()
+                            .map(|param| param.ty.clone())
+                            .collect(),
+                        bindings: Box::new([]),
+                        automation: automation.clone().into_boxed_slice(),
+                        calculation: None,
+                        array_capacity: 0,
+                        array_width: 0,
+                    });
+            }
             let mut generator_context = GeneratorPrepareContext {
+                environments: context.environments,
                 project: context.project,
                 elements: context.elements,
                 effects: context.effects,
@@ -140,36 +177,17 @@ pub(crate) fn prepare_effect_inst(
                 target_cache: context.target_cache,
             };
             for expansion_target in generator_expansion_targets(&target, &effect.scope) {
-                match &definition.implementation {
-                    EffectImplementation::Dsl(compiled) => {
-                        let EffectRef::Custom(id) = &effect.definition else {
-                            unreachable!("DSL effects are custom")
-                        };
-                        expand_generator(
-                            &mut generator_context,
-                            compiled,
-                            &params,
-                            GeneratorExpansion {
-                                start_time,
-                                duration,
-                                target: expansion_target,
-                                depth: 0,
-                                definition_source: id.0.clone(),
-                            },
-                        )?;
-                    }
-                    EffectImplementation::Native(builtin) => {
-                        let bound = native_effect::bind_prepared(*builtin, params.clone())?;
-                        expand_native_generator(
-                            &mut generator_context,
-                            &bound,
-                            start_time,
-                            duration,
-                            expansion_target,
-                            0,
-                        )?;
-                    }
-                }
+                super::retained::expand(
+                    &mut generator_context,
+                    definition,
+                    &inputs,
+                    GeneratorExpansion {
+                        start_time,
+                        duration,
+                        target: expansion_target,
+                        depth: 0,
+                    },
+                )?;
             }
         }
     }

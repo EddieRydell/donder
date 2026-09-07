@@ -34,7 +34,14 @@ type ParamAutomationControls = {
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 };
 
-export function TypedParamInput({
+export function TypedParamInput(props: Parameters<typeof TypedParamValue>[0]) {
+  return <>
+    {props.param.fixed && <div className="effect-param-name">Fixed ? requires preparation</div>}
+    <TypedParamValue {...props} />
+  </>;
+}
+
+function TypedParamValue({
   param,
   commitParam,
   curveLibrary,
@@ -82,7 +89,7 @@ export function TypedParamInput({
   }
 
   const automationActions =
-    automation === null
+    automation === null || !param.supportsAutomation
       ? null
       : automationBindingControl(
           automation.target,

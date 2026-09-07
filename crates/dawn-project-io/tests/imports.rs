@@ -15,9 +15,52 @@ const GENERATOR: &str = "effects/mark-impact-burst.effect.dawn";
 const CHILD: &str = "effects/impact-burst.effect.dawn";
 const EXTRA: &str = "effects/import-test.effect.dawn";
 
+#[test]
+fn unused_imported_emissions_validate_types_and_fixed_parameters() {
+    for (declaration, argument, expected) in [
+        (
+            "fixed param float value = 0.0;",
+            "live",
+            "fixed child parameter `value`",
+        ),
+        ("param bool value = false;", "live", "expects Bool"),
+        ("param float value = 0.0;", "live", ""),
+    ] {
+        let mut sources = project_source_texts(&root()).unwrap();
+        sources.insert(
+            EXTRA.into(),
+            format!(
+                "effect Child {{ {declaration} color sample() {{ return hsv(0.0, 1.0, 1.0); }} }}"
+            ),
+        );
+        let generator = sources.get_mut(&Utf8PathBuf::from(GENERATOR)).unwrap();
+        *generator = format!(
+            "import check from [\"{EXTRA}\"];\n{generator}\neffect UnusedParent {{ param float live = 0.5; void generate() {{ if (false) {{ timeline.emit check.Child {{ start: 0.0, duration: 1.0, target: target, value: {argument} }}; }} }} }}"
+        );
+        let report = check_package_with_overrides(&root(), &sources);
+        if expected.is_empty() {
+            assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+        } else {
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(expected)),
+                "{:?}",
+                report.diagnostics
+            );
+        }
+    }
+}
+
 fn generator(reference: &str) -> String {
+    let curve_field = if reference == "builtins.pulse" {
+        "pulse_shape"
+    } else {
+        "intensity"
+    };
     format!(
-        "effect MarkImpactBurst {{ void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target }}; }} }}"
+        "effect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target, gradient: ramp, {curve_field}: shape }}; }} }}"
     )
 }
 
@@ -303,10 +346,15 @@ fn linked_target_slots_include_local_imported_and_builtin_children_in_source_ord
     let mut sources = project_source_texts(&root()).unwrap();
     let emits = ["Local", "fx.ImpactBurst", "builtins.pulse", "Local"]
         .map(|reference| {
-            format!("timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target }};")
+            let arguments = match reference {
+                "fx.ImpactBurst" => ", gradient: ramp, intensity: shape",
+                "builtins.pulse" => ", gradient: ramp, pulse_shape: shape",
+                _ => "",
+            };
+            format!("timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target{arguments} }};")
         })
         .join("\n");
-    sources.insert(GENERATOR.into(), format!("import fx from [\"{CHILD}\"];\neffect Local {{ color sample() {{ return hsv(0.0, 1.0, 1.0); }} }}\neffect MarkImpactBurst {{ void generate() {{ {emits} }} }}"));
+    sources.insert(GENERATOR.into(), format!("import fx from [\"{CHILD}\"];\neffect Local {{ color sample() {{ return hsv(0.0, 1.0, 1.0); }} }}\neffect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ {emits} }} }}"));
     // Reach the mutual pair in either order.
     let child = sources[&Utf8PathBuf::from(CHILD)].clone();
     sources.insert(

@@ -1,171 +1,210 @@
 # Signal model implementation and measurement record
 
-Scope: generator parameter automation, shared built-in operator semantics, and
-spatial input-signal sampling. Maximum layer/output blending and 8-bit RGB remain
-the accepted semantics. This is an in-progress record, not a completion claim.
+Dawn expands generator structure on the host and evaluates retained child
+parameters in its portable VM. This supersedes the earlier runtime-expansion
+proposal. Authored targets and per-fixture/whole-target scope remain separate
+fixed configuration. Maximum blending and 8-bit RGB semantics are unchanged.
 
-## Requirements
+## Fixed structure and live rendering parameters
 
-- Generator automation must have explicit semantics for both child values and
-  parameters that affect child count, targets, start times, and durations. Sampling
-  every automated scalar only at the parent's start is insufficient. Preserve
-  host-side import linking and preparation; do not add runtime source-name lookup.
-- Scheduled frames, recursive frames, and recursive pixels must use the same
-  built-in parameter binding, color operations, and temporal sampling rules.
-  Preserve specialized loops only where measurements justify them.
-- Operators must be able to choose an input pixel as well as an input time.
-  Define indexing, bounds, fixture boundaries, and output-fragment behavior.
-  Include the chosen pixel in sample-cache identity and compiler read reuse.
-- Keep the current format a single development format; update its implementation
-  and reject mismatched serialized data without compatibility branches.
-- The user explicitly authorized updating tests and regression coverage. Run existing
-  correctness checks and benchmark checksum assertions. Run cargo fmt followed by
-  pnpm check for the completed implementation, and check the firmware workspace.
+`fixed param` is canonical declaration metadata for generators, sample effects,
+and operators. Fixed values remain editable and require preparation; active
+automation and live assignments to them are errors. Ordinary float, int, bool,
+enum, and curve parameters retain their existing automation mappings.
 
-## Measurement setup
+The language staging pass follows assignments, arrays, indexing, branch merges,
+and loop-carried dependencies. Live values cannot determine child existence,
+count, timing, targets, effect selection, or fixed child parameters. Linked local,
+imported, native, and unused emissions receive declaration-based type and
+required-argument validation before expansion. Generator pixel reads are invalid.
 
-Fresh host baseline command: `pnpm bench:effect-vm:save`. Its Criterion baseline is
-`effect-vm`, under `target/criterion`. Do not treat comparisons printed by its
-initial quick pass against historical results as improvements from this work.
-Capture the final `pnpm bench:effect-vm:compare` results after implementation.
+Host specialization captures fixed locals at each emission and compiles retained
+calculations with the existing typed compiler. Prepared bindings use numeric
+slots and ordered parameter environments; imports and source identities stay out
+of playback. Nested forwarding preserves the expression's lexical clock at the
+exact requested SampleTime, including backward queries and children that outlive
+parents. Child sampling retains its child-local clock. Constant-only projects
+retain the static path.
 
-The board was identified live on COM4 as ESP32 revision 3.1, 40 MHz crystal,
-4 MB flash, MAC c8:2e:18:f1:5e:bc. Build the existing `dawn-esp32` profiling image
-with `cargo +esp build --release --bin dawn-esp32 --locked` from `firmware/esp32`
-after loading `export-esp.ps1`. Preserve exact baseline and final ELFs beside the
-results under `target/signal-model-2026-09-06` before another build.
+Native MarkPulse and MarkChase use the same binding path. Their structural
+parameters are fixed; rendering parameters and resource selection remain live.
+MarkImpactBurst fixes its gradient collection because emptiness controls emission.
+The editor derives fixed mode and automation eligibility from declarations,
+rejects active fixed automation, and retains explicit detached bindings during
+definition replacement. Typed edits, immutable history snapshots, and semantic
+save/load ownership remain unchanged.
 
-Full-flash backup attempts using espflash and esptool failed; no valid full backup
-was obtained. A ROM-only 256-byte read at application offset 0x10000 succeeded.
-It matches the preserved loader image header, including its embedded ELF hash.
-The installed loader has not been overwritten.
+Runtime workspaces reserve parameters, VM registers, arrays, and automated curves.
+Exact-time cache lanes share parent and child calculations across pixels and
+recursive queries. Forwarded resource references are cleared before reusing a
+lane so curve updates neither allocate through copy-on-write nor retain stale
+crossing data. Controller fragments retain and remap ancestor environments and
+child programs. The current archive marker is 5; archive CRC includes the retained
+programs and binding metadata, while declaration/program hashes include fixed
+metadata and emitted bytecode semantics. No compatibility path is provided.
 
-The existing profiling collector requires 168 complete measurements, matching
-host checksums, zero measured allocations, and return to the initial heap usage.
-It measures evaluation and packing, not physical LEDs or Wi-Fi interference.
-Report frame time, observed deadline violations, and memory with that boundary;
-use the loader/I2S workflow for end-to-end output deadline measurements.
+## Signal queries
 
-## Confirmed direction and target distinction
+Operators support `source.at(time)`, `source.at(time, local_pixel)`, and
+`source.at_global(time, rig_pixel)`. Negative/out-of-range pixels return black;
+invalid times are errors. Scalar cache identity includes pixel and time. Local
+queries preserve whole selected fixtures; global queries preserve the full rig
+color domain even in a controller fragment. Output packing still includes only
+selected ports. Native operator binding, color operations, and Echo time/weight
+generation are shared by scheduled frames, recursive frames, and recursive pixels.
 
-The user authorized generator automation to change generated behavior, including
-child count and timing, not just child values. Generators must appear like normal
-effects to the user. Actual authored target selection must remain fixed and must
-not become an ordinary effect parameter. The existing type checker already rejects
-target types in parameter declarations; preserve that distinction.
+## Correctness coverage
 
-Interpretation to carry forward: a fixed parent target determines the available
-fixtures/pixels, while generated behavior may distribute light differently within
-that target (for example, chase steps and section counts). This does not authorize
-selecting fixtures outside the parent target. Scope (PerFixture/WholeTarget) is a
-separate execution setting, not an automatable parameter. The user subsequently
-confirmed it should remain fixed; automating scope is outside this task.
+Coverage includes fixed syntax/defaults, indirect structural dependencies, arrays,
+loop captures, live branches, linked unused/imported emissions, nested clocks,
+resource selection, automated curves and crossings, native generated children,
+backward and alternating-time queries, malformed wire references, fragments, and
+fresh/reused workspace parity. Allocation tests cover first and repeated playback
+across the shared six generator workloads. Desktop coverage exercises editable
+fixed values, rejected automation, definition replacement, detached rebinding,
+undo/redo, and semantic save/load.
 
-The user explicitly authorized test modifications. The former test-permission and
-fixed-versus-dynamic generator structure blockers are resolved. Dynamic generator
-evaluation still requires implementation. Spatial sampling is implemented below
-but still needs complete validation and final performance measurements.
+The shared workloads are forwarding, derived arithmetic, nesting, resource
+selection, overlapping children, and automated curves. Each has an ordinary
+sample-effect reference with identical output. Criterion compares ordinary live,
+generated live, and generated constant forms at 200 and 800 pixels. The firmware
+uses the same host-generated fixtures: 174 normal profiling records and 21
+interrupted-PC fixtures (84 windows). Profiling is evaluation/packing evidence;
+loader/I2S playback and external lights require their own evidence.
 
-## Generator preparation boundary requiring approval
+## Evidence and verification
 
-Current source confirms that `CompiledEffect::generate_bound` executes arbitrary
-parameter-dependent control flow and returns `GeneratedEffect` records containing
-concrete start times, durations, targets, and parameter values. Preparation then
-flattens them into `PreparedEffect` records. There is no retained expression for
-how a generated child's existence or timing depends on automation.
+Current work is recorded under `target/fixed-generator-completion-20260907/`.
+The valid fresh `pnpm bench:effect-vm:save` completed before retained runtime
+implementation, with unchanged sources and no concurrent builds. `baseline.log`,
+`baseline-exit.txt`, `baseline-source.zip`, the preserved benchmark executables,
+and `baseline-sha256.txt` identify it. The source archive SHA256 is
+`0fdad7507c4529477344964956ddf71bf3bb099b06754fde28866bedb38dd3e2`.
+New benchmark names have no pre-feature historical baseline; their initial saved
+measurements must be identified separately from this baseline.
 
-The existing operator signal contract permits sampling arbitrary `SampleTime`
-values, including between output frames and in nonmonotonic order. Expanding only
-at automation knots or baking at the output frame rate would introduce a new,
-inexact quantization rule and is not an implementation of the agreed normal-effect
-contract. Sampling each child once at birth would also narrow that contract.
+Earlier interrupted baseline attempts remain under
+`target/fixed-generator-20260907-003402/`; they are invalid because they overlapped
+source edits or builds. They are preserved for provenance, not used for acceptance.
 
-An exact implementation therefore needs a prepared time-dependent expansion plan:
-the host resolves imports and numeric child slots and prepares the plan, while
-portable evaluation computes the time-dependent generated behavior. This changes
-the current fully-host-expanded playback boundary. User approval is being sought
-before implementing that architectural change. It does not reopen the decisions
-about fixed authored targets/scope or permission to update tests. No runtime
-generator expansion or frame-rate baking has been introduced.
+The original loader's historical 10,800-frame I2S capture is
+`target/signal-model-2026-09-06/baseline-i2s-playback.txt`: zero missed deadlines,
+maximum evaluation 5,161 us, maximum frame 7,894 us, minimum reported free heap
+77,976 bytes, matching reference checksums, and zero evaluation allocations.
+These are baseline numbers. Exact prior firmware images are preserved in
+`baseline-firmware/` within the current evidence directory. Earlier spatial-only
+checks and Criterion comparisons are intermediate evidence, not final results.
 
-## Affected implementation areas
+Full checks, the Criterion comparison, and on-device profiling/I2S verification
+are complete. Physical-light and oscilloscope validation were not performed.
 
-- `crates/dawn-language/src/dsl`: checking, compilation, optimization, and signal
-  query representation.
-- `crates/dawn-runtime/src/dsl`, `evaluation.rs`, `signal.rs`, `wire.rs`: VM,
-  signal sampling/cache identity, shared native operators, and archive validation.
-- `crates/dawn-elaboration/src/sequence`: generator expansion, graph preparation,
-  and target coordinates.
-- `crates/dawn-elaboration/src/output/fragment.rs`: preserve spatial dependencies
-  when selecting controller outputs.
-- `firmware/esp32`: existing workload generation and measurement integration as
-  required by representation changes.
-- `docs/sequence_as_code.md`: publish the resulting authoring/runtime contract.
+`cargo fmt` followed by the full `pnpm check` passed (`check-final2.log`, exit 0),
+including regenerated bindings, frontend checks/tests, Rust workspace tests, and
+warning-denying Clippy. The firmware's combined `pc-profile,i2s-output` feature
+check passed strict Clippy, and the normal profiler, PC profiler, and I2S loader
+were built with the documented Xtensa toolchain and `--locked`. Six PC collector
+unit tests passed. The interrupted-PC image is preserved but has not been
+measured; the normal profiler supplies the device evaluation measurements below.
 
-## Current progress
+The board was reidentified on COM4 (ESP32 rev3.1, MAC c8:2e:18:f1:5e:bc) before
+deployment. The normal profiling image SHA256 is
+`29dac085e38b51a4e945e12511f2fc0c3f133a3cc71d9f08abf4102bd1154fc3`.
+The first 19200-baud flash timed out; the identical retry succeeded. Both attempts
+are preserved. `profile-final.txt` passed the collector with all 174 measurements,
+matching host checksums, zero timed allocations, zero prepared-playback first-frame
+allocations, and all 163,840 heap bytes recovered. Raw VM cold-start measurements
+include workspace construction and are recorded separately from prepared playback.
 
-- `dawn-runtime/src/operator.rs` now owns native operator binding, parameter
-  bounds, unary/binary color semantics, and Echo time/weight generation. All three
-  runtime traversals use these operations. Preparation and workspace sizing use
-  the native operator's temporal/scratch requirements rather than their own lists.
-- `cargo check -p dawn-runtime -p dawn-elaboration --locked --offline` passed;
-  its unused-import warning was then removed. The existing
-  `native_temporal_frames_match_scalar_sampling_through_nested_operators` test
-  passed after the refactor. Full `pnpm check` subsequently passed for the current
-  partial implementation; final firmware checks remain.
-- The preserved baseline firmware is
-  `target/signal-model-2026-09-06/baseline-dawn-esp32.elf`, SHA-256
-  `ae2052f48cbd2220f8d234b63b8c6aa215e3fa74e419ca8cde07f7d8d0e6b08a`.
-  The unchanged host benchmark executables are preserved in the same directory.
-- Fresh full Criterion baseline means recorded so far: DSL suite 476.08 us,
-  representative frames 960.61 us, dense 60-frame playback 7.3089 ms, and dense
-  controller output 7.5545 ms. The full baseline process completed successfully.
-  Some later microbenchmarks overlapped short compilation/check work; use a
-  controlled rerun with the preserved baseline executable if they show a meaningful
-  regression. Do not compare a modified build against itself as a baseline.
-- The original installed I2S loader completed 90 playback windows (10,800 frames):
-  zero missed deadlines, maximum evaluation 5,161 us, maximum total frame 7,894 us,
-  and minimum reported free heap 77,976 bytes. Its 10 reference checksum checks
-  passed with zero evaluation allocations. Capture:
-  `target/signal-model-2026-09-06/baseline-i2s-playback.txt`.
-  These are baseline results, not post-change validation.
-- Spatial queries now support `source.at(time, local_pixel)` and
-  `source.at_global(time, rig_pixel)` alongside current-pixel `source.at(time)`.
-  The compiler tracks coordinate operands in register usage and read reuse;
-  scalar cache identity includes the pixel and time. Out-of-range pixels are black.
-  Frame caches retain full frames, so their identity remains input/time.
-- Output fragments inspect reachable spatial reads. Local reads retain full
-  selected color elements; global reads retain the full rig color domain. This
-  preserves coordinates and unpatched upstream dependencies, at an explicit
-  memory cost. In the starter fixture the full domain is 3,390 pixels, not the
-  452-pixel baseline controller fragment.
-- New DSL and rendering tests pass for coordinate domains, mutations, bounds,
-  cached/scalar evaluation, seeks, split-output dependencies, and wire round trips.
-  The archive marker is now 4; regenerate payloads with matching firmware.
-- Full `pnpm check` passed after spatial implementation (session 19935, exit 0),
-  including new local/global first-frame zero-allocation checks. An earlier run
-  overlapped a source export edit and failed with stale compiled dependencies;
-  the successful run used unchanged sources throughout.
-- ESP32 `cargo +esp check --release --features i2s-output --bin loader --locked`
-  passed for the new spatial bytecode (session 7275). No new firmware was flashed;
-  this is compile validation, not a post-change board benchmark.
-- Intermediate Criterion controller-output comparison: 8.3280 ms/60 frames versus
-  the original 7.5545 ms baseline initially showed +10.24%. A back-to-back run of
-  the preserved original executable measured 8.0690 ms (`--bench`, baseline
-  `signal-control`); the changed build measured 8.2689 ms, +2.48% (about 3.3 us per
-  frame), inside this benchmark's configured noise threshold. Retain this small
-  measured cost for final verification; it does not justify speculative hot-path
-  complexity. Sessions 99960, 16384, and 44745 exited successfully. This is not the
-  final full benchmark comparison or post-change board validation.
-- The existing native temporal equivalence test passed again after that cache
-  groundwork. `cargo fmt --check` and full `pnpm check` passed (session 82465,
-  exit 0), including frontend checks, 26 frontend tests, workspace tests, and
-  warning-denying Clippy. Vite reported a nonfatal bundle-size warning. This is
-  intermediate validation, not proof of the unfinished generator/spatial features.
-  Final full benchmarks remain; the intermediate focused comparison is above.
-- The user subsequently approved changing generator structure (but not authored
-  target selection) and updating tests. No tests have yet been added or modified.
+| Live generator, 200 pixels | Mean / maximum frame (us) | First frame (us) | Retained bytes |
+| --- | ---: | ---: | ---: |
+| Forward | 742 / 747 | 1,379 | 7,552 |
+| Derived | 766 / 781 | 1,629 | 8,200 |
+| Nested | 788 / 804 | 1,629 | 8,784 |
+| Resource selection | 238 / 265 | 1,415 | 9,844 |
+| Overlap | 2,779 / 2,797 | 3,664 | 11,536 |
+| Automated curve | 798 / 815 | 1,480 | 7,864 |
 
-Full `pnpm check` sessions 80998 and 19935 have exited. Host
-baseline session 11742, board capture session 14686, and backup session 3026
-have all exited. The board still runs the original loader.
+These measurements include the existing profiler's render/packing work and are
+Wi-Fi-free. Larger stress cases can exceed a 120 Hz budget; the acceptance
+workload is the representative 10,800-frame loader/I2S window, not every synthetic
+stress case. All six live-generator cases remain below 8,333 us, including their
+first frames.
+
+The final I2S loader SHA256 is
+`18f63fd6238f2e5857ce37b02e88774d3b17e3819222bb5928580d598264e1e4`.
+The regenerated four-port starter archive is 25,361 bytes, 452 pixels, ten effects,
+SHA256 `ca6581f73b33c817fedb45dc075e368ca24a19d00f303e7216192170c137144a`.
+Three uploads succeeded, and all ten reference frames matched with zero evaluation
+allocations. `i2s-final.txt` contains 92 complete playback windows; its first 90
+consecutive windows are the comparable 10,800-frame acceptance window: zero
+missed 120 Hz deadlines, maximum evaluation 5,300 us, maximum total frame 7,865 us,
+and minimum reported free heap 81,208 bytes. Baseline maximum total was 7,894 us;
+the final worst frame remains below the 8,333-us deadline. The normal profiler and
+HTTP frame checks establish zero evaluation allocations; the networked I2S heap
+measurement includes unrelated network activity.
+
+This validates runtime execution, packing, and on-device I2S DMA completion.
+External waveform voltage and physical-light behavior were not measured.
+
+All six generator archives also passed the same loader/I2S path: 32 host-selected
+frames per case matched with zero evaluation allocations, followed by nine
+120-frame playback windows per case with zero missed deadlines. Captures are
+`i2s-generator-{Forward,Derived,Nested,Resources,Overlap,Curve}.txt` in the evidence
+directory. `loader-rejections-final.txt` confirms authorization, current-format,
+size, CRC, interrupted-body, and concurrent-upload rejection while retaining a
+working sequence. The board was left running the final loader and starter payload.
+
+The completed representative Criterion comparisons against the valid pre-retained-runtime
+baseline are below (mean times; dense workloads render 60 frames). Assertions
+retain the original checksums and active-effect counts.
+
+| Host workload | Baseline (ms) | Final (ms) | Change |
+| --- | ---: | ---: | ---: |
+| DSL suite, 4 x 512 pixels | 0.4910 | 0.4940 | +0.63% |
+| Prepare starter | 0.5389 | 0.5203 | -3.46% |
+| Representative frames | 0.9850 | 0.9826 | -0.24% |
+| Dense playback, 60 frames | 7.5575 | 7.6614 | +1.38% |
+| Dense cold playback, 60 frames | 7.5993 | 7.5135 | -1.13% |
+| Dense controller output, 60 frames | 7.8732 | 7.8047 | -0.87% |
+
+The dense playback increase is about 1.73 us per frame and within the configured
+noise threshold; controller output and the representative device deadline result
+do not show a corresponding regression. No hot-path complexity was added to chase
+this small isolated difference. The full-suite comparison completed successfully in
+`comparison.log`; new generator modes are compared with equivalent-output ordinary
+samples, not claimed as improvements against a nonexistent pre-feature baseline.
+
+`pnpm bench:effect-vm:compare` completed with exit 0, including its quick pass and
+both full Criterion suites. No builds or source changes overlapped measurements.
+The initial save of the 36 new generator names also completed with exit 0;
+`new-generator-baselines.log` identifies these postimplementation measurements.
+The full final mode comparison below reports mean microseconds per frame. Each
+mode's output is checked against its equivalent ordinary reference before timing.
+
+| Workload | Ordinary / live / constant, 200 pixels (us) | Ordinary / live / constant, 800 pixels (us) |
+| --- | ---: | ---: |
+| Forward | 5.494 / 5.600 / 5.466 | 21.846 / 22.019 / 21.831 |
+| Derived | 5.483 / 5.679 / 5.525 | 21.376 / 21.917 / 21.453 |
+| Nested | 5.481 / 5.685 / 5.468 | 21.938 / 22.151 / 21.743 |
+| Resource selection | 0.850 / 1.249 / 0.658 | 2.318 / 2.746 / 2.154 |
+| Overlap | 20.984 / 21.462 / 21.272 | 85.068 / 85.334 / 84.684 |
+| Automated curve | 6.030 / 6.128 / 6.483 | 23.259 / 23.456 / 24.729 |
+
+Live binding overhead against equivalent ordinary samples is 0.10-0.54 us in these
+measurements, with no poor scaling from 200 to 800 pixels. The small resource case
+has a larger percentage difference but costs only about 0.4 us more per frame.
+Constant modes remove automation, so their inputs and curve-processing costs can
+differ from the live modes; they are static-path references, not identical-input
+speedup claims.
+
+Two existing microbenchmarks were flagged as regressions: one-layer UniformFade
+increased by about 0.14 us (to 0.794 us), and native mark-pulse playback by about
+0.29 us (to 4.220 us). Those small absolute costs do not correspond to a
+representative controller or device deadline regression. Their uncertainty and
+tradeoff are retained here; no added complexity was justified to recover them.
+
+Exact final host executables and `final-source.zip`, firmware ELFs, generated
+archives and checksum sidecars are preserved in the evidence directory, with
+`final-sha256.txt` identifying the artifacts. Earlier failed checks/flashes and
+invalid baseline attempts remain preserved. No compatibility shims, temporary
+implementation paths, or frontend development server were introduced.

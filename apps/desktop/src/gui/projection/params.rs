@@ -32,6 +32,8 @@ pub(in crate::gui) fn effect_params(
                 &mut value,
             );
             Some(SequenceEffectParam {
+                fixed: param.fixed,
+                supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
                 kind,
                 options: param_options(&param.ty),
@@ -117,6 +119,8 @@ fn graph_operator_params(
                 &mut value,
             );
             Some(SequenceEffectParam {
+                fixed: declaration.fixed,
+                supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
                 kind,
                 options: param_options(&declaration.ty),
@@ -145,6 +149,8 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
             .iter()
             .filter_map(|param| {
                 Some(crate::dto::SequenceEffectDefinitionParam {
+                    fixed: param.fixed,
+                    supports_automation: param.supports_automation(),
                     name: param.name.as_str().to_string(),
                     kind: param_kind(&param.ty)?,
                 })

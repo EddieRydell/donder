@@ -62,19 +62,28 @@ pub(crate) fn render_sampled_effect_target_colors(
     rendered: &mut [Color],
     sample_time: dawn_language::values::SampleTime,
     workspace: &mut VmWorkspace,
-    automation: Option<&mut dawn_runtime::signal::EffectAutomationWorkspace>,
+    parameters: (
+        Option<&mut dawn_runtime::signal::EffectAutomationWorkspace>,
+        Option<&dawn_language::dsl::BoundParams>,
+    ),
 ) -> Result<(), RenderError> {
     effect
-        .with_sampler(programs, sample_time, automation, |sampler| {
-            render_sampled_effect_pixels(effect_pixels, rendered, |context| {
-                sampler.sample(
-                    context.pixel_index,
-                    context.pixel_count,
-                    context.pixel_fraction,
-                    workspace,
-                )
-            })
-        })
+        .with_sampler(
+            programs,
+            sample_time,
+            parameters.0,
+            parameters.1,
+            |sampler| {
+                render_sampled_effect_pixels(effect_pixels, rendered, |context| {
+                    sampler.sample(
+                        context.pixel_index,
+                        context.pixel_count,
+                        context.pixel_fraction,
+                        workspace,
+                    )
+                })
+            },
+        )
         .map_err(RenderError::from)
 }
 

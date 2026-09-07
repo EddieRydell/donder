@@ -12,6 +12,9 @@ use std::time::Duration;
 #[path = "../../dawn-language/benches/fixtures/mod.rs"]
 mod effect_fixtures;
 #[allow(dead_code)]
+#[path = "../../../firmware/esp32/src/generator_workload.rs"]
+mod generator_workload;
+#[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/mark_workload.rs"]
 mod mark_workload;
 #[allow(dead_code)]
@@ -345,6 +348,51 @@ fn bench_chase_pulse(c: &mut Criterion) {
     }
 }
 
+fn bench_generator_bindings(c: &mut Criterion) {
+    pin_benchmark_thread();
+    for (case, name) in generator_workload::CASES {
+        for count in [200, 800] {
+            for (mode, generator, automated) in [
+                ("ordinary", false, true),
+                ("live", true, true),
+                ("constant", true, false),
+            ] {
+                let show = generator_workload::show(count, case, generator, automated);
+                let reference = generator_workload::show(count, case, false, automated);
+                let mut workspace = show.workspace();
+                let mut reference_workspace = reference.workspace();
+                let mut output = [vec![0u8; count * 3]];
+                let mut expected = output.clone();
+                for frame in 0..workload::FRAMES {
+                    show.evaluate(workload::time(frame), &mut output, &mut workspace)
+                        .unwrap();
+                    reference
+                        .evaluate(
+                            workload::time(frame),
+                            &mut expected,
+                            &mut reference_workspace,
+                        )
+                        .unwrap();
+                    assert_eq!(output, expected, "{name}/{mode}/{count}/{frame}");
+                }
+                let mut frame = 0;
+                c.bench_function(&format!("generator_bindings/{name}/{mode}/{count}"), |b| {
+                    b.iter(|| {
+                        frame = (frame + 1) % workload::FRAMES;
+                        show.evaluate(
+                            black_box(workload::time(frame)),
+                            &mut output,
+                            &mut workspace,
+                        )
+                        .unwrap();
+                        black_box(&output);
+                    })
+                });
+            }
+        }
+    }
+}
+
 fn bench_layers(c: &mut Criterion) {
     pin_benchmark_thread();
     for (name, source, params) in effect_fixtures::layer_cases() {
@@ -650,6 +698,6 @@ fn criterion_config() -> Criterion {
 criterion_group! {
     name = benches;
     config = criterion_config();
-    targets = bench_render, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream
+    targets = bench_render, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream, bench_generator_bindings
 }
 criterion_main!(benches);

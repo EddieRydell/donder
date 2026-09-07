@@ -63,6 +63,7 @@ fn gradient_parameter_and_native_sampling_agree_at_steps_and_boundaries() {
     };
     let params = BoundParams::bind(
         &[ParamDecl {
+            fixed: false,
             name: Identifier::new("gradient".into()).unwrap(),
             ty: Type::Gradient,
             default: Some(Value::Gradient(gradient.clone().into())),

@@ -1,13 +1,13 @@
 import bursts from ["effects/impact-burst.effect.dawn"];
 
 effect MarkImpactBurst {
-  param marks beats;
-  param array<gradient> gradients;
+  fixed param marks beats;
+  fixed param array<gradient> gradients;
   param curve intensity;
   param enum direction { outward, inward } = outward;
   param enum color_mode { through_effect, from_center, from_edge } = through_effect;
-  param float offset_seconds = 0.0;
-  param float burst_seconds = 0.45;
+  fixed param float offset_seconds = 0.0;
+  fixed param float burst_seconds = 0.45;
   param float center_position = 0.5;
   param float start_radius = 0.0;
   param float end_radius = 0.75;

@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod automation;
+pub mod bindings;
 pub mod control;
 pub mod dsl;
 pub mod element;

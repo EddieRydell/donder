@@ -50,6 +50,30 @@ pub struct BytecodeProgram {
 }
 
 impl BytecodeProgram {
+    /// Evaluate retained generator calculations into preallocated typed slots.
+    pub fn evaluate_bindings(
+        &self,
+        params: &super::BoundParams,
+        context: &super::RunContext,
+        workspace: &mut super::VmWorkspace,
+        output: &mut super::BoundParams,
+        types: &[Type],
+    ) -> Result<(), super::RuntimeError> {
+        super::vm::evaluate_bindings(self, params, context, workspace, output, types)
+    }
+
+    /// Host preparation evaluates typed expressions through the same VM as
+    /// playback. Returning owned arrays is a preparation operation.
+    pub fn evaluate_value(
+        &self,
+        params: &super::BoundParams,
+        context: &super::RunContext,
+        workspace: &mut super::VmWorkspace,
+        remaining_iterations: &mut usize,
+    ) -> Result<Value, super::RuntimeError> {
+        super::vm::evaluate_value(self, params, context, workspace, remaining_iterations)
+    }
+
     pub(crate) fn frame_cache_count(&self) -> usize {
         self.instructions
             .iter()

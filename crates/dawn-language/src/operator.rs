@@ -91,6 +91,7 @@ fn identifier(name: &str) -> Identifier {
 
 fn param(name: &str, ty: Type, default: Value) -> ParamDecl {
     ParamDecl {
+        fixed: false,
         name: identifier(name),
         ty,
         default: Some(default),

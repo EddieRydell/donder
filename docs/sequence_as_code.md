@@ -5,6 +5,52 @@ effect instances, a composition graph, automation clips, and control clips. It
 is loaded into the typed `dawn_language::sequence::Sequence`; YAML is never an
 editable runtime model after load.
 
+## Fixed parameter declarations
+
+Effects and operators can declare editable preparation values using
+`fixed param int count = 8;`. An ordinary `param` retains its existing type-based
+automation eligibility (float, int, bool, enum, and curve). Fixed parameters
+cannot receive active automation, including through detached rebinding. The
+editor labels them as requiring preparation and keeps their values editable.
+
+Generator timing, target selection, and control flow determining emission must
+depend only on fixed parameters and preparation context. Dependency checking
+follows locals, arrays, assignments, branches, and loop-carried values. Generator
+pixel-context reads are rejected. Linked child argument types and live-to-fixed
+arguments are checked even in unused branches.
+
+Preparation expands structural branches and loops into concrete children. Child
+parameters retain constants, numeric parent-parameter references, or typed VM
+calculations. Fixed locals, including loop indices, are captured at each emission.
+Pure live arithmetic, resource selection, arrays, branches, and bounded loops can
+compute rendering parameters. The existing VM execution and array limits apply.
+Unchanged projects without automation or time dependencies keep constant bindings
+and the static playback path.
+
+Retained expressions use their declaring generator's `seconds()` and `progress()`
+at the exact requested time. Nested forwarding preserves that clock; each child's
+`sample()` uses its own clock. Bindings remain available when children outlive
+their parents. Existing automation positioning and endpoint rules apply during
+ordinary frames, temporal/spatial queries, and backward seeks. Parameter and
+resource workspaces are reserved during preparation, with exact-time caches
+shared across pixels. Resource references are forwarded without rebuilding them.
+
+Native MarkPulse fixes beats, offset, decay duration, section width, sections per
+mark, and seed. MarkChase fixes beats, offset, and chase duration. Their other
+rendering inputs use the same retained bindings. Resource validity checks still
+apply, including nonempty MarkChase collections. MarkImpactBurst's gradient
+collection is fixed because its emptiness determines whether a child is emitted.
+
+Declaration metadata governs automation even when an instance has no active
+automation. Fixed child arguments and assignments cannot receive live values;
+structural branches are rejected conservatively, including branches that appear
+to emit equivalent children. Imported and unused emissions undergo the same
+type, required-argument, and fixed/live checks before expansion. Authored active
+automation targeting a fixed parameter is an error. Definition replacement keeps
+the explicit detached-binding workflow; detached bindings cannot activate against
+a fixed parameter. See [the implementation record](signal_model_work.md) for
+verification evidence.
+
 ## Operator signal coordinates
 
 An operator samples an immutable input signal by time and pixel:
