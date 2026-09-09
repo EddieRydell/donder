@@ -1,3 +1,5 @@
+pub mod authoring;
+
 use std::collections::HashSet;
 
 use indexmap::{IndexMap, IndexSet};
@@ -188,7 +190,9 @@ impl ElementTree {
                 }
                 ElementNodeKind::Color { cells, capability } => {
                     validate_cells(*node_id, *cells)?;
-                    validate_capability(*node_id, capability)?;
+                    capability
+                        .validate()
+                        .map_err(|error| error.in_element(*node_id))?;
                 }
                 ElementNodeKind::Scalar { cells } => validate_cells(*node_id, *cells)?,
                 ElementNodeKind::Indexed { cells, options } => {
@@ -271,60 +275,87 @@ fn validate_cells(node: ElementNodeId, cells: u32) -> Result<(), ElementTreeVali
     }
 }
 
-fn validate_capability(
-    node: ElementNodeId,
-    capability: &ColorCapability,
-) -> Result<(), ElementTreeValidationError> {
-    let ColorCapability::Discrete { emitters, mappings } = capability else {
-        return Ok(());
-    };
-    if emitters.is_empty() {
-        return Err(ElementTreeValidationError::EmptyEmitters(node));
-    }
-    if mappings.is_empty() {
-        return Err(ElementTreeValidationError::EmptyMappings(node));
-    }
-    let mut emitter_ids = IndexSet::new();
-    for emitter in emitters {
-        if !emitter_ids.insert(emitter.id) {
-            return Err(ElementTreeValidationError::DuplicateEmitter {
-                node,
-                emitter: emitter.id,
-            });
-        }
-    }
-    let mut mapped_colors = IndexSet::new();
-    for mapping in mappings {
-        if !mapped_colors.insert(mapping.color) {
-            return Err(ElementTreeValidationError::DuplicateMappedColor {
-                node,
-                color: mapping.color,
-            });
-        }
-        for emitter in &emitter_ids {
-            if !mapping.levels.contains_key(emitter) {
-                return Err(ElementTreeValidationError::MissingMappedEmitter {
-                    node,
-                    emitter: *emitter,
-                });
+#[derive(Clone, Debug, PartialEq)]
+pub enum ColorCapabilityValidationError {
+    EmptyEmitters,
+    EmptyMappings,
+    DuplicateEmitter(EmitterId),
+    DuplicateMappedColor(Color),
+    MissingMappedEmitter(EmitterId),
+    UnknownMappedEmitter(EmitterId),
+    InvalidEmitterLevel(EmitterId),
+}
+
+impl ColorCapabilityValidationError {
+    fn in_element(self, node: ElementNodeId) -> ElementTreeValidationError {
+        match self {
+            Self::EmptyEmitters => ElementTreeValidationError::EmptyEmitters(node),
+            Self::EmptyMappings => ElementTreeValidationError::EmptyMappings(node),
+            Self::DuplicateEmitter(emitter) => {
+                ElementTreeValidationError::DuplicateEmitter { node, emitter }
             }
-        }
-        for (emitter, level) in &mapping.levels {
-            if !emitter_ids.contains(emitter) {
-                return Err(ElementTreeValidationError::UnknownMappedEmitter {
-                    node,
-                    emitter: *emitter,
-                });
+            Self::DuplicateMappedColor(color) => {
+                ElementTreeValidationError::DuplicateMappedColor { node, color }
             }
-            if !level.is_finite() || !(0.0..=1.0).contains(level) {
-                return Err(ElementTreeValidationError::InvalidEmitterLevel {
-                    node,
-                    emitter: *emitter,
-                });
+            Self::MissingMappedEmitter(emitter) => {
+                ElementTreeValidationError::MissingMappedEmitter { node, emitter }
+            }
+            Self::UnknownMappedEmitter(emitter) => {
+                ElementTreeValidationError::UnknownMappedEmitter { node, emitter }
+            }
+            Self::InvalidEmitterLevel(emitter) => {
+                ElementTreeValidationError::InvalidEmitterLevel { node, emitter }
             }
         }
     }
-    Ok(())
+}
+
+impl ColorCapability {
+    pub fn validate(&self) -> Result<(), ColorCapabilityValidationError> {
+        let ColorCapability::Discrete { emitters, mappings } = self else {
+            return Ok(());
+        };
+        if emitters.is_empty() {
+            return Err(ColorCapabilityValidationError::EmptyEmitters);
+        }
+        if mappings.is_empty() {
+            return Err(ColorCapabilityValidationError::EmptyMappings);
+        }
+        let mut emitter_ids = IndexSet::new();
+        for emitter in emitters {
+            if !emitter_ids.insert(emitter.id) {
+                return Err(ColorCapabilityValidationError::DuplicateEmitter(emitter.id));
+            }
+        }
+        let mut mapped_colors = IndexSet::new();
+        for mapping in mappings {
+            if !mapped_colors.insert(mapping.color) {
+                return Err(ColorCapabilityValidationError::DuplicateMappedColor(
+                    mapping.color,
+                ));
+            }
+            for emitter in &emitter_ids {
+                if !mapping.levels.contains_key(emitter) {
+                    return Err(ColorCapabilityValidationError::MissingMappedEmitter(
+                        *emitter,
+                    ));
+                }
+            }
+            for (emitter, level) in &mapping.levels {
+                if !emitter_ids.contains(emitter) {
+                    return Err(ColorCapabilityValidationError::UnknownMappedEmitter(
+                        *emitter,
+                    ));
+                }
+                if !level.is_finite() || !(0.0..=1.0).contains(level) {
+                    return Err(ColorCapabilityValidationError::InvalidEmitterLevel(
+                        *emitter,
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 fn visit(

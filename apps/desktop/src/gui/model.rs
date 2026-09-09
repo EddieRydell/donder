@@ -65,31 +65,9 @@ pub(super) fn register_sequence_audio_asset(
 
 pub(super) fn fixture_definition_mut<'a>(
     session: &'a mut ProjectSession,
-    document_path: &Utf8Path,
-    object_key: &str,
+    identity: &SourceIdentity,
 ) -> Result<&'a mut dawn_language::preview::PropDefinition, GuiMutationError> {
-    let id = session
-        .source
-        .documents
-        .get(&session.source.project_document(document_path.to_path_buf()))
-        .into_iter()
-        .flat_map(|document| document.objects())
-        .find_map(|object| {
-            (object.kind() == &SourceObjectKind::PropDefinition && object.id() == object_key).then(
-                || {
-                    PropDefinitionId(SourceIdentity::from_document(
-                        dawn_language::identity::DocumentId::new(
-                            session.source.project_module_id(),
-                            document_path.to_path_buf(),
-                        ),
-                        object.id().to_string(),
-                    ))
-                },
-            )
-        })
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Fixture definition was not found.".to_string())
-        })?;
+    let id = PropDefinitionId(identity.clone());
     session
         .project
         .definitions
@@ -268,7 +246,7 @@ pub(super) fn graph_operator_from_gui(
     })
 }
 
-pub(super) fn source_identity_from_gui(
+pub(crate) fn source_identity_from_gui(
     module_id: &str,
     path: &str,
     object: &str,
@@ -331,6 +309,8 @@ pub(super) fn layout_target_to_effect_target(
 }
 
 pub(crate) fn effect_param_value_from_gui(
+    session: &mut ProjectSession,
+    owner: &SourceIdentity,
     value: SequenceEffectParamValue,
 ) -> Result<EffectParamValue, GuiMutationError> {
     Ok(match value {
@@ -342,12 +322,18 @@ pub(crate) fn effect_param_value_from_gui(
         SequenceEffectParamValue::Marks { key } => {
             EffectParamValue::Marks(MarkCollectionKey { name: key })
         }
-        SequenceEffectParamValue::Curve { points } => {
-            EffectParamValue::Curve(CurveSource::Inline(curve_from_points(points)))
-        }
-        SequenceEffectParamValue::Gradient { stops } => {
-            EffectParamValue::Gradient(GradientSource::Inline(gradient_from_stops(stops)?))
-        }
+        SequenceEffectParamValue::Curve { value } => EffectParamValue::Curve(
+            match library_identity(session, owner, SourceObjectKind::Curve, value.source)? {
+                Some(id) => CurveSource::Reference(CurveId(id)),
+                None => CurveSource::Inline(curve_from_points(value.points)),
+            },
+        ),
+        SequenceEffectParamValue::Gradient { value } => EffectParamValue::Gradient(
+            match library_identity(session, owner, SourceObjectKind::Gradient, value.source)? {
+                Some(id) => GradientSource::Reference(GradientId(id)),
+                None => GradientSource::Inline(gradient_from_stops(value.stops)?),
+            },
+        ),
         SequenceEffectParamValue::IntArray { values } => EffectParamValue::Array(
             values
                 .into_iter()
@@ -369,19 +355,49 @@ pub(crate) fn effect_param_value_from_gui(
         SequenceEffectParamValue::CurveArray { values } => EffectParamValue::Array(
             values
                 .into_iter()
-                .map(|points| {
-                    EffectParamValue::Curve(CurveSource::Inline(curve_from_points(points)))
+                .map(|value| {
+                    effect_param_value_from_gui(
+                        session,
+                        owner,
+                        SequenceEffectParamValue::Curve { value },
+                    )
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()?,
         ),
         SequenceEffectParamValue::GradientArray { values } => EffectParamValue::Array(
             values
                 .into_iter()
-                .map(|stops| gradient_from_stops(stops).map(GradientSource::Inline))
-                .map(|source| source.map(EffectParamValue::Gradient))
+                .map(|value| {
+                    effect_param_value_from_gui(
+                        session,
+                        owner,
+                        SequenceEffectParamValue::Gradient { value },
+                    )
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     })
+}
+
+fn library_identity(
+    session: &mut ProjectSession,
+    owner: &SourceIdentity,
+    kind: SourceObjectKind,
+    source: SequenceLibrarySource,
+) -> Result<Option<SourceIdentity>, GuiMutationError> {
+    let SequenceLibrarySource::Library {
+        module_id,
+        path,
+        object_key,
+        ..
+    } = source
+    else {
+        return Ok(None);
+    };
+    let id = source_identity_from_gui(&module_id, &path, &object_key)?;
+    ensure_document_can_reference_source(session, owner.document_id(), kind, &id)
+        .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+    Ok(Some(id))
 }
 
 pub(super) fn automation_mapping_from_gui(
@@ -449,7 +465,31 @@ pub(super) fn curve_from_points(points: Vec<SequenceCurvePoint>) -> Curve {
     }
 }
 
-fn gradient_from_stops(stops: Vec<SequenceGradientStop>) -> Result<Gradient, GuiMutationError> {
+pub(super) fn curve_points(curve: &Curve) -> Vec<SequenceCurvePoint> {
+    curve
+        .points
+        .iter()
+        .map(|point| SequenceCurvePoint {
+            time: point.position,
+            value: point.value,
+        })
+        .collect()
+}
+
+pub(super) fn gradient_stops(gradient: &Gradient) -> Vec<SequenceGradientStop> {
+    gradient
+        .stops
+        .iter()
+        .map(|stop| SequenceGradientStop {
+            time: stop.position,
+            value: stop.color.to_hex(),
+        })
+        .collect()
+}
+
+pub(super) fn gradient_from_stops(
+    stops: Vec<SequenceGradientStop>,
+) -> Result<Gradient, GuiMutationError> {
     Ok(Gradient {
         stops: stops
             .into_iter()
@@ -494,10 +534,10 @@ pub(super) fn scale3(scale: Scale3) -> DomainScale3 {
 
 use std::fs;
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use dawn_language::dsl::Identifier;
 use dawn_language::effect::{
-    CurveSource, EffectInst, EffectParamValue, EffectScope, GradientSource,
+    CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
 };
 use dawn_language::element::{ElementNodeId, ElementSelection, ElementTreeId};
 use dawn_language::identity::SourceIdentity;
@@ -515,11 +555,13 @@ use dawn_language::values::{
     Color, Curve, CurvePoint, Distance, Gradient, GradientStop, Point3,
     Rotation3 as DomainRotation3, Scale3 as DomainScale3,
 };
-use dawn_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
+use dawn_project_io::{
+    ProjectSession, ReferencedAsset, SourceObjectKind, ensure_document_can_reference_source,
+};
 
 use super::GuiMutationError;
 use crate::dto::{
     ElementTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceAutomationMapping,
     SequenceBuiltinOperator, SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope,
-    SequenceGradientStop, SequenceGraphOperator,
+    SequenceGradientStop, SequenceGraphOperator, SequenceLibrarySource,
 };

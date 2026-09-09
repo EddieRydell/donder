@@ -46,6 +46,6 @@ export function GuiInspector({
     );
   }
   if (gui.type === "preview") return <LayoutInspector document={gui.document} selected={selected} />;
-  if (gui.type === "setup") return null;
+  if (gui.type !== "prop") return null;
   return <FixtureInspector document={gui.document} selected={selected} />;
 }

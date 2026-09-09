@@ -5,11 +5,11 @@ use super::frame::ControllerPortFrame;
 #[cfg(test)]
 #[path = "patch_tests.rs"]
 mod tests;
-use dawn_language::element::{ElementNodeKind, ElementTree};
+use dawn_language::element::ElementTree;
 use dawn_language::fixture_profile::FixtureProfileStore;
 use dawn_language::patch::{
-    FilterDefinition, PatchGraph, PatchNode, PatchNodeId, PatchPortId, PatchValueType,
-    prepare_filter, prepare_fixture_encoding,
+    FilterDefinition, PatchGraph, PatchNode, PatchNodeId, PatchPortId, prepare_filter,
+    prepare_fixture_encoding,
 };
 use dawn_runtime::patch::{
     ColorEncoding, PatchSource, PatchSourceSpan, PatchStep, PatchValue, PreparedFilter,
@@ -72,35 +72,9 @@ pub(crate) fn prepare_patch(
         })?;
         match node {
             PatchNode::Source(source) => {
-                let addresses = tree.flatten_selection(&source.selection).map_err(|error| {
-                    SequenceOutputPrepareError::InvalidPatch(format!(
-                        "invalid source selection: {error:?}"
-                    ))
-                })?;
-                if addresses.len() != source.output.width() {
-                    return Err(SequenceOutputPrepareError::InvalidPatch(
-                        "patch source width does not match its selected element span".to_string(),
-                    ));
-                }
-                if let PatchValueType::FixtureState { profile, .. } = &source.output {
-                    for address in &addresses {
-                        if !matches!(tree.nodes.get(&address.node).map(|node| &node.kind),
-                            Some(ElementNodeKind::Fixture { profile: found }) if found == profile)
-                        {
-                            return Err(SequenceOutputPrepareError::InvalidPatch(
-                                "patch fixture source does not match its selected profile"
-                                    .to_string(),
-                            ));
-                        }
-                    }
-                } else if matches!(
-                    source.output,
-                    PatchValueType::Components { .. } | PatchValueType::Slots { .. }
-                ) {
-                    return Err(SequenceOutputPrepareError::InvalidPatch(
-                        "patch source declares a derived value type".to_string(),
-                    ));
-                }
+                let addresses = source
+                    .validate_selection(tree)
+                    .map_err(SequenceOutputPrepareError::InvalidPatch)?;
                 let mut spans: Vec<PatchSourceSpan> = Vec::new();
                 for address in addresses {
                     let element = *elements.indexes.get(&address.node).ok_or_else(|| {

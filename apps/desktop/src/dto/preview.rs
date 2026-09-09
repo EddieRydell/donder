@@ -17,9 +17,7 @@ pub struct PropDefinition {
 #[serde(rename_all = "camelCase")]
 pub struct PropGuiDocument {
     pub path: String,
-    pub source_ref: Option<GuiObjectRef>,
-    pub selected_object_key: Option<String>,
-    pub fixtures: Vec<PropDefinition>,
+    pub fixture: PropDefinition,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -29,12 +27,11 @@ pub struct PropGuiDocument {
     rename_all_fields = "camelCase"
 )]
 pub enum PropGuiEdit {
-    UpdateBulbDiameter {
-        object_key: String,
+    UpdateDefinition {
+        geometry: Geometry,
         bulb_diameter_meters: f32,
     },
     MovePoint {
-        object_key: String,
         point_index: u32,
         point: Point3Meters,
     },
@@ -127,12 +124,15 @@ pub struct PreviewGuiDocument {
     pub name: String,
     pub render_bounds: GeometryRenderBounds,
     pub fixtures: Vec<PreviewPropPlacement>,
+    pub hierarchy: ElementTreeGuiDocument,
+    pub available_fixtures: Vec<GuiObjectRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PreviewPropPlacement {
-    pub source_ref: GuiObjectRef,
+    pub definition_ref: GuiObjectRef,
+    pub bindings: Vec<SetupElementCell>,
     pub id: u32,
     pub name: String,
     pub transform: Transform,
@@ -146,7 +146,36 @@ pub struct PreviewPropPlacement {
     rename_all_fields = "camelCase"
 )]
 pub enum PreviewGuiEdit {
-    UpdatePlacementTransform { id: u32, transform: Transform },
+    PlaceFixture {
+        name: String,
+        parent: Option<u32>,
+        capability: GuiColorCapability,
+        definition: GuiObjectRef,
+        position: Point3Meters,
+    },
+    DuplicatePlacement {
+        id: u32,
+    },
+    RemovePlacement {
+        id: u32,
+    },
+    EditElements {
+        edit: ElementTreeGuiEdit,
+    },
+    AddPixelLight {
+        light: SetupPixelLight,
+    },
+    UpdatePlacementTransform {
+        id: u32,
+        transform: Transform,
+    },
+    SetPlacementBindings {
+        id: u32,
+        bindings: Vec<SetupElementCell>,
+    },
+    CopyPlacementDefinition {
+        id: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

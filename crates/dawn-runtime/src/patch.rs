@@ -55,6 +55,9 @@ pub enum ByteOrder {
 
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PreparedFilter {
+    ScalarToComponents {
+        width: u32,
+    },
     PackRgb {
         cell_count: u32,
         order: [u8; 3],
@@ -121,6 +124,14 @@ impl PreparedFilter {
         outputs: &mut [PatchValue],
     ) -> Result<(), FilterError> {
         match (self, input) {
+            (Self::ScalarToComponents { width }, PatchValue::Scalars(values)) => {
+                check_width(*width as usize, values.len())?;
+                let [PatchValue::Components(output)] = outputs else {
+                    return Err(FilterError::TypeMismatch);
+                };
+                output.clear();
+                output.extend_from_slice(values);
+            }
             (
                 Self::PackRgb {
                     cell_count,

@@ -2,6 +2,8 @@
 
 ## Current references
 
+- [First-class authoring](first_class_authoring.md): active implementation scope,
+  completed increments, and remaining new-user workflows.
 - [Execution audit](execution_audit_2026-09-06.md): current runtime boundaries,
   validation, known performance limits, and accepted ESP32 evidence.
 - [ESP32 loading](esp32_loading.md): archive format, Wi-Fi loading, memory limits,

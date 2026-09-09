@@ -24,6 +24,125 @@ pub struct SourceProject {
 }
 
 impl SourceProject {
+    /// Copy dependency export imports into a new project-owned document so it can
+    /// preserve references to dependency objects already visible to its owner.
+    pub fn inherit_dependency_imports(
+        &mut self,
+        from: &DocumentId,
+        to: &DocumentId,
+    ) -> Result<(), String> {
+        if !self.is_project_owned(to) {
+            return Err("Import inheritance requires a project-owned target document.".into());
+        }
+        let imports = self
+            .documents
+            .get(from)
+            .ok_or_else(|| "Import source document was not found.".to_string())?
+            .imports
+            .iter()
+            .filter(|edge| {
+                edge.targets
+                    .iter()
+                    .any(|target| target.module_id() != from.module_id())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let target = self
+            .documents
+            .get_mut(to)
+            .ok_or_else(|| "Import target document was not found.".to_string())?;
+        for edge in imports {
+            if !target
+                .imports
+                .iter()
+                .any(|existing| existing.declaration == edge.declaration)
+            {
+                target.imports.push(edge);
+            }
+        }
+        Ok(())
+    }
+
+    /// Register a new project-owned YAML document and its typed object inventory.
+    /// The caller inserts the corresponding typed values into the same candidate session.
+    pub fn add_yaml_document(
+        &mut self,
+        path: Utf8PathBuf,
+        objects: Vec<(SourceObjectKind, String)>,
+    ) -> Result<Vec<dawn_language::identity::SourceIdentity>, String> {
+        if path.as_str().is_empty()
+            || path.is_absolute()
+            || path.as_str().contains('\\')
+            || !path
+                .components()
+                .all(|component| matches!(component, camino::Utf8Component::Normal(_)))
+        {
+            return Err("New document paths must be module-relative paths.".to_string());
+        }
+        if objects.is_empty() {
+            return Err("A new source document must contain an object.".to_string());
+        }
+        let document = self.project_document(path.clone());
+        if self.documents.contains_key(&document) || self.project_root().join(&path).exists() {
+            return Err("Source document already exists.".to_string());
+        }
+        let source_objects = objects
+            .iter()
+            .map(|(kind, key)| SourceObjectId::new(kind.clone(), key.clone()))
+            .collect::<Result<Vec<_>, _>>()?;
+        let source = SourceDocument::new(
+            Vec::new(),
+            source_objects,
+            SourceDocumentKind::Dawn {
+                original_value: Value::Mapping(yaml_serde::Mapping::new()),
+            },
+        )?;
+        let identities = objects
+            .into_iter()
+            .map(|(_, key)| {
+                dawn_language::identity::SourceIdentity::from_document(document.clone(), key)
+            })
+            .collect();
+        self.documents.insert(document, source);
+        Ok(identities)
+    }
+
+    /// Register a new named object in an existing project-owned YAML document.
+    /// The caller inserts its typed value into the same candidate session.
+    pub fn add_object(
+        &mut self,
+        document: &DocumentId,
+        kind: SourceObjectKind,
+        prefix: &str,
+    ) -> Result<dawn_language::identity::SourceIdentity, String> {
+        if !self.is_project_owned(document) {
+            return Err("New objects require a project-owned document.".to_string());
+        }
+        Identifier::new(prefix.to_string())
+            .map_err(|_| "Invalid source object prefix.".to_string())?;
+        let source = self
+            .documents
+            .get_mut(document)
+            .ok_or_else(|| "Source document was not found.".to_string())?;
+        if !matches!(source.kind, SourceDocumentKind::Dawn { .. })
+            || matches!(
+                kind,
+                SourceObjectKind::EffectDefinition | SourceObjectKind::OperatorDefinition
+            )
+        {
+            return Err("This object requires a YAML source document.".to_string());
+        }
+        let key = (1_u32..)
+            .map(|index| format!("{prefix}_{index}"))
+            .find(|key| source.objects.iter().all(|object| object.id() != key))
+            .ok_or_else(|| "No source object identifiers remain.".to_string())?;
+        source.objects.push(SourceObjectId::new(kind, key.clone())?);
+        Ok(dawn_language::identity::SourceIdentity::from_document(
+            document.clone(),
+            key,
+        ))
+    }
+
     pub fn project_module_id(&self) -> Uuid {
         self.source_graph.project_module_id()
     }

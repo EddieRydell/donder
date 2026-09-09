@@ -3,6 +3,12 @@
 #![feature(impl_trait_in_assoc_type)]
 
 extern crate alloc;
+use tinyrlibc as _;
+
+#[path = "../storage.rs"]
+mod storage;
+use dawn_device_storage::{Record, credentials::Credentials};
+type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 
 #[cfg(feature = "i2s-output")]
 #[path = "../ws281x_parallel.rs"]
@@ -16,7 +22,7 @@ use core::{
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
 #[cfg(feature = "i2s-output")]
-use dawn_runtime::values::sample_time_from_frame;
+use dawn_runtime::values::{MICROS_PER_SECOND, sample_time_from_frame};
 use dawn_runtime::{
     sequence::{PreparedSequence, SequenceWorkspace},
     values::SampleTime,
@@ -46,8 +52,8 @@ use esp_println::println;
 use esp_radio::wifi::{self, AuthenticationMethodConfig, PowerSaveMode, sta::StationConfig};
 use picoserve::{
     AppBuilder, AppRouter,
-    response::{IntoResponse, StatusCode},
-    routing::{PathRouter, RequestHandlerService, post_service, put_service},
+    response::{IntoResponse, Json, StatusCode},
+    routing::{PathRouter, RequestHandlerService, get_service, post_service, put_service},
 };
 #[cfg(feature = "i2s-output")]
 use static_cell::StaticCell;
@@ -64,7 +70,36 @@ static APP_CORE_STACK: StaticCell<Stack<4096>> = StaticCell::new();
 #[cfg(feature = "i2s-output")]
 static APP_CORE_EXECUTOR: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
-type Playback = (PreparedSequence, SequenceWorkspace, Vec<Vec<u8>>);
+#[cfg(feature = "i2s-output")]
+#[path = "../transport.rs"]
+mod transport;
+
+struct Playback {
+    sequence: PreparedSequence,
+    workspace: SequenceWorkspace,
+    buffers: Vec<Vec<u8>>,
+    #[cfg(feature = "i2s-output")]
+    transport: transport::Transport,
+    #[cfg(feature = "i2s-output")]
+    frame_count: u32,
+}
+
+#[cfg(feature = "i2s-output")]
+impl Playback {
+    fn render(&mut self) {
+        if self.transport.mode == transport::Mode::Stopped {
+            for buffer in &mut self.buffers {
+                buffer.fill(0);
+            }
+            return;
+        }
+        let frame = self.transport.advance(self.frame_count);
+        let time = sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap();
+        self.sequence
+            .evaluate(time, &mut self.buffers, &mut self.workspace)
+            .unwrap();
+    }
+}
 type SharedPlayback = Mutex<CriticalSectionRawMutex, Option<Playback>>;
 type UploadGate = Mutex<CriticalSectionRawMutex, ()>;
 
@@ -166,13 +201,25 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         .iter()
         .map(|&width| vec![0; width as usize])
         .collect();
-    Ok((sequence, workspace, buffers))
+    Ok(Playback {
+        #[cfg(feature = "i2s-output")]
+        frame_count: ((u64::from(sequence.signals.duration.as_ticks())
+            * u64::from(OUTPUT_FRAME_RATE))
+        .div_ceil(u64::from(MICROS_PER_SECOND)) as u32)
+            .max(1),
+        sequence,
+        workspace,
+        buffers,
+        #[cfg(feature = "i2s-output")]
+        transport: transport::Transport::new(),
+    })
 }
 
 #[derive(Clone, Copy)]
 struct LoaderState {
     playback: &'static SharedPlayback,
     upload: &'static UploadGate,
+    storage: &'static SharedStorage,
     token: [u8; 32],
 }
 
@@ -187,6 +234,88 @@ fn authorized(state: &LoaderState, request: &picoserve::request::RequestParts<'_
             .zip(state.token)
             .fold(0, |difference, (&left, right)| difference | (left ^ right))
             == 0
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Capabilities {
+    sequence_format: u32,
+    max_payload_bytes: usize,
+    max_pixels: usize,
+    max_graph_nodes: usize,
+    max_workspace_bytes: usize,
+    output: OutputCapabilities,
+    sequence_storage: SequenceStorage,
+}
+
+#[derive(serde::Serialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum OutputCapabilities {
+    #[cfg(feature = "i2s-output")]
+    Ws281x {
+        lanes: usize,
+        channels_per_lane: usize,
+        channel_multiple: usize,
+        frame_rate: u32,
+    },
+    #[cfg(not(feature = "i2s-output"))]
+    EvaluationOnly,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+enum SequenceStorage {
+    Persistent,
+}
+
+struct DeviceCapabilities;
+
+impl RequestHandlerService<LoaderState> for DeviceCapabilities {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if !authorized(state, &request.parts) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid X-Dawn-Token\n",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        let capabilities = Capabilities {
+            sequence_format: dawn_runtime::wire::FORMAT_VERSION,
+            max_payload_bytes: LIMITS.payload_bytes,
+            max_pixels: LIMITS.pixels,
+            max_graph_nodes: LIMITS.graph_nodes,
+            max_workspace_bytes: LIMITS.workspace_bytes,
+            #[cfg(feature = "i2s-output")]
+            output: OutputCapabilities::Ws281x {
+                lanes: OUTPUT_LANES,
+                channels_per_lane: OUTPUT_PIXELS * 3,
+                channel_multiple: 3,
+                frame_rate: OUTPUT_FRAME_RATE,
+            },
+            #[cfg(not(feature = "i2s-output"))]
+            output: OutputCapabilities::EvaluationOnly,
+            sequence_storage: SequenceStorage::Persistent,
+        };
+        Json(capabilities)
+            .into_response()
+            .with_header("Cache-Control", "no-store")
+            .write_to(request.body_connection.finalize().await?, response_writer)
+            .await
+    }
 }
 
 struct UploadSequence;
@@ -265,9 +394,19 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let start = Instant::now();
         match load(&bytes) {
             Ok(playback) => {
-                let pixels = playback.0.signals.pixel_count;
+                let pixels = playback.sequence.signals.pixel_count;
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
+                if dawn_device_storage::write(
+                    &mut *state.storage.lock().await,
+                    Record::Sequence,
+                    &bytes,
+                )
+                .is_err()
+                {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Could not save sequence to flash; running playback retained. Check device before retrying.\n")
+                        .write_to(connection, response_writer).await;
+                }
                 *state.playback.lock().await = Some(playback);
                 (
                     StatusCode::OK,
@@ -343,7 +482,13 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
 
         let ticks = u32::from_le_bytes(ticks);
         let mut active = state.playback.lock().await;
-        let Some((sequence, workspace, buffers)) = active.as_mut() else {
+        let Some(Playback {
+            sequence,
+            workspace,
+            buffers,
+            ..
+        }) = active.as_mut()
+        else {
             drop(active);
             return (StatusCode::CONFLICT, "REJECT NoSequence\n")
                 .write_to(connection, response_writer)
@@ -388,6 +533,81 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
     }
 }
 
+#[cfg(feature = "i2s-output")]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackStatus {
+    mode: transport::Mode,
+    position_micros: u32,
+    duration_micros: u32,
+}
+
+#[cfg(feature = "i2s-output")]
+#[derive(serde::Serialize)]
+struct TransportStatus {
+    playback: Option<PlaybackStatus>,
+}
+
+#[cfg(feature = "i2s-output")]
+struct DeviceTransport(Option<transport::Mode>);
+
+#[cfg(feature = "i2s-output")]
+impl RequestHandlerService<LoaderState> for DeviceTransport {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if !authorized(state, &request.parts) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid X-Dawn-Token\n",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        if request.body_connection.content_length() != 0 {
+            return (StatusCode::BAD_REQUEST, "Transport requests have no body\n")
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        let connection = request.body_connection.finalize().await?;
+        let mut active = state.playback.lock().await;
+        if let Some(mode) = self.0 {
+            let Some(playback) = active.as_mut() else {
+                drop(active);
+                return (StatusCode::CONFLICT, "No sequence is loaded\n")
+                    .write_to(connection, response_writer)
+                    .await;
+            };
+            playback.transport.set_mode(mode);
+        }
+        let status = TransportStatus {
+            playback: active.as_ref().map(|playback| PlaybackStatus {
+                mode: playback.transport.mode,
+                position_micros: sample_time_from_frame(
+                    playback.transport.frame(),
+                    OUTPUT_FRAME_RATE,
+                )
+                .unwrap()
+                .as_ticks(),
+                duration_micros: playback.sequence.signals.duration.as_ticks(),
+            }),
+        };
+        drop(active);
+        Json(status)
+            .into_response()
+            .with_header("Cache-Control", "no-store")
+            .write_to(connection, response_writer)
+            .await
+    }
+}
+
 struct WebApp {
     state: LoaderState,
 }
@@ -396,10 +616,26 @@ impl AppBuilder for WebApp {
     type PathRouter = impl PathRouter;
 
     fn build_app(self) -> picoserve::Router<Self::PathRouter> {
-        picoserve::Router::new()
+        let router = picoserve::Router::new()
+            .route("/capabilities", get_service(DeviceCapabilities))
             .route("/sequence", put_service(UploadSequence))
-            .route("/frame", post_service(EvaluateFrame))
-            .with_state(self.state)
+            .route("/frame", post_service(EvaluateFrame));
+        #[cfg(feature = "i2s-output")]
+        let router = router
+            .route("/transport", get_service(DeviceTransport(None)))
+            .route(
+                "/transport/play",
+                post_service(DeviceTransport(Some(transport::Mode::Playing))),
+            )
+            .route(
+                "/transport/pause",
+                post_service(DeviceTransport(Some(transport::Mode::Paused))),
+            )
+            .route(
+                "/transport/stop",
+                post_service(DeviceTransport(Some(transport::Mode::Stopped))),
+            );
+        router.with_state(self.state)
     }
 }
 
@@ -466,19 +702,21 @@ async fn render_outputs(
     mut ready_buffer: DmaTxBuf,
     mut spare_buffer: DmaTxBuf,
 ) -> ! {
-    let mut frame_index = loop {
+    loop {
         let mut active = playback.lock().await;
-        let Some((sequence, workspace, buffers)) = active.as_mut() else {
+        let Some(playback) = active.as_mut() else {
             drop(active);
             Timer::after_millis(10).await;
             continue;
         };
-        sequence
-            .evaluate(SampleTime::from_ticks(0), buffers, workspace)
-            .unwrap();
-        ws281x_parallel::encode(buffers, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
-        break 1;
-    };
+        playback.render();
+        ws281x_parallel::encode(
+            &playback.buffers,
+            OUTPUT_PIXELS,
+            ready_buffer.as_mut_slice(),
+        );
+        break;
+    }
 
     let mut frames = 0;
     let mut missed = 0;
@@ -498,24 +736,23 @@ async fn render_outputs(
         };
 
         let mut active = playback.lock().await;
-        let (sequence, workspace, buffers) = active.as_mut().unwrap();
-        let sample_time = sample_time_from_frame(frame_index, OUTPUT_FRAME_RATE).unwrap();
-        if sample_time.as_ticks() >= sequence.signals.duration.as_ticks() {
-            frame_index = 0;
-        }
-        let sample_time = sample_time_from_frame(frame_index, OUTPUT_FRAME_RATE).unwrap();
+        let playback = active.as_mut().unwrap();
 
         let evaluation_start = Instant::now();
         EVALUATION_TASK.store(
             esp_radio_rtos_driver::current_task().as_ptr() as u32,
             Relaxed,
         );
-        sequence.evaluate(sample_time, buffers, workspace).unwrap();
+        playback.render();
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_us = u32::try_from(evaluation_start.elapsed().as_micros()).unwrap();
 
         let encoding_start = Instant::now();
-        ws281x_parallel::encode(buffers, OUTPUT_PIXELS, spare_buffer.as_mut_slice());
+        ws281x_parallel::encode(
+            &playback.buffers,
+            OUTPUT_PIXELS,
+            spare_buffer.as_mut_slice(),
+        );
         drop(active);
         let encoding_us = u32::try_from(encoding_start.elapsed().as_micros()).unwrap();
 
@@ -537,7 +774,6 @@ async fn render_outputs(
         total_sum += total_us;
         total_max = total_max.max(total_us);
         frames += 1;
-        frame_index += 1;
 
         let frame_period_us = 1_000_000 / OUTPUT_FRAME_RATE;
         if total_us >= frame_period_us {
@@ -576,6 +812,59 @@ async fn render_outputs(
     }
 }
 
+async fn storage_error(uart: &mut Uart<'_, esp_hal::Async>, error: &'static str) -> ! {
+    loop {
+        let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+        let mut command = [0];
+        let _ = uart.read_exact(&mut command).await;
+        if command[0] == b'R' {
+            let _ = uart_reply(uart, format_args!("DAWN RESET UNAVAILABLE {error}")).await;
+        }
+    }
+}
+
+async fn erase_storage(
+    uart: &mut Uart<'_, esp_hal::Async>,
+    storage: &mut storage::DeviceStorage,
+) -> ! {
+    if dawn_device_storage::erase_all(storage).is_err() {
+        storage_error(
+            uart,
+            "Storage erase failed; reset the controller and retry erasing saved data",
+        )
+        .await;
+    }
+    let _ = uart_reply(uart, format_args!("DAWN RESET COMPLETE")).await;
+    let _ = embedded_io_async::Write::flush(uart).await;
+    esp_hal::system::software_reset();
+}
+
+async fn recover_storage(
+    uart: &mut Uart<'_, esp_hal::Async>,
+    storage: &mut storage::DeviceStorage,
+    error: &'static str,
+) -> ! {
+    let mut erase_requested = false;
+    let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+    loop {
+        let mut command = [0];
+        if uart.read_exact(&mut command).await.is_err() {
+            continue;
+        }
+        match command[0] {
+            b'R' => {
+                erase_requested = true;
+                let _ = uart_reply(uart, format_args!("DAWN RESET READY")).await;
+            }
+            b'F' if erase_requested => erase_storage(uart, storage).await,
+            _ => {
+                erase_requested = false;
+                let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+            }
+        }
+    }
+}
+
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
@@ -599,35 +888,98 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         .with_rx(p.GPIO3)
         .with_tx(p.GPIO1)
         .into_async();
-    loop {
-        let mut command = [0];
-        if uart.read_exact(&mut command).await.is_err() {
-            continue;
+    let mut storage = match storage::DeviceStorage::new(p.FLASH) {
+        Ok(storage) => storage,
+        Err(error) => storage_error(&mut uart, error).await,
+    };
+    if dawn_device_storage::initialize(&mut storage).is_err() {
+        recover_storage(
+            &mut uart,
+            &mut storage,
+            "Cannot mount Dawn storage; erase saved data to recover",
+        )
+        .await;
+    }
+    let saved = match Credentials::load(&mut storage) {
+        Ok(saved) => saved,
+        Err(_) => {
+            recover_storage(
+                &mut uart,
+                &mut storage,
+                "Saved credentials are damaged; data was not erased",
+            )
+            .await
         }
-        match command[0] {
-            b'P' => {
+    };
+    // A reset gives the USB provisioner a short window to request new credentials.
+    // Otherwise a configured controller boots without waiting for a computer.
+    let mut command = [0];
+    let provision = saved.is_none()
+        || matches!(
+            embassy_time::with_timeout(Duration::from_secs(3), uart.read_exact(&mut command)).await,
+            Ok(Ok(()))
+        ) && matches!(command[0], b'P' | b'R');
+    let rng = Rng::new();
+    let credentials = if provision {
+        let mut erase_requested = false;
+        loop {
+            if command[0] == b'P' {
+                erase_requested = false;
                 let _ = uart_reply(&mut uart, format_args!("DAWN PROVISION READY")).await;
             }
-            b'W' => break,
-            _ => {}
+            if command[0] == b'R' {
+                erase_requested = true;
+                let _ = uart_reply(&mut uart, format_args!("DAWN RESET READY")).await;
+            }
+            if command[0] == b'F' && erase_requested {
+                erase_storage(&mut uart, &mut storage).await;
+            }
+            if uart.read_exact(&mut command).await.is_err() {
+                continue;
+            }
+            if command[0] == b'W' {
+                break;
+            }
         }
-    }
-
-    let mut lengths = [0; 2];
-    uart.read_exact(&mut lengths).await.unwrap();
-    assert!(
-        lengths[0] > 0 && lengths[0] <= 32 && lengths[1] <= 64,
-        "invalid credential lengths"
-    );
-    let mut credentials = [0; 96];
-    let length = usize::from(lengths[0]) + usize::from(lengths[1]);
-    uart.read_exact(&mut credentials[..length]).await.unwrap();
-    let ssid = core::str::from_utf8(&credentials[..usize::from(lengths[0])]).unwrap();
-    let password = core::str::from_utf8(&credentials[usize::from(lengths[0])..length]).unwrap();
+        let mut lengths = [0; 2];
+        if uart.read_exact(&mut lengths).await.is_err()
+            || !(1..=32).contains(&lengths[0])
+            || !(8..=64).contains(&lengths[1])
+        {
+            storage_error(&mut uart, "Invalid Wi-Fi credential lengths").await;
+        }
+        let mut bytes = [0; 96];
+        let split = usize::from(lengths[0]);
+        let length = split + usize::from(lengths[1]);
+        if uart.read_exact(&mut bytes[..length]).await.is_err() {
+            storage_error(&mut uart, "Incomplete Wi-Fi credentials").await;
+        }
+        let Ok(ssid) = core::str::from_utf8(&bytes[..split]) else {
+            storage_error(&mut uart, "Invalid Wi-Fi network encoding").await;
+        };
+        let Ok(password) = core::str::from_utf8(&bytes[split..length]) else {
+            storage_error(&mut uart, "Invalid Wi-Fi password encoding").await;
+        };
+        let mut raw_token = [0; 16];
+        for word in raw_token.chunks_exact_mut(4) {
+            word.copy_from_slice(&rng.random().to_le_bytes());
+        }
+        let credentials = Credentials {
+            ssid: ssid.into(),
+            password: password.into(),
+            token: token_ascii(raw_token),
+        };
+        raw_token.fill(0);
+        bytes.fill(0);
+        credentials
+    } else {
+        saved.unwrap()
+    };
+    let token = credentials.token;
     let config = StationConfig::default()
-        .with_ssid(ssid.try_into().unwrap())
+        .with_ssid(credentials.ssid.as_str().try_into().unwrap())
         .with_authentication(AuthenticationMethodConfig::Wpa2Personal(
-            password.try_into().unwrap(),
+            credentials.password.as_str().try_into().unwrap(),
         ));
     let interface = wifi::Interface::station();
     let mut controller = wifi::WifiController::new(
@@ -635,17 +987,9 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         wifi::ControllerConfig::default().with_initial_config(wifi::Config::Station(config)),
     )
     .unwrap();
-    credentials.fill(0);
     controller.set_power_saving(PowerSaveMode::None).unwrap();
 
-    let rng = Rng::new();
     let seed = (u64::from(rng.random()) << 32) | u64::from(rng.random());
-    let mut raw_token = [0; 16];
-    for word in raw_token.chunks_exact_mut(4) {
-        word.copy_from_slice(&rng.random().to_le_bytes());
-    }
-    let token = token_ascii(raw_token);
-    raw_token.fill(0);
     uart.write_all(b"TOKEN ").await.unwrap();
     uart.write_all(&token).await.unwrap();
     uart.write_all(b"\n").await.unwrap();
@@ -659,10 +1003,28 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     );
     spawner.spawn(network(runner).unwrap());
     spawner.spawn(reconnect(controller).unwrap());
-    stack.wait_config_up().await;
-
+    let restored = match dawn_device_storage::read(
+        &mut storage,
+        Record::Sequence,
+        HEADER_BYTES + LIMITS.payload_bytes,
+    ) {
+        Ok(Some(bytes)) => match load(&bytes) {
+            Ok(playback) => Some(playback),
+            Err(_) => {
+                storage_error(
+                    &mut uart,
+                    "Saved sequence is invalid for this firmware; data was not erased",
+                )
+                .await
+            }
+        },
+        Ok(None) => None,
+        Err(_) => storage_error(&mut uart, "Cannot read saved sequence; data was not erased").await,
+    };
+    let storage: &'static SharedStorage =
+        picoserve::make_static!(SharedStorage, Mutex::new(storage));
     let playback: &'static SharedPlayback =
-        picoserve::make_static!(SharedPlayback, Mutex::new(None));
+        picoserve::make_static!(SharedPlayback, Mutex::new(restored));
     let upload = picoserve::make_static!(UploadGate, Mutex::new(()));
     let app = picoserve::make_static!(
         AppRouter<WebApp>,
@@ -670,6 +1032,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             state: LoaderState {
                 playback,
                 upload,
+                storage,
                 token
             }
         }
@@ -717,6 +1080,16 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     while !OUTPUT_READY.load(Relaxed) {
         Timer::after_millis(1).await;
     }
+
+    stack.wait_config_up().await;
+    if provision && credentials.save(&mut *storage.lock().await).is_err() {
+        storage_error(
+            &mut uart,
+            "Wi-Fi connected but credentials could not be saved; retry provisioning",
+        )
+        .await;
+    }
+    drop(credentials);
 
     uart_reply(
         &mut uart,

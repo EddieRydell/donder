@@ -16,7 +16,6 @@ mod project_ops;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
-use std::io::Write;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use clap::{Parser, Subcommand};
@@ -26,7 +25,6 @@ use dawn_package::{
     PackageService, PackedRelease, ProjectManifest, RegistryConfig,
 };
 use semver::VersionReq;
-use tempfile::NamedTempFile;
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]
@@ -435,12 +433,7 @@ fn write_release_artifact(
         }
         return Ok(path);
     }
-    let mut temporary = NamedTempFile::new_in(&directory)?;
-    temporary.write_all(&release.archive)?;
-    temporary.as_file().sync_all()?;
-    temporary
-        .persist(&path)
-        .map_err(|error| PackageError::Io(error.error))?;
+    dawn_package::atomic_write(&path, &release.archive)?;
     Ok(path)
 }
 

@@ -114,7 +114,9 @@ impl OutputTransports {
     pub fn blackout_and_terminate(&mut self) -> Result<(), OutputError> {
         let mut first_error = None;
         for sender in self.senders.values_mut() {
-            if let Err(error) = sender.blackout().and_then(|_| sender.terminate())
+            let blackout = sender.blackout();
+            let termination = sender.terminate();
+            if let Err(error) = blackout.and(termination)
                 && first_error.is_none()
             {
                 first_error = Some(error);

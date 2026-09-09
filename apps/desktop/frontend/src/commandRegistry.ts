@@ -11,6 +11,7 @@ export const FOCUS_SIDEBAR_EVENT = "dawn:focus-sidebar";
 
 export type CommandId =
   | "file.newProject"
+  | "file.copyProject"
   | "file.newSequence"
   | "file.openProject"
   | "file.save"
@@ -50,6 +51,9 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
     window.dispatchEvent(new CustomEvent("dawn:new-project"));
   }),
+  "file.copyProject": command("Create Editable Project Copy...", "File", ["copy", "dependency", "fork"], () => {
+    window.dispatchEvent(new CustomEvent("dawn:copy-project"));
+  }, hasProject),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
     window.dispatchEvent(new CustomEvent("dawn:new-sequence"));
   }, hasProject),

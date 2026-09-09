@@ -137,6 +137,7 @@ export function LayoutCanvas({ document, selected, setSelected }: { document: Pr
         const hit = hitFixture(world);
         if (!hit) { gesture.current = { type: "empty", x: event.clientX, y: event.clientY }; return; }
         setSelectedIds(new Set([hit.id])); setSelected({ type: "placement", id: hit.id });
+        if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) return;
         gesture.current = { type: "object", id: hit.id, startX: world.x, startY: world.y, original: normalizeTransform(hit.transform), draft: normalizeTransform(hit.transform) };
       }}
       onPointerMove={(event) => {

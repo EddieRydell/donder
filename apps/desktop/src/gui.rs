@@ -11,15 +11,27 @@ use crate::dto::{
     GuiObjectRef, ObjectKind, ProjectDiagnostic, SequenceSelection, SequenceSelectionEdit,
 };
 
+mod controller;
+mod controls;
 mod dispatch;
 mod document;
 mod edit;
+mod elements;
+mod fixture;
+mod fixture_profile;
+mod layout;
+mod library;
 pub(crate) mod model;
+mod patch;
+mod project;
 mod projection;
 mod selection;
 mod setup;
 
-use edit::{edit_fixture, edit_layout, edit_sequence};
+use edit::edit_sequence;
+use fixture::edit_fixture;
+use layout::edit_layout;
+use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
 pub(crate) use selection::copy_sequence_selection;
 use selection::{

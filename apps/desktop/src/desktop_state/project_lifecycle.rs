@@ -8,7 +8,7 @@ use crate::dto::{
     SidebarView,
 };
 use camino::{Utf8Path, Utf8PathBuf};
-use dawn_project_io::{ProjectCheckReport, ProjectSession, SourceObjectKind};
+use dawn_project_io::{ProjectCheckReport, ProjectSession};
 use std::sync::Arc;
 
 impl DesktopState {
@@ -147,6 +147,15 @@ impl DesktopState {
         });
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
+            if let Some(session) = &session {
+                for (path, document) in &mut workspace.documents {
+                    if let Some(source) =
+                        crate::source_documents::document_for_editor_path(session, path)
+                    {
+                        document.buffer.read_only = !session.source.is_project_owned(&source);
+                    }
+                }
+            }
             workspace.typed_revision = session.as_ref().map(|_| workspace.view.project_revision);
             workspace.project = match &session {
                 Some(session) => LoadedProject::Ready(Arc::clone(session)),
@@ -236,31 +245,14 @@ impl DesktopState {
         &self,
         request: &GuiDocumentRequest,
     ) -> Option<dawn_language::sequence::SequenceId> {
-        if request.project_revision != self.snapshot().project_revision {
+        if request.project_revision != self.snapshot().project_revision
+            || request.view != crate::dto::DocumentViewId::Sequence
+        {
             return None;
         }
         let project = self.project_session()?;
-        let path = Utf8Path::new(&request.path);
-        project
-            .source
-            .documents
-            .get(&project.source.project_document(path.to_path_buf()))?
-            .objects()
-            .iter()
-            .find(|object| {
-                object.kind() == &SourceObjectKind::Sequence
-                    && request
-                        .object_key
-                        .as_deref()
-                        .is_none_or(|key| object.id() == key)
-            })
-            .map(|object| {
-                dawn_language::sequence::SequenceId(
-                    dawn_language::identity::SourceIdentity::from_document(
-                        project.source.project_document(path.to_path_buf()),
-                        object.id().to_string(),
-                    ),
-                )
-            })
+        let resolved = crate::gui::resolve_request(&project, request).ok()?;
+        let id = dawn_language::sequence::SequenceId(resolved.identity);
+        project.project.sequences.contains_key(&id).then_some(id)
     }
 }

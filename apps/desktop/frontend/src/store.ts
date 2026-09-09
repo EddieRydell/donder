@@ -9,6 +9,8 @@ import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentReque
 
 type SnapshotApplySource = "event" | "command" | "hydrate";
 
+type GuiParent = { request: GuiDocumentRequest; document: GuiDocument; revision: number };
+
 export type AppStaticSnapshot = Omit<AppSnapshot, "audioTransport" | "liveOutput">;
 
 type AppStore = {
@@ -18,6 +20,7 @@ type AppStore = {
   guiDocument: GuiDocument | null;
   guiDocumentRevision: number | null;
   guiEditPending: boolean;
+  guiParents: GuiParent[];
   guiResetRevision: number;
   compositionGraphEditing: boolean;
   error: string | null;
@@ -44,6 +47,7 @@ export const useAppStore = create<AppStore>((set) => ({
   guiDocument: null,
   guiDocumentRevision: null,
   guiEditPending: false,
+  guiParents: [],
   guiResetRevision: 0,
   compositionGraphEditing: false,
   error: null,
@@ -220,6 +224,7 @@ export async function runSnapshotCommand(command: () => Promise<AppSnapshot>) {
 }
 
 export async function runGuiEditCommand<T extends GuiEditResult>(command: (request: GuiDocumentRequest) => Promise<T>, origin?: GuiDocumentRequest | null): Promise<T> {
+  if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) throw new Error("Dependency sources are read-only. Create an independent copy to edit them.");
   const { guiRequest: request, guiDocumentRevision, guiEditPending } = useAppStore.getState();
   if (request === null) throw new Error("GUI edit attempted without an active GUI document request.");
   if (guiDocumentRevision !== request.projectRevision) throw new Error("The current GUI document is still loading.");
@@ -261,13 +266,16 @@ function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: Snapsh
     audioTransport: mergeTransport(previous?.audioTransport ?? null, incoming.audioTransport, source),
     liveOutput: mergeTransport(previous?.liveOutput ?? null, incoming.liveOutput, source)
   };
-  const nextRequest = guiRequestForSnapshot(snapshot);
+  const nextRequest = guiRequestForSnapshot(snapshot, current.guiRequest);
   const { request, retainDocument } = reconcileGuiRequest(current.guiRequest, nextRequest,
     previous?.projectEpoch === snapshot.projectEpoch && previous.projectRoot === snapshot.projectRoot);
   const update: Partial<AppStore> = {
     snapshot,
     guiRequest: request
   };
+  if (request === null || previous?.projectEpoch !== snapshot.projectEpoch || previous.projectRoot !== snapshot.projectRoot || previous.activeFile !== snapshot.activeFile) {
+    update.guiParents = [];
+  }
   if (!retainDocument) {
     update.guiDocument = null;
     update.guiDocumentRevision = null;
@@ -287,15 +295,67 @@ function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: Snapsh
   return update;
 }
 
-function guiRequestForSnapshot(snapshot: AppSnapshot): GuiDocumentRequest | null {
+function guiRequestForSnapshot(
+  snapshot: AppSnapshot,
+  preferred: GuiDocumentRequest | null
+): GuiDocumentRequest | null {
   const descriptor = snapshot.activeDocumentDescriptor;
   const activePath = snapshot.activeFile;
   if (descriptor === null || activePath === null || effectiveEditorViewMode(snapshot) !== "gui") return null;
-  const defaultObject =
-    descriptor.defaultObjectKeys.find((item) => item.view === "sequence") ??
-    descriptor.defaultObjectKeys.find((item) => item.view === "setup") ??
-    descriptor.defaultObjectKeys.find((item) => item.view === "preview") ??
-    descriptor.defaultObjectKeys.find((item) => item.view === "prop");
+  const preferredObject = preferred?.path === activePath
+    ? descriptor.defaultObjectKeys.find(
+        (item) => item.view === preferred.view && item.objectKey === preferred.objectKey
+      )
+    : undefined;
+  if (preferredObject !== undefined) {
+    return {
+      path: activePath,
+      view: preferredObject.view,
+      objectKey: preferredObject.objectKey,
+      projectRevision: snapshot.projectRevision
+    };
+  }
+  const defaultObject = descriptor.defaultObjectKeys[0];
   if (defaultObject === undefined) return null;
   return { path: activePath, view: defaultObject.view, objectKey: defaultObject.objectKey, projectRevision: snapshot.projectRevision };
+}
+
+export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey">, presentation: "tab" | "modal" = "tab"): void {
+  const current = useAppStore.getState();
+  const snapshot = current.snapshot;
+  if (snapshot === null || snapshot.activeFile !== request.path) {
+    throw new Error("The requested GUI object is not in the active document.");
+  }
+  const target = snapshot.activeDocumentDescriptor?.defaultObjectKeys.find(
+    (item) => item.objectKey === request.objectKey
+  );
+  if (target === undefined) throw new Error("The requested GUI object is unavailable.");
+  if (current.guiRequest?.path === request.path && current.guiRequest.objectKey === request.objectKey) return;
+  const parents = presentation === "modal" ? current.guiParents.slice() : [];
+  if (presentation === "modal") {
+    if (current.guiRequest === null || current.guiDocument === null || current.guiDocumentRevision !== current.guiRequest.projectRevision || current.guiEditPending) {
+      throw new Error("The current resource is still loading or saving.");
+    }
+    parents.push({ request: current.guiRequest, document: current.guiDocument, revision: current.guiDocumentRevision });
+  }
+  useAppStore.setState({
+    guiParents: parents,
+    guiRequest: { ...request, view: target.view, projectRevision: snapshot.projectRevision },
+    guiDocument: null,
+    guiDocumentRevision: null
+  });
+}
+
+export function closeInlineEditor(): void {
+  const current = useAppStore.getState();
+  const parent = current.guiParents[current.guiParents.length - 1];
+  if (parent === undefined || current.snapshot === null || current.guiEditPending) return;
+  useAppStore.setState({
+    guiParents: current.guiParents.slice(0, -1),
+    guiRequest: parent.request.projectRevision === current.snapshot.projectRevision
+      ? parent.request
+      : { ...parent.request, projectRevision: current.snapshot.projectRevision },
+    guiDocument: parent.document,
+    guiDocumentRevision: parent.revision
+  });
 }

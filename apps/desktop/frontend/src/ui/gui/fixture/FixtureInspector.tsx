@@ -1,41 +1,32 @@
-import type { PropDocument } from "../../../types";
+import { FixtureDefinitionFields } from "./FixtureDefinitionFields";
+import { useState } from "react";
+import type { Geometry, PropDocument } from "../../../types";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import { InspectorScrollArea } from "../InspectorScrollArea";
 import type { GuiFocus } from "../shared";
 
 export function FixtureInspector({ document, selected }: { document: PropDocument; selected: GuiFocus }) {
-  const fixture = document.fixtures.find((candidate) => candidate.objectKey === document.selectedObjectKey) ?? document.fixtures[0];
+  const fixture = document.fixture;
   return (
     <InspectorScrollArea>
       <h2>Fixture</h2>
-      {fixture !== undefined ? (
-        <>
           <label>Name<input readOnly value={fixture.name} /></label>
-          <label>
-            Bulb
-            <input
-              type="number"
-              min={0.001}
-              step="any"
-              defaultValue={fixture.bulbDiameterMeters}
-              onBlur={(event) =>
-                void runGuiEditCommand((request) =>
-                  commands.applyPropGuiEdit(request, {
-                    type: "updateBulbDiameter",
-                    objectKey: fixture.objectKey,
-                    bulbDiameterMeters: Number(event.currentTarget.value)
-                  })
-                )
-              }
-            />
-          </label>
-          <label>Geometry<input readOnly value={fixture.geometrySummary} /></label>
+          <FixtureDefinitionForm key={JSON.stringify([fixture.geometry, fixture.bulbDiameterMeters])} fixture={fixture} />
           <p>{selected?.type === "point" ? `Point ${selected.index + 1}` : "Select a point."}</p>
-        </>
-      ) : (
-        <p>No fixture.</p>
-      )}
     </InspectorScrollArea>
   );
 }
+
+function FixtureDefinitionForm({ fixture }: { fixture: PropDocument["fixture"] }) {
+  const [geometry, setGeometry] = useState<Geometry>(fixture.geometry);
+  const [diameter, setDiameter] = useState(fixture.bulbDiameterMeters);
+  return <form className="setup-authoring-form" onSubmit={(event) => {
+    event.preventDefault();
+    void runGuiEditCommand((request) => commands.applyPropGuiEdit(request, { type: "updateDefinition", geometry, bulbDiameterMeters: diameter }));
+  }}>
+    <FixtureDefinitionFields geometry={geometry} diameter={diameter} onGeometryChange={setGeometry} onDiameterChange={setDiameter} />
+    <button type="submit">Apply fixture</button>
+  </form>;
+}
+

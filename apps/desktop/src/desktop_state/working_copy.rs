@@ -19,6 +19,7 @@ impl WorkingDocument {
                 name: path.file_name().unwrap_or(path.as_str()).to_string(),
                 text,
                 dirty: false,
+                read_only: false,
                 document_revision: 0,
                 saved_revision: 0,
                 save_state: DocumentSaveState::Saved,
@@ -73,6 +74,12 @@ impl DesktopState {
             if document.buffer.document_revision != update.expected_document_revision {
                 return Err("The document changed before the text was received".into());
             }
+            if document.buffer.read_only {
+                return Err(
+                    "Dependency sources are read-only. Create an independent copy to edit them."
+                        .into(),
+                );
+            }
             if document.buffer.text == update.text {
                 return Ok(workspace.snapshot());
             }
@@ -111,6 +118,7 @@ impl DesktopState {
                 sources: workspace
                     .documents
                     .iter()
+                    .filter(|(_, doc)| !doc.buffer.read_only)
                     .map(|(path, doc)| (path.clone(), doc.buffer.text.clone()))
                     .collect(),
                 typed: match &workspace.project {
@@ -163,6 +171,9 @@ impl DesktopState {
             for (path, document) in &mut workspace.documents {
                 if !document.buffer.dirty {
                     continue;
+                }
+                if document.buffer.read_only {
+                    return Err(format!("Dependency source {path} is read-only"));
                 }
                 let actual = match read_disk(&root.join(path)) {
                     Ok(actual) => actual,

@@ -8,11 +8,13 @@ import { EditorView, keymap, ViewUpdate } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { RefreshCw, Save, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { commands } from "../api";
-import type { AppSnapshot, PersistedEditorViewState, ProjectDiagnostic, SequenceAudio, SequenceSelection, TextRange, WorkspaceLayoutState } from "../types";
+import { SequenceAudioSync, sequenceAudioKey } from "../sequenceAudioSync";
+import type { AppSnapshot, PersistedEditorViewState, ProjectDiagnostic, SequenceSelection, TextRange, WorkspaceLayoutState } from "../types";
 import { commandRegistry, FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
-import { runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
+import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
@@ -26,6 +28,11 @@ type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 type EditorBufferWithExternalState = NonNullable<AppSnapshot["activeBuffer"]>;
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
+const sequenceAudioSync = new SequenceAudioSync(async (request) => {
+  const snapshot = await runSnapshotCommand(() => request === null ? commands.unloadAudio() : commands.loadSequenceAudio(request));
+  return request === null || snapshot.projectRevision === request.projectRevision;
+});
+
 export function EditorPane({
   snapshot,
   workspaceLayout,
@@ -36,6 +43,9 @@ export function EditorPane({
   onWorkspaceLayoutChange: (layout: WorkspaceLayoutState) => void;
 }) {
   const guiDocument = useAppStore((store) => store.guiDocument);
+  const guiParents = useAppStore((store) => store.guiParents);
+  const inlineEditorOpen = guiParents.length > 0;
+  const parentDocument = inlineEditorOpen ? guiParents[0]?.document ?? null : guiDocument;
   const guiResetRevision = useAppStore((store) => store.guiResetRevision);
   const localText = useAppStore((store) => store.localText);
   const failedDocumentSync = useAppStore((store) => store.failedDocumentSync);
@@ -54,7 +64,6 @@ export function EditorPane({
   const [pathSelection, setPathSelection] = useState<PathSelection>({ path: null, resetRevision: 0, selection: null });
   const [pendingTextNavigation, setPendingTextNavigation] = useState<TextNavigation | null>(null);
   const latestLocalText = useRef(localText);
-  const loadedSequenceAudioKey = useRef<string | null>(null);
   const applyingExternalText = useRef(false);
   const applyingRestoredEditorState = useRef(false);
   const restoredEditorPath = useRef<string | null>(null);
@@ -63,16 +72,17 @@ export function EditorPane({
   const viewMode = effectiveEditorViewMode(snapshot);
   const activeExternalState = activeBufferExternalState(activeBuffer);
   const activeConflicted = activeExternalState !== "current";
+  const activeReadOnly = activeBuffer?.readOnly ?? false;
   const nextGuiPath = activeGuiRequest?.path ?? null;
   const nextGuiView = activeGuiRequest?.view ?? null;
   const nextGuiObjectKey = activeGuiRequest?.objectKey ?? null;
   const activeSequenceDocument =
-    viewMode === "gui" && guiDocument?.type === "sequence" ? guiDocument.document : null;
+    viewMode === "gui" && parentDocument?.type === "sequence" ? parentDocument.document : null;
   const editableSequenceDocument = activeSequenceDocument;
   const activeSequenceAudio = activeSequenceDocument?.audio ?? null;
   const activeSequenceAudioKey =
-    nextGuiPath !== null && nextGuiView === "sequence"
-      ? sequenceAudioKey(nextGuiPath, nextGuiObjectKey, activeSequenceAudio)
+    nextGuiPath !== null && nextGuiView === "sequence" && activeSequenceDocument !== null
+      ? sequenceAudioKey(snapshot.projectEpoch, nextGuiPath, nextGuiObjectKey, activeSequenceAudio, activeSequenceDocument.durationSeconds)
       : null;
   const sequenceSelection =
     pathSelection.path === activePath && pathSelection.resetRevision === guiResetRevision
@@ -157,29 +167,18 @@ export function EditorPane({
   ]);
 
   useEffect(() => {
+    if (inlineEditorOpen) return;
+    if (viewMode === "gui" && nextGuiView === "sequence" && projectionPending) return;
     if (activeGuiRequest === null || activeSequenceAudioKey === null || nextGuiPath === null || nextGuiView !== "sequence") {
-      if (loadedSequenceAudioKey.current !== null) {
-        loadedSequenceAudioKey.current = null;
-        void runSnapshotCommand(commands.unloadAudio);
-      }
+      void sequenceAudioSync.synchronize(null).catch(() => {});
       return;
     }
-    if (loadedSequenceAudioKey.current === activeSequenceAudioKey) return;
-    if (loadedSequenceAudioKey.current !== null) {
-      void runSnapshotCommand(commands.unloadAudio);
-    }
-    loadedSequenceAudioKey.current = activeSequenceAudioKey;
-    void runSnapshotCommand(() =>
-      commands.loadSequenceAudio(activeGuiRequest)
-    );
-  }, [activeGuiRequest, activeSequenceAudioKey, nextGuiObjectKey, nextGuiPath, nextGuiView]);
+    void sequenceAudioSync.synchronize({ key: activeSequenceAudioKey, request: activeGuiRequest }).catch(() => {});
+  }, [activeGuiRequest, activeSequenceAudioKey, inlineEditorOpen, nextGuiObjectKey, nextGuiPath, nextGuiView, projectionPending, viewMode]);
 
   useEffect(() => {
     return () => {
-      if (loadedSequenceAudioKey.current !== null) {
-        loadedSequenceAudioKey.current = null;
-        void runSnapshotCommand(commands.unloadAudio);
-      }
+      void sequenceAudioSync.synchronize(null).catch(() => {});
     };
   }, []);
 
@@ -195,7 +194,7 @@ export function EditorPane({
       state: createState(
         latestLocalText.current,
         activePath,
-        activeConflicted,
+        activeConflicted || activeReadOnly,
         (update) => {
           if (update.docChanged || update.viewportChanged || update.geometryChanged) {
             setEditorSignal((signal) => signal + 1);
@@ -208,7 +207,7 @@ export function EditorPane({
             scheduleEditorViewStateSave(activePath, readEditorViewState(update.view));
           }
           if (update.docChanged && !applyingExternalText.current) {
-            if (activeConflicted) {
+            if (activeConflicted || activeReadOnly) {
               return;
             }
             const text = update.state.doc.toString();
@@ -232,7 +231,7 @@ export function EditorPane({
         setEditorView(null);
       });
     };
-  }, [activeConflicted, activePath, setLocalText, viewMode]);
+  }, [activeConflicted, activeReadOnly, activePath, setLocalText, viewMode]);
 
   useEffect(() => {
     if (!view.current || viewMode !== "text" || activePath === null) return;
@@ -337,7 +336,7 @@ export function EditorPane({
         </div>
       )}
       {editableSequenceDocument !== null && (
-        <div className="editor-toolbar" inert={interactionPending}>
+        <div className="editor-toolbar" inert={interactionPending || inlineEditorOpen}>
           <SequenceTransportControls
             document={editableSequenceDocument}
             previewOpen={snapshot.previewOpen}
@@ -369,9 +368,9 @@ export function EditorPane({
         </div>
       )}
       {viewMode === "gui" ? (
-        <div className="gui-projection" inert={interactionPending} aria-busy={interactionPending}>
+        <><div className="gui-projection" inert={interactionPending || inlineEditorOpen} aria-busy={interactionPending}>
           <GuiEditor
-            guiDocument={guiDocument}
+            guiDocument={parentDocument}
             snapshot={snapshot}
             workspaceLayout={workspaceLayout}
             onWorkspaceLayoutChange={onWorkspaceLayoutChange}
@@ -380,6 +379,22 @@ export function EditorPane({
             resetRevision={guiResetRevision}
           />
         </div>
+        <Dialog.Root open={inlineEditorOpen} onOpenChange={(open) => { if (!open) closeInlineEditor(); }}>
+          <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content resource-editor-dialog" aria-describedby={undefined}>
+            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title><Dialog.Close asChild><button type="button" disabled={guiEditPending}>Close</button></Dialog.Close></header>
+            <div className="gui-projection" inert={interactionPending} aria-busy={interactionPending}>
+              <GuiEditor
+                guiDocument={guiDocument}
+                snapshot={snapshot}
+                workspaceLayout={workspaceLayout}
+                onWorkspaceLayoutChange={onWorkspaceLayoutChange}
+                sequenceSelection={sequenceSelection}
+                setSequenceSelection={setSequenceSelection}
+                resetRevision={guiResetRevision}
+              />
+            </div>
+          </Dialog.Content></Dialog.Portal>
+        </Dialog.Root></>
       ) : (
         <div className="editor-scrollbar-shell">
           <div ref={editorHost} className={`editor-host ${activeConflicted ? "conflicted" : ""}`} />
@@ -394,17 +409,6 @@ export function EditorPane({
       )}
     </section>
   );
-}
-
-function sequenceAudioKey(path: string, objectKey: string | null, audio: SequenceAudio | null): string | null {
-  if (audio === null) return null;
-  return JSON.stringify({
-    path,
-    objectKey,
-    importPath: audio.import,
-    resolvedPath: audio.resolvedPath,
-    exists: audio.exists
-  });
 }
 
 type ScrollbarMetrics = {

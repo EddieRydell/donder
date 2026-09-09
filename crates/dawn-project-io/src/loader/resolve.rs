@@ -12,6 +12,12 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::Setup(id.clone()))?;
         let document_path = document_id.path().to_path_buf();
+        require_allowed_mapping_keys(
+            &document_path,
+            &value,
+            &["type", "elements", "preview", "patch", "controllers"],
+            "setup",
+        )?;
         let elements_ref = string_field(&document_path, &value, "elements")?;
         let preview_ref = string_field(&document_path, &value, "preview")?;
         let patch_ref = string_field(&document_path, &value, "patch")?;
@@ -86,15 +92,39 @@ impl DomainResolver<'_> {
             .object_value(&ResolvedObject::Controller(id.clone()))?;
         let path = document_id.path().to_path_buf();
         let protocol_value = required_field(&path, &value, "protocol")?;
+        require_allowed_mapping_keys(&path, &value, &["type", "protocol", "ports"], "controller")?;
         let protocol = match string_field(&path, protocol_value, "type")? {
             "e131" => {
                 let mode = match string_field(&path, protocol_value, "mode")? {
-                    "multicast" => E131Mode::Multicast,
-                    "unicast" => E131Mode::Unicast {
-                        destination: string_field(&path, protocol_value, "destination")?
-                            .parse()
-                            .map_err(|_| invalid(&path, "invalid E1.31 destination address"))?,
-                    },
+                    "multicast" => {
+                        require_allowed_mapping_keys(
+                            &path,
+                            protocol_value,
+                            &["type", "source_name", "bind_address", "priority", "mode"],
+                            "multicast E1.31 protocol",
+                        )?;
+                        E131Mode::Multicast
+                    }
+                    "unicast" => {
+                        require_allowed_mapping_keys(
+                            &path,
+                            protocol_value,
+                            &[
+                                "type",
+                                "source_name",
+                                "bind_address",
+                                "priority",
+                                "mode",
+                                "destination",
+                            ],
+                            "unicast E1.31 protocol",
+                        )?;
+                        E131Mode::Unicast {
+                            destination: string_field(&path, protocol_value, "destination")?
+                                .parse()
+                                .map_err(|_| invalid(&path, "invalid E1.31 destination address"))?,
+                        }
+                    }
                     other => return Err(invalid(&path, &format!("invalid E1.31 mode `{other}`"))),
                 };
                 ControllerProtocol::E131(E131Config {
@@ -107,21 +137,29 @@ impl DomainResolver<'_> {
                     mode,
                 })
             }
-            "artnet" => ControllerProtocol::ArtNet(ArtNetConfig {
-                bind_address: string_field(&path, protocol_value, "bind_address")?
-                    .parse()
-                    .map_err(|_| invalid(&path, "invalid Art-Net bind socket"))?,
-                destination: string_field(&path, protocol_value, "destination")?
-                    .parse()
-                    .map_err(|_| invalid(&path, "invalid Art-Net destination socket"))?,
-                mode: match string_field(&path, protocol_value, "mode")? {
-                    "unicast" => ArtNetMode::Unicast,
-                    "broadcast" => ArtNetMode::Broadcast,
-                    other => {
-                        return Err(invalid(&path, &format!("invalid Art-Net mode `{other}`")));
-                    }
-                },
-            }),
+            "artnet" => {
+                require_allowed_mapping_keys(
+                    &path,
+                    protocol_value,
+                    &["type", "bind_address", "destination", "mode"],
+                    "Art-Net protocol",
+                )?;
+                ControllerProtocol::ArtNet(ArtNetConfig {
+                    bind_address: string_field(&path, protocol_value, "bind_address")?
+                        .parse()
+                        .map_err(|_| invalid(&path, "invalid Art-Net bind socket"))?,
+                    destination: string_field(&path, protocol_value, "destination")?
+                        .parse()
+                        .map_err(|_| invalid(&path, "invalid Art-Net destination socket"))?,
+                    mode: match string_field(&path, protocol_value, "mode")? {
+                        "unicast" => ArtNetMode::Unicast,
+                        "broadcast" => ArtNetMode::Broadcast,
+                        other => {
+                            return Err(invalid(&path, &format!("invalid Art-Net mode `{other}`")));
+                        }
+                    },
+                })
+            }
             other => {
                 return Err(invalid(
                     &path,
@@ -132,6 +170,11 @@ impl DomainResolver<'_> {
         let ports = sequence_values(&path, &value, "ports")?
             .iter()
             .map(|port| {
+                let fields: &[&str] = match &protocol {
+                    ControllerProtocol::E131(_) => &["id", "slot_count", "universe"],
+                    ControllerProtocol::ArtNet(_) => &["id", "slot_count", "port_address"],
+                };
+                require_allowed_mapping_keys(&path, port, fields, "controller port")?;
                 let id = ControllerPortId(u32_field(&path, port, "id")?);
                 let slot_count = u16::try_from(u32_field(&path, port, "slot_count")?)
                     .map_err(|_| invalid(&path, "controller slot count must be a u16"))?;
@@ -171,6 +214,12 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::ElementTree(id.clone()))?;
         let document_path = document_id.path().to_path_buf();
+        require_allowed_mapping_keys(
+            &document_path,
+            &value,
+            &["type", "roots", "nodes"],
+            "element tree",
+        )?;
         let roots = sequence_values(&document_path, &value, "roots")?
             .iter()
             .map(|root| {
@@ -182,6 +231,20 @@ impl DomainResolver<'_> {
             .collect::<Result<Vec<_>, _>>()?;
         let mut nodes = IndexMap::new();
         for node in sequence_values(&document_path, &value, "nodes")? {
+            let fields: &[&str] = match string_field(&document_path, node, "type")? {
+                "group" => &["id", "name", "type", "children"],
+                "color" => &["id", "name", "type", "cells", "capability"],
+                "scalar" => &["id", "name", "type", "cells"],
+                "indexed" => &["id", "name", "type", "cells", "options"],
+                "fixture" => &["id", "name", "type", "profile"],
+                other => {
+                    return Err(invalid(
+                        &document_path,
+                        &format!("invalid element node type `{other}`"),
+                    ));
+                }
+            };
+            require_allowed_mapping_keys(&document_path, node, fields, "element node")?;
             let node_id = ElementNodeId(u32_field(&document_path, node, "id")?);
             let name = string_field(&document_path, node, "name")?.to_string();
             let kind = match string_field(&document_path, node, "type")? {
@@ -214,6 +277,12 @@ impl DomainResolver<'_> {
                     options: sequence_values(&document_path, node, "options")?
                         .iter()
                         .map(|option| {
+                            require_allowed_mapping_keys(
+                                &document_path,
+                                option,
+                                &["id", "name"],
+                                "indexed option",
+                            )?;
                             Ok(IndexedOption {
                                 id: IndexedOptionId(u32_field(&document_path, option, "id")?),
                                 name: string_field(&document_path, option, "name")?.to_string(),
@@ -265,6 +334,12 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<PropInstance, LoadProjectError> {
         let path = document_id.path();
+        require_allowed_mapping_keys(
+            path,
+            value,
+            &["id", "name", "prop", "transform", "bindings"],
+            "preview prop",
+        )?;
         let id = PropInstanceId(u32_field(path, value, "id")?);
         let name = string_field(path, value, "name")?.to_string();
         let prop_ref = string_field(path, value, "prop")?;
@@ -279,9 +354,16 @@ impl DomainResolver<'_> {
             }
         };
         let transform = required_field(path, value, "transform")?;
+        require_allowed_mapping_keys(
+            path,
+            transform,
+            &["position", "rotation", "scale"],
+            "preview transform",
+        )?;
         let bindings = sequence_values(path, value, "bindings")?
             .iter()
             .map(|binding| {
+                require_allowed_mapping_keys(path, binding, &["node", "cell"], "preview binding")?;
                 Ok(ElementCellAddress {
                     node: ElementNodeId(u32_field(path, binding, "node")?),
                     cell: u32_field(path, binding, "cell")?,
@@ -292,9 +374,9 @@ impl DomainResolver<'_> {
             id,
             name,
             definition,
-            position: parse_point3(required_field(path, transform, "position")?)?,
-            rotation: parse_rotation3(required_field(path, transform, "rotation")?)?,
-            scale: parse_scale3(required_field(path, transform, "scale")?)?,
+            position: parse_point3(path, required_field(path, transform, "position")?)?,
+            rotation: parse_rotation3(path, required_field(path, transform, "rotation")?)?,
+            scale: parse_scale3(path, required_field(path, transform, "scale")?)?,
             bindings,
         })
     }
@@ -339,6 +421,12 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::PreviewLayout(id.clone()))?;
         let path = document_id.path().to_path_buf();
+        require_allowed_mapping_keys(
+            &path,
+            &value,
+            &["type", "element_tree", "props"],
+            "preview layout",
+        )?;
         let tree_ref = string_field(&path, &value, "element_tree")?;
         let element_tree = match self.loader.resolve_reference(&document_id, tree_ref)? {
             ResolvedObject::ElementTree(tree) => tree,
@@ -374,6 +462,7 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::Patch(id.clone()))?;
         let document_path = document_id.path().to_path_buf();
+        require_allowed_mapping_keys(&document_path, &value, &["type", "nodes", "edges"], "patch")?;
         let mut nodes = IndexMap::new();
         for node in sequence_values(&document_path, &value, "nodes")? {
             let node_id = PatchNodeId(u32_field(&document_path, node, "id")?);
@@ -381,6 +470,19 @@ impl DomainResolver<'_> {
                 "source" => PatchNode::Source(self.parse_patch_source(&document_id, node)?),
                 "filter" => PatchNode::Filter(self.parse_filter(&document_id, node)?),
                 "sink" => {
+                    require_allowed_mapping_keys(
+                        &document_path,
+                        node,
+                        &[
+                            "id",
+                            "type",
+                            "controller",
+                            "port",
+                            "start_slot",
+                            "slot_count",
+                        ],
+                        "patch sink",
+                    )?;
                     let reference = string_field(&document_path, node, "controller")?;
                     let controller = match self.loader.resolve_reference(&document_id, reference)? {
                         ResolvedObject::Controller(controller) => controller,
@@ -420,6 +522,12 @@ impl DomainResolver<'_> {
         let edges = sequence_values(&document_path, &value, "edges")?
             .iter()
             .map(|edge| {
+                require_allowed_mapping_keys(
+                    &document_path,
+                    edge,
+                    &["from", "from_port", "to", "to_port"],
+                    "patch edge",
+                )?;
                 Ok(PatchEdge {
                     from: PatchNodeId(u32_field(&document_path, edge, "from")?),
                     from_port: PatchPortId(
@@ -452,6 +560,12 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<PatchSource, LoadProjectError> {
         let path = document_id.path();
+        let fields: &[&str] = if string_field(path, value, "output")? == "fixture_state" {
+            &["id", "type", "selection", "width", "output", "profile"]
+        } else {
+            &["id", "type", "selection", "width", "output"]
+        };
+        require_allowed_mapping_keys(path, value, fields, "patch source")?;
         let selection =
             self.parse_element_selection(document_id, required_field(path, value, "selection")?)?;
         let width = usize_field(path, value, "width")?;
@@ -489,6 +603,7 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<ElementSelection, LoadProjectError> {
         let path = document_id.path();
+        require_allowed_mapping_keys(path, value, &["tree", "node", "cells"], "element selection")?;
         let reference = string_field(path, value, "tree")?;
         let tree = match self.loader.resolve_reference(document_id, reference)? {
             ResolvedObject::ElementTree(tree) => tree,
@@ -502,6 +617,12 @@ impl DomainResolver<'_> {
         };
         let cells = optional_field(value, "cells")
             .map(|range| {
+                require_allowed_mapping_keys(
+                    path,
+                    range,
+                    &["start", "count"],
+                    "element cell range",
+                )?;
                 Ok(ElementCellRange {
                     start: u32_field(path, range, "start")?,
                     count: u32_field(path, range, "count")?,
@@ -520,6 +641,12 @@ impl DomainResolver<'_> {
         path: &Utf8Path,
         value: &Value,
     ) -> Result<ColorCapability, LoadProjectError> {
+        let fields: &[&str] = if string_field(path, value, "type")? == "discrete" {
+            &["type", "emitters", "mappings"]
+        } else {
+            &["type"]
+        };
+        require_allowed_mapping_keys(path, value, fields, "color capability")?;
         match string_field(path, value, "type")? {
             "rgb" => Ok(ColorCapability::Rgb),
             "rgbw" => Ok(ColorCapability::Rgbw),
@@ -527,6 +654,12 @@ impl DomainResolver<'_> {
                 let emitters = sequence_values(path, value, "emitters")?
                     .iter()
                     .map(|emitter| {
+                        require_allowed_mapping_keys(
+                            path,
+                            emitter,
+                            &["id", "name"],
+                            "discrete emitter",
+                        )?;
                         Ok(DiscreteEmitter {
                             id: EmitterId(u32_field(path, emitter, "id")?),
                             name: string_field(path, emitter, "name")?.to_string(),
@@ -536,12 +669,29 @@ impl DomainResolver<'_> {
                 let mappings = sequence_values(path, value, "mappings")?
                     .iter()
                     .map(|mapping| {
+                        require_allowed_mapping_keys(
+                            path,
+                            mapping,
+                            &["color", "levels"],
+                            "discrete color mapping",
+                        )?;
                         let mut levels = IndexMap::new();
                         for level in sequence_values(path, mapping, "levels")? {
-                            levels.insert(
-                                EmitterId(u32_field(path, level, "emitter")?),
-                                f32_field(path, level, "level")?,
-                            );
+                            require_allowed_mapping_keys(
+                                path,
+                                level,
+                                &["emitter", "level"],
+                                "discrete emitter level",
+                            )?;
+                            if levels
+                                .insert(
+                                    EmitterId(u32_field(path, level, "emitter")?),
+                                    f32_field(path, level, "level")?,
+                                )
+                                .is_some()
+                            {
+                                return Err(invalid(path, "duplicate emitter level id"));
+                            }
                         }
                         Ok(DiscreteColorMapping {
                             color: parse_color(string_field(path, mapping, "color")?)?,
@@ -564,6 +714,33 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<FilterDefinition, LoadProjectError> {
         let path = document_id.path();
+        let fields: &[&str] = match string_field(path, value, "filter")? {
+            "color_breakdown" => &["id", "type", "filter", "capability", "cell_count"],
+            "dimming_curve" => &["id", "type", "filter", "curve", "width"],
+            "scale_invert" => &["id", "type", "filter", "scale", "invert", "width"],
+            "fan_out" => &["id", "type", "filter", "width", "outputs"],
+            "component_reorder" => &[
+                "id",
+                "type",
+                "filter",
+                "components_per_cell",
+                "order",
+                "cell_count",
+            ],
+            "indexed_value_mapping" => &["id", "type", "filter", "entries", "width"],
+            "scalar_to_components" | "quantize_8" => &["id", "type", "filter", "width"],
+            "quantize_16" => &["id", "type", "filter", "width", "byte_order"],
+            "fixture_profile_encoding" => &[
+                "id",
+                "type",
+                "filter",
+                "profile",
+                "fixture_count",
+                "slot_count",
+            ],
+            other => return Err(invalid(path, &format!("invalid patch filter `{other}`"))),
+        };
+        require_allowed_mapping_keys(path, value, fields, "patch filter")?;
         Ok(match string_field(path, value, "filter")? {
             "color_breakdown" => FilterDefinition::ColorBreakdown {
                 capability: self
@@ -600,16 +777,30 @@ impl DomainResolver<'_> {
             "indexed_value_mapping" => {
                 let mut entries = IndexMap::new();
                 for entry in sequence_values(path, value, "entries")? {
-                    entries.insert(
-                        u32_field(path, entry, "id")?,
-                        f32_field(path, entry, "value")?,
-                    );
+                    require_allowed_mapping_keys(
+                        path,
+                        entry,
+                        &["id", "value"],
+                        "indexed value mapping",
+                    )?;
+                    if entries
+                        .insert(
+                            u32_field(path, entry, "id")?,
+                            f32_field(path, entry, "value")?,
+                        )
+                        .is_some()
+                    {
+                        return Err(invalid(path, "duplicate indexed mapping id"));
+                    }
                 }
                 FilterDefinition::IndexedValueMapping {
                     entries,
                     width: usize_field(path, value, "width")?,
                 }
             }
+            "scalar_to_components" => FilterDefinition::ScalarToComponents {
+                width: usize_field(path, value, "width")?,
+            },
             "quantize_8" => FilterDefinition::Quantize8 {
                 width: usize_field(path, value, "width")?,
             },
@@ -649,8 +840,26 @@ impl DomainResolver<'_> {
         id: FixtureProfileId,
         value: &Value,
     ) -> Result<FixtureProfile, LoadProjectError> {
+        require_allowed_mapping_keys(
+            path,
+            value,
+            &["type", "functions", "channels", "behavior_rules"],
+            "fixture profile",
+        )?;
         let mut functions = IndexMap::new();
         for function in sequence_values(path, value, "functions")? {
+            let fields: &[&str] = match string_field(path, function, "type")? {
+                "range" => &["id", "name", "type", "tag", "curve"],
+                "indexed" | "color_wheel" => &["id", "name", "type", "tag", "curve", "entries"],
+                "color_mixing" => &["id", "name", "type", "tag", "curve", "model"],
+                other => {
+                    return Err(invalid(
+                        path,
+                        &format!("invalid fixture function `{other}`"),
+                    ));
+                }
+            };
+            require_allowed_mapping_keys(path, function, fields, "fixture function")?;
             let function_id = FixtureFunctionId(u32_field(path, function, "id")?);
             let kind = match string_field(path, function, "type")? {
                 "range" => FixtureFunctionKind::Range,
@@ -683,19 +892,36 @@ impl DomainResolver<'_> {
                 .map(parse_function_tag)
                 .transpose()
                 .map_err(|message| invalid(path, &message))?;
-            functions.insert(
-                function_id,
-                FixtureFunction {
-                    name: string_field(path, function, "name")?.to_string(),
-                    tag,
-                    kind,
-                    curve: parse_dimming_curve(path, required_field(path, function, "curve")?)?,
-                },
-            );
+            if functions
+                .insert(
+                    function_id,
+                    FixtureFunction {
+                        name: string_field(path, function, "name")?.to_string(),
+                        tag,
+                        kind,
+                        curve: parse_dimming_curve(path, required_field(path, function, "curve")?)?,
+                    },
+                )
+                .is_some()
+            {
+                return Err(invalid(path, "duplicate fixture function id"));
+            }
         }
         let channels = sequence_values(path, value, "channels")?
             .iter()
             .map(|channel| {
+                let fields: &[&str] = match string_field(path, channel, "role")? {
+                    "ignored" => &["slot", "role", "curve"],
+                    "coarse" | "fine" => &["slot", "role", "curve", "function"],
+                    "color_component" => &["slot", "role", "curve", "function", "component"],
+                    other => {
+                        return Err(invalid(
+                            path,
+                            &format!("invalid fixture channel role `{other}`"),
+                        ));
+                    }
+                };
+                require_allowed_mapping_keys(path, channel, fields, "fixture channel")?;
                 let role = match string_field(path, channel, "role")? {
                     "coarse" => FixtureChannelRole::Coarse {
                         function: FixtureFunctionId(u32_field(path, channel, "function")?),
@@ -727,6 +953,19 @@ impl DomainResolver<'_> {
         let behavior_rules = sequence_values(path, value, "behavior_rules")?
             .iter()
             .map(|rule| {
+                let fields: &[&str] = match string_field(path, rule, "type")? {
+                    "shutter" => &["type", "function", "closed", "open"],
+                    "dimmer" => &["type", "function", "off", "on"],
+                    "color_wheel" => &["type", "function", "entries"],
+                    "prism_gate" => &["type", "function", "disabled", "enabled"],
+                    other => {
+                        return Err(invalid(
+                            path,
+                            &format!("invalid fixture behavior rule `{other}`"),
+                        ));
+                    }
+                };
+                require_allowed_mapping_keys(path, rule, fields, "fixture behavior rule")?;
                 Ok(match string_field(path, rule, "type")? {
                     "shutter" => FixtureBehaviorRule::Shutter {
                         function: FixtureFunctionId(u32_field(path, rule, "function")?),
@@ -743,6 +982,12 @@ impl DomainResolver<'_> {
                         entries: sequence_values(path, rule, "entries")?
                             .iter()
                             .map(|entry| {
+                                require_allowed_mapping_keys(
+                                    path,
+                                    entry,
+                                    &["color", "entry"],
+                                    "color wheel mapping",
+                                )?;
                                 Ok(ColorWheelColorMapping {
                                     color: parse_color(string_field(path, entry, "color")?)?,
                                     entry: FixtureEntryId(u32_field(path, entry, "entry")?),
@@ -1424,6 +1669,13 @@ fn invalid(path: &Utf8Path, message: &str) -> LoadProjectError {
 }
 
 fn parse_dimming_curve(path: &Utf8Path, value: &Value) -> Result<DimmingCurve, LoadProjectError> {
+    let fields: &[&str] = match string_field(path, value, "type")? {
+        "linear" => &["type"],
+        "gamma" => &["type", "value"],
+        "custom" => &["type", "curve"],
+        other => return Err(invalid(path, &format!("invalid dimming curve `{other}`"))),
+    };
+    require_allowed_mapping_keys(path, value, fields, "dimming curve")?;
     Ok(match string_field(path, value, "type")? {
         "linear" => DimmingCurve::Linear,
         "gamma" => DimmingCurve::Gamma(f32_field(path, value, "value")?),
@@ -1439,6 +1691,20 @@ fn parse_fixture_entries(
     sequence_values(path, value, "entries")?
         .iter()
         .map(|entry| {
+            require_allowed_mapping_keys(
+                path,
+                entry,
+                &[
+                    "id",
+                    "name",
+                    "dmx_min",
+                    "dmx_max",
+                    "curve_control",
+                    "color",
+                    "tag",
+                ],
+                "fixture indexed entry",
+            )?;
             Ok(FixtureIndexedEntry {
                 id: FixtureEntryId(u32_field(path, entry, "id")?),
                 name: string_field(path, entry, "name")?.to_string(),

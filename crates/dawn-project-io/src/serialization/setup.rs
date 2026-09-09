@@ -75,7 +75,7 @@ pub(super) fn controller_value(controller: &Controller) -> Result<Value, ExportP
                 string_value("bind_address"),
                 Value::String(config.bind_address.to_string()),
             );
-            protocol.insert(string_value("priority"), number_value(config.priority)?);
+            protocol.insert(string_value("priority"), serialized_value(config.priority)?);
             match config.mode {
                 E131Mode::Multicast => {
                     protocol.insert(string_value("mode"), Value::String("multicast".to_string()));
@@ -120,16 +120,19 @@ pub(super) fn controller_value(controller: &Controller) -> Result<Value, ExportP
                 .iter()
                 .map(|port| {
                     let mut item = Mapping::new();
-                    item.insert(string_value("id"), number_value(port.id.0)?);
+                    item.insert(string_value("id"), serialized_value(port.id.0)?);
                     match port.address {
                         ControllerPortAddress::E131Universe(universe) => {
-                            item.insert(string_value("universe"), number_value(universe)?)
+                            item.insert(string_value("universe"), serialized_value(universe)?)
                         }
                         ControllerPortAddress::ArtNetPort(address) => {
-                            item.insert(string_value("port_address"), number_value(address)?)
+                            item.insert(string_value("port_address"), serialized_value(address)?)
                         }
                     };
-                    item.insert(string_value("slot_count"), number_value(port.slot_count)?);
+                    item.insert(
+                        string_value("slot_count"),
+                        serialized_value(port.slot_count)?,
+                    );
                     Ok(Value::Mapping(item))
                 })
                 .collect::<Result<Vec<_>, ExportProjectError>>()?,
@@ -149,7 +152,7 @@ pub(super) fn element_tree_value(
         Value::Sequence(
             tree.roots
                 .iter()
-                .map(|id| number_value(id.0))
+                .map(|id| serialized_value(id.0))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     );
@@ -160,7 +163,7 @@ pub(super) fn element_tree_value(
                 .iter()
                 .map(|(id, node)| {
                     let mut item = Mapping::new();
-                    item.insert(string_value("id"), number_value(id.0)?);
+                    item.insert(string_value("id"), serialized_value(id.0)?);
                     item.insert(string_value("name"), Value::String(node.name.clone()));
                     match &node.kind {
                         ElementNodeKind::Group { children } => {
@@ -170,14 +173,14 @@ pub(super) fn element_tree_value(
                                 Value::Sequence(
                                     children
                                         .iter()
-                                        .map(|child| number_value(child.0))
+                                        .map(|child| serialized_value(child.0))
                                         .collect::<Result<Vec<_>, _>>()?,
                                 ),
                             );
                         }
                         ElementNodeKind::Color { cells, capability } => {
                             item.insert(string_value("type"), Value::String("color".to_string()));
-                            item.insert(string_value("cells"), number_value(*cells)?);
+                            item.insert(string_value("cells"), serialized_value(*cells)?);
                             item.insert(
                                 string_value("capability"),
                                 color_capability_value(capability)?,
@@ -185,11 +188,11 @@ pub(super) fn element_tree_value(
                         }
                         ElementNodeKind::Scalar { cells } => {
                             item.insert(string_value("type"), Value::String("scalar".to_string()));
-                            item.insert(string_value("cells"), number_value(*cells)?);
+                            item.insert(string_value("cells"), serialized_value(*cells)?);
                         }
                         ElementNodeKind::Indexed { cells, options } => {
                             item.insert(string_value("type"), Value::String("indexed".to_string()));
-                            item.insert(string_value("cells"), number_value(*cells)?);
+                            item.insert(string_value("cells"), serialized_value(*cells)?);
                             item.insert(
                                 string_value("options"),
                                 Value::Sequence(
@@ -199,7 +202,7 @@ pub(super) fn element_tree_value(
                                             let mut option_value = Mapping::new();
                                             option_value.insert(
                                                 string_value("id"),
-                                                number_value(option.id.0)?,
+                                                serialized_value(option.id.0)?,
                                             );
                                             option_value.insert(
                                                 string_value("name"),
@@ -255,7 +258,7 @@ pub(super) fn preview_layout_value(
                 .iter()
                 .map(|prop| {
                     let mut item = Mapping::new();
-                    item.insert(string_value("id"), number_value(prop.id.0)?);
+                    item.insert(string_value("id"), serialized_value(prop.id.0)?);
                     item.insert(string_value("name"), Value::String(prop.name.clone()));
                     item.insert(
                         string_value("prop"),
@@ -276,10 +279,12 @@ pub(super) fn preview_layout_value(
                                     let mut binding_value = Mapping::new();
                                     binding_value.insert(
                                         string_value("node"),
-                                        number_value(binding.node.0)?,
+                                        serialized_value(binding.node.0)?,
                                     );
-                                    binding_value
-                                        .insert(string_value("cell"), number_value(binding.cell)?);
+                                    binding_value.insert(
+                                        string_value("cell"),
+                                        serialized_value(binding.cell)?,
+                                    );
                                     Ok(Value::Mapping(binding_value))
                                 })
                                 .collect::<Result<Vec<_>, ExportProjectError>>()?,
@@ -299,7 +304,7 @@ pub(super) fn prop_definition_value(
     let mut value = typed_object("prop");
     value.insert(
         string_value("bulb_diameter"),
-        number_value(definition.bulb_radius.as_meters_f32() * 2.0)?,
+        serialized_value(definition.bulb_radius.as_meters_f32() * 2.0)?,
     );
     value.insert(
         string_value("geometry"),
@@ -332,10 +337,13 @@ pub(super) fn patch_value(
                 .iter()
                 .map(|edge| {
                     let mut item = Mapping::new();
-                    item.insert(string_value("from"), number_value(edge.from.0)?);
-                    item.insert(string_value("from_port"), number_value(edge.from_port.0)?);
-                    item.insert(string_value("to"), number_value(edge.to.0)?);
-                    item.insert(string_value("to_port"), number_value(edge.to_port.0)?);
+                    item.insert(string_value("from"), serialized_value(edge.from.0)?);
+                    item.insert(
+                        string_value("from_port"),
+                        serialized_value(edge.from_port.0)?,
+                    );
+                    item.insert(string_value("to"), serialized_value(edge.to.0)?);
+                    item.insert(string_value("to_port"), serialized_value(edge.to_port.0)?);
                     Ok(Value::Mapping(item))
                 })
                 .collect::<Result<Vec<_>, ExportProjectError>>()?,
@@ -351,7 +359,7 @@ fn patch_node_value(
     node: &PatchNode,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(id.0)?);
+    value.insert(string_value("id"), serialized_value(id.0)?);
     match node {
         PatchNode::Source(source) => {
             value.insert(string_value("type"), Value::String("source".to_string()));
@@ -384,7 +392,7 @@ fn patch_node_value(
                 }
             };
             value.insert(string_value("output"), Value::String(kind.to_string()));
-            value.insert(string_value("width"), number_value(width)?);
+            value.insert(string_value("width"), serialized_value(width)?);
         }
         PatchNode::Filter(filter) => {
             value.insert(string_value("type"), Value::String("filter".to_string()));
@@ -401,9 +409,15 @@ fn patch_node_value(
                     &sink.controller.0,
                 )?),
             );
-            value.insert(string_value("port"), number_value(sink.port.0)?);
-            value.insert(string_value("start_slot"), number_value(sink.start_slot)?);
-            value.insert(string_value("slot_count"), number_value(sink.slot_count)?);
+            value.insert(string_value("port"), serialized_value(sink.port.0)?);
+            value.insert(
+                string_value("start_slot"),
+                serialized_value(sink.start_slot)?,
+            );
+            value.insert(
+                string_value("slot_count"),
+                serialized_value(sink.slot_count)?,
+            );
         }
     }
     Ok(Value::Mapping(value))
@@ -428,7 +442,7 @@ fn write_filter(
                 string_value("capability"),
                 color_capability_value(capability)?,
             );
-            value.insert(string_value("cell_count"), number_value(*cell_count)?);
+            value.insert(string_value("cell_count"), serialized_value(*cell_count)?);
         }
         FilterDefinition::DimmingCurve { curve, width } => {
             value.insert(
@@ -436,7 +450,7 @@ fn write_filter(
                 Value::String("dimming_curve".to_string()),
             );
             value.insert(string_value("curve"), dimming_curve_value(curve)?);
-            value.insert(string_value("width"), number_value(*width)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
         }
         FilterDefinition::ScaleInvert {
             scale,
@@ -447,14 +461,14 @@ fn write_filter(
                 string_value("filter"),
                 Value::String("scale_invert".to_string()),
             );
-            value.insert(string_value("scale"), number_value(*scale)?);
+            value.insert(string_value("scale"), serialized_value(*scale)?);
             value.insert(string_value("invert"), Value::Bool(*invert));
-            value.insert(string_value("width"), number_value(*width)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
         }
         FilterDefinition::FanOut { width, outputs } => {
             value.insert(string_value("filter"), Value::String("fan_out".to_string()));
-            value.insert(string_value("width"), number_value(*width)?);
-            value.insert(string_value("outputs"), number_value(*outputs)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
+            value.insert(string_value("outputs"), serialized_value(*outputs)?);
         }
         FilterDefinition::ComponentReorder {
             components_per_cell,
@@ -467,18 +481,18 @@ fn write_filter(
             );
             value.insert(
                 string_value("components_per_cell"),
-                number_value(*components_per_cell)?,
+                serialized_value(*components_per_cell)?,
             );
             value.insert(
                 string_value("order"),
                 Value::Sequence(
                     order
                         .iter()
-                        .map(|item| number_value(*item))
+                        .map(|item| serialized_value(*item))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             );
-            value.insert(string_value("cell_count"), number_value(*cell_count)?);
+            value.insert(string_value("cell_count"), serialized_value(*cell_count)?);
         }
         FilterDefinition::IndexedValueMapping { entries, width } => {
             value.insert(
@@ -492,28 +506,35 @@ fn write_filter(
                         .iter()
                         .map(|(id, mapped)| {
                             let mut entry = Mapping::new();
-                            entry.insert(string_value("id"), number_value(*id)?);
-                            entry.insert(string_value("value"), number_value(*mapped)?);
+                            entry.insert(string_value("id"), serialized_value(*id)?);
+                            entry.insert(string_value("value"), serialized_value(*mapped)?);
                             Ok(Value::Mapping(entry))
                         })
                         .collect::<Result<Vec<_>, ExportProjectError>>()?,
                 ),
             );
-            value.insert(string_value("width"), number_value(*width)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
+        }
+        FilterDefinition::ScalarToComponents { width } => {
+            value.insert(
+                string_value("filter"),
+                Value::String("scalar_to_components".to_string()),
+            );
+            value.insert(string_value("width"), serialized_value(*width)?);
         }
         FilterDefinition::Quantize8 { width } => {
             value.insert(
                 string_value("filter"),
                 Value::String("quantize_8".to_string()),
             );
-            value.insert(string_value("width"), number_value(*width)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
         }
         FilterDefinition::Quantize16 { width, byte_order } => {
             value.insert(
                 string_value("filter"),
                 Value::String("quantize_16".to_string()),
             );
-            value.insert(string_value("width"), number_value(*width)?);
+            value.insert(string_value("width"), serialized_value(*width)?);
             value.insert(
                 string_value("byte_order"),
                 Value::String(
@@ -543,8 +564,11 @@ fn write_filter(
                     &profile.0,
                 )?),
             );
-            value.insert(string_value("fixture_count"), number_value(*fixture_count)?);
-            value.insert(string_value("slot_count"), number_value(*slot_count)?);
+            value.insert(
+                string_value("fixture_count"),
+                serialized_value(*fixture_count)?,
+            );
+            value.insert(string_value("slot_count"), serialized_value(*slot_count)?);
         }
     }
     Ok(())
@@ -590,7 +614,7 @@ fn function_value(
     function: &FixtureFunction,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(id.0)?);
+    value.insert(string_value("id"), serialized_value(id.0)?);
     value.insert(string_value("name"), Value::String(function.name.clone()));
     if let Some(tag) = function.tag {
         value.insert(
@@ -640,10 +664,10 @@ fn entries_value(entries: &[FixtureIndexedEntry]) -> Result<Value, ExportProject
             .iter()
             .map(|entry| {
                 let mut value = Mapping::new();
-                value.insert(string_value("id"), number_value(entry.id.0)?);
+                value.insert(string_value("id"), serialized_value(entry.id.0)?);
                 value.insert(string_value("name"), Value::String(entry.name.clone()));
-                value.insert(string_value("dmx_min"), number_value(entry.dmx_min)?);
-                value.insert(string_value("dmx_max"), number_value(entry.dmx_max)?);
+                value.insert(string_value("dmx_min"), serialized_value(entry.dmx_min)?);
+                value.insert(string_value("dmx_max"), serialized_value(entry.dmx_max)?);
                 value.insert(
                     string_value("curve_control"),
                     Value::Bool(entry.curve_control),
@@ -665,15 +689,15 @@ fn entries_value(entries: &[FixtureIndexedEntry]) -> Result<Value, ExportProject
 
 fn channel_value(channel: &FixtureChannel) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("slot"), number_value(channel.slot)?);
+    value.insert(string_value("slot"), serialized_value(channel.slot)?);
     match channel.role {
         FixtureChannelRole::Coarse { function } => {
             value.insert(string_value("role"), Value::String("coarse".to_string()));
-            value.insert(string_value("function"), number_value(function.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
         }
         FixtureChannelRole::Fine { function } => {
             value.insert(string_value("role"), Value::String("fine".to_string()));
-            value.insert(string_value("function"), number_value(function.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
         }
         FixtureChannelRole::ColorComponent {
             function,
@@ -683,7 +707,7 @@ fn channel_value(channel: &FixtureChannel) -> Result<Value, ExportProjectError> 
                 string_value("role"),
                 Value::String("color_component".to_string()),
             );
-            value.insert(string_value("function"), number_value(function.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
             value.insert(
                 string_value("component"),
                 Value::String(component_name(component).to_string()),
@@ -706,22 +730,22 @@ fn behavior_rule_value(rule: &FixtureBehaviorRule) -> Result<Value, ExportProjec
             open,
         } => {
             value.insert(string_value("type"), Value::String("shutter".to_string()));
-            value.insert(string_value("function"), number_value(function.0)?);
-            value.insert(string_value("closed"), number_value(closed.0)?);
-            value.insert(string_value("open"), number_value(open.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
+            value.insert(string_value("closed"), serialized_value(closed.0)?);
+            value.insert(string_value("open"), serialized_value(open.0)?);
         }
         FixtureBehaviorRule::Dimmer { function, off, on } => {
             value.insert(string_value("type"), Value::String("dimmer".to_string()));
-            value.insert(string_value("function"), number_value(function.0)?);
-            value.insert(string_value("off"), number_value(*off)?);
-            value.insert(string_value("on"), number_value(*on)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
+            value.insert(string_value("off"), serialized_value(*off)?);
+            value.insert(string_value("on"), serialized_value(*on)?);
         }
         FixtureBehaviorRule::ColorWheel { function, entries } => {
             value.insert(
                 string_value("type"),
                 Value::String("color_wheel".to_string()),
             );
-            value.insert(string_value("function"), number_value(function.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
             value.insert(
                 string_value("entries"),
                 Value::Sequence(
@@ -730,7 +754,7 @@ fn behavior_rule_value(rule: &FixtureBehaviorRule) -> Result<Value, ExportProjec
                         .map(|entry| {
                             let mut item = Mapping::new();
                             item.insert(string_value("color"), Value::String(entry.color.to_hex()));
-                            item.insert(string_value("entry"), number_value(entry.entry.0)?);
+                            item.insert(string_value("entry"), serialized_value(entry.entry.0)?);
                             Ok(Value::Mapping(item))
                         })
                         .collect::<Result<Vec<_>, ExportProjectError>>()?,
@@ -746,9 +770,9 @@ fn behavior_rule_value(rule: &FixtureBehaviorRule) -> Result<Value, ExportProjec
                 string_value("type"),
                 Value::String("prism_gate".to_string()),
             );
-            value.insert(string_value("function"), number_value(function.0)?);
-            value.insert(string_value("disabled"), number_value(disabled.0)?);
-            value.insert(string_value("enabled"), number_value(enabled.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
+            value.insert(string_value("disabled"), serialized_value(disabled.0)?);
+            value.insert(string_value("enabled"), serialized_value(enabled.0)?);
         }
     }
     Ok(Value::Mapping(value))
@@ -772,7 +796,7 @@ fn color_capability_value(capability: &ColorCapability) -> Result<Value, ExportP
                         .iter()
                         .map(|emitter| {
                             let mut item = Mapping::new();
-                            item.insert(string_value("id"), number_value(emitter.id.0)?);
+                            item.insert(string_value("id"), serialized_value(emitter.id.0)?);
                             item.insert(string_value("name"), Value::String(emitter.name.clone()));
                             Ok(Value::Mapping(item))
                         })
@@ -800,11 +824,11 @@ fn color_capability_value(capability: &ColorCapability) -> Result<Value, ExportP
                                             let mut level_value = Mapping::new();
                                             level_value.insert(
                                                 string_value("emitter"),
-                                                number_value(emitter.0)?,
+                                                serialized_value(emitter.0)?,
                                             );
                                             level_value.insert(
                                                 string_value("level"),
-                                                number_value(*level)?,
+                                                serialized_value(*level)?,
                                             );
                                             Ok(Value::Mapping(level_value))
                                         })
@@ -828,7 +852,7 @@ fn dimming_curve_value(curve: &DimmingCurve) -> Result<Value, ExportProjectError
         }
         DimmingCurve::Gamma(gamma) => {
             value.insert(string_value("type"), Value::String("gamma".to_string()));
-            value.insert(string_value("value"), number_value(*gamma)?);
+            value.insert(string_value("value"), serialized_value(*gamma)?);
         }
         DimmingCurve::Custom(curve) => {
             value.insert(string_value("type"), Value::String("custom".to_string()));

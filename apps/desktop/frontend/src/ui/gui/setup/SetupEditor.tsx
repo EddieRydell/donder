@@ -1,180 +1,61 @@
+import { ControllerForm } from "../controller/ControllerForm";
+import { Boxes, Cable, Cpu, LayoutTemplate, Lightbulb, SlidersHorizontal } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useState, type ReactNode } from "react";
 
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { SetupDocument } from "../../../types";
+import { navigateToGuiObject } from "../../../workspace/navigation";
+import { AssignOutputForm, OutputAssignments } from "./SetupAuthoring";
+import { AvailableControllers, ControllerMembership } from "./ControllerMembership";
+import { CreateFixtureProfile } from "../fixtureProfile/CreateFixtureProfile";
+import { ControlOutputForm } from "./ControlOutputForm";
+import { FixtureOutputForm } from "./FixtureOutputForm";
+import { OutputTestForm } from "./OutputTestForm";
 
 export function SetupEditor({ document }: { document: SetupDocument }) {
   return (
-    <div className="setup-editor">
-      <header>
-        <div>
-          <h2>Display Setup</h2>
-          <span>{document.objectKey}</span>
-        </div>
+    <main className="project-overview">
+      <header className="object-overview-header">
+        <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.objectKey}</h2></div>
         <span>{document.elements.length} elements · {document.controllers.length} controllers</span>
       </header>
-      <div className="setup-sections">
-        <SetupSection title="Elements">
-          <div className="setup-table">
-            {document.elements.map((element) => (
-              <div className="setup-row" key={element.id}>
-                <span className="setup-id">{element.id}</span>
-                <input
-                  defaultValue={element.name}
-                  aria-label={`Element ${element.id} name`}
-                  onBlur={(event) => {
-                    if (event.currentTarget.value !== element.name) {
-                      void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, {
-                        type: "renameElement",
-                        id: element.id,
-                        name: event.currentTarget.value
-                      }));
-                    }
-                  }}
-                />
-                <span>{element.kind}</span>
-                {element.cellCount !== null ? (
-                  <input
-                    className="setup-number"
-                    type="number"
-                    min={1}
-                    defaultValue={element.cellCount}
-                    aria-label={`Element ${element.id} cells`}
-                    onBlur={(event) => {
-                      const cells = Number(event.currentTarget.value);
-                      if (cells !== element.cellCount) {
-                        void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, {
-                          type: "setElementCellCount",
-                          id: element.id,
-                          cells
-                        }));
-                      }
-                    }}
-                  />
-                ) : <span>{element.children.length} children</span>}
-                <span>{element.capability ?? element.profile ?? ""}</span>
-              </div>
-            ))}
-          </div>
-        </SetupSection>
-
-        <SetupSection title="Fixture Profiles">
-          {document.fixtureProfiles.length === 0 ? <Empty label="No fixture profiles" /> : document.fixtureProfiles.map((profile) => (
-            <div className="setup-summary" key={profile.id}>
-              <strong>{profile.name}</strong>
-              <span>{profile.functionCount} functions · {profile.channelCount} channels · {profile.behaviorRuleCount} behavior rules</span>
-            </div>
-          ))}
-        </SetupSection>
-
-        <SetupSection title="Preview Links">
-          {document.previewLinks.map((link) => <PreviewLink key={link.propId} link={link} document={document} />)}
-        </SetupSection>
-
-        <SetupSection title="Patching">
-          <div className="patch-node-grid">
-            {document.patchNodes.map((node) => (
-              <div className={`patch-node-card ${node.kind}`} key={node.id}>
-                <span>#{node.id} · {node.kind}</span>
-                <strong>{node.label}</strong>
-                <span>{node.width} values</span>
-              </div>
-            ))}
-          </div>
-          <div className="setup-edge-list">
-            {document.patchEdges.map((edge) => (
-              <button
-                key={`${edge.fromNode}:${edge.fromPort}:${edge.toNode}:${edge.toPort}`}
-                title="Remove patch edge"
-                onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, {
-                  type: "disconnectPatch",
-                  ...edge
-                }))}
-              >
-                {edge.fromNode}:{edge.fromPort} → {edge.toNode}:{edge.toPort}
-              </button>
-            ))}
-          </div>
-        </SetupSection>
-
-        <SetupSection title="Controllers">
-          {document.controllers.map((controller) => (
-            <div className="controller-card" key={`${controller.sourceRef.moduleId}:${controller.sourceRef.path}:${controller.sourceRef.objectKey}`}>
-              <div className="setup-summary">
-                <strong>{controller.label}</strong>
-                <span>{controller.protocol} · {controller.mode} · bind {controller.bindAddress}{controller.destination !== null ? ` · ${controller.destination}` : ""}{controller.readOnly ? " · read-only dependency" : ""}</span>
-              </div>
-              {controller.ports.map((port) => (
-                <ControllerPort
-                  key={port.id}
-                  controller={controller.sourceRef}
-                  port={port}
-                  readOnly={controller.readOnly}
-                />
-              ))}
-            </div>
-          ))}
-        </SetupSection>
-      </div>
-    </div>
+      <section className="object-overview-group">
+        <h3>Composition</h3>
+        <SetupRow icon={<LayoutTemplate aria-hidden="true" />} title="Layout" reference={referenceLabel(document.previewRef)} detail={`${document.previewLinks.length} placements`} onOpen={() => void navigateToGuiObject(document.previewRef)} />
+        <SetupRow icon={<Boxes aria-hidden="true" />} title="Fixture instances & controls" reference={referenceLabel(document.elementsRef)} detail={`${document.elements.length} fixture instances and controls`} onOpen={() => void navigateToGuiObject(document.elementsRef)} />
+        <SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={referenceLabel(document.patchRef)} detail={`${document.outputAssignments.length} assigned outputs`} onOpen={() => void navigateToGuiObject(document.patchRef)} />
+        {(document.elementsReadOnly || document.previewReadOnly || document.patchReadOnly) && <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "copyLayout" }))}>Make independent layout copy</button>}
+        <CreationDialog label="Assign outputs" title="Setup outputs"><OutputTestForm document={document} /><AssignOutputForm document={document} /><FixtureOutputForm document={document} /><ControlOutputForm document={document} /><OutputAssignments document={document} /></CreationDialog>
+      </section>
+      <section className="object-overview-group">
+        <h3>Fixture instances</h3>
+        {document.previewLinks.length === 0 ? <p className="object-overview-empty">No fixture instances in this layout.</p> : document.previewLinks.map((link) => <SetupRow key={link.propId} icon={<Lightbulb aria-hidden="true" />} title={link.name} reference={`Fixture definition · ${referenceLabel(link.definitionRef)}`} detail={`${link.pointCount} points`} onOpen={() => void navigateToGuiObject(link.definitionRef)} />)}
+      </section>
+      <section className="object-overview-group">
+        <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addController", config, ports })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
+        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller) => <div key={referenceLabel(controller.sourceRef)}><SetupRow icon={<Cpu aria-hidden="true" />} title={controller.label} reference={referenceLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><CreationDialog label="Setup membership" title={controller.label}><ControllerMembership controller={controller} patchReadOnly={document.patchReadOnly} /></CreationDialog></div>)}
+      </section>
+      <section className="object-overview-group">
+        <OverviewGroupHeader title="Fixture profiles"><CreationDialog label="Add fixture profile" title="New fixture profile"><CreateFixtureProfile profiles={document.fixtureProfiles} /></CreationDialog></OverviewGroupHeader>
+        {document.fixtureProfiles.length === 0 ? <p className="object-overview-empty">No fixture profiles.</p> : document.fixtureProfiles.map((profile) => <SetupRow key={profile.id} icon={<SlidersHorizontal aria-hidden="true" />} title={profile.name} reference={referenceLabel(profile.sourceRef)} detail={`${profile.channelCount} channels`} onOpen={() => void navigateToGuiObject(profile.sourceRef)} />)}
+      </section>
+    </main>
   );
 }
 
-function PreviewLink({ link, document }: { link: SetupDocument["previewLinks"][number]; document: SetupDocument }) {
-  const [node, setNode] = useState(document.elements.find((element) => element.cellCount !== null)?.id ?? 0);
-  const [startCell, setStartCell] = useState(0);
-  return (
-    <div className="preview-link-row">
-      <div>
-        <strong>{link.name}</strong>
-        <span>{link.pointCount} points · {link.bindings.length} explicit bindings</span>
-      </div>
-      <select value={node} onChange={(event) => { setNode(Number(event.currentTarget.value)); }}>
-        {document.elements.filter((element) => element.cellCount !== null).map((element) => (
-          <option value={element.id} key={element.id}>{element.name}</option>
-        ))}
-      </select>
-      <input className="setup-number" type="number" min={0} value={startCell} onChange={(event) => { setStartCell(Number(event.currentTarget.value)); }} />
-      <button onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, {
-        type: "autoLinkPreview",
-        propId: link.propId,
-        node,
-        startCell
-      }))}>Auto-link</button>
-    </div>
-  );
+function OverviewGroupHeader({ title, children }: { title: string; children: ReactNode }) {
+  return <div className="object-overview-group-header"><h3>{title}</h3>{children}</div>;
 }
 
-function ControllerPort({
-  controller,
-  port,
-  readOnly
-}: {
-  controller: SetupDocument["controllers"][number]["sourceRef"];
-  port: SetupDocument["controllers"][number]["ports"][number];
-  readOnly: boolean;
-}) {
-  const [address, setAddress] = useState(port.address);
-  const [slotCount, setSlotCount] = useState(port.slotCount);
-  return (
-    <div className="controller-port-row">
-      <span>Port {port.id}</span>
-      <label>Address <input type="number" min={0} value={address} disabled={readOnly} onChange={(event) => { setAddress(Number(event.currentTarget.value)); }} /></label>
-      <label>Slots <input type="number" min={1} max={512} value={slotCount} disabled={readOnly} onChange={(event) => { setSlotCount(Number(event.currentTarget.value)); }} /></label>
-      <button disabled={readOnly} title={readOnly ? "Fork the dependency package before editing this controller." : undefined} onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, {
-        type: "setControllerPort",
-        controller,
-        port: port.id,
-        address,
-        slotCount
-      }))}>Apply</button>
-    </div>
-  );
+function CreationDialog({ label, title, children }: { label: string; title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return <Dialog.Root open={open} onOpenChange={setOpen}><Dialog.Trigger asChild><button type="button">{label}</button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content setup-creation-dialog"><Dialog.Title>{title}</Dialog.Title>{children}<div className="dialog-actions"><Dialog.Close asChild><button type="button">Close</button></Dialog.Close></div></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }
 
-function SetupSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="setup-section"><h3>{title}</h3>{children}</section>;
+function SetupRow({ icon, title, reference, detail, onOpen }: { icon: ReactNode; title: string; reference: string; detail: string; onOpen: () => void }) {
+  return <a href="#" className="object-overview-row" onClick={(event) => { event.preventDefault(); onOpen(); }}><span className="object-overview-icon">{icon}</span><span className="object-overview-label"><strong>{title}</strong><span>{reference}</span></span><span className="object-overview-detail">{detail}</span></a>;
 }
 
-function Empty({ label }: { label: string }) { return <span className="setup-empty">{label}</span>; }
+function referenceLabel(reference: SetupDocument["previewRef"]): string { return `${reference.path} · ${reference.objectKey}`; }

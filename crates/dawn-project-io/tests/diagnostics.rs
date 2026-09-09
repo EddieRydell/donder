@@ -62,6 +62,168 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
 }
 
 #[test]
+fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
+    let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let root = workspace.join("examples/starter");
+    let original = dawn_project_io::project_source_texts(&root).unwrap();
+    for (path, anchor, indentation, label) in [
+        (
+            "layouts/outputs.layout.dawn",
+            "  type: element_tree",
+            2,
+            "element tree",
+        ),
+        (
+            "layouts/outputs.layout.dawn",
+            "    name: Output 01",
+            4,
+            "element node",
+        ),
+        (
+            "layouts/outputs.layout.dawn",
+            "      type: rgb",
+            6,
+            "color capability",
+        ),
+        ("patches/outputs.patch.dawn", "  type: patch", 2, "patch"),
+        (
+            "patches/outputs.patch.dawn",
+            "    type: source",
+            4,
+            "patch source",
+        ),
+        (
+            "patches/outputs.patch.dawn",
+            "      node: 1",
+            6,
+            "element selection",
+        ),
+        (
+            "patches/outputs.patch.dawn",
+            "    filter: component_reorder",
+            4,
+            "patch filter",
+        ),
+        (
+            "patches/outputs.patch.dawn",
+            "    type: sink",
+            4,
+            "patch sink",
+        ),
+        (
+            "patches/outputs.patch.dawn",
+            "    from_port: 0",
+            4,
+            "patch edge",
+        ),
+    ] {
+        let path = Utf8PathBuf::from(path);
+        let source = &original[&path];
+        assert!(source.contains(anchor), "missing anchor {anchor}");
+        let replacement = format!(
+            "{anchor}\n{}typo_field: unexpected",
+            " ".repeat(indentation)
+        );
+        let edited = source.replacen(anchor, &replacement, 1);
+        assert_unknown_setup_field(&root, &original, &path, &edited, label);
+    }
+    assert_eq!(
+        dawn_project_io::project_source_texts(&root).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn nested_fixture_field_typos_are_rejected_without_changing_the_saved_project() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+    write_imported_sequence_project(&root, &minimal_sequence_body(""));
+    let path = Utf8PathBuf::from("display.dawn");
+    let display = fs::read_to_string(root.join(&path)).unwrap().replace(
+        "    type: color\n    cells: 1\n    capability: { type: rgb }",
+        "    type: fixture\n    profile: profile",
+    );
+    let display = format!(
+        "{display}\nprofile:\n  type: fixture_profile\n  functions:\n  - id: 1\n    name: Dimmer\n    type: range\n    curve: {{ type: linear }}\n  channels:\n  - slot: 0\n    role: coarse\n    function: 1\n    curve: {{ type: linear }}\n  behavior_rules:\n  - type: dimmer\n    function: 1\n    off: 0\n    on: 1\n"
+    );
+    fs::write(root.join(&path), &display).unwrap();
+    let baseline = check_package(&root);
+    assert!(
+        baseline.diagnostics.is_empty(),
+        "{:?}",
+        baseline.diagnostics
+    );
+    let original = dawn_project_io::project_source_texts(&root).unwrap();
+    for (anchor, indentation, label) in [
+        ("  type: fixture_profile", 2, "fixture profile"),
+        ("    name: Dimmer", 4, "fixture function"),
+        ("    role: coarse", 4, "fixture channel"),
+        ("  - type: dimmer", 4, "fixture behavior rule"),
+    ] {
+        let edited = display.replacen(
+            anchor,
+            &format!(
+                "{anchor}\n{}typo_field: unexpected",
+                " ".repeat(indentation)
+            ),
+            1,
+        );
+        assert_unknown_setup_field(&root, &original, &path, &edited, label);
+    }
+    let edited = display.replacen(
+        "{ type: linear }",
+        "{ type: linear, typo_field: unexpected }",
+        1,
+    );
+    assert_unknown_setup_field(&root, &original, &path, &edited, "dimming curve");
+    assert_eq!(
+        dawn_project_io::project_source_texts(&root).unwrap(),
+        original
+    );
+}
+
+fn assert_unknown_setup_field(
+    root: &Utf8Path,
+    original: &std::collections::BTreeMap<Utf8PathBuf, String>,
+    path: &Utf8PathBuf,
+    edited: &str,
+    label: &str,
+) {
+    let mut overrides = original.clone();
+    overrides.insert(path.clone(), edited.to_owned());
+    let report = dawn_project_io::check_package_with_overrides(root, &overrides);
+    assert!(
+        report.session.is_none(),
+        "{label} silently accepted an unknown field"
+    );
+    let message = format!("{label} has an unknown field `typo_field`");
+    let diagnostic = report
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.message == message)
+        .unwrap_or_else(|| panic!("missing {message}: {:?}", report.diagnostics));
+    assert_eq!(&diagnostic.path, path);
+    assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
+    let (line, text) = edited
+        .lines()
+        .enumerate()
+        .find(|(_, text)| text.contains("typo_field:"))
+        .unwrap();
+    let column = text.find("unexpected").unwrap() as u32;
+    assert_range(
+        diagnostic.range.as_ref().unwrap(),
+        line as u32,
+        column,
+        line as u32,
+        column + 10,
+    );
+}
+
+#[test]
 fn invalid_yaml_reports_parser_range() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();

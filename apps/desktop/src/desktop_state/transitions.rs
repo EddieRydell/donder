@@ -46,6 +46,7 @@ impl DesktopState {
             request.transition,
             WorkspaceTransition::OpenProject { .. }
                 | WorkspaceTransition::CreateProject { .. }
+                | WorkspaceTransition::CopyProject { .. }
                 | WorkspaceTransition::ReloadProject
         );
         let previous_epoch = snapshot.project_epoch;
@@ -76,7 +77,15 @@ impl DesktopState {
             WorkspaceTransition::CreateProject {
                 parent_path,
                 directory_name,
-            } => self.create_new_project(&parent_path, &directory_name),
+            } => self.create_new_project_locked(&parent_path, &directory_name),
+            WorkspaceTransition::CopyProject {
+                parent_path,
+                directory_name,
+            } => self.copy_project_locked(
+                &parent_path,
+                &directory_name,
+                matches!(request.decision, Some(TransitionDecision::Discard)),
+            ),
             WorkspaceTransition::CloseApplication => {
                 self.persistence.record_snapshot(&self.snapshot())?;
                 let mut workspace = lock_unpoisoned(&self.workspace);

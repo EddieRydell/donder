@@ -1,3 +1,5 @@
+pub mod authoring;
+
 use indexmap::IndexMap;
 
 use crate::element::{ElementCellAddress, ElementTreeId};

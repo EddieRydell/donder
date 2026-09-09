@@ -1,4 +1,5 @@
 import { THEME_COLORS, THEME_METRICS } from "../theme";
+import { normalizeHexColor } from "../color";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
@@ -196,18 +197,6 @@ function NumberColorInput({
       />
     </label>
   );
-}
-
-function normalizeHexColor(value: string): string | null {
-  const trimmed = value.trim();
-  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
-  if (match === null) return null;
-  const hex = match[1] ?? "";
-  if (hex.length === 3) {
-    const [red = "0", green = "0", blue = "0"] = hex;
-    return `#${red}${red}${green}${green}${blue}${blue}`.toLowerCase();
-  }
-  return `#${hex}`.toLowerCase();
 }
 
 function hexToRgb(hex: string): RgbColor {

@@ -3,7 +3,7 @@ use dawn_language::values::DistanceSpan;
 
 use crate::dto::{
     Geometry, GeometryRenderBounds, GeometryRenderGuide, GeometryRenderPlan, GeometryRenderPoint,
-    PreviewPropPlacement, ResolvedPreviewProp,
+    PreviewPropPlacement,
 };
 use crate::preview::{arc_point, point3_meters, render_point};
 
@@ -130,27 +130,5 @@ pub(crate) fn geometry_summary(geometry: &DomainGeometry) -> String {
         DomainGeometry::Points { points } => format!("{} points", points.len()),
         DomainGeometry::Lines { point_count, .. } => format!("{point_count} line points"),
         DomainGeometry::Arc { point_count, .. } => format!("{point_count} arc points"),
-    }
-}
-
-pub(crate) fn empty_resolved_fixture() -> ResolvedPreviewProp {
-    ResolvedPreviewProp {
-        name: "Missing fixture".to_string(),
-        color_model: "rgb".to_string(),
-        bulb_diameter_meters: 0.05,
-        geometry_summary: "Missing".to_string(),
-        render_plan: GeometryRenderPlan {
-            emitters: Vec::new(),
-            guides: Vec::new(),
-            bounds: GeometryRenderBounds {
-                min_x_meters: 0.0,
-                min_y_meters: 0.0,
-                max_x_meters: 1.0,
-                max_y_meters: 1.0,
-            },
-            bulb_radius_meters: 0.025,
-        },
-        source_path: String::new(),
-        object_key: None,
     }
 }

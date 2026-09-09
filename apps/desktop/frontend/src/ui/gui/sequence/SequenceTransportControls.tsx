@@ -12,6 +12,7 @@ import { runGuiEditCommand, runSnapshotCommand, useAppStore } from "../../../sto
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
+import { SequenceExportDialog } from "./SequenceExportDialog";
 
 export function SequenceTransportControls({
   document,
@@ -25,7 +26,7 @@ export function SequenceTransportControls({
   if (transport === null || liveOutput === null) return null;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
-  const liveActive = liveOutput.state === "preparing" || liveOutput.state === "holding" || liveOutput.state === "streaming";
+  const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
   const stepFrame = (direction: -1 | 1) => {
     stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, direction);
   };
@@ -83,6 +84,7 @@ export function SequenceTransportControls({
         type="button"
         className={liveActive ? "active" : ""}
         title={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+        disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
       >
         <RadioTower size={THEME_METRICS.iconSizeCompact} />
@@ -109,6 +111,7 @@ export function SequenceTransportControls({
         {formatSeconds(transport.positionSeconds)} / {formatSeconds(transport.durationSeconds || document.durationSeconds)} | Home {formatSeconds(transport.homeSeconds)}
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
       </span>
+      <SequenceExportDialog />
     </div>
   );
 }

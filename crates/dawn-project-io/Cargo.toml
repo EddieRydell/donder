@@ -15,10 +15,12 @@ indexmap.workspace = true
 marked-yaml.workspace = true
 pathdiff.workspace = true
 serde.workspace = true
+serde_path_to_error.workspace = true
 serde_json.workspace = true
 yaml_serde.workspace = true
 uuid.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
+dawn-elaboration.workspace = true
 semver.workspace = true

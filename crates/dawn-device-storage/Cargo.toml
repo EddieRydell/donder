@@ -1,0 +1,11 @@
+[package]
+name = "dawn-device-storage"
+edition.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+littlefs2 = { version = "0.8.1", default-features = false }
+crc32fast.workspace = true
+serde = { version = "1.0.229", default-features = false, features = ["alloc", "derive"] }
+serde-json-core = { version = "0.6.0", default-features = false }

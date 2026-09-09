@@ -8,12 +8,11 @@ use dawn_package::{
     Dependency, Lockfile, PackageManifest, ResolvedModule, ResolvedModuleOrigin,
     ResolvedSourceGraph,
 };
-use indexmap::IndexMap;
 use tempfile::Builder;
 use uuid::Uuid;
 
 use crate::serialization::document_text;
-use crate::source::{ImportSource, ProjectSession};
+use crate::source::ProjectSession;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PathChangeSourceKind {
@@ -49,6 +48,15 @@ pub struct PathChangePlan {
     pub impact: PathChangeImpact,
     document_remaps: BTreeMap<DocumentId, DocumentId>,
     module_root_remaps: BTreeMap<Uuid, Utf8PathBuf>,
+}
+
+impl PathChangePlan {
+    pub fn remap_identity(
+        &self,
+        identity: &dawn_language::identity::SourceIdentity,
+    ) -> dawn_language::identity::SourceIdentity {
+        dawn_language::source_remap::remap_identity(identity, &self.document_remaps)
+    }
 }
 
 pub fn plan_path_change(
@@ -253,18 +261,25 @@ pub fn apply_path_change(
 
     fs::rename(&source_absolute, &staged)
         .map_err(|error| format!("Failed to stage `{}`: {error}", plan.source))?;
-    if let Some(parent) = destination_absolute.parent()
-        && let Err(error) = fs::create_dir_all(parent)
-    {
-        let _ = fs::rename(&staged, &source_absolute);
-        return Err(format!("Failed to create destination directory: {error}"));
-    }
-    if let Err(error) = fs::rename(&staged, &destination_absolute) {
-        let _ = fs::rename(&staged, &source_absolute);
-        return Err(format!(
+    let move_result = (|| {
+        if let Some(parent) = destination_absolute.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(&staged, &destination_absolute)
+    })();
+    if let Err(error) = move_result {
+        let message = format!(
             "Failed to move `{}` to `{}`: {error}",
             plan.source, plan.destination
-        ));
+        );
+        if let Err(restore_error) = fs::rename(&staged, &source_absolute) {
+            let retained = temporary.keep();
+            return Err(format!(
+                "{message}; restoring the source also failed: {restore_error}; original source retained at {}",
+                retained.join("payload").display()
+            ));
+        }
+        return Err(message);
     }
 
     let mut backups = BTreeMap::new();
@@ -302,48 +317,7 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
         *entrypoint = next.clone();
     }
 
-    let mut documents = IndexMap::new();
-    for (old_id, mut document) in std::mem::take(&mut candidate.source.documents) {
-        if let crate::source::SourceDocumentKind::Effect { source } = &mut document.kind {
-            let imports = dawn_language::dsl::effect_source_imports(source)
-                .map_err(|errors| format!("Cannot remap effect imports: {errors:?}"))?;
-            // Only explicit import-path tokens change; the effect program stays intact.
-            for import in imports.into_iter().rev() {
-                if let dawn_language::imports::ImportSource::LocalDocuments { documents } =
-                    import.declaration.source
-                {
-                    for (path, span) in documents.into_iter().zip(import.source_spans).rev() {
-                        let target = DocumentId::new(old_id.module_id(), path);
-                        if let Some(next) = plan.document_remaps.get(&target) {
-                            let path = serde_json::to_string(next.path().as_str())
-                                .map_err(|error| error.to_string())?;
-                            source.replace_range(span.start..span.end, &path);
-                        }
-                    }
-                }
-            }
-        }
-        for import in &mut document.imports {
-            for target in &mut import.targets {
-                if let Some(next) = plan.document_remaps.get(target) {
-                    *target = next.clone();
-                }
-            }
-            if let ImportSource::LocalDocuments { documents: paths } =
-                &mut import.declaration.source
-            {
-                for path in paths {
-                    let target = DocumentId::new(old_id.module_id(), path.clone());
-                    if let Some(next) = plan.document_remaps.get(&target) {
-                        *path = next.path().to_path_buf();
-                    }
-                }
-            }
-        }
-        let next_id = plan.document_remaps.get(&old_id).cloned().unwrap_or(old_id);
-        documents.insert(next_id, document);
-    }
-    candidate.source.documents = documents;
+    crate::source_copy::remap_documents(&mut candidate.source, &plan.document_remaps)?;
 
     let old_assets = candidate.source.referenced_assets.clone();
     for asset in &mut candidate.source.referenced_assets {
@@ -823,11 +797,8 @@ fn backup_path(
 }
 
 fn write_bytes(path: &Utf8Path, bytes: &[u8]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("Failed to create `{parent}`: {error}"))?;
-    }
-    fs::write(path, bytes).map_err(|error| format!("Failed to write `{path}`: {error}"))
+    dawn_package::atomic_write(path, bytes)
+        .map_err(|error| format!("Failed to write `{path}`: {error}"))
 }
 
 fn rollback_writes(
@@ -843,7 +814,7 @@ fn rollback_writes(
                 if let Some(parent) = path.parent() {
                     fs::create_dir_all(parent)?;
                 }
-                fs::write(path, bytes)?;
+                dawn_package::atomic_write(path, bytes).map_err(io::Error::other)?;
             }
             None => match fs::remove_file(path) {
                 Ok(()) => {}

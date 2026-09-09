@@ -197,19 +197,18 @@ impl From<&SourceObjectKind> for ObjectKind {
 impl ObjectKind {
     pub(crate) fn document_view(&self) -> Option<DocumentViewId> {
         match self {
+            Self::Project => Some(DocumentViewId::Project),
             Self::Setup => Some(DocumentViewId::Setup),
+            Self::ElementTree => Some(DocumentViewId::ElementTree),
             Self::Preview => Some(DocumentViewId::Preview),
             Self::Prop => Some(DocumentViewId::Prop),
+            Self::FixtureProfile => Some(DocumentViewId::FixtureProfile),
+            Self::Patch => Some(DocumentViewId::Patch),
+            Self::Controller => Some(DocumentViewId::Controller),
             Self::Sequence => Some(DocumentViewId::Sequence),
-            Self::Project
-            | Self::Controller
-            | Self::ElementTree
-            | Self::FixtureProfile
-            | Self::Patch
-            | Self::Curve
-            | Self::Gradient
-            | Self::Effect
-            | Self::Operator => None,
+            Self::Curve => Some(DocumentViewId::Curve),
+            Self::Gradient => Some(DocumentViewId::Gradient),
+            Self::Effect | Self::Operator => None,
         }
     }
 }
@@ -426,6 +425,7 @@ pub struct EditorBuffer {
     pub name: String,
     pub text: String,
     pub dirty: bool,
+    pub read_only: bool,
     pub document_revision: u32,
     pub saved_revision: u32,
     pub save_state: DocumentSaveState,

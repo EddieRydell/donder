@@ -53,32 +53,43 @@ pub enum EffectParamValue {
 }
 
 impl EffectParamValue {
-    pub fn default_for_type(ty: &Type) -> Option<Self> {
-        Self::from_default_value(ty.default_value())
-    }
-
-    fn from_default_value(value: Value) -> Option<Self> {
-        match value {
-            Value::Int(value) => Some(Self::Int(value)),
-            Value::Float(value) => Some(Self::Float(value)),
-            Value::Bool(value) => Some(Self::Bool(value)),
-            Value::Color(value) => Some(Self::Color(value)),
-            Value::Curve(value) => Some(Self::Curve(CurveSource::Inline((*value).clone()))),
-            Value::Gradient(value) => {
-                Some(Self::Gradient(GradientSource::Inline((*value).clone())))
+    /// Initial authored values must be valid resources, unlike the VM's empty
+    /// storage defaults. The caller supplies the user-facing initial color.
+    pub fn initial_for_type(ty: &Type, color: crate::values::Color) -> Option<Self> {
+        match ty {
+            Type::Int => Some(Self::Int(0)),
+            Type::Float => Some(Self::Float(0.0)),
+            Type::Bool => Some(Self::Bool(false)),
+            Type::Color => Some(Self::Color(color)),
+            Type::Curve => Some(Self::Curve(CurveSource::Inline(Curve {
+                points: vec![
+                    crate::values::CurvePoint {
+                        position: 0.0,
+                        value: 0.0,
+                    },
+                    crate::values::CurvePoint {
+                        position: 1.0,
+                        value: 1.0,
+                    },
+                ],
+            }))),
+            Type::Gradient => Some(Self::Gradient(GradientSource::Inline(Gradient {
+                stops: vec![crate::values::GradientStop {
+                    position: 0.0,
+                    color,
+                }],
+            }))),
+            Type::Array(element) => {
+                Some(Self::Array(vec![Self::initial_for_type(element, color)?]))
             }
-            Value::Array(values) => values
-                .iter()
-                .cloned()
-                .map(Self::from_default_value)
-                .collect::<Option<Vec<_>>>()
-                .map(Self::Array),
-            Value::Enum(value) => Some(Self::Enum(value)),
-            Value::Void
-            | Value::Marks(_)
-            | Value::Target(_)
-            | Value::TargetItems(_)
-            | Value::TargetItem(_) => None,
+            Type::Enum(options) => options.first().cloned().map(Self::Enum),
+            Type::Void
+            | Type::Signal
+            | Type::Timeline
+            | Type::Marks
+            | Type::Target
+            | Type::TargetItems
+            | Type::TargetItem => None,
         }
     }
 }

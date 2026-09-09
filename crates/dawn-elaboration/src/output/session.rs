@@ -33,6 +33,11 @@ pub struct OutputEvaluationWorkspace {
 }
 
 impl PreparedSequenceOutput {
+    /// Encode the prepared output selection in the portable controller format.
+    pub fn encode(&self) -> Result<Vec<u8>, dawn_runtime::wire::LoadError> {
+        dawn_runtime::wire::encode_sequence(&self.sequence)
+    }
+
     pub fn prepare(
         project: &DawnProject,
         setup_id: &SetupId,

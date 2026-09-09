@@ -8,10 +8,10 @@ pub(super) fn curve_value(curve: &Curve) -> Result<Value, ExportProjectError> {
                 .points
                 .iter()
                 .map(|point| {
-                    let mut value = Mapping::new();
-                    value.insert(string_value("position"), number_value(point.position)?);
-                    value.insert(string_value("value"), number_value(point.value)?);
-                    Ok(Value::Mapping(value))
+                    serialized_value(crate::schema::CurvePoint {
+                        position: point.position,
+                        value: point.value,
+                    })
                 })
                 .collect::<Result<Vec<_>, ExportProjectError>>()?,
         ),
@@ -28,10 +28,10 @@ pub(super) fn gradient_value(gradient: &Gradient) -> Result<Value, ExportProject
                 .stops
                 .iter()
                 .map(|stop| {
-                    let mut value = Mapping::new();
-                    value.insert(string_value("position"), number_value(stop.position)?);
-                    value.insert(string_value("color"), Value::String(stop.color.to_hex()));
-                    Ok(Value::Mapping(value))
+                    serialized_value(crate::schema::GradientStop {
+                        position: stop.position,
+                        color: stop.color.to_hex(),
+                    })
                 })
                 .collect::<Result<Vec<_>, ExportProjectError>>()?,
         ),
@@ -68,7 +68,7 @@ pub(super) fn geometry_value(geometry: &PropGeometry) -> Result<Value, ExportPro
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             );
-            value.insert(string_value("point_count"), number_value(*point_count)?);
+            value.insert(string_value("point_count"), serialized_value(*point_count)?);
         }
         PropGeometry::Arc {
             center,
@@ -81,11 +81,14 @@ pub(super) fn geometry_value(geometry: &PropGeometry) -> Result<Value, ExportPro
             value.insert(string_value("center"), point_value(center)?);
             value.insert(
                 string_value("radius"),
-                number_value(radius.as_meters_f32())?,
+                serialized_value(radius.as_meters_f32())?,
             );
-            value.insert(string_value("startDegrees"), number_value(*start_degrees)?);
-            value.insert(string_value("endDegrees"), number_value(*end_degrees)?);
-            value.insert(string_value("point_count"), number_value(*point_count)?);
+            value.insert(
+                string_value("startDegrees"),
+                serialized_value(*start_degrees)?,
+            );
+            value.insert(string_value("endDegrees"), serialized_value(*end_degrees)?);
+            value.insert(string_value("point_count"), serialized_value(*point_count)?);
         }
     }
     Ok(Value::Mapping(value))
@@ -101,25 +104,34 @@ pub(super) fn transform_value(prop: &PropInstance) -> Result<Value, ExportProjec
 
 pub(super) fn point_value(point: &Point3) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("x"), number_value(point.x.as_meters_f32())?);
-    value.insert(string_value("y"), number_value(point.y.as_meters_f32())?);
-    value.insert(string_value("z"), number_value(point.z.as_meters_f32())?);
+    value.insert(
+        string_value("x"),
+        serialized_value(point.x.as_meters_f32())?,
+    );
+    value.insert(
+        string_value("y"),
+        serialized_value(point.y.as_meters_f32())?,
+    );
+    value.insert(
+        string_value("z"),
+        serialized_value(point.z.as_meters_f32())?,
+    );
     Ok(Value::Mapping(value))
 }
 
 pub(super) fn rotation_value(rotation: &Rotation3) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("x"), number_value(rotation.x)?);
-    value.insert(string_value("y"), number_value(rotation.y)?);
-    value.insert(string_value("z"), number_value(rotation.z)?);
+    value.insert(string_value("x"), serialized_value(rotation.x)?);
+    value.insert(string_value("y"), serialized_value(rotation.y)?);
+    value.insert(string_value("z"), serialized_value(rotation.z)?);
     Ok(Value::Mapping(value))
 }
 
 pub(super) fn scale_value(scale: &Scale3) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("x"), number_value(scale.x)?);
-    value.insert(string_value("y"), number_value(scale.y)?);
-    value.insert(string_value("z"), number_value(scale.z)?);
+    value.insert(string_value("x"), serialized_value(scale.x)?);
+    value.insert(string_value("y"), serialized_value(scale.y)?);
+    value.insert(string_value("z"), serialized_value(scale.z)?);
     Ok(Value::Mapping(value))
 }
 
@@ -138,11 +150,11 @@ pub(super) fn element_selection_value(
             &target.tree.0,
         )?),
     );
-    value.insert(string_value("node"), number_value(target.node.0)?);
+    value.insert(string_value("node"), serialized_value(target.node.0)?);
     if let Some(range) = target.cells {
         let mut cells = Mapping::new();
-        cells.insert(string_value("start"), number_value(range.start)?);
-        cells.insert(string_value("count"), number_value(range.count)?);
+        cells.insert(string_value("start"), serialized_value(range.start)?);
+        cells.insert(string_value("count"), serialized_value(range.count)?);
         value.insert(string_value("cells"), Value::Mapping(cells));
     }
     Ok(Value::Mapping(value))
@@ -158,7 +170,7 @@ pub(super) fn string_value(value: &str) -> Value {
     Value::String(value.to_string())
 }
 
-pub(super) fn number_value<T: serde::Serialize>(value: T) -> Result<Value, ExportProjectError> {
+pub(super) fn serialized_value<T: serde::Serialize>(value: T) -> Result<Value, ExportProjectError> {
     yaml_serde::to_value(value).map_err(|source| ExportProjectError::Serialize {
         path: Utf8PathBuf::from("<sync>"),
         source,

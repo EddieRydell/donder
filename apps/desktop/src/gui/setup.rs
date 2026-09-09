@@ -1,79 +1,34 @@
-use std::collections::HashMap;
-
-use dawn_language::controller::{ControllerId, ControllerPortAddress, ControllerProtocol};
-use dawn_language::element::{ElementCellAddress, ElementNodeId, ElementNodeKind};
-use dawn_language::patch::{PatchEdge, PatchNode, PatchNodeId, PatchPortId};
-use dawn_language::preview::PropInstanceId;
-use dawn_project_io::ProjectSession;
+use dawn_language::controller::ControllerId;
+use dawn_language::element::ElementNodeId;
+use dawn_language::patch::{PatchNode, PatchNodeId};
+use dawn_language::setup::SetupId;
+use dawn_project_io::{ProjectSession, SourceObjectKind};
 
 use super::model::source_identity_from_gui;
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{
-    GuiDocument, GuiObjectRef, ObjectKind, SetupController, SetupControllerPort, SetupElementCell,
-    SetupElementKind, SetupElementNode, SetupFixtureProfile, SetupGuiDocument, SetupGuiEdit,
-    SetupPatchEdge, SetupPatchNode, SetupPatchNodeKind, SetupPreviewLink,
+    GuiDocument, SetupElementCell, SetupFixtureProfile, SetupGuiDocument, SetupGuiEdit,
+    SetupOutputAssignment, SetupPatchEdge, SetupPatchNode, SetupPatchNodeKind, SetupPreviewLink,
 };
 
+pub(crate) mod authoring;
+mod controls;
+mod copies;
+mod fixtures;
+use super::patch;
+
 pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    let Some(setup) = session.project.setups.get(&session.project.root.setup) else {
-        return blocked("Active setup is missing.", Vec::new());
+    let Some(setup) = session
+        .project
+        .setups
+        .get(&SetupId(resolved.identity.clone()))
+    else {
+        return blocked("The requested setup is missing.", Vec::new());
     };
     let Some(tree) = session.project.element_trees.get(&setup.elements) else {
         return blocked("Active element tree is missing.", Vec::new());
     };
-    let parents = tree
-        .nodes
-        .iter()
-        .flat_map(|(parent, node)| match &node.kind {
-            ElementNodeKind::Group { children } => children
-                .iter()
-                .map(|child| (*child, *parent))
-                .collect::<Vec<_>>(),
-            _ => Vec::new(),
-        })
-        .collect::<HashMap<_, _>>();
-    let elements = tree
-        .nodes
-        .iter()
-        .map(|(id, node)| {
-            let (kind, children, capability, profile) = match &node.kind {
-                ElementNodeKind::Group { children } => (
-                    SetupElementKind::Group,
-                    children.iter().map(|id| id.0).collect(),
-                    None,
-                    None,
-                ),
-                ElementNodeKind::Color { capability, .. } => (
-                    SetupElementKind::Color,
-                    Vec::new(),
-                    Some(format!("{capability:?}")),
-                    None,
-                ),
-                ElementNodeKind::Scalar { .. } => {
-                    (SetupElementKind::Scalar, Vec::new(), None, None)
-                }
-                ElementNodeKind::Indexed { .. } => {
-                    (SetupElementKind::Indexed, Vec::new(), None, None)
-                }
-                ElementNodeKind::Fixture { profile } => (
-                    SetupElementKind::Fixture,
-                    Vec::new(),
-                    None,
-                    Some(source_key(&profile.0)),
-                ),
-            };
-            SetupElementNode {
-                id: id.0,
-                name: node.name.clone(),
-                kind,
-                parent: parents.get(id).map(|id| id.0),
-                children,
-                cell_count: node.kind.cell_count(),
-                capability,
-                profile,
-            }
-        })
-        .collect();
+    let elements = super::elements::project_nodes(tree);
     let fixture_profiles = session
         .project
         .definitions
@@ -86,38 +41,43 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
             function_count: profile.functions.len() as u32,
             channel_count: profile.channels.len() as u32,
             behavior_rule_count: profile.behavior_rules.len() as u32,
+            source_ref: patch::object_ref(&id.0, dawn_project_io::SourceObjectKind::FixtureProfile),
+            read_only: !session.source.is_project_owned(id.0.document_id()),
+            definition: super::fixture_profile::project(profile),
         })
         .collect();
-    let preview_links = session
-        .project
-        .preview_layouts
-        .get(&setup.preview)
-        .map(|preview| {
-            preview
-                .props
+    let Some(preview) = session.project.preview_layouts.get(&setup.preview) else {
+        return blocked("Preview layout was not found.", Vec::new());
+    };
+    let mut preview_links = Vec::new();
+    for prop in &preview.props {
+        let Some(definition) = session
+            .project
+            .definitions
+            .props
+            .definitions
+            .get(&prop.definition)
+        else {
+            return blocked("A preview prop definition is missing.", Vec::new());
+        };
+        preview_links.push(SetupPreviewLink {
+            prop_id: prop.id.0,
+            name: prop.name.clone(),
+            definition_ref: patch::object_ref(&prop.definition.0, SourceObjectKind::PropDefinition),
+            point_count: definition.geometry.point_count() as u32,
+            geometry: super::projection::geometry::geometry(&definition.geometry),
+            bulb_diameter_meters: definition.bulb_radius.as_meters_f32() * 2.0,
+            position: crate::preview::point3_meters(prop.position),
+            bindings: prop
+                .bindings
                 .iter()
-                .map(|prop| SetupPreviewLink {
-                    prop_id: prop.id.0,
-                    name: prop.name.clone(),
-                    point_count: session
-                        .project
-                        .definitions
-                        .props
-                        .definitions
-                        .get(&prop.definition)
-                        .map_or(0, |definition| definition.geometry.point_count() as u32),
-                    bindings: prop
-                        .bindings
-                        .iter()
-                        .map(|binding| SetupElementCell {
-                            node: binding.node.0,
-                            cell: binding.cell,
-                        })
-                        .collect(),
+                .map(|binding| SetupElementCell {
+                    node: binding.node.0,
+                    cell: binding.cell,
                 })
-                .collect()
-        })
-        .unwrap_or_default();
+                .collect(),
+        });
+    }
     let (patch_nodes, patch_edges) = session
         .project
         .patches
@@ -171,358 +131,365 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
             (nodes, edges)
         })
         .unwrap_or_default();
-    let controllers = setup
+    let Some(patch) = session.project.patches.get(&setup.patch) else {
+        return blocked("Setup patch is missing.", Vec::new());
+    };
+    let project_controller =
+        |id: &ControllerId, controller: &dawn_language::controller::Controller| {
+            let assignments = patch
+                .nodes
+                .iter()
+                .filter_map(|(node_id, node)| match node {
+                    PatchNode::Sink(sink) if sink.controller == *id => {
+                        Some(SetupOutputAssignment {
+                            sink: node_id.0,
+                            controller: source_key(&id.0),
+                            port: sink.port.0,
+                            start_channel: sink.start_slot + 1,
+                            channel_count: sink.slot_count,
+                        })
+                    }
+                    _ => None,
+                })
+                .collect();
+            super::controller::project_controller(session, id, controller, assignments)
+        };
+    let mut controllers = Vec::new();
+    for id in &setup.controllers {
+        let Some(controller) = session.project.controllers.get(id) else {
+            return blocked("Setup controller is missing.", Vec::new());
+        };
+        controllers.push(project_controller(id, controller));
+    }
+    let available_controllers = session
+        .project
         .controllers
         .iter()
-        .filter_map(|id| {
-            let controller = session.project.controllers.get(id)?;
-            let (protocol, bind_address, destination, mode, priority, source_name) =
-                match &controller.protocol {
-                    ControllerProtocol::E131(config) => (
-                        "E1.31".to_string(),
-                        config.bind_address.to_string(),
-                        match &config.mode {
-                            dawn_language::controller::E131Mode::Multicast => None,
-                            dawn_language::controller::E131Mode::Unicast { destination } => {
-                                Some(destination.to_string())
-                            }
-                        },
-                        match config.mode {
-                            dawn_language::controller::E131Mode::Multicast => "multicast",
-                            dawn_language::controller::E131Mode::Unicast { .. } => "unicast",
-                        }
-                        .to_string(),
-                        Some(config.priority),
-                        Some(config.source_name.clone()),
-                    ),
-                    ControllerProtocol::ArtNet(config) => (
-                        "Art-Net".to_string(),
-                        config.bind_address.to_string(),
-                        Some(config.destination.to_string()),
-                        format!("{:?}", config.mode).to_lowercase(),
-                        None,
-                        None,
-                    ),
-                };
-            Some(SetupController {
-                label: source_key(&id.0),
-                source_ref: GuiObjectRef {
-                    module_id: id.0.module_id().to_string(),
-                    path: id.0.document().to_string(),
-                    object_key: id.0.object().to_string(),
-                    kind: ObjectKind::Controller,
-                    id: id.0.object().to_string(),
-                },
-                read_only: !session.source.is_project_owned(id.0.document_id()),
-                protocol,
-                bind_address,
-                destination,
-                mode,
-                priority,
-                source_name,
-                ports: controller
-                    .ports
-                    .iter()
-                    .map(|port| SetupControllerPort {
-                        id: port.id.0,
-                        address: match port.address {
-                            ControllerPortAddress::E131Universe(address)
-                            | ControllerPortAddress::ArtNetPort(address) => address,
-                        },
-                        slot_count: port.slot_count,
-                    })
-                    .collect(),
-            })
-        })
+        .filter(|(id, _)| !setup.controllers.contains(id))
+        .map(|(id, controller)| project_controller(id, controller))
         .collect();
     GuiDocument::Setup {
         document: SetupGuiDocument {
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
+            elements_ref: patch::object_ref(
+                &setup.elements.0,
+                dawn_project_io::SourceObjectKind::ElementTree,
+            ),
+            preview_ref: patch::object_ref(
+                &setup.preview.0,
+                dawn_project_io::SourceObjectKind::PreviewLayout,
+            ),
+            patch_ref: patch::object_ref(&setup.patch.0, dawn_project_io::SourceObjectKind::Patch),
+            elements_read_only: !session
+                .source
+                .is_project_owned(setup.elements.0.document_id()),
+            preview_read_only: !session
+                .source
+                .is_project_owned(setup.preview.0.document_id()),
+            patch_read_only: !session.source.is_project_owned(setup.patch.0.document_id()),
+            root_ids: tree.roots.iter().map(|id| id.0).collect(),
             elements,
             fixture_profiles,
             preview_links,
             patch_nodes,
             patch_edges,
+            patch_definitions: patch::project_nodes(patch),
+            patch_profiles: patch::profiles(session),
+            output_assignments: controllers
+                .iter()
+                .flat_map(|controller| controller.assignments.iter().cloned())
+                .collect(),
             controllers,
+            available_controllers,
         },
     }
 }
 
 pub(super) fn edit_setup(
     session: &mut ProjectSession,
+    resolved: &ResolvedGuiObject,
     edit: SetupGuiEdit,
 ) -> Result<(), GuiMutationError> {
     let setup = session
         .project
         .setups
-        .get(&session.project.root.setup)
+        .get(&SetupId(resolved.identity.clone()))
         .cloned()
-        .ok_or_else(|| GuiMutationError::Invalid("Active setup is missing.".to_string()))?;
+        .ok_or_else(|| GuiMutationError::Invalid("The requested setup is missing.".to_string()))?;
     match edit {
-        SetupGuiEdit::RenameElement { id, name } => {
-            if name.trim().is_empty() {
-                return Err(GuiMutationError::Invalid(
-                    "Element name cannot be empty.".to_string(),
-                ));
-            }
-            tree_mut(session, &setup.elements)?
-                .nodes
-                .get_mut(&ElementNodeId(id))
-                .ok_or_else(|| GuiMutationError::Invalid("Element was not found.".to_string()))?
-                .name = name;
+        SetupGuiEdit::CopyLayout => copies::copy_layout(session, &setup)?,
+        SetupGuiEdit::AssignControlOutput { assignment, mode } => {
+            controls::assign_output(session, &setup, assignment, mode)?;
         }
-        SetupGuiEdit::SetElementCellCount { id, cells } => {
-            if cells == 0 {
-                return Err(GuiMutationError::Invalid(
-                    "Element cell count must be positive.".to_string(),
-                ));
-            }
-            let node = tree_mut(session, &setup.elements)?
-                .nodes
-                .get_mut(&ElementNodeId(id))
-                .ok_or_else(|| GuiMutationError::Invalid("Element was not found.".to_string()))?;
-            match &mut node.kind {
-                ElementNodeKind::Color { cells: value, .. }
-                | ElementNodeKind::Scalar { cells: value }
-                | ElementNodeKind::Indexed { cells: value, .. } => *value = cells,
-                _ => {
-                    return Err(GuiMutationError::Invalid(
-                        "This element does not have an editable cell count.".to_string(),
-                    ));
-                }
-            }
+        SetupGuiEdit::CopyController { controller } => {
+            authoring::copy_controller(session, &setup, controller)?;
         }
-        SetupGuiEdit::ReorderElements {
-            parent,
-            ordered_ids,
-        } => {
-            let ordered = ordered_ids
-                .into_iter()
-                .map(ElementNodeId)
-                .collect::<Vec<_>>();
-            let tree = tree_mut(session, &setup.elements)?;
-            if ordered.iter().any(|id| !tree.nodes.contains_key(id)) {
-                return Err(GuiMutationError::Invalid(
-                    "Element order references a missing node.".to_string(),
-                ));
-            }
-            if let Some(parent) = parent {
-                let node = tree.nodes.get_mut(&ElementNodeId(parent)).ok_or_else(|| {
-                    GuiMutationError::Invalid("Parent element was not found.".to_string())
-                })?;
-                let ElementNodeKind::Group { children } = &mut node.kind else {
-                    return Err(GuiMutationError::Invalid(
-                        "Parent element is not a group.".to_string(),
-                    ));
-                };
-                if children.len() != ordered.len()
-                    || !children.iter().all(|child| ordered.contains(child))
-                {
-                    return Err(GuiMutationError::Invalid(
-                        "Reorder must contain exactly the group's current children.".to_string(),
-                    ));
-                }
-                *children = ordered;
-            } else {
-                if tree.roots.len() != ordered.len()
-                    || !tree.roots.iter().all(|root| ordered.contains(root))
-                {
-                    return Err(GuiMutationError::Invalid(
-                        "Reorder must contain exactly the current roots.".to_string(),
-                    ));
-                }
-                tree.roots = ordered;
-            }
-        }
-        SetupGuiEdit::SetPreviewBindings { prop_id, bindings } => {
-            let prop = preview_prop_mut(session, &setup.preview, prop_id)?;
-            prop.bindings = bindings
-                .into_iter()
-                .map(|binding| ElementCellAddress {
-                    node: ElementNodeId(binding.node),
-                    cell: binding.cell,
-                })
-                .collect();
-        }
-        SetupGuiEdit::AutoLinkPreview {
-            prop_id,
+        SetupGuiEdit::AssignFixtureOutput {
             node,
-            start_cell,
-        } => {
-            let point_count = {
-                let preview = session
-                    .project
-                    .preview_layouts
-                    .get(&setup.preview)
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Preview layout is missing.".to_string())
-                    })?;
-                let prop = preview
-                    .props
-                    .iter()
-                    .find(|prop| prop.id == PropInstanceId(prop_id))
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Preview prop was not found.".to_string())
-                    })?;
-                session
-                    .project
-                    .definitions
-                    .props
-                    .definitions
-                    .get(&prop.definition)
-                    .map(|definition| definition.geometry.point_count() as u32)
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid("Preview prop definition is missing.".to_string())
-                    })?
-            };
-            let tree = session
-                .project
-                .element_trees
-                .get(&setup.elements)
-                .ok_or_else(|| GuiMutationError::Invalid("Element tree is missing.".to_string()))?;
-            let available = tree
-                .nodes
-                .get(&ElementNodeId(node))
-                .and_then(|node| node.kind.cell_count())
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid(
-                        "Auto-link target must be a leaf element.".to_string(),
-                    )
-                })?;
-            if start_cell
-                .checked_add(point_count)
-                .is_none_or(|end| end > available)
-            {
-                return Err(GuiMutationError::Invalid(
-                    "Preview and requested element span counts do not match.".to_string(),
-                ));
-            }
-            preview_prop_mut(session, &setup.preview, prop_id)?.bindings = (start_cell
-                ..start_cell + point_count)
-                .map(|cell| ElementCellAddress {
-                    node: ElementNodeId(node),
-                    cell,
-                })
-                .collect();
-        }
-        SetupGuiEdit::ConnectPatch {
-            from_node,
-            from_port,
-            to_node,
-            to_port,
-        } => {
-            let patch = session
-                .project
-                .patches
-                .get_mut(&setup.patch)
-                .ok_or_else(|| GuiMutationError::Invalid("Patch graph is missing.".to_string()))?;
-            let edge = PatchEdge {
-                from: PatchNodeId(from_node),
-                from_port: PatchPortId(from_port),
-                to: PatchNodeId(to_node),
-                to_port: PatchPortId(to_port),
-            };
-            if !patch.edges.contains(&edge) {
-                patch.edges.push(edge);
-            }
-        }
-        SetupGuiEdit::DisconnectPatch {
-            from_node,
-            from_port,
-            to_node,
-            to_port,
-        } => {
-            let patch = session
-                .project
-                .patches
-                .get_mut(&setup.patch)
-                .ok_or_else(|| GuiMutationError::Invalid("Patch graph is missing.".to_string()))?;
-            patch.edges.retain(|edge| {
-                !(edge.from == PatchNodeId(from_node)
-                    && edge.from_port == PatchPortId(from_port)
-                    && edge.to == PatchNodeId(to_node)
-                    && edge.to_port == PatchPortId(to_port))
-            });
-        }
-        SetupGuiEdit::SetControllerPort {
             controller,
             port,
-            address,
-            slot_count,
+            start_slot,
+            mode,
         } => {
-            if !matches!(&controller.kind, ObjectKind::Controller) {
-                return Err(GuiMutationError::Invalid(
-                    "Controller source kind is invalid.".to_string(),
-                ));
+            fixtures::assign_output(session, &setup, node, controller, port, start_slot, mode)?;
+        }
+        SetupGuiEdit::CreateFixtureProfile { name, definition } => {
+            super::fixture_profile::create(session, name, definition)?;
+        }
+        SetupGuiEdit::RemoveOutput { sink } => {
+            ensure_owned_target(session, &setup.patch.0)?;
+            session
+                .project
+                .patches
+                .get_mut(&setup.patch)
+                .ok_or_else(|| GuiMutationError::Invalid("Patch was not found.".into()))?
+                .remove_output(PatchNodeId(sink))
+                .map_err(GuiMutationError::Invalid)?;
+        }
+        SetupGuiEdit::AssignPixelOutput {
+            node,
+            controller,
+            first_port,
+            start_slot,
+            component_order,
+            mode,
+        } => {
+            ensure_owned_target(session, &setup.patch.0)?;
+            let controller = source_identity_from_gui(
+                &controller.module_id,
+                &controller.path,
+                &controller.object_key,
+            )?;
+            let assignment = dawn_language::setup::authoring::PixelOutputAssignment {
+                node: ElementNodeId(node),
+                controller: ControllerId(controller.clone()),
+                first_port: dawn_language::controller::ControllerPortId(first_port),
+                start_slot,
+                component_order,
+            };
+            match mode {
+                crate::dto::SetupOutputAssignmentMode::Add => {
+                    dawn_language::setup::authoring::assign_pixel_output(
+                        &mut session.project,
+                        &setup.id,
+                        assignment,
+                    )
+                }
+                crate::dto::SetupOutputAssignmentMode::Replace => {
+                    dawn_language::setup::authoring::replace_pixel_outputs(
+                        &mut session.project,
+                        &setup.id,
+                        assignment,
+                    )
+                }
             }
+            .map_err(GuiMutationError::Invalid)?;
+            dawn_project_io::ensure_document_can_reference_source(
+                session,
+                setup.patch.0.document_id(),
+                dawn_project_io::SourceObjectKind::Controller,
+                &controller,
+            )
+            .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
+            dawn_project_io::ensure_document_can_reference_source(
+                session,
+                setup.patch.0.document_id(),
+                dawn_project_io::SourceObjectKind::ElementTree,
+                &setup.elements.0,
+            )
+            .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
+        }
+        SetupGuiEdit::AttachController { controller } => {
             let identity = source_identity_from_gui(
                 &controller.module_id,
                 &controller.path,
                 &controller.object_key,
             )?;
-            if !session.source.is_project_owned(identity.document_id()) {
-                return Err(GuiMutationError::Blocked(
-                    "Dependency controller definitions are read-only. Fork the package before editing this controller."
-                        .to_string(),
-                ));
+            dawn_language::setup::authoring::attach_controller(
+                &mut session.project,
+                &setup.id,
+                ControllerId(identity.clone()),
+            )
+            .map_err(GuiMutationError::Invalid)?;
+            dawn_project_io::ensure_document_can_reference_source(
+                session,
+                setup.id.0.document_id(),
+                dawn_project_io::SourceObjectKind::Controller,
+                &identity,
+            )
+            .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
+        }
+        SetupGuiEdit::DetachController {
+            controller,
+            remove_outputs,
+        } => {
+            let identity = source_identity_from_gui(
+                &controller.module_id,
+                &controller.path,
+                &controller.object_key,
+            )?;
+            if remove_outputs {
+                ensure_owned_target(session, &setup.patch.0)?;
             }
-            let definition = session
+            dawn_language::setup::authoring::detach_controller(
+                &mut session.project,
+                &setup.id,
+                &ControllerId(identity),
+                remove_outputs,
+            )
+            .map_err(GuiMutationError::Invalid)?;
+        }
+        SetupGuiEdit::AddController { config, ports } => {
+            let controller = super::controller::domain_controller(config, ports)?;
+            let identity = create_object_document(
+                session,
+                dawn_project_io::SourceObjectKind::Controller,
+                "controller",
+                "controllers",
+                "controller",
+            )?;
+            dawn_project_io::ensure_document_can_reference_source(
+                session,
+                setup.id.0.document_id(),
+                dawn_project_io::SourceObjectKind::Controller,
+                &identity,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+            let id = ControllerId(identity);
+            session.project.controllers.insert(id.clone(), controller);
+            session
                 .project
+                .setups
+                .get_mut(&setup.id)
+                .ok_or_else(|| GuiMutationError::Invalid("Setup was not found.".into()))?
                 .controllers
-                .get_mut(&ControllerId(identity))
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Controller was not found.".to_string())
-                })?;
-            let port = definition
-                .ports
-                .iter_mut()
-                .find(|candidate| candidate.id.0 == port)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Controller port was not found.".to_string())
-                })?;
-            port.address = match definition.protocol {
-                ControllerProtocol::E131(_) => ControllerPortAddress::E131Universe(address),
-                ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(address),
-            };
-            port.slot_count = slot_count;
+                .push(id);
         }
     }
     Ok(())
 }
 
-fn tree_mut<'a>(
-    session: &'a mut ProjectSession,
-    id: &dawn_language::element::ElementTreeId,
-) -> Result<&'a mut dawn_language::element::ElementTree, GuiMutationError> {
-    session
-        .project
-        .element_trees
-        .get_mut(id)
-        .ok_or_else(|| GuiMutationError::Invalid("Element tree is missing.".to_string()))
+pub(super) fn ensure_owned_target(
+    session: &ProjectSession,
+    identity: &dawn_language::identity::SourceIdentity,
+) -> Result<(), GuiMutationError> {
+    if session.source.is_project_owned(identity.document_id()) {
+        Ok(())
+    } else {
+        Err(GuiMutationError::Blocked(format!(
+            "{} belongs to a dependency. Make a project-owned copy before editing it.",
+            identity.object()
+        )))
+    }
 }
 
-fn preview_prop_mut<'a>(
-    session: &'a mut ProjectSession,
-    id: &dawn_language::preview::PreviewLayoutId,
-    prop: u32,
-) -> Result<&'a mut dawn_language::preview::PropInstance, GuiMutationError> {
-    session
-        .project
-        .preview_layouts
-        .get_mut(id)
-        .and_then(|preview| {
-            preview
-                .props
-                .iter_mut()
-                .find(|candidate| candidate.id == PropInstanceId(prop))
-        })
-        .ok_or_else(|| GuiMutationError::Invalid("Preview prop was not found.".to_string()))
-}
-
-fn source_key(id: &dawn_language::identity::SourceIdentity) -> String {
+pub(super) fn source_key(id: &dawn_language::identity::SourceIdentity) -> String {
     format!("{}#{}", id.document(), id.object())
+}
+
+pub(super) fn create_object_document(
+    session: &mut ProjectSession,
+    kind: dawn_project_io::SourceObjectKind,
+    name: &str,
+    directory: &str,
+    suffix: &str,
+) -> Result<dawn_language::identity::SourceIdentity, GuiMutationError> {
+    let mut key = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    while key.contains("__") {
+        key = key.replace("__", "_");
+    }
+    key = key.trim_matches('_').to_string();
+    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        key = format!("item_{key}");
+    }
+    for index in 1_u32.. {
+        let stem = if index == 1 {
+            key.clone()
+        } else {
+            format!("{key}_{index}")
+        };
+        let path = camino::Utf8PathBuf::from(format!("{directory}/{stem}.{suffix}.dawn"));
+        let document = session.source.project_document(path.clone());
+        if session.source.documents.contains_key(&document)
+            || session.source.project_root().join(&path).exists()
+        {
+            continue;
+        }
+        return session
+            .source
+            .add_yaml_document(path, vec![(kind, stem)])
+            .map_err(GuiMutationError::Invalid)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| GuiMutationError::Invalid("New document has no object.".into()));
+    }
+    Err(GuiMutationError::Invalid(
+        "No source document names remain.".into(),
+    ))
+}
+
+fn create_layout_document(
+    session: &mut ProjectSession,
+    name: &str,
+) -> Result<
+    (
+        dawn_language::identity::SourceIdentity,
+        dawn_language::identity::SourceIdentity,
+    ),
+    GuiMutationError,
+> {
+    for index in 1_u32.. {
+        let stem = if index == 1 {
+            name.to_string()
+        } else {
+            format!("{name}_{index}")
+        };
+        let path = camino::Utf8PathBuf::from(format!("layouts/{stem}.layout.dawn"));
+        let document = session.source.project_document(path.clone());
+        if session.source.documents.contains_key(&document)
+            || session.source.project_root().join(&path).exists()
+        {
+            continue;
+        }
+        let mut identities = session
+            .source
+            .add_yaml_document(
+                path,
+                vec![
+                    (
+                        dawn_project_io::SourceObjectKind::ElementTree,
+                        "elements".into(),
+                    ),
+                    (
+                        dawn_project_io::SourceObjectKind::PreviewLayout,
+                        "preview".into(),
+                    ),
+                ],
+            )
+            .map_err(GuiMutationError::Invalid)?
+            .into_iter();
+        let elements = identities
+            .next()
+            .ok_or_else(|| GuiMutationError::Invalid("Layout has no element tree.".into()))?;
+        let preview = identities
+            .next()
+            .ok_or_else(|| GuiMutationError::Invalid("Layout has no preview.".into()))?;
+        return Ok((elements, preview));
+    }
+    Err(GuiMutationError::Invalid(
+        "No layout document names remain.".into(),
+    ))
 }
 
 fn filter_width(filter: &dawn_language::patch::FilterDefinition) -> usize {
@@ -533,6 +500,7 @@ fn filter_width(filter: &dawn_language::patch::FilterDefinition) -> usize {
         | FilterDefinition::ScaleInvert { width, .. }
         | FilterDefinition::FanOut { width, .. }
         | FilterDefinition::IndexedValueMapping { width, .. }
+        | FilterDefinition::ScalarToComponents { width }
         | FilterDefinition::Quantize8 { width }
         | FilterDefinition::Quantize16 { width, .. } => *width,
         FilterDefinition::ComponentReorder {

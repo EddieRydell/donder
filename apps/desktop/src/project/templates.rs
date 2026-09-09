@@ -31,8 +31,9 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
         dependencies: BTreeMap::new(),
         assets: BTreeMap::new(),
     };
+    let registry = dawn_package::RegistryConfig::read().map_err(|error| error.to_string())?;
     let lockfile =
-        Lockfile::new(&manifest, "https://registry.dawn.dev").map_err(|error| error.to_string())?;
+        Lockfile::new(&manifest, &registry.registry).map_err(|error| error.to_string())?;
     let manifest_text =
         String::from_utf8(canonical_json(&manifest).map_err(|error| error.to_string())?)
             .map_err(|error| error.to_string())?;
@@ -57,22 +58,15 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
         },
         ProjectBoilerplateFile {
             path: "setups/main.setup.dawn",
-            text: "imports:\n- from:\n    documents:\n    - display/main.display.dawn\n  as: display\n- from:\n    documents:\n    - patches/main.patch.dawn\n  as: patches\nmain:\n  type: setup\n  elements: display.elements\n  preview: display.preview\n  patch: patches.main\n  controllers:\n  - output_controller\noutput_controller:\n  type: controller\n  protocol:\n    type: e131\n    source_name: Dawn\n    bind_address: 0.0.0.0\n    priority: 100\n    mode: multicast\n  ports:\n  - id: 1\n    universe: 1\n    slot_count: 3\n"
-                .to_string(),
+            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.dawn\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.dawn\n  as: patches\nmain:\n  type: setup\n  elements: layout.elements\n  preview: layout.preview\n  patch: patches.main\n  controllers: []\n".to_string(),
         },
         ProjectBoilerplateFile {
-            path: "display/pixel.prop.dawn",
-            text: "pixel:\n  type: prop\n  bulb_diameter: 0.08\n  geometry:\n    type: points\n    points:\n    - x: 0.0\n      y: 0.0\n      z: 0.0\n"
-                .to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "display/main.display.dawn",
-            text: "imports:\n- from:\n    documents:\n    - display/pixel.prop.dawn\n  as: props\nelements:\n  type: element_tree\n  roots: [1]\n  nodes:\n  - id: 1\n    name: Pixel\n    type: color\n    cells: 1\n    capability:\n      type: rgb\npreview:\n  type: preview_layout\n  element_tree: elements\n  props:\n  - id: 1\n    name: Pixel\n    prop: props.pixel\n    transform:\n      position: { x: 0.0, y: 0.0, z: 0.0 }\n      rotation: { x: 0.0, y: 0.0, z: 0.0 }\n      scale: { x: 1.0, y: 1.0, z: 1.0 }\n    bindings:\n    - { node: 1, cell: 0 }\n"
-                .to_string(),
+            path: "layouts/main.layout.dawn",
+            text: "elements:\n  type: element_tree\n  roots: []\n  nodes: []\npreview:\n  type: preview_layout\n  element_tree: elements\n  props: []\n".to_string(),
         },
         ProjectBoilerplateFile {
             path: "patches/main.patch.dawn",
-            text: "imports:\n- from:\n    documents:\n    - display/main.display.dawn\n  as: display\n- from:\n    documents:\n    - setups/main.setup.dawn\n  as: setups\nmain:\n  type: patch\n  nodes:\n  - id: 1\n    type: source\n    selection: { tree: display.elements, node: 1 }\n    output: color\n    width: 1\n  - id: 2\n    type: filter\n    filter: color_breakdown\n    capability: { type: rgb }\n    cell_count: 1\n  - id: 3\n    type: filter\n    filter: quantize_8\n    width: 3\n  - id: 4\n    type: sink\n    controller: setups.output_controller\n    port: 1\n    start_slot: 0\n    slot_count: 3\n  edges:\n  - { from: 1, from_port: 0, to: 2, to_port: 0 }\n  - { from: 2, from_port: 0, to: 3, to_port: 0 }\n  - { from: 3, from_port: 0, to: 4, to_port: 0 }\n".to_string(),
+            text: "main:\n  type: patch\n  nodes: []\n  edges: []\n".to_string(),
         },
         ProjectBoilerplateFile {
             path: "sequences/main.sequence.dawn",
@@ -143,7 +137,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_project_template_loads_as_complete_output_project() {
+    fn new_project_template_loads_as_empty_authoring_project() {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -152,6 +146,12 @@ mod tests {
             Utf8PathBuf::from_path_buf(std::env::temp_dir().join(format!("dawn-template-{nonce}")))
                 .unwrap();
         let files = new_project_files("Template Test").unwrap();
+        assert!(
+            files
+                .iter()
+                .any(|file| file.path == "layouts/main.layout.dawn")
+        );
+        assert!(!files.iter().any(|file| file.path.contains("display")));
         write_new_project_files(&root, &files).unwrap();
         let session = dawn_project_io::load_package(&root).unwrap().session;
         let setup = session
@@ -162,7 +162,19 @@ mod tests {
         assert!(session.project.element_trees.contains_key(&setup.elements));
         assert!(session.project.preview_layouts.contains_key(&setup.preview));
         assert!(session.project.patches.contains_key(&setup.patch));
-        assert_eq!(setup.controllers.len(), 1);
+        assert!(setup.controllers.is_empty());
+        assert!(
+            session.project.element_trees[&setup.elements]
+                .nodes
+                .is_empty()
+        );
+        assert!(
+            session.project.preview_layouts[&setup.preview]
+                .props
+                .is_empty()
+        );
+        assert!(session.project.patches[&setup.patch].nodes.is_empty());
+        assert!(session.project.definitions.props.definitions.is_empty());
         fs::remove_dir_all(&root).unwrap();
     }
 }

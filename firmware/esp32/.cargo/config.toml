@@ -3,6 +3,8 @@ target = "xtensa-esp32-none-elf"
 
 [env]
 ESP_HAL_CONFIG_USE_RWTEXT_LD_HOOK = "true"
+# littlefs C code calls ESP32 ROM routines outside Xtensa's direct-call range.
+CFLAGS_xtensa_esp32_none_elf = "-mlongcalls"
 
 [target.xtensa-esp32-none-elf]
 linker = "xtensa-esp32-elf-gcc"

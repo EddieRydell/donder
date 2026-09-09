@@ -1,12 +1,12 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
-import { Trash2 } from "lucide-react";
+import { ChevronRight, Trash2 } from "lucide-react";
 
 import { commands } from "../../../api";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, ElementTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../types";
+import type { AppSettings, GuiDocumentRequest, ElementTarget, PersistedSequenceViewportState, SequenceControlClip, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../types";
 
 import { runGuiEditCommand, runSnapshotCommand, useAppStore } from "../../../store";
 
@@ -15,7 +15,8 @@ import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapsho
 import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, markIndexAfterMove, nextCollectionKey, useMarkDisplayMode } from "./marks";
 
 import { graphOperatorDefinition } from "./graphOperator";
-import { targetsEqual } from "./sequenceTargets";
+import { buildControlClipLayout, controlTiming, drawControlClip, type ControlDrag } from "./sequenceControlLayout";
+import { sameControlChannel, targetsEqual } from "./sequenceTargets";
 import { drawWaveformStrip, useSequenceWaveform } from "./sequenceWaveform";
 import { drawClipRaster, useSequenceClipRasters } from "./sequenceClipRasters";
 import { useSequenceTransport } from "./SequenceTransportControls";
@@ -29,7 +30,8 @@ import {
   buildAutomationClipLayout,
   drawAutomationClip,
   expandedTimelineHeight,
-  hitAutomationClip,
+  fitCanvasLabel,
+  hitTimelineClip,
   hitAutomationCurvePoint,
   laneIndexFromCanvasY,
   rowFromCanvasY,
@@ -97,6 +99,7 @@ const SEQUENCE_COLORS = {
 const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
 
 type SequenceDragState =
+  | ControlDrag
   | null
   | { kind: "rowResize"; laneIndex: number; rowIndex: number; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
@@ -142,7 +145,7 @@ function rowResizeHit(
 ): { laneIndex: number; rowIndex: number; edgeY: number } | null {
   const contentY = y - top + scrollY;
   for (const row of rows) {
-    if (Math.abs(contentY - row.bottom) <= THEME_METRICS.sequenceLaneResizeHitHeight) {
+    if (row.controlChannel === undefined && Math.abs(contentY - row.bottom) <= THEME_METRICS.sequenceLaneResizeHitHeight) {
       return { laneIndex: row.laneIndex, rowIndex: row.rowIndex, edgeY: row.bottom };
     }
   }
@@ -179,6 +182,8 @@ export function SequenceCanvas({
   const drag = useRef<SequenceDragState>(null);
   const sequenceSelectionRef = useRef<SequenceSelection>(sequenceSelection);
   const [draft, setDraft] = useState<SequenceDraft | null>(null);
+  const [controlDraft, setControlDraft] = useState<SequenceControlClip | null>(null);
+  const [controlHover, setControlHover] = useState<"none" | "left" | "right" | null>(null);
   const [automationDraft, setAutomationDraft] = useState<AutomationDraft | null>(null);
   const [automationCurveDraft, setAutomationCurveDraft] = useState<AutomationCurveDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<SequenceDraft[]>([]);
@@ -214,9 +219,10 @@ export function SequenceCanvas({
     () => automationRowCounts(automationClipsForLayout, document.lanes.length),
     [automationClipsForLayout, document.lanes.length]
   );
+  const controlsByLane = useMemo(() => document.lanes.map((lane) => document.controlChannels.filter((channel) => String(channel.target.node) === lane.target.name && document.controlClips.some((clip) => sameControlChannel(clip.target, channel.target)))), [document.lanes, document.controlChannels, document.controlClips]);
   const rows = useMemo(
-    () => sequenceRowLayout(automationRowsByLane, viewport.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight),
-    [automationRowsByLane, viewport.rowHeights, settings, automationRowHeight]
+    () => sequenceRowLayout(automationRowsByLane, viewport.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, controlsByLane),
+    [automationRowsByLane, viewport.rowHeights, settings, automationRowHeight, controlsByLane]
   );
   const visibleMarkCollections = useMemo(
     () => document.markCollections.filter((collection) => visibleMarkCollectionKeys.has(collection.key)),
@@ -224,7 +230,7 @@ export function SequenceCanvas({
   );
   const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
   const canvasCursor =
-    dragCursor ??
+    dragCursor ?? (controlHover === null ? null : controlHover === "none" ? "grab" : "ew-resize") ??
     (rowResizeHover !== null ? "ns-resize" :
     (automationClipChooser !== null && automationHover !== null
       ? "pointer"
@@ -272,7 +278,7 @@ export function SequenceCanvas({
           const currentRows = current.rowHeights[laneIndex] ?? [];
           return rows.length !== currentRows.length || rows.some((height, rowIndex) => height !== currentRows[rowIndex]);
         });
-        const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight)) - Math.max(1, rect.height - top));
+        const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, controlsByLane)) - Math.max(1, rect.height - top));
         const scrollY = clamp(current.scrollY, 0, maxScrollY);
         if (!rowsChanged && pxPerSecond === current.pxPerSecond && scrollXSeconds === current.scrollXSeconds && scrollY === current.scrollY) return current;
         return {
@@ -291,7 +297,7 @@ export function SequenceCanvas({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [automationRowHeight, automationRowsByLane, document, left, restoredViewport, settings, top]);
+  }, [controlsByLane, automationRowHeight, automationRowsByLane, document, left, restoredViewport, settings, top]);
 
   useEffect(() => {
     if (restoredViewport === undefined || restoredViewportKey.current === restoreKey) return;
@@ -332,6 +338,7 @@ export function SequenceCanvas({
     [automationClipsForLayout, rows, canvasSize, left, top, viewport]
   );
   const clipRasters = useSequenceClipRasters(document, visibleRasterClips, Math.max(...viewport.rowHeights.map((rows) => rows[0] ?? 0), SEQUENCE_CANVAS.minLaneHeightPx), settings);
+  const controlLayouts = useMemo(() => buildControlClipLayout(document.controlClips.map((clip) => clip.id === controlDraft?.id ? controlDraft : clip), rows, viewport, left, top), [document.controlClips, controlDraft, rows, viewport, left, top]);
   const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "effects" ? sequenceSelection.ids : []), [sequenceSelection]);
   const activeAutomationTargetEffectIds = useMemo(() => {
     const clipIds = new Set<number>();
@@ -402,8 +409,8 @@ export function SequenceCanvas({
       ctx.fillStyle = row.rowIndex === 0 ? SEQUENCE_COLORS.textMuted : SEQUENCE_COLORS.automation;
       const lane = document.lanes[row.laneIndex];
       if (lane === undefined) throw new Error("Timeline row has no lane.");
-      const label = row.rowIndex === 0 ? lane.label : `Automation ${row.rowIndex}`;
-      ctx.fillText(label, THEME_METRICS.sequenceLabelX, y + row.height / 2 + THEME_METRICS.sequenceLabelYOffset);
+      const label = row.controlChannel?.label ?? (row.rowIndex === 0 ? lane.label : `Automation ${row.rowIndex}`);
+      ctx.fillText(fitCanvasLabel(ctx, label, left - THEME_METRICS.sequenceLabelX * 2), THEME_METRICS.sequenceLabelX, y + row.height / 2 + THEME_METRICS.sequenceLabelYOffset);
       if (rowResizeHover?.laneIndex === row.laneIndex && rowResizeHover.rowIndex === row.rowIndex) {
         ctx.fillStyle = SEQUENCE_COLORS.accent;
         ctx.fillRect(0, y + row.height - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
@@ -495,6 +502,7 @@ export function SequenceCanvas({
         ctx.fillRect(handleX - THEME_METRICS.sequenceClipHandleHalfWidth, clip.rect.y + THEME_METRICS.sequenceClipHandleInset, THEME_METRICS.sequenceClipHandleHalfWidth * 2, Math.max(THEME_METRICS.sequenceClipHandleHeight, clip.rect.height - THEME_METRICS.sequenceClipHandleInset * 2));
       }
     }
+    for (const layout of controlLayouts) drawControlClip(ctx, layout, selected?.type === "controlClip" && selected.id === layout.clip.id);
     for (const clip of visibleAutomationClips) {
       const selectedClip = selected?.type === "automationClip" && selected.id === clip.clip.id;
       const hoverResize = automationHover?.clipId === clip.clip.id ? automationHover.resize : null;
@@ -539,7 +547,7 @@ export function SequenceCanvas({
     ctx.moveTo(left + THEME_METRICS.visualHairlineOffset, top);
     ctx.lineTo(left, rect.height);
     ctx.stroke();
-  }, [activeAutomationTargetEffectIds, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, waveform.audio, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [controlLayouts, activeAutomationTargetEffectIds, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, waveform.audio, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
@@ -571,6 +579,7 @@ export function SequenceCanvas({
     await runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "addEffect",
+        initialColor: THEME_COLORS.white,
         effect: definition.effect,
         target,
         scope,
@@ -700,6 +709,14 @@ export function SequenceCanvas({
             style={canvasCursor === undefined ? undefined : { cursor: canvasCursor }}
             tabIndex={0}
       onKeyDown={(event) => {
+        if (event.key === "Escape" && drag.current?.kind === "control") {
+          drag.current = null; setControlDraft(null); setDragCursor(null); event.preventDefault(); return;
+        }
+        if ((event.key === "Delete" || event.key === "Backspace") && selected?.type === "controlClip") {
+          event.preventDefault();
+          void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteControlClip", id: selected.id })).then(() => { setSelected(null); });
+          return;
+        }
         if (event.key === "Escape" && automationClipChooser !== null) {
           event.preventDefault();
           setAutomationClipChooser(null);
@@ -804,9 +821,12 @@ export function SequenceCanvas({
           setSequenceContextMenu(null);
           return;
         }
+        if (rowFromCanvasY(y, top, viewport.scrollY, rows)?.controlChannel !== undefined) {
+          event.preventDefault(); setSequenceContextMenu(null); return;
+        }
         const laneIndex = laneIndexFromCanvasY(y, top, viewport.scrollY, document.lanes.length, rows);
         const startSeconds = timeFromCanvasX(x);
-        const automationHit = hitAutomationClip(visibleAutomationClips, x, y);
+        const automationHit = hitTimelineClip(visibleAutomationClips, x, y);
         if (automationHit !== null) {
           if (event.ctrlKey) {
             event.preventDefault();
@@ -862,8 +882,15 @@ export function SequenceCanvas({
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
         setMarkDrafts(new Map());
+        if (y >= top && rowFromCanvasY(y, top, viewport.scrollY, rows)?.controlChannel !== undefined) {
+          const hit = x >= left ? hitTimelineClip(controlLayouts, x, y) : null;
+          setSelected(hit === null ? null : { type: "controlClip", id: hit.clip.id });
+          updateSequenceSelection(null);
+          if (hit !== null && automationClipChooser === null) drag.current = { kind: "control", clip: hit.clip, startX: x, active: false, resize: hit.resize };
+          return;
+        }
         if (automationClipChooser !== null) {
-          const automationHit = x >= left ? hitAutomationClip(visibleAutomationClips, x, y) : null;
+          const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
           if (automationHit !== null) {
             event.preventDefault();
             event.stopPropagation();
@@ -900,7 +927,7 @@ export function SequenceCanvas({
           setSelected(singleEffectSelectionFocus(ids));
           return;
         }
-        const automationHit = x >= left ? hitAutomationClip(visibleAutomationClips, x, y) : null;
+        const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
         if (automationHit !== null) {
           if (event.ctrlKey) {
             event.preventDefault();
@@ -1009,6 +1036,13 @@ export function SequenceCanvas({
       }}
       onMouseMove={(event) => {
         const current = drag.current;
+        if (current?.kind === "control") {
+          if (!current.active && Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
+          current.active = true;
+          setDragCursor("grabbing");
+          setControlDraft(controlTiming(current, event.nativeEvent.offsetX, viewport, document.durationSeconds));
+          return;
+        }
         if (current?.kind === "rowResize") {
           if (!current.active) {
             if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
@@ -1030,7 +1064,7 @@ export function SequenceCanvas({
               nextRows[current.rowIndex] = nextHeight;
               return nextRows;
             });
-            const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight)) - Math.max(1, canvasSize.height - top));
+            const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, controlsByLane)) - Math.max(1, canvasSize.height - top));
             return { ...previous, rowHeights, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
           });
           return;
@@ -1095,11 +1129,13 @@ export function SequenceCanvas({
         if (!current) {
           const x = event.nativeEvent.offsetX;
           const y = event.nativeEvent.offsetY;
+          const controlHit = x >= left && y >= top ? hitTimelineClip(controlLayouts, x, y) : null;
+          setControlHover(controlHit?.resize ?? null);
           const resizeHit = x < left && y >= top
             ? rowResizeHit(y, top, viewport.scrollY, rows)
             : null;
           setRowResizeHover(resizeHit === null ? null : { laneIndex: resizeHit.laneIndex, rowIndex: resizeHit.rowIndex });
-          const automationHit = x >= left ? hitAutomationClip(visibleAutomationClips, x, y) : null;
+          const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
           const choosingAutomation = automationClipChooser !== null;
           const hit = x >= left && automationHit === null && !choosingAutomation ? hitSequence(visibleClips, x, y) : null;
           const markHit =
@@ -1145,7 +1181,7 @@ export function SequenceCanvas({
           } else {
             const targetRow = rowFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, rows);
             const laneIndex = targetRow?.laneIndex ?? laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-            const automationLaneIndex = targetRow === null || targetRow.rowIndex === 0 ? 0 : targetRow.rowIndex - 1;
+            const automationLaneIndex = targetRow === null || targetRow.rowIndex <= 0 ? 0 : targetRow.rowIndex - 1;
             setAutomationDraft({
               id: clip.id,
               startSeconds: clamp(current.originalStartSeconds + deltaSeconds, 0, Math.max(0, document.durationSeconds - clip.durationSeconds)),
@@ -1193,6 +1229,13 @@ export function SequenceCanvas({
         drag.current = null;
         setDragCursor(null);
         setMarquee(null);
+        if (current?.kind === "control") {
+          if (!current.active) { setControlDraft(null); return; }
+          const clip = controlTiming(current, event.nativeEvent.offsetX, viewport, document.durationSeconds);
+          if (clip.startSeconds === current.clip.startSeconds && clip.durationSeconds === current.clip.durationSeconds) { setControlDraft(null); return; }
+          void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "upsertControlClip", id: clip.id, startSeconds: clip.startSeconds, durationSeconds: clip.durationSeconds, target: clip.target, value: clip.value }), gestureRequest.current).finally(() => { setControlDraft(null); });
+          return;
+        }
         if (current?.kind === "rowResize") {
           setRowResizeHover(null);
           return;
@@ -1395,6 +1438,8 @@ export function SequenceCanvas({
         });
       }}
       onMouseLeave={() => {
+        setControlHover(null);
+        if (drag.current?.kind === "control") { drag.current = null; setControlDraft(null); setDragCursor(null); }
         if (drag.current === null) {
           setHover(null);
           setAutomationHover(null);
@@ -1410,14 +1455,14 @@ export function SequenceCanvas({
         event.preventDefault();
         setViewport((current) => {
           const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
-          const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, current.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight)) - visibleHeight);
+          const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, current.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, controlsByLane)) - visibleHeight);
           if (event.ctrlKey && event.shiftKey) {
             const scale = Math.exp(-event.deltaY * SEQUENCE_CANVAS.wheelZoomScale);
             const rowHeights = current.rowHeights.map((rows) => rows.map((height) => clamp(height * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx)));
             return {
               ...current,
               rowHeights,
-              scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight)) - visibleHeight))
+              scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, controlsByLane)) - visibleHeight))
             };
           }
           if (event.ctrlKey) {
@@ -1454,7 +1499,7 @@ export function SequenceCanvas({
             <ContextMenu.Content className="menu-content">
               <ContextMenu.Sub>
                 <ContextMenu.SubTrigger className="menu-item">
-                  Add Effect <span className="shortcut">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âº</span>
+                  Add Effect <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
                 </ContextMenu.SubTrigger>
                 <ContextMenu.Portal>
                   <ContextMenu.SubContent className="menu-content">
@@ -1486,7 +1531,7 @@ export function SequenceCanvas({
               </ContextMenu.Item>
               <ContextMenu.Sub>
                 <ContextMenu.SubTrigger className="menu-item">
-                  Add Mark <span className="shortcut">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âº</span>
+                  Add Mark <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
                 </ContextMenu.SubTrigger>
                 <ContextMenu.Portal>
                   <ContextMenu.SubContent className="menu-content">

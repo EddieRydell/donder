@@ -1,8 +1,12 @@
+import { normalizeHexColor } from "./color";
+
 /** Runtime access to the semantic CSS palette. CSS is the sole source of color values. */
 function cssColor(name: string): string {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   if (value === "") throw new Error(`Missing CSS color token: ${name}`);
-  return value;
+  // CSS minification can shorten RGB hex tokens. Project colors and native
+  // color inputs require six digits; other CSS colors retain their CSS syntax.
+  return normalizeHexColor(value) ?? value;
 }
 
 function cssNumber(name: string): number {

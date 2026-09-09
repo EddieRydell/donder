@@ -17,11 +17,14 @@ pub(crate) fn save_all(state: State<'_, DesktopState>) -> Result<AppSnapshot, St
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn request_transition(
+pub(crate) async fn request_transition(
     request: crate::dto::TransitionRequest,
     state: State<'_, DesktopState>,
 ) -> Result<crate::dto::TransitionResult, String> {
-    state.request_transition(request)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.request_transition(request))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -72,6 +75,17 @@ pub(crate) fn complete_close(
 #[specta::specta]
 pub(crate) fn open_file(path: String, state: State<'_, DesktopState>) -> AppSnapshot {
     state.set_active_file_path(&path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn resolve_gui_source(
+    module_id: String,
+    path: String,
+    object_key: String,
+    state: State<'_, DesktopState>,
+) -> Result<GuiDocumentRequest, String> {
+    state.resolve_gui_source(&module_id, &path, &object_key)
 }
 
 #[tauri::command]

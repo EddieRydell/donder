@@ -2243,7 +2243,9 @@ pub fn dependency_graph(manifest: &PackageManifest) -> BTreeMap<String, String> 
         .collect()
 }
 
-pub(crate) fn atomic_write(path: &Utf8Path, bytes: &[u8]) -> Result<(), PackageError> {
+/// Replace one file using a fully written, synced temporary file beside it.
+/// This does not make a batch of replacements atomic.
+pub fn atomic_write(path: &Utf8Path, bytes: &[u8]) -> Result<(), PackageError> {
     let parent = path.parent().ok_or_else(|| {
         PackageError::Invalid(format!(
             "cannot atomically write path without a parent: `{path}`"

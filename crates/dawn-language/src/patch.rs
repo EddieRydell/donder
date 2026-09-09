@@ -35,10 +35,79 @@ pub enum PatchNode {
     Sink(PatchSink),
 }
 
+impl PatchNode {
+    pub fn fixture_profile(&self) -> Option<&FixtureProfileId> {
+        match self {
+            Self::Source(PatchSource {
+                output: PatchValueType::FixtureState { profile, .. },
+                ..
+            })
+            | Self::Filter(FilterDefinition::FixtureProfileEncoding { profile, .. }) => {
+                Some(profile)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn fixture_profile_mut(&mut self) -> Option<&mut FixtureProfileId> {
+        match self {
+            Self::Source(PatchSource {
+                output: PatchValueType::FixtureState { profile, .. },
+                ..
+            })
+            | Self::Filter(FilterDefinition::FixtureProfileEncoding { profile, .. }) => {
+                Some(profile)
+            }
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatchSource {
     pub selection: ElementSelection,
     pub output: PatchValueType,
+}
+
+impl PatchSource {
+    pub fn validate_selection(
+        &self,
+        tree: &crate::element::ElementTree,
+    ) -> Result<Vec<crate::element::ElementCellAddress>, String> {
+        use crate::element::ElementNodeKind;
+        let addresses = tree
+            .flatten_selection(&self.selection)
+            .map_err(|error| format!("Invalid patch source selection: {error:?}"))?;
+        if addresses.len() != self.output.width() {
+            return Err("Patch source width does not match its selected element span.".into());
+        }
+        if matches!(
+            self.output,
+            PatchValueType::Components { .. } | PatchValueType::Slots { .. }
+        ) {
+            return Err("Patch sources must use element values; components and slots are produced by filters.".into());
+        }
+        for address in &addresses {
+            let kind = tree.nodes.get(&address.node).map(|node| &node.kind);
+            let matches = match (&self.output, kind) {
+                (PatchValueType::Color { .. }, Some(ElementNodeKind::Color { .. }))
+                | (PatchValueType::Scalar { .. }, Some(ElementNodeKind::Scalar { .. }))
+                | (PatchValueType::Indexed { .. }, Some(ElementNodeKind::Indexed { .. })) => true,
+                (
+                    PatchValueType::FixtureState { profile, .. },
+                    Some(ElementNodeKind::Fixture { profile: selected }),
+                ) => profile == selected,
+                _ => false,
+            };
+            if !matches {
+                return Err(format!(
+                    "Patch source value type does not match selected element {}.",
+                    address.node.0
+                ));
+            }
+        }
+        Ok(addresses)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -95,6 +164,9 @@ impl PatchValueType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterDefinition {
+    ScalarToComponents {
+        width: usize,
+    },
     ColorBreakdown {
         capability: ColorCapability,
         cell_count: usize,
@@ -306,6 +378,11 @@ pub fn prepare_filter(filter: &FilterDefinition) -> Result<PreparedFilter, Filte
                 width: width(*count)?,
             }
         }
+        FilterDefinition::ScalarToComponents { width: count } => {
+            PreparedFilter::ScalarToComponents {
+                width: width(*count)?,
+            }
+        }
         FilterDefinition::Quantize8 { width: count } => PreparedFilter::Quantize8 {
             width: width(*count)?,
         },
@@ -467,9 +544,79 @@ pub enum PatchValidationError {
     InvalidFilter(PatchNodeId),
 }
 
+impl std::fmt::Display for PatchValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingNode(node) => write!(
+                f,
+                "Connection references missing node {}. Choose an existing node or remove the connection.",
+                node.0
+            ),
+            Self::InvalidPort { node, port } => write!(
+                f,
+                "Node {} has no port {}. Input ports start at zero; only fan-out filters have multiple output ports.",
+                node.0, port.0
+            ),
+            Self::SourceHasInput(node) => {
+                write!(f, "Source node {} cannot receive a connection.", node.0)
+            }
+            Self::SinkHasOutput(node) => write!(
+                f,
+                "Controller output node {} cannot send a connection.",
+                node.0
+            ),
+            Self::MissingInput { node, port } => write!(
+                f,
+                "Connect input {} of node {} before applying the patch.",
+                port.0, node.0
+            ),
+            Self::MultipleInputs { node, port } => write!(
+                f,
+                "Input {} of node {} has multiple connections. Keep exactly one.",
+                port.0, node.0
+            ),
+            Self::Cycle => write!(
+                f,
+                "Connections form a cycle. Remove the connection that feeds back into an earlier node."
+            ),
+            Self::TypeMismatch { from, to } => write!(
+                f,
+                "Node {} output does not match node {} input. Match both value type and value count, adding conversion filters where needed.",
+                from.0, to.0
+            ),
+            Self::InvalidWidth(node) => write!(
+                f,
+                "Node {} needs a positive value or channel count.",
+                node.0
+            ),
+            Self::SinkWidthMismatch {
+                node,
+                value_width,
+                slot_count,
+            } => write!(
+                f,
+                "Output node {} receives {} values but reserves {} channels. Make the counts match.",
+                node.0, value_width, slot_count
+            ),
+            Self::DestinationOverlap { controller, port } => write!(
+                f,
+                "Controller {} port {} has overlapping channel assignments. Choose separate channel ranges.",
+                controller.0.object(),
+                port.0
+            ),
+            Self::InvalidFilter(node) => write!(
+                f,
+                "Filter node {} is invalid. Check its counts, curve values, component order, and mappings.",
+                node.0
+            ),
+        }
+    }
+}
+
 impl FilterDefinition {
     pub fn input_type(&self) -> PatchValueType {
         match self {
+            Self::ScalarToComponents { width } => PatchValueType::Scalar { width: *width },
             Self::ColorBreakdown { cell_count, .. } => PatchValueType::Color { width: *cell_count },
             Self::DimmingCurve { width, .. } | Self::ScaleInvert { width, .. } => {
                 PatchValueType::Components { width: *width }
@@ -507,7 +654,8 @@ impl FilterDefinition {
             }),
             Self::DimmingCurve { width, .. }
             | Self::ScaleInvert { width, .. }
-            | Self::IndexedValueMapping { width, .. } => {
+            | Self::IndexedValueMapping { width, .. }
+            | Self::ScalarToComponents { width } => {
                 Some(PatchValueType::Components { width: *width })
             }
             Self::FanOut { width, outputs } if port.0 < *outputs => {
@@ -545,8 +693,10 @@ impl FilterDefinition {
             Self::ColorBreakdown {
                 capability,
                 cell_count,
-            } => *cell_count > 0 && color_component_count(capability) > 0,
-            Self::DimmingCurve { width, .. } => *width > 0,
+            } => *cell_count > 0 && capability.validate().is_ok(),
+            Self::DimmingCurve { curve, width } => {
+                *width > 0 && crate::fixture_profile::validate_curve(curve).is_ok()
+            }
             Self::ScaleInvert { scale, width, .. } => scale.is_finite() && *width > 0,
             Self::FanOut { width, outputs } => *width > 0 && *outputs > 0,
             Self::ComponentReorder {
@@ -569,7 +719,9 @@ impl FilterDefinition {
                         .values()
                         .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
             }
-            Self::Quantize8 { width } | Self::Quantize16 { width, .. } => *width > 0,
+            Self::Quantize8 { width }
+            | Self::Quantize16 { width, .. }
+            | Self::ScalarToComponents { width } => *width > 0,
             Self::FixtureProfileEncoding {
                 fixture_count,
                 slot_count,
@@ -580,6 +732,31 @@ impl FilterDefinition {
 }
 
 impl PatchGraph {
+    /// Remove one destination and prune only upstream nodes no longer used by
+    /// another destination. Shared routing branches retain their identity.
+    pub fn remove_output(&mut self, sink: PatchNodeId) -> Result<(), String> {
+        if !matches!(self.nodes.get(&sink), Some(PatchNode::Sink(_))) {
+            return Err("Choose an output destination to remove.".to_string());
+        }
+        let mut pending = vec![sink];
+        while let Some(node) = pending.pop() {
+            if node != sink && self.edges.iter().any(|edge| edge.from == node) {
+                continue;
+            }
+            let inputs = self
+                .edges
+                .iter()
+                .filter(|edge| edge.to == node)
+                .map(|edge| edge.from)
+                .collect::<Vec<_>>();
+            self.edges
+                .retain(|edge| edge.from != node && edge.to != node);
+            self.nodes.shift_remove(&node);
+            pending.extend(inputs);
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<Vec<PatchNodeId>, PatchValidationError> {
         for (id, node) in &self.nodes {
             if node_width(node) == 0 {

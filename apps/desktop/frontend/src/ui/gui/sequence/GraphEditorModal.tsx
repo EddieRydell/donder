@@ -191,6 +191,7 @@ function GraphEditorWorkspace({
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "addGraphOperatorNode",
+        initialColor: THEME_COLORS.white,
         operator,
         x,
         y
@@ -288,56 +289,14 @@ function GraphOperatorInspector({
                 curveLibrary={document.curveLibrary}
                 gradientLibrary={document.gradientLibrary}
                 markCollections={document.markCollections}
-                linkCurve={(name, curve) =>
-                  runGuiEditCommand((request) =>
-                    commands.applySequenceGuiEdit(request, {
-                      type: "linkGraphOperatorCurve",
-                      nodeId: node.id,
-                      name,
-                      sourceModuleId: curve.moduleId,
-                      sourcePath: curve.path,
-                      objectKey: curve.objectKey
-                    })
-                  ).then(() => undefined)
-                }
-                unlinkCurve={(name) =>
-                  runGuiEditCommand((request) =>
-                    commands.applySequenceGuiEdit(request, {
-                      type: "unlinkGraphOperatorCurve",
-                      nodeId: node.id,
-                      name
-                    })
-                  ).then(() => undefined)
-                }
-                linkGradient={(name, gradient) =>
-                  runGuiEditCommand((request) =>
-                    commands.applySequenceGuiEdit(request, {
-                      type: "linkGraphOperatorGradient",
-                      nodeId: node.id,
-                      name,
-                      sourceModuleId: gradient.moduleId,
-                      sourcePath: gradient.path,
-                      objectKey: gradient.objectKey
-                    })
-                  ).then(() => undefined)
-                }
-                unlinkGradient={(name) =>
-                  runGuiEditCommand((request) =>
-                    commands.applySequenceGuiEdit(request, {
-                      type: "unlinkGraphOperatorGradient",
-                      nodeId: node.id,
-                      name
-                    })
-                  ).then(() => undefined)
-                }
-                automation={{
-                  target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
-                  automationClips: document.automationClips,
-                  canCreateAutomationClip: document.lanes.length > 0,
-                  automationClipChooser,
-                  setAutomationClipChooser
-                }}
-              />
+                  automation={{
+                    target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
+                    automationClips: document.automationClips,
+                    canCreateAutomationClip: document.layers.length > 0,
+                    automationClipChooser,
+                    setAutomationClipChooser
+                  }}
+                />
             </div>
           ))}
         </div>

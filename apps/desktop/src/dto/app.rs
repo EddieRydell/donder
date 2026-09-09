@@ -14,6 +14,7 @@ pub struct AppSnapshot {
     pub gui_projection: Option<GuiDocumentResult>,
     pub project_entries: Vec<WorkspaceEntry>,
     pub tabs: Vec<EditorBuffer>,
+    pub pending_saves: Vec<DocumentSaveStatus>,
     pub active_file: Option<String>,
     pub active_buffer: Option<EditorBuffer>,
     pub active_document_descriptor: Option<DocumentDescriptor>,

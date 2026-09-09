@@ -18,8 +18,13 @@ pub(in crate::gui) fn effect_params(
             let kind = param_kind(&param.ty)?;
             let override_value = effect.param_overrides.get(&param.name);
             let mut value = override_value
-                .map(|value| effect_param_value(session, value))
-                .or_else(|| param.default.as_ref().and_then(default_param_value))
+                .map(|value| effect_param_value(session, value, &param.ty))
+                .or_else(|| {
+                    param
+                        .default
+                        .as_ref()
+                        .and_then(|value| default_param_value(value, &param.ty))
+                })
                 .or_else(|| default_value_for_type(&param.ty))?;
             let automation = param_automation(
                 sequence,
@@ -38,8 +43,6 @@ pub(in crate::gui) fn effect_params(
                 kind,
                 options: param_options(&param.ty),
                 editable: automation.is_none(),
-                curve_source: override_value.and_then(curve_source),
-                gradient_source: override_value.and_then(gradient_source),
                 automation,
                 value,
             })
@@ -106,8 +109,13 @@ fn graph_operator_params(
             let kind = param_kind(&declaration.ty)?;
             let override_value = operator.params.get(&declaration.name);
             let mut value = override_value
-                .map(|value| effect_param_value(session, value))
-                .or_else(|| declaration.default.as_ref().and_then(default_param_value))?;
+                .map(|value| effect_param_value(session, value, &declaration.ty))
+                .or_else(|| {
+                    declaration
+                        .default
+                        .as_ref()
+                        .and_then(|value| default_param_value(value, &declaration.ty))
+                })?;
             let automation = param_automation(
                 sequence,
                 &AutomationTarget::CompositionNodeParam {
@@ -126,8 +134,6 @@ fn graph_operator_params(
                 options: param_options(&declaration.ty),
                 editable: automation.is_none(),
                 value,
-                curve_source: override_value.and_then(curve_source),
-                gradient_source: override_value.and_then(gradient_source),
                 automation,
             })
         })
@@ -251,8 +257,8 @@ fn param_automation(
             .bindings
             .iter()
             .find(|binding| &binding.target == target)?;
-        if let SequenceEffectParamValue::Curve { points } = value {
-            *points = curve_points(&clip.curve_in_range(start, duration));
+        if let SequenceEffectParamValue::Curve { value } = value {
+            value.points = curve_points(&clip.curve_in_range(start, duration));
         }
         Some(SequenceParamAutomation {
             clip_id: clip.id.0,
@@ -323,16 +329,6 @@ pub(in crate::gui) fn gradient_library(
         .collect()
 }
 
-pub(in crate::gui) fn fixture_source_ref(id: &PropDefinitionId) -> Option<GuiObjectRef> {
-    Some(GuiObjectRef {
-        module_id: id.0.module_id().to_string(),
-        path: id.0.document().to_string(),
-        object_key: id.0.object().to_string(),
-        kind: ObjectKind::Prop,
-        id: id.0.object().to_string(),
-    })
-}
-
 pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceEffectParamKind> {
     Some(match ty {
         Type::Int => SequenceEffectParamKind::Int,
@@ -376,6 +372,7 @@ fn param_options(ty: &Type) -> Vec<String> {
 pub(in crate::gui) fn effect_param_value(
     session: &ProjectSession,
     value: &EffectParamValue,
+    ty: &Type,
 ) -> SequenceEffectParamValue {
     match value {
         EffectParamValue::Int(value) => SequenceEffectParamValue::Int {
@@ -392,39 +389,42 @@ pub(in crate::gui) fn effect_param_value(
         EffectParamValue::Marks(value) => SequenceEffectParamValue::Marks {
             key: value.name.clone(),
         },
-        EffectParamValue::Curve(source) => match source {
-            CurveSource::Inline(curve) => SequenceEffectParamValue::Curve {
-                points: curve_points(curve),
+        EffectParamValue::Curve(source) => SequenceEffectParamValue::Curve {
+            value: SequenceCurveValue {
+                points: curve_points(match source {
+                    CurveSource::Inline(curve) => curve,
+                    CurveSource::Reference(id) => {
+                        &session.project.definitions.curves.definitions[id].curve
+                    }
+                }),
+                source: match source {
+                    CurveSource::Inline(_) => SequenceLibrarySource::Inline,
+                    CurveSource::Reference(id) => library_source(&id.0),
+                },
             },
-            CurveSource::Reference(id) => session
-                .project
-                .definitions
-                .curves
-                .get(id)
-                .map(|definition| SequenceEffectParamValue::Curve {
-                    points: curve_points(&definition.curve),
-                })
-                .unwrap_or_else(|| SequenceEffectParamValue::Curve { points: Vec::new() }),
         },
-        EffectParamValue::Gradient(source) => match source {
-            GradientSource::Inline(gradient) => SequenceEffectParamValue::Gradient {
-                stops: gradient_stops(gradient),
+        EffectParamValue::Gradient(source) => SequenceEffectParamValue::Gradient {
+            value: SequenceGradientValue {
+                stops: gradient_stops(match source {
+                    GradientSource::Inline(gradient) => gradient,
+                    GradientSource::Reference(id) => {
+                        &session.project.definitions.gradients.definitions[id].gradient
+                    }
+                }),
+                source: match source {
+                    GradientSource::Inline(_) => SequenceLibrarySource::Inline,
+                    GradientSource::Reference(id) => library_source(&id.0),
+                },
             },
-            GradientSource::Reference(id) => session
-                .project
-                .definitions
-                .gradients
-                .get(id)
-                .map(|definition| SequenceEffectParamValue::Gradient {
-                    stops: gradient_stops(&definition.gradient),
-                })
-                .unwrap_or_else(|| SequenceEffectParamValue::Gradient { stops: Vec::new() }),
         },
-        EffectParamValue::Array(values) => array_param_value(session, values),
+        EffectParamValue::Array(values) => array_param_value(session, values, ty),
     }
 }
 
-pub(in crate::gui) fn default_param_value(value: &EffectValue) -> Option<SequenceEffectParamValue> {
+pub(in crate::gui) fn default_param_value(
+    value: &EffectValue,
+    ty: &Type,
+) -> Option<SequenceEffectParamValue> {
     Some(match value {
         EffectValue::Int(value) => SequenceEffectParamValue::Int {
             value: *value as f32,
@@ -439,17 +439,26 @@ pub(in crate::gui) fn default_param_value(value: &EffectValue) -> Option<Sequenc
         },
         EffectValue::Marks(_) => SequenceEffectParamValue::Marks { key: String::new() },
         EffectValue::Curve(curve) => SequenceEffectParamValue::Curve {
-            points: curve_points(curve),
+            value: SequenceCurveValue {
+                points: curve_points(curve),
+                source: SequenceLibrarySource::Inline,
+            },
         },
         EffectValue::Gradient(gradient) => SequenceEffectParamValue::Gradient {
-            stops: gradient_stops(gradient),
+            value: SequenceGradientValue {
+                stops: gradient_stops(gradient),
+                source: SequenceLibrarySource::Inline,
+            },
         },
         EffectValue::Array(values) => {
+            let Type::Array(inner) = ty else {
+                return None;
+            };
             let converted = values
                 .iter()
-                .map(default_param_value)
+                .map(|value| default_param_value(value, inner))
                 .collect::<Option<Vec<_>>>()?;
-            array_param_from_sequence_values(&converted)
+            array_param_from_sequence_values(&converted, inner)
         }
         EffectValue::Void
         | EffectValue::Target(_)
@@ -459,79 +468,41 @@ pub(in crate::gui) fn default_param_value(value: &EffectValue) -> Option<Sequenc
 }
 
 fn default_value_for_type(ty: &Type) -> Option<SequenceEffectParamValue> {
-    default_param_value(&ty.default_value())
+    default_param_value(&ty.default_value(), ty)
 }
 
-fn curve_source(value: &EffectParamValue) -> Option<SequenceCurveSource> {
-    match value {
-        EffectParamValue::Curve(CurveSource::Inline(_)) => Some(SequenceCurveSource::Inline),
-        EffectParamValue::Curve(CurveSource::Reference(id)) => Some(SequenceCurveSource::Library {
-            reference: id.0.object().to_string(),
-            module_id: Some(id.0.module_id().to_string()),
-            path: Some(id.0.document().to_string()),
-            object_key: Some(id.0.object().to_string()),
-            display_name: Some(id.0.object().to_string()),
-        }),
-        _ => None,
+fn library_source(id: &dawn_language::identity::SourceIdentity) -> SequenceLibrarySource {
+    SequenceLibrarySource::Library {
+        module_id: id.module_id().to_string(),
+        path: id.document().to_string(),
+        object_key: id.object().to_string(),
+        display_name: id.object().to_string(),
     }
 }
 
-fn gradient_source(value: &EffectParamValue) -> Option<SequenceGradientSource> {
-    match value {
-        EffectParamValue::Gradient(GradientSource::Inline(_)) => {
-            Some(SequenceGradientSource::Inline)
-        }
-        EffectParamValue::Gradient(GradientSource::Reference(id)) => {
-            Some(SequenceGradientSource::Library {
-                reference: id.0.object().to_string(),
-                module_id: Some(id.0.module_id().to_string()),
-                path: Some(id.0.document().to_string()),
-                object_key: Some(id.0.object().to_string()),
-                display_name: Some(id.0.object().to_string()),
-            })
-        }
-        _ => None,
-    }
-}
-
-fn curve_points(curve: &Curve) -> Vec<SequenceCurvePoint> {
-    curve
-        .points
-        .iter()
-        .map(|point| SequenceCurvePoint {
-            time: point.position,
-            value: point.value,
-        })
-        .collect()
-}
-
-fn gradient_stops(gradient: &Gradient) -> Vec<SequenceGradientStop> {
-    gradient
-        .stops
-        .iter()
-        .map(|stop| SequenceGradientStop {
-            time: stop.position,
-            value: stop.color.to_hex(),
-        })
-        .collect()
-}
+use crate::gui::model::{curve_points, gradient_stops};
 
 fn array_param_value(
     session: &ProjectSession,
     values: &[EffectParamValue],
+    ty: &Type,
 ) -> SequenceEffectParamValue {
+    let Type::Array(inner) = ty else {
+        unreachable!("validated array parameter type");
+    };
     let converted = values
         .iter()
-        .map(|value| effect_param_value(session, value))
+        .map(|value| effect_param_value(session, value, inner))
         .collect::<Vec<_>>();
-    array_param_from_sequence_values(&converted)
+    array_param_from_sequence_values(&converted, inner)
 }
 
 fn array_param_from_sequence_values(
     values: &[SequenceEffectParamValue],
+    inner: &Type,
 ) -> SequenceEffectParamValue {
-    match values.first() {
-        Some(SequenceEffectParamValue::Int { .. }) => SequenceEffectParamValue::IntArray {
+    match inner {
+        Type::Int => SequenceEffectParamValue::IntArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
@@ -540,7 +511,7 @@ fn array_param_from_sequence_values(
                 })
                 .collect(),
         },
-        Some(SequenceEffectParamValue::Bool { .. }) => SequenceEffectParamValue::BoolArray {
+        Type::Bool => SequenceEffectParamValue::BoolArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
@@ -549,7 +520,7 @@ fn array_param_from_sequence_values(
                 })
                 .collect(),
         },
-        Some(SequenceEffectParamValue::Color { .. }) => SequenceEffectParamValue::ColorArray {
+        Type::Color => SequenceEffectParamValue::ColorArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
@@ -558,22 +529,20 @@ fn array_param_from_sequence_values(
                 })
                 .collect(),
         },
-        Some(SequenceEffectParamValue::Gradient { .. }) => {
-            SequenceEffectParamValue::GradientArray {
-                values: values
-                    .iter()
-                    .filter_map(|value| match value {
-                        SequenceEffectParamValue::Gradient { stops } => Some(stops.clone()),
-                        _ => None,
-                    })
-                    .collect(),
-            }
-        }
-        Some(SequenceEffectParamValue::Curve { .. }) => SequenceEffectParamValue::CurveArray {
+        Type::Gradient => SequenceEffectParamValue::GradientArray {
             values: values
                 .iter()
                 .filter_map(|value| match value {
-                    SequenceEffectParamValue::Curve { points } => Some(points.clone()),
+                    SequenceEffectParamValue::Gradient { value } => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+        },
+        Type::Curve => SequenceEffectParamValue::CurveArray {
+            values: values
+                .iter()
+                .filter_map(|value| match value {
+                    SequenceEffectParamValue::Curve { value } => Some(value.clone()),
                     _ => None,
                 })
                 .collect(),
@@ -595,19 +564,16 @@ use dawn_language::operator::{
     BuiltinOperator, GraphOperatorNode, OperatorDefinition, OperatorPortCardinality,
     OperatorPortDefinition, OperatorRef,
 };
-use dawn_language::preview::PropDefinitionId;
 use dawn_language::sequence::{
     AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
     CompositionGraphNodeKind,
 };
-use dawn_language::values::{Curve, Gradient};
 use dawn_project_io::ProjectSession;
 
 use crate::dto::{
-    GuiObjectRef, ObjectKind, SequenceAutomationMapping, SequenceBuiltinOperator,
-    SequenceCurveLibraryItem, SequenceCurvePoint, SequenceCurveSource, SequenceEffectParam,
-    SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
-    SequenceGradientSource, SequenceGradientStop, SequenceGraphNode, SequenceGraphNodeKind,
+    SequenceAutomationMapping, SequenceBuiltinOperator, SequenceCurveLibraryItem,
+    SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind, SequenceEffectParamValue,
+    SequenceGradientLibraryItem, SequenceGradientValue, SequenceGraphNode, SequenceGraphNodeKind,
     SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortCardinality,
-    SequenceGraphPortDefinition, SequenceParamAutomation,
+    SequenceGraphPortDefinition, SequenceLibrarySource, SequenceParamAutomation,
 };

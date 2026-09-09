@@ -1,0 +1,15 @@
+imports:
+- from:
+    documents:
+    - layouts/main.layout.dawn
+  as: layout
+- from:
+    documents:
+    - patches/main.patch.dawn
+  as: patches
+main:
+  type: setup
+  elements: layout.elements
+  preview: layout.preview
+  patch: patches.main
+  controllers: []

@@ -46,6 +46,7 @@ export function TitleBar() {
           label="File"
           commands={[
             "file.newProject",
+            "file.copyProject",
             "file.newSequence",
             "file.openProject",
             "file.save",
@@ -53,7 +54,7 @@ export function TitleBar() {
             "file.settings"
           ]}
         />
-        <Menu label="Edit" commands={["file.save"]} />
+        <Menu label="Edit" commands={["edit.undo", "edit.redo"]} />
         <ViewMenu />
       </nav>
       <div className="window-controls">

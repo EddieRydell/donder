@@ -34,10 +34,12 @@ thread_local! {
 
 mod analysis;
 mod imports;
+mod schema;
 pub use imports::ensure_document_can_reference_source;
 mod package_update;
 mod path_refactor;
 mod source;
+mod source_copy;
 pub use analysis::{ProjectRecovery, RecoveryDocument, RecoveryDocumentKind, RecoveryObject};
 pub use package_update::{
     PackageCompatibilityIssue, PackageCompatibilityIssueKind, PackageCompatibilityReport,
@@ -52,6 +54,7 @@ pub use source::{
     SourceDocument, SourceDocumentKind, SourceObjectId, SourceObjectKind, SourceOwnership,
     SourceProject, source_file_list,
 };
+pub use source_copy::export_editable_project;
 
 /// A package-resolved project. The compiler still receives the same typed
 /// `ProjectSession`; package metadata and lock validation stay at the IO

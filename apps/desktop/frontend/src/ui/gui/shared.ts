@@ -40,6 +40,7 @@ export type GuiFocus =
   | { type: "effect"; id: number }
   | { type: "graphNode"; nodeId: string }
   | { type: "graphEdge"; edgeId: string }
+  | { type: "controlClip"; id: number }
   | { type: "automationClip"; id: number }
   | { type: "mark"; collectionKey: string; index: number }
   | { type: "placement"; id: number }

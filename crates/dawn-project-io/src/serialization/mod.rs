@@ -81,7 +81,6 @@ pub fn write_source_texts(
         prepared.push((relative, path, write));
     }
     for (index, (_, path, write)) in prepared.iter().enumerate() {
-        let mut write_started = false;
         let result = (|| {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
@@ -95,15 +94,15 @@ pub fn write_source_texts(
             if actual != write.expected {
                 return Err(io::Error::other("Source changed during save"));
             }
-            write_started = true;
-            fs::write(path, &write.text)
+            dawn_package::atomic_write(path, write.text.as_bytes()).map_err(io::Error::other)
         })();
         if let Err(error) = result {
             let mut failures = Vec::new();
-            let rollback_end = index + usize::from(write_started);
-            for (_, written_path, previous) in prepared[..rollback_end].iter().rev() {
+            for (_, written_path, previous) in prepared[..index].iter().rev() {
                 let rollback = match &previous.expected {
-                    Some(bytes) => fs::write(written_path, bytes),
+                    Some(bytes) => {
+                        dawn_package::atomic_write(written_path, bytes).map_err(io::Error::other)
+                    }
                     None => fs::remove_file(written_path),
                 };
                 if let Err(error) = rollback {

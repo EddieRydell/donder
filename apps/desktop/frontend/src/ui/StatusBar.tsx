@@ -9,12 +9,16 @@ import type { AppSnapshot, SidebarView } from "../types";
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const localText = useAppStore((store) => store.localText);
   const buffer = snapshot.activeBuffer;
-  const saveState = buffer?.saveState;
-  const saveLabel = saveState?.type === "conflict" ? "File conflict"
-    : saveState?.type === "failed" ? "Save failed"
-    : effectiveEditorViewMode(snapshot) === "text" && buffer !== null && localText !== buffer.text ? "Unsaved"
-    : saveState?.type === "saving" ? "Saving"
-    : buffer?.dirty === true ? "Unsaved" : "Saved";
+  const pending = snapshot.pendingSaves;
+  const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && localText !== buffer.text;
+  const saveLabel = pending.some((document) => document.state.type === "conflict") ? "File conflict"
+    : pending.some((document) => document.state.type === "failed") ? "Save failed"
+    : localDirty ? "Unsaved"
+    : pending.some((document) => document.state.type === "saving") ? "Saving"
+    : pending.length > 0 ? "Unsaved" : "Saved";
+  const saveTooltip = pending.length > 0
+    ? pending.map((document) => `${document.path}: ${document.state.type === "failed" ? document.state.message : document.state.type}`).join("\n")
+    : localDirty ? "The active editor has unsaved changes." : "All project files are saved.";
   const errors = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
   const warnings = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "warning").length;
   const projectParts = snapshot.projectRoot?.replace(/\\/g, "/").split("/") ?? [];
@@ -39,8 +43,8 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
           onClick={() => { focusSidebar("packages"); }}
         />
         <span className="status-spacer" title={snapshot.status}>{snapshot.status}</span>
-        {buffer !== null && (
-          <StatusChip label={saveLabel} tooltip={saveState?.type === "failed" ? saveState.message : `${buffer.path}: ${saveLabel}`}
+        {snapshot.projectRoot !== null && (
+          <StatusChip label={saveLabel} tooltip={saveTooltip}
             icon={<Save size={THEME_METRICS.iconSizeSmall} />} />
         )}
         <StatusChip

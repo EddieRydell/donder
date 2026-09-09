@@ -82,23 +82,36 @@ impl DesktopState {
             return self.snapshot();
         };
         let relative = Utf8PathBuf::from(path);
-        let Some(absolute) = absolute_root_path(&root, &relative) else {
-            return self.snapshot_with_error("file.open", path, "Invalid project file path");
+        let project = self.project_session();
+        let source_document = project.as_ref().and_then(|project| {
+            crate::source_documents::document_for_editor_path(project, &relative)
+        });
+        let read_only = match (&project, &source_document) {
+            (Some(project), Some(document)) => !project.source.is_project_owned(document),
+            _ => false,
         };
         let known = lock_unpoisoned(&self.workspace)
             .documents
             .contains_key(&relative);
         if !known {
+            let absolute = match (&project, &source_document) {
+                (Some(project), Some(document)) => project.source.absolute_path(document),
+                _ => absolute_root_path(&root, &relative),
+            };
+            let Some(absolute) = absolute else {
+                return self.snapshot_with_error("file.open", path, "Invalid source file path");
+            };
             let text = match fs::read_to_string(&absolute) {
                 Ok(text) => text,
                 Err(error) => {
                     return self.snapshot_with_error("file.open", path, &error.to_string());
                 }
             };
-            lock_unpoisoned(&self.workspace).documents.insert(
-                relative.clone(),
-                super::workspace_state::WorkingDocument::new(&relative, text),
-            );
+            let mut document = super::workspace_state::WorkingDocument::new(&relative, text);
+            document.buffer.read_only = read_only;
+            lock_unpoisoned(&self.workspace)
+                .documents
+                .insert(relative.clone(), document);
         }
         let descriptor = self
             .project_session()
@@ -230,13 +243,12 @@ impl DesktopState {
             dawn_project_io::apply_path_change(&project, &plan)?
         };
         let root = candidate.source.project_root().to_string();
-        self.persistence
-            .remap_project_paths(&root, &request.source, &request.destination)?;
         let candidate = std::sync::Arc::new(candidate);
         lock_unpoisoned(&self.gui_history).clear();
         let entries = super::workspace_entries(&candidate);
         let package = super::package_status(Utf8Path::new(&root), Some(&candidate));
         let remap = |path: &str| remap_workspace_path(path, &request.source, &request.destination);
+        let mut refresh_errors = Vec::new();
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
             workspace.documents = std::mem::take(&mut workspace.documents)
@@ -252,13 +264,21 @@ impl DesktopState {
                 if document.buffer.dirty {
                     continue;
                 }
-                if let Some(bytes) =
-                    super::working_copy::read_disk(&Utf8Path::new(&root).join(path))?
-                {
-                    let text =
-                        String::from_utf8(bytes.clone()).map_err(|error| error.to_string())?;
-                    document.observed = Some(bytes);
-                    document.edit(text);
+                let refreshed = super::working_copy::read_disk(&Utf8Path::new(&root).join(path))
+                    .and_then(|bytes| {
+                        bytes.ok_or_else(|| format!("{path} is missing after the rename"))
+                    })
+                    .and_then(|bytes| {
+                        let text =
+                            String::from_utf8(bytes.clone()).map_err(|error| error.to_string())?;
+                        Ok((bytes, text))
+                    });
+                match refreshed {
+                    Ok((bytes, text)) => {
+                        document.observed = Some(bytes);
+                        document.edit(text);
+                    }
+                    Err(error) => refresh_errors.push(format!("{path}: {error}")),
                 }
             }
             workspace.tabs = workspace
@@ -267,15 +287,33 @@ impl DesktopState {
                 .map(|path| Utf8PathBuf::from(remap(path.as_str())))
                 .collect();
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
+            workspace.render_target = workspace.render_target.as_ref().map(|(setup, sequence)| {
+                (
+                    dawn_language::setup::SetupId(plan.remap_identity(&setup.0)),
+                    dawn_language::sequence::SequenceId(plan.remap_identity(&sequence.0)),
+                )
+            });
             workspace.view.project_revision += 1;
             workspace.view.state_revision += 1;
-            workspace.typed_revision = Some(workspace.view.project_revision);
-            workspace.project = LoadedProject::Ready(std::sync::Arc::clone(&candidate));
+            if refresh_errors.is_empty() {
+                workspace.typed_revision = Some(workspace.view.project_revision);
+                workspace.project = LoadedProject::Ready(std::sync::Arc::clone(&candidate));
+            } else {
+                workspace.typed_revision = None;
+                workspace.project = LoadedProject::Invalid;
+                workspace.view.project_health = crate::dto::ProjectHealth::Invalid;
+                workspace.view.settings.editor_view_mode = EditorViewMode::Text;
+            }
         }
+        let persistence_error = self
+            .persistence
+            .remap_project_paths(&root, &request.source, &request.destination)
+            .err();
         let snapshot = self.update_snapshot(|snapshot| {
             snapshot.active_document_descriptor = snapshot
                 .active_file
                 .as_deref()
+                .filter(|_| refresh_errors.is_empty())
                 .and_then(|path| super::descriptor_for_path(&candidate, Utf8Path::new(path)));
             snapshot.workspace_explorer.expanded_paths = snapshot
                 .workspace_explorer
@@ -297,8 +335,23 @@ impl DesktopState {
             } else {
                 "Path change applied.".to_string()
             };
+            if !refresh_errors.is_empty() {
+                snapshot.status.push_str(&format!(
+                    " Source refresh failed: {}",
+                    refresh_errors.join("; ")
+                ));
+            }
+            if let Some(error) = &persistence_error {
+                snapshot
+                    .status
+                    .push_str(&format!(" View state was not saved: {error}"));
+            }
         });
-        self.schedule_render_refresh(candidate);
+        if refresh_errors.is_empty() {
+            self.schedule_render_refresh(candidate);
+        } else {
+            self.invalidate_prepared_project();
+        }
         Ok(snapshot)
     }
 
@@ -363,30 +416,15 @@ impl DesktopState {
         self.create_fs_entry(parent, name, FsEntryKind::Directory)
     }
 
-    pub fn create_new_project(&self, parent_path: &str, directory_name: &str) -> AppSnapshot {
-        if !valid_child_name(directory_name) {
-            return self.snapshot_with_error(
-                "project.create",
-                directory_name,
-                "Project folder name must be a single path segment",
-            );
-        }
-        let parent = Utf8PathBuf::from(parent_path);
-        if !parent.is_dir() {
-            return self.snapshot_with_error(
-                "project.create",
-                parent_path,
-                "Parent location is not a directory",
-            );
-        }
-        let root = parent.join(directory_name);
-        if root.exists() {
-            return self.snapshot_with_error(
-                "project.create",
-                root.as_str(),
-                "Project folder already exists",
-            );
-        }
+    pub(super) fn create_new_project_locked(
+        &self,
+        parent_path: &str,
+        directory_name: &str,
+    ) -> AppSnapshot {
+        let root = match project_destination(parent_path, directory_name) {
+            Ok(root) => root,
+            Err(error) => return self.snapshot_with_error("project.create", parent_path, &error),
+        };
         let files = match new_project_files(directory_name) {
             Ok(files) => files,
             Err(error) => {
@@ -400,7 +438,73 @@ impl DesktopState {
         if let Err(error) = result {
             return self.snapshot_with_error("project.create", root.as_str(), &error);
         }
-        self.load_working_copy(&root)
+        self.open_created_project_locked(&root)
+    }
+
+    pub(super) fn copy_project_locked(
+        &self,
+        parent_path: &str,
+        directory_name: &str,
+        discard: bool,
+    ) -> AppSnapshot {
+        let root = match project_destination(parent_path, directory_name) {
+            Ok(root) => root,
+            Err(error) => return self.snapshot_with_error("project.copy", parent_path, &error),
+        };
+        let project = if discard {
+            let Some(original_root) = self.project_root_path() else {
+                return self.snapshot_with_error("project.copy", parent_path, "No project is open");
+            };
+            match dawn_project_io::load_package(&original_root) {
+                Ok(loaded) => std::sync::Arc::new(loaded.session),
+                Err(error) => {
+                    return self.snapshot_with_error(
+                        "project.copy",
+                        original_root.as_str(),
+                        &format!("The saved project cannot be copied: {error:?}"),
+                    );
+                }
+            }
+        } else {
+            let Some(project) = self.project_session() else {
+                return self.snapshot_with_error(
+                    "project.copy",
+                    parent_path,
+                    "Fix project errors before creating an editable copy",
+                );
+            };
+            project
+        };
+        let result = {
+            let _filesystem = lock_unpoisoned(&self.filesystem);
+            dawn_project_io::export_editable_project(&project, &root)
+        };
+        if let Err(error) = result {
+            return self.snapshot_with_error("project.copy", root.as_str(), &error);
+        }
+        self.open_created_project_locked(&root)
+    }
+
+    fn open_created_project_locked(&self, root: &Utf8Path) -> AppSnapshot {
+        let opened = self.load_working_copy(root);
+        if opened.project_root.as_deref() != Some(root.as_str()) {
+            return opened;
+        }
+        let Some(project) = self.project_session() else {
+            return self.snapshot();
+        };
+        let entrypoint = project
+            .source
+            .entrypoint
+            .as_ref()
+            .map(|document| document.path().as_str().to_string())
+            .unwrap_or_else(|| project.project.root.id.0.document().to_string());
+        self.open_file_path(&entrypoint);
+        // The workspace transition already holds the authoring lock, and the
+        // freshly loaded typed project has passed analysis.
+        let mut settings = self.snapshot().settings;
+        settings.editor_view_mode = EditorViewMode::Gui;
+        self.update_app_settings_locked(settings)
     }
 
     pub fn create_sequence(&self, request: NewSequenceRequest) -> AppSnapshot {
@@ -506,4 +610,19 @@ fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
         .and_then(|suffix| suffix.strip_prefix('/'))
         .map(|suffix| format!("{destination}/{suffix}"))
         .unwrap_or_else(|| path.to_string())
+}
+
+fn project_destination(parent_path: &str, directory_name: &str) -> Result<Utf8PathBuf, String> {
+    if !valid_child_name(directory_name) {
+        return Err("Project folder name must be a single path segment".into());
+    }
+    let parent = Utf8Path::new(parent_path);
+    if !parent.is_dir() {
+        return Err("Parent location is not a directory".into());
+    }
+    let root = parent.join(directory_name);
+    if root.exists() {
+        return Err("Project folder already exists".into());
+    }
+    Ok(root)
 }

@@ -11,7 +11,7 @@ use crate::fixture_profile::FixtureProfileId;
 use crate::identity::{DocumentId, SourceIdentity};
 use crate::model::{DawnProject, ProjectId};
 use crate::operator::{OperatorDefinitionId, OperatorRef};
-use crate::patch::{FilterDefinition, PatchNode};
+use crate::patch::PatchNode;
 use crate::preview::{PreviewLayoutId, PropDefinitionId};
 use crate::sequence::CompositionGraphNodeKind;
 use crate::setup::SetupId;
@@ -76,9 +76,12 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
     for patch in project.patches.values_mut() {
         patch.id = crate::patch::PatchId(remap_identity(&patch.id.0, remaps));
         for node in patch.nodes.values_mut() {
+            if let Some(profile) = node.fixture_profile_mut() {
+                *profile = FixtureProfileId(remap_identity(&profile.0, remaps));
+            }
             match node {
                 PatchNode::Source(source) => remap_selection(&mut source.selection, remaps),
-                PatchNode::Filter(filter) => remap_filter(filter, remaps),
+                PatchNode::Filter(_) => {}
                 PatchNode::Sink(sink) => {
                     sink.controller =
                         crate::controller::ControllerId(remap_identity(&sink.controller.0, remaps));
@@ -176,7 +179,7 @@ where
         .collect()
 }
 
-fn remap_identity(
+pub fn remap_identity(
     identity: &SourceIdentity,
     remaps: &BTreeMap<DocumentId, DocumentId>,
 ) -> SourceIdentity {
@@ -191,22 +194,6 @@ fn remap_identity(
 
 fn remap_selection(selection: &mut ElementSelection, remaps: &BTreeMap<DocumentId, DocumentId>) {
     selection.tree = ElementTreeId(remap_identity(&selection.tree.0, remaps));
-}
-
-fn remap_filter(filter: &mut FilterDefinition, remaps: &BTreeMap<DocumentId, DocumentId>) {
-    match filter {
-        FilterDefinition::FixtureProfileEncoding { profile, .. } => {
-            *profile = FixtureProfileId(remap_identity(&profile.0, remaps));
-        }
-        FilterDefinition::ColorBreakdown { .. }
-        | FilterDefinition::DimmingCurve { .. }
-        | FilterDefinition::ScaleInvert { .. }
-        | FilterDefinition::FanOut { .. }
-        | FilterDefinition::ComponentReorder { .. }
-        | FilterDefinition::IndexedValueMapping { .. }
-        | FilterDefinition::Quantize8 { .. }
-        | FilterDefinition::Quantize16 { .. } => {}
-    }
 }
 
 fn remap_effect_ref(reference: &mut EffectRef, remaps: &BTreeMap<DocumentId, DocumentId>) {
@@ -242,18 +229,5 @@ fn remap_param(value: &mut EffectParamValue, remaps: &BTreeMap<DocumentId, Docum
         | EffectParamValue::Marks(_)
         | EffectParamValue::Curve(CurveSource::Inline(_))
         | EffectParamValue::Gradient(GradientSource::Inline(_)) => {}
-    }
-}
-
-trait ControlTargetSelection {
-    fn selection_mut(&mut self) -> &mut ElementSelection;
-}
-
-impl ControlTargetSelection for crate::control::ControlTarget {
-    fn selection_mut(&mut self) -> &mut ElementSelection {
-        match self {
-            Self::Scalar(selection) | Self::Indexed(selection) => selection,
-            Self::FixtureFunction { selection, .. } => selection,
-        }
     }
 }

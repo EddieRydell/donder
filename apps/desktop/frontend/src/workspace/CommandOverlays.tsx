@@ -8,10 +8,10 @@ import {
   commandRegistry,
   type CommandId
 } from "../commandRegistry";
-import { useAppStore } from "../store";
+import { runSnapshotCommand, useAppStore } from "../store";
+import { commands } from "../api";
 import { THEME_METRICS } from "../theme";
 import { matchesCommand, rankQuickOpenFiles } from "./helpers";
-import { navigateToText } from "./navigation";
 
 export function CommandOverlays() {
   const snapshot = useAppStore((state) => state.snapshot);
@@ -89,7 +89,7 @@ export function CommandOverlays() {
               value={path}
               onSelect={() => {
                 setQuickOpen(false);
-                void navigateToText(path, null);
+                void runSnapshotCommand(() => commands.openFile(path));
               }}
             >
               <FileText size={THEME_METRICS.iconSizeSmall} />

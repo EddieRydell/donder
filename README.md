@@ -24,6 +24,9 @@ That makes the project useful as a technical showcase for:
 - Render one shared logical/controller frame through the Rust runtime.
 - Preview effect rasters and sequence output in the desktop UI.
 - Transmit live E1.31 or Art-Net output with blackout and stream lifecycle handling.
+- Install bundled ESP32 firmware over USB, configure Wi-Fi, and upload a sequence
+  for persistent standalone playback. See [controller setup](docs/esp32_loading.md#install-from-dawn)
+  for supported hardware and the current verification limits.
 - Generate TypeScript bindings from Rust command and data types.
 - Resolve, cache, inspect, pack, publish, fork, and template Dawn packages.
 - Benchmark effect VM and render performance with Criterion.
@@ -51,6 +54,7 @@ apps/desktop/frontend/        React/TypeScript frontend
 apps/desktop/frontend/src/ui/gui/sequence/sequenceWaveform.ts  Timeline waveform cache/rendering
 crates/dawn-language/         Dawn authoring model and effect/operator compiler
 crates/dawn-runtime/          Portable no_std bytecode VM and sequence evaluation core
+crates/dawn-device-storage/   Portable device records, credentials, and flash recovery tests
 crates/dawn-elaboration/      Host-side generator expansion, lowering, and output preparation
 crates/dawn-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
 crates/dawn-project-io/       Dawn project loading, diagnostics, source ownership, save/export
@@ -66,14 +70,23 @@ tools/                        Repository tooling
 
 ## Getting Started
 
+To use the app, follow [Your first show](docs/first_show.md) for a two-prop project,
+preview playback, output assignment, and saving without editing YAML.
+To customize a show that imports packages, choose **File → Create Editable
+Project Copy...**. Dawn opens a separate project containing the show, imported
+definitions, and referenced audio as editable project files.
+
 ### Prerequisites
 
 Install:
 
 - Rust toolchain from `rust-toolchain.toml`
-- Node.js `>=26.4.0`
-- pnpm `>=11.9.0`
+- Node.js version required by `package.json`
+- pnpm version pinned in `package.json`
 - Tauri 2 system dependencies for your operating system
+- A host C compiler and host libclang for the device-storage workspace tests.
+  Set `LIBCLANG_PATH` to the host LLVM library when it is not discoverable.
+  The ESP cross-toolchain libclang is for firmware builds, not host tests.
 
 ### Install Dependencies
 

@@ -1,234 +1,7 @@
-pub(super) fn current_effect_curve_value(
-    session: &ProjectSession,
-    resolved: &ResolvedGuiObject,
-    effect_id: u32,
-    name: &str,
-) -> Result<SequenceEffectParamValue, GuiMutationError> {
-    let sequence_id = SequenceId(resolved.identity.clone());
-    let sequence = session
-        .project
-        .sequences
-        .get(&sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    let effect = sequence
-        .effects
-        .iter()
-        .find(|effect| effect.id.0 == effect_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
-
-    if let Some(value) = effect
-        .param_overrides
-        .iter()
-        .find_map(|(key, value)| (key.as_str() == name).then_some(value))
-    {
-        return match value {
-            EffectParamValue::Curve(_) => Ok(effect_param_value(session, value)),
-            _ => Err(GuiMutationError::Invalid(
-                "Param is not a curve param.".to_string(),
-            )),
-        };
-    }
-
-    let definition = session
-        .project
-        .definitions
-        .effects
-        .resolve(&effect.definition)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
-    let param = definition
-        .params
-        .iter()
-        .find(|param| param.name.as_str() == name)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect param was not found.".to_string()))?;
-    match &param.ty {
-        Type::Curve => Ok(param
-            .default
-            .as_ref()
-            .and_then(default_param_value)
-            .unwrap_or_else(|| SequenceEffectParamValue::Curve { points: Vec::new() })),
-        _ => Err(GuiMutationError::Invalid(
-            "Param is not a curve param.".to_string(),
-        )),
-    }
-}
-
-pub(super) fn current_effect_gradient_value(
-    session: &ProjectSession,
-    resolved: &ResolvedGuiObject,
-    effect_id: u32,
-    name: &str,
-) -> Result<SequenceEffectParamValue, GuiMutationError> {
-    let sequence_id = SequenceId(resolved.identity.clone());
-    let sequence = session
-        .project
-        .sequences
-        .get(&sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    let effect = sequence
-        .effects
-        .iter()
-        .find(|effect| effect.id.0 == effect_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
-    if let Some(value) = effect
-        .param_overrides
-        .iter()
-        .find_map(|(key, value)| (key.as_str() == name).then_some(value))
-    {
-        return match value {
-            EffectParamValue::Gradient(_) => Ok(effect_param_value(session, value)),
-            _ => Err(GuiMutationError::Invalid(
-                "Param is not a gradient param.".to_string(),
-            )),
-        };
-    }
-    let definition = session
-        .project
-        .definitions
-        .effects
-        .resolve(&effect.definition)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect definition was not found.".to_string()))?;
-    let param = definition
-        .params
-        .iter()
-        .find(|param| param.name.as_str() == name)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect param was not found.".to_string()))?;
-    match &param.ty {
-        Type::Gradient => Ok(param
-            .default
-            .as_ref()
-            .and_then(default_param_value)
-            .unwrap_or_else(|| SequenceEffectParamValue::Gradient { stops: Vec::new() })),
-        _ => Err(GuiMutationError::Invalid(
-            "Param is not a gradient param.".to_string(),
-        )),
-    }
-}
-
-pub(super) fn current_graph_curve_value(
-    session: &ProjectSession,
-    resolved: &ResolvedGuiObject,
-    node_id: &str,
-    name: &str,
-) -> Result<SequenceEffectParamValue, GuiMutationError> {
-    let sequence_id = SequenceId(resolved.identity.clone());
-    let sequence = session
-        .project
-        .sequences
-        .get(&sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    let node_id = parse_graph_node_id(node_id)?;
-    let node = sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .find(|node| node.id == node_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Graph node was not found.".to_string()))?;
-    let CompositionGraphNodeKind::Operator(operator) = &node.kind else {
-        return Err(GuiMutationError::Invalid(
-            "Graph node is not an operator.".to_string(),
-        ));
-    };
-    if let Some(value) = operator
-        .params
-        .iter()
-        .find_map(|(key, value)| (key.as_str() == name).then_some(value))
-    {
-        return match value {
-            EffectParamValue::Curve(_) => Ok(effect_param_value(session, value)),
-            _ => Err(GuiMutationError::Invalid(
-                "Param is not a curve param.".to_string(),
-            )),
-        };
-    }
-    let definition = session
-        .project
-        .definitions
-        .operators
-        .resolve(&operator.operator)
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Operator definition was not found.".to_string())
-        })?;
-    let param = definition
-        .params
-        .iter()
-        .find(|param| param.name.as_str() == name)
-        .ok_or_else(|| GuiMutationError::Invalid("Operator param was not found.".to_string()))?;
-    match &param.ty {
-        Type::Curve => Ok(param
-            .default
-            .as_ref()
-            .and_then(default_param_value)
-            .unwrap_or_else(|| SequenceEffectParamValue::Curve { points: Vec::new() })),
-        _ => Err(GuiMutationError::Invalid(
-            "Param is not a curve param.".to_string(),
-        )),
-    }
-}
-
-pub(super) fn current_graph_gradient_value(
-    session: &ProjectSession,
-    resolved: &ResolvedGuiObject,
-    node_id: &str,
-    name: &str,
-) -> Result<SequenceEffectParamValue, GuiMutationError> {
-    let sequence_id = SequenceId(resolved.identity.clone());
-    let sequence = session
-        .project
-        .sequences
-        .get(&sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    let node_id = parse_graph_node_id(node_id)?;
-    let node = sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .find(|node| node.id == node_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Graph node was not found.".to_string()))?;
-    let CompositionGraphNodeKind::Operator(operator) = &node.kind else {
-        return Err(GuiMutationError::Invalid(
-            "Graph node is not an operator.".to_string(),
-        ));
-    };
-    if let Some(value) = operator
-        .params
-        .iter()
-        .find_map(|(key, value)| (key.as_str() == name).then_some(value))
-    {
-        return match value {
-            EffectParamValue::Gradient(_) => Ok(effect_param_value(session, value)),
-            _ => Err(GuiMutationError::Invalid(
-                "Param is not a gradient param.".to_string(),
-            )),
-        };
-    }
-    let definition = session
-        .project
-        .definitions
-        .operators
-        .resolve(&operator.operator)
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Operator definition was not found.".to_string())
-        })?;
-    let param = definition
-        .params
-        .iter()
-        .find(|param| param.name.as_str() == name)
-        .ok_or_else(|| GuiMutationError::Invalid("Operator param was not found.".to_string()))?;
-    match &param.ty {
-        Type::Gradient => Ok(param
-            .default
-            .as_ref()
-            .and_then(default_param_value)
-            .unwrap_or_else(|| SequenceEffectParamValue::Gradient { stops: Vec::new() })),
-        _ => Err(GuiMutationError::Invalid(
-            "Param is not a gradient param.".to_string(),
-        )),
-    }
-}
-
 pub(super) fn required_operator_param_value(
     ty: Type,
     sequence: &dawn_language::sequence::Sequence,
+    color: dawn_language::values::Color,
 ) -> Result<EffectParamValue, GuiMutationError> {
     if ty == Type::Marks {
         return sequence
@@ -241,7 +14,7 @@ pub(super) fn required_operator_param_value(
                 )
             });
     }
-    EffectParamValue::default_for_type(&ty).ok_or_else(|| {
+    EffectParamValue::initial_for_type(&ty, color).ok_or_else(|| {
         GuiMutationError::Invalid(
             "A valid required operator parameter could not be created.".to_string(),
         )
@@ -706,21 +479,16 @@ use dawn_language::effect::{
     BuiltinEffect, EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef,
 };
 use dawn_language::element::ElementSelection;
-use dawn_language::sequence::{
-    AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, SequenceId,
-};
+use dawn_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use dawn_language::values::{DawnDuration, DawnTime};
 use dawn_project_io::ProjectSession;
 
-use super::model::{
-    effect_mut, mark_collection_mut, parse_graph_node_id, sequence_mut, source_identity_from_gui,
-};
-use super::projection::{active_element_tree, default_param_value, effect_param_value};
+use super::model::{effect_mut, mark_collection_mut, sequence_mut, source_identity_from_gui};
+use super::projection::active_element_tree;
 use super::{
-    ClipboardEffect, ClipboardMark, GuiMutationError, ResolvedGuiObject, SequenceClipboard,
-    SequenceSelectionMutation,
+    ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard, SequenceSelectionMutation,
 };
 use crate::dto::{
-    SequenceBuiltinEffect, SequenceEffectParamValue, SequenceEffectReference, SequenceMarkRef,
-    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,
+    SequenceBuiltinEffect, SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor,
+    SequenceResizeEdge, SequenceSelection,
 };

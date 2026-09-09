@@ -12,6 +12,39 @@ use crate::dto::{
 use crate::state_tasks::GuiHistoryEntry;
 
 impl DesktopState {
+    pub fn resolve_gui_source(
+        &self,
+        module_id: &str,
+        path: &str,
+        object_key: &str,
+    ) -> Result<GuiDocumentRequest, String> {
+        let _authoring = self.settled_authoring();
+        let session = self.project_session().ok_or("No project is loaded.")?;
+        let identity = crate::gui::model::source_identity_from_gui(module_id, path, object_key)
+            .map_err(|error| error.message().to_string())?;
+        let object = session
+            .source
+            .documents
+            .get(identity.document_id())
+            .and_then(|document| {
+                document
+                    .objects()
+                    .iter()
+                    .find(|object| object.id() == object_key)
+            })
+            .ok_or("Source object was not found.")?;
+        let path = crate::source_documents::editor_path(&session, identity.document_id())
+            .ok_or("Source document has no file location.")?;
+        Ok(GuiDocumentRequest {
+            project_revision: self.snapshot().project_revision,
+            path: path.to_string(),
+            object_key: Some(object_key.to_string()),
+            view: crate::dto::ObjectKind::from(object.kind())
+                .document_view()
+                .unwrap_or(crate::dto::DocumentViewId::Text),
+        })
+    }
+
     pub fn get_gui_document(&self, request: GuiDocumentRequest) -> crate::dto::GuiDocumentResult {
         let _authoring = lock_unpoisoned(&self.authoring);
         let revision = self.snapshot().project_revision;
@@ -112,11 +145,12 @@ impl DesktopState {
         let before = self
             .project_session()
             .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
-        let affected_paths = crate::gui::affected_paths(&before, request)?;
+        let mut affected_paths = crate::gui::affected_paths(&before, request)?;
         let mut edited = (*before).clone();
         let value = mutate(&mut edited)?;
+        affected_paths.extend(crate::gui::affected_paths(&edited, request)?);
         dawn_language::validation::validate_project(&edited.project)
-            .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         let generated_text =
             generated_source_texts(&edited, &affected_paths).map_err(GuiMutationError::Invalid)?;
         let edited = Arc::new(edited);
@@ -350,6 +384,7 @@ mod fixed_parameter_tests {
         let result = edit(SequenceGuiEdit::ChangeEffectDefinition {
             id: effect_id,
             effect: reference("MarkImpactBurst"),
+            initial_color: sequence.layers[0].color.to_hex(),
         });
         let GuiDocument::Sequence { document } = result.document else {
             panic!("definition edit rejected")
@@ -403,7 +438,8 @@ mod fixed_parameter_tests {
         assert!(matches!(
             edit(SequenceGuiEdit::ChangeEffectDefinition {
                 id: effect_id,
-                effect: reference("LiveLevel")
+                effect: reference("LiveLevel"),
+                initial_color: sequence.layers[0].color.to_hex(),
             })
             .document,
             GuiDocument::Sequence { .. }
@@ -432,7 +468,8 @@ mod fixed_parameter_tests {
         assert!(matches!(
             edit(SequenceGuiEdit::ChangeEffectDefinition {
                 id: effect_id,
-                effect: reference("MarkImpactBurst")
+                effect: reference("MarkImpactBurst"),
+                initial_color: sequence.layers[0].color.to_hex(),
             })
             .document,
             GuiDocument::Sequence { .. }
@@ -468,7 +505,7 @@ mod fixed_parameter_tests {
         );
         state.redo_active_edit();
         let final_session = state.project_session().unwrap();
-        dawn_project_io::save_project(&final_session).unwrap();
+        state.save_all().unwrap();
         let reloaded = dawn_project_io::load_package(&root).unwrap().session;
         assert_eq!(reloaded.project, final_session.project);
     }

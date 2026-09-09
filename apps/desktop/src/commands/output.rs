@@ -2,17 +2,29 @@ use super::*;
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn start_output_test(
+    request: GuiDocumentRequest,
+    test: crate::dto::ControllerOutputTest,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let snapshot = state.start_output_test(&request, test)?;
+    let _ = app.emit("live_output_changed", snapshot.live_output.clone());
+    start_live_output_poll(app);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn set_live_output_active(
     active: bool,
     app: AppHandle,
     state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    let snapshot = state.set_live_output_active(active);
+) -> Result<AppSnapshot, String> {
+    let snapshot = state.set_live_output_active(active)?;
     let _ = app.emit("live_output_changed", snapshot.live_output.clone());
-    if active {
-        start_live_output_poll(app);
-    }
-    snapshot
+    start_live_output_poll(app);
+    Ok(snapshot)
 }
 
 fn start_live_output_poll(app: AppHandle) {

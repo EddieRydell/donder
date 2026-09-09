@@ -135,6 +135,7 @@ pub struct FixtureProfileStore {
 #[derive(Clone, Debug, PartialEq)]
 pub enum FixtureProfileValidationError {
     EmptyFunctions,
+    EmptyEntries(FixtureFunctionId),
     DuplicateChannelSlot(u16),
     MissingFunction(FixtureFunctionId),
     DuplicateEntry {
@@ -176,6 +177,102 @@ pub enum FixtureProfileValidationError {
         entry: FixtureEntryId,
     },
     InvalidBehaviorValue,
+    IncompatibleBehavior(FixtureFunctionId),
+}
+
+impl std::fmt::Display for FixtureProfileValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::IncompatibleBehavior(id) => write!(
+                f,
+                "The behavior for function {} requires a different function type. Dimmer behavior needs a range function; shutter, prism, and color-wheel behavior need indexed entries.",
+                id.0
+            ),
+            Self::EmptyFunctions => write!(f, "Add at least one fixture function."),
+            Self::EmptyEntries(id) => write!(f, "Function {} needs at least one entry.", id.0),
+            Self::DuplicateChannelSlot(slot) => write!(
+                f,
+                "Channel {} is assigned more than once.",
+                u32::from(*slot) + 1
+            ),
+            Self::MissingFunction(id) => write!(
+                f,
+                "Function {} does not exist. Update the channel or behavior reference.",
+                id.0
+            ),
+            Self::DuplicateEntry { function, entry } => write!(
+                f,
+                "Entry {} is repeated in function {}.",
+                entry.0, function.0
+            ),
+            Self::InvalidEntryRange { function, entry } => write!(
+                f,
+                "Entry {} in function {} has its DMX range reversed.",
+                entry.0, function.0
+            ),
+            Self::OverlappingEntryRanges { function } => {
+                write!(f, "DMX entry ranges overlap in function {}.", function.0)
+            }
+            Self::MissingEntry { function, entry } => write!(
+                f,
+                "Entry {} does not exist in function {}. Update the behavior reference.",
+                entry.0, function.0
+            ),
+            Self::InvalidCurve => write!(
+                f,
+                "A dimming curve is invalid. Use a positive gamma or ordered custom points within 0 to 1."
+            ),
+            Self::MissingCoarseChannel(id) => {
+                write!(f, "Function {} needs a coarse channel.", id.0)
+            }
+            Self::DuplicateCoarseChannel(id) => {
+                write!(f, "Function {} has more than one coarse channel.", id.0)
+            }
+            Self::DuplicateFineChannel(id) => {
+                write!(f, "Function {} has more than one fine channel.", id.0)
+            }
+            Self::FineWithoutCoarse(id) => write!(
+                f,
+                "Function {} has a fine channel without a coarse channel.",
+                id.0
+            ),
+            Self::MissingColorComponent {
+                function,
+                component,
+            } => write!(f, "Function {} needs a {component:?} channel.", function.0),
+            Self::DuplicateColorComponent {
+                function,
+                component,
+            } => write!(
+                f,
+                "Function {} has more than one {component:?} channel.",
+                function.0
+            ),
+            Self::UnexpectedColorComponent(id) => write!(
+                f,
+                "Function {} is not a color-mixing function and cannot use color-component channels.",
+                id.0
+            ),
+            Self::DuplicateBehaviorFunction(id) => {
+                write!(f, "Function {} has more than one behavior rule.", id.0)
+            }
+            Self::DuplicateBehaviorColor { function, color } => write!(
+                f,
+                "Color {} is repeated in the behavior for function {}.",
+                color.to_hex(),
+                function.0
+            ),
+            Self::DuplicateBehaviorEntry { function, entry } => write!(
+                f,
+                "Entry {} is repeated in the behavior for function {}.",
+                entry.0, function.0
+            ),
+            Self::InvalidBehaviorValue => write!(
+                f,
+                "Dimmer behavior levels must be finite values between 0 and 1."
+            ),
+        }
+    }
 }
 
 impl FixtureProfile {
@@ -296,18 +393,16 @@ impl FixtureProfile {
     }
 }
 
-fn validate_curve(curve: &DimmingCurve) -> Result<(), FixtureProfileValidationError> {
+pub(crate) fn validate_curve(curve: &DimmingCurve) -> Result<(), FixtureProfileValidationError> {
     match curve {
         DimmingCurve::Linear => Ok(()),
         DimmingCurve::Gamma(value) if value.is_finite() && *value > 0.0 => Ok(()),
         DimmingCurve::Custom(curve)
-            if !curve.points.is_empty()
-                && curve.points.iter().all(|point| {
-                    point.position.is_finite()
-                        && point.value.is_finite()
-                        && (0.0..=1.0).contains(&point.position)
-                        && (0.0..=1.0).contains(&point.value)
-                }) =>
+            if curve.validate().is_ok()
+                && curve
+                    .points
+                    .iter()
+                    .all(|point| (0.0..=1.0).contains(&point.value)) =>
         {
             Ok(())
         }
@@ -319,6 +414,9 @@ fn validate_entries(
     function: FixtureFunctionId,
     entries: &[FixtureIndexedEntry],
 ) -> Result<(), FixtureProfileValidationError> {
+    if entries.is_empty() {
+        return Err(FixtureProfileValidationError::EmptyEntries(function));
+    }
     let mut ids = IndexSet::new();
     for entry in entries {
         if !ids.insert(entry.id) {
@@ -394,6 +492,20 @@ fn validate_rule(
         .functions
         .get(&function)
         .ok_or(FixtureProfileValidationError::MissingFunction(function))?;
+    let compatible = match rule {
+        FixtureBehaviorRule::Dimmer { .. } => matches!(definition.kind, FixtureFunctionKind::Range),
+        FixtureBehaviorRule::Shutter { .. }
+        | FixtureBehaviorRule::PrismGate { .. }
+        | FixtureBehaviorRule::ColorWheel { .. } => matches!(
+            definition.kind,
+            FixtureFunctionKind::Indexed { .. } | FixtureFunctionKind::ColorWheel { .. }
+        ),
+    };
+    if !compatible {
+        return Err(FixtureProfileValidationError::IncompatibleBehavior(
+            function,
+        ));
+    }
     let available = match &definition.kind {
         FixtureFunctionKind::Indexed { entries } | FixtureFunctionKind::ColorWheel { entries } => {
             entries

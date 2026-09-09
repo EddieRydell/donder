@@ -18,6 +18,7 @@ import { ColorPicker } from "../../ColorPicker";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
+import { ControlClipPanel } from "./ControlClipPanel";
 import { defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
@@ -97,7 +98,8 @@ export function SequenceInspector({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<SequenceInspectorTab>("effect");
+  const [tab, setActiveTab] = useState<SequenceInspectorTab>("effect");
+  const activeTab = selected?.type === "controlClip" ? "controls" : tab;
 
   const footer = (
     <div className="sequence-inspector-tabs" role="tablist" aria-label="Sequence inspector sections">
@@ -109,6 +111,7 @@ export function SequenceInspector({
           aria-selected={activeTab === tab.id}
           className={activeTab === tab.id ? "active" : ""}
           onClick={() => {
+            if (selected?.type === "controlClip") setSelected(null);
             setActiveTab(tab.id);
           }}
         >
@@ -131,7 +134,7 @@ export function SequenceInspector({
         />
       )}
       {activeTab === "layers" && <LayerInspectorPanel document={document} />}
-      {activeTab === "controls" && <ControlClipPanel document={document} />}
+      {activeTab === "controls" && <ControlClipPanel document={document} selectedId={selected?.type === "controlClip" ? selected.id : null} />}
       {activeTab === "marks" && (
         <MarkInspectorPanel
           document={document}
@@ -146,41 +149,6 @@ export function SequenceInspector({
         />
       )}
     </InspectorScrollArea>
-  );
-}
-
-function ControlClipPanel({ document }: { document: SequenceEditorDocument }) {
-  return (
-    <>
-      <h2>Typed Controls</h2>
-      {document.controlClips.length === 0 && <p>No scalar, indexed, or fixture-function controls.</p>}
-      {document.controlClips.map((clip) => (
-        <div className="control-clip-inspector" key={clip.id}>
-          <strong>{clip.targetLabel}</strong>
-          <span>{clip.controlType} · {clip.value}</span>
-          <label>Start
-            <input type="number" min={0} step={0.01} defaultValue={clip.startSeconds} onBlur={(event) => void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
-              type: "moveControlClip",
-              id: clip.id,
-              startSeconds: Number(event.currentTarget.value),
-              anchorLaneIndex: clip.anchorLaneIndex,
-              laneIndex: clip.laneIndex
-            }))} />
-          </label>
-          <label>Duration
-            <input type="number" min={0.001} step={0.01} defaultValue={clip.durationSeconds} onBlur={(event) => void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
-              type: "resizeControlClip",
-              id: clip.id,
-              startSeconds: clip.startSeconds,
-              durationSeconds: Number(event.currentTarget.value)
-            }))} />
-          </label>
-          <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteControlClip", id: clip.id }))}>
-            <Trash2 size={THEME_METRICS.iconSizeExtraSmall} /> Delete
-          </button>
-        </div>
-      ))}
-    </>
   );
 }
 
@@ -380,6 +348,7 @@ function EffectInspectorPanel({
               void runGuiEditCommand((request) =>
                 commands.applySequenceGuiEdit(request, {
                   type: "changeEffectDefinition",
+                  initialColor: THEME_COLORS.white,
                   id: effect.id,
                   effect: definition
                 })
@@ -438,48 +407,6 @@ function EffectInspectorPanel({
                   curveLibrary={document.curveLibrary}
                   gradientLibrary={document.gradientLibrary}
                   markCollections={document.markCollections}
-                  linkCurve={(name, curve) =>
-                    runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "linkEffectCurve",
-                        id: effect.id,
-                        name,
-                        sourceModuleId: curve.moduleId,
-                        sourcePath: curve.path,
-                        objectKey: curve.objectKey
-                      })
-                    ).then(() => undefined)
-                  }
-                  unlinkCurve={(name) =>
-                    runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "unlinkEffectCurve",
-                        id: effect.id,
-                        name
-                      })
-                    ).then(() => undefined)
-                  }
-                  linkGradient={(name, gradient) =>
-                    runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "linkEffectGradient",
-                        id: effect.id,
-                        name,
-                        sourceModuleId: gradient.moduleId,
-                        sourcePath: gradient.path,
-                        objectKey: gradient.objectKey
-                      })
-                    ).then(() => undefined)
-                  }
-                  unlinkGradient={(name) =>
-                    runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "unlinkEffectGradient",
-                        id: effect.id,
-                        name
-                      })
-                    ).then(() => undefined)
-                  }
                   automation={{
                     target: { type: "effectParam", effectId: effect.id, param: param.name },
                     automationClips: document.automationClips,

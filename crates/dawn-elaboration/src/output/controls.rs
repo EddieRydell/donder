@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use dawn_language::control::{ControlClip, ControlTarget, ControlValue, controls_overlap};
+use dawn_language::control::{
+    ControlClip, ControlResolutionError, ControlTarget, ControlValue, resolve_controls,
+};
 use dawn_language::element::{ElementNodeKind, ElementTree};
 use dawn_language::fixture_profile::{
-    FixtureBehaviorRule, FixtureControlValue, FixtureFunctionId, FixtureFunctionKind,
-    FixtureProfileId, FixtureProfileStore,
+    FixtureBehaviorRule, FixtureControlValue, FixtureFunctionKind, FixtureProfileId,
+    FixtureProfileStore,
 };
 use dawn_language::values::{sample_duration_from_dawn_duration, sample_time_from_dawn_time};
 
@@ -22,7 +24,30 @@ pub(crate) fn prepare_controls(
     elements: &OutputElements,
 ) -> Result<Vec<PreparedControl>, SequenceOutputPrepareError> {
     let mut prepared = Vec::with_capacity(clips.len());
-    for clip in clips {
+    let resolved = resolve_controls(tree, profiles, clips).map_err(|error| match error {
+        ControlResolutionError::Conflict {
+            first,
+            second,
+            address,
+        } => SequenceOutputPrepareError::ControlConflict {
+            first: first.0,
+            second: second.0,
+            node: address.node,
+            cell: address.cell,
+        },
+        ControlResolutionError::InvalidTarget { clip, .. } => {
+            SequenceOutputPrepareError::InvalidControl {
+                clip: clip.0,
+                reason: error.to_string(),
+            }
+        }
+        ControlResolutionError::InvalidClip(error) => {
+            SequenceOutputPrepareError::ProjectValidation(format!(
+                "Invalid control clip: {error:?}"
+            ))
+        }
+    })?;
+    for (clip, addresses) in clips.iter().zip(resolved) {
         let start = sample_time_from_dawn_time(&clip.start).map_err(|_| {
             SequenceOutputPrepareError::InvalidControl {
                 clip: clip.id.0,
@@ -35,45 +60,6 @@ pub(crate) fn prepare_controls(
                 reason: "control duration exceeds the runtime clock range".to_string(),
             }
         })?;
-        let addresses = tree
-            .flatten_selection(clip.target.selection())
-            .map_err(|error| SequenceOutputPrepareError::InvalidControl {
-                clip: clip.id.0,
-                reason: format!("{error:?}"),
-            })?;
-        for address in &addresses {
-            let node = tree.nodes.get(&address.node).ok_or_else(|| {
-                SequenceOutputPrepareError::InvalidControl {
-                    clip: clip.id.0,
-                    reason: "target node is missing".to_string(),
-                }
-            })?;
-            match (&clip.target, &node.kind) {
-                (ControlTarget::Scalar(_), ElementNodeKind::Scalar { .. })
-                | (ControlTarget::Indexed(_), ElementNodeKind::Indexed { .. }) => {}
-                (
-                    ControlTarget::FixtureFunction { function, .. },
-                    ElementNodeKind::Fixture { profile },
-                ) => {
-                    if !profiles
-                        .definitions
-                        .get(profile)
-                        .is_some_and(|profile| profile.functions.contains_key(function))
-                    {
-                        return Err(SequenceOutputPrepareError::InvalidControl {
-                            clip: clip.id.0,
-                            reason: "fixture function is missing".to_string(),
-                        });
-                    }
-                }
-                _ => {
-                    return Err(SequenceOutputPrepareError::InvalidControl {
-                        clip: clip.id.0,
-                        reason: "group leaves do not share the requested control type".to_string(),
-                    });
-                }
-            }
-        }
         let kind = match clip.target {
             ControlTarget::Scalar(_) => PreparedControlKind::Scalar,
             ControlTarget::Indexed(_) => PreparedControlKind::Indexed,
@@ -126,33 +112,7 @@ pub(crate) fn prepare_controls(
             addresses,
         });
     }
-    for (index, left) in prepared.iter().enumerate() {
-        for (right_index, right) in prepared.iter().enumerate().skip(index + 1) {
-            if controls_overlap(&clips[index], &clips[right_index])
-                && control_function(&clips[index].target)
-                    == control_function(&clips[right_index].target)
-                && let Some(address) = left
-                    .addresses
-                    .iter()
-                    .find(|address| right.addresses.contains(address))
-            {
-                return Err(SequenceOutputPrepareError::ControlConflict {
-                    first: left.id,
-                    second: right.id,
-                    node: elements.layouts[address.element as usize].0,
-                    cell: address.cell,
-                });
-            }
-        }
-    }
     Ok(prepared)
-}
-
-fn control_function(target: &ControlTarget) -> Option<FixtureFunctionId> {
-    match target {
-        ControlTarget::FixtureFunction { function, .. } => Some(*function),
-        _ => None,
-    }
 }
 
 pub(crate) fn prepare_fixture_behaviors(

@@ -160,6 +160,7 @@ impl DesktopState {
     }
 
     pub fn live_output_snapshot(&self) -> crate::dto::LiveOutputSnapshot {
+        self.resume_live_output_if_ready();
         lock_unpoisoned(&self.live_output).snapshot()
     }
 
@@ -267,14 +268,9 @@ impl DesktopState {
         }
     }
 
-    pub fn set_live_output_active(&self, active: bool) -> AppSnapshot {
+    pub fn set_live_output_active(&self, active: bool) -> Result<AppSnapshot, String> {
         let output = if active {
-            let Some(project) = self.project_session() else {
-                return self.update_snapshot(|snapshot| {
-                    snapshot.live_output.state = crate::dto::LiveOutputState::Error;
-                    snapshot.live_output.last_error = Some("No project is loaded.".to_string());
-                });
-            };
+            let project = self.project_session().ok_or("No project is loaded.")?;
             let active = project
                 .project
                 .setups
@@ -284,19 +280,20 @@ impl DesktopState {
                 .active_target()
                 .is_some();
             let Some(active) = active.filter(|active| render_ready && !active.is_empty()) else {
-                return self.update_snapshot(|snapshot| {
-                    snapshot.live_output.state = crate::dto::LiveOutputState::Error;
-                    snapshot.live_output.last_error = Some(
-                        "Live output requires a prepared sequence and at least one active controller."
-                            .to_string(),
-                    );
-                });
+                return Err(
+                    "Live output requires a prepared sequence and at least one active controller."
+                        .into(),
+                );
             };
-            lock_unpoisoned(&self.live_output).enable(project.project.controllers.clone(), active)
+            let mut service = lock_unpoisoned(&self.live_output);
+            if service.snapshot().state == crate::dto::LiveOutputState::Stopping {
+                return Err("Wait for output to finish stopping before starting it again.".into());
+            }
+            service.enable(project.project.controllers.clone(), active)
         } else {
             lock_unpoisoned(&self.live_output).disable()
         };
-        self.update_snapshot(|snapshot| snapshot.live_output = output)
+        Ok(self.update_snapshot(|snapshot| snapshot.live_output = output))
     }
 
     pub(super) fn suspend_live_output(&self) {
@@ -310,6 +307,11 @@ impl DesktopState {
     }
 
     pub(super) fn resume_live_output_after_prepare(&self) {
+        lock_unpoisoned(&self.live_output).mark_prepared();
+        self.resume_live_output_if_ready();
+    }
+
+    fn resume_live_output_if_ready(&self) {
         if lock_unpoisoned(&self.live_output).take_resume_after_prepare() {
             let _ = self.set_live_output_active(true);
         }
@@ -329,9 +331,11 @@ mod filesystem;
 mod gui_editing;
 mod packages;
 pub(crate) use packages::package_status;
+mod output_test;
 mod project_lifecycle;
 mod rendering;
 mod search;
+mod sequence_export;
 mod settings;
 pub(super) use settings::{sanitize_app_settings, sanitize_workspace_layout};
 mod transitions;
@@ -356,6 +360,7 @@ fn empty_snapshot() -> AppSnapshot {
         tabs: Vec::new(),
         active_file: None,
         active_buffer: None,
+        pending_saves: Vec::new(),
         active_document_descriptor: None,
         diagnostics: Vec::new(),
         status: "Ready".to_string(),
@@ -410,3 +415,20 @@ fn path_matches_or_is_child(candidate: &str, parent: &str) -> bool {
             .strip_prefix(parent)
             .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
 }
+
+#[cfg(test)]
+mod authoring_acceptance;
+#[cfg(test)]
+mod fixture_copy_acceptance;
+#[cfg(test)]
+mod project_copy_acceptance;
+
+#[cfg(test)]
+mod control_output_acceptance;
+
+#[cfg(test)]
+mod advanced_patch_acceptance;
+#[cfg(test)]
+mod color_prop_acceptance;
+#[cfg(test)]
+mod fixture_color_acceptance;

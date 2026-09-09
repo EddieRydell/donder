@@ -37,24 +37,20 @@ pub fn project_gui_document(
             );
         }
     };
-    if !session
-        .source
-        .is_project_owned(resolved.identity.document_id())
-    {
-        return blocked(
-            "Imported dependency documents are read-only.",
-            vec![gui_diagnostic(
-                &request.path,
-                "gui.read_only_dependency",
-                "Imported dependency documents are read-only.",
-            )],
-        );
-    }
-    match request.view {
+    let mut gui = match request.view {
+        DocumentViewId::Project => project_root(session, &resolved),
         DocumentViewId::Sequence => project_sequence(session, &resolved),
         DocumentViewId::Setup => project_setup(session, &resolved),
+        DocumentViewId::ElementTree => super::elements::project_document(session, &resolved),
+        DocumentViewId::Controller => super::controller::project_document(session, &resolved),
+        DocumentViewId::FixtureProfile => {
+            super::fixture_profile::project_document(session, &resolved)
+        }
+        DocumentViewId::Patch => super::patch::project_document(session, &resolved),
         DocumentViewId::Preview => project_layout(session, &resolved),
         DocumentViewId::Prop => project_fixture(session, &resolved),
+        DocumentViewId::Curve => super::library::project_curve(session, &resolved),
+        DocumentViewId::Gradient => super::library::project_gradient(session, &resolved),
         DocumentViewId::Text => blocked(
             "Text documents do not have a GUI projection.",
             vec![gui_diagnostic(
@@ -63,7 +59,22 @@ pub fn project_gui_document(
                 "Text documents do not have a GUI projection.",
             )],
         ),
+    };
+    match &mut gui {
+        GuiDocument::ElementTree { document } => document.path.clone_from(&request.path),
+        GuiDocument::Project { document } => document.path.clone_from(&request.path),
+        GuiDocument::Setup { document } => document.path.clone_from(&request.path),
+        GuiDocument::Sequence { document } => document.path.clone_from(&request.path),
+        GuiDocument::Preview { document } => document.path.clone_from(&request.path),
+        GuiDocument::Prop { document } => document.path.clone_from(&request.path),
+        GuiDocument::Curve { document } => document.path.clone_from(&request.path),
+        GuiDocument::Gradient { document } => document.path.clone_from(&request.path),
+        GuiDocument::Controller { document } => document.path.clone_from(&request.path),
+        GuiDocument::FixtureProfile { document } => document.path.clone_from(&request.path),
+        GuiDocument::Patch { document } => document.path.clone_from(&request.path),
+        GuiDocument::Blocked { .. } => {}
     }
+    gui
 }
 
 pub fn affected_paths(
@@ -72,7 +83,16 @@ pub fn affected_paths(
 ) -> Result<BTreeSet<String>, GuiMutationError> {
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
     ensure_owned_gui_document(session, &resolved)?;
-    if matches!(request.view, DocumentViewId::Setup) {
+    if matches!(
+        request.view,
+        DocumentViewId::Setup
+            | DocumentViewId::ElementTree
+            | DocumentViewId::FixtureProfile
+            | DocumentViewId::Patch
+            | DocumentViewId::Controller
+            | DocumentViewId::Prop
+            | DocumentViewId::Preview
+    ) {
         return Ok(session
             .source
             .documents
@@ -86,7 +106,7 @@ pub fn affected_paths(
 
 pub(crate) struct ResolvedGuiObject {
     pub(crate) identity: SourceIdentity,
-    kind: SourceObjectKind,
+    pub(crate) kind: SourceObjectKind,
 }
 
 impl ResolvedGuiObject {
@@ -122,23 +142,16 @@ pub(crate) fn resolve_request(
     request: &GuiDocumentRequest,
 ) -> Result<ResolvedGuiObject, String> {
     let path = Utf8Path::new(&request.path);
-    let kind = source_kind_for_view(&request.view)?;
     let requested_key = request.object_key.as_deref();
-    let mut documents = session
-        .source
-        .documents
-        .iter()
-        .filter(|(document_id, _)| document_id.path() == path);
-    let Some((document_id, document)) = documents.next() else {
-        return Err("No matching GUI document was found for this request.".to_string());
-    };
-    if documents.next().is_some() {
-        return Err("The document path is ambiguous across package modules.".to_string());
-    }
+    let document_id = crate::source_documents::document_for_editor_path(session, path)
+        .ok_or("No matching GUI document was found for this request.")?;
+    let document = &session.source.documents[&document_id];
     let mut matches = document
         .objects()
         .iter()
-        .filter(|object| object.kind() == &kind)
+        .filter(|object| {
+            ObjectKind::from(object.kind()).document_view().as_ref() == Some(&request.view)
+        })
         .filter(|object| requested_key.is_none_or(|key| object.id() == key));
     let Some(source_id) = matches.next() else {
         return Err("No matching GUI object was found for this request.".to_string());
@@ -150,16 +163,6 @@ pub(crate) fn resolve_request(
         identity: SourceIdentity::from_document(document_id.clone(), source_id.id().to_string()),
         kind: source_id.kind().clone(),
     })
-}
-
-pub(super) fn source_kind_for_view(view: &DocumentViewId) -> Result<SourceObjectKind, String> {
-    match view {
-        DocumentViewId::Sequence => Ok(SourceObjectKind::Sequence),
-        DocumentViewId::Setup => Ok(SourceObjectKind::Setup),
-        DocumentViewId::Preview => Ok(SourceObjectKind::PreviewLayout),
-        DocumentViewId::Prop => Ok(SourceObjectKind::PropDefinition),
-        DocumentViewId::Text => Err("Text view has no source GUI object kind.".to_string()),
-    }
 }
 
 pub(crate) fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {

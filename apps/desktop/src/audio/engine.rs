@@ -1,14 +1,23 @@
 use crate::dto::{AudioTransportSnapshot, AudioTransportState, SequenceAudio};
+use std::time::Instant;
 
 use super::backend::{
     AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource,
     canonical_audio_path,
 };
 
+enum TransportSource {
+    Audio(LoadedSource),
+    Silent {
+        duration_seconds: f32,
+        anchor: Option<(Instant, f32)>,
+    },
+}
+
 pub(crate) struct AudioEngine {
     driver: Option<Box<dyn AudioDriver>>,
     handle: Option<Box<dyn AudioHandle>>,
-    source: Option<LoadedSource>,
+    source: Option<TransportSource>,
     home_seconds: f32,
     position_seconds: f32,
     state: AudioTransportState,
@@ -60,6 +69,32 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
+    pub fn load_silent_sequence(&mut self, duration_seconds: f32) -> AudioTransportSnapshot {
+        self.observe_backend();
+        if let Some(TransportSource::Silent {
+            duration_seconds: current,
+            ..
+        }) = &self.source
+            && *current == duration_seconds
+        {
+            return self.current_snapshot();
+        }
+        self.reset_loaded_source();
+        if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
+            self.state = AudioTransportState::Error;
+            self.last_error = Some("Sequence duration must be positive and finite.".into());
+        } else {
+            self.source = Some(TransportSource::Silent {
+                duration_seconds,
+                anchor: None,
+            });
+            self.state = AudioTransportState::Stopped;
+            self.last_error = None;
+        }
+        self.bump_generation();
+        self.current_snapshot()
+    }
+
     pub fn load(&mut self, audio: Option<SequenceAudio>) -> AudioTransportSnapshot {
         self.observe_backend();
         let Some(audio) = audio else {
@@ -85,7 +120,7 @@ impl AudioEngine {
         if self
             .source
             .as_ref()
-            .is_some_and(|source| source.canonical_path == canonical_path)
+            .is_some_and(|source| matches!(source, TransportSource::Audio(source) if source.canonical_path == canonical_path))
         {
             return self.current_snapshot();
         }
@@ -99,11 +134,11 @@ impl AudioEngine {
         match driver.load_metadata(&audio.resolved_path) {
             Ok(metadata) => {
                 self.reset_loaded_source();
-                self.source = Some(LoadedSource {
+                self.source = Some(TransportSource::Audio(LoadedSource {
                     audio,
                     canonical_path,
                     duration_seconds: metadata.duration_seconds,
-                });
+                }));
                 self.home_seconds = 0.0;
                 self.position_seconds = 0.0;
                 self.state = AudioTransportState::Stopped;
@@ -149,6 +184,13 @@ impl AudioEngine {
         }
         if matches!(self.state, AudioTransportState::Ended) {
             self.position_seconds = self.home_seconds;
+        }
+        if let Some(TransportSource::Silent { anchor, .. }) = &mut self.source {
+            *anchor = Some((Instant::now(), self.position_seconds));
+            self.state = AudioTransportState::Playing;
+            self.last_error = None;
+            self.bump_generation();
+            return self.current_snapshot();
         }
         if matches!(self.state, AudioTransportState::Paused)
             && self.can_resume_handle
@@ -236,7 +278,7 @@ impl AudioEngine {
             self.bump_generation();
             return;
         };
-        let Some(source) = self.source.as_ref() else {
+        let Some(TransportSource::Audio(source)) = self.source.as_ref() else {
             return;
         };
         match driver.play(&source.audio.resolved_path, self.position_seconds) {
@@ -258,6 +300,23 @@ impl AudioEngine {
     }
 
     fn observe_backend(&mut self) {
+        if let Some(TransportSource::Silent {
+            duration_seconds,
+            anchor,
+        }) = &self.source
+        {
+            if matches!(self.state, AudioTransportState::Playing)
+                && let Some((started, position)) = anchor
+            {
+                self.position_seconds =
+                    (position + started.elapsed().as_secs_f32()).min(*duration_seconds);
+                if self.position_seconds >= *duration_seconds {
+                    self.state = AudioTransportState::Ended;
+                    self.bump_generation();
+                }
+            }
+            return;
+        }
         let Some(handle) = self.handle.as_mut() else {
             return;
         };
@@ -311,7 +370,10 @@ impl AudioEngine {
     fn current_snapshot(&self) -> AudioTransportSnapshot {
         AudioTransportSnapshot {
             state: self.state.clone(),
-            source: self.source.as_ref().map(|source| source.audio.clone()),
+            source: match &self.source {
+                Some(TransportSource::Audio(source)) => Some(source.audio.clone()),
+                Some(TransportSource::Silent { .. }) | None => None,
+            },
             generation: self.generation,
             position_seconds: self.position_seconds,
             home_seconds: self.home_seconds,
@@ -328,10 +390,13 @@ impl AudioEngine {
     }
 
     fn duration_seconds(&self) -> f32 {
-        self.source
-            .as_ref()
-            .map(|source| source.duration_seconds)
-            .unwrap_or(0.0)
+        match &self.source {
+            Some(TransportSource::Audio(source)) => source.duration_seconds,
+            Some(TransportSource::Silent {
+                duration_seconds, ..
+            }) => *duration_seconds,
+            None => 0.0,
+        }
     }
 
     fn bump_generation(&mut self) {

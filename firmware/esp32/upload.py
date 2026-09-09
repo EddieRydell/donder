@@ -4,6 +4,7 @@ import argparse
 import getpass
 import hashlib
 import http.client
+import json
 import logging
 import pathlib
 import re
@@ -24,7 +25,8 @@ parser.add_argument(
     "--windows-profile",
     help="Provision this saved Windows Wi-Fi profile without logging its password",
 )
-parser.add_argument("--repeat", type=int, default=1)
+parser.add_argument("--checksums", type=pathlib.Path, help="Verify frames against this checksum file after uploading")
+parser.add_argument("--repeat", type=int, default=1, help="Repeat explicitly requested checksum verification")
 parser.add_argument("--uploads", type=int, default=1)
 parser.add_argument(
     "--monitor-seconds",
@@ -43,8 +45,7 @@ parser.add_argument(
 parser.add_argument(
     "--elf",
     type=pathlib.Path,
-    default=pathlib.Path(__file__).parent
-    / "target/xtensa-esp32-none-elf/release/loader",
+    help="Record the hash of this firmware ELF in verification evidence",
 )
 args = parser.parse_args()
 
@@ -52,6 +53,8 @@ if args.repeat < 1 or args.uploads < 1 or args.monitor_seconds < 0:
     parser.error("--repeat and --uploads must be positive; --monitor-seconds cannot be negative")
 if not args.ssid and not args.windows_profile:
     parser.error("provide --ssid or --windows-profile")
+if args.checksums is None and (args.repeat != 1 or args.exercise_rejections):
+    parser.error("--repeat and --exercise-rejections require --checksums")
 
 handlers = [logging.StreamHandler(sys.stdout)]
 if args.log:
@@ -59,11 +62,18 @@ if args.log:
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=handlers)
 
 payload = args.sequence.read_bytes()
-expected = [
-    tuple(map(int, line.split()))
-    for line in pathlib.Path(str(args.sequence) + ".checksums").read_text().splitlines()
-]
-logging.info("elf_sha256=%s", hashlib.sha256(args.elf.read_bytes()).hexdigest())
+if len(payload) < 16 or payload[:4] != b"DAWN":
+    parser.error("sequence is not a Dawn prepared-sequence file")
+sequence_format, payload_bytes = struct.unpack_from("<II", payload, 4)
+if payload_bytes != len(payload) - 16:
+    parser.error("sequence payload length does not match its header")
+expected = []
+if args.checksums is not None:
+    expected = [tuple(map(int, line.split())) for line in args.checksums.read_text().splitlines()]
+    if not expected or any(len(frame) != 2 or any(value < 0 or value > 0xFFFFFFFF for value in frame) for frame in expected):
+        parser.error("checksum files must contain nonempty rows of unsigned 32-bit tick and checksum pairs")
+if args.elf is not None:
+    logging.info("elf_sha256=%s", hashlib.sha256(args.elf.read_bytes()).hexdigest())
 logging.info(
     "payload_bytes=%s payload_sha256=%s transport=http",
     len(payload),
@@ -180,6 +190,22 @@ def upload(data, status=200, prefix="LOADED "):
     logging.info(response)
 
 
+status, response = request("GET", "/capabilities", b"")
+if status != 200:
+    raise RuntimeError(f"Device capabilities failed with HTTP {status}: {response!r}")
+capabilities = json.loads(response)
+if capabilities["sequenceFormat"] != sequence_format:
+    raise RuntimeError(
+        f"Device accepts sequence format {capabilities['sequenceFormat']}; "
+        f"this file uses {sequence_format}. Rebuild the firmware and re-export the sequence together."
+    )
+if payload_bytes > capabilities["maxPayloadBytes"]:
+    raise RuntimeError(
+        f"Sequence payload is {payload_bytes} bytes; device limit is "
+        f"{capabilities['maxPayloadBytes']} bytes. Export fewer outputs or simplify the sequence."
+    )
+logging.info("CAPABILITIES %s", json.dumps(capabilities, sort_keys=True))
+
 for _ in range(args.uploads):
     start = time.monotonic()
     upload(payload)
@@ -247,7 +273,10 @@ for ticks, checksum in expected * args.repeat:
     ), line
     logging.info(line)
 
-logging.info("VERIFIED %s frames; zero evaluation allocations", len(expected) * args.repeat)
+if args.checksums is not None:
+    logging.info("VERIFIED %s frames; zero evaluation allocations", len(expected) * args.repeat)
+else:
+    logging.info("UPLOADED sequence; frame checksum verification was not requested")
 connection.close()
 
 if args.monitor_seconds:

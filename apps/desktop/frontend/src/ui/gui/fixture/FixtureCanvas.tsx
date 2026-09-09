@@ -3,7 +3,6 @@ import { commands } from "../../../api";
 import type { GuiDocumentRequest, PropDocument } from "../../../types";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
-import { BlockedGui } from "../BlockedGui";
 import { denormalizePoint, drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, round6, unproject, type GuiFocus, type Point3 } from "../shared";
 import { SpatialControls, useSpacePressed, useSpatialViewport } from "../SpatialViewport";
 
@@ -15,7 +14,7 @@ function distanceToSegment(point: Point3, from: Point3, to: Point3) {
   return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
 }
 
-function pointNearGuide(point: Point3, fixture: PropDocument["fixtures"][number], hitRadius: number) {
+function pointNearGuide(point: Point3, fixture: PropDocument["fixture"], hitRadius: number) {
   if (fixture.renderPlan.guides.some((guide) => guide.type === "line" && distanceToSegment(point, normalizePoint(guide.from), normalizePoint(guide.to)) <= hitRadius)) return true;
   if (fixture.geometry.type === "arc") {
     const emitters = fixture.renderPlan.emitters.map(normalizePoint);
@@ -31,7 +30,7 @@ type Gesture =
   | { type: "empty"; x: number; y: number }
   | { type: "pan"; x: number; y: number }
   | { type: "box"; x: number; y: number; currentX: number; currentY: number }
-  | { type: "point"; objectKey: string; pointIndex: number; draft: Point3 }
+  | { type: "point"; pointIndex: number; draft: Point3 }
   | null;
 
 export function FixtureCanvas({ document, selected, setSelected }: { document: PropDocument; selected: GuiFocus; setSelected: (id: GuiFocus) => void }) {
@@ -44,13 +43,12 @@ export function FixtureCanvas({ document, selected, setSelected }: { document: P
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoveredGeometry, setHoveredGeometry] = useState(false);
-  const fixture = document.fixtures.find((candidate) => candidate.objectKey === document.selectedObjectKey) ?? document.fixtures[0];
-  const bounds = useMemo(() => fixture === undefined ? null : normalizeBounds(fixture.renderPlan.bounds), [fixture]);
-  const spatial = useSpatialViewport(bounds ?? { minX: 0, minY: 0, maxX: 1, maxY: 1 }, fixture?.objectKey, `${document.path}:${fixture?.objectKey ?? ""}`);
+  const fixture = document.fixture;
+  const bounds = useMemo(() => normalizeBounds(fixture.renderPlan.bounds), [fixture]);
+  const spatial = useSpatialViewport(bounds, fixture.objectKey, `${document.path}:${fixture.objectKey}`);
   const spacePressed = useSpacePressed();
 
   useEffect(() => {
-    if (!fixture || !bounds) return;
     const rect = canvas.current?.getBoundingClientRect(); if (rect) spatial.resize(rect.width, rect.height);
     drawSpatialCanvas(canvas.current, bounds, (ctx, project) => {
       const geometrySelected = selectedIndices.size > 0 || selected?.type === "point";
@@ -120,7 +118,6 @@ export function FixtureCanvas({ document, selected, setSelected }: { document: P
     }, spatial.view);
   }, [bounds, fixture, hoveredGeometry, hoveredIndex, revision, selected, selectedIndices, spatial]);
 
-  if (!fixture || !bounds) return <BlockedGui reason="No fixture definition is available." diagnostics={[]} />;
   const worldAt = (event: ReactPointerEvent<HTMLCanvasElement>) => { const rect = event.currentTarget.getBoundingClientRect(); return unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view); };
   return <div className="spatial-canvas-shell">
     <canvas ref={canvas} className="gui-canvas" tabIndex={0}
@@ -137,7 +134,7 @@ export function FixtureCanvas({ document, selected, setSelected }: { document: P
           if (index !== null) {
             const point = points[index];
             if (point) {
-              setSelectedIndices(new Set([index])); setSelected({ type: "point", index }); gesture.current = { type: "point", objectKey: fixture.objectKey, pointIndex: index, draft: point };
+              setSelectedIndices(new Set([index])); setSelected({ type: "point", index }); if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) return; gesture.current = { type: "point", pointIndex: index, draft: point };
               return;
             }
           }
@@ -164,7 +161,7 @@ export function FixtureCanvas({ document, selected, setSelected }: { document: P
         if (current?.type === "point") {
           pendingDraft.current = { pointIndex: current.pointIndex, draft: current.draft };
           render((value) => value + 1);
-          void runGuiEditCommand((request) => commands.applyPropGuiEdit(request, { type: "movePoint", objectKey: current.objectKey, pointIndex: current.pointIndex, point: denormalizePoint(current.draft) }), gestureRequest.current).finally(() => {
+          void runGuiEditCommand((request) => commands.applyPropGuiEdit(request, { type: "movePoint", pointIndex: current.pointIndex, point: denormalizePoint(current.draft) }), gestureRequest.current).finally(() => {
             pendingDraft.current = null;
             render((value) => value + 1);
           });

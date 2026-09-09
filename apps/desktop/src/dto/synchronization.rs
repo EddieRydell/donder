@@ -52,6 +52,10 @@ pub enum WorkspaceTransition {
         parent_path: String,
         directory_name: String,
     },
+    CopyProject {
+        parent_path: String,
+        directory_name: String,
+    },
     CloseApplication,
 }
 
@@ -97,4 +101,11 @@ pub enum TransitionResult {
 pub enum ExternalConflictDecision {
     Reload,
     KeepWorkingCopy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentSaveStatus {
+    pub path: String,
+    pub state: DocumentSaveState,
 }

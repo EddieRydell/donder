@@ -1,0 +1,36 @@
+main:
+  type: sequence
+  duration: 60s
+  frame_rate: 60
+  audio: null
+  mark_collections:
+  - key: marks
+    name: Marks
+    color: '#38bdf8'
+    marks: []
+  layers:
+  - id: 0
+    name: Default
+    color: '#38bdf8'
+    enabled: true
+  effects: []
+  composition_graph:
+    nodes:
+    - id: 1
+      position:
+        x: 80.0
+        y: 80.0
+      type: layer
+      layer_id: 0
+    - id: 2
+      position:
+        x: 420.0
+        y: 80.0
+      type: output
+    edges:
+    - from: 1
+      from_port: output
+      to: 2
+      to_port: input
+  automation_clips: []
+  control_clips: []

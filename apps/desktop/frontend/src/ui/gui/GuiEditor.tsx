@@ -1,3 +1,7 @@
+import { AddLightForm } from "./layout/AddLightForm";
+import { ElementTreeEditor } from "./elements/ElementTreeEditor";
+import { commands } from "../../api";
+import { runGuiEditCommand } from "../../store";
 import { useEffect, useState } from "react";
 
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
@@ -23,18 +27,31 @@ import { markSelectionConsumesKey } from "./sequence/sequenceSelection";
 import { WorkspaceResizeHandle } from "../WorkspaceResizeHandle";
 import { OPEN_LAYER_GRAPH_EVENT } from "../uiEvents";
 import { SetupEditor } from "./setup/SetupEditor";
+import { ProjectEditor } from "./project/ProjectEditor";
+import { LibraryEditor } from "./library/LibraryEditor";
+import { ControllerEditor } from "./controller/ControllerEditor";
+import { PatchEditor } from "./patch/PatchEditor";
+import { FixtureProfileEditor } from "./fixtureProfile/FixtureProfileEditor";
 
 const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
 
-export function GuiEditor({
+export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
+  const readOnly = props.snapshot.activeBuffer?.readOnly ?? false;
+  const gui = props.guiDocument;
+  const key = gui !== null && gui.type !== "blocked" ? guiEditorKey(props.snapshot.activeFile, gui) : "unavailable";
+  return <div className="resource-editor-frame">
+    {readOnly && <p className="resource-editor-readonly">Dependency source — read only</p>}
+    <fieldset className="resource-editor-content" disabled={readOnly}><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
+  </div>;
+}
+
+function ResourceEditor({
   guiDocument,
-  snapshot,
   workspaceLayout,
   onWorkspaceLayoutChange,
   sequenceSelection,
-  setSequenceSelection,
-  resetRevision
+  setSequenceSelection
 }: {
   guiDocument: GuiDocument | null;
   snapshot: AppStaticSnapshot;
@@ -52,14 +69,30 @@ export function GuiEditor({
   if (gui.type === "blocked") {
     return <BlockedGui reason={gui.reason} diagnostics={gui.diagnostics} />;
   }
+  if (gui.type === "elementTree") {
+    return <ElementTreeEditor document={gui.document} onEdit={(edit) => runGuiEditCommand((request) => commands.applyElementTreeGuiEdit(request, edit))} />;
+  }
   if (gui.type === "setup") {
     return <SetupEditor document={gui.document} />;
   }
+  if (gui.type === "project") {
+    return <ProjectEditor document={gui.document} />;
+  }
+  if (gui.type === "curve" || gui.type === "gradient") {
+    return <LibraryEditor gui={gui} />;
+  }
+  if (gui.type === "controller") {
+    return <ControllerEditor document={gui.document} />;
+  }
+  if (gui.type === "patch") {
+    return <PatchEditor document={gui.document} />;
+  }
+  if (gui.type === "fixtureProfile") {
+    return <FixtureProfileEditor document={gui.document} />;
+  }
 
-  const editorKey = `${guiEditorKey(snapshot.activeFile, gui)}:${resetRevision}`;
   return (
     <GuiEditorInner
-      key={editorKey}
       gui={gui}
       workspaceLayout={workspaceLayout}
       onWorkspaceLayoutChange={onWorkspaceLayoutChange}
@@ -119,9 +152,9 @@ function GuiEditorInner({
 
   useEffect(
     () => () => {
-      setCompositionGraphOpen(false);
+      if (gui.type === "sequence") setCompositionGraphOpen(false);
     },
-    [setCompositionGraphOpen]
+    [gui.type, setCompositionGraphOpen]
   );
 
   return (
@@ -147,7 +180,7 @@ function GuiEditorInner({
     >
       {gui.type === "sequence" && (
         <SequenceEditor
-          key={`${gui.document.path}:${gui.document.objectKey}`}
+         
           document={gui.document}
           selected={selected}
           setSelected={setSelected}
@@ -163,7 +196,10 @@ function GuiEditorInner({
           setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
         />
       )}
-      {gui.type === "preview" && <LayoutCanvas document={gui.document} selected={selected} setSelected={setSelected} />}
+      {gui.type === "preview" && <div className="layout-authoring">
+        <aside className="layout-hierarchy"><details><summary>Add light</summary><AddLightForm document={gui.document} /></details><ElementTreeEditor document={gui.document.hierarchy} onEdit={(edit) => runGuiEditCommand((request) => commands.applyPreviewGuiEdit(request, { type: "editElements", edit }))} /></aside>
+        <LayoutCanvas document={gui.document} selected={selected} setSelected={setSelected} />
+      </div>}
       {gui.type === "prop" && (
         <FixtureCanvas document={gui.document} selected={selected} setSelected={setSelected} />
       )}
@@ -205,11 +241,18 @@ function GuiEditorInner({
 
 function guiEditorKey(activeFile: string | null, gui: ReadyGuiDocument) {
   switch (gui.type) {
+    case "project":
     case "sequence":
     case "preview":
+    case "elementTree":
     case "setup":
+    case "curve":
+    case "gradient":
+    case "controller":
+    case "patch":
+    case "fixtureProfile":
       return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.objectKey}`;
     case "prop":
-      return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.selectedObjectKey ?? ""}`;
+      return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.fixture.objectKey}`;
   }
 }

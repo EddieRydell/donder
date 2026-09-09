@@ -41,7 +41,6 @@ import type {
 } from "../types";
 import type { AppStaticSnapshot } from "../store";
 import { buildSemanticTree, type WorkspaceTreeNode } from "./helpers";
-import { navigateToText } from "./navigation";
 
 type InlineEdit =
   | { mode: "createFile" | "createDirectory"; parent: string; value: string; error: string | null }
@@ -144,7 +143,7 @@ export function ExplorerView({
               saveExplorer({ ...explorer, expandedPaths: [...expanded].sort() });
             }}
             onActivate={(node) => {
-              if (node.data.kind === "file") void navigateToText(node.data.path, null);
+              if (node.data.kind === "file") void runSnapshotCommand(() => commands.openFile(node.data.path));
             }}
             disableDrag={(node) => !hasOperation(node, "move")}
             disableDrop={({ parentNode }) =>

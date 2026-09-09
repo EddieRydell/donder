@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/dawn-runtime", "crates/dawn-language", "crates/dawn-elaboration", "crates/dawn-output", "crates/dawn-project-io", "crates/dawn-package", "crates/dawn-cli"]
+members = ["apps/desktop", "crates/dawn-runtime", "crates/dawn-language", "crates/dawn-elaboration", "crates/dawn-output", "crates/dawn-project-io", "crates/dawn-package", "crates/dawn-cli", "crates/dawn-device-storage"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -44,6 +44,9 @@ reqwest = { version = "0.13.4", default-features = false, features = ["blocking"
 semver = { version = "1.0.28", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1"
+serialport = { version = "4.10.0", default-features = false }
+espflash = { version = "4.5.0", default-features = false, features = ["serialport"] }
+esp-idf-part = "0.6.0"
 serde_path_to_error = "0.1.20"
 sha2 = "0.11.0"
 spdx = "0.13.5"

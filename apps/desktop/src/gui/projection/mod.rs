@@ -1,10 +1,8 @@
 mod params;
-use crate::gui::selection::effect_lane_index_resolved;
 use params::{
-    automation_mapping_to_gui, curve_library, effect_params, fixture_source_ref, gradient_library,
-    graph_node_id, graph_operator_definition_to_gui, param_kind, sequence_composition_graph_node,
+    automation_mapping_to_gui, curve_library, effect_params, gradient_library, graph_node_id,
+    graph_operator_definition_to_gui, param_kind, sequence_composition_graph_node,
 };
-pub(super) use params::{default_param_value, effect_param_value};
 
 pub(super) fn project_sequence(
     session: &ProjectSession,
@@ -103,45 +101,22 @@ pub(super) fn project_sequence(
             })
             .collect(),
     };
-    let control_clips = match sequence
+    let control_channels = match super::controls::channels(session) {
+        Ok(channels) => channels,
+        Err(message) => return blocked(&message, Vec::new()),
+    };
+    let control_clips = sequence
         .control_clips
         .iter()
-        .map(|clip| {
-            let lane_index = effect_lane_index_resolved(session, clip.target.selection())
-                .ok_or(clip.id.0)? as u32;
-            Ok(SequenceControlClip {
-                id: clip.id.0,
-                start_seconds: clip.start.as_seconds_f32(),
-                duration_seconds: clip.duration.as_seconds_f32(),
-                anchor_lane_index: lane_index,
-                lane_index,
-                target: effect_target(clip.target.selection()),
-                target_label: effect_target_label(session, clip.target.selection()),
-                control_type: match &clip.target {
-                    dawn_language::control::ControlTarget::Scalar(_) => "scalar".to_string(),
-                    dawn_language::control::ControlTarget::Indexed(_) => "indexed".to_string(),
-                    dawn_language::control::ControlTarget::FixtureFunction { function, .. } => {
-                        format!("fixture function {}", function.0)
-                    }
-                },
-                value: format!("{:?}", clip.value),
-            })
+        .map(|clip| SequenceControlClip {
+            id: clip.id.0,
+            start_seconds: clip.start.as_seconds_f32(),
+            duration_seconds: clip.duration.as_seconds_f32(),
+            target: super::controls::project_target(&clip.target),
+            target_label: effect_target_label(session, clip.target.selection()),
+            value: super::controls::project_value(&clip.value),
         })
-        .collect::<Result<Vec<_>, u32>>()
-    {
-        Ok(clips) => clips,
-        Err(id) => {
-            let message = format!("Control clip {id} does not resolve to a sequence lane.");
-            return blocked(
-                &message,
-                vec![gui_diagnostic(
-                    resolved.identity.document().as_ref(),
-                    "gui.sequence.control_target",
-                    &message,
-                )],
-            );
-        }
-    };
+        .collect();
     GuiDocument::Sequence {
         document: SequenceGuiDocument {
             path: resolved.identity.document().to_string(),
@@ -181,6 +156,7 @@ pub(super) fn project_sequence(
                 .collect(),
             effects,
             control_clips,
+            control_channels,
             composition_graph,
             automation_clips: automation_clips(sequence),
         },
@@ -262,57 +238,60 @@ pub(super) fn project_layout(
             Vec::new(),
         );
     };
-    let fixtures = layout
-        .props
-        .iter()
-        .map(|fixture| {
-            let definition_ref = fixture_source_ref(&fixture.definition);
-            let resolved_fixture = session
-                .project
-                .definitions
-                .props
-                .definitions
-                .get(&fixture.definition)
-                .map(|definition| ResolvedPreviewProp {
-                    name: fixture.definition.0.object().to_string(),
-                    color_model: "rgb".to_string(),
-                    bulb_diameter_meters: definition.bulb_radius.as_meters_f32() * 2.0,
-                    geometry_summary: geometry_summary(&definition.geometry),
-                    render_plan: render_plan(&definition.geometry, definition.bulb_radius),
-                    source_path: definition_ref
-                        .as_ref()
-                        .map(|source_ref| source_ref.path.clone())
-                        .unwrap_or_default(),
-                    object_key: definition_ref.map(|source_ref| source_ref.object_key),
-                })
-                .unwrap_or_else(empty_resolved_fixture);
-            PreviewPropPlacement {
-                source_ref: GuiObjectRef {
-                    module_id: resolved.identity.module_id().to_string(),
-                    path: resolved.identity.document().to_string(),
-                    object_key: resolved.identity.object().to_string(),
-                    kind: ObjectKind::Prop,
-                    id: fixture.id.0.to_string(),
-                },
-                id: fixture.id.0,
-                name: fixture.name.clone(),
-                transform: Transform {
-                    position: point3_meters(fixture.position),
-                    rotation: Rotation3Degrees {
-                        x_degrees: fixture.rotation.x,
-                        y_degrees: fixture.rotation.y,
-                        z_degrees: fixture.rotation.z,
-                    },
-                    scale: Scale3 {
-                        x: fixture.scale.x,
-                        y: fixture.scale.y,
-                        z: fixture.scale.z,
-                    },
-                },
-                resolved_fixture,
+    let hierarchy = match super::elements::project_tree(session, &layout.element_tree) {
+        Ok(hierarchy) => hierarchy,
+        Err(error) => return blocked(error.message(), Vec::new()),
+    };
+    let mut fixtures = Vec::new();
+    for fixture in &layout.props {
+        let Some(definition) = session
+            .project
+            .definitions
+            .props
+            .definitions
+            .get(&fixture.definition)
+        else {
+            return blocked("Layout fixture definition was not found.", Vec::new());
+        };
+        let resolved_fixture = ResolvedPreviewProp {
+            name: fixture.definition.0.object().to_string(),
+            color_model: "rgb".to_string(),
+            bulb_diameter_meters: definition.bulb_radius.as_meters_f32() * 2.0,
+            geometry_summary: geometry_summary(&definition.geometry),
+            render_plan: render_plan(&definition.geometry, definition.bulb_radius),
+        };
+        fixtures.push(PreviewPropPlacement {
+            definition_ref: ResolvedGuiObject {
+                identity: fixture.definition.0.clone(),
+                kind: SourceObjectKind::PropDefinition,
             }
-        })
-        .collect::<Vec<_>>();
+            .source_ref(),
+            bindings: fixture
+                .bindings
+                .iter()
+                .map(|binding| crate::dto::SetupElementCell {
+                    node: binding.node.0,
+                    cell: binding.cell,
+                })
+                .collect(),
+            id: fixture.id.0,
+            name: fixture.name.clone(),
+            transform: Transform {
+                position: point3_meters(fixture.position),
+                rotation: Rotation3Degrees {
+                    x_degrees: fixture.rotation.x,
+                    y_degrees: fixture.rotation.y,
+                    z_degrees: fixture.rotation.z,
+                },
+                scale: Scale3 {
+                    x: fixture.scale.x,
+                    y: fixture.scale.y,
+                    z: fixture.scale.z,
+                },
+            },
+            resolved_fixture,
+        });
+    }
     let render_bounds = layout_bounds(&fixtures);
     GuiDocument::Preview {
         document: PreviewGuiDocument {
@@ -322,6 +301,15 @@ pub(super) fn project_layout(
             name: resolved.identity.object().to_string(),
             render_bounds,
             fixtures,
+            hierarchy,
+            available_fixtures: session
+                .project
+                .definitions
+                .props
+                .definitions
+                .keys()
+                .map(|id| super::patch::object_ref(&id.0, SourceObjectKind::PropDefinition))
+                .collect(),
         },
     }
 }
@@ -330,49 +318,28 @@ pub(super) fn project_fixture(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let fixtures = session
-        .source
-        .documents
-        .get(resolved.identity.document_id())
-        .into_iter()
-        .flat_map(|document| document.objects())
-        .filter(|object| object.kind() == &SourceObjectKind::PropDefinition)
-        .filter_map(|object| {
-            let definition_id = PropDefinitionId(SourceIdentity::from_document(
-                resolved.identity.document_id().clone(),
-                object.id().to_string(),
-            ));
-            let definition = session
-                .project
-                .definitions
-                .props
-                .definitions
-                .get(&definition_id)?;
-            let source_ref = GuiObjectRef {
-                module_id: resolved.identity.module_id().to_string(),
-                path: resolved.identity.document().to_string(),
-                object_key: object.id().to_string(),
-                kind: ObjectKind::Prop,
-                id: object.id().to_string(),
-            };
-            Some(PropDefinition {
-                source_ref,
-                object_key: object.id().to_string(),
-                name: object.id().to_string(),
+    let Some(definition) = session
+        .project
+        .definitions
+        .props
+        .definitions
+        .get(&PropDefinitionId(resolved.identity.clone()))
+    else {
+        return blocked("Fixture definition was not found.", Vec::new());
+    };
+    GuiDocument::Prop {
+        document: PropGuiDocument {
+            path: resolved.identity.document().to_string(),
+            fixture: PropDefinition {
+                source_ref: resolved.source_ref(),
+                object_key: resolved.identity.object().to_string(),
+                name: resolved.identity.object().to_string(),
                 color_model: "rgb".to_string(),
                 bulb_diameter_meters: definition.bulb_radius.as_meters_f32() * 2.0,
                 geometry: geometry(&definition.geometry),
                 geometry_summary: geometry_summary(&definition.geometry),
                 render_plan: render_plan(&definition.geometry, definition.bulb_radius),
-            })
-        })
-        .collect::<Vec<_>>();
-    GuiDocument::Prop {
-        document: PropGuiDocument {
-            path: resolved.identity.document().to_string(),
-            source_ref: Some(resolved.source_ref()),
-            selected_object_key: Some(resolved.identity.object().to_string()),
-            fixtures,
+            },
         },
     }
 }
@@ -533,27 +500,23 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
 use dawn_language::dsl::EffectKind;
 use dawn_language::effect::{BuiltinEffect, EffectRef, EffectScope};
 use dawn_language::element::{ElementNodeId, ElementNodeKind, ElementSelection, ElementTree};
-use dawn_language::identity::SourceIdentity;
 use dawn_language::operator::{BuiltinOperator, OperatorRef};
 use dawn_language::preview::{PreviewLayoutId, PropDefinitionId};
 use dawn_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use dawn_project_io::{ProjectSession, SourceObjectKind};
 
-use self::geometry::{
-    empty_resolved_fixture, geometry, geometry_summary, layout_bounds, render_plan,
-};
+use self::geometry::{geometry, geometry_summary, layout_bounds, render_plan};
 use super::{ResolvedGuiObject, blocked, gui_diagnostic};
 use crate::dto::{
-    ElementTarget, ElementTargetKind, GuiDocument, GuiObjectRef, ObjectKind, PreviewGuiDocument,
-    PreviewPropPlacement, PropDefinition, PropGuiDocument, ResolvedPreviewProp, Rotation3Degrees,
-    Scale3, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceBuiltinEffect,
-    SequenceCompositionGraph, SequenceControlClip, SequenceCurvePoint,
-    SequenceDetachedAutomationBinding, SequenceEffect, SequenceEffectDefinition,
-    SequenceEffectDefinitionKind, SequenceEffectDefinitionParam, SequenceEffectReference,
-    SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLayer,
-    SequenceMarkCollection, SequenceTimelineClipKind, Transform,
+    ElementTarget, ElementTargetKind, GuiDocument, PreviewGuiDocument, PreviewPropPlacement,
+    PropDefinition, PropGuiDocument, ResolvedPreviewProp, Rotation3Degrees, Scale3, SequenceAudio,
+    SequenceAutomationBinding, SequenceAutomationClip, SequenceAutomationDetachmentReason,
+    SequenceAutomationTarget, SequenceBuiltinEffect, SequenceCompositionGraph, SequenceControlClip,
+    SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
+    SequenceEffectDefinition, SequenceEffectDefinitionKind, SequenceEffectDefinitionParam,
+    SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument,
+    SequenceLane, SequenceLayer, SequenceMarkCollection, SequenceTimelineClipKind, Transform,
 };
 use crate::preview::point3_meters;
 
-mod geometry;
+pub(super) mod geometry;

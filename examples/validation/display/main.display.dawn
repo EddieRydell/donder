@@ -1,0 +1,8 @@
+elements:
+  type: element_tree
+  roots: []
+  nodes: []
+preview:
+  type: preview_layout
+  element_tree: elements
+  props: []

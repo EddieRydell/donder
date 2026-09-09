@@ -45,7 +45,35 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn setup_projection_contains_all_five_sections() {
+    fn project_projection_lists_setup_and_sequences() {
+        let session = starter();
+        let descriptor =
+            crate::desktop_state::descriptor_for_path(&session, Utf8Path::new("project.dawn"))
+                .unwrap();
+        assert!(
+            descriptor
+                .available_views
+                .contains(&DocumentViewId::Project)
+        );
+        let request = GuiDocumentRequest {
+            project_revision: 0,
+            path: "project.dawn".to_string(),
+            view: DocumentViewId::Project,
+            object_key: Some("starter".to_string()),
+        };
+        let GuiDocument::Project { document } =
+            crate::gui::project_gui_document(Some(&session), &request)
+        else {
+            panic!("project projection was blocked");
+        };
+        assert_eq!(document.setup.path, "setups/main.setup.dawn");
+        assert_eq!(document.setup.object_key, "main");
+        assert_eq!(document.sequences.len(), 2);
+        assert_eq!(document.sequences[0].path, "sequences/empty.sequence.dawn");
+    }
+
+    #[test]
+    fn setup_projection_identifies_its_composed_objects() {
         let session = starter();
         let request = GuiDocumentRequest {
             project_revision: 0,
@@ -58,11 +86,43 @@ pub(crate) mod tests {
         else {
             panic!("setup projection was blocked");
         };
+        assert_eq!(document.elements_ref.object_key, "outputs_elements");
+        assert_eq!(document.preview_ref.object_key, "outputs_preview");
+        assert_eq!(document.patch_ref.object_key, "outputs");
         assert!(!document.elements.is_empty());
         assert!(!document.preview_links.is_empty());
+        assert_eq!(
+            document.preview_links[0].definition_ref.path,
+            "fixtures/vertical.fixture.dawn"
+        );
         assert!(!document.patch_nodes.is_empty());
         assert!(!document.controllers.is_empty());
         assert_eq!(document.fixture_profiles.len(), 0);
+
+        for (reference, view) in [
+            (&document.elements_ref, DocumentViewId::ElementTree),
+            (&document.patch_ref, DocumentViewId::Patch),
+            (
+                &document.controllers[0].source_ref,
+                DocumentViewId::Controller,
+            ),
+        ] {
+            let projection = crate::gui::project_gui_document(
+                Some(&session),
+                &GuiDocumentRequest {
+                    project_revision: 0,
+                    path: reference.path.clone(),
+                    view: view.clone(),
+                    object_key: Some(reference.object_key.clone()),
+                },
+            );
+            assert!(matches!(
+                (view, projection),
+                (DocumentViewId::ElementTree, GuiDocument::ElementTree { .. })
+                    | (DocumentViewId::Patch, GuiDocument::Patch { .. })
+                    | (DocumentViewId::Controller, GuiDocument::Controller { .. })
+            ));
+        }
     }
 
     #[test]

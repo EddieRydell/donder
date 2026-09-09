@@ -2,6 +2,46 @@ use super::*;
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn sequence_export_ports(
+    request: GuiDocumentRequest,
+    state: State<'_, DesktopState>,
+) -> Result<Vec<crate::dto::SequenceExportPort>, String> {
+    state.sequence_export_ports(&request)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn export_sequence_file(
+    request: GuiDocumentRequest,
+    outputs: Vec<u32>,
+    state: State<'_, DesktopState>,
+) -> Result<Option<String>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = state.prepare_sequence_export(&request, &outputs)?;
+        let Some(path) = rfd::FileDialog::new()
+            .set_title("Export compiled sequence")
+            .add_filter("Dawn compiled sequence", &["dawnseq"])
+            .set_file_name("sequence.dawnseq")
+            .save_file()
+        else {
+            return Ok(None);
+        };
+        let path =
+            camino::Utf8PathBuf::from_path_buf(path).map_err(|_| "Choose a UTF-8 file path.")?;
+        if path.extension() != Some("dawnseq") {
+            return Err("Export files must use the .dawnseq extension.".into());
+        }
+        dawn_package::atomic_write(&path, &bytes)
+            .map_err(|error| format!("Could not save exported sequence: {error}"))?;
+        Ok(Some(path.to_string()))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn get_gui_document(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
@@ -141,4 +181,115 @@ pub(crate) fn choose_sequence_audio(
             },
         },
     )
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn device_capabilities(
+    address: String,
+    token: String,
+) -> Result<crate::dto::DeviceCapabilities, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::device::DeviceClient::new(&address, &token)?.capabilities()
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn device_transport(
+    address: String,
+    token: String,
+    mode: Option<crate::dto::DevicePlaybackMode>,
+) -> Result<crate::dto::DeviceTransportStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::device::DeviceClient::new(&address, &token)?.transport(mode)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn upload_sequence_device(
+    request: GuiDocumentRequest,
+    outputs: Vec<u32>,
+    address: String,
+    token: String,
+    state: State<'_, DesktopState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let client = crate::device::DeviceClient::new(&address, &token)?;
+        let available = state.sequence_export_ports(&request)?;
+        let widths = outputs
+            .iter()
+            .map(|index| {
+                available
+                    .iter()
+                    .find(|port| port.index == *index)
+                    .map(|port| port.channels)
+                    .ok_or("Selected output is unavailable.")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let bytes = state.prepare_sequence_export(&request, &outputs)?;
+        client.upload(bytes, &widths)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn device_serial_ports() -> Result<Vec<crate::dto::DeviceSerialPort>, String> {
+    tauri::async_runtime::spawn_blocking(crate::device::provisioning::ports)
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn device_firmware_info() -> Result<crate::dto::DeviceFirmwareInfo, String> {
+    crate::device::firmware::info()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn install_device_firmware(
+    port: String,
+    progress: tauri::ipc::Channel<crate::dto::DeviceInstallProgress>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::device::firmware::install(&port, |state| {
+            // A disconnected UI must not interrupt a flash write.
+            let _ = progress.send(state);
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn erase_device_saved_data(port: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::device::provisioning::erase_saved_data(&port)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn provision_device(
+    port: String,
+    ssid: String,
+    password: String,
+) -> Result<crate::dto::ProvisionedDevice, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::device::provisioning::provision(&port, &ssid, &password)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }

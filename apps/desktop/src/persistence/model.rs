@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::dto::{AppSettings, AppSnapshot, WorkspaceExplorerState, WorkspaceLayoutState};
@@ -15,7 +15,7 @@ pub struct PersistedEditorViewState {
     pub scroll_top: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSequenceViewportState {
     pub px_per_second: f32,
@@ -24,35 +24,6 @@ pub struct PersistedSequenceViewportState {
     pub scroll_y: f32,
     pub active_mark_collection_key: Option<String>,
     pub visible_mark_collection_keys: Vec<String>,
-}
-
-impl<'de> Deserialize<'de> for PersistedSequenceViewportState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct WireState {
-            px_per_second: f32,
-            #[serde(default)]
-            row_heights: BTreeMap<String, f32>,
-            scroll_x_seconds: f32,
-            scroll_y: f32,
-            active_mark_collection_key: Option<String>,
-            visible_mark_collection_keys: Vec<String>,
-        }
-
-        let state = WireState::deserialize(deserializer)?;
-        Ok(Self {
-            px_per_second: state.px_per_second,
-            row_heights: state.row_heights,
-            scroll_x_seconds: state.scroll_x_seconds,
-            scroll_y: state.scroll_y,
-            active_mark_collection_key: state.active_mark_collection_key,
-            visible_mark_collection_keys: state.visible_mark_collection_keys,
-        })
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

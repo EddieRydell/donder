@@ -12,10 +12,12 @@ pub(crate) fn generated_source_texts(
 ) -> Result<BTreeMap<String, String>, String> {
     let mut texts = BTreeMap::new();
     for path in paths {
-        let id = session
+        let Some(id) = session
             .source
             .document_for_workspace_path(Utf8Path::new(path))
-            .ok_or_else(|| format!("No source document owns {path}"))?;
+        else {
+            continue;
+        };
         if let Some(text) = source_document_text(session, &id).map_err(|error| error.to_string())? {
             texts.insert(path.clone(), text);
         }
@@ -27,10 +29,7 @@ pub(crate) fn descriptor_for_path(
     session: &ProjectSession,
     path: &Utf8Path,
 ) -> Option<DocumentDescriptor> {
-    super::absolute_project_path(session, path)?;
-    let document = session
-        .source
-        .document_for_workspace_path(path)
+    let document = crate::source_documents::document_for_editor_path(session, path)
         .and_then(|id| session.source.documents.get(&id));
     let objects: Vec<_> = document
         .into_iter()
@@ -40,7 +39,7 @@ pub(crate) fn descriptor_for_path(
             kind: ObjectKind::from(object.kind()),
         })
         .collect();
-    let default_object_keys: Vec<_> = objects
+    let mut default_object_keys: Vec<_> = objects
         .iter()
         .filter_map(|object| {
             object
@@ -52,6 +51,20 @@ pub(crate) fn descriptor_for_path(
                 })
         })
         .collect();
+    default_object_keys.sort_by_key(|object| match object.view {
+        DocumentViewId::Project => 0,
+        DocumentViewId::Sequence => 1,
+        DocumentViewId::Setup => 2,
+        DocumentViewId::Preview => 3,
+        DocumentViewId::Prop => 4,
+        DocumentViewId::ElementTree => 5,
+        DocumentViewId::FixtureProfile => 6,
+        DocumentViewId::Patch => 7,
+        DocumentViewId::Controller => 8,
+        DocumentViewId::Curve => 9,
+        DocumentViewId::Gradient => 10,
+        DocumentViewId::Text => 11,
+    });
     let mut available_views = vec![DocumentViewId::Text];
     for object in &default_object_keys {
         if !available_views.contains(&object.view) {

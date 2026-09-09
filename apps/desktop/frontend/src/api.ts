@@ -1,6 +1,7 @@
 import { commands as generatedCommands } from "./generated/bindings";
 import type {
   PropGuiEdit,
+  ElementTreeGuiEdit,
   GuiDocumentRequest,
   PreviewGuiEdit,
   SetupGuiEdit,
@@ -9,6 +10,12 @@ import type {
 
 export const commands = {
   ...generatedCommands,
+  resolveGuiSource: async (moduleId: string, path: string, objectKey: string) =>
+    unwrapResult(await generatedCommands.resolveGuiSource(moduleId, path, objectKey)),
+  setLiveOutputActive: async (active: boolean) =>
+    unwrapResult(await generatedCommands.setLiveOutputActive(active)),
+  startOutputTest: async (request: GuiDocumentRequest, test: import("./types").ControllerOutputTest) =>
+    unwrapResult(await generatedCommands.startOutputTest(request, test)),
   searchProject: async (request: import("./types").ProjectSearchRequest) =>
     unwrapResult(await generatedCommands.searchProject(request)),
   planWorkspacePathChange: async (request: import("./types").WorkspacePathChangeRequest) =>
@@ -24,6 +31,8 @@ export const commands = {
     unwrapResult(await generatedCommands.resolveExternalConflict(epoch, path, revision, decision)),
   applySequenceGuiEdit: (request: GuiDocumentRequest, edit: SequenceGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "sequence", edit }),
+  applyElementTreeGuiEdit: (request: GuiDocumentRequest, edit: ElementTreeGuiEdit) =>
+    generatedCommands.applyGuiEdit(request, { type: "elementTree", edit }),
   applySetupGuiEdit: (request: GuiDocumentRequest, edit: SetupGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "setup", edit }),
   applyPreviewGuiEdit: (request: GuiDocumentRequest, edit: PreviewGuiEdit) =>

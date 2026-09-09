@@ -266,6 +266,32 @@ pub struct Gradient {
     pub stops: Vec<GradientStop>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GradientValidationError {
+    Empty,
+    InvalidPosition,
+    PositionsOutOfOrder,
+}
+
+impl Gradient {
+    pub fn validate(&self) -> Result<(), GradientValidationError> {
+        if self.stops.is_empty() {
+            return Err(GradientValidationError::Empty);
+        }
+        let mut previous = 0.0;
+        for stop in &self.stops {
+            if !stop.position.is_finite() || !(0.0..=1.0).contains(&stop.position) {
+                return Err(GradientValidationError::InvalidPosition);
+            }
+            if stop.position < previous {
+                return Err(GradientValidationError::PositionsOutOfOrder);
+            }
+            previous = stop.position;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct GradientStop {
     pub position: f32,

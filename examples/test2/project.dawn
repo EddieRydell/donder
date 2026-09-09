@@ -1,0 +1,14 @@
+imports:
+- from:
+    documents:
+    - setups/main.setup.dawn
+  as: setups
+- from:
+    documents:
+    - sequences/main.sequence.dawn
+  as: sequences
+test2:
+  type: project
+  setup: setups.main
+  sequences:
+  - sequences.main

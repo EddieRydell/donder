@@ -1,4 +1,4 @@
-import type { SequenceAutomationClip } from "../../../types";
+import type { SequenceAutomationClip, SequenceControlChannel } from "../../../types";
 
 import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
@@ -36,6 +36,7 @@ export type AutomationClipVisualState = {
 export type SequenceRowLayout = {
   laneIndex: number;
   rowIndex: number;
+  controlChannel?: SequenceControlChannel;
   top: number;
   height: number;
   bottom: number;
@@ -62,7 +63,7 @@ export function automationRowCounts(clips: SequenceAutomationClip[], laneCount: 
   return rows;
 }
 
-export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], defaultMainRowHeight: number, defaultAutomationRowHeight: number): SequenceRowLayout[] {
+export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], defaultMainRowHeight: number, defaultAutomationRowHeight: number, controlsByLane: SequenceControlChannel[][] = []): SequenceRowLayout[] {
   const rows: SequenceRowLayout[] = [];
   let top = 0;
   for (let laneIndex = 0; laneIndex < rowsByLane.length; laneIndex += 1) {
@@ -70,6 +71,11 @@ export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], 
     for (let rowIndex = 0; rowIndex <= rowCount; rowIndex += 1) {
       const height = rowHeightAt(rowHeights, laneIndex, rowIndex, rowIndex === 0 ? defaultMainRowHeight : defaultAutomationRowHeight);
       rows.push({ laneIndex, rowIndex, top, height, bottom: top + height });
+      top += height;
+    }
+    for (const controlChannel of controlsByLane[laneIndex] ?? []) {
+      const height = defaultAutomationRowHeight;
+      rows.push({ laneIndex, rowIndex: -1, controlChannel, top, height, bottom: top + height });
       top += height;
     }
   }
@@ -107,8 +113,8 @@ export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows:
     if (first === undefined) continue;
     const row = rows.find((row) => row.laneIndex === first.anchorLaneIndex && row.rowIndex === first.laneIndex + 1);
     if (row === undefined) throw new Error("Automation clip has no timeline row.");
-    for (const group of groupOverlappingAutomationClips(laneClips)) {
-      const assigned = assignAutomationOverlapSlots(group);
+    for (const group of groupOverlappingClips(laneClips)) {
+      const assigned = assignOverlapSlots(group);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       for (const clip of assigned) {
         const slotHeight = row.height / slotCount;
@@ -144,14 +150,16 @@ export function automationHoverEqual(left: AutomationHover | null, right: Automa
   return left.clipId === right.clipId && left.resize === right.resize;
 }
 
-function compareAutomationClipsByTime(left: SequenceAutomationClip, right: SequenceAutomationClip) {
+type TimedClip = { id: number; startSeconds: number; durationSeconds: number };
+
+function compareAutomationClipsByTime(left: TimedClip, right: TimedClip) {
   return left.startSeconds - right.startSeconds || left.startSeconds + left.durationSeconds - (right.startSeconds + right.durationSeconds) || left.id - right.id;
 }
 
-function groupOverlappingAutomationClips(clips: SequenceAutomationClip[]) {
+export function groupOverlappingClips<T extends TimedClip>(clips: T[]) {
   const sorted = [...clips].sort(compareAutomationClipsByTime);
-  const groups: SequenceAutomationClip[][] = [];
-  let current: SequenceAutomationClip[] = [];
+  const groups: T[][] = [];
+  let current: T[] = [];
   let currentEnd = -Infinity;
   for (const clip of sorted) {
     const end = clip.startSeconds + clip.durationSeconds;
@@ -168,7 +176,7 @@ function groupOverlappingAutomationClips(clips: SequenceAutomationClip[]) {
   return groups;
 }
 
-function assignAutomationOverlapSlots(group: SequenceAutomationClip[]) {
+export function assignOverlapSlots<T extends TimedClip>(group: T[]) {
   const slotEnds: number[] = [];
   return [...group].sort(compareAutomationClipsByTime).map((clip) => {
     const start = clip.startSeconds;
@@ -180,7 +188,7 @@ function assignAutomationOverlapSlots(group: SequenceAutomationClip[]) {
   });
 }
 
-export function hitAutomationClip(clips: AutomationClipLayout[], x: number, y: number) {
+export function hitTimelineClip<T extends { rect: AutomationClipLayout["rect"] }>(clips: T[], x: number, y: number) {
   for (const clip of [...clips].reverse()) {
     const { rect } = clip;
     if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
@@ -408,7 +416,7 @@ function drawAutomationLine(
   ctx.stroke();
 }
 
-function fitCanvasLabel(ctx: CanvasRenderingContext2D, label: string, maxWidth: number) {
+export function fitCanvasLabel(ctx: CanvasRenderingContext2D, label: string, maxWidth: number) {
   if (maxWidth <= 0 || ctx.measureText(label).width <= maxWidth) return label;
   const ellipsis = "...";
   let fitted = label;

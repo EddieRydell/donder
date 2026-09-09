@@ -47,6 +47,7 @@ pub struct SequenceGuiDocument {
     pub layers: Vec<SequenceLayer>,
     pub effects: Vec<SequenceEffect>,
     pub control_clips: Vec<SequenceControlClip>,
+    pub control_channels: Vec<SequenceControlChannel>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<SequenceAutomationClip>,
 }
@@ -216,12 +217,9 @@ pub struct SequenceControlClip {
     pub id: u32,
     pub start_seconds: f32,
     pub duration_seconds: f32,
-    pub anchor_lane_index: u32,
-    pub lane_index: u32,
-    pub target: ElementTarget,
+    pub target: SequenceControlTarget,
     pub target_label: String,
-    pub control_type: String,
-    pub value: String,
+    pub value: SequenceControlValue,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -336,32 +334,28 @@ pub enum SequenceGraphPortCardinality {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum SequenceCurveSource {
+pub enum SequenceLibrarySource {
     Inline,
     Library {
-        reference: String,
-        module_id: Option<String>,
-        path: Option<String>,
-        object_key: Option<String>,
-        display_name: Option<String>,
+        module_id: String,
+        path: String,
+        object_key: String,
+        display_name: String,
     },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceGradientSource {
-    Inline,
-    Library {
-        reference: String,
-        module_id: Option<String>,
-        path: Option<String>,
-        object_key: Option<String>,
-        display_name: Option<String>,
-    },
+#[serde(rename_all = "camelCase")]
+pub struct SequenceCurveValue {
+    pub points: Vec<SequenceCurvePoint>,
+    pub source: SequenceLibrarySource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceGradientValue {
+    pub stops: Vec<SequenceGradientStop>,
+    pub source: SequenceLibrarySource,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -374,8 +368,6 @@ pub struct SequenceEffectParam {
     pub options: Vec<String>,
     pub editable: bool,
     pub value: SequenceEffectParamValue,
-    pub curve_source: Option<SequenceCurveSource>,
-    pub gradient_source: Option<SequenceGradientSource>,
     pub automation: Option<SequenceParamAutomation>,
 }
 
@@ -393,48 +385,20 @@ pub struct SequenceParamAutomation {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceEffectParamValue {
-    Int {
-        value: f32,
-    },
-    Float {
-        value: f32,
-    },
-    Bool {
-        value: bool,
-    },
-    Color {
-        value: String,
-    },
-    Enum {
-        value: String,
-    },
-    Curve {
-        points: Vec<SequenceCurvePoint>,
-    },
-    Gradient {
-        stops: Vec<SequenceGradientStop>,
-    },
-    IntArray {
-        values: Vec<f32>,
-    },
-    FloatArray {
-        values: Vec<f32>,
-    },
-    BoolArray {
-        values: Vec<bool>,
-    },
-    ColorArray {
-        values: Vec<String>,
-    },
-    CurveArray {
-        values: Vec<Vec<SequenceCurvePoint>>,
-    },
-    GradientArray {
-        values: Vec<Vec<SequenceGradientStop>>,
-    },
-    Marks {
-        key: String,
-    },
+    Int { value: f32 },
+    Float { value: f32 },
+    Bool { value: bool },
+    Color { value: String },
+    Enum { value: String },
+    Curve { value: SequenceCurveValue },
+    Gradient { value: SequenceGradientValue },
+    IntArray { values: Vec<f32> },
+    FloatArray { values: Vec<f32> },
+    BoolArray { values: Vec<bool> },
+    ColorArray { values: Vec<String> },
+    CurveArray { values: Vec<SequenceCurveValue> },
+    GradientArray { values: Vec<SequenceGradientValue> },
+    Marks { key: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -464,6 +428,13 @@ pub struct SequenceEffectDefinitionParam {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceGuiEdit {
+    UpsertControlClip {
+        id: Option<u32>,
+        start_seconds: f32,
+        duration_seconds: f32,
+        target: SequenceControlTarget,
+        value: SequenceControlValue,
+    },
     SetDuration {
         duration_seconds: f32,
     },
@@ -471,21 +442,11 @@ pub enum SequenceGuiEdit {
         #[serde(rename = "import")]
         import_path: Option<String>,
     },
-    MoveControlClip {
-        id: u32,
-        start_seconds: f32,
-        anchor_lane_index: u32,
-        lane_index: u32,
-    },
-    ResizeControlClip {
-        id: u32,
-        start_seconds: f32,
-        duration_seconds: f32,
-    },
     DeleteControlClip {
         id: u32,
     },
     AddEffect {
+        initial_color: String,
         effect: SequenceEffectReference,
         target: ElementTarget,
         scope: SequenceEffectScope,
@@ -533,6 +494,7 @@ pub enum SequenceGuiEdit {
         duration_seconds: f32,
     },
     ChangeEffectDefinition {
+        initial_color: String,
         id: u32,
         effect: SequenceEffectReference,
     },
@@ -552,29 +514,8 @@ pub enum SequenceGuiEdit {
         name: String,
         value: SequenceEffectParamValue,
     },
-    LinkEffectCurve {
-        id: u32,
-        name: String,
-        source_module_id: String,
-        source_path: String,
-        object_key: String,
-    },
-    UnlinkEffectCurve {
-        id: u32,
-        name: String,
-    },
-    LinkEffectGradient {
-        id: u32,
-        name: String,
-        source_module_id: String,
-        source_path: String,
-        object_key: String,
-    },
-    UnlinkEffectGradient {
-        id: u32,
-        name: String,
-    },
     AddGraphOperatorNode {
+        initial_color: String,
         operator: SequenceGraphOperator,
         x: f32,
         y: f32,
@@ -603,28 +544,6 @@ pub enum SequenceGuiEdit {
         node_id: String,
         name: String,
         value: SequenceEffectParamValue,
-    },
-    LinkGraphOperatorCurve {
-        node_id: String,
-        name: String,
-        source_module_id: String,
-        source_path: String,
-        object_key: String,
-    },
-    UnlinkGraphOperatorCurve {
-        node_id: String,
-        name: String,
-    },
-    LinkGraphOperatorGradient {
-        node_id: String,
-        name: String,
-        source_module_id: String,
-        source_path: String,
-        object_key: String,
-    },
-    UnlinkGraphOperatorGradient {
-        node_id: String,
-        name: String,
     },
     AddAutomationClip {
         start_seconds: f32,

@@ -10,6 +10,7 @@ import { THEME_METRICS } from "../theme";
 const NEW_PROJECT_EVENT = "dawn:new-project";
 
 export function NewProjectDialog() {
+  const [mode, setMode] = useState<"createProject" | "copyProject">("createProject");
   const [open, setOpen] = useState(false);
   const [directoryName, setDirectoryName] = useState("");
   const [parentPath, setParentPath] = useState("");
@@ -18,12 +19,20 @@ export function NewProjectDialog() {
 
   useEffect(() => {
     const onNewProject = () => {
+      setMode("createProject");
       setOpen(true);
       setError(null);
     };
+    const onCopyProject = () => {
+      setMode("copyProject");
+      setOpen(true);
+      setError(null);
+    };
+    window.addEventListener("dawn:copy-project", onCopyProject);
     window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
     return () => {
       window.removeEventListener(NEW_PROJECT_EVENT, onNewProject);
+      window.removeEventListener("dawn:copy-project", onCopyProject);
     };
   }, []);
 
@@ -51,9 +60,13 @@ export function NewProjectDialog() {
     if (createDisabled) return;
     setCreating(true);
     setError(null);
+    useAppStore.getState().setError(null);
     try {
-      const applied = await runWorkspaceTransition({ type: "createProject", parentPath, directoryName });
-      if (!applied) return;
+      const applied = await runWorkspaceTransition({ type: mode, parentPath, directoryName });
+      if (!applied) {
+        setError(useAppStore.getState().error);
+        return;
+      }
       useAppStore.getState().setError(null);
       setOpen(false);
       setDirectoryName("");
@@ -66,16 +79,18 @@ export function NewProjectDialog() {
   }
 
   return (
-    <AlertDialog.Root open={open} onOpenChange={setOpen}>
+    <AlertDialog.Root open={open} onOpenChange={(value) => { if (!creating) setOpen(value); }}>
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="dialog-overlay" />
         <AlertDialog.Content className="dialog-content new-project-dialog">
-          <AlertDialog.Title>New Project</AlertDialog.Title>
+          <AlertDialog.Title>{mode === "copyProject" ? "Create Editable Project Copy" : "New Project"}</AlertDialog.Title>
+          {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and audio. Package files are preserved. Choose a new folder; existing folders cannot be overwritten.</AlertDialog.Description>}
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
             <label>
               <span>Project folder name</span>
               <input
                 autoFocus
+                disabled={creating}
                 value={directoryName}
                 onChange={(event) => {
                   setDirectoryName(event.target.value);
@@ -87,7 +102,7 @@ export function NewProjectDialog() {
               <span>Parent location</span>
               <div className="new-project-location-row">
                 <input readOnly value={parentPath} />
-                <button type="button" onClick={() => void browseParent()}>
+                <button type="button" disabled={creating} onClick={() => void browseParent()}>
                   <FolderOpen size={THEME_METRICS.iconSizeSmall} />
                   Browse...
                 </button>

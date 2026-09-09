@@ -90,6 +90,15 @@ impl WorkspaceState {
             live_output: self.view.live_output.clone(),
             package: self.view.package.clone(),
 
+            pending_saves: self
+                .documents
+                .values()
+                .filter(|document| document.buffer.save_state != DocumentSaveState::Saved)
+                .map(|document| DocumentSaveStatus {
+                    path: document.buffer.path.clone(),
+                    state: document.buffer.save_state.clone(),
+                })
+                .collect(),
             tabs: self
                 .tabs
                 .iter()
@@ -132,6 +141,7 @@ impl WorkspaceState {
             .zip(self.view.active_document_descriptor.as_ref())
             .and_then(|(path, descriptor)| {
                 [
+                    DocumentViewId::Project,
                     DocumentViewId::Sequence,
                     DocumentViewId::Setup,
                     DocumentViewId::Preview,

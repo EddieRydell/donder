@@ -16,6 +16,18 @@ DMA.
 
 ## Build and capture (Windows)
 
+For an installable controller image, run `./firmware/esp32/build-image.ps1` from
+the repository root. It builds the output-enabled loader and packages
+`target/firmware/dawn-esp32.bin` without contacting a board. See
+[installation instructions](../../docs/esp32_loading.md#build-an-installable-controller-image).
+The script also regenerates the image and checksum under
+`apps/desktop/assets/firmware`, which Dawn embeds for installation from its USB
+device form. Regenerate those assets after firmware changes; do not edit them by
+hand. End users can install from Dawn without the development toolchain.
+Controller images use `partitions.csv`, including a reserved 256 KiB Dawn data
+region. Do not omit that table when flashing the loader ELF directly. The
+profiling binaries below are separate development images.
+
 The installed tools are `espup` 0.17.1, `espflash` 4.5.0, Xtensa Rust
 1.97.0.0 (`rustc 1.97.0-nightly`, commit `8ea53bcd7`, LLVM 21.1.3), and
 Espressif GCC 15.2.0. The firmware uses HAL 1.2.0, picoserve 0.20.0, esp-rtos 0.4.0,
@@ -130,8 +142,8 @@ there are no mid-frame refills. Two buffers let DMA transmit one frame while cor
 ```powershell
 . ./export-esp.ps1
 cargo +esp build --release --features i2s-output --bin loader --locked
-espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz target/xtensa-esp32-none-elf/release/loader
-uvx --from esptool python upload.py target/loaded-sequence.dawnseq --windows-profile YOUR_PROFILE --uploads 3 --repeat 1 --monitor-seconds 75 --log results/i2s-playback.txt
+espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
+uvx --from esptool python upload.py target/loaded-sequence.dawnseq --checksums target/loaded-sequence.dawnseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --windows-profile YOUR_PROFILE --uploads 3 --repeat 1 --monitor-seconds 75 --log results/i2s-playback.txt
 ```
 
 For current measurements and the exact tested image, see the

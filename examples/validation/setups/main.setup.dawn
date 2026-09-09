@@ -1,0 +1,15 @@
+imports:
+- from:
+    documents:
+    - display/main.display.dawn
+  as: display
+- from:
+    documents:
+    - patches/main.patch.dawn
+  as: patches
+main:
+  type: setup
+  elements: display.elements
+  preview: display.preview
+  patch: patches.main
+  controllers: []

@@ -10,7 +10,7 @@ pub(super) fn sequence_value(
     );
     value.insert(
         string_value("frame_rate"),
-        number_value(sequence.frame_rate)?,
+        serialized_value(sequence.frame_rate)?,
     );
     match &sequence.audio {
         SequenceAudio::None => {
@@ -92,7 +92,7 @@ pub(super) fn sequence_value(
 
 pub(super) fn sequence_layer_value(layer: &SequenceLayer) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(layer.id.0)?);
+    value.insert(string_value("id"), serialized_value(layer.id.0)?);
     value.insert(string_value("name"), Value::String(layer.name.clone()));
     value.insert(string_value("color"), Value::String(layer.color.to_hex()));
     value.insert(string_value("enabled"), Value::Bool(layer.enabled));
@@ -105,8 +105,11 @@ pub(super) fn sequence_effect_value(
     effect: &EffectInst,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(effect.id.0)?);
-    value.insert(string_value("layer_id"), number_value(effect.layer_id.0)?);
+    value.insert(string_value("id"), serialized_value(effect.id.0)?);
+    value.insert(
+        string_value("layer_id"),
+        serialized_value(effect.layer_id.0)?,
+    );
     value.insert(
         string_value("start"),
         Value::String(microseconds_string(effect.start.as_micros_rounded())),
@@ -174,7 +177,7 @@ pub(super) fn composition_graph_node_value(
     node: &CompositionGraphNode,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(node.id.0)?);
+    value.insert(string_value("id"), serialized_value(node.id.0)?);
     value.insert(
         string_value("position"),
         graph_position_value(&node.position)?,
@@ -182,7 +185,7 @@ pub(super) fn composition_graph_node_value(
     match &node.kind {
         CompositionGraphNodeKind::Layer { layer_id } => {
             value.insert(string_value("type"), Value::String("layer".to_string()));
-            value.insert(string_value("layer_id"), number_value(layer_id.0)?);
+            value.insert(string_value("layer_id"), serialized_value(layer_id.0)?);
         }
         CompositionGraphNodeKind::Operator(operator) => {
             value.insert(string_value("type"), Value::String("operator".to_string()));
@@ -277,19 +280,19 @@ pub(super) fn graph_position_value(
     position: &GraphNodePosition,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("x"), number_value(position.x)?);
-    value.insert(string_value("y"), number_value(position.y)?);
+    value.insert(string_value("x"), serialized_value(position.x)?);
+    value.insert(string_value("y"), serialized_value(position.y)?);
     Ok(Value::Mapping(value))
 }
 
 pub(super) fn graph_edge_value(edge: &EffectGraphEdge) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("from"), number_value(edge.from.0)?);
+    value.insert(string_value("from"), serialized_value(edge.from.0)?);
     value.insert(
         string_value("from_port"),
         Value::String(edge.from_port.0.clone()),
     );
-    value.insert(string_value("to"), number_value(edge.to.0)?);
+    value.insert(string_value("to"), serialized_value(edge.to.0)?);
     value.insert(
         string_value("to_port"),
         Value::String(edge.to_port.0.clone()),
@@ -319,7 +322,7 @@ pub(super) fn graph_operator_name(
 
 pub(super) fn automation_clip_value(clip: &AutomationClip) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(clip.id.0)?);
+    value.insert(string_value("id"), serialized_value(clip.id.0)?);
     value.insert(
         string_value("start"),
         Value::String(microseconds_string(clip.start.as_micros_rounded())),
@@ -330,9 +333,12 @@ pub(super) fn automation_clip_value(clip: &AutomationClip) -> Result<Value, Expo
     );
     value.insert(
         string_value("anchor_lane_index"),
-        number_value(clip.anchor_lane_index)?,
+        serialized_value(clip.anchor_lane_index)?,
     );
-    value.insert(string_value("lane_index"), number_value(clip.lane_index)?);
+    value.insert(
+        string_value("lane_index"),
+        serialized_value(clip.lane_index)?,
+    );
     value.insert(string_value("curve"), automation_curve_value(&clip.curve)?);
     value.insert(
         string_value("bindings"),
@@ -390,8 +396,8 @@ pub(super) fn automation_curve_value(curve: &Curve) -> Result<Value, ExportProje
                 .iter()
                 .map(|point| {
                     let mut value = Mapping::new();
-                    value.insert(string_value("position"), number_value(point.position)?);
-                    value.insert(string_value("value"), number_value(point.value)?);
+                    value.insert(string_value("position"), serialized_value(point.position)?);
+                    value.insert(string_value("value"), serialized_value(point.value)?);
                     Ok(Value::Mapping(value))
                 })
                 .collect::<Result<Vec<_>, _>>()?,
@@ -425,7 +431,7 @@ pub(super) fn automation_target_value(
                 string_value("type"),
                 Value::String("effect_param".to_string()),
             );
-            value.insert(string_value("effect_id"), number_value(effect_id.0)?);
+            value.insert(string_value("effect_id"), serialized_value(effect_id.0)?);
             value.insert(
                 string_value("param"),
                 Value::String(param.as_str().to_string()),
@@ -436,7 +442,7 @@ pub(super) fn automation_target_value(
                 string_value("type"),
                 Value::String("composition_node_param".to_string()),
             );
-            value.insert(string_value("node_id"), number_value(node_id.0)?);
+            value.insert(string_value("node_id"), serialized_value(node_id.0)?);
             value.insert(
                 string_value("param"),
                 Value::String(param.as_str().to_string()),
@@ -453,13 +459,13 @@ pub(super) fn automation_mapping_value(
     match mapping {
         AutomationMapping::Float { min, max } => {
             value.insert(string_value("type"), Value::String("float".to_string()));
-            value.insert(string_value("min"), number_value(*min)?);
-            value.insert(string_value("max"), number_value(*max)?);
+            value.insert(string_value("min"), serialized_value(*min)?);
+            value.insert(string_value("max"), serialized_value(*max)?);
         }
         AutomationMapping::Int { min, max } => {
             value.insert(string_value("type"), Value::String("int".to_string()));
-            value.insert(string_value("min"), number_value(*min)?);
-            value.insert(string_value("max"), number_value(*max)?);
+            value.insert(string_value("min"), serialized_value(*min)?);
+            value.insert(string_value("max"), serialized_value(*max)?);
         }
         AutomationMapping::Bool => {
             value.insert(string_value("type"), Value::String("bool".to_string()));
@@ -478,8 +484,8 @@ pub(super) fn automation_mapping_value(
         }
         AutomationMapping::Curve { min, max } => {
             value.insert(string_value("type"), Value::String("curve".to_string()));
-            value.insert(string_value("min"), number_value(*min)?);
-            value.insert(string_value("max"), number_value(*max)?);
+            value.insert(string_value("min"), serialized_value(*min)?);
+            value.insert(string_value("max"), serialized_value(*max)?);
         }
     }
     Ok(Value::Mapping(value))
@@ -491,7 +497,7 @@ pub(super) fn control_clip_value(
     clip: &ControlClip,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    value.insert(string_value("id"), number_value(clip.id.0)?);
+    value.insert(string_value("id"), serialized_value(clip.id.0)?);
     value.insert(
         string_value("start"),
         Value::String(microseconds_string(clip.start.as_micros_rounded())),
@@ -507,7 +513,7 @@ pub(super) fn control_clip_value(
             selection,
             function,
         } => {
-            value.insert(string_value("function"), number_value(function.0)?);
+            value.insert(string_value("function"), serialized_value(function.0)?);
             ("fixture_function", selection)
         }
     };
@@ -526,7 +532,7 @@ pub(super) fn control_clip_value(
                 string_value("type"),
                 Value::String("constant_normalized".to_string()),
             );
-            control.insert(string_value("value"), number_value(*normalized)?);
+            control.insert(string_value("value"), serialized_value(*normalized)?);
         }
         ControlValue::NormalizedCurve(curve) => {
             control.insert(
@@ -540,7 +546,7 @@ pub(super) fn control_clip_value(
             range_curve,
         } => {
             control.insert(string_value("type"), Value::String("indexed".to_string()));
-            control.insert(string_value("option"), number_value(option.0)?);
+            control.insert(string_value("option"), serialized_value(option.0)?);
             if let Some(curve) = range_curve {
                 control.insert(string_value("range_curve"), curve_value(curve)?);
             }
@@ -550,7 +556,7 @@ pub(super) fn control_clip_value(
                 string_value("type"),
                 Value::String("fixture_indexed".to_string()),
             );
-            control.insert(string_value("entry"), number_value(entry.0)?);
+            control.insert(string_value("entry"), serialized_value(entry.0)?);
             if let Some(curve) = range_curve {
                 control.insert(string_value("range_curve"), curve_value(curve)?);
             }
@@ -580,11 +586,11 @@ pub(super) fn effect_param_value(
     match param {
         EffectParamValue::Int(inner) => {
             value.insert(string_value("type"), Value::String("integer".to_string()));
-            value.insert(string_value("value"), number_value(*inner)?);
+            value.insert(string_value("value"), serialized_value(*inner)?);
         }
         EffectParamValue::Float(inner) => {
             value.insert(string_value("type"), Value::String("float".to_string()));
-            value.insert(string_value("value"), number_value(*inner)?);
+            value.insert(string_value("value"), serialized_value(*inner)?);
         }
         EffectParamValue::Bool(inner) => {
             value.insert(string_value("type"), Value::String("bool".to_string()));
@@ -711,7 +717,7 @@ use yaml_serde::{Mapping, Value};
 
 use super::ProjectSession;
 use super::values::{
-    curve_value, element_selection_value, gradient_value, microseconds_string, number_value,
+    curve_value, element_selection_value, gradient_value, microseconds_string, serialized_value,
     string_value, typed_object, write_source_reference,
 };
 use crate::ExportProjectError;

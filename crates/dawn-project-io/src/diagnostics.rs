@@ -296,6 +296,41 @@ pub(crate) fn scalar_range(scalar: &marked_yaml::types::MarkedScalarNode) -> Opt
     })
 }
 
+pub(crate) fn deserialize_yaml<T: serde::de::DeserializeOwned>(
+    path: &Utf8Path,
+    value: &Value,
+) -> Result<T, LoadProjectError> {
+    serde_path_to_error::deserialize(value).map_err(|error| {
+        let range = YAML_SOURCE_INDICES.with(|indices| {
+            let mut indices = indices.borrow_mut();
+            let index = indices.get_mut(path)?;
+            let mut field_path = index.bound_value_path(value)?;
+            for segment in error.path() {
+                match segment {
+                    serde_path_to_error::Segment::Map { key }
+                    | serde_path_to_error::Segment::Enum { variant: key } => {
+                        field_path.push(crate::YamlPathSegment::Key(key.clone()));
+                    }
+                    serde_path_to_error::Segment::Seq { index } => {
+                        field_path.push(crate::YamlPathSegment::Index(*index));
+                    }
+                    serde_path_to_error::Segment::Unknown => {}
+                }
+            }
+            index
+                .entries
+                .iter()
+                .find(|entry| entry.path == field_path)
+                .and_then(|entry| entry.range.clone())
+        });
+        LoadProjectError::InvalidDocument {
+            path: path.to_path_buf(),
+            range,
+            message: error.inner().to_string(),
+        }
+    })
+}
+
 pub(crate) fn source_range_for_value(path: &Utf8Path, value: &Value) -> Option<TextRange> {
     YAML_SOURCE_INDICES.with(|indices| {
         indices

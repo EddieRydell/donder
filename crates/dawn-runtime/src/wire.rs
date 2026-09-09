@@ -10,7 +10,8 @@ use rkyv::{Archive, Archived, Place};
 
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DAWN";
-const VERSION: u32 = 5;
+/// Current prepared-sequence format accepted by this runtime.
+pub const FORMAT_VERSION: u32 = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -51,7 +52,7 @@ pub fn encode_sequence(sequence: &PreparedSequence) -> Result<Vec<u8>, LoadError
     let length = u32::try_from(payload.len()).map_err(|_| LoadError::Limit)?;
     let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len());
     bytes.extend_from_slice(&MAGIC);
-    bytes.extend_from_slice(&VERSION.to_le_bytes());
+    bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&length.to_le_bytes());
     bytes.extend_from_slice(&crc32fast::hash(&payload).to_le_bytes());
     bytes.extend_from_slice(&payload);
@@ -72,7 +73,7 @@ pub fn payload_length(header: &[u8], limits: LoadLimits) -> Result<usize, LoadEr
             header[offset + 3],
         ])
     };
-    if word(4) != VERSION {
+    if word(4) != FORMAT_VERSION {
         return Err(LoadError::Version);
     }
     let length = word(8) as usize;

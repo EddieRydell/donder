@@ -207,6 +207,8 @@ pub enum FixtureEncodingError {
 
 impl FixtureProgram {
     /// Writes into caller-owned storage; encoding never allocates or reads authoring metadata.
+    /// State contains only functions driven in this frame. Undriven channels
+    /// remain zero, including before and after a control clip's active interval.
     pub fn encode(
         &self,
         states: &[FixtureState],
@@ -230,10 +232,10 @@ impl FixtureProgram {
                         component,
                         subtract_white,
                     } => {
-                        let FixtureControlValue::Color(color) = state
-                            .get(function)
-                            .ok_or(FixtureEncodingError::MissingFunction)?
-                        else {
+                        let Some(value) = state.get(function) else {
+                            continue;
+                        };
+                        let FixtureControlValue::Color(color) = value else {
                             return Err(FixtureEncodingError::TypeMismatch);
                         };
                         let rgb = [
@@ -259,9 +261,9 @@ impl FixtureProgram {
                             .functions
                             .get(function as usize)
                             .ok_or(FixtureEncodingError::MissingFunction)?;
-                        let value = state
-                            .get(function.id)
-                            .ok_or(FixtureEncodingError::MissingFunction)?;
+                        let Some(value) = state.get(function.id) else {
+                            continue;
+                        };
                         let normalized = match value {
                             FixtureControlValue::Normalized(value) => {
                                 apply_dimming_curve(&function.curve, *value)

@@ -31,22 +31,15 @@ impl PersistenceService {
         let path = persistence_path(app)?;
         let mut inner = self.inner();
         inner.path = Some(path.clone());
-        let previous_path = path.with_file_name("desktop-state-v1.json");
-        let migrating = !path.exists() && previous_path.exists();
-        if !path.exists() && !migrating {
+        if !path.exists() {
             inner.write_allowed = true;
             return Ok(None);
         }
-        let text = fs::read_to_string(if migrating { &previous_path } else { &path })
-            .map_err(|error| error.to_string())?;
-        let store = decode_store(&text, migrating)?;
-        store.validate()?;
+        let text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let store = decode_store(&text)?;
         let last_project = store.last_project.clone();
         inner.store = store;
         inner.write_allowed = true;
-        if migrating {
-            inner.save_now()?;
-        }
         Ok(last_project)
     }
 
@@ -270,31 +263,18 @@ impl PersistenceInner {
         if self.last_saved_text.as_ref() == Some(&text) {
             return Ok(());
         }
-        let temporary = path.with_extension("json.tmp");
-        fs::write(&temporary, &text).map_err(|error| error.to_string())?;
-        fs::rename(&temporary, &path).map_err(|error| error.to_string())?;
+        let path = camino::Utf8Path::from_path(&path)
+            .ok_or_else(|| "Persistence path is not valid UTF-8.".to_string())?;
+        dawn_package::atomic_write(path, text.as_bytes()).map_err(|error| error.to_string())?;
         self.last_saved_text = Some(text);
         Ok(())
     }
 }
 
-fn decode_store(text: &str, migrating: bool) -> Result<PersistedStore, String> {
-    let mut value: serde_json::Value =
-        serde_json::from_str(text).map_err(|error| error.to_string())?;
-    if migrating {
-        if value["version"] != 1 {
-            return Err("Expected desktop state version 1 for migration".into());
-        }
-        value["version"] = serde_json::json!(VERSION);
-        if let Some(settings) = value
-            .get_mut("settings")
-            .and_then(serde_json::Value::as_object_mut)
-            && let Some(autosave) = settings.remove("autosaveTextEdits")
-        {
-            settings.insert("autosaveProjectEdits".into(), autosave);
-        }
-    }
-    serde_json::from_value(value).map_err(|error| error.to_string())
+fn decode_store(text: &str) -> Result<PersistedStore, String> {
+    let store: PersistedStore = serde_json::from_str(text).map_err(|error| error.to_string())?;
+    store.validate()?;
+    Ok(store)
 }
 
 fn persistence_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -336,22 +316,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn v1_migration_preserves_desktop_state_and_renames_autosave_once() {
+    fn current_desktop_state_roundtrips_and_other_versions_are_rejected() {
         let mut original = serde_json::to_value(PersistedStore::default()).unwrap();
         original["settings"]["autosaveProjectEdits"] = serde_json::json!(false);
         original["workspaceLayout"]["sidebarWidthPx"] = serde_json::json!(345.0);
         original["lastProject"] = serde_json::json!("C:/project");
-        let mut previous = original.clone();
-        previous["version"] = serde_json::json!(1);
-        let settings = previous["settings"].as_object_mut().unwrap();
-        let autosave = settings.remove("autosaveProjectEdits").unwrap();
-        settings.insert("autosaveTextEdits".into(), autosave);
-        let migrated = decode_store(&previous.to_string(), true).unwrap();
-        migrated.validate().unwrap();
-        assert_eq!(serde_json::to_value(&migrated).unwrap(), original);
-        assert!(!migrated.settings.autosave_project_edits);
-        let reloaded = decode_store(&serde_json::to_string(&migrated).unwrap(), false).unwrap();
-        assert_eq!(serde_json::to_value(reloaded).unwrap(), original);
+        let loaded = decode_store(&original.to_string()).unwrap();
+        assert_eq!(serde_json::to_value(loaded).unwrap(), original);
+        for version in [VERSION - 1, VERSION + 1] {
+            original["version"] = serde_json::json!(version);
+            assert!(decode_store(&original.to_string()).is_err());
+        }
     }
 
     #[test]
@@ -382,11 +357,11 @@ mod tests {
                 )
                 .unwrap();
         }
-        let stored = decode_store(&fs::read_to_string(&path).unwrap(), false).unwrap();
+        let stored = decode_store(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(
             stored.projects["C:/project"].editor_states["project.dawn"].cursor_head,
             41
         );
-        assert!(!path.with_extension("json.tmp").exists());
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }

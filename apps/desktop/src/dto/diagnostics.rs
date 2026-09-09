@@ -28,8 +28,6 @@ pub struct ResolvedPreviewProp {
     pub bulb_diameter_meters: f32,
     pub geometry_summary: String,
     pub render_plan: GeometryRenderPlan,
-    pub source_path: String,
-    pub object_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

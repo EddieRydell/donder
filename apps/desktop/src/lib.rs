@@ -17,6 +17,7 @@ pub mod bindings;
 mod commands;
 mod desktop_foundation_tests;
 mod desktop_state;
+mod device;
 mod dto;
 mod gui;
 mod output;
@@ -25,6 +26,7 @@ mod preview;
 mod project;
 mod rendering;
 mod sequence_clip_raster;
+mod source_documents;
 mod state_tasks;
 
 pub fn run() -> Result<(), tauri::Error> {

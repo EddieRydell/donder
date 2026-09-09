@@ -348,24 +348,47 @@ pub(crate) fn parse_prop_definition(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<PropDefinition, LoadProjectError> {
+    require_allowed_mapping_keys(
+        path,
+        value,
+        &["type", "bulb_diameter", "geometry"],
+        "prop definition",
+    )?;
     let bulb_diameter = f32_field(path, value, "bulb_diameter")?;
     let geometry_value = required_field(path, value, "geometry")?;
-    let geometry = match string_field(path, geometry_value, "type")? {
+    let geometry_type = string_field(path, geometry_value, "type")?;
+    let fields: &[&str] = match geometry_type {
+        "points" => &["type", "points"],
+        "lines" => &["type", "points", "point_count"],
+        "arc" => &[
+            "type",
+            "center",
+            "radius",
+            "startDegrees",
+            "endDegrees",
+            "point_count",
+        ],
+        _ => &["type"],
+    };
+    if matches!(geometry_type, "points" | "lines" | "arc") {
+        require_allowed_mapping_keys(path, geometry_value, fields, "prop geometry")?;
+    }
+    let geometry = match geometry_type {
         "points" => PropGeometry::Points {
             points: sequence_values(path, geometry_value, "points")?
                 .iter()
-                .map(parse_point3)
+                .map(|point| parse_point3(path, point))
                 .collect::<Result<Vec<_>, _>>()?,
         },
         "lines" => PropGeometry::Lines {
             points: sequence_values(path, geometry_value, "points")?
                 .iter()
-                .map(parse_point3)
+                .map(|point| parse_point3(path, point))
                 .collect::<Result<Vec<_>, _>>()?,
             point_count: u32_field(path, geometry_value, "point_count")?,
         },
         "arc" => PropGeometry::Arc {
-            center: parse_point3(required_field(path, geometry_value, "center")?)?,
+            center: parse_point3(path, required_field(path, geometry_value, "center")?)?,
             radius: DistanceSpan::from_meters(f32_field(path, geometry_value, "radius")?),
             start_degrees: f32_field(path, geometry_value, "startDegrees")?,
             end_degrees: f32_field(path, geometry_value, "endDegrees")?,
@@ -390,10 +413,12 @@ pub(crate) fn parse_curve(path: &Utf8Path, value: &Value) -> Result<Curve, LoadP
     let points = sequence_values(path, value, "points")?
         .iter()
         .map(|point| {
-            require_allowed_mapping_keys(path, point, &["position", "value"], "curve point")?;
-            let position = f32_field(path, point, "position")?;
-            let value = f32_field(path, point, "value")?;
-            Ok(CurvePoint { position, value })
+            let point: crate::schema::CurvePoint =
+                crate::diagnostics::deserialize_yaml(path, point)?;
+            Ok(CurvePoint {
+                position: point.position,
+                value: point.value,
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let curve = Curve { points };
@@ -412,42 +437,51 @@ pub(crate) fn parse_gradient(path: &Utf8Path, value: &Value) -> Result<Gradient,
     let stops = sequence_values(path, value, "stops")?
         .iter()
         .map(|stop| {
-            require_allowed_mapping_keys(path, stop, &["position", "color"], "gradient stop")?;
-            let position = f32_field(path, stop, "position")?;
-            let color = parse_color(string_field(path, stop, "color")?).map_err(|error| {
+            let fields: crate::schema::GradientStop =
+                crate::diagnostics::deserialize_yaml(path, stop)?;
+            let color = parse_color(&fields.color).map_err(|error| {
                 with_yaml_location(
                     error,
                     path,
                     source_range_for_field_value(path, stop, "color"),
                 )
             })?;
-            Ok(GradientStop { position, color })
+            Ok(GradientStop {
+                position: fields.position,
+                color,
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Gradient { stops })
 }
 
-pub(crate) fn parse_point3(value: &Value) -> Result<Point3, LoadProjectError> {
+pub(crate) fn parse_point3(path: &Utf8Path, value: &Value) -> Result<Point3, LoadProjectError> {
+    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "point")?;
     Ok(Point3 {
-        x: Distance::from_meters(f32_field(Utf8Path::new("<inline>"), value, "x")?),
-        y: Distance::from_meters(f32_field(Utf8Path::new("<inline>"), value, "y")?),
-        z: Distance::from_meters(f32_field(Utf8Path::new("<inline>"), value, "z")?),
+        x: Distance::from_meters(f32_field(path, value, "x")?),
+        y: Distance::from_meters(f32_field(path, value, "y")?),
+        z: Distance::from_meters(f32_field(path, value, "z")?),
     })
 }
 
-pub(crate) fn parse_rotation3(value: &Value) -> Result<Rotation3, LoadProjectError> {
+pub(crate) fn parse_rotation3(
+    path: &Utf8Path,
+    value: &Value,
+) -> Result<Rotation3, LoadProjectError> {
+    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "rotation")?;
     Ok(Rotation3 {
-        x: f32_field(Utf8Path::new("<inline>"), value, "x")?,
-        y: f32_field(Utf8Path::new("<inline>"), value, "y")?,
-        z: f32_field(Utf8Path::new("<inline>"), value, "z")?,
+        x: f32_field(path, value, "x")?,
+        y: f32_field(path, value, "y")?,
+        z: f32_field(path, value, "z")?,
     })
 }
 
-pub(crate) fn parse_scale3(value: &Value) -> Result<Scale3, LoadProjectError> {
+pub(crate) fn parse_scale3(path: &Utf8Path, value: &Value) -> Result<Scale3, LoadProjectError> {
+    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "scale")?;
     Ok(Scale3 {
-        x: f32_field(Utf8Path::new("<inline>"), value, "x")?,
-        y: f32_field(Utf8Path::new("<inline>"), value, "y")?,
-        z: f32_field(Utf8Path::new("<inline>"), value, "z")?,
+        x: f32_field(path, value, "x")?,
+        y: f32_field(path, value, "y")?,
+        z: f32_field(path, value, "z")?,
     })
 }
 
