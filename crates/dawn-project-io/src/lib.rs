@@ -492,11 +492,9 @@ fn release_object_kind(
         SourceObjectKind::Project => dawn_package::ExportObjectKind::Project,
         SourceObjectKind::Setup => dawn_package::ExportObjectKind::Setup,
         SourceObjectKind::Controller => dawn_package::ExportObjectKind::Controller,
-        SourceObjectKind::ElementTree => dawn_package::ExportObjectKind::ElementTree,
-        SourceObjectKind::PreviewLayout => dawn_package::ExportObjectKind::PreviewLayout,
+        SourceObjectKind::Layout => dawn_package::ExportObjectKind::Layout,
         SourceObjectKind::Patch => dawn_package::ExportObjectKind::Patch,
-        SourceObjectKind::PropDefinition => dawn_package::ExportObjectKind::PropDefinition,
-        SourceObjectKind::FixtureProfile => dawn_package::ExportObjectKind::FixtureProfile,
+        SourceObjectKind::FixtureDefinition => dawn_package::ExportObjectKind::FixtureDefinition,
         SourceObjectKind::Curve => dawn_package::ExportObjectKind::Curve,
         SourceObjectKind::Gradient => dawn_package::ExportObjectKind::Gradient,
         SourceObjectKind::Sequence => dawn_package::ExportObjectKind::Sequence,
@@ -1329,7 +1327,6 @@ pub fn insert_sequence(
             }],
         },
         automation_clips: Vec::new(),
-        control_clips: Vec::new(),
     };
     let source_document = SourceDocument::new(
         Vec::new(),

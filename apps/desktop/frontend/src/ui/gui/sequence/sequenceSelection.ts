@@ -1,4 +1,4 @@
-import type { ElementTarget, SequenceEditorDocument, SequenceEffect, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../types";
+import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../types";
 
 import { clamp, type GuiFocus } from "../shared";
 
@@ -82,12 +82,7 @@ export function buildSequenceClipLayout(
   bounds: SequenceClipLayoutBounds,
   rows: SequenceRowLayout[]
 ): SequenceClipLayout[] {
-  const laneIndexByTarget = new Map<ElementTarget["kind"], Map<string, number>>();
-  document.lanes.forEach((lane, index) => {
-    const byName = laneIndexByTarget.get(lane.target.kind) ?? new Map<string, number>();
-    if (!byName.has(lane.target.name)) byName.set(lane.target.name, index);
-    laneIndexByTarget.set(lane.target.kind, byName);
-  });
+  const laneIndexByTarget = new Map(document.lanes.map((lane, index) => [lane.target.fixture, index]));
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]));
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
@@ -161,8 +156,8 @@ function clipFromDraft(
   };
 }
 
-function laneIndexForTarget(lanes: Map<ElementTarget["kind"], Map<string, number>>, target: ElementTarget): number {
-  return lanes.get(target.kind)?.get(target.name) ?? 0;
+function laneIndexForTarget(lanes: Map<number, number>, target: FixtureTarget): number {
+  return lanes.get(target.fixture) ?? 0;
 }
 
 function effectIntersectsTimeRange(effect: SequenceEffect, startSeconds: number, endSeconds: number): boolean {

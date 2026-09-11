@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 
-use crate::control::{ControlValidationError, resolve_controls};
 use crate::dsl::Type;
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
-use crate::element::ElementTreeValidationError;
+use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
+use crate::layout::LayoutError;
 use crate::model::DawnProject;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
-use crate::preview::PreviewValidationError;
 use crate::sequence::{
     AutomationMapping, AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
 };
+use indexmap::IndexMap;
 
 pub const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
 pub const MAX_SEQUENCE_FRAME_RATE: u32 = 1_000;
@@ -17,18 +17,13 @@ pub const MAX_SEQUENCE_FRAME_RATE: u32 = 1_000;
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProjectValidationError {
     MissingSetup,
-    MissingElementTree,
-    MissingPreviewLayout,
+    MissingLayout,
     MissingPatch,
     MissingController,
-    MissingFixtureProfile,
     InvalidRelationship(String),
-    ElementTree(ElementTreeValidationError),
-    FixtureProfile(crate::fixture_profile::FixtureProfileValidationError),
+    Fixture(FixtureDefinitionError),
+    Layout(LayoutError),
     Controller(crate::controller::ControllerValidationError),
-    Patch(crate::patch::PatchValidationError),
-    Preview(PreviewValidationError),
-    Control(ControlValidationError),
     Sequence(SequenceValidationError),
 }
 
@@ -36,19 +31,14 @@ impl std::fmt::Display for ProjectValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::MissingSetup => write!(f, "The project setup is missing."),
-            Self::MissingElementTree => write!(f, "The setup element tree is missing."),
-            Self::MissingPreviewLayout => write!(f, "The setup preview layout is missing."),
+            Self::MissingLayout => write!(f, "The referenced layout is missing."),
             Self::MissingPatch => write!(f, "The setup patch is missing."),
             Self::MissingController => write!(f, "A referenced controller is missing."),
-            Self::MissingFixtureProfile => write!(f, "A referenced fixture profile is missing."),
             Self::InvalidRelationship(message) => f.write_str(message),
-            Self::Patch(error) => std::fmt::Display::fmt(error, f),
             Self::Sequence(error) => f.write_str(&error.message),
-            Self::ElementTree(error) => write!(f, "Invalid element tree: {error:?}"),
-            Self::FixtureProfile(error) => std::fmt::Display::fmt(error, f),
+            Self::Fixture(error) => write!(f, "Invalid fixture definition: {error:?}"),
+            Self::Layout(error) => write!(f, "Invalid layout: {error:?}"),
             Self::Controller(error) => write!(f, "Invalid controller: {error:?}"),
-            Self::Preview(error) => write!(f, "Invalid preview: {error:?}"),
-            Self::Control(error) => write!(f, "Invalid control: {error:?}"),
         }
     }
 }
@@ -62,24 +52,23 @@ pub fn validate_project(project: &DawnProject) -> Result<(), ProjectValidationEr
     if !project.setups.contains_key(&project.root.setup) {
         return Err(ProjectValidationError::MissingSetup);
     }
-    for tree in project.element_trees.values() {
-        validate_element_tree(project, tree)?;
-    }
-    for profile in project.definitions.fixture_profiles.definitions.values() {
-        profile
-            .validate()
-            .map_err(ProjectValidationError::FixtureProfile)?;
-    }
+    let counts = project
+        .definitions
+        .fixtures
+        .pixel_counts()
+        .map_err(ProjectValidationError::Fixture)?;
     for controller in project.controllers.values() {
         controller
             .validate()
             .map_err(ProjectValidationError::Controller)?;
     }
-    for layout in project.preview_layouts.values() {
-        validate_layout(project, layout)?;
+    for layout in project.layouts.values() {
+        layout
+            .validate(&project.definitions.fixtures.definitions)
+            .map_err(ProjectValidationError::Layout)?;
     }
     for patch in project.patches.values() {
-        validate_patch(project, patch)?;
+        validate_patch(project, patch, &counts)?;
     }
     for setup in project.setups.values() {
         validate_setup(project, setup)?;
@@ -90,210 +79,92 @@ pub fn validate_project(project: &DawnProject) -> Result<(), ProjectValidationEr
     Ok(())
 }
 
-fn validate_element_tree(
-    project: &DawnProject,
-    tree: &crate::element::ElementTree,
-) -> Result<(), ProjectValidationError> {
-    tree.validate()
-        .map_err(ProjectValidationError::ElementTree)?;
-
-    for node in tree.nodes.values() {
-        if let crate::element::ElementNodeKind::Fixture { profile } = &node.kind {
-            project
-                .definitions
-                .fixture_profiles
-                .definitions
-                .get(profile)
-                .ok_or(ProjectValidationError::MissingFixtureProfile)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn validate_layout(
-    project: &DawnProject,
-    layout: &crate::preview::PreviewLayout,
-) -> Result<(), ProjectValidationError> {
-    let tree = project
-        .element_trees
-        .get(&layout.element_tree)
-        .ok_or(ProjectValidationError::MissingElementTree)?;
-    let cells = tree
-        .flattened_cells()
-        .map_err(|_| ProjectValidationError::MissingElementTree)?
-        .into_iter()
-        .collect::<HashSet<_>>();
-    let mut props = HashSet::new();
-    for prop in &layout.props {
-        if !props.insert(prop.id) {
-            return Err(ProjectValidationError::Preview(
-                PreviewValidationError::DuplicateProp(prop.id),
-            ));
-        }
-        let definition = project
-            .definitions
-            .props
-            .definitions
-            .get(&prop.definition)
-            .ok_or_else(|| {
-                ProjectValidationError::Preview(PreviewValidationError::MissingDefinition(
-                    prop.definition.clone(),
-                ))
-            })?;
-        let expected = definition.geometry.point_count();
-        if prop.bindings.len() != expected {
-            return Err(ProjectValidationError::Preview(
-                PreviewValidationError::BindingCount {
-                    prop: prop.id,
-                    expected,
-                    actual: prop.bindings.len(),
-                },
-            ));
-        }
-        for address in &prop.bindings {
-            if !cells.contains(address) {
-                return Err(ProjectValidationError::Preview(
-                    PreviewValidationError::MissingElementCell {
-                        prop: prop.id,
-                        address: *address,
-                    },
-                ));
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn validate_patch(
     project: &DawnProject,
-    patch: &crate::patch::PatchGraph,
+    patch: &crate::patch::Patch,
+    counts: &IndexMap<FixtureDefinitionId, u32>,
 ) -> Result<(), ProjectValidationError> {
-    patch.validate().map_err(ProjectValidationError::Patch)?;
-    for (node_id, node) in &patch.nodes {
-        match node {
-            crate::patch::PatchNode::Source(source) => {
-                let tree = project
-                    .element_trees
-                    .get(&source.selection.tree)
-                    .ok_or(ProjectValidationError::MissingElementTree)?;
-                source
-                    .validate_selection(tree)
-                    .map_err(ProjectValidationError::InvalidRelationship)?;
+    let mut ids = HashSet::new();
+    let mut occupied = std::collections::HashMap::<_, Vec<std::ops::Range<u32>>>::new();
+    for route in &patch.routes {
+        if !ids.insert(route.id) {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Duplicate output assignment ID.".into(),
+            ));
+        }
+        if !route.encoding.is_valid()
+            || !route.gamma.is_finite()
+            || route.gamma <= 0.0
+            || !route.brightness.is_finite()
+            || !(0.0..=1.0).contains(&route.brightness)
+        {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Invalid LED encoding, gamma, or brightness.".into(),
+            ));
+        }
+        let layout = project
+            .layouts
+            .get(&route.target.layout)
+            .ok_or(ProjectValidationError::MissingLayout)?;
+        let target_count = layout
+            .target_pixel_count(&route.target, counts)
+            .map_err(ProjectValidationError::Layout)?;
+        let count = if let Some(span) = route.pixels {
+            if span.count == 0
+                || span
+                    .start
+                    .checked_add(span.count)
+                    .is_none_or(|end| end > target_count)
+            {
+                return Err(ProjectValidationError::InvalidRelationship(
+                    "Output pixel span exceeds its target.".into(),
+                ));
             }
-            crate::patch::PatchNode::Sink(sink) => {
-                let controller = project
-                    .controllers
-                    .get(&sink.controller)
-                    .ok_or(ProjectValidationError::MissingController)?;
-                let port = controller
-                    .ports
-                    .iter()
-                    .find(|port| port.id == sink.port)
-                    .ok_or_else(|| {
-                        ProjectValidationError::InvalidRelationship(
-                            "patch sink controller port is missing".to_string(),
-                        )
-                    })?;
-                let end = sink
-                    .start_slot
-                    .checked_add(sink.slot_count)
-                    .ok_or_else(|| {
-                        ProjectValidationError::InvalidRelationship(
-                            "patch sink slot range overflowed".to_string(),
-                        )
-                    })?;
-                if end > port.slot_count {
-                    return Err(ProjectValidationError::InvalidRelationship(
-                        "patch sink exceeds its controller port".to_string(),
-                    ));
-                }
-            }
-            crate::patch::PatchNode::Filter(
-                crate::patch::FilterDefinition::FixtureProfileEncoding {
-                    profile,
-                    slot_count,
-                    ..
-                },
-            ) => {
-                let definition = project
-                    .definitions
-                    .fixture_profiles
-                    .definitions
-                    .get(profile)
-                    .ok_or(ProjectValidationError::MissingFixtureProfile)?;
-                if *slot_count != definition.slot_count() {
-                    return Err(ProjectValidationError::InvalidRelationship(
-                        "fixture-profile filter slot width differs from the profile".to_string(),
-                    ));
-                }
-            }
-            crate::patch::PatchNode::Filter(
-                crate::patch::FilterDefinition::IndexedValueMapping { entries, .. },
-            ) => {
-                let source = patch
-                    .edges
-                    .iter()
-                    .find(|edge| edge.to == *node_id)
-                    .and_then(|edge| patch.nodes.get(&edge.from));
-                let Some(crate::patch::PatchNode::Source(source)) = source else {
-                    return Err(ProjectValidationError::InvalidRelationship(format!(
-                        "Indexed mapping node {} must receive an indexed element source.",
-                        node_id.0
-                    )));
-                };
-                if !entries.contains_key(&0) {
-                    return Err(ProjectValidationError::InvalidRelationship(format!(
-                        "Indexed mapping node {} needs a value for ID 0, used when no control clip is active. Add the inactive value in the patch editor.",
-                        node_id.0
-                    )));
-                }
-                let tree = project
-                    .element_trees
-                    .get(&source.selection.tree)
-                    .ok_or(ProjectValidationError::MissingElementTree)?;
-                let selected = tree.flatten_selection(&source.selection).map_err(|error| {
-                    ProjectValidationError::InvalidRelationship(format!(
-                        "Invalid indexed source selection: {error:?}"
-                    ))
-                })?;
-                let mut checked = HashSet::new();
-                for cell in selected {
-                    if !checked.insert(cell.node) {
-                        continue;
-                    }
-                    if let Some(crate::element::ElementNode {
-                        name,
-                        kind: crate::element::ElementNodeKind::Indexed { options, .. },
-                    }) = tree.nodes.get(&cell.node)
-                    {
-                        for option in options {
-                            if !entries.contains_key(&option.id.0) {
-                                return Err(ProjectValidationError::InvalidRelationship(format!(
-                                    "Indexed mapping node {} has no value for option {} ({}) of {}. Add its value in the patch editor, or remove the assignment before changing options.",
-                                    node_id.0, option.id.0, option.name, name
-                                )));
-                            }
-                        }
-                    }
-                }
-            }
-            crate::patch::PatchNode::Filter(crate::patch::FilterDefinition::ColorBreakdown {
-                capability: crate::element::ColorCapability::Discrete { mappings, .. },
-                ..
-            }) => {
-                if !mappings
-                    .iter()
-                    .any(|mapping| mapping.color == dawn_runtime::element::black())
-                {
-                    return Err(ProjectValidationError::InvalidRelationship(format!(
-                        "Discrete color mapping node {} needs a black mapping for inactive pixels. Add it to the light's color capability or the patch filter.",
-                        node_id.0
-                    )));
-                }
-            }
-            crate::patch::PatchNode::Filter(_) => {}
+            span.count
+        } else {
+            target_count
+        };
+        let controller = project
+            .controllers
+            .get(&route.controller)
+            .ok_or(ProjectValidationError::MissingController)?;
+        let port = controller
+            .ports
+            .iter()
+            .find(|port| port.id == route.port)
+            .ok_or_else(|| {
+                ProjectValidationError::InvalidRelationship(
+                    "Output controller port is missing.".into(),
+                )
+            })?;
+        let width = count
+            .checked_mul(route.encoding.channel_order().len() as u32)
+            .ok_or_else(|| {
+                ProjectValidationError::InvalidRelationship(
+                    "Output channel count overflowed.".into(),
+                )
+            })?;
+        let start = u32::from(route.start_slot);
+        let end = start
+            .checked_add(width)
+            .filter(|&end| end <= u32::from(port.slot_count))
+            .ok_or_else(|| {
+                ProjectValidationError::InvalidRelationship(
+                    "Output exceeds its controller port.".into(),
+                )
+            })?;
+        let ranges = occupied.entry((&route.controller, route.port)).or_default();
+        if width != 0
+            && ranges
+                .iter()
+                .any(|range| start < range.end && range.start < end)
+        {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Output assignments overlap on a controller port.".into(),
+            ));
+        }
+        if width != 0 {
+            ranges.push(start..end);
         }
     }
     Ok(())
@@ -303,42 +174,34 @@ fn validate_setup(
     project: &DawnProject,
     setup: &crate::setup::Setup,
 ) -> Result<(), ProjectValidationError> {
-    if !project.element_trees.contains_key(&setup.elements) {
-        return Err(ProjectValidationError::MissingElementTree);
-    }
-    let layout = project
-        .preview_layouts
-        .get(&setup.preview)
-        .ok_or(ProjectValidationError::MissingPreviewLayout)?;
-    if layout.element_tree != setup.elements {
-        return Err(ProjectValidationError::InvalidRelationship(
-            "setup layout targets a different element tree".into(),
-        ));
+    if !project.layouts.contains_key(&setup.layout) {
+        return Err(ProjectValidationError::MissingLayout);
     }
     let patch = project
         .patches
         .get(&setup.patch)
         .ok_or(ProjectValidationError::MissingPatch)?;
+    let mut controllers = HashSet::new();
     for controller in &setup.controllers {
         if !project.controllers.contains_key(controller) {
             return Err(ProjectValidationError::MissingController);
         }
+        if !controllers.insert(controller) {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Controller appears more than once in the setup.".into(),
+            ));
+        }
     }
-    for node in patch.nodes.values() {
-        match node {
-            crate::patch::PatchNode::Source(source) if source.selection.tree != setup.elements => {
-                return Err(ProjectValidationError::InvalidRelationship(
-                    "patch source targets a different element tree".into(),
-                ));
-            }
-            crate::patch::PatchNode::Sink(sink)
-                if !setup.controllers.contains(&sink.controller) =>
-            {
-                return Err(ProjectValidationError::InvalidRelationship(
-                    "patch sink controller is not active in the setup".into(),
-                ));
-            }
-            _ => {}
+    for route in &patch.routes {
+        if route.target.layout != setup.layout {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Output targets a different layout.".into(),
+            ));
+        }
+        if !controllers.contains(&route.controller) {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Output controller is not active in the setup.".into(),
+            ));
         }
     }
     Ok(())
@@ -352,10 +215,10 @@ pub fn validate_sequence(
         .setups
         .get(&project.root.setup)
         .ok_or_else(|| sequence_error("active setup is missing"))?;
-    let tree = project
-        .element_trees
-        .get(&setup.elements)
-        .ok_or_else(|| sequence_error("active element tree is missing"))?;
+    let layout = project
+        .layouts
+        .get(&setup.layout)
+        .ok_or_else(|| sequence_error("active layout is missing"))?;
 
     if sequence.frame_rate == 0 {
         return Err(sequence_error("frame rate must be greater than zero"));
@@ -389,10 +252,6 @@ pub fn validate_sequence(
     ensure_unique(
         sequence.automation_clips.iter().map(|clip| clip.id.0),
         "automation clip ids",
-    )?;
-    ensure_unique(
-        sequence.control_clips.iter().map(|clip| clip.id.0),
-        "control clip ids",
     )?;
 
     let layer_ids = sequence
@@ -428,7 +287,11 @@ pub fn validate_sequence(
             sequence.duration.0,
             "effect",
         )?;
-        validate_color_effect_target(project, tree, effect)?;
+        if effect.target.layout != layout.id || layout.fixture(effect.target.fixture).is_none() {
+            return Err(sequence_error(
+                "Effect target is not present in the active layout.",
+            ));
+        }
         let definition = project
             .definitions
             .effects
@@ -523,20 +386,6 @@ pub fn validate_sequence(
         }
     }
 
-    for clip in &sequence.control_clips {
-        validate_timed_region(
-            clip.start.0,
-            clip.duration.0,
-            sequence.duration.0,
-            "control clip",
-        )?;
-    }
-    resolve_controls(
-        tree,
-        &project.definitions.fixture_profiles,
-        &sequence.control_clips,
-    )
-    .map_err(|error| sequence_error(error.to_string()))?;
     Ok(())
 }
 
@@ -572,50 +421,6 @@ fn validate_timed_region(
         return Err(sequence_error(format!(
             "{label} extends beyond the sequence duration"
         )));
-    }
-    Ok(())
-}
-
-fn validate_color_effect_target(
-    project: &DawnProject,
-    tree: &crate::element::ElementTree,
-    effect: &crate::effect::EffectInst,
-) -> Result<(), SequenceValidationError> {
-    if effect.target.tree != tree.id {
-        return Err(sequence_error("effect targets a different element tree"));
-    }
-    let addresses = tree
-        .flatten_selection(&effect.target)
-        .map_err(|error| sequence_error(format!("invalid effect selection: {error:?}")))?;
-    for address in addresses {
-        let node = tree
-            .nodes
-            .get(&address.node)
-            .ok_or_else(|| sequence_error("effect selection references a missing element"))?;
-        match &node.kind {
-            crate::element::ElementNodeKind::Color { .. } => {}
-            crate::element::ElementNodeKind::Fixture { profile } => {
-                let accepts_color = project
-                    .definitions
-                    .fixture_profiles
-                    .definitions
-                    .get(profile)
-                    .is_some_and(|profile| {
-                        profile.functions.values().any(|function| {
-                            matches!(
-                                function.kind,
-                                crate::fixture_profile::FixtureFunctionKind::ColorMixing { .. }
-                            )
-                        })
-                    });
-                if !accepts_color {
-                    return Err(sequence_error(
-                        "effect targets a fixture without configured color support",
-                    ));
-                }
-            }
-            _ => return Err(sequence_error("color effect targets a non-color element")),
-        }
     }
     Ok(())
 }

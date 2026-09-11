@@ -504,7 +504,7 @@ impl BoundParams {
     ) -> Result<Arc<Gradient>, RuntimeError> {
         match self.array_value(parameter, index)? {
             RuntimeValue::Gradient(value) => Ok(value),
-            _ => Err(RuntimeError::new("expected gradient array element")),
+            _ => Err(RuntimeError::new("expected gradient array fixture")),
         }
     }
 
@@ -512,7 +512,7 @@ impl BoundParams {
         match self.array_value(parameter, index)? {
             RuntimeValue::Curve(value) => Ok(value),
             RuntimeValue::PreparedCurve(value) => Ok(value.raw()),
-            _ => Err(RuntimeError::new("expected curve array element")),
+            _ => Err(RuntimeError::new("expected curve array fixture")),
         }
     }
 
@@ -2579,9 +2579,9 @@ fn member_value(
         return Err(RuntimeError::new("empty TargetItem has no fields"));
     };
     Ok(match member {
-        super::bytecode::TargetMember::ElementIndex => RuntimeValue::Int(pixel.element_index),
-        super::bytecode::TargetMember::ElementCellIndex => {
-            RuntimeValue::Int(pixel.element_cell_index)
+        super::bytecode::TargetMember::FixtureIndex => RuntimeValue::Int(pixel.fixture_index),
+        super::bytecode::TargetMember::FixturePixelIndex => {
+            RuntimeValue::Int(pixel.fixture_pixel_index)
         }
         super::bytecode::TargetMember::PixelIndex => RuntimeValue::Int(pixel.pixel_index),
         super::bytecode::TargetMember::PixelCount => RuntimeValue::Int(pixel.pixel_count),
@@ -2703,7 +2703,7 @@ fn fixtures(value: &RuntimeValue) -> Result<TargetItemsValue, RuntimeError> {
         if raw_groups
             .last()
             .and_then(|group| group.first())
-            .is_some_and(|first| first.element_index == pixel.element_index)
+            .is_some_and(|first| first.fixture_index == pixel.fixture_index)
         {
             if let Some(group) = raw_groups.last_mut() {
                 group.push(pixel);
@@ -2741,8 +2741,8 @@ fn sections(value: &RuntimeValue, width: f32) -> Result<TargetItemsValue, Runtim
             .last()
             .and_then(|group| group.first())
             .is_some_and(|first| {
-                first.element_index == pixel.element_index
-                    && first.element_cell_index / width == pixel.element_cell_index / width
+                first.fixture_index == pixel.fixture_index
+                    && first.fixture_pixel_index / width == pixel.fixture_pixel_index / width
             })
         {
             if let Some(group) = raw_groups.last_mut() {

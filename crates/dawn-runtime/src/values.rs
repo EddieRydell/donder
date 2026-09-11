@@ -198,6 +198,11 @@ pub struct Color {
 }
 
 impl Color {
+    pub const BLACK: Self = Self {
+        red: 0,
+        green: 0,
+        blue: 0,
+    };
     pub fn from_hex(value: &str) -> Option<Self> {
         if value.len() != 7 || !value.starts_with('#') {
             return None;

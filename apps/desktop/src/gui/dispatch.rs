@@ -11,20 +11,14 @@ pub fn apply_edit(
         (DocumentViewId::Sequence, GuiEditCommand::Sequence { edit }) => {
             edit_sequence(session, &resolved, edit)?;
         }
-        (DocumentViewId::ElementTree, GuiEditCommand::ElementTree { edit }) => {
-            super::elements::edit(
-                session,
-                &dawn_language::element::ElementTreeId(resolved.identity.clone()),
-                edit,
-            )?;
-        }
+
         (DocumentViewId::Setup, GuiEditCommand::Setup { edit }) => {
             edit_setup(session, &resolved, edit)?;
         }
-        (DocumentViewId::Preview, GuiEditCommand::Preview { edit }) => {
+        (DocumentViewId::Layout, GuiEditCommand::Layout { edit }) => {
             edit_layout(session, &resolved, edit)?;
         }
-        (DocumentViewId::Prop, GuiEditCommand::Prop { edit }) => {
+        (DocumentViewId::Fixture, GuiEditCommand::Fixture { edit }) => {
             edit_fixture(session, &resolved.identity, edit)?;
         }
         (DocumentViewId::Curve, GuiEditCommand::Curve { points }) => {
@@ -36,15 +30,12 @@ pub fn apply_edit(
         (DocumentViewId::Controller, GuiEditCommand::Controller { config, ports }) => {
             super::controller::edit(session, &resolved, config, ports)?;
         }
-        (DocumentViewId::FixtureProfile, GuiEditCommand::FixtureProfile { definition }) => {
-            super::fixture_profile::edit(session, &resolved, definition)?;
-        }
-        (DocumentViewId::Patch, GuiEditCommand::Patch { nodes, edges }) => {
+
+        (DocumentViewId::Patch, GuiEditCommand::Patch { routes }) => {
             super::patch::replace(
                 session,
                 &dawn_language::patch::PatchId(resolved.identity.clone()),
-                nodes,
-                edges,
+                routes,
             )?;
         }
         _ => {

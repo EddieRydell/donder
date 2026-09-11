@@ -248,7 +248,6 @@ fn bench_mark_playback(c: &mut Criterion) {
         );
         source.effects = vec![generator];
         source.automation_clips.clear();
-        source.control_clips.clear();
         let sequence = elaborate_sequence(&project, &project.root.setup, &id).unwrap();
         let effect = sequence.effects.iter().find(|effect| matches!(
             &effect.implementation,
@@ -571,38 +570,23 @@ fn bench_gamma(c: &mut Criterion) {
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
     let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
     for count in workload::COUNTS {
-        let mut expected = None;
-        for fused in [false, true] {
-            let mut show = workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 1);
-            workload::apply_gamma(&mut show, fused.then(workload::gamma_lookup));
-            let mut workspace = show.workspace();
-            let mut output = [vec![0; count * 3]];
-            let mut checksums = Vec::new();
-            for frame in 0..workload::FRAMES {
-                show.evaluate(workload::time(frame), &mut output, &mut workspace)
-                    .unwrap();
-                checksums.push(workload::checksum(&output[0]));
-            }
-            if let Some(expected) = &expected {
-                assert_eq!(&checksums, expected);
-            } else {
-                expected = Some(checksums);
-            }
-            let stage = if fused { "lookup" } else { "raw" };
-            let mut frame = 0;
-            c.bench_function(&format!("prepared_gamma/{stage}/{count}"), |b| {
-                b.iter(|| {
-                    frame = (frame + 1) % workload::FRAMES;
-                    show.evaluate(
-                        black_box(workload::time(frame)),
-                        &mut output,
-                        &mut workspace,
-                    )
-                    .unwrap();
-                    black_box(&output);
-                })
-            });
-        }
+        let mut show = workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 1);
+        workload::apply_gamma(&mut show, workload::gamma_lookup());
+        let mut workspace = show.workspace();
+        let mut output = [vec![0; count * 3]];
+        let mut frame = 0;
+        c.bench_function(&format!("prepared_gamma/lookup/{count}"), |b| {
+            b.iter(|| {
+                frame = (frame + 1) % workload::FRAMES;
+                show.evaluate(
+                    black_box(workload::time(frame)),
+                    &mut output,
+                    &mut workspace,
+                )
+                .unwrap();
+                black_box(&output);
+            })
+        });
     }
 }
 
@@ -657,8 +641,8 @@ fn project_path() -> Utf8PathBuf {
 fn checksum_frame(frame: &RenderedFrame) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     hash = checksum_u64(hash, u64::from(frame.frame_index));
-    for element in &frame.elements {
-        hash = checksum_u32(hash, element.element_id);
+    for element in &frame.fixtures {
+        hash = checksum_u32(hash, element.fixture_id);
         hash = checksum_colors_with_seed(hash, &element.pixels);
     }
     hash

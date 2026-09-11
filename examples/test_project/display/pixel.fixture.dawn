@@ -1,0 +1,9 @@
+pixel:
+  type: fixture
+  pixels:
+  - id: 1
+    position:
+      x: 0
+      y: 0
+      z: 0
+    diameter: 0.08

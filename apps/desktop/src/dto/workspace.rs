@@ -151,21 +151,12 @@ pub enum EditorViewMode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum ElementTargetKind {
-    Group,
-    Element,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub enum ObjectKind {
     Project,
     Setup,
     Controller,
-    ElementTree,
-    Preview,
-    Prop,
-    FixtureProfile,
+    Layout,
+    Fixture,
     Patch,
     Sequence,
     Curve,
@@ -180,11 +171,9 @@ impl From<&SourceObjectKind> for ObjectKind {
             SourceObjectKind::Project => Self::Project,
             SourceObjectKind::Setup => Self::Setup,
             SourceObjectKind::Controller => Self::Controller,
-            SourceObjectKind::ElementTree => Self::ElementTree,
-            SourceObjectKind::PreviewLayout => Self::Preview,
+            SourceObjectKind::Layout => Self::Layout,
             SourceObjectKind::Patch => Self::Patch,
-            SourceObjectKind::PropDefinition => Self::Prop,
-            SourceObjectKind::FixtureProfile => Self::FixtureProfile,
+            SourceObjectKind::FixtureDefinition => Self::Fixture,
             SourceObjectKind::Curve => Self::Curve,
             SourceObjectKind::Gradient => Self::Gradient,
             SourceObjectKind::Sequence => Self::Sequence,
@@ -199,10 +188,8 @@ impl ObjectKind {
         match self {
             Self::Project => Some(DocumentViewId::Project),
             Self::Setup => Some(DocumentViewId::Setup),
-            Self::ElementTree => Some(DocumentViewId::ElementTree),
-            Self::Preview => Some(DocumentViewId::Preview),
-            Self::Prop => Some(DocumentViewId::Prop),
-            Self::FixtureProfile => Some(DocumentViewId::FixtureProfile),
+            Self::Layout => Some(DocumentViewId::Layout),
+            Self::Fixture => Some(DocumentViewId::Fixture),
             Self::Patch => Some(DocumentViewId::Patch),
             Self::Controller => Some(DocumentViewId::Controller),
             Self::Sequence => Some(DocumentViewId::Sequence),
@@ -286,10 +273,9 @@ pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> Works
     match kind {
         SourceObjectKind::Project => WorkspaceEntryRole::Project,
         SourceObjectKind::Setup => WorkspaceEntryRole::Setup,
-        SourceObjectKind::PreviewLayout | SourceObjectKind::PropDefinition => {
+        SourceObjectKind::Layout | SourceObjectKind::FixtureDefinition => {
             WorkspaceEntryRole::Layout
         }
-        SourceObjectKind::FixtureProfile => WorkspaceEntryRole::Fixture,
         SourceObjectKind::Patch => WorkspaceEntryRole::Patch,
         SourceObjectKind::Curve => WorkspaceEntryRole::Curve,
         SourceObjectKind::Gradient => WorkspaceEntryRole::Gradient,
@@ -298,7 +284,7 @@ pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> Works
             WorkspaceEntryRole::Effect
         }
         SourceObjectKind::OperatorDefinition => WorkspaceEntryRole::Operator,
-        SourceObjectKind::Controller | SourceObjectKind::ElementTree => WorkspaceEntryRole::File,
+        SourceObjectKind::Controller => WorkspaceEntryRole::File,
     }
 }
 

@@ -13,7 +13,7 @@ use crate::sequence::effects::sampling::{
     evenly_sample_indices, prepare_sampled_effect_pixel_groups,
     render_sampled_effect_target_colors,
 };
-use crate::sequence::elements::{PreparedElement, prepare_elements};
+use crate::sequence::fixtures::{PreparedFixture, prepare_fixtures};
 use crate::sequence::targets::PreparedTargetCache;
 use crate::sequence::targets::PreparedTargetPixel;
 use crate::sequence::timeline::{
@@ -21,7 +21,7 @@ use crate::sequence::timeline::{
 };
 use dawn_language::dsl::{BytecodeProgram, DslBindCache, VmWorkspace};
 use dawn_language::effect::{EffectDefinitionId, EffectInstId};
-use dawn_language::element::ElementNodeId;
+use dawn_language::layout::FixtureInstanceId;
 use dawn_language::model::DawnProject;
 use dawn_language::sequence::{Sequence, SequenceId};
 use dawn_language::setup::SetupId;
@@ -61,9 +61,9 @@ pub struct EffectRasterWorkspace {
 pub struct EffectRasterPrepareBatch<'a> {
     project: &'a DawnProject,
     sequence: &'a Sequence,
-    elements: Vec<PreparedElement>,
-    element_ids: IndexSet<ElementNodeId>,
-    groups: IndexMap<ElementNodeId, Vec<ElementNodeId>>,
+    fixtures: Vec<PreparedFixture>,
+    fixture_ids: IndexSet<FixtureInstanceId>,
+    groups: IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
     frame_rate: u32,
     frame_count: u32,
     bind_cache: DslBindCache,
@@ -153,8 +153,8 @@ impl PreparedEffectRasterRenderer {
             if let Some(pixel) = self.target.get(target_index) {
                 sample_lookup
                     .entry(TargetColorAddress {
-                        element_index: pixel.element_index(),
-                        element_cell_index: pixel.element_cell_index(),
+                        fixture_index: pixel.fixture_index(),
+                        fixture_pixel_index: pixel.fixture_pixel_index(),
                     })
                     .or_default()
                     .push(row_index);
@@ -169,8 +169,8 @@ impl PreparedEffectRasterRenderer {
                     .filter_map(|pixel| {
                         sample_lookup
                             .get(&TargetColorAddress {
-                                element_index: pixel.element_index(),
-                                element_cell_index: pixel.element_cell_index(),
+                                fixture_index: pixel.fixture_index(),
+                                fixture_pixel_index: pixel.fixture_pixel_index(),
                             })
                             .map(|rows| PreparedSampledEffectPixel {
                                 pixel: pixel.clone(),
@@ -260,10 +260,10 @@ impl<'a> EffectRasterPrepareBatch<'a> {
             .ok_or_else(|| RenderError::MissingSetup {
                 setup_id: setup_id.clone(),
             })?;
-        let tree = project
-            .element_trees
-            .get(&setup.elements)
-            .ok_or(RenderError::MissingElementTree)?;
+        let layout = project
+            .layouts
+            .get(&setup.layout)
+            .ok_or(RenderError::MissingLayout)?;
         let sequence =
             project
                 .sequences
@@ -276,18 +276,18 @@ impl<'a> EffectRasterPrepareBatch<'a> {
         })?;
         let timing = prepare_timing(sequence)?;
 
-        let (elements, groups) = prepare_elements(project, tree)?;
-        let element_ids = elements
+        let (fixtures, groups) = prepare_fixtures(project, layout)?;
+        let fixture_ids = fixtures
             .iter()
-            .map(|element| element.id)
+            .map(|fixture| fixture.id)
             .collect::<IndexSet<_>>();
         let frame_rate = sequence.frame_rate;
 
         Ok(Self {
             project,
             sequence,
-            elements,
-            element_ids,
+            fixtures,
+            fixture_ids,
             groups,
             frame_rate,
             frame_count: timing.frame_count,
@@ -317,8 +317,8 @@ impl<'a> EffectRasterPrepareBatch<'a> {
                 environments: &mut environments,
                 project: self.project,
                 sequence: self.sequence,
-                elements: &self.elements,
-                element_ids: &self.element_ids,
+                fixtures: &self.fixtures,
+                fixture_ids: &self.fixture_ids,
                 groups: &self.groups,
                 effects: &mut effects,
                 generated_child_count: &mut generated_child_count,

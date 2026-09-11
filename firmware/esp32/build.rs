@@ -260,10 +260,10 @@ fn main() {
                     }
                     golden.push(expected.unwrap());
                 }
-                for lookup in [None, Some(gamma_lookup)] {
+                {
                     let mut show =
                         workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 1);
-                    workload::apply_gamma(&mut show, lookup);
+                    workload::apply_gamma(&mut show, gamma_lookup);
                     let mut workspace = show.workspace();
                     for (frame, expected) in gamma_frames.iter().enumerate() {
                         show.evaluate(workload::time(frame), &mut buffers, &mut workspace)

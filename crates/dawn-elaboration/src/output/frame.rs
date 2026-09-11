@@ -1,5 +1,5 @@
 use dawn_language::controller::{ControllerId, ControllerPortId};
-pub use dawn_runtime::element::RenderedElementState;
+use dawn_runtime::signal::RenderedFixture;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControllerPortFrame {
@@ -13,7 +13,7 @@ pub struct RenderedSequenceFrame {
     pub frame_index: u32,
     pub frame_rate: u32,
     pub sample_time: dawn_language::values::SampleTime,
-    pub elements: Vec<RenderedElementState>,
+    pub fixtures: Vec<RenderedFixture>,
     pub controller_frames: Vec<ControllerPortFrame>,
 }
 

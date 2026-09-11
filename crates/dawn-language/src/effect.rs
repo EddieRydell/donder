@@ -1,7 +1,7 @@
 use crate::dsl::types::Identifier;
 use crate::dsl::{CompiledEffect, EffectKind, ParamDecl, Type, Value};
-use crate::element::ElementSelection;
 use crate::identity::SourceIdentity;
+use crate::layout::FixtureTarget;
 use crate::sequence::{MarkCollectionKey, SequenceLayerId};
 use crate::values::{Curve, DawnDuration, DawnTime, Gradient};
 use indexmap::IndexMap;
@@ -15,7 +15,7 @@ pub struct EffectInst {
     pub layer_id: SequenceLayerId,
     pub start: DawnTime,
     pub duration: DawnDuration,
-    pub target: ElementSelection,
+    pub target: FixtureTarget,
     pub scope: EffectScope,
     pub definition: EffectRef,
     pub param_overrides: IndexMap<Identifier, EffectParamValue>,

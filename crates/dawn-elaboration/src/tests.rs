@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
 use dawn_project_io::load_package;
 
-use crate::{PreparedSequenceOutput, RenderedElementState};
+use crate::PreparedSequenceOutput;
 
 fn example(name: &str) -> dawn_project_io::ProjectSession {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -64,17 +64,15 @@ fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
     let first = renderer.render_frame(10).unwrap();
     let second = renderer.render_frame(10).unwrap();
     assert_eq!(first, second);
-    assert!(!first.elements.is_empty());
+    assert!(!first.fixtures.is_empty());
     assert!(!first.controller_frames.is_empty());
-    let preview_checksum = first.elements.iter().fold(0u64, |hash, element| {
-        (0..)
-            .map_while(|cell| element.preview_color(cell))
-            .fold(hash, |hash, color| {
-                hash.wrapping_mul(16777619)
-                    ^ u64::from(color.red)
-                    ^ (u64::from(color.green) << 8)
-                    ^ (u64::from(color.blue) << 16)
-            })
+    let preview_checksum = first.fixtures.iter().fold(0u64, |hash, fixture| {
+        fixture.pixels.iter().copied().fold(hash, |hash, color| {
+            hash.wrapping_mul(16777619)
+                ^ u64::from(color.red)
+                ^ (u64::from(color.green) << 8)
+                ^ (u64::from(color.blue) << 16)
+        })
     });
     let controller_checksum = first.controller_frames.iter().fold(0u64, |hash, frame| {
         frame.slots.iter().fold(hash, |hash, slot| {
@@ -83,15 +81,13 @@ fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
     });
     assert_eq!(
         preview_checksum,
-        second.elements.iter().fold(0u64, |hash, element| {
-            (0..)
-                .map_while(|cell| element.preview_color(cell))
-                .fold(hash, |hash, color| {
-                    hash.wrapping_mul(16777619)
-                        ^ u64::from(color.red)
-                        ^ (u64::from(color.green) << 8)
-                        ^ (u64::from(color.blue) << 16)
-                })
+        second.fixtures.iter().fold(0u64, |hash, fixture| {
+            fixture.pixels.iter().copied().fold(hash, |hash, color| {
+                hash.wrapping_mul(16777619)
+                    ^ u64::from(color.red)
+                    ^ (u64::from(color.green) << 8)
+                    ^ (u64::from(color.blue) << 16)
+            })
         })
     );
     assert_eq!(
@@ -124,45 +120,35 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 }
 
 #[test]
-fn logical_state_covers_every_element_leaf_in_tree_order() {
+fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
     let sequence_id = session.project.root.sequences.first().unwrap();
     let renderer =
         PreparedSequenceOutput::prepare(&session.project, &session.project.root.setup, sequence_id)
             .unwrap();
     let frame = renderer.render_seconds(1.0).unwrap();
-    let setup = session
-        .project
-        .setups
-        .get(&session.project.root.setup)
-        .unwrap();
-    let tree = session.project.element_trees.get(&setup.elements).unwrap();
-    let expected = tree
-        .nodes
-        .values()
-        .filter(|node| {
-            !matches!(
-                node.kind,
-                dawn_language::element::ElementNodeKind::Group { .. }
-            )
-        })
-        .count();
-    assert_eq!(frame.elements.len(), expected);
-    assert!(frame.elements.iter().all(|state| matches!(
-        state,
-        RenderedElementState::Color { .. }
-            | RenderedElementState::Scalar { .. }
-            | RenderedElementState::Indexed { .. }
-            | RenderedElementState::Fixture { .. }
-    )));
+    assert_eq!(
+        frame
+            .fixtures
+            .iter()
+            .map(|fixture| fixture.fixture_id)
+            .collect::<Vec<_>>(),
+        (1..=30).collect::<Vec<_>>()
+    );
+    assert!(
+        frame
+            .fixtures
+            .iter()
+            .all(|fixture| fixture.pixels.len() == 113)
+    );
 }
 
 fn checksum_frame(frame: &crate::RenderedFrame) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     hash = checksum_u64(hash, u64::from(frame.frame_index));
-    for element in &frame.elements {
-        hash = checksum_u32(hash, element.element_id);
-        for color in &element.pixels {
+    for fixture in &frame.fixtures {
+        hash = checksum_u32(hash, fixture.fixture_id);
+        for color in &fixture.pixels {
             for channel in [color.red, color.green, color.blue] {
                 hash = checksum_u8(hash, channel);
             }

@@ -1,4 +1,3 @@
-use crate::control::ControlClip;
 use crate::dsl::types::Identifier;
 use crate::effect::{EffectInst, EffectInstId};
 use crate::identity::SourceIdentity;
@@ -24,7 +23,6 @@ pub struct Sequence {
     pub effects: Vec<EffectInst>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<AutomationClip>,
-    pub control_clips: Vec<ControlClip>,
 }
 
 impl Sequence {

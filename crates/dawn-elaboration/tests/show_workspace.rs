@@ -1,7 +1,6 @@
 use camino::Utf8PathBuf;
 use dawn_elaboration::PreparedSequenceOutput;
 use dawn_project_io::load_package;
-use dawn_runtime::element::{ElementLayout, ElementNodeId, RenderedElementState, black};
 use dawn_runtime::values::{SampleTime, sample_time_from_frame};
 
 #[test]
@@ -16,10 +15,6 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         )
         .unwrap();
         let show = &mut output.sequence;
-        // This element has no sequence span or patch: nothing ever writes it.
-        let mut elements = show.elements.to_vec();
-        elements.push((ElementNodeId(u32::MAX), ElementLayout::Color(3)));
-        show.elements = elements.into_boxed_slice();
         let mut workspace = show.workspace();
         let mut buffers = show
             .output_widths
@@ -45,12 +40,10 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
             let mut expected = buffers.clone();
             show.evaluate(time, &mut expected, &mut fresh).unwrap();
             assert_eq!(buffers, expected, "{sequence:?} at {time:?}");
-            assert_eq!(workspace.elements(), fresh.elements());
-            let RenderedElementState::Color { cells, .. } = workspace.elements().last().unwrap()
-            else {
-                unreachable!()
-            };
-            assert!(cells.iter().all(|&color| color == black()));
+            assert_eq!(
+                show.rendered_fixtures(&workspace).unwrap(),
+                show.rendered_fixtures(&fresh).unwrap()
+            );
         }
     }
 }

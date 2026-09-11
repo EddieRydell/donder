@@ -120,9 +120,9 @@ impl SourceProject {
         }
         Identifier::new(prefix.to_string())
             .map_err(|_| "Invalid source object prefix.".to_string())?;
-        let source = self
+        let (_, document, source) = self
             .documents
-            .get_mut(document)
+            .get_full_mut(document)
             .ok_or_else(|| "Source document was not found.".to_string())?;
         if !matches!(source.kind, SourceDocumentKind::Dawn { .. })
             || matches!(
@@ -300,11 +300,9 @@ pub enum SourceObjectKind {
     Project,
     Setup,
     Controller,
-    ElementTree,
-    PreviewLayout,
+    Layout,
     Patch,
-    PropDefinition,
-    FixtureProfile,
+    FixtureDefinition,
     Curve,
     Gradient,
     Sequence,

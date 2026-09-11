@@ -1,90 +1,5 @@
-use dawn_language::preview::PropGeometry as DomainGeometry;
-use dawn_language::values::{DistanceSpan, Point3};
-
-use crate::dto::{GeometryRenderPoint, Point3Meters};
-
-pub(crate) fn geometry_emitters(geometry: &DomainGeometry) -> Vec<GeometryRenderPoint> {
-    match geometry {
-        DomainGeometry::Points { points } => {
-            points.iter().map(|point| render_point(*point)).collect()
-        }
-        DomainGeometry::Lines {
-            points,
-            point_count,
-        } => line_emitters(points, *point_count),
-        DomainGeometry::Arc {
-            center,
-            radius,
-            start_degrees,
-            end_degrees,
-            point_count,
-        } => arc_emitters(*center, *radius, *start_degrees, *end_degrees, *point_count),
-    }
-}
-
-fn line_emitters(points: &[Point3], pixels: u32) -> Vec<GeometryRenderPoint> {
-    if points.is_empty() || pixels == 0 {
-        return Vec::new();
-    }
-    if points.len() == 1 || pixels == 1 {
-        return vec![render_point(points[0])];
-    }
-    let (first, last) = (points[0], points[points.len() - 1]);
-    (0..pixels)
-        .map(|index| {
-            let amount = index as f32 / (pixels - 1) as f32;
-            GeometryRenderPoint {
-                x_meters: lerp(first.x.as_meters_f32(), last.x.as_meters_f32(), amount),
-                y_meters: lerp(first.y.as_meters_f32(), last.y.as_meters_f32(), amount),
-                z_meters: lerp(first.z.as_meters_f32(), last.z.as_meters_f32(), amount),
-            }
-        })
-        .collect()
-}
-
-fn arc_emitters(
-    center: Point3,
-    radius: DistanceSpan,
-    start_degrees: f32,
-    end_degrees: f32,
-    pixels: u32,
-) -> Vec<GeometryRenderPoint> {
-    if pixels == 0 {
-        return Vec::new();
-    }
-    let radius_meters = radius.as_meters_f32();
-    (0..pixels)
-        .map(|index| {
-            let amount = if pixels == 1 {
-                0.0
-            } else {
-                index as f32 / (pixels - 1) as f32
-            };
-            arc_point(
-                center,
-                radius_meters,
-                lerp(start_degrees, end_degrees, amount),
-            )
-        })
-        .collect()
-}
-
-pub(crate) fn arc_point(center: Point3, radius_meters: f32, degrees: f32) -> GeometryRenderPoint {
-    let radians = degrees.to_radians();
-    GeometryRenderPoint {
-        x_meters: center.x.as_meters_f32() + radius_meters * radians.cos(),
-        y_meters: center.y.as_meters_f32() + radius_meters * radians.sin(),
-        z_meters: center.z.as_meters_f32(),
-    }
-}
-
-pub(crate) fn render_point(point: Point3) -> GeometryRenderPoint {
-    GeometryRenderPoint {
-        x_meters: point.x.as_meters_f32(),
-        y_meters: point.y.as_meters_f32(),
-        z_meters: point.z.as_meters_f32(),
-    }
-}
+use crate::dto::Point3Meters;
+use dawn_language::values::Point3;
 
 pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
     Point3Meters {
@@ -92,8 +7,4 @@ pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
         y_meters: point.y.as_meters_f32(),
         z_meters: point.z.as_meters_f32(),
     }
-}
-
-fn lerp(start: f32, end: f32, amount: f32) -> f32 {
-    start + (end - start) * amount
 }

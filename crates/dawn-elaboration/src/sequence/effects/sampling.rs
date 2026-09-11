@@ -51,8 +51,8 @@ pub(crate) struct PreparedSampledEffectPixelGroup {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct TargetColorAddress {
-    pub(crate) element_index: usize,
-    pub(crate) element_cell_index: usize,
+    pub(crate) fixture_index: usize,
+    pub(crate) fixture_pixel_index: usize,
 }
 
 pub(crate) fn render_sampled_effect_target_colors(

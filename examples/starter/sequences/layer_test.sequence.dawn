@@ -49,8 +49,8 @@ layer_test:
     start: 58.979683s
     duration: 1.341234s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: per_fixture
     params:
       gradient:
@@ -89,8 +89,8 @@ layer_test:
     start: 58.971401s
     duration: 1s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: whole_target
     params:
       gradient:
@@ -111,8 +111,8 @@ layer_test:
     start: 59.202995s
     duration: 1.341234s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: per_fixture
     params:
       gradient:
@@ -151,8 +151,8 @@ layer_test:
     start: 64.321722s
     duration: 2.728596s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: per_fixture
     params:
       gradient:
@@ -197,8 +197,8 @@ layer_test:
     start: 64.2733s
     duration: 0.45496s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: whole_target
     params:
       gradient:
@@ -225,8 +225,8 @@ layer_test:
     start: 66.949971s
     duration: 0.45496s
     target:
-      tree: elements.outputs_elements
-      node: 1001
+      layout: elements.outputs_layout
+      fixture: 1001
     scope: whole_target
     params:
       gradient:
@@ -253,8 +253,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 3
+      layout: elements.outputs_layout
+      fixture: 3
     scope: per_fixture
     params:
       gradient:
@@ -275,8 +275,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 4
+      layout: elements.outputs_layout
+      fixture: 4
     scope: per_fixture
     params:
       gradient:
@@ -297,8 +297,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 5
+      layout: elements.outputs_layout
+      fixture: 5
     scope: per_fixture
     params:
       gradient:
@@ -319,8 +319,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 6
+      layout: elements.outputs_layout
+      fixture: 6
     scope: per_fixture
     params:
       gradient:
@@ -341,8 +341,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 7
+      layout: elements.outputs_layout
+      fixture: 7
     scope: per_fixture
     params:
       gradient:
@@ -363,8 +363,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 8
+      layout: elements.outputs_layout
+      fixture: 8
     scope: per_fixture
     params:
       gradient:
@@ -385,8 +385,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 9
+      layout: elements.outputs_layout
+      fixture: 9
     scope: per_fixture
     params:
       gradient:
@@ -407,8 +407,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 10
+      layout: elements.outputs_layout
+      fixture: 10
     scope: per_fixture
     params:
       gradient:
@@ -429,8 +429,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 11
+      layout: elements.outputs_layout
+      fixture: 11
     scope: per_fixture
     params:
       gradient:
@@ -451,8 +451,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 12
+      layout: elements.outputs_layout
+      fixture: 12
     scope: per_fixture
     params:
       gradient:
@@ -473,8 +473,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 13
+      layout: elements.outputs_layout
+      fixture: 13
     scope: per_fixture
     params:
       gradient:
@@ -495,8 +495,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 14
+      layout: elements.outputs_layout
+      fixture: 14
     scope: per_fixture
     params:
       gradient:
@@ -517,8 +517,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 15
+      layout: elements.outputs_layout
+      fixture: 15
     scope: per_fixture
     params:
       gradient:
@@ -539,8 +539,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 16
+      layout: elements.outputs_layout
+      fixture: 16
     scope: per_fixture
     params:
       gradient:
@@ -561,8 +561,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 17
+      layout: elements.outputs_layout
+      fixture: 17
     scope: per_fixture
     params:
       gradient:
@@ -583,8 +583,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 18
+      layout: elements.outputs_layout
+      fixture: 18
     scope: per_fixture
     params:
       gradient:
@@ -605,8 +605,8 @@ layer_test:
     start: 58.316901s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 1
+      layout: elements.outputs_layout
+      fixture: 1
     scope: per_fixture
     params:
       gradient:
@@ -627,8 +627,8 @@ layer_test:
     start: 58.645841s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 2
+      layout: elements.outputs_layout
+      fixture: 2
     scope: per_fixture
     params:
       gradient:
@@ -649,8 +649,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 23
+      layout: elements.outputs_layout
+      fixture: 23
     scope: per_fixture
     params:
       gradient:
@@ -671,8 +671,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 24
+      layout: elements.outputs_layout
+      fixture: 24
     scope: per_fixture
     params:
       gradient:
@@ -693,8 +693,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 25
+      layout: elements.outputs_layout
+      fixture: 25
     scope: per_fixture
     params:
       gradient:
@@ -715,8 +715,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 26
+      layout: elements.outputs_layout
+      fixture: 26
     scope: per_fixture
     params:
       gradient:
@@ -737,8 +737,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 27
+      layout: elements.outputs_layout
+      fixture: 27
     scope: per_fixture
     params:
       gradient:
@@ -759,8 +759,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 28
+      layout: elements.outputs_layout
+      fixture: 28
     scope: per_fixture
     params:
       gradient:
@@ -781,8 +781,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 29
+      layout: elements.outputs_layout
+      fixture: 29
     scope: per_fixture
     params:
       gradient:
@@ -803,8 +803,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 30
+      layout: elements.outputs_layout
+      fixture: 30
     scope: per_fixture
     params:
       gradient:
@@ -825,8 +825,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 21
+      layout: elements.outputs_layout
+      fixture: 21
     scope: per_fixture
     params:
       gradient:
@@ -847,8 +847,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 22
+      layout: elements.outputs_layout
+      fixture: 22
     scope: per_fixture
     params:
       gradient:
@@ -869,8 +869,8 @@ layer_test:
     start: 58.316998s
     duration: 0.726459s
     target:
-      tree: elements.outputs_elements
-      node: 19
+      layout: elements.outputs_layout
+      fixture: 19
     scope: per_fixture
     params:
       gradient:
@@ -891,8 +891,8 @@ layer_test:
     start: 58.645938s
     duration: 0.442291s
     target:
-      tree: elements.outputs_elements
-      node: 20
+      layout: elements.outputs_layout
+      fixture: 20
     scope: per_fixture
     params:
       gradient:
@@ -1082,4 +1082,3 @@ layer_test:
         min: -1.0
         max: 1.0
     detached_bindings: []
-  control_clips: []

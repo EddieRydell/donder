@@ -1,12 +1,8 @@
+use dawn_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 extern crate alloc;
 
 use alloc::vec;
 use dawn_runtime::dsl::{BoundParams, RunContext, bytecode::BytecodeProgram};
-use dawn_runtime::element::{ElementLayout, ElementNodeId};
-use dawn_runtime::fixture::FixtureBehaviors;
-use dawn_runtime::patch::{
-    PatchSource, PatchSourceSpan, PatchStep, PatchValueLayout, PreparedFilter, PreparedPatch,
-};
 use dawn_runtime::sequence::PreparedSequence;
 use dawn_runtime::signal::*;
 use dawn_runtime::values::{SampleDuration, SampleTime};
@@ -313,77 +309,16 @@ pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram,
     };
 }
 
-// Used on the build host only; firmware receives the resulting table as data.
-#[allow(dead_code)]
+// The firmware receives this host-prepared lookup as data.
+#[cfg(not(target_arch = "xtensa"))]
 pub fn gamma_lookup() -> [u8; 256] {
-    use dawn_runtime::fixture::{DimmingCurve, apply_dimming_curve, quantize8};
-    core::array::from_fn(|value| {
-        quantize8(apply_dimming_curve(
-            &DimmingCurve::Gamma(2.2),
-            value as f32 / 255.0,
-        ))
-    })
+    core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0).round() as u8)
 }
 
-pub fn apply_gamma(show: &mut PreparedSequence, lookup: Option<[u8; 256]>) {
-    use alloc::boxed::Box;
-    use dawn_runtime::fixture::DimmingCurve;
-    use dawn_runtime::patch::ColorEncoding;
-    let count = show.signals.pixel_count() as u32;
-    if let Some(lookup) = lookup {
-        let PatchStep::Filter {
-            filter: PreparedFilter::PackRgb { lookup: table, .. },
-            ..
-        } = &mut show.patch.steps[1]
-        else {
-            unreachable!()
-        };
-        *table = Some(Box::new(lookup));
-    } else {
-        let mut steps = show.patch.steps.to_vec();
-        steps.splice(
-            1..2,
-            [
-                PatchStep::Filter {
-                    input: 0,
-                    output_start: 2,
-                    filter: PreparedFilter::ColorBreakdown {
-                        capability: ColorEncoding::Rgb,
-                        cell_count: count,
-                    },
-                },
-                PatchStep::Filter {
-                    input: 2,
-                    output_start: 3,
-                    filter: PreparedFilter::DimmingCurve {
-                        curve: DimmingCurve::Gamma(2.2),
-                        width: count * 3,
-                    },
-                },
-                PatchStep::Filter {
-                    input: 3,
-                    output_start: 2,
-                    filter: PreparedFilter::ComponentReorder {
-                        components_per_cell: 3,
-                        order: Box::new([1, 0, 2]),
-                        cell_count: count,
-                    },
-                },
-                PatchStep::Filter {
-                    input: 2,
-                    output_start: 1,
-                    filter: PreparedFilter::Quantize8 { width: count * 3 },
-                },
-            ],
-        );
-        show.patch.steps = steps.into_boxed_slice();
-        show.patch.value_layouts = vec![
-            PatchValueLayout::Color(count),
-            PatchValueLayout::Slots(count * 3),
-            PatchValueLayout::Components(count * 3),
-            PatchValueLayout::Components(count * 3),
-        ]
-        .into_boxed_slice();
+pub fn apply_gamma(show: &mut PreparedSequence, lookup: [u8; 256]) {
+    show.patch.lookups = vec![lookup].into_boxed_slice();
+    for route in &mut show.patch.routes {
+        route.lookup = Some(0);
     }
 }
 
@@ -408,7 +343,7 @@ pub fn checksum(bytes: &[u8]) -> u32 {
     })
 }
 
-// A deliberately small prepared workload: one DSL effect on one RGB element,
+// A deliberately small prepared workload: one DSL effect on one RGB fixture,
 // one layer/output signal graph, and the production RGB-to-GRB patch path.
 // Construction is measured separately; the runtime evaluator is not duplicated.
 pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> PreparedSequence {
@@ -420,12 +355,12 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
             frame_rate: 120,
             frame_count: 960,
             duration: SampleDuration::from_ticks(8_000_000),
-            elements: vec![PreparedElement {
+            fixtures: vec![PreparedFixture {
                 id: 0,
                 pixel_count: count,
             }]
             .into_boxed_slice(),
-            element_cell_offsets: vec![0].into_boxed_slice(),
+            fixture_pixel_offsets: vec![0].into_boxed_slice(),
             pixel_count: count,
             effects: vec![PreparedEffect {
                 start_time: SampleTime::from_ticks(0),
@@ -446,8 +381,8 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
             .into_boxed_slice(),
             target_pixels: (0..count)
                 .map(|pixel| PreparedPixel {
-                    element_index: 0,
-                    element_cell_index: pixel as u16,
+                    fixture_index: 0,
+                    fixture_pixel_index: pixel as u16,
                     pixel_index: pixel as u32,
                     pixel_count: count as u32,
                     pixel_fraction: pixel as f32 / (count - 1) as f32,
@@ -475,50 +410,18 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
                 frame_buffer_count: 2,
             },
         },
-        elements: vec![(ElementNodeId(0), ElementLayout::Color(count as u32))].into_boxed_slice(),
-        controls: vec![].into_boxed_slice(),
-        fixture_behaviors: FixtureBehaviors {
-            bindings: vec![].into_boxed_slice(),
-            rules: vec![].into_boxed_slice(),
-        },
         patch: PreparedPatch {
-            steps: vec![
-                PatchStep::Source {
-                    output: 0,
-                    source: PatchSource {
-                        spans: vec![PatchSourceSpan {
-                            element: 0,
-                            cells: 0..count as u32,
-                        }]
-                        .into(),
-                    },
-                },
-                PatchStep::Filter {
-                    input: 0,
-                    output_start: 1,
-                    filter: PreparedFilter::PackRgb {
-                        lookup: None,
-                        cell_count: count as u32,
-                        order: [1, 0, 2],
-                    },
-                },
-                PatchStep::Sink {
-                    input: 1,
-                    frame: 0,
-                    start: 0,
-                    end: count as u32 * 3,
-                },
-            ]
+            routes: vec![PreparedPixelRoute {
+                pixels: 0..count as u32,
+                frame: 0,
+                start_slot: 0,
+                encoding: PixelEncoding::Rgb { order: [1, 0, 2] },
+                lookup: None,
+            }]
             .into_boxed_slice(),
-            value_layouts: vec![
-                PatchValueLayout::Color(count as u32),
-                PatchValueLayout::Slots(count as u32 * 3),
-            ]
-            .into_boxed_slice(),
-            fixture_programs: vec![].into_boxed_slice(),
+            lookups: vec![].into_boxed_slice(),
         },
         output_widths: vec![count as u32 * 3].into_boxed_slice(),
-        color_spans: vec![(0, 0..count as u32)].into_boxed_slice(),
     }
 }
 

@@ -214,7 +214,7 @@ export type DocumentUpdate = {
 	text: string,
 };
 
-export type DocumentViewId = "text" | "project" | "setup" | "elementTree" | "preview" | "prop" | "fixtureProfile" | "patch" | "controller" | "sequence" | "curve" | "gradient";
+export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture" | "patch" | "controller" | "sequence" | "curve" | "gradient";
 
 export type EditorBuffer = {
 	path: string,
@@ -237,40 +237,21 @@ export type EffectRasterSettings = {
 	minFrameStride: number,
 };
 
-export type ElementCellOption = {
-	id: number,
-	name: string,
-	cellCount: number,
-};
-
-export type ElementTarget = {
-	kind: ElementTargetKind,
-	name: string,
-};
-
-export type ElementTargetKind = "group" | "element";
-
-export type ElementTreeGuiDocument = {
-	path: string,
-	objectKey: string,
-	sourceRef: GuiObjectRef,
-	readOnly: boolean,
-	rootIds: number[],
-	elements: SetupElementNode[],
-	profiles: GuiObjectRef[],
-};
-
-export type ElementTreeGuiEdit = { type: "addControlElement"; name: string; parent: number | null; definition: SetupControlElement } | { type: "updateControlElement"; id: number; name: string; definition: SetupControlElement } | { type: "updateColorCapability"; id: number; capability: GuiColorCapability; componentOrder: number[] } | { type: "addGroup"; name: string; parent: number | null } | { type: "moveElement"; id: number; parent: number | null } | { type: "deleteElement"; id: number } | { type: "renameElement"; id: number; name: string } | { type: "reorderElements"; parent: number | null; orderedIds: number[] };
-
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
-export type FixtureProfileGuiDocument = {
+export type FixtureGuiDocument = {
 	path: string,
+	sourceRef: GuiObjectRef,
 	objectKey: string,
-	definition: GuiFixtureDefinition,
+	pixels: GuiPixel[],
+	renderPlan: SpatialRenderPlan,
 };
 
-export type Geometry = { type: "points"; points: Point3Meters[] } | { type: "lines"; points: Point3Meters[]; pixels: number } | { type: "arc"; center: Point3Meters; radiusMeters: number; startDegrees: number; endDegrees: number; pixels: number };
+export type FixtureGuiEdit = { type: "setPixels"; pixels: GuiPixel[] } | { type: "movePixel"; id: number; delta: Point3Meters };
+
+export type FixtureTarget = {
+	fixture: number,
+};
 
 export type GeometryRenderBounds = {
 	minXMeters: number,
@@ -279,44 +260,13 @@ export type GeometryRenderBounds = {
 	maxYMeters: number,
 };
 
-export type GeometryRenderGuide = { type: "line"; from: GeometryRenderPoint; to: GeometryRenderPoint } | { type: "arc"; start: GeometryRenderPoint; end: GeometryRenderPoint; radiusXMeters: number; radiusYMeters: number; rotation: number; largeArc: boolean; sweepPositive: boolean };
-
-export type GeometryRenderPlan = {
-	emitters: GeometryRenderPoint[],
-	guides: GeometryRenderGuide[],
-	bounds: GeometryRenderBounds,
-	bulbRadiusMeters: number,
-};
-
-export type GeometryRenderPoint = {
-	xMeters: number,
-	yMeters: number,
-	zMeters: number,
-};
-
 export type GradientGuiDocument = {
 	path: string,
 	objectKey: string,
 	stops: SequenceGradientStop[],
 };
 
-export type GuiByteOrder = "coarseFine" | "fineCoarse";
-
-export type GuiColorCapability = { type: "rgb" } | { type: "rgbw" } | { type: "discrete"; emitters: GuiDiscreteEmitter[]; mappings: GuiDiscreteColorMapping[] };
-
-export type GuiDimmingCurve = { type: "linear" } | { type: "gamma"; exponent: number } | { type: "custom"; points: SequenceCurvePoint[] };
-
-export type GuiDiscreteColorMapping = {
-	color: string,
-	levels: PatchGuiIndexedEntry[],
-};
-
-export type GuiDiscreteEmitter = {
-	id: number,
-	name: string,
-};
-
-export type GuiDocument = { type: "elementTree"; document: ElementTreeGuiDocument } | { type: "fixtureProfile"; document: FixtureProfileGuiDocument } | { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "preview"; document: PreviewGuiDocument } | { type: "prop"; document: PropGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
+export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
 export type GuiDocumentRequest = {
 	projectRevision: number,
@@ -331,61 +281,20 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "elementTree"; edit: ElementTreeGuiEdit } | { type: "fixtureProfile"; definition: GuiFixtureDefinition } | { type: "patch"; nodes: PatchGuiNode[]; edges: SetupPatchEdge[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "preview"; edit: PreviewGuiEdit } | { type: "prop"; edit: PropGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] };
+export type GuiEditCommand = { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] };
 
 export type GuiEditResult = {
 	snapshot: AppSnapshot,
 	document: GuiDocument,
 };
 
-export type GuiFixtureBehavior = { type: "shutter"; function: number; closed: number; open: number } | { type: "dimmer"; function: number; off: number; on: number } | { type: "colorWheel"; function: number; entries: GuiFixtureColorMapping[] } | { type: "prismGate"; function: number; disabled: number; enabled: number };
-
-export type GuiFixtureChannel = {
-	slot: number,
-	role: GuiFixtureChannelRole,
-	curve: GuiDimmingCurve,
-};
-
-export type GuiFixtureChannelRole = { type: "coarse"; function: number } | { type: "fine"; function: number } | { type: "colorComponent"; function: number; component: GuiFixtureColorComponent } | { type: "ignored" };
-
-export type GuiFixtureColorComponent = "red" | "green" | "blue" | "white";
-
-export type GuiFixtureColorMapping = {
-	color: string,
-	entry: number,
-};
-
-export type GuiFixtureColorModel = "rgb" | "rgbw";
-
-export type GuiFixtureDefinition = {
-	functions: GuiFixtureFunction[],
-	channels: GuiFixtureChannel[],
-	behaviorRules: GuiFixtureBehavior[],
-};
-
-export type GuiFixtureEntry = {
+export type GuiLayoutFixture = {
 	id: number,
 	name: string,
-	dmxMin: number,
-	dmxMax: number,
-	curveControl: boolean,
-	color: string | null,
-	tag: GuiFixtureEntryTag | null,
+	kind: GuiLayoutFixtureKind,
 };
 
-export type GuiFixtureEntryTag = "shutterOpen" | "shutterClosed" | "strobe" | "prismOpen" | "prismClosed" | "goboOpen";
-
-export type GuiFixtureFunction = {
-	id: number,
-	name: string,
-	tag: GuiFixtureFunctionTag | null,
-	kind: GuiFixtureFunctionKind,
-	curve: GuiDimmingCurve,
-};
-
-export type GuiFixtureFunctionKind = { type: "range" } | { type: "indexed"; entries: GuiFixtureEntry[] } | { type: "colorWheel"; entries: GuiFixtureEntry[] } | { type: "colorMixing"; model: GuiFixtureColorModel };
-
-export type GuiFixtureFunctionTag = "pan" | "tilt" | "dimmer" | "shutter" | "zoom" | "gobo" | "frost" | "prism" | "colorWheel" | "colorMixing";
+export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiObjectRef; transform: Transform } | { type: "group"; children: GuiLayoutFixture[] };
 
 export type GuiObjectRef = {
 	moduleId: string,
@@ -394,6 +303,43 @@ export type GuiObjectRef = {
 	kind: ObjectKind,
 	id: string,
 };
+
+export type GuiPixel = {
+	id: number,
+	position: Point3Meters,
+	diameterMeters: number,
+};
+
+export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
+
+export type GuiPixelRoute = {
+	id: number,
+	layout: GuiObjectRef,
+	fixture: number,
+	pixels: GuiPixelSpan | null,
+	controller: GuiObjectRef,
+	port: number,
+	startSlot: number,
+	encoding: GuiPixelEncoding,
+	gamma: number,
+	brightness: number,
+};
+
+export type GuiPixelSpan = {
+	start: number,
+	count: number,
+};
+
+export type LayoutGuiDocument = {
+	path: string,
+	sourceRef: GuiObjectRef,
+	objectKey: string,
+	fixtures: GuiLayoutFixture[],
+	availableFixtures: GuiObjectRef[],
+	renderPlan: SpatialRenderPlan,
+};
+
+export type LayoutGuiEdit = { type: "addDefinition"; name: string; parent: number | null } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 export type LiveOutputControllerSnapshot = {
 	id: string,
@@ -421,7 +367,7 @@ export type NewSequenceRequest = {
 	frameRate: number,
 };
 
-export type ObjectKind = "project" | "setup" | "controller" | "elementTree" | "preview" | "prop" | "fixtureProfile" | "patch" | "sequence" | "curve" | "gradient" | "effect" | "operator";
+export type ObjectKind = "project" | "setup" | "controller" | "layout" | "fixture" | "patch" | "sequence" | "curve" | "gradient" | "effect" | "operator";
 
 export type PackageCacheState = "ready" | "missing" | "local" | "error" | "unknown";
 
@@ -469,41 +415,24 @@ export type PackageStatus = {
 	message: string | null,
 };
 
-export type PatchElementTree = {
-	sourceRef: GuiObjectRef,
-	elements: ElementCellOption[],
-};
-
-export type PatchGuiCellRange = {
-	start: number,
-	count: number,
+export type PatchFixtureTarget = {
+	id: number,
+	name: string,
+	pixelCount: number,
 };
 
 export type PatchGuiDocument = {
 	path: string,
 	objectKey: string,
-	nodes: PatchGuiNode[],
-	edges: SetupPatchEdge[],
-	elementTrees: PatchElementTree[],
+	routes: GuiPixelRoute[],
+	layouts: PatchLayout[],
 	controllers: SetupController[],
-	profiles: GuiObjectRef[],
 };
 
-export type PatchGuiFilter = { type: "scalarToComponents"; width: number } | { type: "colorBreakdown"; capability: GuiColorCapability; cellCount: number } | { type: "dimmingCurve"; curve: GuiDimmingCurve; width: number } | { type: "scaleInvert"; scale: number; invert: boolean; width: number } | { type: "fanOut"; width: number; outputs: number } | { type: "componentReorder"; componentsPerCell: number; order: number[]; cellCount: number } | { type: "indexedValueMapping"; entries: PatchGuiIndexedEntry[]; width: number } | { type: "quantize8"; width: number } | { type: "quantize16"; width: number; byteOrder: GuiByteOrder } | { type: "fixtureProfileEncoding"; profile: GuiObjectRef; fixtureCount: number; slotCount: number };
-
-export type PatchGuiIndexedEntry = {
-	id: number,
-	value: number,
+export type PatchLayout = {
+	sourceRef: GuiObjectRef,
+	fixtures: PatchFixtureTarget[],
 };
-
-export type PatchGuiNode = {
-	id: number,
-	definition: PatchGuiNodeDefinition,
-};
-
-export type PatchGuiNodeDefinition = { type: "source"; tree: GuiObjectRef; node: number; cells: PatchGuiCellRange | null; output: PatchGuiValueType } | { type: "filter"; filter: PatchGuiFilter } | { type: "sink"; controller: GuiObjectRef; port: number; startSlot: number; slotCount: number };
-
-export type PatchGuiValueType = { type: "color"; width: number } | { type: "scalar"; width: number } | { type: "indexed"; width: number } | { type: "fixtureState"; width: number; profile: GuiObjectRef } | { type: "components"; width: number } | { type: "slots"; width: number };
 
 export type PersistedEditorViewState = {
 	cursorAnchor: number,
@@ -535,28 +464,6 @@ export type Point3Meters = {
 	xMeters: number,
 	yMeters: number,
 	zMeters: number,
-};
-
-export type PreviewGuiDocument = {
-	path: string,
-	sourceRef: GuiObjectRef,
-	objectKey: string,
-	name: string,
-	renderBounds: GeometryRenderBounds,
-	fixtures: PreviewPropPlacement[],
-	hierarchy: ElementTreeGuiDocument,
-	availableFixtures: GuiObjectRef[],
-};
-
-export type PreviewGuiEdit = { type: "placeFixture"; name: string; parent: number | null; capability: GuiColorCapability; definition: GuiObjectRef; position: Point3Meters } | { type: "duplicatePlacement"; id: number } | { type: "removePlacement"; id: number } | { type: "editElements"; edit: ElementTreeGuiEdit } | { type: "addPixelLight"; light: SetupPixelLight } | { type: "updatePlacementTransform"; id: number; transform: Transform } | { type: "setPlacementBindings"; id: number; bindings: SetupElementCell[] } | { type: "copyPlacementDefinition"; id: number };
-
-export type PreviewPropPlacement = {
-	definitionRef: GuiObjectRef,
-	bindings: SetupElementCell[],
-	id: number,
-	name: string,
-	transform: Transform,
-	resolvedFixture: ResolvedPreviewProp,
 };
 
 export type ProjectDiagnostic = {
@@ -607,24 +514,6 @@ export type ProjectSearchResponse = {
 	truncated: boolean,
 };
 
-export type PropDefinition = {
-	sourceRef: GuiObjectRef,
-	objectKey: string,
-	name: string,
-	colorModel: string,
-	bulbDiameterMeters: number,
-	geometry: Geometry,
-	geometrySummary: string,
-	renderPlan: GeometryRenderPlan,
-};
-
-export type PropGuiDocument = {
-	path: string,
-	fixture: PropDefinition,
-};
-
-export type PropGuiEdit = { type: "updateDefinition"; geometry: Geometry; bulbDiameterMeters: number } | { type: "movePoint"; pointIndex: number; point: Point3Meters };
-
 export type ProvisionedDevice = {
 	address: string,
 	token: string,
@@ -634,14 +523,6 @@ export type RelatedDiagnosticLocation = {
 	path: string,
 	range: TextRange | null,
 	message: string,
-};
-
-export type ResolvedPreviewProp = {
-	name: string,
-	colorModel: string,
-	bulbDiameterMeters: number,
-	geometrySummary: string,
-	renderPlan: GeometryRenderPlan,
 };
 
 export type Rotation3Degrees = {
@@ -746,34 +627,6 @@ export type SequenceCompositionGraph = {
 	edges: SequenceGraphEdge[],
 };
 
-export type SequenceControlChannel = {
-	target: SequenceControlTarget,
-	label: string,
-	cellCount: number | null,
-	options: SequenceControlOptions,
-};
-
-export type SequenceControlClip = {
-	id: number,
-	startSeconds: number,
-	durationSeconds: number,
-	target: SequenceControlTarget,
-	targetLabel: string,
-	value: SequenceControlValue,
-};
-
-export type SequenceControlEntry = {
-	id: number,
-	name: string,
-	rangeControl: boolean,
-};
-
-export type SequenceControlOptions = { type: "normalized" } | { type: "indexed"; options: SetupIndexedOption[] } | { type: "fixtureIndexed"; entries: SequenceControlEntry[] } | { type: "color" };
-
-export type SequenceControlTarget = { type: "scalar"; node: number; cells: PatchGuiCellRange | null } | { type: "indexed"; node: number; cells: PatchGuiCellRange | null } | { type: "fixtureFunction"; node: number; cells: PatchGuiCellRange | null; function: number };
-
-export type SequenceControlValue = { type: "constantNormalized"; value: number } | { type: "normalizedCurve"; points: SequenceCurvePoint[] } | { type: "indexed"; option: number; rangeCurve: SequenceCurvePoint[] | null } | { type: "fixtureIndexed"; entry: number; rangeCurve: SequenceCurvePoint[] | null } | { type: "constantColor"; value: string } | { type: "gradient"; stops: SequenceGradientStop[] };
-
 export type SequenceCurveLibraryItem = {
 	moduleId: string,
 	path: string,
@@ -804,7 +657,7 @@ export type SequenceEffect = {
 	layerId: number,
 	startSeconds: number,
 	durationSeconds: number,
-	target: ElementTarget,
+	target: FixtureTarget,
 	targetLabel: string,
 	scope: SequenceEffectScope,
 	effect: string,
@@ -924,18 +777,16 @@ export type SequenceGuiDocument = {
 	gradientLibrary: SequenceGradientLibraryItem[],
 	layers: SequenceLayer[],
 	effects: SequenceEffect[],
-	controlClips: SequenceControlClip[],
-	controlChannels: SequenceControlChannel[],
 	compositionGraph: SequenceCompositionGraph,
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "upsertControlClip"; id: number | null; startSeconds: number; durationSeconds: number; target: SequenceControlTarget; value: SequenceControlValue } | { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "deleteControlClip"; id: number } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: ElementTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "deleteLayer"; id: number; migrateToLayerId: number } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: ElementTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: ElementTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNode"; nodeId: string; x: number; y: number } | { type: "deleteGraphNode"; nodeId: string } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "disconnectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; anchorLaneIndex: number; laneIndex: number } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "moveAutomationClip"; id: number; startSeconds: number; anchorLaneIndex: number; laneIndex: number } | { type: "resizeAutomationClip"; id: number; startSeconds: number; durationSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "updateAutomationParamMapping"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | { type: "createMarkCollection"; key: string; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
+export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "deleteLayer"; id: number; migrateToLayerId: number } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNode"; nodeId: string; x: number; y: number } | { type: "deleteGraphNode"; nodeId: string } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "disconnectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; anchorLaneIndex: number; laneIndex: number } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "moveAutomationClip"; id: number; startSeconds: number; anchorLaneIndex: number; laneIndex: number } | { type: "resizeAutomationClip"; id: number; startSeconds: number; durationSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "updateAutomationParamMapping"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | { type: "createMarkCollection"; key: string; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
 export type SequenceLane = {
-	target: ElementTarget,
+	target: FixtureTarget,
 	label: string,
 };
 
@@ -987,25 +838,12 @@ export type SequenceSelectionEditResult = {
 
 export type SequenceTimelineClipKind = "effect";
 
-export type SetupControlElement = { type: "scalar"; cells: number } | { type: "indexed"; cells: number; options: SetupIndexedOption[] } | { type: "fixture"; profile: GuiObjectRef };
-
-export type SetupControlOutputAssignment = {
-	node: number,
-	controller: GuiObjectRef,
-	port: number,
-	startSlot: number,
-	mapping: SetupControlOutputMapping,
-};
-
-export type SetupControlOutputMapping = { type: "scalar" } | { type: "indexed"; entries: SetupIndexedChannel[] };
-
 export type SetupController = {
 	label: string,
 	sourceRef: GuiObjectRef,
 	readOnly: boolean,
 	config: SetupControllerConfig,
 	ports: SetupControllerPort[],
-	assignments: SetupOutputAssignment[],
 };
 
 export type SetupControllerConfig = { type: "e131"; sourceName: string; bindAddress: string; priority: number; destination: string | null } | { type: "artNet"; bindAddress: string; destination: string; broadcast: boolean };
@@ -1016,119 +854,34 @@ export type SetupControllerPort = {
 	slotCount: number,
 };
 
-export type SetupElementCell = {
-	node: number,
-	cell: number,
-};
-
-export type SetupElementKind = "group" | "color" | "scalar" | "indexed" | "fixture";
-
-export type SetupElementNode = {
-	id: number,
-	name: string,
-	kind: SetupElementKind,
-	parent: number | null,
-	children: number[],
-	cellCount: number | null,
-	capability: GuiColorCapability | null,
-	colorComponentCount: number | null,
-	profile: string | null,
-	controlDefinition: SetupControlElement | null,
-};
-
-export type SetupFixtureProfile = {
-	id: string,
-	name: string,
-	functionCount: number,
-	channelCount: number,
-	behaviorRuleCount: number,
-	sourceRef: GuiObjectRef,
-	readOnly: boolean,
-	definition: GuiFixtureDefinition,
-};
-
 export type SetupGuiDocument = {
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
-	elementsRef: GuiObjectRef,
-	previewRef: GuiObjectRef,
+	layoutRef: GuiObjectRef,
 	patchRef: GuiObjectRef,
-	elementsReadOnly: boolean,
-	previewReadOnly: boolean,
+	layoutReadOnly: boolean,
 	patchReadOnly: boolean,
-	rootIds: number[],
-	elements: SetupElementNode[],
-	fixtureProfiles: SetupFixtureProfile[],
-	previewLinks: SetupPreviewLink[],
-	patchNodes: SetupPatchNode[],
-	patchEdges: SetupPatchEdge[],
-	patchDefinitions: PatchGuiNode[],
-	patchProfiles: GuiObjectRef[],
-	outputAssignments: SetupOutputAssignment[],
 	controllers: SetupController[],
 	availableControllers: SetupController[],
 };
 
-export type SetupGuiEdit = { type: "assignControlOutput"; assignment: SetupControlOutputAssignment; mode: SetupOutputAssignmentMode } | { type: "copyLayout" } | { type: "copyController"; controller: GuiObjectRef } | { type: "assignFixtureOutput"; node: number; controller: GuiObjectRef; port: number; startSlot: number; mode: SetupOutputAssignmentMode } | { type: "createFixtureProfile"; name: string; definition: GuiFixtureDefinition } | { type: "removeOutput"; sink: number } | { type: "assignPixelOutput"; node: number; controller: GuiObjectRef; firstPort: number; startSlot: number; componentOrder: number[]; mode: SetupOutputAssignmentMode } | { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
-
-export type SetupIndexedChannel = {
-	id: number,
-	value: number,
-};
-
-export type SetupIndexedOption = {
-	id: number,
-	name: string,
-};
-
-export type SetupOutputAssignment = {
-	sink: number,
-	controller: string,
-	port: number,
-	startChannel: number,
-	channelCount: number,
-};
-
-export type SetupOutputAssignmentMode = "add" | "replace";
-
-export type SetupPatchEdge = {
-	fromNode: number,
-	fromPort: number,
-	toNode: number,
-	toPort: number,
-};
-
-export type SetupPatchNode = {
-	id: number,
-	kind: SetupPatchNodeKind,
-	label: string,
-	width: number,
-};
-
-export type SetupPatchNodeKind = "source" | "filter" | "sink";
-
-export type SetupPixelLight = {
-	name: string,
-	parent: number | null,
-	capability: GuiColorCapability,
-	geometry: Geometry,
-	bulbDiameterMeters: number,
-	position: Point3Meters,
-};
-
-export type SetupPreviewLink = {
-	propId: number,
-	name: string,
-	definitionRef: GuiObjectRef,
-	pointCount: number,
-	bindings: SetupElementCell[],
-	geometry: Geometry,
-	bulbDiameterMeters: number,
-	position: Point3Meters,
-};
+export type SetupGuiEdit = { type: "copyLayout" } | { type: "copyController"; controller: GuiObjectRef } | { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
 
 export type SidebarView = "explorer" | "search" | "packages" | "problems";
+
+export type SpatialRenderPixel = {
+	/**  Pixel ID in a fixture editor; instance ID in a layout editor. */
+	owner: number,
+	index: number,
+	position: Point3Meters,
+	diameterMeters: number,
+};
+
+export type SpatialRenderPlan = {
+	pixels: SpatialRenderPixel[],
+	bounds: GeometryRenderBounds,
+};
 
 export type TextPosition = {
 	line: number,

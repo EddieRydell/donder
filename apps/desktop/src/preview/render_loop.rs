@@ -26,7 +26,16 @@ pub(crate) fn run_preview_loop(
                     .as_ref()
                     .is_none_or(|scene| scene.revision != revision) =>
             {
-                cached_scene = state.preview_scene();
+                cached_scene = match state.preview_scene() {
+                    Ok(scene) => scene,
+                    Err(error) => {
+                        state.set_render_error_if_changed(error);
+                        reported_render_error = true;
+                        renderer.render(size, None, None);
+                        wake_generation = wake.wait(wake_generation, &running);
+                        continue;
+                    }
+                };
             }
             Some(_) => {}
             None => cached_scene = None,

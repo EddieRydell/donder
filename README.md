@@ -6,7 +6,7 @@ The project is built as a Rust workspace with a Tauri desktop shell and a React/
 
 ## Why This Exists
 
-Lighting tools often split creative sequencing from the source data that makes a show maintainable. Dawn treats a light show like a real project: logical element trees, preview props, fixture profiles, typed patch graphs, controllers, effects, sequences, and audio references are stored as Dawn source documents, checked together, and edited through text and GUI workflows.
+Lighting tools often split creative sequencing from the source data that makes a show maintainable. Dawn stores reusable pixel fixture definitions, layouts, LED routes, controllers, effects, sequences, and audio references as Dawn source documents, checked together and edited through text and GUI workflows.
 
 That makes the project useful as a technical showcase for:
 
@@ -20,7 +20,7 @@ That makes the project useful as a technical showcase for:
 
 - Open and validate Dawn project files.
 - Edit project documents in a CodeMirror-based desktop editor.
-- Work with elements, fixture profiles, preview links, typed patches, controllers, effects, curves, sequences, and audio-backed timelines.
+- Compose fixture definitions from pixels and other definitions, place instances in layouts, group them for effects, and route RGB/RGBW output to controllers.
 - Render one shared logical/controller frame through the Rust runtime.
 - Preview effect rasters and sequence output in the desktop UI.
 - Transmit live E1.31 or Art-Net output with blackout and stream lifecycle handling.

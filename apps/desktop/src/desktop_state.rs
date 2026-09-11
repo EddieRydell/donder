@@ -419,16 +419,7 @@ fn path_matches_or_is_child(candidate: &str, parent: &str) -> bool {
 #[cfg(test)]
 mod authoring_acceptance;
 #[cfg(test)]
-mod fixture_copy_acceptance;
-#[cfg(test)]
 mod project_copy_acceptance;
 
 #[cfg(test)]
-mod control_output_acceptance;
-
-#[cfg(test)]
-mod advanced_patch_acceptance;
-#[cfg(test)]
-mod color_prop_acceptance;
-#[cfg(test)]
-mod fixture_color_acceptance;
+mod library_array_acceptance;

@@ -5,11 +5,8 @@ extern crate alloc;
 
 pub mod automation;
 pub mod bindings;
-pub mod control;
 pub mod dsl;
-pub mod element;
 mod evaluation;
-pub mod fixture;
 pub mod native_effect;
 mod operator;
 pub mod patch;

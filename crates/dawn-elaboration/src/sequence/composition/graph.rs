@@ -14,7 +14,7 @@ use crate::sequence::effects::parameters::prepare_operator_params;
 use crate::sequence::effects::preparation::prepare_automation;
 use crate::sequence::targets::PreparedTargetCache;
 use crate::sequence::targets::full_rig_target_pixels;
-use crate::{EffectParamTiming, PreparedAutomation, PreparedElement, RenderError};
+use crate::{EffectParamTiming, PreparedAutomation, PreparedFixture, RenderError};
 use dawn_language::model::DawnProject;
 
 pub(crate) fn automation_for_composition_node(
@@ -45,7 +45,7 @@ pub(crate) fn automation_for_composition_node(
 pub(crate) struct PrepareGraphContext<'a> {
     pub(crate) project: &'a DawnProject,
     pub(crate) sequence: &'a Sequence,
-    pub(crate) elements: &'a [PreparedElement],
+    pub(crate) fixtures: &'a [PreparedFixture],
     pub(crate) programs: &'a mut Vec<BytecodeProgram>,
     pub(crate) targets: &'a mut PreparedTargetCache,
 }
@@ -56,7 +56,7 @@ pub(crate) fn prepare_signal_graph(
 ) -> Result<SignalPlan, RenderError> {
     let full_target = context
         .targets
-        .sample_target(Arc::from(full_rig_target_pixels(context.elements)?))?;
+        .sample_target(Arc::from(full_rig_target_pixels(context.fixtures)?))?;
     validate_composition_graph(graph, &context.project.definitions.operators).map_err(|error| {
         RenderError::BadGraph {
             message: error.message,

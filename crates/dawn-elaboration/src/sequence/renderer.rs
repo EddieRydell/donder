@@ -1,5 +1,5 @@
 use dawn_language::effect::{EffectInstId, EffectRef};
-use dawn_language::element::ElementNodeId;
+use dawn_language::layout::FixtureInstanceId;
 use dawn_language::sequence::{MarkCollectionKey, SequenceId};
 use dawn_language::setup::SetupId;
 use dawn_runtime::dsl::RuntimeError;
@@ -11,9 +11,9 @@ pub const MAX_GENERATED_EFFECTS: usize = 4_096;
 pub enum RenderError {
     InvalidTiming { reason: String },
     MissingSetup { setup_id: SetupId },
-    MissingElementTree,
+    MissingLayout,
     MissingSequence { sequence_id: SequenceId },
-    MissingElement { element_id: ElementNodeId },
+    MissingFixture { fixture_id: FixtureInstanceId },
     MissingEffect { effect_id: EffectRef },
     MissingEffectInstance { effect_id: EffectInstId },
     MissingCurve,

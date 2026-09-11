@@ -314,14 +314,18 @@ impl PreviewRenderer {
         self.color_workspace
             .resize(scene.instances.len(), PreviewColorGpu::black());
         if let Some(frame) = frame {
-            for (target, binding) in self.color_workspace.iter_mut().zip(&scene.bindings) {
-                let color = frame
-                    .elements
+            for span in &scene.fixtures {
+                if let Some(fixture) = frame
+                    .fixtures
                     .iter()
-                    .find(|element| element.node() == binding.node)
-                    .and_then(|element| element.preview_color(binding.cell as usize));
-                if let Some(color) = color {
-                    *target = PreviewColorGpu::from_color(color);
+                    .find(|fixture| fixture.fixture_id == span.fixture.0)
+                {
+                    for (target, color) in self.color_workspace[span.pixels.clone()]
+                        .iter_mut()
+                        .zip(&fixture.pixels)
+                    {
+                        *target = PreviewColorGpu::from_color(*color);
+                    }
                 }
             }
         }

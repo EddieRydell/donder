@@ -385,6 +385,7 @@ version = "0.1.0"
 dependencies = [
  "dawn-language",
  "dawn-runtime",
+ "glam",
  "indexmap",
 ]
 
@@ -1288,6 +1289,12 @@ dependencies = [
  "libc",
  "r-efi",
 ]
+
+[[package]]
+name = "glam"
+version = "0.33.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e762b9b188634fc508d4ec54b62ea3d352c43fd431d18d05d46f559f217f4725"
 
 [[package]]
 name = "glob"

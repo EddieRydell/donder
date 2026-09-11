@@ -10,12 +10,12 @@
     )
 )]
 
+pub mod fixture;
 mod output;
 mod sequence;
 pub use dawn_language::values::{SampleDuration, SampleTime};
 pub use dawn_runtime::signal::{
-    EvaluatedElement as RenderedElement, EvaluatedFrame as RenderedFrame, EvaluationWorkspace,
-    PreparedSignalGraph,
+    EvaluatedFrame as RenderedFrame, EvaluationWorkspace, PreparedSignalGraph, RenderedFixture,
 };
 pub(crate) use dawn_runtime::signal::{
     PreparedAutomation, PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation,
@@ -32,7 +32,7 @@ pub use sequence::targets::RenderedTargetPixelAddress;
 pub use sequence::{elaborate_sequence, resolve_effect_target_pixel_addresses};
 
 pub(crate) use sequence::effects::parameters::EffectParamTiming;
-pub(crate) use sequence::elements::PreparedElement;
+pub(crate) use sequence::fixtures::PreparedFixture;
 
 pub mod native_effect;
 #[cfg(test)]

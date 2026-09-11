@@ -1,248 +1,160 @@
-use super::fixture::{bulb_radius, checked_point, domain_geometry};
-use super::setup::ensure_owned_target;
-use dawn_language::element::{ElementCellAddress, ElementNodeId};
-use dawn_language::preview::{PreviewLayoutId, PropDefinitionId};
-use dawn_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
-
-use super::model::{domain_point3_meters, rotation3_degrees, scale3};
+use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::PreviewGuiEdit;
+use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
+use dawn_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind, LayoutId};
+use dawn_project_io::ProjectSession;
 
 pub(super) fn edit_layout(
     session: &mut ProjectSession,
     resolved: &ResolvedGuiObject,
-    edit: PreviewGuiEdit,
+    edit: LayoutGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let layout_id = PreviewLayoutId(resolved.identity.clone());
+    let id = LayoutId(resolved.identity.clone());
     match edit {
-        PreviewGuiEdit::EditElements { edit } => {
-            let tree = session
-                .project
-                .preview_layouts
-                .get(&layout_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-                .element_tree
-                .clone();
-            super::elements::edit(session, &tree, edit)?;
+        LayoutGuiEdit::AddDefinition { name, parent } => {
+            if name.trim().is_empty() {
+                return Err(GuiMutationError::Invalid("Enter a fixture name.".into()));
+            }
+            let identity = session
+                .source
+                .add_object(
+                    resolved.identity.document_id(),
+                    dawn_project_io::SourceObjectKind::FixtureDefinition,
+                    "fixture",
+                )
+                .map_err(GuiMutationError::Invalid)?;
+            let definition = dawn_language::fixture::FixtureDefinitionId(identity);
+            session.project.definitions.fixtures.definitions.insert(
+                definition.clone(),
+                dawn_language::fixture::FixtureDefinition { pixels: Vec::new() },
+            );
+            add_instance(session, &id, name, definition, parent)?;
         }
-        PreviewGuiEdit::AddPixelLight { light } => add_pixel_light(session, &layout_id, light)?,
-        PreviewGuiEdit::PlaceFixture {
-            name,
-            parent,
-            capability,
-            definition,
-            position,
-        } => {
-            let definition = PropDefinitionId(super::model::source_identity_from_gui(
-                &definition.module_id,
-                &definition.path,
-                &definition.object_key,
-            )?);
-            let tree = session
-                .project
-                .preview_layouts
-                .get(&layout_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-                .element_tree
-                .clone();
-            ensure_owned_target(session, &tree.0)?;
-            ensure_document_can_reference_source(
-                session,
-                layout_id.0.document_id(),
-                SourceObjectKind::PropDefinition,
-                &definition.0,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            dawn_language::preview::authoring::place_fixture(
-                &mut session.project,
-                &layout_id,
-                dawn_language::preview::authoring::FixturePlacement {
-                    name,
-                    parent: parent.map(ElementNodeId),
-                    capability: super::patch::domain_capability(capability)?,
-                    definition,
-                    position: checked_point(position)?,
-                },
-            )
-            .map_err(GuiMutationError::Invalid)?;
-        }
-        PreviewGuiEdit::DuplicatePlacement { id } => {
-            let tree = session
-                .project
-                .preview_layouts
-                .get(&layout_id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-                .element_tree
-                .clone();
-            ensure_owned_target(session, &tree.0)?;
-            dawn_language::preview::authoring::duplicate_placement(
-                &mut session.project,
-                &layout_id,
-                dawn_language::preview::PropInstanceId(id),
-            )
-            .map_err(GuiMutationError::Invalid)?;
-        }
-        PreviewGuiEdit::RemovePlacement { id } => {
-            placement_mut(session, &layout_id, id)?;
+        LayoutGuiEdit::SetFixtures { fixtures } => {
+            let fixtures = fixtures
+                .into_iter()
+                .map(|fixture| domain_fixture(session, &id, fixture))
+                .collect::<Result<_, _>>()?;
             session
                 .project
-                .preview_layouts
-                .get_mut(&layout_id)
+                .layouts
+                .get_mut(&id)
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-                .props
-                .retain(|prop| prop.id.0 != id);
+                .fixtures = fixtures;
         }
-        PreviewGuiEdit::UpdatePlacementTransform { id, transform } => {
-            let fixture = placement_mut(session, &layout_id, id)?;
-            fixture.position = domain_point3_meters(transform.position);
-            fixture.rotation = rotation3_degrees(transform.rotation);
-            fixture.scale = scale3(transform.scale);
+        LayoutGuiEdit::MoveFixture {
+            id: fixture_id,
+            delta,
+        } => {
+            let layout = session
+                .project
+                .layouts
+                .get_mut(&id)
+                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            let fixture = find_fixture_mut(&mut layout.fixtures, FixtureInstanceId(fixture_id))
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Fixture instance was not found.".into())
+                })?;
+            let LayoutFixtureKind::Fixture {
+                transform: current, ..
+            } = &mut fixture.kind
+            else {
+                return Err(GuiMutationError::Invalid(
+                    "Select a fixture instance to edit its transform.".into(),
+                ));
+            };
+            current.position = super::fixture::checked_point(crate::dto::Point3Meters {
+                x_meters: current.position.x.as_meters_f32() + delta.x_meters,
+                y_meters: current.position.y.as_meters_f32() + delta.y_meters,
+                z_meters: current.position.z.as_meters_f32() + delta.z_meters,
+            })?;
         }
-        PreviewGuiEdit::SetPlacementBindings { id, bindings } => {
-            let fixture = placement_mut(session, &layout_id, id)?;
-            fixture.bindings = bindings
-                .into_iter()
-                .map(|binding| ElementCellAddress {
-                    node: ElementNodeId(binding.node),
-                    cell: binding.cell,
-                })
-                .collect();
-        }
-        PreviewGuiEdit::CopyPlacementDefinition { id } => copy_definition(session, resolved, id)?,
     }
     Ok(())
 }
 
-fn placement_mut<'a>(
-    session: &'a mut ProjectSession,
-    layout: &PreviewLayoutId,
-    id: u32,
-) -> Result<&'a mut dawn_language::preview::PropInstance, GuiMutationError> {
-    session
-        .project
-        .preview_layouts
-        .get_mut(layout)
-        .and_then(|layout| layout.props.iter_mut().find(|prop| prop.id.0 == id))
-        .ok_or_else(|| GuiMutationError::Invalid("Fixture placement was not found.".into()))
+fn domain_fixture(
+    session: &mut ProjectSession,
+    layout: &LayoutId,
+    fixture: GuiLayoutFixture,
+) -> Result<LayoutFixture, GuiMutationError> {
+    let kind = match fixture.kind {
+        GuiLayoutFixtureKind::Fixture {
+            definition,
+            transform,
+        } => LayoutFixtureKind::Fixture {
+            definition: reference_definition(session, &layout.0, definition)?,
+            transform: checked_transform(transform)?,
+        },
+        GuiLayoutFixtureKind::Group { children } => LayoutFixtureKind::Group {
+            children: children
+                .into_iter()
+                .map(|child| domain_fixture(session, layout, child))
+                .collect::<Result<_, _>>()?,
+        },
+    };
+    Ok(LayoutFixture {
+        id: FixtureInstanceId(fixture.id),
+        name: fixture.name,
+        kind,
+    })
 }
 
-fn copy_definition(
+fn find_fixture_mut(
+    fixtures: &mut [LayoutFixture],
+    id: FixtureInstanceId,
+) -> Option<&mut LayoutFixture> {
+    for fixture in fixtures {
+        if fixture.id == id {
+            return Some(fixture);
+        }
+        if let LayoutFixtureKind::Group { children } = &mut fixture.kind
+            && let Some(fixture) = find_fixture_mut(children, id)
+        {
+            return Some(fixture);
+        }
+    }
+    None
+}
+fn add_instance(
     session: &mut ProjectSession,
-    resolved: &ResolvedGuiObject,
-    id: u32,
+    layout_id: &LayoutId,
+    name: String,
+    definition: dawn_language::fixture::FixtureDefinitionId,
+    parent: Option<u32>,
 ) -> Result<(), GuiMutationError> {
-    let layout_id = PreviewLayoutId(resolved.identity.clone());
-    let original = session
-        .project
-        .preview_layouts
-        .get(&layout_id)
-        .and_then(|layout| layout.props.iter().find(|prop| prop.id.0 == id))
-        .ok_or_else(|| GuiMutationError::Invalid("Fixture placement was not found.".into()))?
-        .definition
-        .clone();
-    let definition = session
-        .project
-        .definitions
-        .props
-        .definitions
-        .get(&original)
-        .ok_or_else(|| GuiMutationError::Invalid("Fixture definition was not found.".into()))?
-        .clone();
-    let identity = super::setup::create_object_document(
-        session,
-        SourceObjectKind::PropDefinition,
-        original.0.object(),
-        "fixtures",
-        "fixture",
-    )?;
-    ensure_document_can_reference_source(
-        session,
-        resolved.identity.document_id(),
-        SourceObjectKind::PropDefinition,
-        &identity,
-    )
-    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-    let copy = PropDefinitionId(identity);
-    session
-        .project
-        .definitions
-        .props
-        .definitions
-        .insert(copy.clone(), definition);
     let layout = session
         .project
-        .preview_layouts
-        .get_mut(&layout_id)
+        .layouts
+        .get_mut(layout_id)
         .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
-    layout
-        .props
-        .iter_mut()
-        .find(|prop| prop.id.0 == id)
-        .ok_or_else(|| GuiMutationError::Invalid("Fixture placement was not found.".into()))?
-        .definition = copy;
-
-    Ok(())
-}
-
-pub(crate) fn add_pixel_light(
-    session: &mut ProjectSession,
-    layout_id: &dawn_language::preview::PreviewLayoutId,
-    light: crate::dto::SetupPixelLight,
-) -> Result<(), GuiMutationError> {
-    let crate::dto::SetupPixelLight {
+    let id = layout
+        .iter_fixtures()
+        .map(|fixture| fixture.id.0)
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or_else(|| GuiMutationError::Invalid("No fixture instance IDs remain.".into()))?;
+    let children = match parent {
+        None => &mut layout.fixtures,
+        Some(parent) => {
+            let group = find_fixture_mut(&mut layout.fixtures, FixtureInstanceId(parent))
+                .ok_or_else(|| GuiMutationError::Invalid("Group was not found.".into()))?;
+            let LayoutFixtureKind::Group { children } = &mut group.kind else {
+                return Err(GuiMutationError::Invalid(
+                    "Fixtures can only be added to groups.".into(),
+                ));
+            };
+            children
+        }
+    };
+    children.push(LayoutFixture {
+        id: FixtureInstanceId(id),
         name,
-        parent,
-        capability,
-        geometry,
-        bulb_diameter_meters,
-        position,
-    } = light;
-    let capability = super::patch::domain_capability(capability)?;
-    let tree_id = session
-        .project
-        .preview_layouts
-        .get(layout_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-        .element_tree
-        .clone();
-    ensure_owned_target(session, &tree_id.0)?;
-    ensure_owned_target(session, &layout_id.0)?;
-    let bulb_radius = bulb_radius(bulb_diameter_meters)?;
-    let geometry = domain_geometry(geometry)?;
-    let position = checked_point(position)?;
-    let identity = super::setup::create_object_document(
-        session,
-        SourceObjectKind::PropDefinition,
-        &name,
-        "fixtures",
-        "fixture",
-    )?;
-    dawn_project_io::ensure_document_can_reference_source(
-        session,
-        layout_id.0.document_id(),
-        SourceObjectKind::PropDefinition,
-        &identity,
-    )
-    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-    let definition = PropDefinitionId(identity);
-    session.project.definitions.props.definitions.insert(
-        definition.clone(),
-        dawn_language::preview::PropDefinition {
-            geometry,
-            bulb_radius,
-        },
-    );
-    dawn_language::preview::authoring::place_fixture(
-        &mut session.project,
-        layout_id,
-        dawn_language::preview::authoring::FixturePlacement {
-            name,
-            capability,
-            parent: parent.map(ElementNodeId),
+        kind: LayoutFixtureKind::Fixture {
             definition,
-            position,
+            transform: Default::default(),
         },
-    )
-    .map_err(GuiMutationError::Invalid)?;
+    });
     Ok(())
 }

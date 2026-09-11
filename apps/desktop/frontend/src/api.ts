@@ -1,9 +1,8 @@
 import { commands as generatedCommands } from "./generated/bindings";
 import type {
-  PropGuiEdit,
-  ElementTreeGuiEdit,
+  FixtureGuiEdit,
   GuiDocumentRequest,
-  PreviewGuiEdit,
+  LayoutGuiEdit,
   SetupGuiEdit,
   SequenceGuiEdit
 } from "./types";
@@ -31,14 +30,12 @@ export const commands = {
     unwrapResult(await generatedCommands.resolveExternalConflict(epoch, path, revision, decision)),
   applySequenceGuiEdit: (request: GuiDocumentRequest, edit: SequenceGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "sequence", edit }),
-  applyElementTreeGuiEdit: (request: GuiDocumentRequest, edit: ElementTreeGuiEdit) =>
-    generatedCommands.applyGuiEdit(request, { type: "elementTree", edit }),
   applySetupGuiEdit: (request: GuiDocumentRequest, edit: SetupGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "setup", edit }),
-  applyPreviewGuiEdit: (request: GuiDocumentRequest, edit: PreviewGuiEdit) =>
-    generatedCommands.applyGuiEdit(request, { type: "preview", edit }),
-  applyPropGuiEdit: (request: GuiDocumentRequest, edit: PropGuiEdit) =>
-    generatedCommands.applyGuiEdit(request, { type: "prop", edit })
+  applyLayoutGuiEdit: (request: GuiDocumentRequest, edit: LayoutGuiEdit) =>
+    generatedCommands.applyGuiEdit(request, { type: "layout", edit }),
+  applyFixtureGuiEdit: (request: GuiDocumentRequest, edit: FixtureGuiEdit) =>
+    generatedCommands.applyGuiEdit(request, { type: "fixture", edit })
 };
 
 function unwrapResult<T>(result: { status: "ok"; data: T } | { status: "error"; error: string }): T {

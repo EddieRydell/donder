@@ -4,9 +4,7 @@ use specta::Type;
 
 mod app;
 mod audio;
-mod controls;
 mod diagnostics;
-mod fixture;
 mod output;
 mod package;
 mod patch;
@@ -18,9 +16,7 @@ mod workspace;
 
 pub use app::*;
 pub use audio::*;
-pub use controls::*;
 pub use diagnostics::*;
-pub use fixture::*;
 pub use output::*;
 pub use package::*;
 pub use patch::*;

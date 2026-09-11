@@ -12,14 +12,12 @@ pub(super) fn edit_sequence(
         _ => Vec::new(),
     };
     let sequence_id = SequenceId(resolved.identity.clone());
-    let element_tree = session
+    let layout = session
         .project
         .setups
         .get(&session.project.root.setup)
-        .map(|setup| setup.elements.clone())
-        .ok_or_else(|| {
-            GuiMutationError::Invalid("Active element tree was not found.".to_string())
-        })?;
+        .map(|setup| setup.layout.clone())
+        .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
         &edit,
         SequenceGuiEdit::AddEffect { .. }
@@ -32,32 +30,12 @@ pub(super) fn edit_sequence(
         ensure_document_can_reference_source(
             session,
             resolved.identity.document_id(),
-            SourceObjectKind::ElementTree,
-            &element_tree.0,
+            SourceObjectKind::Layout,
+            &layout.0,
         )
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     }
     match edit {
-        SequenceGuiEdit::UpsertControlClip {
-            id,
-            start_seconds,
-            duration_seconds,
-            target,
-            value,
-        } => super::controls::upsert(
-            session,
-            &sequence_id,
-            id,
-            start_seconds,
-            duration_seconds,
-            target,
-            value,
-        )?,
-        SequenceGuiEdit::DeleteControlClip { id } => {
-            sequence_mut(session, &sequence_id)?
-                .control_clips
-                .retain(|clip| clip.id.0 != id);
-        }
         SequenceGuiEdit::SetDuration { duration_seconds } => {
             if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
                 return Err(GuiMutationError::Invalid(
@@ -86,9 +64,8 @@ pub(super) fn edit_sequence(
             start_seconds,
             target,
         } => {
-            let parsed_target = target
-                .map(|target| layout_target_to_effect_target(&element_tree, target))
-                .transpose()?;
+            let parsed_target =
+                target.map(|target| layout_target_to_effect_target(&layout, target));
             let sequence = sequence_mut(session, &sequence_id)?;
             let effect = effect_mut(sequence, id)?;
             effect.start = DawnTime::from_seconds_f32(start_seconds.max(0.0));
@@ -115,7 +92,7 @@ pub(super) fn edit_sequence(
         }
         SequenceGuiEdit::RetargetEffect { id, target } => {
             let sequence = sequence_mut(session, &sequence_id)?;
-            let target = layout_target_to_effect_target(&element_tree, target)?;
+            let target = layout_target_to_effect_target(&layout, target);
             effect_mut(sequence, id)?.target = target;
         }
         SequenceGuiEdit::DeleteEffect { id } => {
@@ -298,7 +275,7 @@ pub(super) fn edit_sequence(
                 layer_id,
                 start: DawnTime::from_seconds_f32(start_seconds.max(0.0)),
                 duration: DawnDuration::from_seconds_f32(1.0),
-                target: layout_target_to_effect_target(&element_tree, target)?,
+                target: layout_target_to_effect_target(&layout, target),
                 scope: effect_scope(scope),
                 definition,
                 param_overrides,

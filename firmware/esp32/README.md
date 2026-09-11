@@ -175,7 +175,7 @@ fixtures, UniformFade, PixelRamp, ArrayRamp and DynamicArray, also measure 4 and
 16 fully overlapping layers. ArrayRamp produces the same colors as PixelRamp
 through fixed-index array syntax, now lowered to scalar operations by the
 compiler. DynamicArray uses runtime-selected indices over a fixed-size array,
-now lowered to direct value-slot selection. The collector expects 174 measurements total:
+now lowered to direct value-slot selection. The collector expects 170 measurements total:
 
 - `generator`: six host-elaborated live-parameter generators covering forwarding,
   derived arithmetic, nesting, resource selection, overlapping children, and
@@ -190,13 +190,13 @@ now lowered to direct value-slot selection. The collector expects 174 measuremen
 - `vm`: direct bytecode sampling into a preallocated GRB buffer. This includes
   constructing each pixel's context and writing its three output bytes.
 - `show`: the real `PreparedSequence::evaluate` path (historical benchmark label), with one effect, one RGB
-  element, one layer, a layer/output signal graph, and an RGB-to-GRB patch.
+  fixture, one layer, a layer/output signal graph, and an RGB-to-GRB patch.
   `workload.rs` constructs this small known prepared fixture at startup. It does
   not run the production authoring/elaboration pipeline on the ESP32.
-- `gamma_raw` / `gamma_lookup`: PixelRamp with gamma 2.2 and GRB packing,
-  using the original component filters or a host-built 256-byte lookup table.
-  Both paths are checked against the same host-generated checksums. Their
-  setup and retained heap include the component workspaces or lookup table.
+- `gamma_lookup`: PixelRamp with gamma 2.2 and GRB packing using a host-built
+  256-byte lookup table. The output is checked against the host-generated
+  checksums. The obsolete component-filter path and its four `gamma_raw`
+  measurements were removed with the general patch graph.
 - `operator_full` / `operator_reuse`: PixelRamp sampled through a DSL signal
   operator with a time-dependent sine gain. The same program runs with its
   uniform prefix repeated per pixel or reused within the frame. Both paths

@@ -1,75 +1,64 @@
+use dawn_elaboration::fixture::PreparedFixtureDefinitions;
+use dawn_language::layout::FixtureInstanceId;
+use std::ops::Range;
+
 use super::renderer::PreviewInstanceGpu;
 use super::*;
+
+#[derive(Clone, Debug)]
+pub(crate) struct PreviewFixtureSpan {
+    pub(crate) fixture: FixtureInstanceId,
+    pub(crate) pixels: Range<usize>,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct PreviewScene {
     pub(crate) revision: u64,
     pub(crate) instances: Vec<PreviewInstanceGpu>,
-    pub(crate) bindings: Vec<ElementCellAddress>,
+    pub(crate) fixtures: Vec<PreviewFixtureSpan>,
     pub(crate) bounds: PreviewBounds,
 }
 
 impl PreviewScene {
-    pub fn from_project(revision: u64, project: &DawnProject) -> Self {
-        let Some(setup) = project.setups.get(&project.root.setup) else {
-            return Self::empty(revision);
-        };
-        let Some(layout) = project.preview_layouts.get(&setup.preview) else {
-            return Self::empty(revision);
-        };
-
+    pub fn from_project(revision: u64, project: &DawnProject) -> Result<Self, String> {
+        let setup = project
+            .setups
+            .get(&project.root.setup)
+            .ok_or_else(|| "Preview setup was not found.".to_string())?;
+        let layout = project
+            .layouts
+            .get(&setup.layout)
+            .ok_or_else(|| "Preview layout was not found.".to_string())?;
+        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions.fixtures)
+            .map_err(|error| format!("Cannot prepare preview fixtures: {error:?}"))?;
+        let layout = definitions
+            .prepare_layout(layout)
+            .map_err(|error| format!("Cannot prepare preview layout: {error:?}"))?;
         let mut instances = Vec::new();
-        let mut bindings = Vec::new();
-        for prop in &layout.props {
-            let Some(definition) = project.definitions.props.definitions.get(&prop.definition)
-            else {
-                continue;
-            };
-            let position = point3_meters(prop.position);
-            let transform =
-                Mat4::from_translation(Vec3::new(
-                    position.x_meters,
-                    position.y_meters,
-                    position.z_meters,
-                )) * Mat4::from_euler(
-                    EulerRot::XYZ,
-                    prop.rotation.x.to_radians(),
-                    prop.rotation.y.to_radians(),
-                    prop.rotation.z.to_radians(),
-                ) * Mat4::from_scale(Vec3::new(prop.scale.x, prop.scale.y, prop.scale.z));
-            let radius_meters = definition.bulb_radius.as_meters_f32();
-            for (emitter, binding) in geometry_emitters(&definition.geometry)
-                .into_iter()
-                .zip(&prop.bindings)
-            {
-                let point = transform.transform_point3(Vec3::new(
-                    emitter.x_meters,
-                    emitter.y_meters,
-                    emitter.z_meters,
-                ));
+        let mut fixtures = Vec::new();
+        for fixture in &layout.instances {
+            let pixels = definitions
+                .pixels(&fixture.definition)
+                .ok_or_else(|| "Preview fixture definition was not prepared.".to_string())?;
+            let start = instances.len();
+            for pixel in pixels {
+                let point = fixture.transform.transform_point3(pixel.position);
                 instances.push(PreviewInstanceGpu {
-                    center_radius: [point.x, point.y, radius_meters.max(0.005), 0.0],
+                    center_radius: [point.x, point.y, pixel.diameter_meters / 2.0, 0.0],
                 });
-                bindings.push(*binding);
             }
+            fixtures.push(PreviewFixtureSpan {
+                fixture: fixture.id,
+                pixels: start..instances.len(),
+            });
         }
-
         let bounds = PreviewBounds::from_instances(&instances);
-        Self {
+        Ok(Self {
             revision,
             instances,
-            bindings,
+            fixtures,
             bounds,
-        }
-    }
-
-    fn empty(revision: u64) -> Self {
-        Self {
-            revision,
-            instances: Vec::new(),
-            bindings: Vec::new(),
-            bounds: PreviewBounds::default(),
-        }
+        })
     }
 }
 

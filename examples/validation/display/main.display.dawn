@@ -1,8 +1,3 @@
-elements:
-  type: element_tree
-  roots: []
-  nodes: []
-preview:
-  type: preview_layout
-  element_tree: elements
-  props: []
+main:
+  type: layout
+  fixtures: []

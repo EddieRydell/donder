@@ -4,9 +4,8 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use dawn_language::element::ElementCellAddress;
 use dawn_language::model::DawnProject;
-use glam::{EulerRot, Mat4, Vec2, Vec3};
+use glam::Vec2;
 use tauri::async_runtime::block_on;
 use tauri::window::WindowBuilder;
 use tauri::{AppHandle, Emitter, Manager, Window};
@@ -18,7 +17,7 @@ use crate::rendering::SequenceRenderError;
 
 mod geometry;
 
-pub(crate) use geometry::{arc_point, geometry_emitters, point3_meters, render_point};
+pub(crate) use geometry::point3_meters;
 
 pub const PREVIEW_LABEL: &str = "preview";
 const CLEAR_COLOR: wgpu::Color = wgpu::Color {

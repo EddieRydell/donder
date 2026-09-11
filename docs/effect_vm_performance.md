@@ -1,7 +1,8 @@
 # Effect VM Performance
 
-This is a historical optimization notebook. Current embedded measurements and
-limitations are recorded in the [execution audit](execution_audit_2026-09-06.md).
+This is a historical optimization notebook. Current fixture-model measurements
+are in the [LED refactor report](led_fixture_refactor.md); earlier embedded
+measurements are recorded in the [execution audit](execution_audit_2026-09-06.md).
 
 Dawn uses Criterion for Effect DSL VM and real-project render benchmarks. Timing deltas are
 advisory; benchmark assertions fail only when the VM or renderer changes output.

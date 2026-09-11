@@ -1,16 +1,12 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use dawn_language::controller::{ControllerId, ControllerPortId};
-use dawn_language::element::ElementNodeKind;
-use dawn_language::fixture_profile::FixtureProfileStore;
 use dawn_language::model::DawnProject;
 use dawn_language::sequence::SequenceId;
 use dawn_language::setup::SetupId;
 use dawn_language::validation::validate_project;
 use dawn_language::values::{SampleTime, sample_time_from_seconds_f32};
 
-use super::controls::{prepare_controls, prepare_fixture_behaviors};
-use super::elements::OutputElements;
 use super::errors::{SequenceOutputPrepareError, SequenceOutputRenderError};
 use super::frame::{ControllerPortFrame, RenderedSequenceFrame};
 use super::patch::prepare_patch;
@@ -69,10 +65,10 @@ impl PreparedSequenceOutput {
             .setups
             .get(setup_id)
             .ok_or(SequenceOutputPrepareError::MissingSetup)?;
-        let tree = project
-            .element_trees
-            .get(&setup.elements)
-            .ok_or(SequenceOutputPrepareError::MissingElementTree)?
+        let layout = project
+            .layouts
+            .get(&setup.layout)
+            .ok_or(SequenceOutputPrepareError::MissingLayout)?
             .clone();
         let sequence_definition = project
             .sequences
@@ -81,34 +77,10 @@ impl PreparedSequenceOutput {
         if sequence_definition
             .effects
             .iter()
-            .any(|effect| effect.target.tree != tree.id)
+            .any(|effect| effect.target.layout != layout.id)
         {
-            return Err(SequenceOutputPrepareError::InvalidEffectTree);
+            return Err(SequenceOutputPrepareError::InvalidEffectLayout);
         }
-        let mut profiles = FixtureProfileStore::default();
-        for node in tree.nodes.values() {
-            let ElementNodeKind::Fixture { profile } = &node.kind else {
-                continue;
-            };
-            if let Some(definition) = project
-                .definitions
-                .fixture_profiles
-                .definitions
-                .get(profile)
-            {
-                profiles
-                    .definitions
-                    .insert(profile.clone(), definition.clone());
-            }
-        }
-        let elements = OutputElements::prepare(&tree, &profiles)?;
-        let controls = prepare_controls(
-            &tree,
-            &profiles,
-            &sequence_definition.control_clips,
-            &elements,
-        )?;
-        let fixture_behaviors = prepare_fixture_behaviors(&tree, &profiles, &elements)?;
         let sequence = prepare_validated_sequence(project, setup_id, sequence_definition)
             .map_err(SequenceOutputPrepareError::Render)?;
         let patch = project.patches.get(&setup.patch).ok_or_else(|| {
@@ -152,48 +124,16 @@ impl PreparedSequenceOutput {
             }
             controller_ports = selected;
         }
-        let patch = prepare_patch(&tree, patch, &profiles, &controller_ports, &elements)?;
-        let mut offset = 0;
-        let mut color_spans = Vec::new();
-        for element in &sequence.elements {
-            let end = offset + element.pixel_count;
-            let element_id = dawn_language::element::ElementNodeId(element.id);
-            let node = tree.nodes.get(&element_id).ok_or_else(|| {
-                SequenceOutputPrepareError::InvalidPatch(
-                    "prepared render element is missing from its tree".to_string(),
-                )
-            })?;
-            if matches!(
-                node.kind,
-                ElementNodeKind::Color { .. } | ElementNodeKind::Fixture { .. }
-            ) {
-                let index32 = |value| {
-                    u32::try_from(value).map_err(|_| {
-                        SequenceOutputPrepareError::InvalidPatch(
-                            "color span exceeds u32".to_string(),
-                        )
-                    })
-                };
-                color_spans.push((
-                    elements.indexes[&element_id],
-                    index32(offset)?..index32(end)?,
-                ));
-            }
-            offset = end;
-        }
+        let patch = prepare_patch(&layout, patch, &sequence, &controller_ports)?;
         let mut output = Self {
             sequence: PreparedSequence {
                 workspace_key: NEXT_OUTPUT_ID.fetch_add(1, Ordering::Relaxed),
                 signals: sequence,
-                elements: elements.layouts.into_boxed_slice(),
-                controls: controls.into_boxed_slice(),
-                fixture_behaviors,
                 patch,
                 output_widths: controller_ports
                     .iter()
                     .map(|port| port.slots.len() as u32)
                     .collect(),
-                color_spans: color_spans.into_boxed_slice(),
             },
             controller_ports: controller_ports.into_boxed_slice(),
         };
@@ -258,7 +198,7 @@ impl PreparedSequenceOutput {
 
     /// Samples controller port bytes into buffers owned by `workspace`.
     /// Repeated calls for the same prepared output reuse all output-stage
-    /// element, patch, and controller storage.
+    /// fixture, patch, and controller storage.
     pub fn sample_into<'a>(
         &self,
         sample_time: SampleTime,
@@ -285,7 +225,10 @@ impl PreparedSequenceOutput {
             frame_index,
             frame_rate: self.frame_rate(),
             sample_time,
-            elements: workspace.sequence.elements().to_vec(),
+            fixtures: self
+                .sequence
+                .rendered_fixtures(&workspace.sequence)
+                .map_err(SequenceOutputRenderError::from)?,
             controller_frames: workspace.controller_frames.clone(),
         })
     }

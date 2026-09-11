@@ -1,127 +1,111 @@
 import { useState } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { GuiDocumentRequest, PatchGuiNodeDefinition, PatchGuiDocument } from "../../../types";
-import { PatchFilterInput } from "../setup/PatchFilterInput";
+import type { GuiDocumentRequest, GuiObjectRef, GuiPixelRoute, PatchGuiDocument } from "../../../types";
 import { NumberField, ReferenceInput } from "../setup/PatchInputs";
 
-type Edge = PatchGuiDocument["edges"][number];
-type Draft = { origin: GuiDocumentRequest; nodes: PatchGuiDocument["nodes"]; edges: Edge[] };
+type Draft = { origin: GuiDocumentRequest; routes: GuiPixelRoute[] };
 
 export function PatchEditor({ document }: { document: PatchGuiDocument }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const request = useAppStore((state) => state.guiRequest);
-  const documentRevision = useAppStore((state) => state.guiDocumentRevision);
+  const revision = useAppStore((state) => state.guiDocumentRevision);
   const pending = useAppStore((state) => state.guiEditPending);
   const stale = draft !== null && draft.origin !== request;
-  const begin = () => {
-    if (request === null || documentRevision !== request.projectRevision) return;
-    setDraft({ origin: request, nodes: structuredClone(document.nodes), edges: structuredClone(document.edges) });
-    setError(null);
+  const changeRoute = (id: number, route: GuiPixelRoute) => {
+    if (draft !== null) setDraft({ ...draft, routes: draft.routes.map((item) => item.id === id ? route : item) });
   };
-  const addNode = (definition: PatchGuiNodeDefinition) => {
+  const addRoute = () => {
     if (draft === null) return;
-    const id = Math.max(0, ...draft.nodes.map((node) => node.id)) + 1;
-    setDraft({ ...draft, nodes: [...draft.nodes, { id, definition }] });
+    const layout = document.layouts.find((layout) => layout.fixtures.some((fixture) => fixture.pixelCount > 0));
+    const fixture = layout?.fixtures.find((fixture) => fixture.pixelCount > 0);
+    const controller = document.controllers[0];
+    const port = controller?.ports[0];
+    if (layout === undefined || fixture === undefined || controller === undefined || port === undefined) return;
+    setDraft({ ...draft, routes: [...draft.routes, {
+      id: Math.max(0, ...draft.routes.map((route) => route.id)) + 1,
+      layout: layout.sourceRef, fixture: fixture.id, pixels: null,
+      controller: controller.sourceRef, port: port.id, startSlot: 0,
+      encoding: { type: "rgb", order: [1, 0, 2] }, gamma: 1, brightness: 1
+    }] });
   };
-  return <main className="setup-editor"><header className="object-overview-header"><div><span className="object-overview-eyebrow">{document.path}</span><h2>{document.objectKey}</h2></div></header><section className="setup-section">
-    {draft === null ? <>
-      <p>{document.nodes.length} nodes, {document.edges.length} connections. Edit a draft, then apply all changes together. Changes affect every setup using this patch.</p>
-      <button type="button" disabled={pending || request === null || documentRevision !== request.projectRevision} onClick={begin}>Edit patch</button>
-    </> : <form onSubmit={(event) => {
+  return <main className="setup-editor">
+    <header className="object-overview-header"><h2>LED output routes</h2><span>{document.objectKey}</span></header>
+    {draft === null ? <section className="setup-section">
+      {document.routes.length === 0 && <p>No pixels are routed to controllers yet.</p>}
+      {document.routes.map((route) => <p key={route.id}>
+        {document.layouts.find((layout) => sameReference(layout.sourceRef, route.layout))?.fixtures.find((fixture) => fixture.id === route.fixture)?.name}
+        {" → "}{route.controller.objectKey}, port {route.port}, channel {route.startSlot + 1}
+        {" · "}{route.encoding.type.toUpperCase()}
+      </p>)}
+      <button type="button" disabled={pending || request === null || revision !== request.projectRevision}
+        onClick={() => { if (request !== null) { setDraft({ origin: request, routes: structuredClone(document.routes) }); setError(null); } }}>Edit routes</button>
+    </section> : <form className="setup-section" onSubmit={(event) => {
       event.preventDefault();
-      void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "patch", nodes: draft.nodes, edges: draft.edges }), draft.origin)
-        .then(() => { setDraft(null); setError(null); })
-        .catch((error: unknown) => { setError(String(error)); });
+      void runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "patch", routes: draft.routes }), draft.origin)
+        .then(() => { setDraft(null); setError(null); }).catch((error: unknown) => { setError(String(error)); });
     }}>
-      <p>The draft is not saved or sent to outputs until Apply succeeds. Node ports and cell offsets start at zero; controller channels start at one.</p>
-      {stale && <p role="alert">The project changed while this draft was open. Discard the draft and start again from the current patch.</p>}
+      {stale && <p role="alert">The project changed. Discard this draft and reopen it.</p>}
       {error !== null && <p role="alert">{error}</p>}
-      <fieldset disabled={stale || pending}>
-        <div className="setup-patch-actions">
-          <button type="button" disabled={!document.elementTrees.some((tree) => tree.elements.length > 0)} onClick={() => {
-            const tree = document.elementTrees.find((tree) => tree.elements.length > 0);
-            const element = tree?.elements[0];
-            if (tree !== undefined && element !== undefined) addNode({ type: "source", tree: tree.sourceRef, node: element.id, cells: null, output: { type: "color", width: element.cellCount } });
-          }}>Add element source</button>
-          <button type="button" onClick={() => { addNode({ type: "filter", filter: { type: "quantize8", width: 1 } }); }}>Add filter</button>
-          <button type="button" disabled={document.controllers.length === 0} onClick={() => {
-            const controller = document.controllers[0];
-            const port = controller?.ports[0];
-            if (controller !== undefined && port !== undefined) addNode({ type: "sink", controller: controller.sourceRef, port: port.id, startSlot: 0, slotCount: 3 });
-          }}>Add controller output</button>
-        </div>
-        <div className="setup-patch-list">
-          {draft.nodes.map((node) => <section className="setup-patch-node" key={node.id}>
-            <header><strong>Node {node.id}: {node.definition.type}</strong><button type="button" onClick={() => {
-              setDraft({ ...draft, nodes: draft.nodes.filter((candidate) => candidate.id !== node.id), edges: draft.edges.filter((edge) => edge.fromNode !== node.id && edge.toNode !== node.id) });
-            }}>Remove node and connections</button></header>
-            <PatchNodeInput document={document} value={node.definition} onChange={(definition) => { setDraft({ ...draft, nodes: draft.nodes.map((candidate) => candidate.id === node.id ? { ...candidate, definition } : candidate) }); }} />
-          </section>)}
-        </div>
-        <h4>Connections</h4>
-        {draft.edges.map((edge, index) => <div className="setup-patch-fields" key={index}>
-          <NodeChoice label="From node" nodes={draft.nodes} value={edge.fromNode} onChange={(fromNode) => { setDraft({ ...draft, edges: draft.edges.map((edge, i) => i === index ? { ...edge, fromNode } : edge) }); }} />
-          <NumberField label="Output port" value={edge.fromPort} onChange={(fromPort) => { setDraft({ ...draft, edges: draft.edges.map((edge, i) => i === index ? { ...edge, fromPort } : edge) }); }} />
-          <NodeChoice label="To node" nodes={draft.nodes} value={edge.toNode} onChange={(toNode) => { setDraft({ ...draft, edges: draft.edges.map((edge, i) => i === index ? { ...edge, toNode } : edge) }); }} />
-          <NumberField label="Input port" value={edge.toPort} onChange={(toPort) => { setDraft({ ...draft, edges: draft.edges.map((edge, i) => i === index ? { ...edge, toPort } : edge) }); }} />
-          <button type="button" onClick={() => { setDraft({ ...draft, edges: draft.edges.filter((_, i) => i !== index) }); }}>Remove connection</button>
-        </div>)}
-        <div className="setup-patch-actions">
-          <button type="button" disabled={draft.nodes.length < 2} onClick={() => {
-            const from = draft.nodes[0]; const to = draft.nodes[1];
-            if (from !== undefined && to !== undefined) setDraft({ ...draft, edges: [...draft.edges, { fromNode: from.id, fromPort: 0, toNode: to.id, toPort: 0 }] });
-          }}>Add connection</button>
-          <button type="submit">Apply patch</button>
-        </div>
+      <fieldset disabled={pending || stale}>
+        {draft.routes.map((route) => <section className="setup-patch-node" key={route.id}>
+          <RouteFields document={document} route={route} onChange={(next) => { changeRoute(route.id, next); }} />
+          <button type="button" onClick={() => { setDraft({ ...draft, routes: draft.routes.filter((item) => item.id !== route.id) }); }}>Remove route</button>
+        </section>)}
+        <button type="button" disabled={document.controllers.length === 0 || !document.layouts.some((layout) => layout.fixtures.some((fixture) => fixture.pixelCount > 0))} onClick={addRoute}>Add route</button>
+        <button type="submit">Apply routes</button>
       </fieldset>
       <button type="button" disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Discard draft</button>
     </form>}
-  </section></main>;
+  </main>;
 }
 
-function NodeChoice({ label, nodes, value, onChange }: { label: string; nodes: Draft["nodes"]; value: number; onChange: (value: number) => void }) {
-  return <label>{label}<select value={value} onChange={(event) => { onChange(Number(event.target.value)); }}>
-    {nodes.map((node) => <option value={node.id} key={node.id}>{node.id}: {node.definition.type}</option>)}
-  </select></label>;
+function sameReference(a: GuiObjectRef, b: GuiObjectRef) {
+  return a.moduleId === b.moduleId && a.path === b.path && a.objectKey === b.objectKey;
 }
 
-function PatchNodeInput({ document, value, onChange }: { document: PatchGuiDocument; value: PatchGuiNodeDefinition; onChange: (value: PatchGuiNodeDefinition) => void }) {
-  if (value.type === "filter") return <PatchFilterInput value={value.filter} profiles={document.profiles} onChange={(filter) => { onChange({ ...value, filter }); }} />;
-  if (value.type === "sink") return <div className="setup-patch-fields">
-    <ReferenceInput label="Controller" value={value.controller} choices={document.controllers.map((controller) => controller.sourceRef)} onChange={(controller) => { onChange({ ...value, controller }); }} />
-    <NumberField label="Controller port ID" value={value.port} onChange={(port) => { onChange({ ...value, port }); }} />
-    <NumberField label="First channel" value={value.startSlot + 1} min={1} onChange={(channel) => { onChange({ ...value, startSlot: channel - 1 }); }} />
-    <NumberField label="Channel count" value={value.slotCount} min={1} onChange={(slotCount) => { onChange({ ...value, slotCount }); }} />
-  </div>;
-  const range = value.cells;
-  const tree = document.elementTrees.find((tree) => tree.sourceRef.moduleId === value.tree.moduleId && tree.sourceRef.path === value.tree.path && tree.sourceRef.objectKey === value.tree.objectKey);
+function RouteFields({ document, route, onChange }: { document: PatchGuiDocument; route: GuiPixelRoute; onChange: (route: GuiPixelRoute) => void }) {
+  const layout = document.layouts.find((layout) => sameReference(layout.sourceRef, route.layout));
+  const target = layout?.fixtures.find((fixture) => fixture.id === route.fixture);
+  const controller = document.controllers.find((controller) => sameReference(controller.sourceRef, route.controller));
+  const span = route.pixels;
   return <div className="setup-patch-fields">
-    <ReferenceInput label="Element tree" value={value.tree} choices={document.elementTrees.filter((tree) => tree.elements.length > 0).map((tree) => tree.sourceRef)} onChange={(reference) => {
-      const next = document.elementTrees.find((tree) => tree.sourceRef === reference)?.elements[0];
-      if (next !== undefined) onChange({ ...value, tree: reference, node: next.id, cells: null });
+    <ReferenceInput label="Layout" value={route.layout} choices={document.layouts.map((layout) => layout.sourceRef)} onChange={(reference) => {
+      const fixture = document.layouts.find((layout) => sameReference(layout.sourceRef, reference))?.fixtures[0];
+      if (fixture !== undefined) onChange({ ...route, layout: reference, fixture: fixture.id, pixels: null });
     }} />
-    <label>Element<select value={value.node} onChange={(event) => { onChange({ ...value, node: Number(event.target.value) }); }}>
-      {(tree?.elements ?? []).map((element) => <option key={element.id} value={element.id}>{element.name}</option>)}
+    <label>Fixture instance or group<select value={route.fixture} onChange={(event) => { onChange({ ...route, fixture: Number(event.target.value), pixels: null }); }}>
+      {layout?.fixtures.map((fixture) => <option key={fixture.id} value={fixture.id}>{fixture.name} ({fixture.pixelCount} pixels)</option>)}
     </select></label>
-    <label><input type="checkbox" checked={range !== null} onChange={(event) => { onChange({ ...value, cells: event.target.checked ? { start: 0, count: value.output.width } : null }); }} />Select a cell range</label>
-    {range !== null && <>
-      <NumberField label="First cell (zero-based)" value={range.start} onChange={(start) => { onChange({ ...value, cells: { ...range, start } }); }} />
-      <NumberField label="Cell count" value={range.count} min={1} onChange={(count) => { onChange({ ...value, cells: { ...range, count } }); }} />
+    <label><input type="checkbox" checked={span !== null} onChange={(event) => { onChange({ ...route, pixels: event.target.checked ? { start: 0, count: target?.pixelCount ?? 0 } : null }); }} />Route only part of the pixel wiring</label>
+    {span !== null && <>
+      <NumberField label="First pixel" value={span.start + 1} min={1} onChange={(start) => { onChange({ ...route, pixels: { ...span, start: start - 1 } }); }} />
+      <NumberField label="Pixel count" value={span.count} min={1} onChange={(count) => { onChange({ ...route, pixels: { ...span, count } }); }} />
     </>}
-    <label>Element value type<select value={value.output.type} onChange={(event) => {
-      const width = value.output.width;
-      switch (event.target.value) {
-        case "color": onChange({ ...value, output: { type: "color", width } }); break;
-        case "scalar": onChange({ ...value, output: { type: "scalar", width } }); break;
-        case "indexed": onChange({ ...value, output: { type: "indexed", width } }); break;
-        case "fixtureState": { const profile = document.profiles[0]; if (profile !== undefined) onChange({ ...value, output: { type: "fixtureState", width, profile } }); break; }
-      }
-    }}><option value="color">Color</option><option value="scalar">Scalar</option><option value="indexed">Indexed</option><option value="fixtureState" disabled={document.profiles.length === 0}>Fixture state</option>
-      {(value.output.type === "components" || value.output.type === "slots") && <option value={value.output.type} disabled>{value.output.type} (invalid source type)</option>}
+    <ReferenceInput label="Controller" value={route.controller} choices={document.controllers.map((controller) => controller.sourceRef)} onChange={(reference) => {
+      const port = document.controllers.find((controller) => sameReference(controller.sourceRef, reference))?.ports[0];
+      if (port !== undefined) onChange({ ...route, controller: reference, port: port.id });
+    }} />
+    <label>Output port<select value={route.port} onChange={(event) => { onChange({ ...route, port: Number(event.target.value) }); }}>
+      {controller?.ports.map((port) => <option key={port.id} value={port.id}>{port.id} ({port.slotCount} channels)</option>)}
     </select></label>
-    <NumberField label="Output values" value={value.output.width} min={1} onChange={(width) => { onChange({ ...value, output: { ...value.output, width } }); }} />
-    {value.output.type === "fixtureState" && <ReferenceInput label="Fixture profile" value={value.output.profile} choices={document.profiles} onChange={(profile) => { onChange({ ...value, output: { type: "fixtureState", width: value.output.width, profile } }); }} />}
+    <NumberField label="First controller channel" value={route.startSlot + 1} min={1} onChange={(value) => { onChange({ ...route, startSlot: value - 1 }); }} />
+    <label>Pixel encoding<select value={route.encoding.type} onChange={(event) => {
+      if (event.target.value === "rgb") onChange({ ...route, encoding: { type: "rgb", order: [1, 0, 2] } });
+      else if (event.target.value === "rgbw") onChange({ ...route, encoding: { type: "rgbw", order: [1, 0, 2, 3] } });
+    }}><option value="rgb">RGB</option><option value="rgbw">RGBW</option></select></label>
+    {route.encoding.order.map((component, index) => <label key={index}>Channel {index + 1}<select value={component} onChange={(event) => {
+      const encoding = structuredClone(route.encoding);
+      const next = Number(event.target.value);
+      const previous = encoding.order.indexOf(next);
+      encoding.order[index] = next;
+      if (previous >= 0) encoding.order[previous] = component;
+      onChange({ ...route, encoding });
+    }}>
+      {(route.encoding.type === "rgb" ? ["Red", "Green", "Blue"] : ["Red", "Green", "Blue", "White"]).map((name, component) => <option key={name} value={component}>{name}</option>)}
+    </select></label>)}
+    <NumberField label="Gamma" value={route.gamma} min={0.01} step="any" onChange={(gamma) => { onChange({ ...route, gamma }); }} />
+    <NumberField label="Brightness" value={route.brightness} min={0} max={1} step="any" onChange={(brightness) => { onChange({ ...route, brightness }); }} />
   </div>;
 }

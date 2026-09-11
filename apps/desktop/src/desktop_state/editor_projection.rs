@@ -55,15 +55,13 @@ pub(crate) fn descriptor_for_path(
         DocumentViewId::Project => 0,
         DocumentViewId::Sequence => 1,
         DocumentViewId::Setup => 2,
-        DocumentViewId::Preview => 3,
-        DocumentViewId::Prop => 4,
-        DocumentViewId::ElementTree => 5,
-        DocumentViewId::FixtureProfile => 6,
-        DocumentViewId::Patch => 7,
-        DocumentViewId::Controller => 8,
-        DocumentViewId::Curve => 9,
-        DocumentViewId::Gradient => 10,
-        DocumentViewId::Text => 11,
+        DocumentViewId::Layout => 3,
+        DocumentViewId::Fixture => 4,
+        DocumentViewId::Patch => 5,
+        DocumentViewId::Controller => 6,
+        DocumentViewId::Curve => 7,
+        DocumentViewId::Gradient => 8,
+        DocumentViewId::Text => 9,
     });
     let mut available_views = vec![DocumentViewId::Text];
     for object in &default_object_keys {

@@ -2,18 +2,15 @@ import type {
   ActiveGuiDocument,
   AppSnapshot,
   GeometryRenderBounds,
-  GeometryRenderPoint,
   Point3Meters,
   SequenceAutomationMapping,
   SequenceAutomationTarget,
-  SequenceSelection as WireSequenceSelection,
-  Transform as WireTransform
+  SequenceSelection as WireSequenceSelection
 } from "../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../theme";
 
 export type Point3 = { x: number; y: number; z: number };
 
-export type Transform = { position: Point3; rotation: Point3; scale: Point3 };
 
 export type AudioTransportViewSnapshot = AppSnapshot["audioTransport"];
 
@@ -40,18 +37,13 @@ export type GuiFocus =
   | { type: "effect"; id: number }
   | { type: "graphNode"; nodeId: string }
   | { type: "graphEdge"; edgeId: string }
-  | { type: "controlClip"; id: number }
   | { type: "automationClip"; id: number }
   | { type: "mark"; collectionKey: string; index: number }
-  | { type: "placement"; id: number }
-  | { type: "point"; index: number }
   | null;
 
 export const GUI_CANVAS = {
   spatialPaddingPx: THEME_METRICS.canvasPadding,
   pointHitMeters: THEME_METRICS.canvasPointHitRadius,
-  placementHitMeters: THEME_METRICS.canvasPlacementHitRadius,
-  meterRoundScale: 1_000_000,
   nanosecondRoundScale: 1_000_000_000
 } as const;
 
@@ -64,7 +56,7 @@ const GUI_COLORS = {
   label: THEME_COLORS.canvasLabel
 } as const;
 
-export function normalizePoint(point: Point3Meters | GeometryRenderPoint): Point3 {
+export function normalizePoint(point: Point3Meters): Point3 {
   return {
     x: point.xMeters,
     y: point.yMeters,
@@ -72,41 +64,8 @@ export function normalizePoint(point: Point3Meters | GeometryRenderPoint): Point
   };
 }
 
-export function normalizeTransform(transform: WireTransform): Transform {
-  return {
-    position: normalizePoint(transform.position),
-    rotation: {
-      x: transform.rotation.xDegrees,
-      y: transform.rotation.yDegrees,
-      z: transform.rotation.zDegrees
-    },
-    scale: {
-      x: transform.scale.x,
-      y: transform.scale.y,
-      z: transform.scale.z
-    }
-  };
-}
 
-export function denormalizePoint(point: Point3): Point3Meters {
-  return {
-    xMeters: point.x,
-    yMeters: point.y,
-    zMeters: point.z
-  };
-}
 
-export function denormalizeTransform(transform: Transform): WireTransform {
-  return {
-    position: denormalizePoint(transform.position),
-    rotation: {
-      xDegrees: transform.rotation.x,
-      yDegrees: transform.rotation.y,
-      zDegrees: transform.rotation.z
-    },
-    scale: transform.scale
-  };
-}
 
 export type RenderBounds = {
   minX: number;
@@ -212,9 +171,6 @@ export function nearestPoint(points: Point3[], point: Point3, hitRadiusMeters: n
   return best;
 }
 
-export function round6(value: number) {
-  return Math.round(value * GUI_CANVAS.meterRoundScale) / GUI_CANVAS.meterRoundScale;
-}
 
 export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));

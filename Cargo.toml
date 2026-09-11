@@ -24,7 +24,7 @@ dawn-language = { path = "crates/dawn-language" }
 dawn-output = { path = "crates/dawn-output" }
 dawn-project-io = { path = "crates/dawn-project-io" }
 dawn-runtime = { path = "crates/dawn-runtime" }
-glam = "0.33.6"
+glam = "0.33.7"
 fs4 = "1.1.0"
 fugit = "0.5.0"
 keyring = { version = "4.2.0", default-features = false, features = ["v1", "windows-native-keyring-store"] }

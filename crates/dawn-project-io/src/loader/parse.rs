@@ -1,3 +1,5 @@
+use dawn_language::fixture::FixtureDefinitionId;
+use dawn_language::layout::LayoutId;
 pub(crate) fn parse_automation_curve(
     path: &Utf8Path,
     value: &Value,
@@ -169,11 +171,9 @@ pub(crate) enum ResolvedObject {
     Project(ProjectId),
     Setup(SetupId),
     Controller(ControllerId),
-    ElementTree(ElementTreeId),
-    PreviewLayout(PreviewLayoutId),
+    Layout(LayoutId),
     Patch(PatchId),
-    PropDefinition(PropDefinitionId),
-    FixtureProfile(FixtureProfileId),
+    FixtureDefinition(FixtureDefinitionId),
     Curve(CurveId),
     Gradient(GradientId),
     Sequence(SequenceId),
@@ -187,11 +187,9 @@ impl ResolvedObject {
             Self::Project(id) => &id.0,
             Self::Setup(id) => &id.0,
             Self::Controller(id) => &id.0,
-            Self::ElementTree(id) => &id.0,
-            Self::PreviewLayout(id) => &id.0,
+            Self::Layout(id) => &id.0,
             Self::Patch(id) => &id.0,
-            Self::PropDefinition(id) => &id.0,
-            Self::FixtureProfile(id) => &id.0,
+            Self::FixtureDefinition(id) => &id.0,
             Self::Curve(id) => &id.0,
             Self::Gradient(id) => &id.0,
             Self::Sequence(id) => &id.0,
@@ -205,11 +203,9 @@ impl ResolvedObject {
             Self::Project(_) => SourceObjectKind::Project,
             Self::Setup(_) => SourceObjectKind::Setup,
             Self::Controller(_) => SourceObjectKind::Controller,
-            Self::ElementTree(_) => SourceObjectKind::ElementTree,
-            Self::PreviewLayout(_) => SourceObjectKind::PreviewLayout,
+            Self::Layout(_) => SourceObjectKind::Layout,
             Self::Patch(_) => SourceObjectKind::Patch,
-            Self::PropDefinition(_) => SourceObjectKind::PropDefinition,
-            Self::FixtureProfile(_) => SourceObjectKind::FixtureProfile,
+            Self::FixtureDefinition(_) => SourceObjectKind::FixtureDefinition,
             Self::Curve(_) => SourceObjectKind::Curve,
             Self::Gradient(_) => SourceObjectKind::Gradient,
             Self::Sequence(_) => SourceObjectKind::Sequence,
@@ -223,11 +219,9 @@ impl ResolvedObject {
             Self::Project(id) => id.0.object().to_string(),
             Self::Setup(id) => id.0.object().to_string(),
             Self::Controller(id) => id.0.object().to_string(),
-            Self::ElementTree(id) => id.0.object().to_string(),
-            Self::PreviewLayout(id) => id.0.object().to_string(),
+            Self::Layout(id) => id.0.object().to_string(),
             Self::Patch(id) => id.0.object().to_string(),
-            Self::PropDefinition(id) => id.0.object().to_string(),
-            Self::FixtureProfile(id) => id.0.object().to_string(),
+            Self::FixtureDefinition(id) => id.0.object().to_string(),
             Self::Curve(id) => id.0.object().to_string(),
             Self::Gradient(id) => id.0.object().to_string(),
             Self::Sequence(id) => id.0.object().to_string(),
@@ -344,70 +338,6 @@ pub(crate) fn parse_graph_edge(
     })
 }
 
-pub(crate) fn parse_prop_definition(
-    path: &Utf8Path,
-    value: &Value,
-) -> Result<PropDefinition, LoadProjectError> {
-    require_allowed_mapping_keys(
-        path,
-        value,
-        &["type", "bulb_diameter", "geometry"],
-        "prop definition",
-    )?;
-    let bulb_diameter = f32_field(path, value, "bulb_diameter")?;
-    let geometry_value = required_field(path, value, "geometry")?;
-    let geometry_type = string_field(path, geometry_value, "type")?;
-    let fields: &[&str] = match geometry_type {
-        "points" => &["type", "points"],
-        "lines" => &["type", "points", "point_count"],
-        "arc" => &[
-            "type",
-            "center",
-            "radius",
-            "startDegrees",
-            "endDegrees",
-            "point_count",
-        ],
-        _ => &["type"],
-    };
-    if matches!(geometry_type, "points" | "lines" | "arc") {
-        require_allowed_mapping_keys(path, geometry_value, fields, "prop geometry")?;
-    }
-    let geometry = match geometry_type {
-        "points" => PropGeometry::Points {
-            points: sequence_values(path, geometry_value, "points")?
-                .iter()
-                .map(|point| parse_point3(path, point))
-                .collect::<Result<Vec<_>, _>>()?,
-        },
-        "lines" => PropGeometry::Lines {
-            points: sequence_values(path, geometry_value, "points")?
-                .iter()
-                .map(|point| parse_point3(path, point))
-                .collect::<Result<Vec<_>, _>>()?,
-            point_count: u32_field(path, geometry_value, "point_count")?,
-        },
-        "arc" => PropGeometry::Arc {
-            center: parse_point3(path, required_field(path, geometry_value, "center")?)?,
-            radius: DistanceSpan::from_meters(f32_field(path, geometry_value, "radius")?),
-            start_degrees: f32_field(path, geometry_value, "startDegrees")?,
-            end_degrees: f32_field(path, geometry_value, "endDegrees")?,
-            point_count: u32_field(path, geometry_value, "point_count")?,
-        },
-        other => {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, geometry_value, "type"),
-                message: format!("unsupported prop geometry `{other}`"),
-            });
-        }
-    };
-    Ok(PropDefinition {
-        bulb_radius: DistanceSpan::from_meters(bulb_diameter / 2.0),
-        geometry,
-    })
-}
-
 pub(crate) fn parse_curve(path: &Utf8Path, value: &Value) -> Result<Curve, LoadProjectError> {
     require_allowed_mapping_keys(path, value, &["type", "points", "curve"], "curve")?;
     let points = sequence_values(path, value, "points")?
@@ -457,10 +387,29 @@ pub(crate) fn parse_gradient(path: &Utf8Path, value: &Value) -> Result<Gradient,
 
 pub(crate) fn parse_point3(path: &Utf8Path, value: &Value) -> Result<Point3, LoadProjectError> {
     require_allowed_mapping_keys(path, value, &["x", "y", "z"], "point")?;
+    let distance = |axis| {
+        let meters = required_field(path, value, axis)?.as_f64().ok_or_else(|| {
+            LoadProjectError::InvalidDocument {
+                path: path.to_path_buf(),
+                range: source_range_for_field_value(path, value, axis),
+                message: "Coordinate must be a number.".into(),
+            }
+        })?;
+        if !meters.is_finite() || meters.abs() > 2_000.0 {
+            return Err(LoadProjectError::InvalidDocument {
+                path: path.to_path_buf(),
+                range: source_range_for_field_value(path, value, axis),
+                message: "Coordinates must be finite and within 2,000 meters of the origin.".into(),
+            });
+        }
+        Ok(Distance {
+            micrometers: (meters * 1_000_000.0).round() as i32,
+        })
+    };
     Ok(Point3 {
-        x: Distance::from_meters(f32_field(path, value, "x")?),
-        y: Distance::from_meters(f32_field(path, value, "y")?),
-        z: Distance::from_meters(f32_field(path, value, "z")?),
+        x: distance("x")?,
+        y: distance("y")?,
+        z: distance("z")?,
     })
 }
 
@@ -631,10 +580,6 @@ pub(crate) fn string_field<'a>(
         })
 }
 
-pub(crate) fn optional_string_field<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
-    optional_field(value, key).and_then(Value::as_str)
-}
-
 pub(crate) fn u32_field(
     path: &Utf8Path,
     value: &Value,
@@ -647,21 +592,6 @@ pub(crate) fn u32_field(
             path: path.to_path_buf(),
             range: source_range_for_field_value(path, value, key),
             message: format!("field `{key}` must be a u32"),
-        })
-}
-
-pub(crate) fn usize_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<usize, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_u64()
-        .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a usize"),
         })
 }
 
@@ -713,13 +643,10 @@ use camino::{Utf8Path, Utf8PathBuf};
 use dawn_language::controller::ControllerId;
 use dawn_language::dsl::Identifier;
 use dawn_language::effect::{CurveId, EffectDefinitionId, EffectInstId, EffectScope, GradientId};
-use dawn_language::element::ElementTreeId;
-use dawn_language::fixture_profile::FixtureProfileId;
 use dawn_language::identity::SourceIdentity;
 use dawn_language::model::ProjectId;
 use dawn_language::operator::OperatorDefinitionId;
 use dawn_language::patch::PatchId;
-use dawn_language::preview::{PreviewLayoutId, PropDefinition, PropDefinitionId, PropGeometry};
 use dawn_language::sequence::{
     AutomationBinding, AutomationDetachmentReason, AutomationMapping, AutomationTarget,
     CompositionGraphNodeId, DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition,
@@ -727,8 +654,8 @@ use dawn_language::sequence::{
 };
 use dawn_language::setup::SetupId;
 use dawn_language::values::{
-    Color, Curve, CurvePoint, DawnDuration, DawnTime, Distance, DistanceSpan, Gradient,
-    GradientStop, Point3, Rotation3, Scale3,
+    Color, Curve, CurvePoint, DawnDuration, DawnTime, Distance, Gradient, GradientStop, Point3,
+    Rotation3, Scale3,
 };
 use yaml_serde::{Mapping, Value};
 

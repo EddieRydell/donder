@@ -6,7 +6,7 @@ use dawn_language::dsl::{compile_effects, compile_operators};
 use dawn_runtime::dsl::BoundParams;
 use dawn_runtime::dsl::bytecode::Instruction;
 use dawn_runtime::signal::{
-    PreparedElement, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
+    PreparedFixture, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
     PreparedSignalNode, PreparedTarget,
 };
 use dawn_runtime::values::{Color, SampleTime};
@@ -22,22 +22,22 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     .remove(0)
     .effect;
     let mut base = workload::show(8, effect.bytecode, BoundParams::default()).signals;
-    base.elements = vec![
-        PreparedElement {
+    base.fixtures = vec![
+        PreparedFixture {
             id: 0,
             pixel_count: 4,
         },
-        PreparedElement {
+        PreparedFixture {
             id: 1,
             pixel_count: 4,
         },
     ]
     .into();
-    base.element_cell_offsets = vec![0, 4].into();
+    base.fixture_pixel_offsets = vec![0, 4].into();
     let mut pixels = base.target_pixels.to_vec();
     for (index, pixel) in pixels.iter_mut().enumerate() {
-        pixel.element_index = (index / 4) as u16;
-        pixel.element_cell_index = (index % 4) as u16;
+        pixel.fixture_index = (index / 4) as u16;
+        pixel.fixture_pixel_index = (index % 4) as u16;
     }
     let effect_pixels = pixels.clone();
     for (index, pixel) in pixels.iter_mut().enumerate() {

@@ -66,12 +66,12 @@ pub(super) fn register_sequence_audio_asset(
 pub(super) fn fixture_definition_mut<'a>(
     session: &'a mut ProjectSession,
     identity: &SourceIdentity,
-) -> Result<&'a mut dawn_language::preview::PropDefinition, GuiMutationError> {
-    let id = PropDefinitionId(identity.clone());
+) -> Result<&'a mut dawn_language::fixture::FixtureDefinition, GuiMutationError> {
+    let id = FixtureDefinitionId(identity.clone());
     session
         .project
         .definitions
-        .props
+        .fixtures
         .definitions
         .get_mut(&id)
         .ok_or_else(|| GuiMutationError::Invalid("Fixture definition was not loaded.".to_string()))
@@ -294,18 +294,13 @@ pub(super) fn effect_scope(scope: SequenceEffectScope) -> EffectScope {
 }
 
 pub(super) fn layout_target_to_effect_target(
-    tree: &ElementTreeId,
-    target: ElementTarget,
-) -> Result<ElementSelection, GuiMutationError> {
-    let id = target
-        .name
-        .parse::<u32>()
-        .map_err(|_| GuiMutationError::Invalid("Layout target id must be numeric.".to_string()))?;
-    Ok(ElementSelection {
-        tree: tree.clone(),
-        node: ElementNodeId(id),
-        cells: None,
-    })
+    layout: &LayoutId,
+    target: FixtureTarget,
+) -> DomainFixtureTarget {
+    DomainFixtureTarget {
+        layout: layout.clone(),
+        fixture: FixtureInstanceId(target.fixture),
+    }
 }
 
 pub(crate) fn effect_param_value_from_gui(
@@ -539,12 +534,12 @@ use dawn_language::dsl::Identifier;
 use dawn_language::effect::{
     CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
 };
-use dawn_language::element::{ElementNodeId, ElementSelection, ElementTreeId};
+use dawn_language::fixture::FixtureDefinitionId;
 use dawn_language::identity::SourceIdentity;
+use dawn_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use dawn_language::operator::{
     BuiltinOperator, OperatorDefinitionId, OperatorPortCardinality, OperatorRef,
 };
-use dawn_language::preview::PropDefinitionId;
 use dawn_language::sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationMapping, AutomationValue,
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
@@ -561,7 +556,7 @@ use dawn_project_io::{
 
 use super::GuiMutationError;
 use crate::dto::{
-    ElementTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceAutomationMapping,
+    FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceAutomationMapping,
     SequenceBuiltinOperator, SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope,
     SequenceGradientStop, SequenceGraphOperator, SequenceLibrarySource,
 };

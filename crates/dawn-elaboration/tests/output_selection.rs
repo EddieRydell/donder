@@ -1,9 +1,9 @@
 use camino::Utf8PathBuf;
 use dawn_elaboration::{PreparedSequenceOutput, SequenceOutputPrepareError};
 use dawn_language::controller::{ControllerId, ControllerPortId};
-use dawn_language::element::{ElementCellRange, ElementNodeId};
+use dawn_language::layout::FixtureInstanceId;
 use dawn_language::model::DawnProject;
-use dawn_language::patch::{FilterDefinition, PatchNode, PatchNodeId};
+use dawn_language::patch::PixelSpan;
 use dawn_language::sequence::SequenceId;
 use dawn_project_io::load_package;
 use dawn_runtime::sequence::PreparedSequence;
@@ -136,7 +136,7 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
         let full = PreparedSequenceOutput::prepare(&project, &project.root.setup, id).unwrap();
         for port in &ports {
             let fragment = compare(&project, id, std::slice::from_ref(port));
-            assert_eq!(fragment.elements.len(), 1);
+            assert_eq!(fragment.signals.fixtures.len(), 1);
             assert_eq!(fragment.signals.pixel_count, 113);
             assert!(fragment.signals.effects.len() <= full.sequence.signals.effects.len());
             assert!(fragment.signals.programs.len() <= full.sequence.signals.programs.len());
@@ -151,7 +151,7 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
                 * size_of::<Color>()
         };
         println!(
-            "{}: pixels {} -> {}; target records {} -> {}; effects {} -> {}; programs {} -> {}; patch steps {} -> {}; graph buffer bytes {} -> {}",
+            "{}: pixels {} -> {}; target records {} -> {}; effects {} -> {}; programs {} -> {}; pixel routes {} -> {}; graph buffer bytes {} -> {}",
             id.0.object(),
             full.sequence.signals.pixel_count,
             fragment.signals.pixel_count,
@@ -161,8 +161,8 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
             fragment.signals.effects.len(),
             full.sequence.signals.programs.len(),
             fragment.signals.programs.len(),
-            full.sequence.patch.steps.len(),
-            fragment.patch.steps.len(),
+            full.sequence.patch.routes.len(),
+            fragment.patch.routes.len(),
             frame_bytes(&full.sequence),
             frame_bytes(&fragment)
         );
@@ -172,48 +172,24 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
 }
 
 #[test]
-fn split_element_keeps_original_context_and_compacts_disjoint_cells() {
+fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     let mut project = starter();
     let patch_id = project.setups[&project.root.setup].patch.clone();
     let patch = project.patches.get_mut(&patch_id).unwrap();
-    // Two ports use disjoint parts of one element. Both retain their positions
-    // in the original 113-cell effect target, including through time-warp inputs.
-    for (base, start) in [(1, 0), (6, 76)] {
-        let PatchNode::Source(source) = &mut patch.nodes[&PatchNodeId(base)] else {
-            unreachable!()
-        };
-        source.selection.node = ElementNodeId(1);
-        source.selection.cells = Some(ElementCellRange { start, count: 37 });
-        source.output = dawn_language::patch::PatchValueType::Color { width: 37 };
-        for offset in [1, 2] {
-            let PatchNode::Filter(filter) = &mut patch.nodes[&PatchNodeId(base + offset)] else {
-                unreachable!()
-            };
-            match filter {
-                FilterDefinition::ColorBreakdown { cell_count, .. }
-                | FilterDefinition::ComponentReorder { cell_count, .. } => *cell_count = 37,
-                _ => unreachable!(),
-            }
-        }
-        let PatchNode::Filter(FilterDefinition::Quantize8 { width }) =
-            &mut patch.nodes[&PatchNodeId(base + 3)]
-        else {
-            unreachable!()
-        };
-        *width = 111;
-        let PatchNode::Sink(sink) = &mut patch.nodes[&PatchNodeId(base + 4)] else {
-            unreachable!()
-        };
-        sink.start_slot = 7;
-        sink.slot_count = 111;
+    // Two ports wire disjoint spans of one fixture, preserving authored effect coordinates.
+    for (index, start) in [(0, 0), (1, 76)] {
+        let route = &mut patch.routes[index];
+        route.target.fixture = FixtureInstanceId(1);
+        route.pixels = Some(PixelSpan { start, count: 37 });
+        route.start_slot = 7;
     }
     let ports = ports(&project);
     for id in &project.root.sequences {
         let fragment = compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
-        assert_eq!(fragment.elements.len(), 1);
+        assert_eq!(fragment.signals.fixtures.len(), 1);
         assert_eq!(fragment.signals.pixel_count, 74);
         let target = fragment.signals.target(fragment.signals.plan.target);
-        assert_eq!(target[37].element_cell_index, 37);
+        assert_eq!(target[37].fixture_pixel_index, 37);
         assert_eq!(target[37].pixel_index, 76);
         assert_eq!(target[37].pixel_count, 113);
         compare(&project, id, &ports[1..2]);
@@ -232,7 +208,7 @@ fn split_element_keeps_original_context_and_compacts_disjoint_cells() {
     for id in &project.root.sequences {
         compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
     }
-    // Spatial reads must not see the compacted 37-cell output domain. Local
+    // Spatial reads must not see the compacted 37-pixel output domain. Local
     // reads need the whole original fixture; global reads can reach unpatched
     // fixtures. This also exercises nested temporal/spatial operator sampling.
     for (query, expected_pixels) in [
@@ -291,7 +267,7 @@ fn split_element_keeps_original_context_and_compacts_disjoint_cells() {
 }
 
 #[test]
-fn shared_patch_paths_and_multiple_controllers_keep_output_order() {
+fn shared_pixels_and_multiple_controllers_keep_output_order() {
     use dawn_language::identity::SourceIdentity;
     let mut project = starter();
     let selected = ports(&project);
@@ -305,30 +281,20 @@ fn shared_patch_paths_and_multiple_controllers_keep_output_order() {
     let setup = project.setups.get_mut(&project.root.setup).unwrap();
     setup.controllers.push(other_id.clone());
     let patch = project.patches.get_mut(&setup.patch).unwrap();
-    let PatchNode::Sink(sink) = &mut patch.nodes[&PatchNodeId(10)] else {
-        unreachable!()
-    };
-    sink.controller = other_id.clone();
-    // Two sinks consume the same already-packed source. The abandoned second
-    // source branch must not survive, and the shared branch must not duplicate.
-    let edge = patch
-        .edges
-        .iter_mut()
-        .find(|edge| edge.to == PatchNodeId(10))
-        .unwrap();
-    edge.from = PatchNodeId(4);
+    patch.routes[1].controller = other_id.clone();
+    patch.routes[1].target = patch.routes[0].target.clone();
     for id in &project.root.sequences {
         let fragment = compare(
             &project,
             id,
             &[(other_id.clone(), selected[1].1), selected[0].clone()],
         );
-        assert_eq!(fragment.elements.len(), 1);
-        assert_eq!(fragment.patch.steps.len(), 4);
+        assert_eq!(fragment.signals.fixtures.len(), 1);
+        assert_eq!(fragment.patch.routes.len(), 2);
         assert_eq!(fragment.signals.pixel_count, 113);
         let unpatched = compare(&project, id, &selected[1..2]);
-        assert!(unpatched.elements.is_empty());
-        assert!(unpatched.patch.steps.is_empty());
+        assert!(unpatched.signals.fixtures.is_empty());
+        assert!(unpatched.patch.routes.is_empty());
     }
 }
 
@@ -353,8 +319,7 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
     sequence.automation_clips.clear();
     // Effects target the second port; the first must still receive inverted black.
     for effect in &mut sequence.effects {
-        effect.target.node = ElementNodeId(2);
-        effect.target.cells = None;
+        effect.target.fixture = FixtureInstanceId(2);
     }
     let output = sequence
         .composition_graph
@@ -420,11 +385,11 @@ fn empty_and_unknown_selections_are_explicit() {
     let ports = ports(&project);
     let id = &project.root.sequences[0];
     let empty = compare(&project, id, &[]);
-    assert!(empty.elements.is_empty());
+    assert!(empty.signals.fixtures.is_empty());
     assert!(empty.signals.effects.is_empty());
     assert!(empty.signals.programs.is_empty());
     assert!(empty.signals.target_pixels.is_empty());
-    assert!(empty.patch.steps.is_empty());
+    assert!(empty.patch.routes.is_empty());
     let duplicate = PreparedSequenceOutput::prepare_selected(
         &project,
         &project.root.setup,
@@ -445,242 +410,4 @@ fn empty_and_unknown_selections_are_explicit() {
         unknown,
         Err(SequenceOutputPrepareError::UnknownOutput { .. })
     ));
-}
-
-#[test]
-fn indexed_and_fixture_controls_follow_compacted_cells_and_unused_controls_drop() {
-    use dawn_language::control::{ControlClip, ControlClipId, ControlTarget, ControlValue};
-    use dawn_language::element::{
-        ElementNode, ElementNodeKind, ElementSelection, IndexedOption, IndexedOptionId,
-    };
-    use dawn_language::fixture_profile::{
-        DimmingCurve, FixtureBehaviorRule, FixtureChannel, FixtureChannelRole, FixtureFunction,
-        FixtureFunctionId, FixtureFunctionKind, FixtureProfile, FixtureProfileId,
-    };
-    use dawn_language::identity::SourceIdentity;
-    use dawn_language::patch::{PatchEdge, PatchPortId, PatchSink, PatchSource, PatchValueType};
-    use dawn_language::values::{DawnDuration, DawnTime};
-    let mut project = starter();
-    let ports = ports(&project);
-    let setup = project.setups[&project.root.setup].clone();
-    let profile_id = FixtureProfileId(SourceIdentity::from_document(
-        setup.elements.0.document_id().clone(),
-        "dimmer_test".into(),
-    ));
-    let function = FixtureFunctionId(9);
-    project.definitions.fixture_profiles.definitions.insert(
-        profile_id.clone(),
-        FixtureProfile {
-            id: profile_id.clone(),
-            functions: [(
-                function,
-                FixtureFunction {
-                    name: "dimmer".into(),
-                    tag: None,
-                    kind: FixtureFunctionKind::Range,
-                    curve: DimmingCurve::Linear,
-                },
-            )]
-            .into(),
-            channels: vec![FixtureChannel {
-                slot: 0,
-                role: FixtureChannelRole::Coarse { function },
-                curve: DimmingCurve::Linear,
-            }],
-            behavior_rules: vec![FixtureBehaviorRule::Dimmer {
-                function,
-                off: 0.2,
-                on: 1.0,
-            }],
-        },
-    );
-    let tree = project.element_trees.get_mut(&setup.elements).unwrap();
-    for (id, kind) in [
-        (10001, ElementNodeKind::Scalar { cells: 6 }),
-        (
-            10002,
-            ElementNodeKind::Indexed {
-                cells: 4,
-                options: vec![
-                    IndexedOption {
-                        id: IndexedOptionId(0),
-                        name: "off".into(),
-                    },
-                    IndexedOption {
-                        id: IndexedOptionId(7),
-                        name: "mode".into(),
-                    },
-                ],
-            },
-        ),
-        (
-            10003,
-            ElementNodeKind::Fixture {
-                profile: profile_id.clone(),
-            },
-        ),
-        (
-            10004,
-            ElementNodeKind::Fixture {
-                profile: profile_id.clone(),
-            },
-        ),
-    ] {
-        tree.nodes.insert(
-            ElementNodeId(id),
-            ElementNode {
-                name: id.to_string(),
-                kind,
-            },
-        );
-        tree.roots.push(ElementNodeId(id));
-    }
-    let selection = |node, cells| ElementSelection {
-        tree: setup.elements.clone(),
-        node: ElementNodeId(node),
-        cells,
-    };
-    let patch = project.patches.get_mut(&setup.patch).unwrap();
-    patch.nodes.clear();
-    patch.edges.clear();
-    let routes = [
-        (
-            10002,
-            Some(ElementCellRange { start: 1, count: 2 }),
-            PatchValueType::Indexed { width: 2 },
-            vec![
-                FilterDefinition::IndexedValueMapping {
-                    entries: [(0, 0.0), (7, 0.5)].into(),
-                    width: 2,
-                },
-                FilterDefinition::Quantize8 { width: 2 },
-            ],
-            0,
-            0,
-            2,
-        ),
-        (
-            10003,
-            None,
-            PatchValueType::FixtureState {
-                width: 1,
-                profile: profile_id.clone(),
-            },
-            vec![FilterDefinition::FixtureProfileEncoding {
-                profile: profile_id.clone(),
-                fixture_count: 1,
-                slot_count: 1,
-            }],
-            0,
-            2,
-            1,
-        ),
-        (
-            10004,
-            None,
-            PatchValueType::FixtureState {
-                width: 1,
-                profile: profile_id.clone(),
-            },
-            vec![FilterDefinition::FixtureProfileEncoding {
-                profile: profile_id,
-                fixture_count: 1,
-                slot_count: 1,
-            }],
-            1,
-            0,
-            1,
-        ),
-    ];
-    for (node, cells, output, filters, port, start_slot, slot_count) in routes {
-        let start = patch.nodes.len() as u32;
-        patch.nodes.insert(
-            PatchNodeId(start),
-            PatchNode::Source(PatchSource {
-                selection: selection(node, cells),
-                output,
-            }),
-        );
-        for filter in filters {
-            let id = patch.nodes.len() as u32;
-            patch
-                .nodes
-                .insert(PatchNodeId(id), PatchNode::Filter(filter));
-        }
-        let end = patch.nodes.len() as u32;
-        patch.nodes.insert(
-            PatchNodeId(end),
-            PatchNode::Sink(PatchSink {
-                controller: ports[port].0.clone(),
-                port: ports[port].1,
-                start_slot,
-                slot_count,
-            }),
-        );
-        for id in start..end {
-            patch.edges.push(PatchEdge {
-                from: PatchNodeId(id),
-                from_port: PatchPortId(0),
-                to: PatchNodeId(id + 1),
-                to_port: PatchPortId(0),
-            });
-        }
-    }
-    let id = project
-        .root
-        .sequences
-        .iter()
-        .find(|id| id.0.object() == "empty")
-        .unwrap()
-        .clone();
-    let sequence = project.sequences.get_mut(&id).unwrap();
-    sequence.control_clips = [
-        (
-            ControlTarget::Scalar(selection(10001, None)),
-            ControlValue::ConstantNormalized(0.25),
-        ),
-        (
-            ControlTarget::Indexed(selection(10002, None)),
-            ControlValue::Indexed {
-                option: IndexedOptionId(7),
-                range_curve: None,
-            },
-        ),
-        (
-            ControlTarget::FixtureFunction {
-                selection: selection(10003, None),
-                function,
-            },
-            ControlValue::ConstantNormalized(0.7),
-        ),
-    ]
-    .into_iter()
-    .enumerate()
-    .map(|(index, (target, value))| ControlClip {
-        id: ControlClipId(index as u32),
-        start: DawnTime::from_micros(0),
-        duration: DawnDuration::from_micros(10_000_000),
-        target,
-        value,
-    })
-    .collect();
-    let fragment = compare(&project, &id, &ports[..1]);
-    assert_eq!(fragment.elements.len(), 2);
-    assert_eq!(fragment.controls.len(), 2);
-    assert_eq!(fragment.controls[0].addresses.len(), 2);
-    assert_eq!(fragment.controls[1].addresses.len(), 1);
-    assert_eq!(fragment.fixture_behaviors.rules.len(), 1);
-    assert_eq!(fragment.patch.fixture_programs.len(), 1);
-    let mut workspace = fragment.workspace();
-    let mut buffers = vec![vec![0; fragment.output_widths[0] as usize]];
-    fragment
-        .evaluate(SampleTime::from_ticks(0), &mut buffers, &mut workspace)
-        .unwrap();
-    assert_eq!(&buffers[0][..3], &[128, 128, 179]);
-    let other = compare(&project, &id, &ports[1..2]);
-    assert_eq!(other.elements.len(), 1);
-    assert!(other.controls.is_empty());
-    let both = compare(&project, &id, &ports[..2]);
-    assert_eq!(both.fixture_behaviors.rules.len(), 1);
-    assert_eq!(both.fixture_behaviors.bindings.len(), 2);
 }

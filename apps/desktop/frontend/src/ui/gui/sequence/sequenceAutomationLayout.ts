@@ -1,4 +1,4 @@
-import type { SequenceAutomationClip, SequenceControlChannel } from "../../../types";
+import type { SequenceAutomationClip } from "../../../types";
 
 import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
@@ -36,7 +36,6 @@ export type AutomationClipVisualState = {
 export type SequenceRowLayout = {
   laneIndex: number;
   rowIndex: number;
-  controlChannel?: SequenceControlChannel;
   top: number;
   height: number;
   bottom: number;
@@ -63,7 +62,7 @@ export function automationRowCounts(clips: SequenceAutomationClip[], laneCount: 
   return rows;
 }
 
-export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], defaultMainRowHeight: number, defaultAutomationRowHeight: number, controlsByLane: SequenceControlChannel[][] = []): SequenceRowLayout[] {
+export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], defaultMainRowHeight: number, defaultAutomationRowHeight: number): SequenceRowLayout[] {
   const rows: SequenceRowLayout[] = [];
   let top = 0;
   for (let laneIndex = 0; laneIndex < rowsByLane.length; laneIndex += 1) {
@@ -71,11 +70,6 @@ export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], 
     for (let rowIndex = 0; rowIndex <= rowCount; rowIndex += 1) {
       const height = rowHeightAt(rowHeights, laneIndex, rowIndex, rowIndex === 0 ? defaultMainRowHeight : defaultAutomationRowHeight);
       rows.push({ laneIndex, rowIndex, top, height, bottom: top + height });
-      top += height;
-    }
-    for (const controlChannel of controlsByLane[laneIndex] ?? []) {
-      const height = defaultAutomationRowHeight;
-      rows.push({ laneIndex, rowIndex: -1, controlChannel, top, height, bottom: top + height });
       top += height;
     }
   }

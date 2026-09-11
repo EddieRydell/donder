@@ -9,1445 +9,454 @@ imports:
   as: setups
 outputs:
   type: patch
-  nodes:
-  - id: 1
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 1
-    output: color
-    width: 113
-  - id: 2
-    type: filter
-    filter: color_breakdown
-    capability:
-      type: rgb
-    cell_count: 113
-  - id: 3
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 4
-    type: filter
-    filter: quantize_8
-    width: 339
+  routes:
   - id: 5
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 1
     controller: setups.output_controller
     port: 1
     start_slot: 0
-    slot_count: 339
-  - id: 6
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 2
-    output: color
-    width: 113
-  - id: 7
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 8
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 9
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 10
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 2
     controller: setups.output_controller
     port: 2
     start_slot: 0
-    slot_count: 339
-  - id: 11
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 3
-    output: color
-    width: 113
-  - id: 12
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 13
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 14
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 15
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 3
     controller: setups.output_controller
     port: 3
     start_slot: 0
-    slot_count: 339
-  - id: 16
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 4
-    output: color
-    width: 113
-  - id: 17
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 18
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 19
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 20
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 4
     controller: setups.output_controller
     port: 4
     start_slot: 0
-    slot_count: 339
-  - id: 21
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 5
-    output: color
-    width: 113
-  - id: 22
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 23
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 24
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 25
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 5
     controller: setups.output_controller
     port: 5
     start_slot: 0
-    slot_count: 339
-  - id: 26
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 6
-    output: color
-    width: 113
-  - id: 27
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 28
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 29
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 30
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 6
     controller: setups.output_controller
     port: 6
     start_slot: 0
-    slot_count: 339
-  - id: 31
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 7
-    output: color
-    width: 113
-  - id: 32
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 33
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 34
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 35
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 7
     controller: setups.output_controller
     port: 7
     start_slot: 0
-    slot_count: 339
-  - id: 36
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 8
-    output: color
-    width: 113
-  - id: 37
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 38
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 39
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 40
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 8
     controller: setups.output_controller
     port: 8
     start_slot: 0
-    slot_count: 339
-  - id: 41
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 9
-    output: color
-    width: 113
-  - id: 42
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 43
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 44
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 45
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 9
     controller: setups.output_controller
     port: 9
     start_slot: 0
-    slot_count: 339
-  - id: 46
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 10
-    output: color
-    width: 113
-  - id: 47
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 48
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 49
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 50
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 10
     controller: setups.output_controller
     port: 10
     start_slot: 0
-    slot_count: 339
-  - id: 51
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 11
-    output: color
-    width: 113
-  - id: 52
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 53
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 54
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 55
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 11
     controller: setups.output_controller
     port: 11
     start_slot: 0
-    slot_count: 339
-  - id: 56
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 12
-    output: color
-    width: 113
-  - id: 57
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 58
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 59
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 60
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 12
     controller: setups.output_controller
     port: 12
     start_slot: 0
-    slot_count: 339
-  - id: 61
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 13
-    output: color
-    width: 113
-  - id: 62
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 63
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 64
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 65
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 13
     controller: setups.output_controller
     port: 13
     start_slot: 0
-    slot_count: 339
-  - id: 66
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 14
-    output: color
-    width: 113
-  - id: 67
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 68
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 69
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 70
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 14
     controller: setups.output_controller
     port: 14
     start_slot: 0
-    slot_count: 339
-  - id: 71
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 15
-    output: color
-    width: 113
-  - id: 72
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 73
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 74
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 75
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 15
     controller: setups.output_controller
     port: 15
     start_slot: 0
-    slot_count: 339
-  - id: 76
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 16
-    output: color
-    width: 113
-  - id: 77
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 78
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 79
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 80
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 16
     controller: setups.output_controller
     port: 16
     start_slot: 0
-    slot_count: 339
-  - id: 81
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 17
-    output: color
-    width: 113
-  - id: 82
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 83
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 84
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 85
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 17
     controller: setups.output_controller
     port: 17
     start_slot: 0
-    slot_count: 339
-  - id: 86
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 18
-    output: color
-    width: 113
-  - id: 87
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 88
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 89
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 90
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 18
     controller: setups.output_controller
     port: 18
     start_slot: 0
-    slot_count: 339
-  - id: 91
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 19
-    output: color
-    width: 113
-  - id: 92
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 93
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 94
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 95
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 19
     controller: setups.output_controller
     port: 19
     start_slot: 0
-    slot_count: 339
-  - id: 96
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 20
-    output: color
-    width: 113
-  - id: 97
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 98
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 99
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 100
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 20
     controller: setups.output_controller
     port: 20
     start_slot: 0
-    slot_count: 339
-  - id: 101
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 21
-    output: color
-    width: 113
-  - id: 102
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 103
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 104
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 105
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 21
     controller: setups.output_controller
     port: 21
     start_slot: 0
-    slot_count: 339
-  - id: 106
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 22
-    output: color
-    width: 113
-  - id: 107
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 108
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 109
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 110
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 22
     controller: setups.output_controller
     port: 22
     start_slot: 0
-    slot_count: 339
-  - id: 111
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 23
-    output: color
-    width: 113
-  - id: 112
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 113
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 114
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 115
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 23
     controller: setups.output_controller
     port: 23
     start_slot: 0
-    slot_count: 339
-  - id: 116
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 24
-    output: color
-    width: 113
-  - id: 117
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 118
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 119
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 120
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 24
     controller: setups.output_controller
     port: 24
     start_slot: 0
-    slot_count: 339
-  - id: 121
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 25
-    output: color
-    width: 113
-  - id: 122
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 123
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 124
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 125
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 25
     controller: setups.output_controller
     port: 25
     start_slot: 0
-    slot_count: 339
-  - id: 126
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 26
-    output: color
-    width: 113
-  - id: 127
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 128
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 129
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 130
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 26
     controller: setups.output_controller
     port: 26
     start_slot: 0
-    slot_count: 339
-  - id: 131
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 27
-    output: color
-    width: 113
-  - id: 132
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 133
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 134
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 135
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 27
     controller: setups.output_controller
     port: 27
     start_slot: 0
-    slot_count: 339
-  - id: 136
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 28
-    output: color
-    width: 113
-  - id: 137
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 138
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 139
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 140
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 28
     controller: setups.output_controller
     port: 28
     start_slot: 0
-    slot_count: 339
-  - id: 141
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 29
-    output: color
-    width: 113
-  - id: 142
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 143
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 144
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 145
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 29
     controller: setups.output_controller
     port: 29
     start_slot: 0
-    slot_count: 339
-  - id: 146
-    type: source
-    selection:
-      tree: layouts.outputs_elements
-      node: 30
-    output: color
-    width: 113
-  - id: 147
-    type: filter
-    filter: color_breakdown
-    capability:
+    encoding:
       type: rgb
-    cell_count: 113
-  - id: 148
-    type: filter
-    filter: component_reorder
-    components_per_cell: 3
-    order:
-    - 1
-    - 0
-    - 2
-    cell_count: 113
-  - id: 149
-    type: filter
-    filter: quantize_8
-    width: 339
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0
   - id: 150
-    type: sink
+    target:
+      layout: layouts.outputs_layout
+      fixture: 30
     controller: setups.output_controller
     port: 30
     start_slot: 0
-    slot_count: 339
-  edges:
-  - from: 2
-    from_port: 0
-    to: 3
-    to_port: 0
-  - from: 1
-    from_port: 0
-    to: 2
-    to_port: 0
-  - from: 3
-    from_port: 0
-    to: 4
-    to_port: 0
-  - from: 4
-    from_port: 0
-    to: 5
-    to_port: 0
-  - from: 7
-    from_port: 0
-    to: 8
-    to_port: 0
-  - from: 6
-    from_port: 0
-    to: 7
-    to_port: 0
-  - from: 8
-    from_port: 0
-    to: 9
-    to_port: 0
-  - from: 9
-    from_port: 0
-    to: 10
-    to_port: 0
-  - from: 12
-    from_port: 0
-    to: 13
-    to_port: 0
-  - from: 11
-    from_port: 0
-    to: 12
-    to_port: 0
-  - from: 13
-    from_port: 0
-    to: 14
-    to_port: 0
-  - from: 14
-    from_port: 0
-    to: 15
-    to_port: 0
-  - from: 17
-    from_port: 0
-    to: 18
-    to_port: 0
-  - from: 16
-    from_port: 0
-    to: 17
-    to_port: 0
-  - from: 18
-    from_port: 0
-    to: 19
-    to_port: 0
-  - from: 19
-    from_port: 0
-    to: 20
-    to_port: 0
-  - from: 22
-    from_port: 0
-    to: 23
-    to_port: 0
-  - from: 21
-    from_port: 0
-    to: 22
-    to_port: 0
-  - from: 23
-    from_port: 0
-    to: 24
-    to_port: 0
-  - from: 24
-    from_port: 0
-    to: 25
-    to_port: 0
-  - from: 27
-    from_port: 0
-    to: 28
-    to_port: 0
-  - from: 26
-    from_port: 0
-    to: 27
-    to_port: 0
-  - from: 28
-    from_port: 0
-    to: 29
-    to_port: 0
-  - from: 29
-    from_port: 0
-    to: 30
-    to_port: 0
-  - from: 32
-    from_port: 0
-    to: 33
-    to_port: 0
-  - from: 31
-    from_port: 0
-    to: 32
-    to_port: 0
-  - from: 33
-    from_port: 0
-    to: 34
-    to_port: 0
-  - from: 34
-    from_port: 0
-    to: 35
-    to_port: 0
-  - from: 37
-    from_port: 0
-    to: 38
-    to_port: 0
-  - from: 36
-    from_port: 0
-    to: 37
-    to_port: 0
-  - from: 38
-    from_port: 0
-    to: 39
-    to_port: 0
-  - from: 39
-    from_port: 0
-    to: 40
-    to_port: 0
-  - from: 42
-    from_port: 0
-    to: 43
-    to_port: 0
-  - from: 41
-    from_port: 0
-    to: 42
-    to_port: 0
-  - from: 43
-    from_port: 0
-    to: 44
-    to_port: 0
-  - from: 44
-    from_port: 0
-    to: 45
-    to_port: 0
-  - from: 47
-    from_port: 0
-    to: 48
-    to_port: 0
-  - from: 46
-    from_port: 0
-    to: 47
-    to_port: 0
-  - from: 48
-    from_port: 0
-    to: 49
-    to_port: 0
-  - from: 49
-    from_port: 0
-    to: 50
-    to_port: 0
-  - from: 52
-    from_port: 0
-    to: 53
-    to_port: 0
-  - from: 51
-    from_port: 0
-    to: 52
-    to_port: 0
-  - from: 53
-    from_port: 0
-    to: 54
-    to_port: 0
-  - from: 54
-    from_port: 0
-    to: 55
-    to_port: 0
-  - from: 57
-    from_port: 0
-    to: 58
-    to_port: 0
-  - from: 56
-    from_port: 0
-    to: 57
-    to_port: 0
-  - from: 58
-    from_port: 0
-    to: 59
-    to_port: 0
-  - from: 59
-    from_port: 0
-    to: 60
-    to_port: 0
-  - from: 62
-    from_port: 0
-    to: 63
-    to_port: 0
-  - from: 61
-    from_port: 0
-    to: 62
-    to_port: 0
-  - from: 63
-    from_port: 0
-    to: 64
-    to_port: 0
-  - from: 64
-    from_port: 0
-    to: 65
-    to_port: 0
-  - from: 67
-    from_port: 0
-    to: 68
-    to_port: 0
-  - from: 66
-    from_port: 0
-    to: 67
-    to_port: 0
-  - from: 68
-    from_port: 0
-    to: 69
-    to_port: 0
-  - from: 69
-    from_port: 0
-    to: 70
-    to_port: 0
-  - from: 72
-    from_port: 0
-    to: 73
-    to_port: 0
-  - from: 71
-    from_port: 0
-    to: 72
-    to_port: 0
-  - from: 73
-    from_port: 0
-    to: 74
-    to_port: 0
-  - from: 74
-    from_port: 0
-    to: 75
-    to_port: 0
-  - from: 77
-    from_port: 0
-    to: 78
-    to_port: 0
-  - from: 76
-    from_port: 0
-    to: 77
-    to_port: 0
-  - from: 78
-    from_port: 0
-    to: 79
-    to_port: 0
-  - from: 79
-    from_port: 0
-    to: 80
-    to_port: 0
-  - from: 82
-    from_port: 0
-    to: 83
-    to_port: 0
-  - from: 81
-    from_port: 0
-    to: 82
-    to_port: 0
-  - from: 83
-    from_port: 0
-    to: 84
-    to_port: 0
-  - from: 84
-    from_port: 0
-    to: 85
-    to_port: 0
-  - from: 87
-    from_port: 0
-    to: 88
-    to_port: 0
-  - from: 86
-    from_port: 0
-    to: 87
-    to_port: 0
-  - from: 88
-    from_port: 0
-    to: 89
-    to_port: 0
-  - from: 89
-    from_port: 0
-    to: 90
-    to_port: 0
-  - from: 92
-    from_port: 0
-    to: 93
-    to_port: 0
-  - from: 91
-    from_port: 0
-    to: 92
-    to_port: 0
-  - from: 93
-    from_port: 0
-    to: 94
-    to_port: 0
-  - from: 94
-    from_port: 0
-    to: 95
-    to_port: 0
-  - from: 97
-    from_port: 0
-    to: 98
-    to_port: 0
-  - from: 96
-    from_port: 0
-    to: 97
-    to_port: 0
-  - from: 98
-    from_port: 0
-    to: 99
-    to_port: 0
-  - from: 99
-    from_port: 0
-    to: 100
-    to_port: 0
-  - from: 102
-    from_port: 0
-    to: 103
-    to_port: 0
-  - from: 101
-    from_port: 0
-    to: 102
-    to_port: 0
-  - from: 103
-    from_port: 0
-    to: 104
-    to_port: 0
-  - from: 104
-    from_port: 0
-    to: 105
-    to_port: 0
-  - from: 107
-    from_port: 0
-    to: 108
-    to_port: 0
-  - from: 106
-    from_port: 0
-    to: 107
-    to_port: 0
-  - from: 108
-    from_port: 0
-    to: 109
-    to_port: 0
-  - from: 109
-    from_port: 0
-    to: 110
-    to_port: 0
-  - from: 112
-    from_port: 0
-    to: 113
-    to_port: 0
-  - from: 111
-    from_port: 0
-    to: 112
-    to_port: 0
-  - from: 113
-    from_port: 0
-    to: 114
-    to_port: 0
-  - from: 114
-    from_port: 0
-    to: 115
-    to_port: 0
-  - from: 117
-    from_port: 0
-    to: 118
-    to_port: 0
-  - from: 116
-    from_port: 0
-    to: 117
-    to_port: 0
-  - from: 118
-    from_port: 0
-    to: 119
-    to_port: 0
-  - from: 119
-    from_port: 0
-    to: 120
-    to_port: 0
-  - from: 122
-    from_port: 0
-    to: 123
-    to_port: 0
-  - from: 121
-    from_port: 0
-    to: 122
-    to_port: 0
-  - from: 123
-    from_port: 0
-    to: 124
-    to_port: 0
-  - from: 124
-    from_port: 0
-    to: 125
-    to_port: 0
-  - from: 127
-    from_port: 0
-    to: 128
-    to_port: 0
-  - from: 126
-    from_port: 0
-    to: 127
-    to_port: 0
-  - from: 128
-    from_port: 0
-    to: 129
-    to_port: 0
-  - from: 129
-    from_port: 0
-    to: 130
-    to_port: 0
-  - from: 132
-    from_port: 0
-    to: 133
-    to_port: 0
-  - from: 131
-    from_port: 0
-    to: 132
-    to_port: 0
-  - from: 133
-    from_port: 0
-    to: 134
-    to_port: 0
-  - from: 134
-    from_port: 0
-    to: 135
-    to_port: 0
-  - from: 137
-    from_port: 0
-    to: 138
-    to_port: 0
-  - from: 136
-    from_port: 0
-    to: 137
-    to_port: 0
-  - from: 138
-    from_port: 0
-    to: 139
-    to_port: 0
-  - from: 139
-    from_port: 0
-    to: 140
-    to_port: 0
-  - from: 142
-    from_port: 0
-    to: 143
-    to_port: 0
-  - from: 141
-    from_port: 0
-    to: 142
-    to_port: 0
-  - from: 143
-    from_port: 0
-    to: 144
-    to_port: 0
-  - from: 144
-    from_port: 0
-    to: 145
-    to_port: 0
-  - from: 147
-    from_port: 0
-    to: 148
-    to_port: 0
-  - from: 146
-    from_port: 0
-    to: 147
-    to_port: 0
-  - from: 148
-    from_port: 0
-    to: 149
-    to_port: 0
-  - from: 149
-    from_port: 0
-    to: 150
-    to_port: 0
+    encoding:
+      type: rgb
+      order:
+      - 1
+      - 0
+      - 2
+    gamma: 1.0
+    brightness: 1.0

@@ -1,6 +1,5 @@
 use crate::controller::ControllerId;
 use crate::model::DawnProject;
-use crate::patch::PatchNode;
 use crate::setup::SetupId;
 
 /// Copy a controller and its setup's patch, keeping all other setups unchanged.
@@ -32,11 +31,9 @@ pub fn copy_controller(
         .ok_or("Patch was not found.")?
         .clone();
     patch.id = patch_id.clone();
-    for node in patch.nodes.values_mut() {
-        if let PatchNode::Sink(sink) = node
-            && &sink.controller == original
-        {
-            sink.controller = copy.clone();
+    for route in &mut patch.routes {
+        if &route.controller == original {
+            route.controller = copy.clone();
         }
     }
     project.controllers.insert(copy.clone(), controller);
@@ -87,12 +84,10 @@ pub fn detach_controller(
         .get(&patch_id)
         .ok_or("Patch was not found.")?;
     let sinks: Vec<_> = patch
-        .nodes
+        .routes
         .iter()
-        .filter_map(|(id, node)| match node {
-            PatchNode::Sink(sink) if &sink.controller == controller => Some(*id),
-            _ => None,
-        })
+        .filter(|route| &route.controller == controller)
+        .map(|route| route.id)
         .collect();
     if !sinks.is_empty() {
         if !remove_outputs {

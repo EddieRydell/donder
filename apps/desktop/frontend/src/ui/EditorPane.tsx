@@ -69,6 +69,7 @@ export function EditorPane({
   const restoredEditorPath = useRef<string | null>(null);
   const activeBuffer = snapshot.activeBuffer;
   const activePath = activeBuffer?.path ?? null;
+  const activeTabPath = activeBuffer?.path ?? snapshot.activeFile;
   const viewMode = effectiveEditorViewMode(snapshot);
   const activeExternalState = activeBufferExternalState(activeBuffer);
   const activeConflicted = activeExternalState !== "current";
@@ -290,7 +291,9 @@ export function EditorPane({
         {snapshot.tabs.map((tab) => (
           <button
             key={tab.path}
-            className={`tab ${tab.path === snapshot.activeFile ? "active" : ""}`}
+            type="button"
+            className={`tab ${tab.path === activeTabPath ? "active" : ""}`}
+            aria-current={tab.path === activeTabPath ? "page" : undefined}
             onClick={() => void runSnapshotCommand(() => commands.setActiveFile(tab.path))}
           >
             <span>{tab.name}</span>

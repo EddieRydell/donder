@@ -1,60 +1,110 @@
+use dawn_language::fixture::{FixtureDefinitionId, FixtureTransform, Pixel, PixelId};
+use dawn_language::identity::SourceIdentity;
+use dawn_language::values::DistanceSpan;
+use dawn_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+
 use super::{
     GuiMutationError,
-    model::{domain_point3_meters, fixture_definition_mut},
+    model::{
+        domain_point3_meters, fixture_definition_mut, rotation3_degrees, scale3,
+        source_identity_from_gui,
+    },
 };
-use crate::dto::{Geometry, Point3Meters, PropGuiEdit};
-use dawn_language::identity::SourceIdentity;
-use dawn_language::preview::{PropDefinition, PropDefinitionId, PropGeometry};
-use dawn_language::values::DistanceSpan;
-use dawn_project_io::ProjectSession;
+use crate::dto::{FixtureGuiEdit, GuiObjectRef, GuiPixel, ObjectKind, Point3Meters, Transform};
 
 pub(super) fn edit_fixture(
     session: &mut ProjectSession,
     identity: &SourceIdentity,
-    edit: PropGuiEdit,
+    edit: FixtureGuiEdit,
 ) -> Result<(), GuiMutationError> {
     match edit {
-        PropGuiEdit::UpdateDefinition {
-            geometry,
-            bulb_diameter_meters,
-        } => {
-            let definition = PropDefinition {
-                geometry: domain_geometry(geometry)?,
-                bulb_radius: bulb_radius(bulb_diameter_meters)?,
-            };
-            let changed = dawn_language::preview::authoring::update_definition(
-                &mut session.project,
-                &PropDefinitionId(identity.clone()),
-                definition,
-            )
-            .map_err(GuiMutationError::Invalid)?;
-            for identity in changed {
-                super::setup::ensure_owned_target(session, &identity)?;
-            }
+        FixtureGuiEdit::SetPixels { pixels } => {
+            fixture_definition_mut(session, identity)?.pixels = pixels
+                .into_iter()
+                .map(domain_pixel)
+                .collect::<Result<_, _>>()?;
         }
-        PropGuiEdit::MovePoint { point_index, point } => {
-            let definition = fixture_definition_mut(session, identity)?;
-            let PropGeometry::Points { points } = &mut definition.geometry else {
-                return Err(GuiMutationError::Invalid(
-                    "Fixture geometry does not contain movable points.".into(),
-                ));
-            };
-            let target = points
-                .get_mut(point_index as usize)
-                .ok_or_else(|| GuiMutationError::Invalid("Fixture point was not found.".into()))?;
-            *target = checked_point(point)?;
+        FixtureGuiEdit::MovePixel { id, delta } => {
+            let pixel = fixture_definition_mut(session, identity)?
+                .pixels
+                .iter_mut()
+                .find(|pixel| pixel.id == PixelId(id))
+                .ok_or_else(|| GuiMutationError::Invalid("Pixel was not found.".into()))?;
+            pixel.position = checked_point(Point3Meters {
+                x_meters: pixel.position.x.as_meters_f32() + delta.x_meters,
+                y_meters: pixel.position.y.as_meters_f32() + delta.y_meters,
+                z_meters: pixel.position.z.as_meters_f32() + delta.z_meters,
+            })?;
         }
     }
     Ok(())
 }
 
-pub(crate) fn bulb_radius(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
-    if !diameter.is_finite() || diameter <= 0.0 || diameter > 100.0 {
+fn domain_pixel(pixel: GuiPixel) -> Result<Pixel, GuiMutationError> {
+    Ok(Pixel {
+        id: PixelId(pixel.id),
+        position: checked_point(pixel.position)?,
+        diameter: pixel_diameter(pixel.diameter_meters)?,
+    })
+}
+
+pub(super) fn reference_definition(
+    session: &mut ProjectSession,
+    owner: &SourceIdentity,
+    reference: GuiObjectRef,
+) -> Result<FixtureDefinitionId, GuiMutationError> {
+    if !matches!(reference.kind, ObjectKind::Fixture) {
         return Err(GuiMutationError::Invalid(
-            "Bulb diameter must be positive and at most 100 meters.".into(),
+            "Choose a fixture definition.".into(),
         ));
     }
-    Ok(DistanceSpan::from_meters(diameter / 2.0))
+    let identity =
+        source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
+    let id = FixtureDefinitionId(identity);
+    if !session
+        .project
+        .definitions
+        .fixtures
+        .definitions
+        .contains_key(&id)
+    {
+        return Err(GuiMutationError::Invalid(
+            "Fixture definition was not found.".into(),
+        ));
+    }
+    ensure_document_can_reference_source(
+        session,
+        owner.document_id(),
+        SourceObjectKind::FixtureDefinition,
+        &id.0,
+    )
+    .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+    Ok(id)
+}
+
+pub(super) fn checked_transform(
+    transform: Transform,
+) -> Result<FixtureTransform, GuiMutationError> {
+    let result = FixtureTransform {
+        position: checked_point(transform.position)?,
+        rotation: rotation3_degrees(transform.rotation),
+        scale: scale3(transform.scale),
+    };
+    if !result.is_valid() {
+        return Err(GuiMutationError::Invalid(
+            "Rotation and scale must be finite; scale cannot be zero.".into(),
+        ));
+    }
+    Ok(result)
+}
+
+fn pixel_diameter(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
+    if !diameter.is_finite() || diameter < 0.000001 || diameter > 100.0 {
+        return Err(GuiMutationError::Invalid(
+            "Pixel diameter must be positive and at most 100 meters.".into(),
+        ));
+    }
+    Ok(DistanceSpan::from_meters(diameter))
 }
 
 pub(crate) fn checked_point(
@@ -69,60 +119,4 @@ pub(crate) fn checked_point(
         ));
     }
     Ok(domain_point3_meters(point))
-}
-
-pub(crate) fn domain_geometry(geometry: Geometry) -> Result<PropGeometry, GuiMutationError> {
-    let geometry = match geometry {
-        Geometry::Points { points } => PropGeometry::Points {
-            points: points
-                .into_iter()
-                .map(checked_point)
-                .collect::<Result<_, _>>()?,
-        },
-        Geometry::Lines { points, pixels } => {
-            if points.len() < 2 {
-                return Err(GuiMutationError::Invalid(
-                    "A line needs at least two points.".into(),
-                ));
-            }
-            PropGeometry::Lines {
-                points: points
-                    .into_iter()
-                    .map(checked_point)
-                    .collect::<Result<_, _>>()?,
-                point_count: pixels,
-            }
-        }
-        Geometry::Arc {
-            center,
-            radius_meters,
-            start_degrees,
-            end_degrees,
-            pixels,
-        } => {
-            if !radius_meters.is_finite()
-                || !(0.0..=2_000.0).contains(&radius_meters)
-                || radius_meters == 0.0
-                || !start_degrees.is_finite()
-                || !end_degrees.is_finite()
-            {
-                return Err(GuiMutationError::Invalid(
-                    "An arc needs a positive radius up to 2,000 meters and finite angles.".into(),
-                ));
-            }
-            PropGeometry::Arc {
-                center: checked_point(center)?,
-                radius: DistanceSpan::from_meters(radius_meters),
-                start_degrees,
-                end_degrees,
-                point_count: pixels,
-            }
-        }
-    };
-    if geometry.point_count() == 0 {
-        return Err(GuiMutationError::Invalid(
-            "A light needs at least one pixel.".into(),
-        ));
-    }
-    Ok(geometry)
 }

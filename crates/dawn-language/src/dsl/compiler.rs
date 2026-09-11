@@ -1450,8 +1450,8 @@ fn pool_span(start: usize, len: usize) -> PoolSpan {
 
 fn target_member(member: &Identifier) -> TargetMember {
     match member.as_str() {
-        "element_index" => TargetMember::ElementIndex,
-        "element_cell_index" => TargetMember::ElementCellIndex,
+        "fixture_index" => TargetMember::FixtureIndex,
+        "fixture_pixel_index" => TargetMember::FixturePixelIndex,
         "pixel_index" => TargetMember::PixelIndex,
         "pixel_count" => TargetMember::PixelCount,
         "pixel_fraction" => TargetMember::PixelFraction,

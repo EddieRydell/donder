@@ -24,18 +24,6 @@ export function useSpatialViewport(bounds: RenderBounds, resetKey?: string, sess
   return { view, resize, reset, zoomAt, panBy };
 }
 
-export function useSpacePressed() {
-  const pressed = useRef(false);
-  useEffect(() => {
-    const down = (event: KeyboardEvent) => { if (event.code === "Space") pressed.current = true; };
-    const up = (event: KeyboardEvent) => { if (event.code === "Space") pressed.current = false; };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
-  }, []);
-  return pressed;
-}
-
 export function SpatialControls({ view, reset, zoomAt }: { view: SpatialViewport; reset: () => void; zoomAt: (factor: number, x: number, y: number) => void }) {
   return <div className="spatial-controls"><button onClick={() => { zoomAt(0.8, 0, 0); }} aria-label="Zoom out">−</button><span>{Math.round(view.scale / view.fitScale * 100)}%</span><button onClick={() => { zoomAt(1.25, 0, 0); }} aria-label="Zoom in">+</button><button onClick={reset}>Fit</button></div>;
 }

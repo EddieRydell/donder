@@ -58,15 +58,15 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
         },
         ProjectBoilerplateFile {
             path: "setups/main.setup.dawn",
-            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.dawn\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.dawn\n  as: patches\nmain:\n  type: setup\n  elements: layout.elements\n  preview: layout.preview\n  patch: patches.main\n  controllers: []\n".to_string(),
+            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.dawn\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.dawn\n  as: patches\nmain:\n  type: setup\n  layout: layout.main\n  patch: patches.main\n  controllers: []\n".to_string(),
         },
         ProjectBoilerplateFile {
             path: "layouts/main.layout.dawn",
-            text: "elements:\n  type: element_tree\n  roots: []\n  nodes: []\npreview:\n  type: preview_layout\n  element_tree: elements\n  props: []\n".to_string(),
+            text: "main:\n  type: layout\n  fixtures: []\n".to_string(),
         },
         ProjectBoilerplateFile {
             path: "patches/main.patch.dawn",
-            text: "main:\n  type: patch\n  nodes: []\n  edges: []\n".to_string(),
+            text: "main:\n  type: patch\n  routes: []\n".to_string(),
         },
         ProjectBoilerplateFile {
             path: "sequences/main.sequence.dawn",
@@ -98,7 +98,7 @@ pub(crate) fn write_new_project_files(
 
 fn sequence_boilerplate(object_key: &str, duration_seconds: f32, frame_rate: u32) -> String {
     format!(
-        "{object_key}:\n  type: sequence\n  duration: {}s\n  frame_rate: {frame_rate}\n  audio: null\n  mark_collections:\n  - key: marks\n    name: Marks\n    color: '#38bdf8'\n    marks: []\n  layers:\n  - id: 0\n    name: Default\n    color: '#38bdf8'\n    enabled: true\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position:\n        x: 80.0\n        y: 80.0\n      type: layer\n      layer_id: 0\n    - id: 2\n      position:\n        x: 420.0\n        y: 80.0\n      type: output\n    edges:\n    - from: 1\n      from_port: output\n      to: 2\n      to_port: input\n  automation_clips: []\n  control_clips: []\n",
+        "{object_key}:\n  type: sequence\n  duration: {}s\n  frame_rate: {frame_rate}\n  audio: null\n  mark_collections:\n  - key: marks\n    name: Marks\n    color: '#38bdf8'\n    marks: []\n  layers:\n  - id: 0\n    name: Default\n    color: '#38bdf8'\n    enabled: true\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position:\n        x: 80.0\n        y: 80.0\n      type: layer\n      layer_id: 0\n    - id: 2\n      position:\n        x: 420.0\n        y: 80.0\n      type: output\n    edges:\n    - from: 1\n      from_port: output\n      to: 2\n      to_port: input\n  automation_clips: []\n",
         seconds_literal(duration_seconds)
     )
 }
@@ -159,22 +159,11 @@ mod tests {
             .setups
             .get(&session.project.root.setup)
             .unwrap();
-        assert!(session.project.element_trees.contains_key(&setup.elements));
-        assert!(session.project.preview_layouts.contains_key(&setup.preview));
-        assert!(session.project.patches.contains_key(&setup.patch));
+        assert!(session.project.layouts.contains_key(&setup.layout));
+        assert!(session.project.layouts[&setup.layout].fixtures.is_empty());
+        assert!(session.project.patches[&setup.patch].routes.is_empty());
         assert!(setup.controllers.is_empty());
-        assert!(
-            session.project.element_trees[&setup.elements]
-                .nodes
-                .is_empty()
-        );
-        assert!(
-            session.project.preview_layouts[&setup.preview]
-                .props
-                .is_empty()
-        );
-        assert!(session.project.patches[&setup.patch].nodes.is_empty());
-        assert!(session.project.definitions.props.definitions.is_empty());
+        assert!(session.project.definitions.fixtures.definitions.is_empty());
         fs::remove_dir_all(&root).unwrap();
     }
 }

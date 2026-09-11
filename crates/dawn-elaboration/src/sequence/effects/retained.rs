@@ -193,7 +193,7 @@ pub(crate) fn expand(
             *context.generated_child_count += 1;
             let target = prepared_pixels_from_generated_target_cached(
                 context.target_cache,
-                context.elements,
+                context.fixtures,
                 child.target,
             )?;
             let implementation = match environment {
@@ -296,7 +296,7 @@ pub(crate) fn expand(
             .collect::<Result<Vec<_>, RenderError>>()?;
         let target = prepared_pixels_from_generated_target_cached(
             context.target_cache,
-            context.elements,
+            context.fixtures,
             child.target,
         )?;
         let child_expansion = GeneratorExpansion {

@@ -29,4 +29,3 @@ empty:
       to: 2
       to_port: input
   automation_clips: []
-  control_clips: []

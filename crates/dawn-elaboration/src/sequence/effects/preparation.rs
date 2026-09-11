@@ -2,7 +2,7 @@ use crate::RenderError;
 use crate::native_effect::{self, BoundNativeEffect};
 use crate::sequence::effects::generators::{GeneratorExpansion, GeneratorPrepareContext};
 use crate::sequence::effects::parameters::{EffectParamTiming, prepare_params};
-use crate::sequence::elements::PreparedElement;
+use crate::sequence::fixtures::PreparedFixture;
 use crate::sequence::targets::{
     PreparedTargetCache, PreparedTargetPixel, generator_expansion_targets, prepare_target,
     prepare_target_pixels_cached, sorted_sample_target,
@@ -14,7 +14,7 @@ use dawn_language::dsl::{
     BoundParams, BytecodeProgram, DslBindCache, EffectKind, Identifier, ParamDecl,
 };
 use dawn_language::effect::{EffectDefinitionId, EffectImplementation, EffectInstId, EffectRef};
-use dawn_language::element::ElementNodeId;
+use dawn_language::layout::FixtureInstanceId;
 use dawn_language::model::DawnProject;
 use dawn_language::sequence::{AutomationBinding, AutomationClip, AutomationTarget, Sequence};
 use indexmap::{IndexMap, IndexSet};
@@ -23,9 +23,9 @@ use std::sync::Arc;
 pub(crate) struct PrepareEffectContext<'a> {
     pub(crate) project: &'a DawnProject,
     pub(crate) sequence: &'a Sequence,
-    pub(crate) elements: &'a [PreparedElement],
-    pub(crate) element_ids: &'a IndexSet<ElementNodeId>,
-    pub(crate) groups: &'a IndexMap<ElementNodeId, Vec<ElementNodeId>>,
+    pub(crate) fixtures: &'a [PreparedFixture],
+    pub(crate) fixture_ids: &'a IndexSet<FixtureInstanceId>,
+    pub(crate) groups: &'a IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
     pub(crate) environments: &'a mut Vec<dawn_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,
     pub(crate) generated_child_count: &'a mut usize,
@@ -61,11 +61,11 @@ pub(crate) fn prepare_effect_inst(
         .ok_or_else(|| RenderError::MissingEffect {
             effect_id: effect.definition.clone(),
         })?;
-    let target_selection = prepare_target(&effect.target, context.element_ids, context.groups)?;
+    let target_selection = prepare_target(&effect.target, context.fixture_ids, context.groups)?;
     let target = prepare_target_pixels_cached(
         context.target_cache,
         &target_selection,
-        context.elements,
+        context.fixtures,
         &effect.scope,
     )?;
     let param_timing = EffectParamTiming {
@@ -169,7 +169,7 @@ pub(crate) fn prepare_effect_inst(
             let mut generator_context = GeneratorPrepareContext {
                 environments: context.environments,
                 project: context.project,
-                elements: context.elements,
+                fixtures: context.fixtures,
                 effects: context.effects,
                 generated_child_count: context.generated_child_count,
                 bind_cache: context.bind_cache,

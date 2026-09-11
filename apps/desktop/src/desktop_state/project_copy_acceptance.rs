@@ -26,14 +26,17 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         let original = state.project_session().unwrap();
         let setup = original.project.root.setup.clone();
         state.open_file_path(setup.0.document().as_str());
-        let result = super::advanced_patch_acceptance::edit_elements(
+        let result = super::authoring_acceptance::edit_layout(
             &state,
-            ElementTreeGuiEdit::AddGroup {
-                name: "Unsaved group".into(),
-                parent: None,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: vec![GuiLayoutFixture {
+                    id: 1,
+                    name: "Unsaved group".into(),
+                    kind: GuiLayoutFixtureKind::Group { children: vec![] },
+                }],
             },
         );
-        assert!(matches!(result.document, GuiDocument::ElementTree { .. }));
+        assert!(matches!(result.document, GuiDocument::Layout { .. }));
         let draft = state.project_session().unwrap();
         let snapshot = state.snapshot();
         let request = |decision, name: &str| TransitionRequest {

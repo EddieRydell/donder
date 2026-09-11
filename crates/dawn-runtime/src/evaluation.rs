@@ -347,8 +347,8 @@ fn sample_layer_frame(
                         &mut workspace.effect_vm,
                     )?;
                     for pixel in target {
-                        let flat_index = renderer.element_cell_offsets[pixel.element_index()]
-                            + pixel.element_cell_index();
+                        let flat_index = renderer.fixture_pixel_offsets[pixel.fixture_index()]
+                            + pixel.fixture_pixel_index();
                         compose_max(&mut rendered[flat_index], color);
                     }
                 }
@@ -378,8 +378,8 @@ fn sample_layer_frame(
                         color
                     }
                 };
-                let flat_index = renderer.element_cell_offsets[pixel.element_index()]
-                    + pixel.element_cell_index();
+                let flat_index = renderer.fixture_pixel_offsets[pixel.fixture_index()]
+                    + pixel.fixture_pixel_index();
                 compose_max(&mut rendered[flat_index], color);
             }
             Ok(())
@@ -744,11 +744,11 @@ fn sample_layer_pixel(
             let target = renderer.target(effect.target);
             target
                 .binary_search_by_key(
-                    &(pixel.element_index(), pixel.element_cell_index()),
+                    &(pixel.fixture_index(), pixel.fixture_pixel_index()),
                     |effect_pixel| {
                         (
-                            effect_pixel.element_index(),
-                            effect_pixel.element_cell_index(),
+                            effect_pixel.fixture_index(),
+                            effect_pixel.fixture_pixel_index(),
                         )
                     },
                 )

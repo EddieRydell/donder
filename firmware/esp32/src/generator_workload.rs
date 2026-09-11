@@ -1,9 +1,10 @@
 //! Host-built generator fixtures, archived for the same portable device evaluator.
 use dawn_language::dsl::{BoundParams, Identifier, compile_effects, validate_emission};
 use dawn_language::effect::*;
-use dawn_language::element::*;
+use dawn_language::fixture::*;
 use dawn_language::identity::{DocumentId, SourceIdentity};
 use dawn_language::imports::SourceReference;
+use dawn_language::layout::*;
 use dawn_language::model::*;
 use dawn_language::sequence::*;
 use dawn_language::setup::*;
@@ -86,7 +87,8 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         )
     };
     let setup_id = SetupId(identity("setup"));
-    let tree_id = ElementTreeId(identity("elements"));
+    let layout_id = LayoutId(identity("layout"));
+    let fixture_id = FixtureDefinitionId(identity("fixture"));
     let sequence_id = SequenceId(identity("sequence"));
     let mut definitions = ProjectDefinitionStores::default();
     for compilation in compile_effects(&source).unwrap() {
@@ -145,11 +147,10 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         frame_rate: 120,
         audio: SequenceAudio::None,
         mark_collections: vec![],
-        control_clips: vec![],
         layers: vec![SequenceLayer {
             id: SequenceLayerId(0),
             name: "fixture".into(),
-            color: dawn_runtime::element::black(),
+            color: Color::BLACK,
             enabled: true,
         }],
         effects: (0..effect_count)
@@ -158,10 +159,9 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                 layer_id: SequenceLayerId(0),
                 start: DawnTime(Duration::ZERO),
                 duration: DawnDuration(Duration::from_secs(8)),
-                target: ElementSelection {
-                    tree: tree_id.clone(),
-                    node: ElementNodeId(0),
-                    cells: None,
+                target: FixtureTarget {
+                    layout: layout_id.clone(),
+                    fixture: FixtureInstanceId(0),
                 },
                 scope: EffectScope::WholeTarget,
                 definition: EffectRef::Custom(EffectDefinitionId(identity("Parent"))),
@@ -304,6 +304,18 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             detached_bindings: vec![],
         });
     }
+    definitions.fixtures.definitions.insert(
+        fixture_id.clone(),
+        FixtureDefinition {
+            pixels: (0..count)
+                .map(|index| Pixel {
+                    id: PixelId(index as u32),
+                    position: Default::default(),
+                    diameter: DistanceSpan { micrometers: 10000 },
+                })
+                .collect(),
+        },
+    );
     let project = DawnProject {
         root: ProjectRoot {
             id: ProjectId(identity("project")),
@@ -314,33 +326,27 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             setup_id.clone(),
             Setup {
                 id: setup_id.clone(),
-                elements: tree_id.clone(),
-                preview: dawn_language::preview::PreviewLayoutId(identity("preview")),
+                layout: layout_id.clone(),
                 patch: dawn_language::patch::PatchId(identity("patch")),
                 controllers: vec![],
             },
         )]
         .into(),
-        element_trees: [(
-            tree_id.clone(),
-            ElementTree {
-                id: tree_id,
-                roots: vec![ElementNodeId(0)],
-                nodes: [(
-                    ElementNodeId(0),
-                    ElementNode {
-                        name: "pixels".into(),
-                        kind: ElementNodeKind::Color {
-                            cells: count as u32,
-                            capability: ColorCapability::Rgb,
-                        },
+        layouts: [(
+            layout_id.clone(),
+            Layout {
+                id: layout_id,
+                fixtures: vec![LayoutFixture {
+                    id: FixtureInstanceId(0),
+                    name: "Pixels".into(),
+                    kind: LayoutFixtureKind::Fixture {
+                        definition: fixture_id.clone(),
+                        transform: FixtureTransform::default(),
                     },
-                )]
-                .into(),
+                }],
             },
         )]
         .into(),
-        preview_layouts: IndexMap::new(),
         patches: IndexMap::new(),
         controllers: IndexMap::new(),
         sequences: [(sequence_id.clone(), sequence)].into(),

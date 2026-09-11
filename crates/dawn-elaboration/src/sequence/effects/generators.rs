@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use std::sync::Arc;
 
 use crate::sequence::targets::{PreparedTargetCache, PreparedTargetPixel};
-use crate::{PreparedEffect, PreparedElement};
+use crate::{PreparedEffect, PreparedFixture};
 
 #[derive(Clone, Debug)]
 pub(crate) struct GeneratorExpansion {
@@ -18,7 +18,7 @@ pub(crate) struct GeneratorExpansion {
 
 pub(crate) struct GeneratorPrepareContext<'a> {
     pub(crate) project: &'a DawnProject,
-    pub(crate) elements: &'a [PreparedElement],
+    pub(crate) fixtures: &'a [PreparedFixture],
     pub(crate) environments: &'a mut Vec<dawn_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,
     pub(crate) generated_child_count: &'a mut usize,

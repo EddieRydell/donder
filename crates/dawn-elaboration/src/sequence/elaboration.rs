@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use super::composition::{PrepareGraphContext, prepare_signal_graph};
 use super::effects::preparation::{PrepareEffectContext, prepare_effect_inst};
-use super::elements::prepare_elements;
+use super::fixtures::prepare_fixtures;
 use super::renderer::RenderError;
 use super::targets::PreparedTargetCache;
 use super::timeline::prepare_timing;
@@ -46,25 +46,32 @@ pub(crate) fn prepare_validated_sequence(
         .ok_or_else(|| RenderError::MissingSetup {
             setup_id: setup_id.clone(),
         })?;
-    let tree = project
-        .element_trees
-        .get(&setup.elements)
-        .ok_or(RenderError::MissingElementTree)?;
+    let layout = project
+        .layouts
+        .get(&setup.layout)
+        .ok_or(RenderError::MissingLayout)?;
+    if sequence
+        .effects
+        .iter()
+        .any(|effect| effect.target.layout != layout.id)
+    {
+        return Err(RenderError::BadTarget);
+    }
     let timing = prepare_timing(sequence)?;
 
-    let (elements, groups) = prepare_elements(project, tree)?;
+    let (fixtures, groups) = prepare_fixtures(project, layout)?;
     let mut pixel_count = 0;
-    let element_cell_offsets = elements
+    let fixture_pixel_offsets = fixtures
         .iter()
-        .map(|element| {
+        .map(|fixture| {
             let offset = pixel_count;
-            pixel_count += element.pixel_count;
+            pixel_count += fixture.pixel_count;
             offset
         })
         .collect::<Vec<_>>();
-    let element_ids = elements
+    let fixture_ids = fixtures
         .iter()
-        .map(|element| element.id)
+        .map(|fixture| fixture.id)
         .collect::<IndexSet<_>>();
     let mut effects = Vec::with_capacity(sequence.effects.len());
     let mut generated_child_count = 0usize;
@@ -97,8 +104,8 @@ pub(crate) fn prepare_validated_sequence(
                 environments: &mut environments,
                 project,
                 sequence,
-                elements: &elements,
-                element_ids: &element_ids,
+                fixtures: &fixtures,
+                fixture_ids: &fixture_ids,
                 groups: &groups,
                 effects: &mut effects,
                 generated_child_count: &mut generated_child_count,
@@ -137,7 +144,7 @@ pub(crate) fn prepare_validated_sequence(
         PrepareGraphContext {
             project,
             sequence,
-            elements: &elements,
+            fixtures: &fixtures,
             programs: &mut programs,
             targets: &mut target_cache,
         },
@@ -172,14 +179,14 @@ pub(crate) fn prepare_validated_sequence(
         frame_rate,
         frame_count: timing.frame_count,
         duration: timing.duration,
-        elements: elements
+        fixtures: fixtures
             .iter()
-            .map(|element| dawn_runtime::signal::PreparedElement {
-                id: element.id.0,
-                pixel_count: element.pixel_count,
+            .map(|fixture| dawn_runtime::signal::PreparedFixture {
+                id: fixture.id.0,
+                pixel_count: fixture.pixel_count,
             })
             .collect(),
-        element_cell_offsets: element_cell_offsets.into_boxed_slice(),
+        fixture_pixel_offsets: fixture_pixel_offsets.into_boxed_slice(),
         pixel_count,
         effects: effects.into_boxed_slice(),
         programs: programs.into_boxed_slice(),

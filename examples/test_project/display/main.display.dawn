@@ -1,39 +1,11 @@
 imports:
 - from:
-    documents:
-    - display/pixel.prop.dawn
-  as: props
-elements:
-  type: element_tree
-  roots:
-  - 1
-  nodes:
+    documents: [display/pixel.fixture.dawn]
+  as: fixtures
+main:
+  type: layout
+  fixtures:
   - id: 1
     name: Pixel
-    type: color
-    cells: 1
-    capability:
-      type: rgb
-preview:
-  type: preview_layout
-  element_tree: elements
-  props:
-  - id: 1
-    name: Pixel
-    prop: props.pixel
-    transform:
-      position:
-        x: 0.0
-        y: 0.0
-        z: 0.0
-      rotation:
-        x: 0.0
-        y: 0.0
-        z: 0.0
-      scale:
-        x: 1.0
-        y: 1.0
-        z: 1.0
-    bindings:
-    - node: 1
-      cell: 0
+    type: fixture
+    definition: fixtures.pixel

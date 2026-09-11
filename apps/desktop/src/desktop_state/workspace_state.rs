@@ -144,8 +144,8 @@ impl WorkspaceState {
                     DocumentViewId::Project,
                     DocumentViewId::Sequence,
                     DocumentViewId::Setup,
-                    DocumentViewId::Preview,
-                    DocumentViewId::Prop,
+                    DocumentViewId::Layout,
+                    DocumentViewId::Fixture,
                 ]
                 .into_iter()
                 .find_map(|view| {

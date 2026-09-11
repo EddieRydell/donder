@@ -18,12 +18,11 @@ import { ColorPicker } from "../../ColorPicker";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
-import { ControlClipPanel } from "./ControlClipPanel";
 import { defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
 
-type SequenceInspectorTab = "effect" | "controls" | "layers" | "marks";
+type SequenceInspectorTab = "effect" | "layers" | "marks";
 
 type SelectedMarkEntry = {
   ref: SequenceMarkRef;
@@ -35,7 +34,6 @@ const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
   { id: "effect", label: "Effect" },
   { id: "layers", label: "Layers" },
   { id: "marks", label: "Marks" },
-  { id: "controls", label: "Controls" }
 ];
 
 function selectedEffectDefinitionValue(effect: SequenceEffect, definitions: SequenceEffectDefinition[]) {
@@ -99,7 +97,7 @@ export function SequenceInspector({
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
   const [tab, setActiveTab] = useState<SequenceInspectorTab>("effect");
-  const activeTab = selected?.type === "controlClip" ? "controls" : tab;
+  const activeTab = tab;
 
   const footer = (
     <div className="sequence-inspector-tabs" role="tablist" aria-label="Sequence inspector sections">
@@ -111,7 +109,6 @@ export function SequenceInspector({
           aria-selected={activeTab === tab.id}
           className={activeTab === tab.id ? "active" : ""}
           onClick={() => {
-            if (selected?.type === "controlClip") setSelected(null);
             setActiveTab(tab.id);
           }}
         >
@@ -134,7 +131,6 @@ export function SequenceInspector({
         />
       )}
       {activeTab === "layers" && <LayerInspectorPanel document={document} />}
-      {activeTab === "controls" && <ControlClipPanel document={document} selectedId={selected?.type === "controlClip" ? selected.id : null} />}
       {activeTab === "marks" && (
         <MarkInspectorPanel
           document={document}

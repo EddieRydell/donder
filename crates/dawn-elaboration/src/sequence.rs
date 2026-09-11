@@ -5,7 +5,7 @@ pub(crate) mod color;
 pub(crate) mod composition;
 pub(crate) mod effects;
 pub(crate) mod elaboration;
-pub(crate) mod elements;
+pub(crate) mod fixtures;
 pub(crate) mod raster;
 pub(crate) mod renderer;
 pub(crate) mod targets;

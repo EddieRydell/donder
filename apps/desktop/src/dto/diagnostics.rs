@@ -22,16 +22,6 @@ pub struct RelatedDiagnosticLocation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ResolvedPreviewProp {
-    pub name: String,
-    pub color_model: String,
-    pub bulb_diameter_meters: f32,
-    pub geometry_summary: String,
-    pub render_plan: GeometryRenderPlan,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct Rotation3Degrees {
     pub x_degrees: f32,
     pub y_degrees: f32,

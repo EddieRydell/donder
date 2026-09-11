@@ -10,6 +10,7 @@ license = "MIT"
 dawn-language.workspace = true
 dawn-runtime.workspace = true
 indexmap.workspace = true
+glam.workspace = true
 
 [dev-dependencies]
 crc32fast.workspace = true

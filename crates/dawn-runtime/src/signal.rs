@@ -42,8 +42,8 @@ pub struct PreparedSignalGraph {
     pub frame_count: u32,
     #[rkyv(with = crate::wire::Microseconds)]
     pub duration: SampleDuration,
-    pub elements: Box<[PreparedElement]>,
-    pub element_cell_offsets: Box<[usize]>,
+    pub fixtures: Box<[PreparedFixture]>,
+    pub fixture_pixel_offsets: Box<[usize]>,
     pub pixel_count: usize,
     pub effects: Box<[PreparedEffect]>,
     pub programs: Box<[BytecodeProgram]>,
@@ -55,7 +55,7 @@ pub struct PreparedSignalGraph {
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedElement {
+pub struct PreparedFixture {
     pub id: u32,
     pub pixel_count: usize,
 }
@@ -65,12 +65,12 @@ pub struct EvaluatedFrame {
     pub frame_index: u32,
     pub frame_rate: u32,
     pub sample_time: SampleTime,
-    pub elements: Vec<EvaluatedElement>,
+    pub fixtures: Vec<RenderedFixture>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EvaluatedElement {
-    pub element_id: u32,
+pub struct RenderedFixture {
+    pub fixture_id: u32,
     pub pixels: Vec<Color>,
 }
 
@@ -235,8 +235,8 @@ pub struct PreparedTarget {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedPixel {
-    pub element_index: u16,
-    pub element_cell_index: u16,
+    pub fixture_index: u16,
+    pub fixture_pixel_index: u16,
     pub pixel_index: u32,
     pub pixel_count: u32,
     pub pixel_fraction: f32,
@@ -244,27 +244,27 @@ pub struct PreparedPixel {
 
 impl PreparedPixel {
     pub fn try_new(
-        element_index: usize,
-        element_cell_index: usize,
+        fixture_index: usize,
+        fixture_pixel_index: usize,
         pixel_index: usize,
         pixel_count: usize,
         pixel_fraction: f32,
     ) -> Option<Self> {
         Some(Self {
-            element_index: u16::try_from(element_index).ok()?,
-            element_cell_index: u16::try_from(element_cell_index).ok()?,
+            fixture_index: u16::try_from(fixture_index).ok()?,
+            fixture_pixel_index: u16::try_from(fixture_pixel_index).ok()?,
             pixel_index: u32::try_from(pixel_index).ok()?,
             pixel_count: u32::try_from(pixel_count).ok()?,
             pixel_fraction,
         })
     }
 
-    pub fn element_index(&self) -> usize {
-        self.element_index as usize
+    pub fn fixture_index(&self) -> usize {
+        self.fixture_index as usize
     }
 
-    pub fn element_cell_index(&self) -> usize {
-        self.element_cell_index as usize
+    pub fn fixture_pixel_index(&self) -> usize {
+        self.fixture_pixel_index as usize
     }
 
     pub fn pixel_index(&self) -> usize {
@@ -447,7 +447,7 @@ impl PreparedSignalGraph {
             ),
             effect_vm: VmWorkspace::default(),
             frame_scratch: (0..self.frame_scratch_count())
-                .map(|_| vec![crate::element::black(); self.pixel_count].into_boxed_slice())
+                .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
                 .collect(),
             effect_vm_sample: None,
             operator_vm: (0..self.plan.vm_workspace_count)
@@ -597,36 +597,48 @@ impl PreparedSignalGraph {
     ) -> Result<EvaluatedFrame, EvaluationError> {
         let sample_time =
             sample_time_from_frame(frame_index, self.frame_rate).map_err(sample_time_error)?;
-        self.evaluate_elements(frame_index, sample_time, workspace)
+        self.evaluate_fixtures(frame_index, sample_time, workspace)
     }
 
-    fn evaluate_elements(
+    fn evaluate_fixtures(
         &self,
         frame_index: u32,
         sample_time: SampleTime,
         workspace: &mut EvaluationWorkspace,
     ) -> Result<EvaluatedFrame, EvaluationError> {
-        let colors = self.evaluate(sample_time, workspace)?;
-        let mut offset = 0;
-        let elements = self
-            .elements
-            .iter()
-            .map(|element| {
-                let end = offset + element.pixel_count;
-                let pixels = colors[offset..end].to_vec();
-                offset = end;
-                EvaluatedElement {
-                    element_id: element.id,
-                    pixels,
-                }
-            })
-            .collect();
+        self.evaluate(sample_time, workspace)?;
+        let fixtures = self.snapshot(workspace)?;
         Ok(EvaluatedFrame {
             frame_index,
             frame_rate: self.frame_rate,
             sample_time,
-            elements,
+            fixtures,
         })
+    }
+
+    pub fn snapshot(
+        &self,
+        workspace: &EvaluationWorkspace,
+    ) -> Result<Vec<RenderedFixture>, EvaluationError> {
+        if workspace.workspace_key != Some(self.workspace_key) {
+            return Err(EvaluationError::InvalidWorkspace);
+        }
+        let range = crate::evaluation::frame_range(self, self.plan.output_index)?;
+        let colors = &workspace.signal_buffers[range];
+        let mut offset = 0;
+        Ok(self
+            .fixtures
+            .iter()
+            .map(|fixture| {
+                let end = offset + fixture.pixel_count;
+                let pixels = colors[offset..end].to_vec();
+                offset = end;
+                RenderedFixture {
+                    fixture_id: fixture.id,
+                    pixels,
+                }
+            })
+            .collect())
     }
 
     pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {

@@ -1,8 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
 use dawn_runtime::dsl::bytecode::{Instruction, SignalPixel};
-use dawn_runtime::element::ElementLayout;
-use dawn_runtime::patch::PatchStep;
 use dawn_runtime::sequence::PreparedSequence;
 use dawn_runtime::signal::{
     BoundEffectImplementation, PreparedEffectImplementation, PreparedOperator, PreparedSignalKind,
@@ -15,11 +13,23 @@ use crate::sequence::composition::graph::finish_signal_plan;
 /// The patch has already been lowered for the selected ports. Compact its source
 /// cells and their signal dependencies before any runtime workspace is created.
 pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError> {
-    let mut cells = vec![BTreeSet::new(); sequence.elements.len()];
-    for step in &sequence.patch.steps {
-        if let PatchStep::Source { source, .. } = step {
-            for span in &source.spans {
-                cells[span.element as usize].extend(span.cells.clone());
+    let signal = &sequence.signals;
+    let mut cells = vec![BTreeSet::new(); signal.fixtures.len()];
+    for route in &sequence.patch.routes {
+        for (index, (fixture, &offset)) in signal
+            .fixtures
+            .iter()
+            .zip(&signal.fixture_pixel_offsets)
+            .enumerate()
+        {
+            let offset = index32(offset)?;
+            let end = offset
+                .checked_add(index32(fixture.pixel_count)?)
+                .ok_or(RenderError::BadTarget)?;
+            let start = route.pixels.start.max(offset);
+            let end = route.pixels.end.min(end);
+            if start < end {
+                cells[index].extend(start - offset..end - offset);
             }
         }
     }
@@ -59,10 +69,10 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         }
     }
     if cells.iter().any(|cells| !cells.is_empty()) && (local || global) {
-        for &(element, ref span) in &sequence.color_spans {
-            let cells = &mut cells[element as usize];
+        for (index, fixture) in sequence.signals.fixtures.iter().enumerate() {
+            let cells = &mut cells[index];
             if global || !cells.is_empty() {
-                cells.extend(0..span.end - span.start);
+                cells.extend(0..index32(fixture.pixel_count)?);
             }
         }
     }
@@ -70,111 +80,43 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         .into_iter()
         .map(|cells| cells.into_iter().collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    let mut element_map = vec![None; sequence.elements.len()];
-    let mut elements = Vec::new();
-    for (index, &(id, layout)) in sequence.elements.iter().enumerate() {
-        let count = index32(cells[index].len())?;
-        if count == 0 {
-            continue;
-        }
-        element_map[index] = Some(index32(elements.len())?);
-        let layout = match layout {
-            ElementLayout::Color(_) => ElementLayout::Color(count),
-            ElementLayout::Scalar(_) => ElementLayout::Scalar(count),
-            ElementLayout::Indexed(_) => ElementLayout::Indexed(count),
-            ElementLayout::Fixture(_) => layout,
-        };
-        elements.push((id, layout));
-    }
-    for step in &mut sequence.patch.steps {
-        if let PatchStep::Source { source, .. } = step {
-            for span in &mut source.spans {
-                let old_element = span.element as usize;
-                let start = cells[old_element]
-                    .binary_search(&span.cells.start)
-                    .map_err(|_| RenderError::BadTarget)?;
-                let count = span.cells.end - span.cells.start;
-                span.cells = index32(start)?..index32(start)? + count;
-                span.element = element_map[old_element].ok_or(RenderError::BadTarget)?;
-            }
-        }
-    }
-    let mut controls = Vec::new();
-    for mut control in std::mem::take(&mut sequence.controls).into_vec() {
-        control.addresses = control
-            .addresses
-            .into_vec()
-            .into_iter()
-            .filter_map(|mut address| {
-                let old_element = address.element as usize;
-                address.element = element_map[old_element]?;
-                address.cell = cells[old_element].binary_search(&address.cell).ok()? as u32;
-                Some(address)
-            })
-            .collect();
-        if !control.addresses.is_empty() {
-            controls.push(control);
-        }
-    }
-    sequence.controls = controls.into_boxed_slice();
-
-    // Fixture rules are shared by profile; retain each used block once.
-    let mut ranges = HashMap::new();
-    let mut rules = Vec::new();
-    let mut bindings = Vec::new();
-    for (element, range) in &sequence.fixture_behaviors.bindings {
-        let Some(element) = element_map[*element as usize] else {
-            continue;
-        };
-        let key = (range.start, range.end);
-        let mapped = if let Some(mapped) = ranges.get(&key) {
-            mapped
-        } else {
-            let start = index32(rules.len())?;
-            rules.extend_from_slice(
-                &sequence.fixture_behaviors.rules[range.start as usize..range.end as usize],
-            );
-            ranges.entry(key).or_insert(start..index32(rules.len())?)
-        };
-        bindings.push((element, mapped.clone()));
-    }
-    sequence.fixture_behaviors.bindings = bindings.into_boxed_slice();
-    sequence.fixture_behaviors.rules = rules.into_boxed_slice();
-
     let signal = &mut sequence.signals;
-    let outer_indices = sequence
-        .elements
+    let mut retained_global = Vec::new();
+    for (index, selected) in cells.iter().enumerate() {
+        let offset = index32(signal.fixture_pixel_offsets[index])?;
+        retained_global.extend(selected.iter().map(|cell| offset + cell));
+    }
+    for route in &mut sequence.patch.routes {
+        let start = retained_global
+            .binary_search(&route.pixels.start)
+            .map_err(|_| RenderError::BadTarget)?;
+        let count = route.pixels.end - route.pixels.start;
+        route.pixels = index32(start)?
+            ..index32(start)?
+                .checked_add(count)
+                .ok_or(RenderError::BadTarget)?;
+    }
+    let outer_indices = signal
+        .fixtures
         .iter()
         .enumerate()
-        .map(|(index, (id, _))| (id.0, index))
+        .map(|(index, fixture)| (fixture.id, index))
         .collect::<HashMap<_, _>>();
-    let color_elements = sequence
-        .color_spans
-        .iter()
-        .map(|(element, _)| *element as usize)
-        .collect::<BTreeSet<_>>();
-    let mut signal_element_map = vec![None; signal.elements.len()];
-    let mut signal_elements = Vec::new();
+    let mut signal_fixture_map = vec![None; signal.fixtures.len()];
+    let mut signal_fixtures = Vec::new();
     let mut offsets = Vec::new();
-    let mut color_spans = Vec::new();
     let mut pixel_count = 0;
-    for (index, element) in signal.elements.iter().enumerate() {
-        let outer = outer_indices[&element.id];
-        if !color_elements.contains(&outer) {
+    for (index, fixture) in signal.fixtures.iter().enumerate() {
+        if cells[index].is_empty() {
             continue;
         }
-        let Some(mapped) = element_map[outer] else {
-            continue;
-        };
-        signal_element_map[index] =
-            Some(u16::try_from(signal_elements.len()).map_err(|_| RenderError::BadTarget)?);
-        let mut element = *element;
-        element.pixel_count = cells[outer].len();
+        signal_fixture_map[index] =
+            Some(u16::try_from(signal_fixtures.len()).map_err(|_| RenderError::BadTarget)?);
+        let mut fixture = *fixture;
+        fixture.pixel_count = cells[index].len();
         offsets.push(pixel_count);
-        let start = index32(pixel_count)?;
-        pixel_count += element.pixel_count;
-        color_spans.push((mapped, start..index32(pixel_count)?));
-        signal_elements.push(element);
+        pixel_count += fixture.pixel_count;
+        signal_fixtures.push(fixture);
     }
 
     let mut target_map = vec![None; signal.targets.len()];
@@ -188,19 +130,19 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         let start = index32(pixels.len())?;
         let mut max_count = 0;
         for pixel in signal.target(old) {
-            let old_element = pixel.element_index as usize;
-            let Some(element_index) = signal_element_map[old_element] else {
+            let old_fixture = pixel.fixture_index as usize;
+            let Some(fixture_index) = signal_fixture_map[old_fixture] else {
                 continue;
             };
-            let outer = outer_indices[&signal.elements[old_element].id];
-            let Ok(cell) = cells[outer].binary_search(&u32::from(pixel.element_cell_index)) else {
+            let outer = outer_indices[&signal.fixtures[old_fixture].id];
+            let Ok(cell) = cells[outer].binary_search(&u32::from(pixel.fixture_pixel_index)) else {
                 continue;
             };
             let mut pixel = pixel.clone();
             // Only storage addresses change. Effect/operator indices, counts and
             // fractions keep the original global or target-local sampling context.
-            pixel.element_index = element_index;
-            pixel.element_cell_index = u16::try_from(cell).map_err(|_| RenderError::BadTarget)?;
+            pixel.fixture_index = fixture_index;
+            pixel.fixture_pixel_index = u16::try_from(cell).map_err(|_| RenderError::BadTarget)?;
             max_count = max_count.max(pixel.pixel_count);
             pixels.push(pixel);
         }
@@ -255,10 +197,10 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
                         let effect = &signal.effects[effect_index];
                         // Check intersection before interning a target or cloning its resources.
                         let intersects = signal.target(effect.target).iter().any(|pixel| {
-                            let old_element = pixel.element_index as usize;
-                            signal_element_map[old_element].is_some()
-                                && cells[outer_indices[&signal.elements[old_element].id]]
-                                    .binary_search(&u32::from(pixel.element_cell_index))
+                            let old_fixture = pixel.fixture_index as usize;
+                            signal_fixture_map[old_fixture].is_some()
+                                && cells[outer_indices[&signal.fixtures[old_fixture].id]]
+                                    .binary_search(&u32::from(pixel.fixture_pixel_index))
                                     .is_ok()
                         });
                         if !intersects {
@@ -334,8 +276,8 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         }
     }
     signal.plan = finish_signal_plan(nodes, node_map[signal.plan.output_index], target)?;
-    signal.elements = signal_elements.into_boxed_slice();
-    signal.element_cell_offsets = offsets.into_boxed_slice();
+    signal.fixtures = signal_fixtures.into_boxed_slice();
+    signal.fixture_pixel_offsets = offsets.into_boxed_slice();
     signal.pixel_count = pixel_count;
     crate::sequence::effects::retained::compact_environments(
         &mut signal.parameter_environments,
@@ -347,8 +289,6 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
     signal.programs = programs.into_boxed_slice();
     signal.targets = targets.into_boxed_slice();
     signal.target_pixels = pixels.into_boxed_slice();
-    sequence.elements = elements.into_boxed_slice();
-    sequence.color_spans = color_spans.into_boxed_slice();
     Ok(())
 }
 

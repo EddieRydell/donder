@@ -1,11 +1,10 @@
 use crate::controller::{Controller, ControllerId};
 use crate::effect::{CurveDefinitionStore, EffectDefinitionStore, GradientDefinitionStore};
-use crate::element::{ElementTree, ElementTreeId};
-use crate::fixture_profile::FixtureProfileStore;
+use crate::fixture::FixtureDefinitions;
 use crate::identity::SourceIdentity;
+use crate::layout::{Layout, LayoutId};
 use crate::operator::OperatorDefinitionStore;
-use crate::patch::{PatchGraph, PatchId};
-use crate::preview::{PreviewLayout, PreviewLayoutId, PropDefinitionStore};
+use crate::patch::{Patch, PatchId};
 use crate::sequence::Sequence;
 use crate::setup::{Setup, SetupId};
 use indexmap::IndexMap;
@@ -14,9 +13,8 @@ use indexmap::IndexMap;
 pub struct DawnProject {
     pub root: ProjectRoot,
     pub setups: IndexMap<SetupId, Setup>,
-    pub element_trees: IndexMap<ElementTreeId, ElementTree>,
-    pub preview_layouts: IndexMap<PreviewLayoutId, PreviewLayout>,
-    pub patches: IndexMap<PatchId, PatchGraph>,
+    pub layouts: IndexMap<LayoutId, Layout>,
+    pub patches: IndexMap<PatchId, Patch>,
     pub controllers: IndexMap<ControllerId, Controller>,
     pub sequences: IndexMap<crate::sequence::SequenceId, Sequence>,
     pub definitions: ProjectDefinitionStores,
@@ -35,8 +33,7 @@ pub struct ProjectRoot {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProjectDefinitionStores {
     pub effects: EffectDefinitionStore,
-    pub props: PropDefinitionStore,
-    pub fixture_profiles: FixtureProfileStore,
+    pub fixtures: FixtureDefinitions,
     pub curves: CurveDefinitionStore,
     pub gradients: GradientDefinitionStore,
     pub operators: OperatorDefinitionStore,

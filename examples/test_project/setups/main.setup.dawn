@@ -9,8 +9,7 @@ imports:
   as: patches
 main:
   type: setup
-  elements: display.elements
-  preview: display.preview
+  layout: display.main
   patch: patches.main
   controllers:
   - output_controller

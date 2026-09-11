@@ -71,54 +71,38 @@ fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
     let root = workspace.join("examples/starter");
     let original = dawn_project_io::project_source_texts(&root).unwrap();
     for (path, anchor, indentation, label) in [
+        ("layouts/outputs.layout.dawn", "  type: layout", 2, "layout"),
         (
             "layouts/outputs.layout.dawn",
-            "  type: element_tree",
-            2,
-            "element tree",
-        ),
-        (
-            "layouts/outputs.layout.dawn",
-            "    name: Output 01",
+            "    name: All Outputs",
             4,
-            "element node",
+            "layout group",
         ),
         (
             "layouts/outputs.layout.dawn",
-            "      type: rgb",
+            "      name: Output 01",
             6,
-            "color capability",
+            "fixture instance",
+        ),
+        (
+            "layouts/outputs.layout.dawn",
+            "          x: 0.0",
+            10,
+            "point",
         ),
         ("patches/outputs.patch.dawn", "  type: patch", 2, "patch"),
+        ("patches/outputs.patch.dawn", "    port: 1", 4, "LED route"),
         (
             "patches/outputs.patch.dawn",
-            "    type: source",
-            4,
-            "patch source",
-        ),
-        (
-            "patches/outputs.patch.dawn",
-            "      node: 1",
+            "      fixture: 1",
             6,
-            "element selection",
+            "fixture target",
         ),
         (
             "patches/outputs.patch.dawn",
-            "    filter: component_reorder",
-            4,
-            "patch filter",
-        ),
-        (
-            "patches/outputs.patch.dawn",
-            "    type: sink",
-            4,
-            "patch sink",
-        ),
-        (
-            "patches/outputs.patch.dawn",
-            "    from_port: 0",
-            4,
-            "patch edge",
+            "      type: rgb",
+            6,
+            "pixel encoding",
         ),
     ] {
         let path = Utf8PathBuf::from(path);
@@ -138,17 +122,14 @@ fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
 }
 
 #[test]
-fn nested_fixture_field_typos_are_rejected_without_changing_the_saved_project() {
+fn fixture_pixel_field_typos_are_rejected_without_changing_the_saved_project() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     write_imported_sequence_project(&root, &minimal_sequence_body(""));
     let path = Utf8PathBuf::from("display.dawn");
     let display = fs::read_to_string(root.join(&path)).unwrap().replace(
-        "    type: color\n    cells: 1\n    capability: { type: rgb }",
-        "    type: fixture\n    profile: profile",
-    );
-    let display = format!(
-        "{display}\nprofile:\n  type: fixture_profile\n  functions:\n  - id: 1\n    name: Dimmer\n    type: range\n    curve: {{ type: linear }}\n  channels:\n  - slot: 0\n    role: coarse\n    function: 1\n    curve: {{ type: linear }}\n  behavior_rules:\n  - type: dimmer\n    function: 1\n    off: 0\n    on: 1\n"
+        "  - id: 1\n    diameter: 0.01",
+        "  - id: 1\n    diameter: 0.01\n    position: { x: 0, y: 0, z: 0 }",
     );
     fs::write(root.join(&path), &display).unwrap();
     let baseline = check_package(&root);
@@ -159,10 +140,8 @@ fn nested_fixture_field_typos_are_rejected_without_changing_the_saved_project() 
     );
     let original = dawn_project_io::project_source_texts(&root).unwrap();
     for (anchor, indentation, label) in [
-        ("  type: fixture_profile", 2, "fixture profile"),
-        ("    name: Dimmer", 4, "fixture function"),
-        ("    role: coarse", 4, "fixture channel"),
-        ("  - type: dimmer", 4, "fixture behavior rule"),
+        ("  type: fixture", 2, "fixture definition"),
+        ("    diameter: 0.01", 4, "pixel"),
     ] {
         let edited = display.replacen(
             anchor,
@@ -175,11 +154,11 @@ fn nested_fixture_field_typos_are_rejected_without_changing_the_saved_project() 
         assert_unknown_setup_field(&root, &original, &path, &edited, label);
     }
     let edited = display.replacen(
-        "{ type: linear }",
-        "{ type: linear, typo_field: unexpected }",
+        "{ x: 0, y: 0, z: 0 }",
+        "{ x: 0, y: 0, z: 0, typo_field: unexpected }",
         1,
     );
-    assert_unknown_setup_field(&root, &original, &path, &edited, "dimming curve");
+    assert_unknown_setup_field(&root, &original, &path, &edited, "point");
     assert_eq!(
         dawn_project_io::project_source_texts(&root).unwrap(),
         original
@@ -327,13 +306,13 @@ fn repeated_reference_text_reports_the_failing_occurrence() {
     .unwrap();
     fs::write(
         root.join("setup.dawn"),
-        "imports:\n- from:\n    documents:\n    - display.dawn\n  as: display\n- from:\n    documents:\n    - patch.dawn\n  as: patches\nmain:\n  type: setup\n  elements: display.elements\n  preview: display.preview\n  patch: patches.main\n  controllers: []\n",
+        "imports:\n- from:\n    documents:\n    - display.dawn\n  as: display\n- from:\n    documents:\n    - patch.dawn\n  as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
     )
     .unwrap();
-    fs::write(root.join("display.dawn"), "elements:\n  type: element_tree\n  roots: [1]\n  nodes:\n  - id: 1\n    name: Pixel\n    type: color\n    cells: 1\n    capability: { type: rgb }\npreview:\n  type: preview_layout\n  element_tree: elements\n  props: []\n").unwrap();
+    fs::write(root.join("display.dawn"), "pixel:\n  type: fixture\n  pixels:\n  - id: 1\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
     fs::write(
         root.join("patch.dawn"),
-        "main:\n  type: patch\n  nodes: []\n  edges: []\n",
+        "main:\n  type: patch\n  routes: []\n",
     )
     .unwrap();
     write_project_package(&root);
@@ -475,7 +454,7 @@ fn negative_duration_is_a_diagnostic_not_a_loader_panic() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     write_imported_sequence_project(
         &root,
-        "  duration: -1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  control_clips: []\n",
+        "  duration: -1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n",
     );
 
     let report = check_package(&root);
@@ -590,13 +569,13 @@ fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
     .unwrap();
     fs::write(
         root.join("setup.dawn"),
-        "imports:\n  - from:\n      documents:\n      - display.dawn\n    as: display\n  - from:\n      documents:\n      - patch.dawn\n    as: patches\nmain:\n  type: setup\n  elements: display.elements\n  preview: display.preview\n  patch: patches.main\n  controllers: []\n",
+        "imports:\n  - from:\n      documents:\n      - display.dawn\n    as: display\n  - from:\n      documents:\n      - patch.dawn\n    as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
     )
     .unwrap();
-    fs::write(root.join("display.dawn"), "elements:\n  type: element_tree\n  roots: [1]\n  nodes:\n  - id: 1\n    name: Pixel\n    type: color\n    cells: 1\n    capability: { type: rgb }\npreview:\n  type: preview_layout\n  element_tree: elements\n  props: []\n").unwrap();
+    fs::write(root.join("display.dawn"), "pixel:\n  type: fixture\n  pixels:\n  - id: 1\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
     fs::write(
         root.join("patch.dawn"),
-        "main:\n  type: patch\n  nodes: []\n  edges: []\n",
+        "main:\n  type: patch\n  routes: []\n",
     )
     .unwrap();
     fs::write(
@@ -609,7 +588,7 @@ fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
 
 fn minimal_sequence_body(extra: &str) -> String {
     format!(
-        "  duration: 1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: {{ x: 0, y: 0 }}\n      type: output\n    edges: []\n{extra}  control_clips: []\n"
+        "  duration: 1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: {{ x: 0, y: 0 }}\n      type: output\n    edges: []\n{extra}"
     )
 }
 

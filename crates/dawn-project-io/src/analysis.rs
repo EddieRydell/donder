@@ -317,11 +317,9 @@ fn source_object_kind(value: &str) -> Option<SourceObjectKind> {
         "project" => SourceObjectKind::Project,
         "setup" => SourceObjectKind::Setup,
         "controller" => SourceObjectKind::Controller,
-        "element_tree" => SourceObjectKind::ElementTree,
-        "preview_layout" => SourceObjectKind::PreviewLayout,
+        "layout" => SourceObjectKind::Layout,
         "patch" => SourceObjectKind::Patch,
-        "prop" => SourceObjectKind::PropDefinition,
-        "fixture_profile" => SourceObjectKind::FixtureProfile,
+        "fixture" => SourceObjectKind::FixtureDefinition,
         "curve" => SourceObjectKind::Curve,
         "gradient" => SourceObjectKind::Gradient,
         "sequence" => SourceObjectKind::Sequence,
@@ -372,7 +370,6 @@ fn analyze_sequence(path: &Utf8Path, value: &Value, diagnostics: &mut Vec<IoDiag
     analyze_mark_collections(path, value, diagnostics);
     analyze_timeline_items(path, value, TimelineItemSchema::Effect, diagnostics);
     analyze_timeline_items(path, value, TimelineItemSchema::AutomationClip, diagnostics);
-    analyze_control_items(path, value, diagnostics);
     analyze_graph_items(path, value, diagnostics);
 }
 
@@ -578,31 +575,6 @@ fn push_item_shape_errors(
     ];
     for error in checks.into_iter().filter_map(Result::err) {
         push_load_error(diagnostics, error, IoDiagnosticCode::SequenceItem);
-    }
-}
-
-fn analyze_control_items(path: &Utf8Path, sequence: &Value, diagnostics: &mut Vec<IoDiagnostic>) {
-    let values = match optional_sequence(path, sequence, "control_clips") {
-        Ok(Some(values)) => values,
-        Ok(None) => return,
-        Err(error) => {
-            push_load_error(diagnostics, error, IoDiagnosticCode::SequenceField);
-            return;
-        }
-    };
-    for value in values {
-        let id = collect_item_field(diagnostics, u32_field(path, value, "id"));
-        let start = collect_item_field(
-            diagnostics,
-            string_field(path, value, "start").and_then(parse_duration_as_time),
-        );
-        let duration = collect_item_field(
-            diagnostics,
-            string_field(path, value, "duration").and_then(parse_duration),
-        );
-        // Control lanes are resolved from semantic targets. Without a complete project
-        // model there is no trustworthy lane coordinate, so these remain Problems-only.
-        let _ = (id, start, duration);
     }
 }
 

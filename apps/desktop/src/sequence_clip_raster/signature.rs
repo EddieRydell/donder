@@ -211,8 +211,8 @@ pub(super) fn hash_render_signature<H: Hasher>(signature: &RenderInputSignature,
             }
             data.target_pixels.len().hash(state);
             for pixel in &data.target_pixels {
-                pixel.element_id.hash(state);
-                pixel.element_cell_index.hash(state);
+                pixel.fixture_id.hash(state);
+                pixel.fixture_pixel_index.hash(state);
             }
         }
         RenderInputSignature::Invalid { message } => {
@@ -282,7 +282,7 @@ pub(super) fn hash_effect_inst<H: Hasher>(effect: &EffectInst, state: &mut H) {
 }
 
 pub(super) fn hash_effect_target<H: Hasher>(
-    target: &dawn_language::element::ElementSelection,
+    target: &dawn_language::layout::FixtureTarget,
     state: &mut H,
 ) {
     target.hash(state);

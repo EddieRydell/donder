@@ -158,7 +158,6 @@ fn main() -> ! {
                 ("show", 1, None, None, None),
                 ("layers4", 4, None, None, None),
                 ("layers16", 16, None, None, None),
-                ("gamma_raw", 1, Some(false), None, None),
                 ("gamma_lookup", 1, Some(true), None, None),
                 ("operator_full", 1, None, Some(Full), None),
                 ("operator_reuse", 1, None, Some(Reuse), None),
@@ -195,8 +194,8 @@ fn main() -> ! {
                 } else {
                     workload::layered_show(count, program, params, layers)
                 };
-                if let Some(fused) = gamma {
-                    workload::apply_gamma(&mut show, fused.then_some(fixtures::GAMMA_LOOKUP));
+                if gamma.is_some() {
+                    workload::apply_gamma(&mut show, fixtures::GAMMA_LOOKUP);
                 }
                 if let Some(kind) = operator {
                     let program = match kind {

@@ -39,66 +39,14 @@ pub(super) fn gradient_value(gradient: &Gradient) -> Result<Value, ExportProject
     Ok(Value::Mapping(value))
 }
 
-pub(super) fn geometry_value(geometry: &PropGeometry) -> Result<Value, ExportProjectError> {
+pub(super) fn transform_value(transform: &FixtureTransform) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
-    match geometry {
-        PropGeometry::Points { points } => {
-            value.insert(string_value("type"), Value::String("points".to_string()));
-            value.insert(
-                string_value("points"),
-                Value::Sequence(
-                    points
-                        .iter()
-                        .map(point_value)
-                        .collect::<Result<Vec<_>, _>>()?,
-                ),
-            );
-        }
-        PropGeometry::Lines {
-            points,
-            point_count,
-        } => {
-            value.insert(string_value("type"), Value::String("lines".to_string()));
-            value.insert(
-                string_value("points"),
-                Value::Sequence(
-                    points
-                        .iter()
-                        .map(point_value)
-                        .collect::<Result<Vec<_>, _>>()?,
-                ),
-            );
-            value.insert(string_value("point_count"), serialized_value(*point_count)?);
-        }
-        PropGeometry::Arc {
-            center,
-            radius,
-            start_degrees,
-            end_degrees,
-            point_count,
-        } => {
-            value.insert(string_value("type"), Value::String("arc".to_string()));
-            value.insert(string_value("center"), point_value(center)?);
-            value.insert(
-                string_value("radius"),
-                serialized_value(radius.as_meters_f32())?,
-            );
-            value.insert(
-                string_value("startDegrees"),
-                serialized_value(*start_degrees)?,
-            );
-            value.insert(string_value("endDegrees"), serialized_value(*end_degrees)?);
-            value.insert(string_value("point_count"), serialized_value(*point_count)?);
-        }
-    }
-    Ok(Value::Mapping(value))
-}
-
-pub(super) fn transform_value(prop: &PropInstance) -> Result<Value, ExportProjectError> {
-    let mut value = Mapping::new();
-    value.insert(string_value("position"), point_value(&prop.position)?);
-    value.insert(string_value("rotation"), rotation_value(&prop.rotation)?);
-    value.insert(string_value("scale"), scale_value(&prop.scale)?);
+    value.insert(string_value("position"), point_value(&transform.position)?);
+    value.insert(
+        string_value("rotation"),
+        rotation_value(&transform.rotation)?,
+    );
+    value.insert(string_value("scale"), scale_value(&transform.scale)?);
     Ok(Value::Mapping(value))
 }
 
@@ -106,15 +54,15 @@ pub(super) fn point_value(point: &Point3) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
     value.insert(
         string_value("x"),
-        serialized_value(point.x.as_meters_f32())?,
+        serialized_value(f64::from(point.x.micrometers) / 1_000_000.0)?,
     );
     value.insert(
         string_value("y"),
-        serialized_value(point.y.as_meters_f32())?,
+        serialized_value(f64::from(point.y.micrometers) / 1_000_000.0)?,
     );
     value.insert(
         string_value("z"),
-        serialized_value(point.z.as_meters_f32())?,
+        serialized_value(f64::from(point.z.micrometers) / 1_000_000.0)?,
     );
     Ok(Value::Mapping(value))
 }
@@ -135,28 +83,22 @@ pub(super) fn scale_value(scale: &Scale3) -> Result<Value, ExportProjectError> {
     Ok(Value::Mapping(value))
 }
 
-pub(super) fn element_selection_value(
+pub(super) fn fixture_target_value(
     session: &ProjectSession,
-    from_document: &DocumentId,
-    target: &ElementSelection,
+    from: &DocumentId,
+    target: &FixtureTarget,
 ) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
     value.insert(
-        string_value("tree"),
-        Value::String(write_source_reference(
+        string_value("layout"),
+        string_value(&write_source_reference(
             session,
-            from_document,
-            SourceObjectKind::ElementTree,
-            &target.tree.0,
+            from,
+            SourceObjectKind::Layout,
+            &target.layout.0,
         )?),
     );
-    value.insert(string_value("node"), serialized_value(target.node.0)?);
-    if let Some(range) = target.cells {
-        let mut cells = Mapping::new();
-        cells.insert(string_value("start"), serialized_value(range.start)?);
-        cells.insert(string_value("count"), serialized_value(range.count)?);
-        value.insert(string_value("cells"), Value::Mapping(cells));
-    }
+    value.insert(string_value("fixture"), serialized_value(target.fixture.0)?);
     Ok(Value::Mapping(value))
 }
 
@@ -185,9 +127,9 @@ pub(super) fn microseconds_string(microseconds: u128) -> String {
 }
 
 use camino::Utf8PathBuf;
-use dawn_language::element::ElementSelection;
+use dawn_language::fixture::FixtureTransform;
 use dawn_language::identity::DocumentId;
-use dawn_language::preview::{PropGeometry, PropInstance};
+use dawn_language::layout::FixtureTarget;
 use dawn_language::values::{Curve, Gradient, Point3, Rotation3, Scale3};
 use yaml_serde::{Mapping, Value};
 

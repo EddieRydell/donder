@@ -131,8 +131,8 @@ pub fn mark_show(
                         .target_pixels
                         .iter()
                         .map(|p| TargetPixelValue {
-                            element_index: p.element_index as i32,
-                            element_cell_index: p.element_cell_index as i32,
+                            fixture_index: p.fixture_index as i32,
+                            fixture_pixel_index: p.fixture_pixel_index as i32,
                             pixel_index: p.pixel_index as i32,
                             pixel_count: p.pixel_count as i32,
                             pixel_fraction: p.pixel_fraction,
@@ -158,8 +158,8 @@ pub fn mark_show(
                 let target = targets.len() as u32;
                 let start = pixels.len() as u32;
                 pixels.extend(child.target.pixels.iter().map(|p| PreparedPixel {
-                    element_index: p.element_index as u16,
-                    element_cell_index: p.element_cell_index as u16,
+                    fixture_index: p.fixture_index as u16,
+                    fixture_pixel_index: p.fixture_pixel_index as u16,
                     pixel_index: p.pixel_index as u32,
                     pixel_count: p.pixel_count as u32,
                     pixel_fraction: p.pixel_fraction,

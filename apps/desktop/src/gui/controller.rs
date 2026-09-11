@@ -6,15 +6,13 @@ use dawn_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{
-    ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig,
-    SetupControllerPort, SetupOutputAssignment,
+    ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig, SetupControllerPort,
 };
 
 pub(super) fn project_controller(
     session: &ProjectSession,
     id: &ControllerId,
     controller: &Controller,
-    assignments: Vec<SetupOutputAssignment>,
 ) -> SetupController {
     SetupController {
         label: super::setup::source_key(&id.0),
@@ -37,7 +35,6 @@ pub(super) fn project_controller(
                 slot_count: port.slot_count,
             })
             .collect(),
-        assignments,
     }
 }
 
@@ -53,7 +50,7 @@ pub(super) fn project_document(
         document: ControllerGuiDocument {
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
-            controller: project_controller(session, &id, controller, Vec::new()),
+            controller: project_controller(session, &id, controller),
         },
     }
 }

@@ -1,12 +1,13 @@
 use crate::imports::parse_imports;
+use dawn_language::fixture::FixtureDefinitionId;
 use dawn_language::imports::SourceReference;
+use dawn_language::layout::LayoutId;
 pub(crate) mod parse;
 mod resolve;
 
 pub(crate) use parse::mapping;
 use parse::{
-    ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, parse_prop_definition,
-    sequence_field, string_field,
+    ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, sequence_field, string_field,
 };
 use resolve::DomainResolver;
 
@@ -166,8 +167,7 @@ impl Loader {
                 sequences: Vec::new(),
             },
             setups: IndexMap::new(),
-            element_trees: IndexMap::new(),
-            preview_layouts: IndexMap::new(),
+            layouts: IndexMap::new(),
             patches: IndexMap::new(),
             controllers: IndexMap::new(),
             sequences: IndexMap::new(),
@@ -218,28 +218,14 @@ impl Loader {
                 ResolvedObject::Controller(id) => {
                     resolver.resolve_controller(&id)?;
                 }
-                ResolvedObject::ElementTree(id) => {
-                    resolver.resolve_element_tree(&id)?;
-                }
-                ResolvedObject::PreviewLayout(id) => {
-                    resolver.resolve_preview_layout(&id)?;
+                ResolvedObject::Layout(id) => {
+                    resolver.resolve_layout(&id)?;
                 }
                 ResolvedObject::Patch(id) => {
                     resolver.resolve_patch(&id)?;
                 }
-                ResolvedObject::PropDefinition(id) => {
-                    if !resolver
-                        .project
-                        .definitions
-                        .props
-                        .definitions
-                        .contains_key(&id)
-                    {
-                        return Err(missing_exported_definition(&document, &id.0));
-                    }
-                }
-                ResolvedObject::FixtureProfile(id) => {
-                    resolver.resolve_fixture_profile(&id)?;
+                ResolvedObject::FixtureDefinition(id) => {
+                    resolver.resolve_fixture(&id)?;
                 }
                 ResolvedObject::Curve(id) => {
                     resolver.resolve_curve(document.path(), &id)?;
@@ -522,19 +508,13 @@ impl Loader {
                 "controller" => ResolvedObject::Controller(ControllerId(
                     self.source_identity(document_id, key.to_string()),
                 )),
-                "element_tree" => ResolvedObject::ElementTree(ElementTreeId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
-                "preview_layout" => ResolvedObject::PreviewLayout(PreviewLayoutId(
+                "layout" => ResolvedObject::Layout(LayoutId(
                     self.source_identity(document_id, key.to_string()),
                 )),
                 "patch" => ResolvedObject::Patch(PatchId(
                     self.source_identity(document_id, key.to_string()),
                 )),
-                "prop" => ResolvedObject::PropDefinition(PropDefinitionId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
-                "fixture_profile" => ResolvedObject::FixtureProfile(FixtureProfileId(
+                "fixture" => ResolvedObject::FixtureDefinition(FixtureDefinitionId(
                     self.source_identity(document_id, key.to_string()),
                 )),
                 "curve" => ResolvedObject::Curve(CurveId(
@@ -569,12 +549,6 @@ impl Loader {
                         gradient: parse_gradient(relative, object_value)?,
                     },
                 );
-            }
-            if let ResolvedObject::PropDefinition(id) = &object {
-                self.definitions
-                    .props
-                    .definitions
-                    .insert(id.clone(), parse_prop_definition(relative, object_value)?);
             }
             let source_object = SourceObjectId {
                 kind: object.source_kind(),
@@ -647,8 +621,7 @@ impl Loader {
                 sequences: sequences.clone(),
             },
             setups: IndexMap::new(),
-            element_trees: IndexMap::new(),
-            preview_layouts: IndexMap::new(),
+            layouts: IndexMap::new(),
             patches: IndexMap::new(),
             controllers: IndexMap::new(),
             sequences: IndexMap::new(),
@@ -831,12 +804,9 @@ use dawn_language::dsl::{Identifier, compile_effect_document, compile_operators}
 use dawn_language::effect::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
 };
-use dawn_language::element::ElementTreeId;
-use dawn_language::fixture_profile::FixtureProfileId;
 use dawn_language::model::{DawnProject, ProjectDefinitionStores, ProjectId, ProjectRoot};
 use dawn_language::operator::{OperatorDefinitionId, custom_operator_definition};
 use dawn_language::patch::PatchId;
-use dawn_language::preview::{PreviewLayoutId, PropDefinitionId};
 use dawn_language::sequence::SequenceId;
 use dawn_language::setup::SetupId;
 use indexmap::{IndexMap, IndexSet};

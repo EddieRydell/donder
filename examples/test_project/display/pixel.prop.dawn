@@ -1,9 +1,0 @@
-pixel:
-  type: prop
-  bulb_diameter: 0.08
-  geometry:
-    type: points
-    points:
-    - x: 0.0
-      y: 0.0
-      z: 0.0

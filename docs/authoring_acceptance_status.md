@@ -1,4 +1,9 @@
-# Setup and authoring acceptance status
+# Historical setup and authoring acceptance status
+
+This records the earlier onboarding goal, before LED fixture simplification.
+Removed profiles, controls, and patch graphs below are historical evidence, not
+current features. Current work and validation are recorded in
+[the LED refactor report](led_fixture_refactor.md).
 
 The setup and authoring goal is **complete within its agreed software scope**.
 On 2026-09-08, the user explicitly excluded physical acceptance from this goal.

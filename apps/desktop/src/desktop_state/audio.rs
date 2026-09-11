@@ -112,13 +112,13 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_render).active_render_identity(&audio_transport)
     }
 
-    pub fn preview_scene(&self) -> Option<crate::preview::PreviewScene> {
+    pub fn preview_scene(&self) -> Result<Option<crate::preview::PreviewScene>, String> {
         let _authoring = lock_unpoisoned(&self.authoring);
-        let session = self.project_session()?;
-        Some(crate::preview::PreviewScene::from_project(
-            self.project_revision(),
-            &session.project,
-        ))
+        let Some(session) = self.project_session() else {
+            return Ok(None);
+        };
+        crate::preview::PreviewScene::from_project(self.project_revision(), &session.project)
+            .map(Some)
     }
 
     pub fn preview_scene_revision(&self) -> Option<u64> {

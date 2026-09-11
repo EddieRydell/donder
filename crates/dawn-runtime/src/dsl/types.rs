@@ -175,8 +175,8 @@ pub struct TargetItemValue {
 
 #[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TargetPixelValue {
-    pub element_index: i32,
-    pub element_cell_index: i32,
+    pub fixture_index: i32,
+    pub fixture_pixel_index: i32,
     pub pixel_index: i32,
     pub pixel_count: i32,
     pub pixel_fraction: f32,

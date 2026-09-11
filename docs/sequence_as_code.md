@@ -1,7 +1,7 @@
 # Sequence-as-Code Contract
 
 A Dawn sequence is declarative YAML that names a duration, frame rate, layers,
-effect instances, a composition graph, automation clips, and control clips. It
+effect instances, a composition graph, and parameter automation clips. It
 is loaded into the typed `dawn_language::sequence::Sequence`; YAML is never an
 editable runtime model after load.
 
@@ -57,10 +57,10 @@ An operator samples an immutable input signal by time and pixel:
 
 - `source.at(seconds)` samples the current pixel.
 - `source.at(seconds, pixel)` samples a zero-based pixel in the current fixture
-  (color element). For example, `source.at(seconds(), pixel_count() - 1 -
+  instance. For example, `source.at(seconds(), pixel_count() - 1 -
   pixel_index())` mirrors each fixture independently.
 - `source.at_global(seconds, pixel)` samples a zero-based pixel in the full
-  prepared rig's color-element order, with each element's pixels contiguous.
+  prepared layout's instance order, with each instance's pixels contiguous.
   This order is independent of selected controller ports and output packing.
 
 Time arguments are seconds (float); pixel arguments are integers. Negative or

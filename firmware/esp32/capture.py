@@ -76,7 +76,7 @@ with (
                 raise RuntimeError(f"Prepared first-frame allocation: {stage}")
             stage = None
         elif line.startswith("DAWN PROFILE END"):
-            if len(measurements) != 174:
+            if len(measurements) != 170:
                 raise RuntimeError(f"Incomplete run: {len(measurements)} measurements")
             if stage is not None or line != "DAWN PROFILE END heap_free=163840":
                 raise RuntimeError(f"Incomplete result or unrecovered heap: {line}")

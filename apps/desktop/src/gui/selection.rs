@@ -381,36 +381,38 @@ fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec
     grouped
 }
 
-fn effect_lane_index(session: &ProjectSession, target: &ElementSelection) -> usize {
+fn effect_lane_index(session: &ProjectSession, target: &FixtureTarget) -> usize {
     effect_lane_index_resolved(session, target).unwrap_or_default()
 }
 
 pub(super) fn effect_lane_index_resolved(
     session: &ProjectSession,
-    target: &ElementSelection,
+    target: &FixtureTarget,
 ) -> Option<usize> {
-    active_element_tree(session)?
-        .nodes
-        .keys()
-        .position(|candidate| *candidate == target.node)
+    let layout = active_layout(session)?;
+    if layout.id != target.layout {
+        return None;
+    }
+    layout
+        .iter_fixtures()
+        .position(|fixture| fixture.id == target.fixture)
 }
 
 fn sequence_lane_count(session: &ProjectSession) -> usize {
-    active_element_tree(session)
-        .map(|tree| tree.nodes.len())
+    active_layout(session)
+        .map(|layout| layout.iter_fixtures().count())
         .unwrap_or_default()
 }
 
 pub(super) fn target_for_lane(
     session: &ProjectSession,
     lane_index: usize,
-) -> Option<ElementSelection> {
-    let tree = active_element_tree(session)?;
-    let node = *tree.nodes.keys().nth(lane_index)?;
-    Some(ElementSelection {
-        tree: tree.id.clone(),
-        node,
-        cells: None,
+) -> Option<FixtureTarget> {
+    let layout = active_layout(session)?;
+    let fixture = layout.iter_fixtures().nth(lane_index)?.id;
+    Some(FixtureTarget {
+        layout: layout.id.clone(),
+        fixture,
     })
 }
 
@@ -478,13 +480,13 @@ use dawn_language::dsl::Type;
 use dawn_language::effect::{
     BuiltinEffect, EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef,
 };
-use dawn_language::element::ElementSelection;
+use dawn_language::layout::FixtureTarget;
 use dawn_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use dawn_language::values::{DawnDuration, DawnTime};
 use dawn_project_io::ProjectSession;
 
 use super::model::{effect_mut, mark_collection_mut, sequence_mut, source_identity_from_gui};
-use super::projection::active_element_tree;
+use super::projection::active_layout;
 use super::{
     ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard, SequenceSelectionMutation,
 };

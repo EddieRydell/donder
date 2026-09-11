@@ -1,6 +1,4 @@
 import type { AutomationClipChooser, GuiFocus, ReadyGuiDocument, SequenceSelection } from "./shared";
-import { FixtureInspector } from "./fixture/FixtureInspector";
-import { LayoutInspector } from "./layout/LayoutInspector";
 import { SequenceInspector } from "./sequence/SequenceInspector";
 
 export function GuiInspector({
@@ -45,7 +43,5 @@ export function GuiInspector({
       />
     );
   }
-  if (gui.type === "preview") return <LayoutInspector document={gui.document} selected={selected} />;
-  if (gui.type !== "prop") return null;
-  return <FixtureInspector document={gui.document} selected={selected} />;
+  return null;
 }

@@ -1,5 +1,11 @@
 # First-class setup and show authoring
 
+This is a historical implementation log. Its element trees, profiles, generic
+controls, shape primitives, and patch graphs have been removed by the LED-only
+fixture refactor. See [the current authoring guide](fixture_authoring.md) for
+the supported model and workflow. Historical verification below applies only
+to the implementation at the time it was recorded.
+
 ## Goal
 
 A new user can create a project, add two pixel props, configure an E1.31 or

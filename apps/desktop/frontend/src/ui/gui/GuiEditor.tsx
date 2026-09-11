@@ -1,7 +1,4 @@
-import { AddLightForm } from "./layout/AddLightForm";
-import { ElementTreeEditor } from "./elements/ElementTreeEditor";
-import { commands } from "../../api";
-import { runGuiEditCommand } from "../../store";
+import { CompositionEditor } from "./composition/CompositionEditor";
 import { useEffect, useState } from "react";
 
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
@@ -9,9 +6,7 @@ import type { AppStaticSnapshot } from "../../store";
 
 import type { AutomationClipChooser, GuiFocus, ReadyGuiDocument, SequenceSelection } from "./shared";
 
-import { LayoutCanvas } from "./layout/LayoutCanvas";
 
-import { FixtureCanvas } from "./fixture/FixtureCanvas";
 
 import { GuiInspector } from "./GuiInspector";
 
@@ -31,7 +26,6 @@ import { ProjectEditor } from "./project/ProjectEditor";
 import { LibraryEditor } from "./library/LibraryEditor";
 import { ControllerEditor } from "./controller/ControllerEditor";
 import { PatchEditor } from "./patch/PatchEditor";
-import { FixtureProfileEditor } from "./fixtureProfile/FixtureProfileEditor";
 
 const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
@@ -69,9 +63,7 @@ function ResourceEditor({
   if (gui.type === "blocked") {
     return <BlockedGui reason={gui.reason} diagnostics={gui.diagnostics} />;
   }
-  if (gui.type === "elementTree") {
-    return <ElementTreeEditor document={gui.document} onEdit={(edit) => runGuiEditCommand((request) => commands.applyElementTreeGuiEdit(request, edit))} />;
-  }
+
   if (gui.type === "setup") {
     return <SetupEditor document={gui.document} />;
   }
@@ -87,9 +79,9 @@ function ResourceEditor({
   if (gui.type === "patch") {
     return <PatchEditor document={gui.document} />;
   }
-  if (gui.type === "fixtureProfile") {
-    return <FixtureProfileEditor document={gui.document} />;
-  }
+
+
+  if (gui.type === "fixture" || gui.type === "layout") return <CompositionEditor gui={gui} />;
 
   return (
     <GuiEditorInner
@@ -196,13 +188,6 @@ function GuiEditorInner({
           setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
         />
       )}
-      {gui.type === "preview" && <div className="layout-authoring">
-        <aside className="layout-hierarchy"><details><summary>Add light</summary><AddLightForm document={gui.document} /></details><ElementTreeEditor document={gui.document.hierarchy} onEdit={(edit) => runGuiEditCommand((request) => commands.applyPreviewGuiEdit(request, { type: "editElements", edit }))} /></aside>
-        <LayoutCanvas document={gui.document} selected={selected} setSelected={setSelected} />
-      </div>}
-      {gui.type === "prop" && (
-        <FixtureCanvas document={gui.document} selected={selected} setSelected={setSelected} />
-      )}
       <div className={`gui-inspector-resize-shell ${workspaceLayout.inspectorCollapsed ? "collapsed" : ""}`}>
         <WorkspaceResizeHandle
           ariaLabel="Resize inspector"
@@ -240,19 +225,5 @@ function GuiEditorInner({
 }
 
 function guiEditorKey(activeFile: string | null, gui: ReadyGuiDocument) {
-  switch (gui.type) {
-    case "project":
-    case "sequence":
-    case "preview":
-    case "elementTree":
-    case "setup":
-    case "curve":
-    case "gradient":
-    case "controller":
-    case "patch":
-    case "fixtureProfile":
-      return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.objectKey}`;
-    case "prop":
-      return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.fixture.objectKey}`;
-  }
+  return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.objectKey}`;
 }

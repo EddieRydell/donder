@@ -615,55 +615,6 @@ fn empty_curve_automation_reserves_its_fallback_point() {
 }
 
 #[test]
-fn preview_cell_reads_do_not_allocate_or_copy_element_buffers() {
-    use dawn_runtime::element::{ElementLayout, ElementNodeId, RenderedElementState};
-    use dawn_runtime::values::Color;
-    let color = Color {
-        red: 128,
-        green: 64,
-        blue: 32,
-    };
-    let colored = RenderedElementState::Color {
-        node: ElementNodeId(0),
-        cells: vec![color; 200],
-    };
-    let scalar = RenderedElementState::Scalar {
-        node: ElementNodeId(1),
-        cells: vec![0.5; 200],
-    };
-    let indexed = ElementLayout::Indexed(200).create(ElementNodeId(2));
-    let fixture = ElementLayout::Fixture(0).create(ElementNodeId(3));
-    ALLOCATIONS.set(0);
-    COUNTING.set(true);
-    for cell in 0..200 {
-        assert_eq!(colored.preview_color(cell), Some(color));
-        assert_eq!(
-            scalar.preview_color(cell),
-            Some(Color {
-                red: 128,
-                green: 128,
-                blue: 128
-            })
-        );
-        assert_eq!(
-            indexed.preview_color(cell),
-            Some(Color {
-                red: 0,
-                green: 0,
-                blue: 0
-            })
-        );
-    }
-    assert!(colored.preview_color(200).is_none());
-    assert!(scalar.preview_color(200).is_none());
-    assert!(indexed.preview_color(200).is_none());
-    assert!(fixture.preview_color(0).is_some());
-    assert!(fixture.preview_color(1).is_none());
-    COUNTING.set(false);
-    assert_eq!(ALLOCATIONS.get(), 0);
-}
-
-#[test]
 fn retained_nested_array_results_forward_without_first_or_repeated_sample_allocations() {
     use dawn_language::dsl::{
         GeneratorBinding, GeneratorContext, RunContext, TargetValue, VmWorkspace, compile_effects,

@@ -86,21 +86,12 @@ pub(crate) mod tests {
         else {
             panic!("setup projection was blocked");
         };
-        assert_eq!(document.elements_ref.object_key, "outputs_elements");
-        assert_eq!(document.preview_ref.object_key, "outputs_preview");
+        assert_eq!(document.layout_ref.object_key, "outputs_layout");
         assert_eq!(document.patch_ref.object_key, "outputs");
-        assert!(!document.elements.is_empty());
-        assert!(!document.preview_links.is_empty());
-        assert_eq!(
-            document.preview_links[0].definition_ref.path,
-            "fixtures/vertical.fixture.dawn"
-        );
-        assert!(!document.patch_nodes.is_empty());
         assert!(!document.controllers.is_empty());
-        assert_eq!(document.fixture_profiles.len(), 0);
 
         for (reference, view) in [
-            (&document.elements_ref, DocumentViewId::ElementTree),
+            (&document.layout_ref, DocumentViewId::Layout),
             (&document.patch_ref, DocumentViewId::Patch),
             (
                 &document.controllers[0].source_ref,
@@ -118,7 +109,7 @@ pub(crate) mod tests {
             );
             assert!(matches!(
                 (view, projection),
-                (DocumentViewId::ElementTree, GuiDocument::ElementTree { .. })
+                (DocumentViewId::Layout, GuiDocument::Layout { .. })
                     | (DocumentViewId::Patch, GuiDocument::Patch { .. })
                     | (DocumentViewId::Controller, GuiDocument::Controller { .. })
             ));
@@ -144,7 +135,7 @@ pub(crate) mod tests {
         };
         let frame = service.render_current_sequence_frame(&audio).unwrap();
         assert_eq!(frame.audio_generation, 4);
-        assert!(!frame.frame.elements.is_empty());
+        assert!(!frame.frame.fixtures.is_empty());
         assert!(!frame.frame.controller_frames.is_empty());
     }
 

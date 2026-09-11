@@ -46,8 +46,6 @@ pub struct SequenceGuiDocument {
     pub gradient_library: Vec<SequenceGradientLibraryItem>,
     pub layers: Vec<SequenceLayer>,
     pub effects: Vec<SequenceEffect>,
-    pub control_clips: Vec<SequenceControlClip>,
-    pub control_channels: Vec<SequenceControlChannel>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<SequenceAutomationClip>,
 }
@@ -196,7 +194,7 @@ pub struct SequenceEffect {
     pub layer_id: u32,
     pub start_seconds: f32,
     pub duration_seconds: f32,
-    pub target: ElementTarget,
+    pub target: FixtureTarget,
     pub target_label: String,
     pub scope: SequenceEffectScope,
     pub effect: String,
@@ -209,17 +207,6 @@ pub struct SequenceEffect {
 #[serde(rename_all = "camelCase")]
 pub enum SequenceTimelineClipKind {
     Effect,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceControlClip {
-    pub id: u32,
-    pub start_seconds: f32,
-    pub duration_seconds: f32,
-    pub target: SequenceControlTarget,
-    pub target_label: String,
-    pub value: SequenceControlValue,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -428,13 +415,6 @@ pub struct SequenceEffectDefinitionParam {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceGuiEdit {
-    UpsertControlClip {
-        id: Option<u32>,
-        start_seconds: f32,
-        duration_seconds: f32,
-        target: SequenceControlTarget,
-        value: SequenceControlValue,
-    },
     SetDuration {
         duration_seconds: f32,
     },
@@ -442,13 +422,10 @@ pub enum SequenceGuiEdit {
         #[serde(rename = "import")]
         import_path: Option<String>,
     },
-    DeleteControlClip {
-        id: u32,
-    },
     AddEffect {
         initial_color: String,
         effect: SequenceEffectReference,
-        target: ElementTarget,
+        target: FixtureTarget,
         scope: SequenceEffectScope,
         start_seconds: f32,
         mark_collection_key: Option<String>,
@@ -486,7 +463,7 @@ pub enum SequenceGuiEdit {
     MoveEffect {
         id: u32,
         start_seconds: f32,
-        target: Option<ElementTarget>,
+        target: Option<FixtureTarget>,
     },
     ResizeEffect {
         id: u32,
@@ -503,7 +480,7 @@ pub enum SequenceGuiEdit {
     },
     RetargetEffect {
         id: u32,
-        target: ElementTarget,
+        target: FixtureTarget,
     },
     SetEffectScope {
         id: u32,
@@ -636,7 +613,7 @@ pub enum SequenceGuiEdit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceLane {
-    pub target: ElementTarget,
+    pub target: FixtureTarget,
     pub label: String,
 }
 

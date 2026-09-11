@@ -314,11 +314,9 @@ fn canonical_reference_alias(kind: &SourceObjectKind) -> Option<&'static str> {
         SourceObjectKind::Project => Some("projects"),
         SourceObjectKind::Setup => Some("setups"),
         SourceObjectKind::Controller => Some("controllers"),
-        SourceObjectKind::ElementTree => Some("elements"),
-        SourceObjectKind::PreviewLayout => Some("previews"),
+        SourceObjectKind::Layout => Some("layouts"),
         SourceObjectKind::Patch => Some("patches"),
-        SourceObjectKind::PropDefinition => Some("props"),
-        SourceObjectKind::FixtureProfile => Some("fixtures"),
+        SourceObjectKind::FixtureDefinition => Some("fixtures"),
         SourceObjectKind::EffectInstance => None,
     }
 }

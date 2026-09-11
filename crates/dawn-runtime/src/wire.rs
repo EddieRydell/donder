@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DAWN";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 6;
+pub const FORMAT_VERSION: u32 = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -122,9 +122,6 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
 
 fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<(), LoadError> {
     use crate::dsl::{BoundParams, VmWorkspace};
-    use crate::element::{ElementLayout, RenderedElementState};
-    use crate::fixture::{FixtureControlValue, FixtureFunctionId, FixtureState};
-    use crate::patch::{PatchStep, PatchValueLayout};
     use crate::signal::{
         CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
         EffectAutomationWorkspace,
@@ -141,7 +138,7 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         || signal.frame_count == 0
         || plan.output_index >= plan.nodes.len()
         || plan.target as usize >= signal.targets.len()
-        || signal.element_cell_offsets.len() != signal.elements.len()
+        || signal.fixture_pixel_offsets.len() != signal.fixtures.len()
         || signal.layers.len() != signal.effects_by_layer.len()
         || plan.frame_slots.len() != plan.nodes.len()
     {
@@ -239,40 +236,16 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
             .ok_or(LoadError::Limit)?,
     )?;
     reserve(plan.nodes.len(), size_of::<Option<CachedSignal>>())?;
-    reserve(sequence.elements.len(), size_of::<RenderedElementState>())?;
-    reserve(
-        sequence.patch.value_layouts.len(),
-        size_of::<crate::patch::PatchValue>(),
-    )?;
     for &width in &sequence.output_widths {
         reserve(width as usize, 1)?;
     }
-    let cells = |layout: ElementLayout| -> usize {
-        match layout {
-            ElementLayout::Color(n) | ElementLayout::Scalar(n) | ElementLayout::Indexed(n) => {
-                n as usize
-            }
-            ElementLayout::Fixture(_) => 1,
-        }
-    };
-    for &(_, layout) in &sequence.elements {
-        match layout {
-            ElementLayout::Color(n) => reserve(n as usize, size_of::<Color>())?,
-            ElementLayout::Scalar(n) => reserve(n as usize, size_of::<f32>())?,
-            ElementLayout::Indexed(n) => reserve(n as usize, size_of::<u32>())?,
-            ElementLayout::Fixture(n) => reserve(
-                n as usize,
-                size_of::<(FixtureFunctionId, FixtureControlValue)>(),
-            )?,
-        }
-    }
     let mut count = 0usize;
-    for (element, &offset) in signal.elements.iter().zip(&signal.element_cell_offsets) {
+    for (fixture, &offset) in signal.fixtures.iter().zip(&signal.fixture_pixel_offsets) {
         if offset != count {
             return Err(bad);
         }
         count = count
-            .checked_add(element.pixel_count)
+            .checked_add(fixture.pixel_count)
             .ok_or(LoadError::Limit)?;
     }
     if count != signal.pixel_count {
@@ -285,12 +258,12 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
             .ok_or(bad)?;
         let mut previous = None;
         for pixel in pixels {
-            let element = signal
-                .elements
-                .get(pixel.element_index as usize)
+            let fixture = signal
+                .fixtures
+                .get(pixel.fixture_index as usize)
                 .ok_or(bad)?;
-            let address = (pixel.element_index, pixel.element_cell_index);
-            if pixel.element_cell_index as usize >= element.pixel_count
+            let address = (pixel.fixture_index, pixel.fixture_pixel_index);
+            if pixel.fixture_pixel_index as usize >= fixture.pixel_count
                 || pixel.pixel_count == 0
                 || pixel.pixel_index >= pixel.pixel_count
                 || (target.sample_count != 0 && pixel.pixel_index >= target.sample_count)
@@ -470,107 +443,29 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     if plan.frame_slots[plan.output_index] >= plan.frame_buffer_count {
         return Err(bad);
     }
-    for &(element, ref span) in &sequence.color_spans {
-        let &(_, layout) = sequence.elements.get(element as usize).ok_or(bad)?;
-        if !matches!(layout, ElementLayout::Color(_) | ElementLayout::Fixture(_))
-            || span.start > span.end
-            || span.end as usize > signal.pixel_count
-            || (span.end - span.start) as usize != cells(layout)
+    for route in &sequence.patch.routes {
+        if route.pixels.start > route.pixels.end
+            || route.pixels.end as usize > signal.pixel_count
+            || !route.encoding.is_valid()
+            || route
+                .lookup
+                .is_some_and(|index| usize::from(index) >= sequence.patch.lookups.len())
         {
             return Err(bad);
         }
-    }
-    for control in &sequence.controls {
-        for address in &control.addresses {
-            let &(_, layout) = sequence.elements.get(address.element as usize).ok_or(bad)?;
-            if address.cell as usize >= cells(layout) {
-                return Err(bad);
-            }
-        }
-    }
-    for (element, range) in &sequence.fixture_behaviors.bindings {
-        if !matches!(
-            sequence.elements.get(*element as usize),
-            Some((_, ElementLayout::Fixture(_)))
-        ) || sequence
-            .fixture_behaviors
-            .rules
-            .get(range.start as usize..range.end as usize)
-            .is_none()
+        let width = (route.pixels.end - route.pixels.start)
+            .checked_mul(route.encoding.channel_order().len() as u32)
+            .ok_or(LoadError::Limit)?;
+        let end = route
+            .start_slot
+            .checked_add(width)
+            .ok_or(LoadError::Limit)?;
+        if sequence
+            .output_widths
+            .get(route.frame as usize)
+            .is_none_or(|&capacity| end > capacity)
         {
             return Err(bad);
-        }
-    }
-    let patch = &sequence.patch;
-    for layout in &patch.value_layouts {
-        match *layout {
-            PatchValueLayout::Color(n) => reserve(n as usize, size_of::<Color>())?,
-            PatchValueLayout::Scalar(n) | PatchValueLayout::Components(n) => {
-                reserve(n as usize, size_of::<f32>())?
-            }
-            PatchValueLayout::Indexed(n) => reserve(n as usize, size_of::<u32>())?,
-            PatchValueLayout::Slots(n) => reserve(n as usize, size_of::<u8>())?,
-            PatchValueLayout::Fixture { width, functions } => reserve(
-                width as usize,
-                (functions as usize)
-                    .checked_mul(size_of::<(FixtureFunctionId, FixtureControlValue)>())
-                    .and_then(|n| n.checked_add(size_of::<FixtureState>()))
-                    .ok_or(LoadError::Limit)?,
-            )?,
-        }
-    }
-    for step in &patch.steps {
-        match step {
-            PatchStep::Source { output, source } => {
-                if *output as usize >= patch.value_layouts.len() {
-                    return Err(bad);
-                }
-                for span in &source.spans {
-                    let &(_, layout) = sequence.elements.get(span.element as usize).ok_or(bad)?;
-                    if span.cells.start > span.cells.end || span.cells.end as usize > cells(layout)
-                    {
-                        return Err(bad);
-                    }
-                }
-            }
-            PatchStep::Filter {
-                input,
-                output_start,
-                ..
-            }
-            | PatchStep::Fixture {
-                input,
-                output_start,
-                ..
-            } => {
-                if *input == *output_start
-                    || *input as usize >= patch.value_layouts.len()
-                    || *output_start as usize >= patch.value_layouts.len()
-                {
-                    return Err(bad);
-                }
-                if let PatchStep::Fixture { program, .. } = step
-                    && *program as usize >= patch.fixture_programs.len()
-                {
-                    return Err(bad);
-                }
-            }
-            PatchStep::Sink {
-                input,
-                frame,
-                start,
-                end,
-            } => {
-                if *input as usize >= patch.value_layouts.len()
-                    || start > end
-                    || sequence
-                        .output_widths
-                        .get(*frame as usize)
-                        .is_none_or(|width| end > width)
-                {
-                    return Err(bad);
-                }
-            }
         }
     }
     Ok(())

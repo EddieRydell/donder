@@ -6,13 +6,11 @@ use crate::effect::{
     CurveId, CurveSource, EffectDefinitionId, EffectParamValue, EffectRef, GradientId,
     GradientSource,
 };
-use crate::element::{ElementNodeKind, ElementSelection, ElementTreeId};
-use crate::fixture_profile::FixtureProfileId;
+use crate::fixture::FixtureDefinitionId;
 use crate::identity::{DocumentId, SourceIdentity};
+use crate::layout::{FixtureTarget, LayoutFixture, LayoutFixtureKind, LayoutId};
 use crate::model::{DawnProject, ProjectId};
 use crate::operator::{OperatorDefinitionId, OperatorRef};
-use crate::patch::PatchNode;
-use crate::preview::{PreviewLayoutId, PropDefinitionId};
 use crate::sequence::CompositionGraphNodeKind;
 use crate::setup::SetupId;
 
@@ -37,8 +35,7 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
     project.setups = remap_index_map(&project.setups, |id| SetupId(remap_identity(&id.0, remaps)));
     for setup in project.setups.values_mut() {
         setup.id = SetupId(remap_identity(&setup.id.0, remaps));
-        setup.elements = ElementTreeId(remap_identity(&setup.elements.0, remaps));
-        setup.preview = PreviewLayoutId(remap_identity(&setup.preview.0, remaps));
+        setup.layout = LayoutId(remap_identity(&setup.layout.0, remaps));
         setup.patch = crate::patch::PatchId(remap_identity(&setup.patch.0, remaps));
         setup.controllers = setup
             .controllers
@@ -47,27 +44,12 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
             .collect();
     }
 
-    project.element_trees = remap_index_map(&project.element_trees, |id| {
-        ElementTreeId(remap_identity(&id.0, remaps))
+    project.layouts = remap_index_map(&project.layouts, |id| {
+        LayoutId(remap_identity(&id.0, remaps))
     });
-    for tree in project.element_trees.values_mut() {
-        tree.id = ElementTreeId(remap_identity(&tree.id.0, remaps));
-        for node in tree.nodes.values_mut() {
-            if let ElementNodeKind::Fixture { profile } = &mut node.kind {
-                *profile = FixtureProfileId(remap_identity(&profile.0, remaps));
-            }
-        }
-    }
-
-    project.preview_layouts = remap_index_map(&project.preview_layouts, |id| {
-        PreviewLayoutId(remap_identity(&id.0, remaps))
-    });
-    for layout in project.preview_layouts.values_mut() {
-        layout.id = PreviewLayoutId(remap_identity(&layout.id.0, remaps));
-        layout.element_tree = ElementTreeId(remap_identity(&layout.element_tree.0, remaps));
-        for prop in &mut layout.props {
-            prop.definition = PropDefinitionId(remap_identity(&prop.definition.0, remaps));
-        }
+    for layout in project.layouts.values_mut() {
+        layout.id = LayoutId(remap_identity(&layout.id.0, remaps));
+        remap_layout_fixtures(&mut layout.fixtures, remaps);
     }
 
     project.patches = remap_index_map(&project.patches, |id| {
@@ -75,18 +57,10 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
     });
     for patch in project.patches.values_mut() {
         patch.id = crate::patch::PatchId(remap_identity(&patch.id.0, remaps));
-        for node in patch.nodes.values_mut() {
-            if let Some(profile) = node.fixture_profile_mut() {
-                *profile = FixtureProfileId(remap_identity(&profile.0, remaps));
-            }
-            match node {
-                PatchNode::Source(source) => remap_selection(&mut source.selection, remaps),
-                PatchNode::Filter(_) => {}
-                PatchNode::Sink(sink) => {
-                    sink.controller =
-                        crate::controller::ControllerId(remap_identity(&sink.controller.0, remaps));
-                }
-            }
+        for route in &mut patch.routes {
+            remap_target(&mut route.target, remaps);
+            route.controller =
+                crate::controller::ControllerId(remap_identity(&route.controller.0, remaps));
         }
     }
 
@@ -100,7 +74,7 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
     for sequence in project.sequences.values_mut() {
         sequence.id = crate::sequence::SequenceId(remap_identity(&sequence.id.0, remaps));
         for effect in &mut sequence.effects {
-            remap_selection(&mut effect.target, remaps);
+            remap_target(&mut effect.target, remaps);
             remap_effect_ref(&mut effect.definition, remaps);
             for value in effect.param_overrides.values_mut() {
                 remap_param(value, remaps);
@@ -113,9 +87,6 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
                     remap_param(value, remaps);
                 }
             }
-        }
-        for clip in &mut sequence.control_clips {
-            remap_selection(clip.target.selection_mut(), remaps);
         }
     }
 
@@ -132,23 +103,10 @@ pub fn remap_document_paths(project: &mut DawnProject, remaps: &BTreeMap<Documen
         }
     }
 
-    project.definitions.props.definitions =
-        remap_index_map(&project.definitions.props.definitions, |id| {
-            PropDefinitionId(remap_identity(&id.0, remaps))
+    project.definitions.fixtures.definitions =
+        remap_index_map(&project.definitions.fixtures.definitions, |id| {
+            FixtureDefinitionId(remap_identity(&id.0, remaps))
         });
-
-    project.definitions.fixture_profiles.definitions =
-        remap_index_map(&project.definitions.fixture_profiles.definitions, |id| {
-            FixtureProfileId(remap_identity(&id.0, remaps))
-        });
-    for profile in project
-        .definitions
-        .fixture_profiles
-        .definitions
-        .values_mut()
-    {
-        profile.id = FixtureProfileId(remap_identity(&profile.id.0, remaps));
-    }
 
     project.definitions.curves.definitions =
         remap_index_map(&project.definitions.curves.definitions, |id| {
@@ -192,8 +150,22 @@ pub fn remap_identity(
     )
 }
 
-fn remap_selection(selection: &mut ElementSelection, remaps: &BTreeMap<DocumentId, DocumentId>) {
-    selection.tree = ElementTreeId(remap_identity(&selection.tree.0, remaps));
+fn remap_target(target: &mut FixtureTarget, remaps: &BTreeMap<DocumentId, DocumentId>) {
+    target.layout = LayoutId(remap_identity(&target.layout.0, remaps));
+}
+
+fn remap_layout_fixtures(
+    fixtures: &mut [LayoutFixture],
+    remaps: &BTreeMap<DocumentId, DocumentId>,
+) {
+    for fixture in fixtures {
+        match &mut fixture.kind {
+            LayoutFixtureKind::Fixture { definition, .. } => {
+                *definition = FixtureDefinitionId(remap_identity(&definition.0, remaps))
+            }
+            LayoutFixtureKind::Group { children } => remap_layout_fixtures(children, remaps),
+        }
+    }
 }
 
 fn remap_effect_ref(reference: &mut EffectRef, remaps: &BTreeMap<DocumentId, DocumentId>) {

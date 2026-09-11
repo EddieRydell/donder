@@ -149,8 +149,9 @@ impl MarkPulse {
                     .last()
                     .and_then(|s| s.first())
                     .is_some_and(|first| {
-                        first.element_index == pixel.element_index
-                            && first.element_cell_index / width == pixel.element_cell_index / width
+                        first.fixture_index == pixel.fixture_index
+                            && first.fixture_pixel_index / width
+                                == pixel.fixture_pixel_index / width
                     })
                 {
                     if let Some(section) = sections.last_mut() {

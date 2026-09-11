@@ -41,14 +41,10 @@ pub fn project_gui_document(
         DocumentViewId::Project => project_root(session, &resolved),
         DocumentViewId::Sequence => project_sequence(session, &resolved),
         DocumentViewId::Setup => project_setup(session, &resolved),
-        DocumentViewId::ElementTree => super::elements::project_document(session, &resolved),
         DocumentViewId::Controller => super::controller::project_document(session, &resolved),
-        DocumentViewId::FixtureProfile => {
-            super::fixture_profile::project_document(session, &resolved)
-        }
         DocumentViewId::Patch => super::patch::project_document(session, &resolved),
-        DocumentViewId::Preview => project_layout(session, &resolved),
-        DocumentViewId::Prop => project_fixture(session, &resolved),
+        DocumentViewId::Layout => project_layout(session, &resolved),
+        DocumentViewId::Fixture => project_fixture(session, &resolved),
         DocumentViewId::Curve => super::library::project_curve(session, &resolved),
         DocumentViewId::Gradient => super::library::project_gradient(session, &resolved),
         DocumentViewId::Text => blocked(
@@ -61,16 +57,14 @@ pub fn project_gui_document(
         ),
     };
     match &mut gui {
-        GuiDocument::ElementTree { document } => document.path.clone_from(&request.path),
         GuiDocument::Project { document } => document.path.clone_from(&request.path),
         GuiDocument::Setup { document } => document.path.clone_from(&request.path),
         GuiDocument::Sequence { document } => document.path.clone_from(&request.path),
-        GuiDocument::Preview { document } => document.path.clone_from(&request.path),
-        GuiDocument::Prop { document } => document.path.clone_from(&request.path),
+        GuiDocument::Layout { document } => document.path.clone_from(&request.path),
+        GuiDocument::Fixture { document } => document.path.clone_from(&request.path),
         GuiDocument::Curve { document } => document.path.clone_from(&request.path),
         GuiDocument::Gradient { document } => document.path.clone_from(&request.path),
         GuiDocument::Controller { document } => document.path.clone_from(&request.path),
-        GuiDocument::FixtureProfile { document } => document.path.clone_from(&request.path),
         GuiDocument::Patch { document } => document.path.clone_from(&request.path),
         GuiDocument::Blocked { .. } => {}
     }
@@ -86,12 +80,10 @@ pub fn affected_paths(
     if matches!(
         request.view,
         DocumentViewId::Setup
-            | DocumentViewId::ElementTree
-            | DocumentViewId::FixtureProfile
             | DocumentViewId::Patch
             | DocumentViewId::Controller
-            | DocumentViewId::Prop
-            | DocumentViewId::Preview
+            | DocumentViewId::Fixture
+            | DocumentViewId::Layout
     ) {
         return Ok(session
             .source

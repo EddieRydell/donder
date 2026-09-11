@@ -9,40 +9,12 @@ imports:
   as: setups
 main:
   type: patch
-  nodes:
+  routes:
   - id: 1
-    type: source
-    selection:
-      tree: display.elements
-      node: 1
-    output: color
-    width: 1
-  - id: 2
-    type: filter
-    filter: color_breakdown
-    capability:
-      type: rgb
-    cell_count: 1
-  - id: 3
-    type: filter
-    filter: quantize_8
-    width: 3
-  - id: 4
-    type: sink
+    target: { layout: display.main, fixture: 1 }
     controller: setups.output_controller
     port: 1
     start_slot: 0
-    slot_count: 3
-  edges:
-  - from: 1
-    from_port: 0
-    to: 2
-    to_port: 0
-  - from: 2
-    from_port: 0
-    to: 3
-    to_port: 0
-  - from: 3
-    from_port: 0
-    to: 4
-    to_port: 0
+    encoding: { type: rgb, order: [0, 1, 2] }
+    gamma: 1.0
+    brightness: 1.0

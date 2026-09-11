@@ -12,13 +12,10 @@ use crate::dto::{
 };
 
 mod controller;
-mod controls;
 mod dispatch;
 mod document;
 mod edit;
-mod elements;
 mod fixture;
-mod fixture_profile;
 mod layout;
 mod library;
 pub(crate) mod model;

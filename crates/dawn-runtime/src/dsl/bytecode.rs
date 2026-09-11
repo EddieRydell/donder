@@ -7,7 +7,7 @@ pub type ParamId = usize;
 pub type Target = usize;
 
 /// Coordinate domain of a signal query. Global indices use the prepared rig's
-/// full color-pixel order; local indices stay within the current element.
+/// full color-pixel order; local indices stay within the current fixture.
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
@@ -560,8 +560,8 @@ pub enum Instruction {
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 pub enum TargetMember {
-    ElementIndex,
-    ElementCellIndex,
+    FixtureIndex,
+    FixturePixelIndex,
     PixelIndex,
     PixelCount,
     PixelFraction,
