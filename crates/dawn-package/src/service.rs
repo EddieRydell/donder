@@ -536,7 +536,7 @@ mod tests {
         PackageManifest {
             manifest_version: crate::MANIFEST_VERSION,
             module_id,
-            language_version: "0.1".to_string(),
+            language_version: crate::LANGUAGE_VERSION.to_string(),
             project: Some(ProjectManifest {
                 entrypoint: "project.dawn".to_string(),
             }),

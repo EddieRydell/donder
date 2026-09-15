@@ -309,10 +309,10 @@ pub(crate) fn deserialize_yaml<T: serde::de::DeserializeOwned>(
                 match segment {
                     serde_path_to_error::Segment::Map { key }
                     | serde_path_to_error::Segment::Enum { variant: key } => {
-                        field_path.push(crate::YamlPathSegment::Key(key.clone()));
+                        field_path.push(YamlPathSegment::Key(key.clone()));
                     }
                     serde_path_to_error::Segment::Seq { index } => {
-                        field_path.push(crate::YamlPathSegment::Index(*index));
+                        field_path.push(YamlPathSegment::Index(*index));
                     }
                     serde_path_to_error::Segment::Unknown => {}
                 }
@@ -389,12 +389,216 @@ pub(crate) fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
         character: text[line_start..clamped].chars().count() as u32,
     }
 }
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use dawn_language::dsl::{Diagnostic as DslDiagnostic, compile_effect_document, compile_operators};
+use indexmap::{IndexMap, IndexSet};
 use marked_yaml::{LoadError as MarkedYamlError, Marker, Node};
+use std::cell::RefCell;
 use yaml_serde::Value;
 
-use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, TextPosition,
-    TextRange, YAML_SOURCE_INDICES, YamlSourceIndex,
-};
+use crate::{LoadProjectError, ProjectRecovery, ProjectSession};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProjectCheckReport {
+    pub session: Option<ProjectSession>,
+    pub recovery: ProjectRecovery,
+    pub diagnostics: Vec<IoDiagnostic>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct IoDiagnostic {
+    pub path: Utf8PathBuf,
+    pub range: Option<TextRange>,
+    pub severity: IoDiagnosticSeverity,
+    pub code: IoDiagnosticCode,
+    pub message: String,
+    pub detail: Option<String>,
+    pub related: Vec<IoRelatedLocation>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct IoRelatedLocation {
+    pub path: Utf8PathBuf,
+    pub range: Option<TextRange>,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum IoDiagnosticSeverity {
+    Error,
+    Warning,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum IoDiagnosticCode {
+    DawnLoad,
+    DawnReference,
+    EffectCompile,
+    OperatorCompile,
+    IoRead,
+    ManifestField,
+    ManifestSyntax,
+    LockField,
+    LockSyntax,
+    SequenceField,
+    SequenceItem,
+    YamlParse,
+}
+
+impl IoDiagnosticCode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::DawnLoad => "dawn.load",
+            Self::DawnReference => "dawn.reference",
+            Self::EffectCompile => "effect.compile",
+            Self::OperatorCompile => "operator.compile",
+            Self::IoRead => "io.read",
+            Self::ManifestField => "manifest.field",
+            Self::ManifestSyntax => "manifest.syntax",
+            Self::LockField => "lock.field",
+            Self::LockSyntax => "lock.syntax",
+            Self::SequenceField => "sequence.field",
+            Self::SequenceItem => "sequence.item",
+            Self::YamlParse => "yaml.parse",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct TextRange {
+    pub start: TextPosition,
+    pub end: TextPosition,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct TextPosition {
+    pub line: u32,
+    pub character: u32,
+}
+
+thread_local! {
+    static YAML_SOURCE_INDICES: RefCell<IndexMap<Utf8PathBuf, YamlSourceIndex>> = RefCell::new(IndexMap::new());
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+enum YamlPathSegment {
+    Key(String),
+    Index(usize),
+}
+
+#[derive(Clone, Debug, Default)]
+struct YamlSourceIndex {
+    entries: Vec<YamlSourceEntry>,
+    value_bindings: IndexMap<usize, Vec<YamlPathSegment>>,
+    claimed_value_paths: IndexSet<Vec<YamlPathSegment>>,
+    scalar_bindings: IndexMap<usize, Vec<YamlPathSegment>>,
+    claimed_scalar_paths: IndexSet<Vec<YamlPathSegment>>,
+}
+
+#[derive(Clone, Debug)]
+struct YamlSourceEntry {
+    path: Vec<YamlPathSegment>,
+    value: Value,
+    range: Option<TextRange>,
+}
+
+impl YamlSourceIndex {
+    fn from_value_and_node(value: &Value, node: &Node) -> Self {
+        let mut index = Self::default();
+        let mut path = Vec::new();
+        index.push(value, node, &mut path);
+        index
+    }
+
+    fn push(&mut self, value: &Value, node: &Node, path: &mut Vec<YamlPathSegment>) {
+        self.entries.push(YamlSourceEntry {
+            path: path.clone(),
+            value: value.clone(),
+            range: node_range(node),
+        });
+
+        match (value, node) {
+            (Value::Mapping(mapping), Node::Mapping(marked_mapping)) => {
+                for (key, child_value) in mapping {
+                    let Some(key) = key.as_str() else {
+                        continue;
+                    };
+                    let Some(child_node) = marked_mapping.get_node(key) else {
+                        continue;
+                    };
+                    path.push(YamlPathSegment::Key(key.to_string()));
+                    self.push(child_value, child_node, path);
+                    let _ = path.pop();
+                }
+            }
+            (Value::Sequence(sequence), Node::Sequence(marked_sequence)) => {
+                for (index, child_value) in sequence.iter().enumerate() {
+                    let Some(child_node) = marked_sequence.get_node(index) else {
+                        continue;
+                    };
+                    path.push(YamlPathSegment::Index(index));
+                    self.push(child_value, child_node, path);
+                    let _ = path.pop();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn bound_value_path(&mut self, value: &Value) -> Option<Vec<YamlPathSegment>> {
+        let pointer = std::ptr::from_ref(value).addr();
+        if let Some(path) = self.value_bindings.get(&pointer) {
+            return Some(path.clone());
+        }
+        let path = self
+            .entries
+            .iter()
+            .filter(|entry| &entry.value == value)
+            .map(|entry| &entry.path)
+            .find(|path| !self.claimed_value_paths.contains(*path))?
+            .clone();
+        self.claimed_value_paths.insert(path.clone());
+        self.value_bindings.insert(pointer, path.clone());
+        Some(path)
+    }
+
+    fn range_for_value(&mut self, value: &Value) -> Option<TextRange> {
+        let path = self.bound_value_path(value)?;
+        self.entries
+            .iter()
+            .find(|entry| entry.path == path)
+            .and_then(|entry| entry.range.clone())
+    }
+
+    fn range_for_field_value(&mut self, parent: &Value, key: &str) -> Option<TextRange> {
+        let parent_path = self.bound_value_path(parent)?;
+        let mut field_path = parent_path;
+        field_path.push(YamlPathSegment::Key(key.to_string()));
+        self.entries
+            .iter()
+            .find(|entry| entry.path == field_path)
+            .and_then(|entry| entry.range.clone())
+    }
+
+    fn range_for_scalar(&mut self, value: &str) -> Option<TextRange> {
+        let pointer = value.as_ptr().addr();
+        let path = if let Some(path) = self.scalar_bindings.get(&pointer) {
+            path.clone()
+        } else {
+            let path = self
+                .entries
+                .iter()
+                .filter(|entry| entry.value.as_str() == Some(value))
+                .map(|entry| &entry.path)
+                .find(|path| !self.claimed_scalar_paths.contains(*path))?
+                .clone();
+            self.claimed_scalar_paths.insert(path.clone());
+            self.scalar_bindings.insert(pointer, path.clone());
+            path
+        };
+        self.entries
+            .iter()
+            .find(|entry| entry.path == path)
+            .and_then(|entry| entry.range.clone())
+    }
+}

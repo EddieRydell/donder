@@ -7,7 +7,7 @@ import { createServer } from "vite";
 const server = await createServer({
   configFile: false,
   root: fileURLToPath(new URL("..", import.meta.url)),
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, ws: false },
   optimizeDeps: { noDiscovery: true }
 });
 after(() => server.close());

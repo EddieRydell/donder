@@ -677,9 +677,10 @@ button:focus-visible,
   align-items: center;
   box-sizing: border-box;
   height: 100%;
-  gap: var(--dawn-space-5);
-  padding-right: var(--dawn-space-6);
-  color: var(--dawn-text-secondary);
+  gap: var(--dawn-space-3);
+  padding-right: var(--dawn-space-4);
+  color: var(--dawn-text);
+  outline: none;
   font-size: var(--dawn-font-size-lg);
 }
 
@@ -704,7 +705,7 @@ button:focus-visible,
 }
 
 .tree-row.selected {
-  background: var(--dawn-accent-bg);
+  background: var(--dawn-surface-accent-selected);
   color: var(--dawn-white);
 }
 
@@ -3748,17 +3749,6 @@ button:focus-visible,
   height: 100%;
   min-width: 0;
   min-height: 0;
-}
-
-.tree-row {
-  gap: var(--dawn-space-3);
-  padding-right: var(--dawn-space-4);
-  color: var(--dawn-text);
-  outline: none;
-}
-
-.tree-row.selected {
-  background: var(--dawn-surface-accent-selected);
 }
 
 .tree-row.role-project,

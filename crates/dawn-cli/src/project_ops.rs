@@ -55,7 +55,7 @@ pub(crate) fn new_project(destination: &Utf8Path, package_spec: &str) -> Result<
     let resolver_manifest = PackageManifest {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
-        language_version: "0.1".to_string(),
+        language_version: dawn_package::LANGUAGE_VERSION.to_string(),
         project: None,
         publication: None,
         exports: BTreeMap::from([(
@@ -203,7 +203,7 @@ mod tests {
         PackageManifest {
             manifest_version: dawn_package::MANIFEST_VERSION,
             module_id: original_module_id,
-            language_version: "0.1".to_string(),
+            language_version: dawn_package::LANGUAGE_VERSION.to_string(),
             project: Some(ProjectManifest {
                 entrypoint: "project.dawn".to_string(),
             }),

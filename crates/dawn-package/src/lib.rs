@@ -2231,7 +2231,7 @@ mod tests {
         PackageManifest {
             manifest_version: MANIFEST_VERSION,
             module_id: Uuid::new_v4(),
-            language_version: "0.1".to_string(),
+            language_version: LANGUAGE_VERSION.to_string(),
             project: Some(ProjectManifest {
                 entrypoint: "main.dawn".to_string(),
             }),

@@ -15,7 +15,7 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
     let manifest = PackageManifest {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
-        language_version: "0.1".to_string(),
+        language_version: dawn_package::LANGUAGE_VERSION.to_string(),
         project: Some(ProjectManifest {
             entrypoint: "project.dawn".to_string(),
         }),

@@ -24,8 +24,6 @@ import { sameGuiDocument } from "../snapshotState";
 import { resolveDocumentSyncFailure } from "../store";
 import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
 
-type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
-type EditorBufferWithExternalState = NonNullable<AppSnapshot["activeBuffer"]>;
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
 const sequenceAudioSync = new SequenceAudioSync(async (request) => {
@@ -72,7 +70,7 @@ export function EditorPane({
   const activeSyntax = activeBuffer?.syntax ?? "yaml";
   const activeTabPath = activeBuffer?.path ?? snapshot.activeFile;
   const viewMode = effectiveEditorViewMode(snapshot);
-  const activeExternalState = activeBufferExternalState(activeBuffer);
+  const activeExternalState = activeBuffer?.externalState ?? "current";
   const activeConflicted = activeExternalState !== "current";
   const activeReadOnly = activeBuffer?.readOnly ?? false;
   const nextGuiPath = activeGuiRequest?.path ?? null;
@@ -299,7 +297,7 @@ export function EditorPane({
           >
             <span>{tab.name}</span>
             {tab.dirty && <span className="dirty-dot" />}
-            {tabExternalState(tab) !== "current" && <span className="conflict-dot" />}
+            {tab.externalState !== "current" && <span className="conflict-dot" />}
             <X
               className="tab-close"
               size={THEME_METRICS.iconSizeSmall}
@@ -606,14 +604,6 @@ function readEditorViewState(view: EditorView): PersistedEditorViewState {
     cursorHead: selection.head,
     scrollTop: view.scrollDOM.scrollTop
   };
-}
-
-function activeBufferExternalState(buffer: EditorBufferWithExternalState | null): BufferExternalState {
-  return buffer?.externalState ?? "current";
-}
-
-function tabExternalState(tab: AppSnapshot["tabs"][number]): BufferExternalState {
-  return tab.externalState;
 }
 
 function createState(

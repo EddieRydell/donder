@@ -21,7 +21,7 @@ fn compiler_rejection_prevents_registry_artifact_acceptance() {
     let manifest = PackageManifest {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id,
-        language_version: "0.1".to_string(),
+        language_version: dawn_package::LANGUAGE_VERSION.to_string(),
         project: None,
         publication: Some(Publication {
             package: package.clone(),

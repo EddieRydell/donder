@@ -12,6 +12,10 @@ state is then shared with history, persistence, rendering, and waveform work.
   validation.
 - `dawn-project-io` owns source documents, imports, linking, diagnostics,
   serialization, and package/project loading.
+  Its public facade reexports package loading/checking from `package_loading.rs`,
+  release planning/validation from `package_artifact.rs`, project edits and
+  save/export from `project_edit.rs`, and diagnostics/source indexing from
+  `diagnostics.rs`. YAML serialization stays in `serialization/`.
 - `dawn-elaboration` expands generators, resolves targets, and prepares the
   portable runtime representation.
 - `dawn-runtime` evaluates prepared sequences. It does not resolve source names,
