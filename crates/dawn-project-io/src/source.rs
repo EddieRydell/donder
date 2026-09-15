@@ -9,6 +9,29 @@ use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 use yaml_serde::Value;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SourceDocumentFormat {
+    Dawn,
+    Effect,
+    Operator,
+    Other,
+}
+
+pub fn source_document_format(path: &Utf8Path) -> SourceDocumentFormat {
+    let Some(file_name) = path.file_name() else {
+        return SourceDocumentFormat::Other;
+    };
+    if file_name.ends_with(".effect.dawn") {
+        SourceDocumentFormat::Effect
+    } else if file_name.ends_with(".operator.dawn") {
+        SourceDocumentFormat::Operator
+    } else if file_name.ends_with(".dawn") {
+        SourceDocumentFormat::Dawn
+    } else {
+        SourceDocumentFormat::Other
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectSession {
     pub project: DawnProject,

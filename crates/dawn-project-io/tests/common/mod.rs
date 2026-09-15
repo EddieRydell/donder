@@ -4,7 +4,6 @@ use camino::Utf8Path;
 use dawn_package::{
     AssetDeclaration, AssetKind, ExportGroup, Lockfile, PackageManifest, ProjectManifest,
 };
-use semver::VersionReq;
 use uuid::Uuid;
 
 pub fn write_project_package(root: &Utf8Path) {
@@ -14,7 +13,6 @@ pub fn write_project_package(root: &Utf8Path) {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
         language_version: "0.1".to_string(),
-        requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").unwrap(),
         project: Some(ProjectManifest {
             entrypoint: "project.dawn".to_string(),
         }),

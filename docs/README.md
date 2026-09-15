@@ -1,21 +1,22 @@
-# Documentation map
+# Documentation
 
-## Current references
-
-- [First-class authoring](first_class_authoring.md): active implementation scope,
-  completed increments, and remaining new-user workflows.
-- [Execution audit](execution_audit_2026-09-06.md): current runtime boundaries,
-  validation, known performance limits, and accepted ESP32 evidence.
-- [ESP32 loading](esp32_loading.md): archive format, Wi-Fi loading, memory limits,
+- [Create your first LED show](first_show.md): the shortest maintained user path.
+- [Fixture authoring](fixture_authoring.md): pixel definitions, instances, layout,
+  routing, and ownership.
+- [Authoring architecture](first_class_authoring.md): current subsystem boundaries
+  and edit/playback ownership.
+- [Sequence as Code](sequence_as_code.md): authored DSL and semantic preservation
+  contract.
+- [File persistence](file_persistence.md): save behavior and failure boundaries.
+- [Output selection](output_selection.md): controller-specific elaboration.
+- [ESP32 loading](esp32_loading.md): archive transport, admission limits, Wi-Fi,
   and I2S output.
-- [Output selection](output_selection.md): producing controller-specific prepared
-  sequence fragments.
-- [Sequence-as-code contract](sequence_as_code.md): authored sequence semantics.
-- [Regression tracking](regression_tracking.md): checks and Criterion workflow.
+- [Performance and hardware evidence](performance.md): accepted evidence,
+  measurement boundaries, and retention policy.
+- [Regression tracking](regression_tracking.md): required checks and Criterion
+  workflows.
 
-## Historical records
-
-`esp32_profiling.md`, `effect_vm_performance.md`, and the dated
-`runtime_optimization*` documents are retained as investigation records. Their
-measurements and old names describe the image that produced them, not necessarily
-the current runtime. Use the execution audit for current claims.
+These pages describe current behavior and durable contracts. Dated plans,
+completion journals, failed captures, and superseded benchmark narratives do not
+belong in this directory; durable conclusions should be folded into the owning
+reference and the working artifact removed.

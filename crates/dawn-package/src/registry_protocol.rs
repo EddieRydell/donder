@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use semver::{Version, VersionReq};
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,9 +8,8 @@ pub const REGISTRY_PROTOCOL_VERSION: u8 = 1;
 
 use super::{
     Dependency, LANGUAGE_VERSION, MAX_ARCHIVE_BYTES, MAX_EXPANDED_BYTES, MAX_FILES, PackageError,
-    PackageId, ReleaseExportGroup, current_dawn_version, is_bounded_version_requirement,
-    require_dawn_document, valid_alias, valid_language_version, valid_object_name,
-    validate_relative_path, validate_sha256,
+    PackageId, ReleaseExportGroup, require_dawn_document, valid_alias, valid_language_version,
+    valid_object_name, validate_relative_path, validate_sha256,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -51,7 +50,6 @@ pub struct RegistryReleaseMetadata {
     pub version: Version,
     pub module_id: Uuid,
     pub language_version: String,
-    pub requires_dawn: VersionReq,
     pub archive_sha256: String,
     pub size_bytes: u64,
     pub expanded_size: u64,
@@ -73,12 +71,6 @@ impl RegistryReleaseMetadata {
         if !valid_language_version(&self.language_version) {
             return Err(PackageError::Invalid(format!(
                 "registry release `{}` has an invalid languageVersion",
-                self.version
-            )));
-        }
-        if !is_bounded_version_requirement(&self.requires_dawn) {
-            return Err(PackageError::Invalid(format!(
-                "registry release `{}` has an unbounded requiresDawn range",
                 self.version
             )));
         }
@@ -153,9 +145,8 @@ impl RegistryReleaseMetadata {
         Ok(())
     }
 
-    pub fn is_runtime_compatible(&self) -> Result<bool, PackageError> {
-        Ok(self.language_version == LANGUAGE_VERSION
-            && self.requires_dawn.matches(&current_dawn_version()?))
+    pub fn is_runtime_compatible(&self) -> bool {
+        self.language_version == LANGUAGE_VERSION
     }
 }
 

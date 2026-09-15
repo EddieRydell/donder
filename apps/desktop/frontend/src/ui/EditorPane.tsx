@@ -69,6 +69,7 @@ export function EditorPane({
   const restoredEditorPath = useRef<string | null>(null);
   const activeBuffer = snapshot.activeBuffer;
   const activePath = activeBuffer?.path ?? null;
+  const activeSyntax = activeBuffer?.syntax ?? "yaml";
   const activeTabPath = activeBuffer?.path ?? snapshot.activeFile;
   const viewMode = effectiveEditorViewMode(snapshot);
   const activeExternalState = activeBufferExternalState(activeBuffer);
@@ -194,7 +195,7 @@ export function EditorPane({
       parent: editorHost.current,
       state: createState(
         latestLocalText.current,
-        activePath,
+        activeSyntax,
         activeConflicted || activeReadOnly,
         (update) => {
           if (update.docChanged || update.viewportChanged || update.geometryChanged) {
@@ -232,7 +233,7 @@ export function EditorPane({
         setEditorView(null);
       });
     };
-  }, [activeConflicted, activeReadOnly, activePath, setLocalText, viewMode]);
+  }, [activeConflicted, activeReadOnly, activePath, activeSyntax, setLocalText, viewMode]);
 
   useEffect(() => {
     if (!view.current || viewMode !== "text" || activePath === null) return;
@@ -617,14 +618,14 @@ function tabExternalState(tab: AppSnapshot["tabs"][number]): BufferExternalState
 
 function createState(
   text: string,
-  path: string | null,
+  syntax: AppSnapshot["tabs"][number]["syntax"],
   readOnly: boolean,
   onUpdate: (update: ViewUpdate) => void
 ) {
   return EditorState.create({
     doc: text,
     extensions: [
-      languageForPath(path),
+      languageForSyntax(syntax),
       history(),
       syntaxHighlighting(dawnHighlightStyle),
       EditorState.readOnly.of(readOnly),
@@ -802,14 +803,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function languageForPath(path: string | null): Extension {
-  if (
-    path !== null &&
-    (path.endsWith(".effect.dawn") || path.endsWith(".operator.dawn"))
-  ) {
-    return cpp();
-  }
-  return yaml();
+function languageForSyntax(syntax: AppSnapshot["tabs"][number]["syntax"]): Extension {
+  return syntax === "effectDsl" ? cpp() : yaml();
 }
 
 const dawnHighlightStyle = HighlightStyle.define([

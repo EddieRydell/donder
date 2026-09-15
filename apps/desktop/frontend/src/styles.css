@@ -92,7 +92,6 @@
   --dawn-raster-warning-overlay: rgb(17 18 20 / 72%);
   --dawn-empty-gradient: #17181b;
   --dawn-text-secondary: #d8d2c9;
-  --dawn-project-file-default: var(--dawn-text-secondary);
   --dawn-project-file-project: var(--dawn-text-strong);
   --dawn-project-file-setup: var(--dawn-mark-yellow);
   --dawn-project-file-layout: var(--dawn-graph-blue);
@@ -211,11 +210,9 @@
   --dawn-font-size-xl: 14px;
   --dawn-font-size-dialog: 16px;
   --dawn-font-size-graph-heading: 15px;
-  --dawn-font-weight-regular: 400;
   --dawn-font-weight-medium: 500;
   --dawn-font-weight-semibold: 600;
   --dawn-font-weight-bold: 700;
-  --dawn-line-height-tight: 1.2;
   --dawn-line-height-normal: 1.35;
   --dawn-line-height-relaxed: 1.4;
   --dawn-letter-spacing-label: 0.08em;
@@ -264,7 +261,6 @@
   --dawn-activity-icon-size: 22px;
   --dawn-activity-badge-size: 16px;
   --dawn-sidebar-heading-height: 35px;
-  --dawn-sidebar-section-max-height: 180px;
   --dawn-command-dialog-width: 620px;
   --dawn-command-dialog-max-height: 440px;
   --dawn-search-preview-max-lines: 2;
@@ -282,7 +278,6 @@
   --dawn-project-panel-max-width: 520px;
   --dawn-inspector-min-width: 240px;
   --dawn-inspector-max-width: 560px;
-  --dawn-dialog-max-width: 520px;
   --dawn-path-refactor-max-width: 680px;
   --dawn-tooltip-delay-ms: 400;
   --dawn-search-debounce-ms: 220;
@@ -306,7 +301,6 @@
   --dawn-border-width-strong: 2px;
   --dawn-border-width-accent: 3px;
   --dawn-radius-sm: 3px;
-  --dawn-radius-xs: 2px;
   --dawn-radius-zero: 0;
   --dawn-radius-md: 4px;
   --dawn-radius-lg: 5px;
@@ -314,8 +308,6 @@
   --dawn-radius-dialog: 8px;
   --dawn-radius-pill: 999px;
   --dawn-radius-circle: 50%;
-  --dawn-focus-ring-width: 1px;
-  --dawn-focus-ring-offset: 2px;
 
   /* elevation and layering */
   --dawn-shadow-tooltip: 0 10px 26px var(--dawn-alpha-black-38);
@@ -344,8 +336,6 @@
   --dawn-z-sequence-transport: 1;
 
   /* motion and opacity */
-  --dawn-duration-fast: 120ms;
-  --dawn-duration-normal: 180ms;
   --dawn-ease-standard: ease;
   --dawn-opacity-disabled: 0.45;
   --dawn-opacity-disabled-strong: 0.58;
@@ -358,16 +348,8 @@
 
   /* data visualization */
   --dawn-canvas-padding: 42px;
-  --dawn-canvas-grid-width: 1px;
-  --dawn-canvas-selection-width: 2px;
-  --dawn-canvas-point-radius: 6px;
-  --dawn-canvas-handle-size: 10px;
-  --dawn-waveform-height: 28px;
-  --dawn-playhead-width: 2px;
 
   /* responsive and accessibility */
-  --dawn-breakpoint-settings-stack: 700px;
-  --dawn-hit-target-min-size: 28px;
   --dawn-palette-picker-width: 258px;
   --dawn-palette-picker-height: 348px;
   --dawn-popover-offset: 8px;
@@ -707,11 +689,6 @@ button:focus-visible,
   justify-content: center;
   width: var(--dawn-icon-size-xs);
   flex: 0 0 var(--dawn-icon-size-xs);
-}
-
-.tree-row:hover {
-  background: var(--dawn-hover);
-  color: var(--dawn-text-strong);
 }
 
 .tree-row span {
@@ -3778,10 +3755,6 @@ button:focus-visible,
   padding-right: var(--dawn-space-4);
   color: var(--dawn-text);
   outline: none;
-}
-
-.tree-row:hover {
-  background: var(--dawn-hover);
 }
 
 .tree-row.selected {

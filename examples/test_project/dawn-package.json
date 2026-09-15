@@ -1,1 +1,0 @@
-{"manifestVersion":2,"moduleId":"a807aeb9-09ad-4c8c-9248-0822adb0aa2e","languageVersion":"0.1","requiresDawn":">=0.1.0, <1.0.0","project":{"entrypoint":"project.dawn"},"publication":null,"exports":{"project":{"documents":["project.dawn"]}},"dependencies":{},"assets":{"audio/Babokon - All We Are.mp3":{"kind":"audio"}}}

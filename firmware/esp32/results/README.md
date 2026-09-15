@@ -1,28 +1,25 @@
-# ESP32 evidence index
+# ESP32 evidence
 
-Result files are committed evidence, not build output. A capture is accepted only
-when its collector completed, checksums matched, and the report says so. Never
-repair a corrupt serial capture by dropping bytes.
+This directory retains only reviewed evidence that supports a documented claim.
+Ordinary serial logs, failed runs, profiling captures, generated archives, and
+checksum sidecars are ignored and should remain under `target` or another ignored
+working directory.
 
-## Current accepted evidence
+The `accepted` directory contains the September 6, 2026 baseline:
 
-- `2026-09-06-audit-i2s-verified.txt`: final loader image; Wi-Fi upload checks,
-  200 frame CRC checks, and 13,080 I2S playback frames with no missed deadline.
-- `2026-09-06-audit-final-*.txt`: six final-image, controller-shaped Wi-Fi
-  fixtures. All 576 requested frame CRCs matched with zero evaluation allocations.
+- `2026-09-06-audit-i2s-verified.txt` records authenticated upload rejection
+  checks, 200 matching frame checksums, and 13,080 continuous I2S playback frames
+  with no missed deadline.
+- The six `2026-09-06-audit-final-*.txt` files record controller-shaped fixture
+  checks. Together they verify 576 requested frames with zero evaluation
+  allocations.
 
-## Qualified and historical evidence
+Each capture identifies the firmware image and payload it measured. These files
+do not prove the behavior or performance of later source. See
+[`docs/performance.md`](../../../docs/performance.md) for the qualified summary
+and measurement boundaries.
 
-- `2026-09-06-audit-pc-drained.txt`: accepted PC profile from an intermediate
-  image; it predates final mark broadcast and hue changes.
-- `2026-09-06-audit-i2s-retry.txt` and `2026-09-06-audit-wifi-mark-*.txt`:
-  diagnostic runs superseded by the final verified loader capture.
-- Dated 2026-09-04 and 2026-09-05 files record earlier optimization work. They
-  remain useful for provenance but are not current performance claims.
-
-## Failed attempts
-
-`2026-09-06-audit-i2s.txt` is incomplete: it timed out while checking a malformed
-body. `2026-09-06-audit-pc*.txt` files other than `audit-pc-drained.txt` failed
-strict serial validation. They are retained to document the limitation, not to
-support timing or profile claims.
+Promote a new capture only after the collector completes and every requested
+hash/checksum check succeeds. Keep the smallest evidence needed for the claim,
+replace superseded captures, and update the summary. Never make a malformed
+capture appear valid by dropping or rewriting bytes.

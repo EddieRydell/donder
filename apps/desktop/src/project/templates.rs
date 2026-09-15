@@ -3,7 +3,6 @@ use std::fs;
 
 use camino::Utf8Path;
 use dawn_package::{ExportGroup, Lockfile, PackageManifest, ProjectManifest, canonical_json};
-use semver::VersionReq;
 use uuid::Uuid;
 
 pub(crate) struct ProjectBoilerplateFile {
@@ -17,7 +16,6 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
         language_version: "0.1".to_string(),
-        requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").map_err(|error| error.to_string())?,
         project: Some(ProjectManifest {
             entrypoint: "project.dawn".to_string(),
         }),

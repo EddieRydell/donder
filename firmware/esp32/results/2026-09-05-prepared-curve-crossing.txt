@@ -1,3 +1,0 @@
-elf_sha256=0879cad0b3aee03f35cfb0f84849b6b427b15dc3cd09a5597560b0c88bd44b7f
-payload_bytes=25025 payload_sha256=ae25427c2b468c8f36df094df5be611f128db78f6e616a0ec762665105d1fdc9 transport=http
-WIFI READY 192.168.169.176 80 i2s=gpio13,18,21,25 heap_free=117268

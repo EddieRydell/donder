@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # Rust build output
 target/
@@ -11,9 +12,21 @@ dist/
 *.log
 chrome-*.txt
 
+# Test coverage and profiler output
+coverage/
+.nyc_output/
+*.lcov
+*.profraw
+*.profdata
+*.cpuprofile
+*.heapprofile
+
 # Python bytecode
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # OS files
 .DS_Store
@@ -21,7 +34,23 @@ Thumbs.db
 
 # Local editor/project state
 .idea/
+.vscode/
+.codex/
+.agents/
+.eslintcache
 
 # Local environment files
 .env
 .env.*
+
+# Temporary and interrupted-edit files
+*.tmp
+*.bak
+*.orig
+*~
+
+# ESP32 captures are working data. Promote only reviewed evidence under accepted/.
+firmware/esp32/results/*
+!firmware/esp32/results/README.md
+!firmware/esp32/results/accepted/
+!firmware/esp32/results/accepted/**

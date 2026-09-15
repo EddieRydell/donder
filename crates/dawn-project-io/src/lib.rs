@@ -51,8 +51,8 @@ pub use path_refactor::{
 };
 pub use source::{
     ExportReport, ImportEdge, ImportSource, ProjectSession, ReferencedAsset, SaveReport,
-    SourceDocument, SourceDocumentKind, SourceObjectId, SourceObjectKind, SourceOwnership,
-    SourceProject, source_file_list,
+    SourceDocument, SourceDocumentFormat, SourceDocumentKind, SourceObjectId, SourceObjectKind,
+    SourceOwnership, SourceProject, source_document_format, source_file_list,
 };
 pub use source_copy::export_editable_project;
 
@@ -166,8 +166,12 @@ pub fn compile_package_with_cache(
     lockfile: dawn_package::Lockfile,
     cache: &dawn_package::CacheStore,
 ) -> Result<CompiledPackage, PackageLoadError> {
-    let source_graph =
-        dawn_package::ResolvedSourceGraph::from_lock(root, manifest.clone(), &lockfile, cache)?;
+    let source_graph = dawn_package::ResolvedSourceGraph::from_lock(
+        root,
+        manifest.clone(),
+        &lockfile,
+        Some(cache),
+    )?;
     let graph = compile_source_graph(source_graph)?;
     Ok(CompiledPackage {
         manifest,
@@ -763,12 +767,12 @@ fn analyze_package_overrides(
     let compiled = if package_files_valid {
         match (manifest.as_ref(), lockfile.as_ref()) {
             (Some(manifest), Some(lockfile)) => {
-                match package_cache_for_lock(root, lockfile).and_then(|cache| {
+                match package_cache_for_lock(lockfile).and_then(|cache| {
                     dawn_package::ResolvedSourceGraph::from_lock(
                         root,
                         manifest.clone(),
                         lockfile,
-                        &cache,
+                        cache.as_ref(),
                     )
                 }) {
                     Ok(source_graph) => compile_for_analysis(
@@ -819,68 +823,59 @@ pub fn check_package_with_cache(
     cache: &dawn_package::CacheStore,
 ) -> ProjectCheckReport {
     let recovery_manifest = manifest.clone();
-    let source_graph =
-        match dawn_package::ResolvedSourceGraph::from_lock(root, manifest, &lockfile, cache) {
-            Ok(source_graph) => source_graph,
-            Err(error) => {
-                let mut diagnostics = Vec::new();
-                let recovery = analysis::analyze_project_documents(
-                    root,
-                    Some(recovery_manifest),
-                    &SourceOverrides::new(),
-                    &IndexSet::new(),
-                    &mut diagnostics,
-                );
-                diagnostics.push(IoDiagnostic {
-                    path: Utf8PathBuf::from(dawn_package::LOCK_FILE),
-                    range: None,
-                    severity: IoDiagnosticSeverity::Error,
-                    code: IoDiagnosticCode::LockField,
-                    message: error.to_string(),
-                    detail: None,
-                    related: Vec::new(),
-                });
-                analysis::sort_diagnostics(&mut diagnostics);
-                return ProjectCheckReport {
-                    session: None,
-                    recovery,
-                    diagnostics,
-                };
-            }
-        };
+    let source_graph = match dawn_package::ResolvedSourceGraph::from_lock(
+        root,
+        manifest,
+        &lockfile,
+        Some(cache),
+    ) {
+        Ok(source_graph) => source_graph,
+        Err(error) => {
+            let mut diagnostics = Vec::new();
+            let recovery = analysis::analyze_project_documents(
+                root,
+                Some(recovery_manifest),
+                &SourceOverrides::new(),
+                &IndexSet::new(),
+                &mut diagnostics,
+            );
+            diagnostics.push(IoDiagnostic {
+                path: Utf8PathBuf::from(dawn_package::LOCK_FILE),
+                range: None,
+                severity: IoDiagnosticSeverity::Error,
+                code: IoDiagnosticCode::LockField,
+                message: error.to_string(),
+                detail: None,
+                related: Vec::new(),
+            });
+            analysis::sort_diagnostics(&mut diagnostics);
+            return ProjectCheckReport {
+                session: None,
+                recovery,
+                diagnostics,
+            };
+        }
+    };
     check_source_graph(source_graph)
 }
 
 fn package_cache_for_lock(
-    root: &Utf8Path,
     lockfile: &dawn_package::Lockfile,
-) -> Result<dawn_package::CacheStore, dawn_package::PackageError> {
+) -> Result<Option<dawn_package::CacheStore>, dawn_package::PackageError> {
     if lockfile.packages.is_empty() {
-        return Ok(dawn_package::CacheStore::new(
-            root.join(".dawn-unused-cache"),
-        ));
+        return Ok(None);
     }
-    Ok(dawn_package::DawnDirectories::discover()?.package_cache())
+    Ok(Some(
+        dawn_package::DawnDirectories::discover()?.package_cache(),
+    ))
 }
 
 pub fn check_document_text(path: &Utf8Path, text: &str) -> Vec<IoDiagnostic> {
-    if path
-        .file_name()
-        .is_some_and(|file_name| file_name.ends_with(".effect.dawn"))
-    {
-        return effect_diagnostics(path, text);
-    }
-    if path
-        .file_name()
-        .is_some_and(|file_name| file_name.ends_with(".operator.dawn"))
-    {
-        return operator_diagnostics(path, text);
-    }
-    if path
-        .file_name()
-        .is_some_and(|file_name| file_name.ends_with(".dawn"))
-    {
-        return analysis::check_dawn_document_text(path, text);
+    match source_document_format(path) {
+        SourceDocumentFormat::Effect => return effect_diagnostics(path, text),
+        SourceDocumentFormat::Operator => return operator_diagnostics(path, text),
+        SourceDocumentFormat::Dawn => return analysis::check_dawn_document_text(path, text),
+        SourceDocumentFormat::Other => {}
     }
 
     match parse_yaml_value(path, text) {

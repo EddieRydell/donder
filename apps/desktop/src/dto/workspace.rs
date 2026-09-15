@@ -9,48 +9,14 @@ pub struct NewSequenceRequest {
     pub frame_rate: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct WorkspaceLayoutState {
     pub sidebar_width_px: f32,
     pub inspector_width_px: f32,
     pub sidebar_collapsed: bool,
     pub inspector_collapsed: bool,
     pub active_sidebar_view: SidebarView,
-}
-
-impl<'de> Deserialize<'de> for WorkspaceLayoutState {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase")]
-        struct StoredLayout {
-            sidebar_width_px: Option<f32>,
-            project_tree_width_px: Option<f32>,
-            inspector_width_px: f32,
-            sidebar_collapsed: Option<bool>,
-            project_tree_collapsed: Option<bool>,
-            inspector_collapsed: bool,
-            #[serde(default)]
-            active_sidebar_view: SidebarView,
-        }
-        let stored = StoredLayout::deserialize(deserializer)?;
-        Ok(Self {
-            sidebar_width_px: stored
-                .sidebar_width_px
-                .or(stored.project_tree_width_px)
-                .unwrap_or(288.0),
-            inspector_width_px: stored.inspector_width_px,
-            sidebar_collapsed: stored
-                .sidebar_collapsed
-                .or(stored.project_tree_collapsed)
-                .unwrap_or(false),
-            inspector_collapsed: stored.inspector_collapsed,
-            active_sidebar_view: stored.active_sidebar_view,
-        })
-    }
 }
 
 impl Default for WorkspaceLayoutState {
@@ -409,6 +375,7 @@ pub struct DocumentObjectDescriptor {
 pub struct EditorBuffer {
     pub path: String,
     pub name: String,
+    pub syntax: TextDocumentSyntax,
     pub text: String,
     pub dirty: bool,
     pub read_only: bool,
@@ -416,6 +383,24 @@ pub struct EditorBuffer {
     pub saved_revision: u32,
     pub save_state: DocumentSaveState,
     pub external_state: BufferExternalState,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum TextDocumentSyntax {
+    Yaml,
+    EffectDsl,
+}
+
+impl From<dawn_project_io::SourceDocumentFormat> for TextDocumentSyntax {
+    fn from(format: dawn_project_io::SourceDocumentFormat) -> Self {
+        match format {
+            dawn_project_io::SourceDocumentFormat::Effect
+            | dawn_project_io::SourceDocumentFormat::Operator => Self::EffectDsl,
+            dawn_project_io::SourceDocumentFormat::Dawn
+            | dawn_project_io::SourceDocumentFormat::Other => Self::Yaml,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

@@ -1,2 +1,0 @@
-elf_sha256=58b957a534e20ba3d3875652a65bdbeb4768488b70a992bbebd13304bc6cf962
-payload_bytes=7856 payload_sha256=89bb791bc2978904c4335f391c72a3a293be5d823de54f737aa4dbe3c21a8bef transport=serial

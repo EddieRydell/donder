@@ -63,8 +63,8 @@ simple implementation and correct sampling semantics over host preparation time.
 
 ## Measurement and checks
 
-See [the LED refactor measurements](led_fixture_refactor.md) for the current
-before/after profiling record. The starter has 30 instances of 113 pixels each;
+See [performance and hardware evidence](performance.md) for measurement and
+retention policy. The starter has 30 instances of 113 pixels each;
 selecting its first port retains 113 output pixels instead of 3,390. Spatial
 operator dependencies can retain additional unpatched pixels.
 

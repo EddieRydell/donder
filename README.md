@@ -20,7 +20,7 @@ That makes the project useful as a technical showcase for:
 
 - Open and validate Dawn project files.
 - Edit project documents in a CodeMirror-based desktop editor.
-- Compose fixture definitions from pixels and other definitions, place instances in layouts, group them for effects, and route RGB/RGBW output to controllers.
+- Compose pixel fixture definitions, place reusable instances in layouts, group them for effects, and route RGB/RGBW output to controllers.
 - Render one shared logical/controller frame through the Rust runtime.
 - Preview effect rasters and sequence output in the desktop UI.
 - Transmit live E1.31 or Art-Net output with blackout and stream lifecycle handling.
@@ -54,7 +54,6 @@ apps/desktop/frontend/        React/TypeScript frontend
 apps/desktop/frontend/src/ui/gui/sequence/sequenceWaveform.ts  Timeline waveform cache/rendering
 crates/dawn-language/         Dawn authoring model and effect/operator compiler
 crates/dawn-runtime/          Portable no_std bytecode VM and sequence evaluation core
-crates/dawn-device-storage/   Portable device records, credentials, and flash recovery tests
 crates/dawn-elaboration/      Host-side generator expansion, lowering, and output preparation
 crates/dawn-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
 crates/dawn-project-io/       Dawn project loading, diagnostics, source ownership, save/export
@@ -62,9 +61,9 @@ crates/dawn-project-io/src/loader/  Project loading, import resolution, and docu
 crates/dawn-project-io/src/serialization/  Domain-specific Dawn document serialization
 crates/dawn-output/           E1.31 and Art-Net socket/codec lifecycle
 crates/dawn-cli/              Standalone `dawn` package and project CLI
-firmware/esp32/               ESP32 loader, Wi-Fi transport, parallel I2S output, and profiling harness
-examples/                     Example Dawn projects and props
-docs/                         Architecture, loading, performance, and regression notes
+firmware/esp32/               ESP32 workspace, device storage, Wi-Fi transport, I2S output, and profiling
+examples/starter/             The single maintained example project
+docs/                         Current user, architecture, loading, and validation references
 tools/                        Repository tooling
 ```
 
@@ -84,9 +83,6 @@ Install:
 - Node.js version required by `package.json`
 - pnpm version pinned in `package.json`
 - Tauri 2 system dependencies for your operating system
-- A host C compiler and host libclang for the device-storage workspace tests.
-  Set `LIBCLANG_PATH` to the host LLVM library when it is not discoverable.
-  The ESP cross-toolchain libclang is for firmware builds, not host tests.
 
 ### Install Dependencies
 
@@ -161,8 +157,8 @@ toolchain and lockfile are isolated from desktop builds. See
 ## Package and CLI workflow
 
 Every project and module starts at `dawn-package.json`. The manifest owns the
-stable UUID module identity, exact language version, Dawn compatibility range,
-optional project entrypoint, explicit exports, alias-keyed dependencies, and
+stable UUID module identity, exact language version, optional project entrypoint,
+explicit exports, alias-keyed dependencies, and
 audio declarations. `dawn.lock` pins the registry, exact release versions,
 archive hashes, module identities, dependency edges, and path-dependency
 content hashes. Opening a project is offline and deterministic; use Sync
@@ -191,8 +187,8 @@ therefore continue to resolve through the same alias and export groups.
 ## How A Dawn Project Works
 
 The manifest's `project.entrypoint` imports the rest of the show definition:
-setups, element trees, preview layouts and props, fixture profiles, patch
-graphs, controllers, curves, effects, sequences, and assets. Imports are
+setups, layouts, pixel fixture definitions, LED patches, controllers, curves,
+gradients, effects, operators, sequences, and assets. Imports are
 structured as module-local document lists or dependency alias/export-group
 references; dependency deep imports and root escapes are rejected.
 

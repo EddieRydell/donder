@@ -277,13 +277,16 @@ impl Loader {
         }
         self.loading_documents.insert(document_id.clone());
         let absolute = self.absolute_document_path(document_id)?;
-        let file_name = document_id.path().file_name().unwrap_or_default();
-        let result = if file_name.ends_with(".effect.dawn") {
-            self.load_effect_document(document_id, &absolute)
-        } else if file_name.ends_with(".operator.dawn") {
-            self.load_operator_document(document_id, &absolute)
-        } else {
-            self.load_dawn_document(document_id, &absolute)
+        let result = match crate::source_document_format(document_id.path()) {
+            crate::SourceDocumentFormat::Effect => {
+                self.load_effect_document(document_id, &absolute)
+            }
+            crate::SourceDocumentFormat::Operator => {
+                self.load_operator_document(document_id, &absolute)
+            }
+            crate::SourceDocumentFormat::Dawn | crate::SourceDocumentFormat::Other => {
+                self.load_dawn_document(document_id, &absolute)
+            }
         };
         self.loading_documents.shift_remove(document_id);
         result

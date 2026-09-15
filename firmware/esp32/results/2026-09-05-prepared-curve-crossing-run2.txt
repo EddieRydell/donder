@@ -1,5 +1,0 @@
-elf_sha256=0879cad0b3aee03f35cfb0f84849b6b427b15dc3cd09a5597560b0c88bd44b7f
-payload_bytes=26588 payload_sha256=b4f2d3c30210b0e909183678223adddc3159da56a43d438e5d29e55da9d044d8 transport=http
-WIFI READY 192.168.169.176 80 i2s=gpio13,18,21,25 heap_free=117268
-LOADED bytes=26588 pixels=452 heap=36880 us=10584
-transfer_seconds=0.359

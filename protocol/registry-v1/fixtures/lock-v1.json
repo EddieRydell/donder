@@ -1,6 +1,6 @@
 {
   "lockVersion": 1,
-  "manifestSha256": "ffd01b9d77fb5eae64f19b24e101da281bda908220b5d168833dbe73ccb7a770",
+  "manifestSha256": "0a0b674ae7cfa1ff349a2216c2596aa9735aa350fc5835db43445457ff86d3aa",
   "registry": "https://dawn.eddierydell.com",
   "packages": {
     "dawn/foundation": {

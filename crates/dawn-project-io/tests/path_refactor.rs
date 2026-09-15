@@ -87,7 +87,11 @@ fn moves_directories_with_documents_and_declared_assets() {
     let session = move_path(&session, "effects", "library/effects");
     let session = move_path(&session, "audio", "library/audio");
     let manifest = dawn_package::PackageManifest::read(&root).expect("manifest");
-    assert!(manifest.assets.contains_key("library/audio/song.mp3"));
+    assert!(
+        manifest
+            .assets
+            .contains_key("library/audio/Babokon - All We Are.mp3")
+    );
     assert!(
         session
             .source
@@ -296,7 +300,6 @@ fn package_manifest(
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id,
         language_version: dawn_package::LANGUAGE_VERSION.to_string(),
-        requires_dawn: ">=0.1.0, <1.0.0".parse().expect("version"),
         project: None,
         publication: None,
         exports: BTreeMap::from([(

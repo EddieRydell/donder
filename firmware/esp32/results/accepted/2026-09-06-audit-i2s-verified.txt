@@ -1,0 +1,326 @@
+elf_sha256=512f3c39d4e37b4815411c97ca7352ddc57916d33f0f62982b84fc30765ab67c
+payload_bytes=25268 payload_sha256=82ffb5937025d8b0afad4c2157223ca173498316aa1022cbe5c6317ee16d9a92 transport=http
+WIFI READY 192.168.169.176 80 i2s=gpio13,18,21,25 heap_free=117132
+LOADED bytes=25268 pixels=452 heap=39096 us=11892
+transfer_seconds=0.406
+LOADED bytes=25268 pixels=452 heap=35696 us=11629
+transfer_seconds=0.188
+LOADED bytes=25268 pixels=452 heap=35504 us=11196
+transfer_seconds=0.172
+VERIFIED HTTP authorization rejection
+REJECT Version
+REJECT Limit
+REJECT Checksum
+VERIFIED concurrent HTTP upload rejection
+VERIFIED interrupted HTTP upload disconnect
+FRAME 0 3459375601 2387 0 0
+FRAME 49652777 3459375601 2280 0 0
+FRAME 49659722 3459375601 2294 0 0
+FRAME 58319444 1758088845 2614 0 0
+FRAME 58680555 2337628906 2568 0 0
+FRAME 58986111 1343713600 2823 0 0
+FRAME 66000000 2491043852 4589 0 0
+FRAME 104166666 3459375601 2265 0 0
+FRAME 249753832 3459375601 351 0 0
+FRAME 0 3459375601 2298 0 0
+FRAME 0 3459375601 2255 0 0
+FRAME 49652777 3459375601 2282 0 0
+FRAME 49659722 3459375601 2253 0 0
+FRAME 58319444 1758088845 4959 0 4
+FRAME 58680555 2337628906 2609 0 0
+FRAME 58986111 1343713600 2805 0 0
+FRAME 66000000 2491043852 5846 0 1
+FRAME 104166666 3459375601 2278 0 0
+FRAME 249753832 3459375601 447 0 0
+FRAME 0 3459375601 2352 0 0
+FRAME 0 3459375601 2288 0 0
+FRAME 49652777 3459375601 2255 0 0
+FRAME 49659722 3459375601 2258 0 0
+FRAME 58319444 1758088845 2530 0 0
+FRAME 58680555 2337628906 2632 0 0
+FRAME 58986111 1343713600 2685 0 0
+FRAME 66000000 2491043852 4615 0 0
+FRAME 104166666 3459375601 2265 0 0
+FRAME 249753832 3459375601 324 0 0
+FRAME 0 3459375601 2384 0 0
+FRAME 0 3459375601 2289 0 0
+FRAME 49652777 3459375601 2220 0 0
+FRAME 49659722 3459375601 2249 0 0
+FRAME 58319444 1758088845 3849 0 1
+FRAME 58680555 2337628906 2545 0 0
+FRAME 58986111 1343713600 2703 0 0
+FRAME 66000000 2491043852 4639 0 0
+FRAME 104166666 3459375601 2444 0 0
+FRAME 249753832 3459375601 353 0 0
+FRAME 0 3459375601 2351 0 0
+FRAME 0 3459375601 2401 0 0
+FRAME 49652777 3459375601 2365 0 0
+FRAME 49659722 3459375601 2332 0 0
+FRAME 58319444 1758088845 2483 0 0
+FRAME 58680555 2337628906 2569 0 0
+FRAME 58986111 1343713600 2765 0 0
+FRAME 66000000 2491043852 4632 0 0
+FRAME 104166666 3459375601 2270 0 0
+FRAME 249753832 3459375601 356 0 0
+FRAME 0 3459375601 3527 0 1
+FRAME 0 3459375601 2296 0 0
+FRAME 49652777 3459375601 2362 0 0
+FRAME 49659722 3459375601 2257 0 0
+FRAME 58319444 1758088845 2532 0 0
+FRAME 58680555 2337628906 2655 0 0
+FRAME 58986111 1343713600 2675 0 0
+FRAME 66000000 2491043852 4563 0 0
+FRAME 104166666 3459375601 2292 0 0
+FRAME 249753832 3459375601 466 0 0
+FRAME 0 3459375601 2277 0 0
+FRAME 0 3459375601 4488 0 1
+FRAME 49652777 3459375601 2220 0 0
+FRAME 49659722 3459375601 2241 0 0
+FRAME 58319444 1758088845 2535 0 0
+FRAME 58680555 2337628906 2560 0 0
+FRAME 58986111 1343713600 2658 0 0
+FRAME 66000000 2491043852 4600 0 0
+FRAME 104166666 3459375601 2255 0 0
+FRAME 249753832 3459375601 352 0 0
+FRAME 0 3459375601 4238 0 0
+FRAME 0 3459375601 2373 0 0
+FRAME 49652777 3459375601 2247 0 0
+FRAME 49659722 3459375601 2242 0 0
+FRAME 58319444 1758088845 2486 0 0
+FRAME 58680555 2337628906 2542 0 0
+FRAME 58986111 1343713600 2675 0 0
+FRAME 66000000 2491043852 4619 0 0
+FRAME 104166666 3459375601 2284 0 0
+FRAME 249753832 3459375601 324 0 0
+FRAME 0 3459375601 2277 0 0
+FRAME 0 3459375601 2379 0 0
+FRAME 49652777 3459375601 2217 0 0
+FRAME 49659722 3459375601 2414 0 0
+FRAME 58319444 1758088845 2523 0 0
+FRAME 58680555 2337628906 2545 0 0
+FRAME 58986111 1343713600 2697 0 0
+FRAME 66000000 2491043852 4616 0 0
+FRAME 104166666 3459375601 4822 0 3
+FRAME 249753832 3459375601 324 0 0
+FRAME 0 3459375601 2408 0 0
+FRAME 0 3459375601 2276 0 0
+FRAME 49652777 3459375601 2224 0 0
+FRAME 49659722 3459375601 2361 0 0
+FRAME 58319444 1758088845 3796 0 1
+FRAME 58680555 2337628906 2652 0 0
+FRAME 58986111 1343713600 2704 0 0
+FRAME 66000000 2491043852 4581 0 0
+FRAME 104166666 3459375601 2375 0 0
+FRAME 249753832 3459375601 348 0 0
+FRAME 0 3459375601 2366 0 0
+FRAME 0 3459375601 2271 0 0
+FRAME 49652777 3459375601 2283 0 0
+FRAME 49659722 3459375601 2223 0 0
+FRAME 58319444 1758088845 2490 0 0
+FRAME 58680555 2337628906 2669 0 0
+FRAME 58986111 1343713600 2734 0 0
+FRAME 66000000 2491043852 4618 0 0
+FRAME 104166666 3459375601 2255 0 0
+FRAME 249753832 3459375601 324 0 0
+FRAME 0 3459375601 2270 0 0
+FRAME 0 3459375601 2273 0 0
+FRAME 49652777 3459375601 2274 0 0
+FRAME 49659722 3459375601 2243 0 0
+FRAME 58319444 1758088845 2527 0 0
+FRAME 58680555 2337628906 2535 0 0
+FRAME 58986111 1343713600 2712 0 0
+FRAME 66000000 2491043852 4588 0 0
+FRAME 104166666 3459375601 2261 0 0
+FRAME 249753832 3459375601 347 0 0
+FRAME 0 3459375601 2360 0 0
+FRAME 0 3459375601 2268 0 0
+FRAME 49652777 3459375601 3589 0 1
+FRAME 49659722 3459375601 2257 0 0
+FRAME 58319444 1758088845 2606 0 0
+FRAME 58680555 2337628906 2702 0 0
+FRAME 58986111 1343713600 2792 0 0
+FRAME 66000000 2491043852 5070 0 0
+FRAME 104166666 3459375601 2735 0 1
+FRAME 249753832 3459375601 324 0 0
+FRAME 0 3459375601 2324 0 0
+FRAME 0 3459375601 2317 0 0
+FRAME 49652777 3459375601 2228 0 0
+FRAME 49659722 3459375601 2248 0 0
+FRAME 58319444 1758088845 2532 0 0
+FRAME 58680555 2337628906 2569 0 0
+FRAME 58986111 1343713600 2761 0 0
+FRAME 66000000 2491043852 4582 0 0
+FRAME 104166666 3459375601 2327 0 0
+FRAME 249753832 3459375601 356 0 0
+FRAME 0 3459375601 2309 0 0
+FRAME 0 3459375601 2289 0 0
+FRAME 49652777 3459375601 2284 0 0
+FRAME 49659722 3459375601 2358 0 0
+FRAME 58319444 1758088845 2552 0 0
+FRAME 58680555 2337628906 2616 0 0
+FRAME 58986111 1343713600 2796 0 0
+FRAME 66000000 2491043852 4589 0 0
+FRAME 104166666 3459375601 2251 0 0
+FRAME 249753832 3459375601 352 0 0
+FRAME 0 3459375601 2286 0 0
+FRAME 0 3459375601 2314 0 0
+FRAME 49652777 3459375601 3482 0 1
+FRAME 49659722 3459375601 2247 0 0
+FRAME 58319444 1758088845 3401 0 0
+FRAME 58680555 2337628906 2567 0 0
+FRAME 58986111 1343713600 2712 0 0
+FRAME 66000000 2491043852 4600 0 0
+FRAME 104166666 3459375601 2327 0 0
+FRAME 249753832 3459375601 349 0 0
+FRAME 0 3459375601 2279 0 0
+FRAME 0 3459375601 2359 0 0
+FRAME 49652777 3459375601 2269 0 0
+FRAME 49659722 3459375601 4451 0 1
+FRAME 58319444 1758088845 2508 0 0
+FRAME 58680555 2337628906 2694 0 0
+FRAME 58986111 1343713600 3933 0 1
+FRAME 66000000 2491043852 4644 0 0
+FRAME 104166666 3459375601 2267 0 0
+FRAME 249753832 3459375601 356 0 0
+FRAME 0 3459375601 2283 0 0
+FRAME 0 3459375601 2473 0 0
+FRAME 49652777 3459375601 4529 0 1
+FRAME 49659722 3459375601 2242 0 0
+FRAME 58319444 1758088845 2630 0 0
+FRAME 58680555 2337628906 2665 0 0
+FRAME 58986111 1343713600 2850 0 0
+FRAME 66000000 2491043852 4616 0 0
+FRAME 104166666 3459375601 3560 0 1
+FRAME 249753832 3459375601 348 0 0
+FRAME 0 3459375601 2303 0 0
+FRAME 0 3459375601 2275 0 0
+FRAME 49652777 3459375601 2219 0 0
+FRAME 49659722 3459375601 2251 0 0
+FRAME 58319444 1758088845 2684 0 0
+FRAME 58680555 2337628906 2598 0 0
+FRAME 58986111 1343713600 2761 0 0
+FRAME 66000000 2491043852 4636 0 0
+FRAME 104166666 3459375601 2270 0 0
+FRAME 249753832 3459375601 356 0 0
+FRAME 0 3459375601 2279 0 0
+FRAME 0 3459375601 2398 0 0
+FRAME 49652777 3459375601 3499 0 1
+FRAME 49659722 3459375601 2248 0 0
+FRAME 58319444 1758088845 2536 0 0
+FRAME 58680555 2337628906 2567 0 0
+FRAME 58986111 1343713600 2708 0 0
+FRAME 66000000 2491043852 4636 0 0
+FRAME 104166666 3459375601 2234 0 0
+FRAME 249753832 3459375601 352 0 0
+FRAME 0 3459375601 2390 0 0
+VERIFIED 200 frames; zero evaluation allocations
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1852 eval_max_us=2185 encode_avg_us=2482 encode_max_us=2827 dma_wait_avg_us=1934 dma_wait_max_us=2222 total_avg_us=6362 total_max_us=7139 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2146 encode_avg_us=2477 encode_max_us=2754 dma_wait_avg_us=1982 dma_wait_max_us=2028 total_avg_us=6344 total_max_us=6397 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2195 encode_avg_us=2474 encode_max_us=2759 dma_wait_avg_us=1984 dma_wait_max_us=2167 total_avg_us=6351 total_max_us=6556 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2148 encode_avg_us=2471 encode_max_us=2739 dma_wait_avg_us=1984 dma_wait_max_us=2019 total_avg_us=6344 total_max_us=6372 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2169 encode_avg_us=2476 encode_max_us=2795 dma_wait_avg_us=1982 dma_wait_max_us=2318 total_avg_us=6352 total_max_us=6672 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2137 encode_avg_us=2472 encode_max_us=2753 dma_wait_avg_us=1981 dma_wait_max_us=2041 total_avg_us=6347 total_max_us=6565 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2137 encode_avg_us=2480 encode_max_us=2752 dma_wait_avg_us=1982 dma_wait_max_us=2024 total_avg_us=6348 total_max_us=6400 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2215 encode_avg_us=2479 encode_max_us=2747 dma_wait_avg_us=1975 dma_wait_max_us=2168 total_avg_us=6346 total_max_us=6520 heap_free=79676
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2163 encode_avg_us=2472 encode_max_us=2756 dma_wait_avg_us=1985 dma_wait_max_us=2025 total_avg_us=6348 total_max_us=6375 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2216 encode_avg_us=2474 encode_max_us=2754 dma_wait_avg_us=1977 dma_wait_max_us=2038 total_avg_us=6346 total_max_us=6495 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2154 encode_avg_us=2471 encode_max_us=2747 dma_wait_avg_us=1992 dma_wait_max_us=2026 total_avg_us=6349 total_max_us=6445 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2143 encode_avg_us=2481 encode_max_us=2771 dma_wait_avg_us=1978 dma_wait_max_us=2177 total_avg_us=6346 total_max_us=6529 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2145 encode_avg_us=2478 encode_max_us=2746 dma_wait_avg_us=1982 dma_wait_max_us=2233 total_avg_us=6351 total_max_us=6585 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2144 encode_avg_us=2477 encode_max_us=2791 dma_wait_avg_us=1975 dma_wait_max_us=2020 total_avg_us=6345 total_max_us=6398 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2179 encode_avg_us=2474 encode_max_us=2753 dma_wait_avg_us=1980 dma_wait_max_us=2055 total_avg_us=6352 total_max_us=6689 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2151 encode_avg_us=2473 encode_max_us=2748 dma_wait_avg_us=1981 dma_wait_max_us=2027 total_avg_us=6344 total_max_us=6406 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2192 encode_avg_us=2475 encode_max_us=2780 dma_wait_avg_us=1984 dma_wait_max_us=2119 total_avg_us=6349 total_max_us=6477 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2156 encode_avg_us=2477 encode_max_us=2741 dma_wait_avg_us=1978 dma_wait_max_us=2028 total_avg_us=6345 total_max_us=6383 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2184 encode_avg_us=2477 encode_max_us=2752 dma_wait_avg_us=1978 dma_wait_max_us=2154 total_avg_us=6352 total_max_us=6503 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2131 encode_avg_us=2472 encode_max_us=2731 dma_wait_avg_us=1984 dma_wait_max_us=2335 total_avg_us=6351 total_max_us=6703 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2148 encode_avg_us=2484 encode_max_us=2760 dma_wait_avg_us=1979 dma_wait_max_us=2024 total_avg_us=6348 total_max_us=6372 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2184 encode_avg_us=2477 encode_max_us=2750 dma_wait_avg_us=1974 dma_wait_max_us=2016 total_avg_us=6345 total_max_us=6399 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2155 encode_avg_us=2475 encode_max_us=2748 dma_wait_avg_us=1988 dma_wait_max_us=2315 total_avg_us=6353 total_max_us=6673 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2150 encode_avg_us=2474 encode_max_us=2761 dma_wait_avg_us=1977 dma_wait_max_us=2031 total_avg_us=6344 total_max_us=6376 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2222 encode_avg_us=2475 encode_max_us=2746 dma_wait_avg_us=1988 dma_wait_max_us=2131 total_avg_us=6350 total_max_us=6483 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2194 encode_avg_us=2479 encode_max_us=2744 dma_wait_avg_us=1976 dma_wait_max_us=2021 total_avg_us=6345 total_max_us=6428 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2162 encode_avg_us=2479 encode_max_us=2744 dma_wait_avg_us=1983 dma_wait_max_us=2286 total_avg_us=6351 total_max_us=6641 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2145 encode_avg_us=2479 encode_max_us=2771 dma_wait_avg_us=1976 dma_wait_max_us=2023 total_avg_us=6345 total_max_us=6382 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1840 eval_max_us=2185 encode_avg_us=2475 encode_max_us=2745 dma_wait_avg_us=1978 dma_wait_max_us=2031 total_avg_us=6349 total_max_us=6412 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2178 encode_avg_us=2474 encode_max_us=2745 dma_wait_avg_us=1981 dma_wait_max_us=2294 total_avg_us=6348 total_max_us=6648 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2159 encode_avg_us=2473 encode_max_us=2741 dma_wait_avg_us=1981 dma_wait_max_us=2021 total_avg_us=6348 total_max_us=6418 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2180 encode_avg_us=2475 encode_max_us=2737 dma_wait_avg_us=1983 dma_wait_max_us=2324 total_avg_us=6347 total_max_us=6672 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2234 encode_avg_us=2478 encode_max_us=2754 dma_wait_avg_us=1979 dma_wait_max_us=2031 total_avg_us=6351 total_max_us=6651 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2146 encode_avg_us=2471 encode_max_us=2749 dma_wait_avg_us=1983 dma_wait_max_us=2019 total_avg_us=6345 total_max_us=6380 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1840 eval_max_us=2238 encode_avg_us=2476 encode_max_us=2785 dma_wait_avg_us=1976 dma_wait_max_us=2038 total_avg_us=6349 total_max_us=6442 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2161 encode_avg_us=2472 encode_max_us=2738 dma_wait_avg_us=1985 dma_wait_max_us=2074 total_avg_us=6350 total_max_us=6682 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1828 eval_max_us=2152 encode_avg_us=2478 encode_max_us=2790 dma_wait_avg_us=1987 dma_wait_max_us=2031 total_avg_us=6348 total_max_us=6376 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2209 encode_avg_us=2478 encode_max_us=2750 dma_wait_avg_us=1977 dma_wait_max_us=2243 total_avg_us=6347 total_max_us=6591 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2152 encode_avg_us=2475 encode_max_us=2746 dma_wait_avg_us=1988 dma_wait_max_us=2032 total_avg_us=6349 total_max_us=6416 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2148 encode_avg_us=2475 encode_max_us=2781 dma_wait_avg_us=1984 dma_wait_max_us=2031 total_avg_us=6347 total_max_us=6676 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2158 encode_avg_us=2475 encode_max_us=2746 dma_wait_avg_us=1987 dma_wait_max_us=2029 total_avg_us=6349 total_max_us=6418 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2141 encode_avg_us=2478 encode_max_us=2773 dma_wait_avg_us=1979 dma_wait_max_us=2158 total_avg_us=6345 total_max_us=6509 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2148 encode_avg_us=2474 encode_max_us=2743 dma_wait_avg_us=1987 dma_wait_max_us=2359 total_avg_us=6352 total_max_us=6707 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2160 encode_avg_us=2477 encode_max_us=2756 dma_wait_avg_us=1975 dma_wait_max_us=2023 total_avg_us=6344 total_max_us=6378 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1944 eval_max_us=3916 encode_avg_us=2477 encode_max_us=2809 dma_wait_avg_us=1875 dma_wait_max_us=2012 total_avg_us=6352 total_max_us=6518 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=4462 eval_max_us=5181 encode_avg_us=2488 encode_max_us=2836 dma_wait_avg_us=116 dma_wait_max_us=519 total_avg_us=7122 total_max_us=7939 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=3857 eval_max_us=5005 encode_avg_us=2478 encode_max_us=2819 dma_wait_avg_us=540 dma_wait_max_us=2004 total_avg_us=6932 total_max_us=7713 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1924 eval_max_us=4443 encode_avg_us=2477 encode_max_us=2749 dma_wait_avg_us=1908 dma_wait_max_us=2038 total_avg_us=6367 total_max_us=6998 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2174 encode_avg_us=2473 encode_max_us=2741 dma_wait_avg_us=1976 dma_wait_max_us=2024 total_avg_us=6345 total_max_us=6382 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2152 encode_avg_us=2473 encode_max_us=2732 dma_wait_avg_us=1985 dma_wait_max_us=2061 total_avg_us=6350 total_max_us=6533 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=3168 eval_max_us=4244 encode_avg_us=2477 encode_max_us=2803 dma_wait_avg_us=707 dma_wait_max_us=2036 total_avg_us=6409 total_max_us=6848 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=3813 eval_max_us=4187 encode_avg_us=2486 encode_max_us=2795 dma_wait_avg_us=37 dma_wait_max_us=102 total_avg_us=6391 total_max_us=6863 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=3460 eval_max_us=4345 encode_avg_us=2478 encode_max_us=2810 dma_wait_avg_us=409 dma_wait_max_us=2012 total_avg_us=6406 total_max_us=7059 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1937 eval_max_us=3975 encode_avg_us=2473 encode_max_us=2743 dma_wait_avg_us=1887 dma_wait_max_us=2027 total_avg_us=6353 total_max_us=6586 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2161 encode_avg_us=2477 encode_max_us=2777 dma_wait_avg_us=1980 dma_wait_max_us=2023 total_avg_us=6349 total_max_us=6414 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2177 encode_avg_us=2476 encode_max_us=2757 dma_wait_avg_us=1977 dma_wait_max_us=2055 total_avg_us=6345 total_max_us=6435 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2157 encode_avg_us=2479 encode_max_us=2781 dma_wait_avg_us=1973 dma_wait_max_us=2022 total_avg_us=6349 total_max_us=6386 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2185 encode_avg_us=2474 encode_max_us=2759 dma_wait_avg_us=1977 dma_wait_max_us=2016 total_avg_us=6346 total_max_us=6470 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2150 encode_avg_us=2475 encode_max_us=2754 dma_wait_avg_us=1985 dma_wait_max_us=2117 total_avg_us=6352 total_max_us=6675 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2165 encode_avg_us=2476 encode_max_us=2759 dma_wait_avg_us=1975 dma_wait_max_us=2016 total_avg_us=6345 total_max_us=6415 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2199 encode_avg_us=2478 encode_max_us=2756 dma_wait_avg_us=1980 dma_wait_max_us=2116 total_avg_us=6349 total_max_us=6473 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2164 encode_avg_us=2477 encode_max_us=2795 dma_wait_avg_us=1975 dma_wait_max_us=2015 total_avg_us=6344 total_max_us=6410 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1841 eval_max_us=2193 encode_avg_us=2474 encode_max_us=2744 dma_wait_avg_us=1976 dma_wait_max_us=2019 total_avg_us=6349 total_max_us=6402 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1838 eval_max_us=2204 encode_avg_us=2479 encode_max_us=2851 dma_wait_avg_us=1973 dma_wait_max_us=2027 total_avg_us=6345 total_max_us=6400 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2137 encode_avg_us=2475 encode_max_us=2741 dma_wait_avg_us=1984 dma_wait_max_us=2023 total_avg_us=6349 total_max_us=6493 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2164 encode_avg_us=2475 encode_max_us=2755 dma_wait_avg_us=1981 dma_wait_max_us=2026 total_avg_us=6344 total_max_us=6380 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2189 encode_avg_us=2475 encode_max_us=2740 dma_wait_avg_us=1980 dma_wait_max_us=2015 total_avg_us=6348 total_max_us=6382 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2158 encode_avg_us=2472 encode_max_us=2739 dma_wait_avg_us=1984 dma_wait_max_us=2324 total_avg_us=6348 total_max_us=6673 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2159 encode_avg_us=2474 encode_max_us=2776 dma_wait_avg_us=1983 dma_wait_max_us=2036 total_avg_us=6350 total_max_us=6553 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2144 encode_avg_us=2473 encode_max_us=2753 dma_wait_avg_us=1986 dma_wait_max_us=2018 total_avg_us=6345 total_max_us=6397 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2200 encode_avg_us=2479 encode_max_us=2768 dma_wait_avg_us=1982 dma_wait_max_us=2181 total_avg_us=6350 total_max_us=6530 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2157 encode_avg_us=2474 encode_max_us=2751 dma_wait_avg_us=1979 dma_wait_max_us=2011 total_avg_us=6344 total_max_us=6395 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1840 eval_max_us=2167 encode_avg_us=2473 encode_max_us=2739 dma_wait_avg_us=1980 dma_wait_max_us=2323 total_avg_us=6351 total_max_us=6676 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2178 encode_avg_us=2476 encode_max_us=2744 dma_wait_avg_us=1978 dma_wait_max_us=2026 total_avg_us=6349 total_max_us=6687 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2158 encode_avg_us=2478 encode_max_us=2742 dma_wait_avg_us=1983 dma_wait_max_us=2176 total_avg_us=6350 total_max_us=6526 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2157 encode_avg_us=2480 encode_max_us=2765 dma_wait_avg_us=1975 dma_wait_max_us=2345 total_avg_us=6348 total_max_us=6705 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1840 eval_max_us=2165 encode_avg_us=2475 encode_max_us=2735 dma_wait_avg_us=1977 dma_wait_max_us=2020 total_avg_us=6349 total_max_us=6419 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2188 encode_avg_us=2473 encode_max_us=2731 dma_wait_avg_us=1980 dma_wait_max_us=2180 total_avg_us=6347 total_max_us=6533 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2174 encode_avg_us=2472 encode_max_us=2752 dma_wait_avg_us=1989 dma_wait_max_us=2035 total_avg_us=6352 total_max_us=6578 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2152 encode_avg_us=2477 encode_max_us=2788 dma_wait_avg_us=1980 dma_wait_max_us=2028 total_avg_us=6345 total_max_us=6406 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2192 encode_avg_us=2473 encode_max_us=2751 dma_wait_avg_us=1982 dma_wait_max_us=2039 total_avg_us=6349 total_max_us=6424 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2157 encode_avg_us=2477 encode_max_us=2752 dma_wait_avg_us=1974 dma_wait_max_us=2037 total_avg_us=6345 total_max_us=6382 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2158 encode_avg_us=2478 encode_max_us=2775 dma_wait_avg_us=1973 dma_wait_max_us=2023 total_avg_us=6348 total_max_us=6386 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2221 encode_avg_us=2477 encode_max_us=2759 dma_wait_avg_us=1978 dma_wait_max_us=2275 total_avg_us=6347 total_max_us=6625 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2168 encode_avg_us=2476 encode_max_us=2801 dma_wait_avg_us=1987 dma_wait_max_us=2028 total_avg_us=6350 total_max_us=6594 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2217 encode_avg_us=2477 encode_max_us=2761 dma_wait_avg_us=1981 dma_wait_max_us=2070 total_avg_us=6345 total_max_us=6423 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1832 eval_max_us=2157 encode_avg_us=2476 encode_max_us=2819 dma_wait_avg_us=1985 dma_wait_max_us=2023 total_avg_us=6349 total_max_us=6407 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2162 encode_avg_us=2477 encode_max_us=2764 dma_wait_avg_us=1975 dma_wait_max_us=2360 total_avg_us=6348 total_max_us=6709 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2167 encode_avg_us=2476 encode_max_us=2744 dma_wait_avg_us=1983 dma_wait_max_us=2040 total_avg_us=6350 total_max_us=6417 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2151 encode_avg_us=2484 encode_max_us=2810 dma_wait_avg_us=1976 dma_wait_max_us=2160 total_avg_us=6346 total_max_us=6512 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1830 eval_max_us=2147 encode_avg_us=2475 encode_max_us=2759 dma_wait_avg_us=1989 dma_wait_max_us=2342 total_avg_us=6352 total_max_us=6690 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1834 eval_max_us=2145 encode_avg_us=2478 encode_max_us=2760 dma_wait_avg_us=1977 dma_wait_max_us=2023 total_avg_us=6345 total_max_us=6396 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2218 encode_avg_us=2474 encode_max_us=2752 dma_wait_avg_us=1984 dma_wait_max_us=2176 total_avg_us=6350 total_max_us=6528 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1837 eval_max_us=2157 encode_avg_us=2472 encode_max_us=2750 dma_wait_avg_us=1980 dma_wait_max_us=2026 total_avg_us=6345 total_max_us=6419 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2187 encode_avg_us=2476 encode_max_us=2731 dma_wait_avg_us=1981 dma_wait_max_us=2031 total_avg_us=6350 total_max_us=6457 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1831 eval_max_us=2162 encode_avg_us=2475 encode_max_us=2750 dma_wait_avg_us=1985 dma_wait_max_us=2368 total_avg_us=6348 total_max_us=6728 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1841 eval_max_us=2152 encode_avg_us=2475 encode_max_us=2712 dma_wait_avg_us=1974 dma_wait_max_us=2023 total_avg_us=6348 total_max_us=6387 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2218 encode_avg_us=2474 encode_max_us=2755 dma_wait_avg_us=1982 dma_wait_max_us=2114 total_avg_us=6347 total_max_us=6460 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2160 encode_avg_us=2476 encode_max_us=2791 dma_wait_avg_us=1981 dma_wait_max_us=2023 total_avg_us=6349 total_max_us=6414 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1836 eval_max_us=2203 encode_avg_us=2474 encode_max_us=2740 dma_wait_avg_us=1979 dma_wait_max_us=2026 total_avg_us=6346 total_max_us=6589 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1833 eval_max_us=2172 encode_avg_us=2475 encode_max_us=2754 dma_wait_avg_us=1983 dma_wait_max_us=2030 total_avg_us=6348 total_max_us=6386 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2304 encode_avg_us=2475 encode_max_us=2744 dma_wait_avg_us=1975 dma_wait_max_us=2069 total_avg_us=6348 total_max_us=6632 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1839 eval_max_us=2160 encode_avg_us=2474 encode_max_us=2733 dma_wait_avg_us=1983 dma_wait_max_us=2293 total_avg_us=6353 total_max_us=6638 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2143 encode_avg_us=2480 encode_max_us=2759 dma_wait_avg_us=1975 dma_wait_max_us=2123 total_avg_us=6345 total_max_us=6522 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2192 encode_avg_us=2476 encode_max_us=2745 dma_wait_avg_us=1983 dma_wait_max_us=2281 total_avg_us=6351 total_max_us=6635 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2149 encode_avg_us=2480 encode_max_us=2764 dma_wait_avg_us=1974 dma_wait_max_us=2023 total_avg_us=6345 total_max_us=6378 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1840 eval_max_us=2177 encode_avg_us=2472 encode_max_us=2747 dma_wait_avg_us=1981 dma_wait_max_us=2319 total_avg_us=6352 total_max_us=6672 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2145 encode_avg_us=2473 encode_max_us=2737 dma_wait_avg_us=1981 dma_wait_max_us=2028 total_avg_us=6347 total_max_us=6585 heap_free=81376
+PLAYBACK core=1 frames=120 missed=0 eval_avg_us=1835 eval_max_us=2150 encode_avg_us=2476 encode_max_us=2792 dma_wait_avg_us=1982 dma_wait_max_us=2143 total_avg_us=6349 total_max_us=6496 heap_free=81376
+CAPTURED 109 playback windows

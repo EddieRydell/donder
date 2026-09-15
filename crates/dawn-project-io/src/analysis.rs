@@ -16,8 +16,8 @@ use crate::loader::parse::{
     parse_duration_as_time, required_field, sequence_values, string_field, u32_field,
 };
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, SourceObjectKind,
-    TextPosition, TextRange,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, SourceDocumentFormat,
+    SourceObjectKind, TextPosition, TextRange, source_document_format,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -121,15 +121,11 @@ pub(crate) fn project_file_inventory(root: &Utf8Path) -> Vec<Utf8PathBuf> {
 }
 
 fn document_kind(path: &Utf8Path) -> RecoveryDocumentKind {
-    let file_name = path.file_name().unwrap_or_default();
-    if file_name.ends_with(".effect.dawn") {
-        RecoveryDocumentKind::Effect
-    } else if file_name.ends_with(".operator.dawn") {
-        RecoveryDocumentKind::Operator
-    } else if file_name.ends_with(".dawn") {
-        RecoveryDocumentKind::Dawn
-    } else {
-        RecoveryDocumentKind::Other
+    match source_document_format(path) {
+        SourceDocumentFormat::Effect => RecoveryDocumentKind::Effect,
+        SourceDocumentFormat::Operator => RecoveryDocumentKind::Operator,
+        SourceDocumentFormat::Dawn => RecoveryDocumentKind::Dawn,
+        SourceDocumentFormat::Other => RecoveryDocumentKind::Other,
     }
 }
 

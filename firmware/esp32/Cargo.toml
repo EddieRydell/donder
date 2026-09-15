@@ -25,7 +25,7 @@ resolver = "2"
 [dependencies]
 # Supply only littlefs's two string routines absent from the ESP32 ROM bindings.
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"], optional = true }
-dawn-device-storage = { path = "../../crates/dawn-device-storage", optional = true }
+dawn-device-storage = { path = "crates/dawn-device-storage", optional = true }
 esp-storage = { version = "0.10.0", features = ["esp32"], optional = true }
 serde = { version = "1.0.229", default-features = false, features = ["derive"], optional = true }
 esp-radio-rtos-driver = { version = "0.4.1", optional = true }

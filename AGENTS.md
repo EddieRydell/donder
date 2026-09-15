@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Rust workspace. Domain types and DSL compilation live in `crates/dawn-language`; project parsing, import/source ownership, diagnostics, and serialization live in `crates/dawn-project-io`; host-side generator expansion and preparation live in `crates/dawn-elaboration`; portable prepared-sequence evaluation lives in `crates/dawn-runtime`. The desktop service and UI state live under `apps/desktop/src`; ESP32 firmware lives in `firmware/esp32`. Example Dawn projects and fixtures are in `examples/`.
+This is a Rust workspace. Domain types and DSL compilation live in `crates/dawn-language`; project parsing, import/source ownership, diagnostics, and serialization live in `crates/dawn-project-io`; host-side generator expansion and preparation live in `crates/dawn-elaboration`; portable prepared-sequence evaluation lives in `crates/dawn-runtime`. The desktop service and UI state live under `apps/desktop/src`; ESP32 firmware lives in `firmware/esp32`. `examples/starter` is the single maintained example project. Keep synthetic and invalid fixtures beside their owning tests or create them in temporary test directories; do not add scratch projects under `examples/`.
 
 The typed `DawnProject` is authoritative after loading. `SourceProject` records document ownership, imports, original source needed for non-YAML DSL documents, and referenced assets. Saving derives YAML directly from typed state; do not add a synchronization or typed-to-YAML mutation phase.
 The preservation contract is semantic, not lossless YAML editing: preserve typed meaning, meaningful list order, imports, document/object identity, ownership, and asset references. Comments, whitespace, quoting, mapping key order, and original YAML spelling are not requirements. Do not add CST round-tripping or per-scalar provenance without a concrete new requirement. See `docs/sequence_as_code.md` for the contract and current limitations.
@@ -74,7 +74,6 @@ inspection. Separate available upgrades from security advisories,
 unmaintained transitive packages, upstream Git patches, and intentionally
 pinned hardware SDK revisions. Summarize those findings before making changes.
 
-Do not write tests unless specifically requested.
 Never reinvent a pattern or solve a problem that has already been solved. Use dependencies (after asking the user) to solve problems rather than reinventing the wheel.
 Avoid using strings in internal logic. Prefer enums or other structured data.
 All static color literals must be defined in `apps/desktop/frontend/src/styles.css` as CSS custom properties. TypeScript, JSX, Rust, and tests must reference CSS-backed tokens or receive data-driven colors; do not define palette values elsewhere.
@@ -82,8 +81,9 @@ Always use `apps/desktop/frontend/src/styles.css` as the styling source of truth
 All static frontend styling values—including typography, spacing, dimensions, shape, elevation, layering, motion, opacity, form geometry, icon sizes, scrollbar geometry, visualization metrics, responsive breakpoints, and accessibility geometry—must be defined in `apps/desktop/frontend/src/styles.css`. TypeScript and JSX may only use CSS-backed values or genuinely runtime/data-dependent values such as measured geometry, coordinates, and user/project colors.
 `apps/desktop/frontend/src/generated/bindings.ts` and `apps/desktop/gen/schemas/` are committed generated API artifacts. Regenerate bindings with `pnpm generate:bindings` and schemas through the Tauri tooling; never hand-edit either.
 Avoid unrelated edits to lockfiles, IDE files, or generated assets. 
-Keep Dawn-specific scripts, profiling captures, and build artifacts inside this repository, not in the user's home directory. Shared installed toolchains and package caches may remain in their standard locations.
-Check both Rust and desktop manifests before assuming a command or dependency belongs at the workspace root. 
+Keep temporary Dawn scripts, profiling captures, and build artifacts under an ignored `target/` directory inside this repository, not in the user's home directory. Do not commit raw logs, failed captures, profiler output, screenshots, or step-by-step implementation journals. Promote only the smallest reviewed evidence needed to support a current claim under `firmware/esp32/results/accepted/`, and summarize it in the documentation. Shared installed toolchains and package caches may remain in their standard locations.
+Documentation describes current behavior and durable contracts. Consolidate superseded investigation notes into the current architecture or performance reference, then remove the journal; links are not a reason to retain stale documents.
+Check both Rust and desktop manifests before assuming a command or dependency belongs at the workspace root. `firmware/esp32/crates/dawn-device-storage` is firmware-only and belongs to the ESP32 workspace. Keep embedded-only dependencies out of the root host workspace, and validate them with the firmware manifest and toolchain.
 Do not add compatibility layers, shims, fallbacks, or allow for legacy code when adding features or refactoring. 
 Do not add fallbacks when something doesn't work. This hides errors and makes debugging harder.
 The goal is fast development, not support. Minimize clutter and favor having a single way of doing things. SSOT is your friend.

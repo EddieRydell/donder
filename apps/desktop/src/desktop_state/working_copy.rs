@@ -17,6 +17,7 @@ impl WorkingDocument {
             buffer: EditorBuffer {
                 path: path.to_string(),
                 name: path.file_name().unwrap_or(path.as_str()).to_string(),
+                syntax: dawn_project_io::source_document_format(path).into(),
                 text,
                 dirty: false,
                 read_only: false,

@@ -12,7 +12,7 @@
 
 mod validation;
 use camino::{Utf8Path, Utf8PathBuf};
-use semver::{Op, Version, VersionReq};
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -226,7 +226,6 @@ pub struct PackageManifest {
     pub manifest_version: u8,
     pub module_id: Uuid,
     pub language_version: String,
-    pub requires_dawn: VersionReq,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project: Option<ProjectManifest>,
@@ -374,13 +373,6 @@ impl PackageManifest {
                 &mut issues,
                 "languageVersion",
                 "languageVersion must be an exact major.minor language version",
-            );
-        }
-        if !is_bounded_version_requirement(&self.requires_dawn) {
-            push_package_validation_issue(
-                &mut issues,
-                "requiresDawn",
-                "requiresDawn must have lower and upper semantic-version bounds",
             );
         }
         if self.exports.is_empty() {
@@ -561,13 +553,6 @@ impl PackageManifest {
                 self.language_version
             )));
         }
-        let dawn_version = current_dawn_version()?;
-        if !self.requires_dawn.matches(&dawn_version) {
-            return Err(PackageError::Invalid(format!(
-                "package requires Dawn `{}`, but this is Dawn `{dawn_version}`",
-                self.requires_dawn
-            )));
-        }
         Ok(())
     }
 
@@ -581,30 +566,6 @@ impl PackageManifest {
         require_file(root, &entrypoint, "project.entrypoint")?;
         Ok(Utf8PathBuf::from(entrypoint))
     }
-}
-
-pub fn current_dawn_version() -> Result<Version, PackageError> {
-    Version::parse(env!("CARGO_PKG_VERSION")).map_err(|error| {
-        PackageError::Invalid(format!(
-            "Dawn build has an invalid semantic version: {error}"
-        ))
-    })
-}
-
-pub fn is_bounded_version_requirement(requirement: &VersionReq) -> bool {
-    let has_lower_bound = requirement.comparators.iter().any(|comparator| {
-        matches!(
-            comparator.op,
-            Op::Exact | Op::Greater | Op::GreaterEq | Op::Tilde | Op::Caret | Op::Wildcard
-        )
-    });
-    let has_upper_bound = requirement.comparators.iter().any(|comparator| {
-        matches!(
-            comparator.op,
-            Op::Exact | Op::Less | Op::LessEq | Op::Tilde | Op::Caret | Op::Wildcard
-        )
-    });
-    has_lower_bound && has_upper_bound
 }
 
 fn valid_language_version(value: &str) -> bool {
@@ -1234,7 +1195,7 @@ impl ResolvedSourceGraph {
         root: &Utf8Path,
         manifest: PackageManifest,
         lockfile: &Lockfile,
-        cache: &CacheStore,
+        cache: Option<&CacheStore>,
     ) -> Result<Self, PackageError> {
         lockfile.validate_local(root, &manifest)?;
         let project_root = root.canonicalize_utf8().map_err(PackageError::Io)?;
@@ -1290,6 +1251,11 @@ impl ResolvedSourceGraph {
         }
 
         for (package, locked) in &lockfile.packages {
+            let cache = cache.ok_or_else(|| {
+                PackageError::Invalid(
+                    "a package cache is required for registry dependencies".to_string(),
+                )
+            })?;
             let package_root = cache
                 .package_root(&locked.archive_sha256)?
                 .canonicalize_utf8()
@@ -1573,7 +1539,6 @@ pub struct ReleaseReceipt {
     pub exports: BTreeMap<String, ReleaseExportGroup>,
     pub dependencies: BTreeMap<String, Dependency>,
     pub language_version: String,
-    pub requires_dawn: VersionReq,
     pub expanded_size: u64,
     pub file_count: usize,
     pub has_audio: bool,
@@ -1812,7 +1777,6 @@ pub fn pack_directory_with_plan(
         exports: plan.exports.clone(),
         dependencies: manifest.dependencies.clone(),
         language_version: manifest.language_version,
-        requires_dawn: manifest.requires_dawn,
         expanded_size,
         file_count,
         has_audio: !manifest.assets.is_empty(),
@@ -2119,7 +2083,6 @@ pub fn inspect_archive(bytes: &[u8]) -> Result<ReleaseReceipt, PackageError> {
         || receipt.package != publication.package
         || receipt.version != publication.version
         || receipt.language_version != manifest.language_version
-        || receipt.requires_dawn != manifest.requires_dawn
         || receipt.dependencies != manifest.dependencies
     {
         return Err(PackageError::Archive(
@@ -2269,7 +2232,6 @@ mod tests {
             manifest_version: MANIFEST_VERSION,
             module_id: Uuid::new_v4(),
             language_version: "0.1".to_string(),
-            requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").expect("version"),
             project: Some(ProjectManifest {
                 entrypoint: "main.dawn".to_string(),
             }),
@@ -2457,7 +2419,7 @@ mod tests {
         manifest.validate_contract().expect("manifest contract");
         assert_eq!(
             manifest_hash(&manifest).expect("manifest hash"),
-            "ffd01b9d77fb5eae64f19b24e101da281bda908220b5d168833dbe73ccb7a770"
+            "0a0b674ae7cfa1ff349a2216c2596aa9735aa350fc5835db43445457ff86d3aa"
         );
 
         let lock: Lockfile = serde_json::from_str(include_str!(concat!(

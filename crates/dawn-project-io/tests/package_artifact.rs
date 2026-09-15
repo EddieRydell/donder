@@ -5,7 +5,7 @@ use camino::Utf8Path;
 use dawn_package::{
     CacheStore, ExportGroup, LockedPackage, Lockfile, PackageId, PackageManifest, Publication,
 };
-use semver::{Version, VersionReq};
+use semver::Version;
 use tempfile::tempdir;
 use uuid::Uuid;
 
@@ -22,7 +22,6 @@ fn compiler_rejection_prevents_registry_artifact_acceptance() {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id,
         language_version: "0.1".to_string(),
-        requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").expect("requirement"),
         project: None,
         publication: Some(Publication {
             package: package.clone(),

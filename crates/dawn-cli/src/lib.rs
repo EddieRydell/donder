@@ -162,9 +162,7 @@ fn init_with_registry(root: &Utf8Path, registry: &str) -> Result<(), CliError> {
     let manifest = PackageManifest {
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
-        language_version: "0.1".to_string(),
-        requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0")
-            .map_err(|error| PackageError::Invalid(error.to_string()))?,
+        language_version: dawn_package::LANGUAGE_VERSION.to_string(),
         project,
         publication: None,
         exports: BTreeMap::from([(

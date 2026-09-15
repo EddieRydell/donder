@@ -6,7 +6,6 @@ use camino::{Utf8Path, Utf8PathBuf};
 use dawn_package::{
     Dependency, ExportGroup, PackageError, PackageManifest, RegistryClient, RegistryConfig,
 };
-use semver::VersionReq;
 use tempfile::{Builder, TempDir};
 use uuid::Uuid;
 
@@ -57,8 +56,6 @@ pub(crate) fn new_project(destination: &Utf8Path, package_spec: &str) -> Result<
         manifest_version: dawn_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
         language_version: "0.1".to_string(),
-        requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0")
-            .map_err(|error| PackageError::Invalid(error.to_string()))?,
         project: None,
         publication: None,
         exports: BTreeMap::from([(
@@ -207,7 +204,6 @@ mod tests {
             manifest_version: dawn_package::MANIFEST_VERSION,
             module_id: original_module_id,
             language_version: "0.1".to_string(),
-            requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").expect("requirement"),
             project: Some(ProjectManifest {
                 entrypoint: "project.dawn".to_string(),
             }),

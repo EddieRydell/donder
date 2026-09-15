@@ -461,7 +461,7 @@ impl RegistryClient {
                 .into_iter()
                 .map(|release| {
                     release.validate_contract()?;
-                    let runtime_compatible = release.is_runtime_compatible()?;
+                    let runtime_compatible = release.is_runtime_compatible();
                     let yanked = release.status == crate::RegistryReleaseStatus::Yanked;
                     for dependency in release.dependencies.values() {
                         match dependency {

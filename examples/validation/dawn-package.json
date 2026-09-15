@@ -1,1 +1,0 @@
-{"manifestVersion":2,"moduleId":"cb963ee1-3f2b-4d3d-98c3-77b784ee1fab","languageVersion":"0.1","requiresDawn":">=0.1.0, <1.0.0","project":{"entrypoint":"project.dawn"},"publication":null,"exports":{"project":{"documents":["project.dawn"]}},"dependencies":{},"assets":{}}

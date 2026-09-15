@@ -537,7 +537,6 @@ mod tests {
             manifest_version: crate::MANIFEST_VERSION,
             module_id,
             language_version: "0.1".to_string(),
-            requires_dawn: VersionReq::parse(">=0.1.0, <1.0.0").expect("requirement"),
             project: Some(ProjectManifest {
                 entrypoint: "project.dawn".to_string(),
             }),

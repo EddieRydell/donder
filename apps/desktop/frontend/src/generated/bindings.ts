@@ -219,6 +219,7 @@ export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture"
 export type EditorBuffer = {
 	path: string,
 	name: string,
+	syntax: TextDocumentSyntax,
 	text: string,
 	dirty: boolean,
 	readOnly: boolean,
@@ -882,6 +883,8 @@ export type SpatialRenderPlan = {
 	pixels: SpatialRenderPixel[],
 	bounds: GeometryRenderBounds,
 };
+
+export type TextDocumentSyntax = "yaml" | "effectDsl";
 
 export type TextPosition = {
 	line: number,

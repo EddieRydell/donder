@@ -48,8 +48,7 @@ to emit equivalent children. Imported and unused emissions undergo the same
 type, required-argument, and fixed/live checks before expansion. Authored active
 automation targeting a fixed parameter is an error. Definition replacement keeps
 the explicit detached-binding workflow; detached bindings cannot activate against
-a fixed parameter. See [the implementation record](signal_model_work.md) for
-verification evidence.
+a fixed parameter.
 
 ## Operator signal coordinates
 

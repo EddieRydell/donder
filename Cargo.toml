@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/dawn-runtime", "crates/dawn-language", "crates/dawn-elaboration", "crates/dawn-output", "crates/dawn-project-io", "crates/dawn-package", "crates/dawn-cli", "crates/dawn-device-storage"]
+members = ["apps/desktop", "crates/dawn-runtime", "crates/dawn-language", "crates/dawn-elaboration", "crates/dawn-output", "crates/dawn-project-io", "crates/dawn-package", "crates/dawn-cli"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
