@@ -12,8 +12,12 @@ Run the full local gate after code changes:
 pnpm check
 ```
 
-This runs generated binding export, TypeScript typecheck, frontend lint, production frontend build,
-Rust format check, Rust check, and Rust clippy across all targets.
+This runs generated binding export, TypeScript typecheck, frontend lint and unused-code
+analysis, production frontend build, frontend tests, Rust format/check/tests, the
+firmware-owned storage recovery tests on the host, and strict workspace Clippy.
+Run `pnpm storage:test` from the repository root for the storage tests alone.
+They require a host C compiler and host libclang; `LIBCLANG_PATH` must not point
+to the ESP cross-toolchain library. See the firmware README for the boundary.
 
 For documentation-only, example-only, or other changes unaffected by build/test checks, `pnpm check`
 is not required.

@@ -67,6 +67,16 @@ See the [evidence policy](../../docs/performance.md) and the
 
 ## Validation
 
+The root `pnpm check` runs all six device-storage recovery tests through
+`pnpm storage:test`. Run that command from the repository root: it uses the
+host Rust toolchain and does not inherit this directory's Xtensa Cargo config.
+These tests require a host C compiler and host libclang. On Windows, set
+`LIBCLANG_PATH` to a host LLVM library before running the gate; do not use the
+ESP cross-toolchain libclang selected by `export-esp.ps1`. A wrong library can
+make bindgen fail with a host pointer-size assertion. This machine also has a
+usable host library bundled with RStudio; its location is machine configuration,
+not a repository dependency.
+
 The desktop and ESP32 workspaces have different toolchains. Do not run host
 builds with `+esp`. From this directory, firmware validation is:
 

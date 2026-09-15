@@ -83,6 +83,9 @@ Install:
 - Node.js version required by `package.json`
 - pnpm version pinned in `package.json`
 - Tauri 2 system dependencies for your operating system
+- A host C compiler and host libclang for `pnpm storage:test`, included in
+  `pnpm check`. Set `LIBCLANG_PATH` to the host library, not ESP32's cross-toolchain
+  library, when running the host gate.
 
 ### Install Dependencies
 
