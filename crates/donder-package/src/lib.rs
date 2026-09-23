@@ -2413,7 +2413,7 @@ mod tests {
     fn shared_protocol_fixtures_match_the_rust_contract() {
         let manifest: PackageManifest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/manifest-v2.json"
+            "/tests/fixtures/registry-v1/manifest-v2.json"
         )))
         .expect("manifest fixture");
         manifest.validate_contract().expect("manifest contract");
@@ -2424,14 +2424,14 @@ mod tests {
 
         let lock: Lockfile = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/lock-v1.json"
+            "/tests/fixtures/registry-v1/lock-v1.json"
         )))
         .expect("lock fixture");
         lock.validate_manifest(&manifest).expect("lock contract");
 
         let receipt: ReleaseReceipt = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/release-v1.json"
+            "/tests/fixtures/registry-v1/release-v1.json"
         )))
         .expect("release fixture");
         assert_eq!(receipt.module_id, manifest.module_id);
@@ -2440,14 +2440,14 @@ mod tests {
 
         let discovery: RegistryDiscovery = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/discovery-v1.json"
+            "/tests/fixtures/registry-v1/discovery-v1.json"
         )))
         .expect("discovery fixture");
         assert_eq!(discovery.registry_version, 1);
 
         let resolution: RegistryResolveResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/resolve-v1.json"
+            "/tests/fixtures/registry-v1/resolve-v1.json"
         )))
         .expect("resolution fixture");
         assert_eq!(
@@ -2457,14 +2457,14 @@ mod tests {
 
         let download: RegistryDownloadResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/download-v1.json"
+            "/tests/fixtures/registry-v1/download-v1.json"
         )))
         .expect("download fixture");
         assert_eq!(download.status, RegistryReleaseStatus::Yanked);
 
         let device_start_request: DeviceLoginRequest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/device-start-request-v1.json"
+            "/tests/fixtures/registry-v1/device-start-request-v1.json"
         )))
         .expect("device start request fixture");
         assert!(matches!(
@@ -2476,17 +2476,17 @@ mod tests {
         ));
         let _: DeviceStartResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/device-start-response-v1.json"
+            "/tests/fixtures/registry-v1/device-start-response-v1.json"
         )))
         .expect("device start response fixture");
         let _: DeviceTokenResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/device-token-response-v1.json"
+            "/tests/fixtures/registry-v1/device-token-response-v1.json"
         )))
         .expect("device token response fixture");
         let whoami_request: DeviceLoginRequest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/device-whoami-request-v1.json"
+            "/tests/fixtures/registry-v1/device-whoami-request-v1.json"
         )))
         .expect("device whoami request fixture");
         assert!(matches!(
@@ -2497,27 +2497,27 @@ mod tests {
         ));
         let _: DeviceIdentityResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/device-whoami-response-v1.json"
+            "/tests/fixtures/registry-v1/device-whoami-response-v1.json"
         )))
         .expect("device whoami response fixture");
         let _: PublishStageRequest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/publish-stage-request-v1.json"
+            "/tests/fixtures/registry-v1/publish-stage-request-v1.json"
         )))
         .expect("publish stage request fixture");
         let _: PublishStageResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/publish-stage-response-v1.json"
+            "/tests/fixtures/registry-v1/publish-stage-response-v1.json"
         )))
         .expect("publish stage response fixture");
         let _: PublishFinalizeRequest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/publish-finalize-request-v1.json"
+            "/tests/fixtures/registry-v1/publish-finalize-request-v1.json"
         )))
         .expect("publish finalize request fixture");
         let _: PublishFinalizeResponse = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/publish-finalize-response-v1.json"
+            "/tests/fixtures/registry-v1/publish-finalize-response-v1.json"
         )))
         .expect("publish finalize response fixture");
     }
@@ -2526,7 +2526,7 @@ mod tests {
     fn manifest_requires_all_v2_top_level_fields() {
         let fixture = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../protocol/registry-v1/fixtures/manifest-v2.json"
+            "/tests/fixtures/registry-v1/manifest-v2.json"
         ));
         let mut value: serde_json::Value = serde_json::from_str(fixture).expect("fixture");
         value.as_object_mut().expect("object").remove("publication");
