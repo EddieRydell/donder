@@ -1,5 +1,5 @@
 use crate::dto::{DeviceFirmwareInfo, DeviceInstallProgress};
-use dawn_package::sha256_hex;
+use donder_package::sha256_hex;
 use espflash::{
     connection::{Connection, ResetAfterOperation, ResetBeforeOperation},
     flasher::{DeviceInfo, FlashSize, Flasher},
@@ -7,21 +7,21 @@ use espflash::{
 };
 use std::time::Duration;
 
-const IMAGE: &[u8] = include_bytes!("../../assets/firmware/dawn-esp32.bin");
-const IMAGE_HASH: &str = include_str!("../../assets/firmware/dawn-esp32.sha256");
+const IMAGE: &[u8] = include_bytes!("../../assets/firmware/donder-esp32.bin");
+const IMAGE_HASH: &str = include_str!("../../assets/firmware/donder-esp32.sha256");
 const PARTITIONS: &str = include_str!("../../../../firmware/esp32/partitions.csv");
 
 fn validate_image(image: &[u8], expected_hash: &str) -> Result<(), String> {
     if !sha256_hex(image).eq_ignore_ascii_case(expected_hash.trim()) {
-        return Err("Bundled controller image failed its checksum. Rebuild the controller image or reinstall Dawn.".into());
+        return Err("Bundled controller image failed its checksum. Rebuild the controller image or reinstall Donder.".into());
     }
     let table = esp_idf_part::PartitionTable::try_from_str(PARTITIONS)
         .map_err(|error| error.to_string())?;
     table.validate().map_err(|error| error.to_string())?;
     let encoded = table.to_bin().map_err(|error| error.to_string())?;
     let data = table
-        .find("dawn")
-        .ok_or("Controller image has no Dawn data partition.")?;
+        .find("donder")
+        .ok_or("Controller image has no Donder data partition.")?;
     let app = table
         .find("factory")
         .ok_or("Controller image has no application partition.")?;

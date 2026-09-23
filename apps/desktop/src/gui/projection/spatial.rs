@@ -1,9 +1,9 @@
 use crate::dto::*;
 use crate::gui::{ResolvedGuiObject, blocked};
-use dawn_elaboration::fixture::PreparedFixtureDefinitions;
-use dawn_language::fixture::{FixtureDefinitionId, FixtureTransform};
-use dawn_language::layout::{LayoutFixture, LayoutFixtureKind, LayoutId};
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_elaboration::fixture::PreparedFixtureDefinitions;
+use donder_language::fixture::{FixtureDefinitionId, FixtureTransform};
+use donder_language::layout::{LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 pub(in crate::gui) fn project_fixture(
     session: &ProjectSession,

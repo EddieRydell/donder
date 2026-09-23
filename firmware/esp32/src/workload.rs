@@ -1,11 +1,11 @@
-use dawn_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
+use donder_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 extern crate alloc;
 
 use alloc::vec;
-use dawn_runtime::dsl::{BoundParams, RunContext, bytecode::BytecodeProgram};
-use dawn_runtime::sequence::PreparedSequence;
-use dawn_runtime::signal::*;
-use dawn_runtime::values::{SampleDuration, SampleTime};
+use donder_runtime::dsl::{BoundParams, RunContext, bytecode::BytecodeProgram};
+use donder_runtime::sequence::PreparedSequence;
+use donder_runtime::signal::*;
+use donder_runtime::values::{SampleDuration, SampleTime};
 
 pub const COUNTS: [usize; 4] = [200, 400, 800, 1600];
 pub const FRAMES: usize = 32;
@@ -25,8 +25,8 @@ pub const MARK_CASES: [(&str, bool, f32); 3] = [
 // contains no evaluator shortcuts; desktop and device use the same setup.
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
 pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -> PreparedSequence {
-    use dawn_runtime::dsl::{Identifier, ParamDecl, Type, Value};
-    use dawn_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
+    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let mut show = layered_show(count, program, BoundParams::default(), layers);
     show.signals.programs = vec![].into();
     let shape: Value = Value::Curve(
@@ -78,11 +78,11 @@ pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -
             .into(),
         );
         let builtin = if index % 2 == 0 {
-            dawn_runtime::BuiltinEffect::Chase
+            donder_runtime::BuiltinEffect::Chase
         } else {
-            dawn_runtime::BuiltinEffect::Pulse
+            donder_runtime::BuiltinEffect::Pulse
         };
-        let values = if builtin == dawn_runtime::BuiltinEffect::Chase {
+        let values = if builtin == donder_runtime::BuiltinEffect::Chase {
             vec![
                 (Type::Gradient, gradient),
                 (
@@ -112,7 +112,7 @@ pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -
             .collect::<vec::Vec<_>>();
         let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
         effect.implementation = PreparedEffectImplementation::Native {
-            sample: dawn_runtime::native_effect::prepare_sample(builtin, &params).unwrap(),
+            sample: donder_runtime::native_effect::prepare_sample(builtin, &params).unwrap(),
             params: None,
         };
         effect.start_time = SampleTime::from_ticks(index as u32 * 43_000);
@@ -160,7 +160,9 @@ pub fn insert_native_invert(show: &mut PreparedSequence) {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
                     automation_slot: 0,
-                    implementation: PreparedOperator::Native(dawn_runtime::BuiltinOperator::Invert),
+                    implementation: PreparedOperator::Native(
+                        donder_runtime::BuiltinOperator::Invert,
+                    ),
                     params: Default::default(),
                 },
                 inputs: vec![1].into(),
@@ -195,8 +197,8 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
 } }";
 
 pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
-    use dawn_runtime::dsl::{Identifier, ParamDecl, Type, Value};
-    use dawn_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
+    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let mut curve = Curve {
         points: vec![
             CurvePoint {
@@ -244,12 +246,12 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
     });
     let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
     show.signals.effects[0].implementation = PreparedEffectImplementation::Native {
-        sample: dawn_runtime::native_effect::prepare_sample(
-            dawn_runtime::BuiltinEffect::Pulse,
+        sample: donder_runtime::native_effect::prepare_sample(
+            donder_runtime::BuiltinEffect::Pulse,
             &params,
         )
         .unwrap(),
-        params: Some((dawn_runtime::BuiltinEffect::Pulse, params)),
+        params: Some((donder_runtime::BuiltinEffect::Pulse, params)),
     };
     show.signals.effects[0].automation = Some(alloc::boxed::Box::new(PreparedEffectAutomation {
         workspace_slot: 0,
@@ -257,7 +259,7 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(8_000_000),
             curve: curve.into(),
-            mapping: dawn_runtime::automation::AutomationMapping::Curve {
+            mapping: donder_runtime::automation::AutomationMapping::Curve {
                 min: if empty { 0.5 } else { 0.0 },
                 max: 1.0,
             },

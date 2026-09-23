@@ -33,7 +33,7 @@ pub fn run() -> Result<(), tauri::Error> {
     let bindings = bindings::builder();
 
     tauri::Builder::default()
-        .register_uri_scheme_protocol("dawn-raster", |context, request| {
+        .register_uri_scheme_protocol("donder-raster", |context, request| {
             raster_protocol_response(
                 context.app_handle().state::<desktop_state::DesktopState>().inner(),
                 request,

@@ -3,7 +3,7 @@ import type { SetupDocument, SetupGuiEdit } from "../../../types";
 
 type ControllerConfig = Extract<SetupGuiEdit, { type: "addController" }>["config"];
 export function ControllerForm({ controller, onSave }: { controller?: SetupDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: SetupDocument["controllers"][number]["ports"]) => Promise<void> }) {
-  const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? { type: "e131", sourceName: "Dawn", bindAddress: "0.0.0.0", priority: 100, destination: null });
+  const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? { type: "e131", sourceName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null });
   const [ports, setPorts] = useState(controller?.ports ?? [{ id: 1, address: 1, slotCount: 512 }]);
   return <form className="setup-authoring-form" onSubmit={(event) => {
     event.preventDefault();
@@ -12,7 +12,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupDocum
     <h4>{controller === undefined ? "Add a controller" : "Controller settings"}</h4>
     <fieldset disabled={controller?.readOnly === true}>
       <label>Protocol<select value={config.type} onChange={(event) => {
-        setConfig(event.target.value === "e131" ? { type: "e131", sourceName: "Dawn", bindAddress: "0.0.0.0", priority: 100, destination: null }
+        setConfig(event.target.value === "e131" ? { type: "e131", sourceName: "Donder", bindAddress: "0.0.0.0", priority: 100, destination: null }
           : { type: "artNet", bindAddress: "0.0.0.0:6454", destination: "255.255.255.255:6454", broadcast: true });
       }}><option value="e131">E1.31 / sACN</option><option value="artNet">Art-Net</option></select></label>
       <label>Local interface<input required value={config.bindAddress} onChange={(event) => { setConfig({ ...config, bindAddress: event.target.value }); }} /></label>

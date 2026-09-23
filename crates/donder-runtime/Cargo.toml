@@ -1,0 +1,18 @@
+[package]
+name = "donder-runtime"
+edition.workspace = true
+version.workspace = true
+description = "Portable Donder bytecode and prepared-sequence runtime"
+authors = ["Donder"]
+license = "MIT"
+
+[features]
+default = ["atomic"]
+atomic = []
+
+[dependencies]
+rkyv.workspace = true
+crc32fast.workspace = true
+fugit.workspace = true
+libm.workspace = true
+micromath.workspace = true

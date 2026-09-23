@@ -1,6 +1,6 @@
-use dawn_language::controller::ControllerId;
-use dawn_language::setup::SetupId;
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_language::controller::ControllerId;
+use donder_language::setup::SetupId;
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::model::source_identity_from_gui;
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
@@ -81,16 +81,16 @@ pub(super) fn edit_setup(
                 &controller.path,
                 &controller.object_key,
             )?;
-            dawn_language::setup::authoring::attach_controller(
+            donder_language::setup::authoring::attach_controller(
                 &mut session.project,
                 &setup.id,
                 ControllerId(identity.clone()),
             )
             .map_err(GuiMutationError::Invalid)?;
-            dawn_project_io::ensure_document_can_reference_source(
+            donder_project_io::ensure_document_can_reference_source(
                 session,
                 setup.id.0.document_id(),
-                dawn_project_io::SourceObjectKind::Controller,
+                donder_project_io::SourceObjectKind::Controller,
                 &identity,
             )
             .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
@@ -107,7 +107,7 @@ pub(super) fn edit_setup(
             if remove_outputs {
                 ensure_owned_target(session, &setup.patch.0)?;
             }
-            dawn_language::setup::authoring::detach_controller(
+            donder_language::setup::authoring::detach_controller(
                 &mut session.project,
                 &setup.id,
                 &ControllerId(identity),
@@ -119,15 +119,15 @@ pub(super) fn edit_setup(
             let controller = super::controller::domain_controller(config, ports)?;
             let identity = create_object_document(
                 session,
-                dawn_project_io::SourceObjectKind::Controller,
+                donder_project_io::SourceObjectKind::Controller,
                 "controller",
                 "controllers",
                 "controller",
             )?;
-            dawn_project_io::ensure_document_can_reference_source(
+            donder_project_io::ensure_document_can_reference_source(
                 session,
                 setup.id.0.document_id(),
-                dawn_project_io::SourceObjectKind::Controller,
+                donder_project_io::SourceObjectKind::Controller,
                 &identity,
             )
             .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
@@ -147,7 +147,7 @@ pub(super) fn edit_setup(
 
 pub(super) fn ensure_owned_target(
     session: &ProjectSession,
-    identity: &dawn_language::identity::SourceIdentity,
+    identity: &donder_language::identity::SourceIdentity,
 ) -> Result<(), GuiMutationError> {
     if session.source.is_project_owned(identity.document_id()) {
         Ok(())
@@ -159,17 +159,17 @@ pub(super) fn ensure_owned_target(
     }
 }
 
-pub(super) fn source_key(id: &dawn_language::identity::SourceIdentity) -> String {
+pub(super) fn source_key(id: &donder_language::identity::SourceIdentity) -> String {
     format!("{}#{}", id.document(), id.object())
 }
 
 pub(super) fn create_object_document(
     session: &mut ProjectSession,
-    kind: dawn_project_io::SourceObjectKind,
+    kind: donder_project_io::SourceObjectKind,
     name: &str,
     directory: &str,
     suffix: &str,
-) -> Result<dawn_language::identity::SourceIdentity, GuiMutationError> {
+) -> Result<donder_language::identity::SourceIdentity, GuiMutationError> {
     let mut key = name
         .chars()
         .map(|character| {
@@ -193,7 +193,7 @@ pub(super) fn create_object_document(
         } else {
             format!("{key}_{index}")
         };
-        let path = camino::Utf8PathBuf::from(format!("{directory}/{stem}.{suffix}.dawn"));
+        let path = camino::Utf8PathBuf::from(format!("{directory}/{stem}.{suffix}.donder"));
         let document = session.source.project_document(path.clone());
         if session.source.documents.contains_key(&document)
             || session.source.project_root().join(&path).exists()

@@ -1,7 +1,7 @@
 {
   "registryVersion": 1,
   "protocolUrl": "https://kzgfvjltqazhspqzgyxy.supabase.co/functions/v1",
-  "websiteUrl": "https://dawn.eddierydell.com",
+  "websiteUrl": "https://donder.eddierydell.com",
   "endpoints": {
     "resolve": "https://kzgfvjltqazhspqzgyxy.supabase.co/functions/v1/registry-v1?op=resolve",
     "download": "https://kzgfvjltqazhspqzgyxy.supabase.co/functions/v1/registry-v1?op=download",

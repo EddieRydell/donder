@@ -43,7 +43,7 @@ pub(super) fn edit_sequence(
                 ));
             }
             sequence_mut(session, &sequence_id)?.duration =
-                DawnDuration::from_seconds_f32(duration_seconds);
+                DonderDuration::from_seconds_f32(duration_seconds);
         }
         SequenceGuiEdit::SetAudio { import_path } => {
             let audio = match import_path {
@@ -68,7 +68,7 @@ pub(super) fn edit_sequence(
                 target.map(|target| layout_target_to_effect_target(&layout, target));
             let sequence = sequence_mut(session, &sequence_id)?;
             let effect = effect_mut(sequence, id)?;
-            effect.start = DawnTime::from_seconds_f32(start_seconds.max(0.0));
+            effect.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
             if let Some(target) = parsed_target {
                 effect.target = target;
             }
@@ -79,8 +79,8 @@ pub(super) fn edit_sequence(
             duration_seconds,
         } => {
             let sequence = sequence_mut(session, &sequence_id)?;
-            let start = DawnTime::from_seconds_f32(start_seconds.max(0.0));
-            let duration = DawnDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            let start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            let duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
             let effect = effect_mut(sequence, id)?;
             effect.start = start;
             effect.duration = duration;
@@ -115,7 +115,7 @@ pub(super) fn edit_sequence(
                 .marks
                 .get_mut(index as usize)
                 .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
-            *mark = DawnTime::from_seconds_f32(time_seconds.max(0.0));
+            *mark = DonderTime::from_seconds_f32(time_seconds.max(0.0));
             collection.marks.sort_by_key(|time| time.0);
         }
         SequenceGuiEdit::ReassignMarkCollection {
@@ -145,7 +145,7 @@ pub(super) fn edit_sequence(
                 mark_collection_mut(sequence_mut(session, &sequence_id)?, &collection_key)?;
             collection
                 .marks
-                .push(DawnTime::from_seconds_f32(time_seconds.max(0.0)));
+                .push(DonderTime::from_seconds_f32(time_seconds.max(0.0)));
             collection.marks.sort_by_key(|time| time.0);
         }
         SequenceGuiEdit::DeleteMark {
@@ -273,8 +273,8 @@ pub(super) fn edit_sequence(
             sequence.effects.push(EffectInst {
                 id: EffectInstId(next_id),
                 layer_id,
-                start: DawnTime::from_seconds_f32(start_seconds.max(0.0)),
-                duration: DawnDuration::from_seconds_f32(1.0),
+                start: DonderTime::from_seconds_f32(start_seconds.max(0.0)),
+                duration: DonderDuration::from_seconds_f32(1.0),
                 target: layout_target_to_effect_target(&layout, target),
                 scope: effect_scope(scope),
                 definition,
@@ -613,8 +613,8 @@ pub(super) fn edit_sequence(
                 + 1;
             sequence.automation_clips.push(AutomationClip {
                 id: AutomationClipId(next_id),
-                start: DawnTime::from_seconds_f32(start_seconds.max(0.0)),
-                duration: DawnDuration::from_seconds_f32(duration_seconds.max(0.000000001)),
+                start: DonderTime::from_seconds_f32(start_seconds.max(0.0)),
+                duration: DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001)),
                 anchor_lane_index,
                 lane_index,
                 curve: default_automation_curve(),
@@ -624,7 +624,7 @@ pub(super) fn edit_sequence(
         }
         SequenceGuiEdit::CreateAndBindAutomationClip { target, mapping } => {
             let target = automation_target_from_gui(target)?;
-            dawn_language::validation::automation_target_type(
+            donder_language::validation::automation_target_type(
                 &session.project,
                 session.project.sequences.get(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
@@ -666,7 +666,7 @@ pub(super) fn edit_sequence(
             lane_index,
         } => {
             let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
-            clip.start = DawnTime::from_seconds_f32(start_seconds.max(0.0));
+            clip.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
             clip.anchor_lane_index = anchor_lane_index;
             clip.lane_index = lane_index;
         }
@@ -676,8 +676,8 @@ pub(super) fn edit_sequence(
             duration_seconds,
         } => {
             let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
-            clip.start = DawnTime::from_seconds_f32(start_seconds.max(0.0));
-            clip.duration = DawnDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            clip.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            clip.duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
         }
         SequenceGuiEdit::UpdateAutomationCurve { id, curve } => {
             automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?.curve =
@@ -689,7 +689,7 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
-            dawn_language::validation::automation_target_type(
+            donder_language::validation::automation_target_type(
                 &session.project,
                 session.project.sequences.get(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
@@ -717,7 +717,7 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
-            dawn_language::validation::automation_target_type(
+            donder_language::validation::automation_target_type(
                 &session.project,
                 session.project.sequences.get(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
@@ -790,7 +790,7 @@ pub(super) fn edit_sequence(
             mapping,
         } => {
             let target = automation_target_from_gui(target)?;
-            dawn_language::validation::automation_target_type(
+            donder_language::validation::automation_target_type(
                 &session.project,
                 session.project.sequences.get(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
@@ -847,9 +847,9 @@ fn automation_target_from_gui(
 
 fn automation_target_timing(
     session: &ProjectSession,
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     target: &AutomationTarget,
-) -> Result<(DawnTime, DawnDuration, u32), GuiMutationError> {
+) -> Result<(DonderTime, DonderDuration, u32), GuiMutationError> {
     match target {
         AutomationTarget::EffectParam { effect_id, .. } => {
             let effect = sequence
@@ -887,7 +887,7 @@ fn automation_target_timing(
                 ));
             }
             Ok((
-                DawnTime::from_seconds_f32(0.0),
+                DonderTime::from_seconds_f32(0.0),
                 sequence.duration.clone(),
                 0,
             ))
@@ -896,7 +896,7 @@ fn automation_target_timing(
 }
 
 fn ensure_automation_target_available(
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     target: &AutomationTarget,
     binding_clip_id: Option<u32>,
 ) -> Result<(), GuiMutationError> {
@@ -947,20 +947,20 @@ fn effect_ref_from_gui(
 
 use std::collections::BTreeSet;
 
-use dawn_language::effect::{
+use donder_language::effect::{
     BuiltinEffect, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
 };
-use dawn_language::operator::{
+use donder_language::operator::{
     GraphOperatorNode, OperatorPortCardinality, OperatorRef, validate_composition_graph,
 };
-use dawn_language::sequence::{
+use donder_language::sequence::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection, MarkCollectionKey,
     SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
 };
-use dawn_language::values::{DawnDuration, DawnTime};
-use dawn_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_language::values::{DonderDuration, DonderTime};
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 use indexmap::IndexMap;
 
 use super::model::{

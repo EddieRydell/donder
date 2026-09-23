@@ -1,6 +1,6 @@
 {
   "registryVersion": 1,
-  "package": "dawn/protocol-example",
+  "package": "donder/protocol-example",
   "deprecated": false,
   "versions": [
     {
@@ -15,26 +15,26 @@
       "status": "published",
       "dependencies": {
         "foundation": {
-          "package": "dawn/foundation",
+          "package": "donder/foundation",
           "version": "^1.2.0"
         }
       },
       "exports": {
         "effects": {
-          "documents": ["effects/pulse.effect.dawn"],
+          "documents": ["effects/pulse.effect.donder"],
           "objects": [
             {
-              "document": "effects/pulse.effect.dawn",
+              "document": "effects/pulse.effect.donder",
               "name": "pulse",
               "kind": "effect_definition"
             }
           ]
         },
         "project": {
-          "documents": ["main.dawn"],
+          "documents": ["main.donder"],
           "objects": [
             {
-              "document": "main.dawn",
+              "document": "main.donder",
               "name": "protocolExample",
               "kind": "project"
             }

@@ -6,7 +6,7 @@ extern crate alloc;
 use alloc::vec;
 use core::hint::black_box;
 use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
-use dawn_runtime::dsl::VmWorkspace;
+use donder_runtime::dsl::VmWorkspace;
 use esp_hal::{clock::CpuClock, time::Instant};
 use esp_println::println;
 
@@ -62,7 +62,7 @@ fn main() -> ! {
     let start = Instant::now();
     while start.elapsed().as_millis() < 3000 {}
     println!(
-        "DAWN PROFILE BEGIN cpu_mhz={} cores=1 wifi=off gpio=untouched frames={}",
+        "DONDER PROFILE BEGIN cpu_mhz={} cores=1 wifi=off gpio=untouched frames={}",
         esp_hal::clock::cpu_clock().as_mhz(),
         workload::FRAMES
     );
@@ -286,7 +286,7 @@ fn main() -> ! {
         let heap_before = esp_alloc::HEAP.used();
         REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
         let start = Instant::now();
-        let show = dawn_runtime::wire::decode_sequence(
+        let show = donder_runtime::wire::decode_sequence(
             fixtures::GENERATOR_SEQUENCES[index],
             Default::default(),
         )
@@ -337,7 +337,7 @@ fn main() -> ! {
             "generator case leaked heap"
         );
     }
-    println!("DAWN PROFILE END heap_free={}", esp_alloc::HEAP.free());
+    println!("DONDER PROFILE END heap_free={}", esp_alloc::HEAP.free());
     loop {
         core::hint::spin_loop();
     }

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 
 use camino::Utf8Path;
-use dawn_package::{ExportGroup, Lockfile, PackageManifest, ProjectManifest, canonical_json};
+use donder_package::{ExportGroup, Lockfile, PackageManifest, ProjectManifest, canonical_json};
 use uuid::Uuid;
 
 pub(crate) struct ProjectBoilerplateFile {
@@ -13,23 +13,23 @@ pub(crate) struct ProjectBoilerplateFile {
 pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerplateFile>, String> {
     let project_id = object_key_from_name(project_name);
     let manifest = PackageManifest {
-        manifest_version: dawn_package::MANIFEST_VERSION,
+        manifest_version: donder_package::MANIFEST_VERSION,
         module_id: Uuid::new_v4(),
-        language_version: dawn_package::LANGUAGE_VERSION.to_string(),
+        language_version: donder_package::LANGUAGE_VERSION.to_string(),
         project: Some(ProjectManifest {
-            entrypoint: "project.dawn".to_string(),
+            entrypoint: "project.donder".to_string(),
         }),
         publication: None,
         exports: BTreeMap::from([(
             "project".to_string(),
             ExportGroup {
-                documents: vec!["project.dawn".to_string()],
+                documents: vec!["project.donder".to_string()],
             },
         )]),
         dependencies: BTreeMap::new(),
         assets: BTreeMap::new(),
     };
-    let registry = dawn_package::RegistryConfig::read().map_err(|error| error.to_string())?;
+    let registry = donder_package::RegistryConfig::read().map_err(|error| error.to_string())?;
     let lockfile =
         Lockfile::new(&manifest, &registry.registry).map_err(|error| error.to_string())?;
     let manifest_text =
@@ -41,33 +41,33 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
 
     Ok(vec![
         ProjectBoilerplateFile {
-            path: dawn_package::MANIFEST_FILE,
+            path: donder_package::MANIFEST_FILE,
             text: manifest_text,
         },
         ProjectBoilerplateFile {
-            path: dawn_package::LOCK_FILE,
+            path: donder_package::LOCK_FILE,
             text: lockfile_text,
         },
         ProjectBoilerplateFile {
-            path: "project.dawn",
+            path: "project.donder",
             text: format!(
-                "imports:\n- from:\n    documents:\n    - setups/main.setup.dawn\n  as: setups\n- from:\n    documents:\n    - sequences/main.sequence.dawn\n  as: sequences\n{project_id}:\n  type: project\n  setup: setups.main\n  sequences:\n  - sequences.main\n"
+                "imports:\n- from:\n    documents:\n    - setups/main.setup.donder\n  as: setups\n- from:\n    documents:\n    - sequences/main.sequence.donder\n  as: sequences\n{project_id}:\n  type: project\n  setup: setups.main\n  sequences:\n  - sequences.main\n"
             ),
         },
         ProjectBoilerplateFile {
-            path: "setups/main.setup.dawn",
-            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.dawn\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.dawn\n  as: patches\nmain:\n  type: setup\n  layout: layout.main\n  patch: patches.main\n  controllers: []\n".to_string(),
+            path: "setups/main.setup.donder",
+            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.donder\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.donder\n  as: patches\nmain:\n  type: setup\n  layout: layout.main\n  patch: patches.main\n  controllers: []\n".to_string(),
         },
         ProjectBoilerplateFile {
-            path: "layouts/main.layout.dawn",
+            path: "layouts/main.layout.donder",
             text: "main:\n  type: layout\n  fixtures: []\n".to_string(),
         },
         ProjectBoilerplateFile {
-            path: "patches/main.patch.dawn",
+            path: "patches/main.patch.donder",
             text: "main:\n  type: patch\n  routes: []\n".to_string(),
         },
         ProjectBoilerplateFile {
-            path: "sequences/main.sequence.dawn",
+            path: "sequences/main.sequence.donder",
             text: sequence_boilerplate("main", 60.0, 60),
         },
     ])
@@ -140,18 +140,19 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root =
-            Utf8PathBuf::from_path_buf(std::env::temp_dir().join(format!("dawn-template-{nonce}")))
-                .unwrap();
+        let root = Utf8PathBuf::from_path_buf(
+            std::env::temp_dir().join(format!("donder-template-{nonce}")),
+        )
+        .unwrap();
         let files = new_project_files("Template Test").unwrap();
         assert!(
             files
                 .iter()
-                .any(|file| file.path == "layouts/main.layout.dawn")
+                .any(|file| file.path == "layouts/main.layout.donder")
         );
         assert!(!files.iter().any(|file| file.path.contains("display")));
         write_new_project_files(&root, &files).unwrap();
-        let session = dawn_project_io::load_package(&root).unwrap().session;
+        let session = donder_project_io::load_package(&root).unwrap().session;
         let setup = session
             .project
             .setups

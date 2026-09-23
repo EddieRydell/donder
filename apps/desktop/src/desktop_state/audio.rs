@@ -20,7 +20,10 @@ impl DesktopState {
                     .and_then(|id| project.project.sequences.get(id))
             })
             .filter(|sequence| {
-                matches!(sequence.audio, dawn_language::sequence::SequenceAudio::None)
+                matches!(
+                    sequence.audio,
+                    donder_language::sequence::SequenceAudio::None
+                )
             })
             .map(|sequence| sequence.duration.as_seconds_f32());
         let audio_transport = match silent_duration {
@@ -142,34 +145,34 @@ mod tests {
         let rig = root.join("rig");
         write_new_project_files(&root, &new_project_files("Show").unwrap()).unwrap();
         write_new_project_files(&rig, &new_project_files("Rig").unwrap()).unwrap();
-        let dependency = dawn_project_io::load_package(&rig).unwrap().session;
+        let dependency = donder_project_io::load_package(&rig).unwrap().session;
         let setup = dependency.project.root.setup.clone();
         let sequence = dependency.project.root.sequences[0].clone();
-        let mut manifest = dawn_package::PackageManifest::read(&rig).unwrap();
+        let mut manifest = donder_package::PackageManifest::read(&rig).unwrap();
         manifest.project = None;
         manifest.exports = BTreeMap::from([
             (
                 "setup".into(),
-                dawn_package::ExportGroup {
+                donder_package::ExportGroup {
                     documents: vec![setup.0.document().to_string()],
                 },
             ),
             (
                 "sequence".into(),
-                dawn_package::ExportGroup {
+                donder_package::ExportGroup {
                     documents: vec![sequence.0.document().to_string()],
                 },
             ),
         ]);
         manifest.write(&rig).unwrap();
-        fs::write(root.join("project.dawn"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", setup.0.object(), sequence.0.object())).unwrap();
-        let mut manifest = dawn_package::PackageManifest::read(&root).unwrap();
+        fs::write(root.join("project.donder"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", setup.0.object(), sequence.0.object())).unwrap();
+        let mut manifest = donder_package::PackageManifest::read(&root).unwrap();
         manifest.dependencies.insert(
             "rig".into(),
-            dawn_package::Dependency::Path { path: "rig".into() },
+            donder_package::Dependency::Path { path: "rig".into() },
         );
         manifest.write(&root).unwrap();
-        dawn_package::Lockfile::from_directory(&manifest, &root, "https://registry.dawn.dev")
+        donder_package::Lockfile::from_directory(&manifest, &root, "https://registry.donder.dev")
             .unwrap()
             .write(&root)
             .unwrap();
@@ -217,9 +220,9 @@ mod tests {
         );
         assert_eq!(state.resolve_sequence_id(&request), Some(imported.clone()));
         let copy = root.parent().unwrap().join("editable");
-        dawn_project_io::export_editable_project(&loaded, &copy).unwrap();
+        donder_project_io::export_editable_project(&loaded, &copy).unwrap();
         assert_eq!(
-            dawn_project_io::load_package(&root)
+            donder_project_io::load_package(&root)
                 .unwrap()
                 .session
                 .project,

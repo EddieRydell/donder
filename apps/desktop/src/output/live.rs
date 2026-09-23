@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use dawn_language::controller::{Controller, ControllerId};
-use dawn_output::OutputTransports;
+use donder_language::controller::{Controller, ControllerId};
+use donder_output::OutputTransports;
 use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
@@ -20,7 +20,7 @@ const OUTPUT_TEST_DURATION: Duration = Duration::from_secs(10);
 enum OutputSource {
     Sequence,
     Test {
-        frames: Vec<dawn_elaboration::ControllerPortFrame>,
+        frames: Vec<donder_elaboration::ControllerPortFrame>,
         started: Instant,
     },
 }
@@ -88,7 +88,7 @@ impl LiveOutputService {
         &mut self,
         id: ControllerId,
         controller: Controller,
-        frame: dawn_elaboration::ControllerPortFrame,
+        frame: donder_elaboration::ControllerPortFrame,
     ) -> LiveOutputSnapshot {
         self.start(
             IndexMap::from([(id.clone(), controller)]),
@@ -501,13 +501,13 @@ mod tests {
 
     #[test]
     fn failed_blackout_retains_original_failure_and_drops_transports() {
-        use dawn_language::controller::{
+        use donder_language::controller::{
             ArtNetConfig, ArtNetMode, ControllerPort, ControllerPortAddress, ControllerPortId,
             ControllerProtocol,
         };
-        use dawn_language::identity::{DocumentId, SourceIdentity};
+        use donder_language::identity::{DocumentId, SourceIdentity};
         let id = ControllerId(SourceIdentity::from_document(
-            DocumentId::new(uuid::Uuid::new_v4(), "controller.dawn".into()),
+            DocumentId::new(uuid::Uuid::new_v4(), "controller.donder".into()),
             "broken".into(),
         ));
         // Invalid protocol address forces a codec failure before any network send.

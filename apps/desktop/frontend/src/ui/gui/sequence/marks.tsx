@@ -23,7 +23,7 @@ let markDisplayMode: MarkDisplayMode = "overlay";
 
 export function setGlobalMarkDisplayMode(nextMode: MarkDisplayMode) {
   markDisplayMode = nextMode;
-  window.dispatchEvent(new CustomEvent<MarkDisplayMode>("dawn-mark-display-mode", { detail: nextMode }));
+  window.dispatchEvent(new CustomEvent<MarkDisplayMode>("donder-mark-display-mode", { detail: nextMode }));
 }
 
 export function useMarkDisplayMode() {
@@ -33,9 +33,9 @@ export function useMarkDisplayMode() {
     const listener = (event: Event) => {
       setMode((event as CustomEvent<MarkDisplayMode>).detail);
     };
-    window.addEventListener("dawn-mark-display-mode", listener);
+    window.addEventListener("donder-mark-display-mode", listener);
     return () => {
-      window.removeEventListener("dawn-mark-display-mode", listener);
+      window.removeEventListener("donder-mark-display-mode", listener);
     };
   }, []);
 

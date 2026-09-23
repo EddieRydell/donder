@@ -1,12 +1,12 @@
-# Dawn
+# Donder
 
-Dawn is a desktop workbench for authoring programmable light shows as source-controlled projects. It combines an IDE-style editor, project validation, timeline-oriented sequencing, real-time preview rendering, and export tooling for show files.
+Donder is a desktop workbench for authoring programmable light shows as source-controlled projects. It combines an IDE-style editor, project validation, timeline-oriented sequencing, real-time preview rendering, and export tooling for show files.
 
-The project is built as a Rust workspace with a Tauri desktop shell and a React/TypeScript frontend. The core model, Dawn document loading, effect DSL, and renderer live in Rust so project validation and frame rendering share the same typed domain model.
+The project is built as a Rust workspace with a Tauri desktop shell and a React/TypeScript frontend. The core model, Donder document loading, effect DSL, and renderer live in Rust so project validation and frame rendering share the same typed domain model.
 
 ## Why This Exists
 
-Lighting tools often split creative sequencing from the source data that makes a show maintainable. Dawn stores reusable pixel fixture definitions, layouts, LED routes, controllers, effects, sequences, and audio references as Dawn source documents, checked together and edited through text and GUI workflows.
+Lighting tools often split creative sequencing from the source data that makes a show maintainable. Donder stores reusable pixel fixture definitions, layouts, LED routes, controllers, effects, sequences, and audio references as Donder source documents, checked together and edited through text and GUI workflows.
 
 That makes the project useful as a technical showcase for:
 
@@ -18,17 +18,17 @@ That makes the project useful as a technical showcase for:
 
 ## Features
 
-- Open and validate Dawn project files.
+- Open and validate Donder project files.
 - Edit project documents in a CodeMirror-based desktop editor.
 - Compose pixel fixture definitions, place reusable instances in layouts, group them for effects, and route RGB/RGBW output to controllers.
 - Render one shared logical/controller frame through the Rust runtime.
 - Preview effect rasters and sequence output in the desktop UI.
 - Transmit live E1.31 or Art-Net output with blackout and stream lifecycle handling.
 - Install bundled ESP32 firmware over USB, configure Wi-Fi, and upload a sequence
-  for persistent standalone playback. See [controller setup](docs/esp32_loading.md#install-from-dawn)
+  for persistent standalone playback. See [controller setup](docs/esp32_loading.md#install-from-donder)
   for supported hardware and the current verification limits.
 - Generate TypeScript bindings from Rust command and data types.
-- Resolve, cache, inspect, pack, publish, fork, and template Dawn packages.
+- Resolve, cache, inspect, pack, publish, fork, and template Donder packages.
 - Benchmark effect VM and render performance with Criterion.
 
 ## Tech Stack
@@ -52,15 +52,15 @@ apps/desktop/src/state_tasks/ Background save/render scheduling and GUI history
 apps/desktop/src/preview/geometry.rs Read-only preview-prop geometry projection
 apps/desktop/frontend/        React/TypeScript frontend
 apps/desktop/frontend/src/ui/gui/sequence/sequenceWaveform.ts  Timeline waveform cache/rendering
-crates/dawn-language/         Dawn authoring model and effect/operator compiler
-crates/dawn-runtime/          Portable no_std bytecode VM and sequence evaluation core
-crates/dawn-elaboration/      Host-side generator expansion, lowering, and output preparation
-crates/dawn-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
-crates/dawn-project-io/       Dawn project loading, diagnostics, source ownership, save/export
-crates/dawn-project-io/src/loader/  Project loading, import resolution, and document parsing
-crates/dawn-project-io/src/serialization/  Domain-specific Dawn document serialization
-crates/dawn-output/           E1.31 and Art-Net socket/codec lifecycle
-crates/dawn-cli/              Standalone `dawn` package and project CLI
+crates/donder-language/         Donder authoring model and effect/operator compiler
+crates/donder-runtime/          Portable no_std bytecode VM and sequence evaluation core
+crates/donder-elaboration/      Host-side generator expansion, lowering, and output preparation
+crates/donder-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
+crates/donder-project-io/       Donder project loading, diagnostics, source ownership, save/export
+crates/donder-project-io/src/loader/  Project loading, import resolution, and document parsing
+crates/donder-project-io/src/serialization/  Domain-specific Donder document serialization
+crates/donder-output/           E1.31 and Art-Net socket/codec lifecycle
+crates/donder-cli/              Standalone `donder` package and project CLI
 firmware/esp32/               ESP32 workspace, device storage, Wi-Fi transport, I2S output, and profiling
 examples/starter/             The single maintained example project
 docs/                         Current user, architecture, loading, and validation references
@@ -72,7 +72,7 @@ tools/                        Repository tooling
 To use the app, follow [Your first show](docs/first_show.md) for a two-prop project,
 preview playback, output assignment, and saving without editing YAML.
 To customize a show that imports packages, choose **File → Create Editable
-Project Copy...**. Dawn opens a separate project containing the show, imported
+Project Copy...**. Donder opens a separate project containing the show, imported
 definitions, and referenced audio as editable project files.
 
 ### Prerequisites
@@ -99,14 +99,14 @@ pnpm install
 pnpm tauri dev
 ```
 
-This starts the Vite frontend through Tauri and opens the Dawn desktop app.
+This starts the Vite frontend through Tauri and opens the Donder desktop app.
 
 ### Try An Example Project
 
 After the app opens, load the example package manifest:
 
 ```text
-examples/starter/dawn-package.json
+examples/starter/donder-package.json
 ```
 
 `examples/starter` is the complete 30-output starter project, including example effects, gradients, curves, operators, sequences, and audio assets.
@@ -159,10 +159,10 @@ toolchain and lockfile are isolated from desktop builds. See
 
 ## Package and CLI workflow
 
-Every project and module starts at `dawn-package.json`. The manifest owns the
+Every project and module starts at `donder-package.json`. The manifest owns the
 stable UUID module identity, exact language version, optional project entrypoint,
 explicit exports, alias-keyed dependencies, and
-audio declarations. `dawn.lock` pins the registry, exact release versions,
+audio declarations. `donder.lock` pins the registry, exact release versions,
 archive hashes, module identities, dependency edges, and path-dependency
 content hashes. Opening a project is offline and deterministic; use Sync
 explicitly when its lock or cache is missing.
@@ -170,7 +170,7 @@ explicitly when its lock or cache is missing.
 Run the standalone client from the workspace with:
 
 ```bash
-cargo run -p dawn-cli -- --help
+cargo run -p donder-cli -- --help
 ```
 
 It provides `init`, `check`, `add`, `remove`, `sync`, `update`, `tree`, `pack`,
@@ -180,14 +180,14 @@ downloaded to a content-addressed cache, structurally inspected, compiler
 validated in temporary storage, and atomically installed. Desktop package
 operations use the same service layer.
 
-`dawn fork <alias>` copies that direct registry dependency into
+`donder fork <alias>` copies that direct registry dependency into
 `modules/<package-name>/`, assigns the copy a new module ID, clears its
 publication identity, and replaces the registry requirement with a path
 dependency under the same alias. The copied package keeps its own exports,
 assets, local imports, and transitive dependencies; project dependency imports
 therefore continue to resolve through the same alias and export groups.
 
-## How A Dawn Project Works
+## How A Donder Project Works
 
 The manifest's `project.entrypoint` imports the rest of the show definition:
 setups, layouts, pixel fixture definitions, LED patches, controllers, curves,
@@ -195,9 +195,9 @@ gradients, effects, operators, sequences, and assets. Imports are
 structured as module-local document lists or dependency alias/export-group
 references; dependency deep imports and root escapes are rejected.
 
-Project IO loads reachable source files, validates imports and references, tracks source locations for diagnostics, compiles DSL definitions, and builds the authoritative typed `DawnProject`. `SourceProject` retains document ownership, import, original-source, and asset metadata; it is not a second editable project model. GUI commands make one private mutable candidate from the current immutable project snapshot; accepted snapshots are shared by state, history, save, and render work. Project IO serializes typed state directly without reparsing or synchronizing a YAML model.
+Project IO loads reachable source files, validates imports and references, tracks source locations for diagnostics, compiles DSL definitions, and builds the authoritative typed `DonderProject`. `SourceProject` retains document ownership, import, original-source, and asset metadata; it is not a second editable project model. GUI commands make one private mutable candidate from the current immutable project snapshot; accepted snapshots are shared by state, history, save, and render work. Project IO serializes typed state directly without reparsing or synchronizing a YAML model.
 
-After DSL compilation, `dawn-elaboration` validates the selected setup and sequence, expands generators, resolves targets, and lowers authored graphs into prepared numeric data. `dawn-runtime::sequence::PreparedSequence` is the complete playback artifact: its `signals` field holds a `PreparedSignalGraph`, alongside controls, fixture behavior, and the prepared patch. Create its workspace and output buffers once, then call `sequence.evaluate(time, &mut buffers, &mut workspace)` for each frame. The runtime evaluates logical colors, applies controls and fixture behavior, and executes the patch into those buffers. `dawn-runtime::signal::PreparedSignalGraph::evaluate` is the narrower logical-color interface; its `SignalPlan` contains the graph connections and preassigned buffer/VM schedule. Workspace creation reserves reusable VM, automation, array, and patch storage; prepared-frame allocation tests cover the playback hot path. Networking and physical pin timing remain outside the runtime. Preview and live output consume the same `RenderedSequenceFrame`; neither reinterprets colors, fixture channels, or patch ordering. Live output is opt-in for each application run and fails closed by blacking out active ports and terminating E1.31 streams.
+After DSL compilation, `donder-elaboration` validates the selected setup and sequence, expands generators, resolves targets, and lowers authored graphs into prepared numeric data. `donder-runtime::sequence::PreparedSequence` is the complete playback artifact: its `signals` field holds a `PreparedSignalGraph`, alongside controls, fixture behavior, and the prepared patch. Create its workspace and output buffers once, then call `sequence.evaluate(time, &mut buffers, &mut workspace)` for each frame. The runtime evaluates logical colors, applies controls and fixture behavior, and executes the patch into those buffers. `donder-runtime::signal::PreparedSignalGraph::evaluate` is the narrower logical-color interface; its `SignalPlan` contains the graph connections and preassigned buffer/VM schedule. Workspace creation reserves reusable VM, automation, array, and patch storage; prepared-frame allocation tests cover the playback hot path. Networking and physical pin timing remain outside the runtime. Preview and live output consume the same `RenderedSequenceFrame`; neither reinterprets colors, fixture channels, or patch ordering. Live output is opt-in for each application run and fails closed by blacking out active ports and terminating E1.31 streams.
 
 Use `PreparedSequenceOutput::prepare_selected` to prepare a compact sequence for selected controller ports. See [output selection](docs/output_selection.md) for the API, preserved sampling semantics, and measured memory reductions.
 
@@ -206,4 +206,4 @@ budgets are documented in [the sequence-as-code contract](docs/sequence_as_code.
 
 ## Status
 
-Dawn is an active prototype. The codebase emphasizes fast iteration, typed state, explicit validation, and a single project model shared by the editor, GUI workflows, and renderer.
+Donder is an active prototype. The codebase emphasizes fast iteration, typed state, explicit validation, and a single project model shared by the editor, GUI workflows, and renderer.

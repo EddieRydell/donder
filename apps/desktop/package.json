@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "bindings": "cargo run -p dawn-desktop --bin export-bindings",
+    "bindings": "cargo run -p donder-desktop --bin export-bindings",
     "tauri": "tauri",
     "tauri:build": "tauri build"
   },

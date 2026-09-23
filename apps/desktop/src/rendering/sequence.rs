@@ -1,11 +1,11 @@
-use dawn_elaboration::{
+use donder_elaboration::{
     OutputEvaluationWorkspace, PreparedSequenceOutput as RuntimeSequenceOutput,
     RenderedSequenceFrame, SequenceOutputPrepareError as RuntimePrepareError,
     SequenceOutputRenderError as RuntimeRenderError,
 };
-use dawn_language::model::DawnProject;
-use dawn_language::sequence::SequenceId;
-use dawn_language::setup::SetupId;
+use donder_language::model::DonderProject;
+use donder_language::sequence::SequenceId;
+use donder_language::setup::SetupId;
 
 use crate::dto::{AudioTransportSnapshot, AudioTransportState};
 
@@ -54,7 +54,7 @@ impl SequenceRenderService {
 
     pub fn prepare(
         &mut self,
-        project: &DawnProject,
+        project: &DonderProject,
         setup_id: &SetupId,
         sequence_id: &SequenceId,
     ) -> Result<(), RuntimePrepareError> {
@@ -70,7 +70,7 @@ impl SequenceRenderService {
         }
     }
 
-    pub fn refresh_project(&mut self, project: &DawnProject) -> Result<(), RuntimePrepareError> {
+    pub fn refresh_project(&mut self, project: &DonderProject) -> Result<(), RuntimePrepareError> {
         let Some(session) = self.session.as_ref() else {
             return Ok(());
         };
@@ -194,7 +194,7 @@ struct SequenceRenderSession {
 }
 
 pub fn prepare_sequence_output(
-    project: &DawnProject,
+    project: &DonderProject,
     setup_id: &SetupId,
     sequence_id: &SequenceId,
 ) -> Result<PreparedSequenceOutput, RuntimePrepareError> {

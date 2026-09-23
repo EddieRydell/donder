@@ -1,4 +1,4 @@
-use dawn_device_storage::{Error, Storage, consts};
+use donder_device_storage::{Error, Storage, consts};
 use esp_bootloader_esp_idf::partitions::{PARTITION_TABLE_MAX_LEN, read_partition_table};
 use esp_storage::{Flash, FlashStorage};
 
@@ -17,10 +17,10 @@ impl DeviceStorage {
         let mut bytes = [0; PARTITION_TABLE_MAX_LEN];
         let table =
             read_partition_table(&mut flash, &mut bytes).map_err(|_| "Invalid partition table")?;
-        let mut matches = table.iter().filter(|entry| entry.label_as_str() == "dawn");
+        let mut matches = table.iter().filter(|entry| entry.label_as_str() == "donder");
         let entry = matches
             .next()
-            .ok_or("Install the controller image with its Dawn data partition")?;
+            .ok_or("Install the controller image with its Donder data partition")?;
         if matches.next().is_some()
             || entry.raw_type() != 1
             || entry.raw_subtype() != 6
@@ -29,20 +29,20 @@ impl DeviceStorage {
             || entry.offset() % Self::BLOCK_SIZE as u32 != 0
             || entry.offset() < 0x10000
         {
-            return Err("Invalid Dawn data partition");
+            return Err("Invalid Donder data partition");
         }
         let end = entry
             .offset()
             .checked_add(entry.len())
-            .ok_or("Invalid Dawn partition bounds")?;
+            .ok_or("Invalid Donder partition bounds")?;
         if end as usize > flash.capacity()
             || table.iter().any(|other| {
-                other.label_as_str() != "dawn"
+                other.label_as_str() != "donder"
                     && other.offset() < end
                     && other.offset().saturating_add(other.len()) > entry.offset()
             })
         {
-            return Err("Dawn data partition overlaps another partition or exceeds flash");
+            return Err("Donder data partition overlaps another partition or exceeds flash");
         }
         Ok(Self {
             flash,

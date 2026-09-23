@@ -1,0 +1,43 @@
+import bursts from ["effects/impact-burst.effect.donder"];
+
+effect MarkImpactBurst {
+  fixed param marks beats;
+  fixed param array<gradient> gradients;
+  param curve intensity;
+  param enum direction { outward, inward } = outward;
+  param enum color_mode { through_effect, from_center, from_edge } = through_effect;
+  fixed param float offset_seconds = 0.0;
+  fixed param float burst_seconds = 0.45;
+  param float center_position = 0.5;
+  param float start_radius = 0.0;
+  param float end_radius = 0.75;
+  param float edge_width = 0.08;
+  param float glow_width = 0.25;
+  param float glow_level = 0.35;
+  param bool mirror = false;
+
+  void generate() {
+    int gradient_count = len(gradients);
+    if (gradient_count > 0) {
+      for (int mark = 0; mark < mark_count(beats); mark = mark + 1) {
+        float hit_time = mark_at(beats, mark, -999.0);
+        timeline.emit bursts.ImpactBurst {
+          start: hit_time + offset_seconds,
+          duration: max(0.000000001, burst_seconds),
+          target: target,
+          gradient: gradients[mark % gradient_count],
+          intensity: intensity,
+          direction: direction,
+          color_mode: color_mode,
+          center_position: center_position,
+          start_radius: start_radius,
+          end_radius: end_radius,
+          edge_width: edge_width,
+          glow_width: glow_width,
+          glow_level: glow_level,
+          mirror: mirror
+        };
+      }
+    }
+  }
+}

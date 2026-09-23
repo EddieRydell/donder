@@ -95,14 +95,14 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         };
         assert_eq!(&state.project_session().unwrap().project, expected);
         assert_eq!(
-            &dawn_project_io::load_package(&original_root)
+            &donder_project_io::load_package(&original_root)
                 .unwrap()
                 .session
                 .project,
             expected
         );
         assert_eq!(
-            &dawn_project_io::load_package(&parent.join("copy"))
+            &donder_project_io::load_package(&parent.join("copy"))
                 .unwrap()
                 .session
                 .project,

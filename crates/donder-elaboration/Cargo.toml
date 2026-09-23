@@ -1,0 +1,23 @@
+[package]
+name = "donder-elaboration"
+edition.workspace = true
+version.workspace = true
+description = "Host-side Donder sequence elaboration and output preparation"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+donder-language.workspace = true
+donder-runtime.workspace = true
+indexmap.workspace = true
+glam.workspace = true
+
+[dev-dependencies]
+crc32fast.workspace = true
+camino.workspace = true
+criterion.workspace = true
+donder-project-io.workspace = true
+
+[[bench]]
+name = "render_bench"
+harness = false

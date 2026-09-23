@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::dto::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
-use dawn_elaboration::ControllerPortFrame;
-use dawn_language::controller::ControllerId;
+use donder_elaboration::ControllerPortFrame;
+use donder_language::controller::ControllerId;
 
 impl DesktopState {
     pub(crate) fn start_output_test(

@@ -1,6 +1,6 @@
 # Regression Tracking
 
-Dawn uses compile-time checks, focused Rust tests, and Criterion benchmarks to keep refactors honest.
+Donder uses compile-time checks, focused Rust tests, and Criterion benchmarks to keep refactors honest.
 Correctness regressions should fail loudly. Timing regressions are advisory until repeated clean runs
 show a stable signal.
 
@@ -55,7 +55,7 @@ Criterion output lives under `target/criterion` and is not committed.
 
 ## Benchmark Coverage
 
-The direct VM benches live in `crates/dawn-language/benches/effect_vm_bench.rs`. They use public
+The direct VM benches live in `crates/donder-language/benches/effect_vm_bench.rs`. They use public
 Effect DSL APIs:
 
 - `compile_effects`
@@ -67,8 +67,8 @@ The VM benches cover constant return overhead, curve sampling, branch-heavy scan
 position, smoothstep, enum comparisons, curve clamping, seeded random paths, trigonometry, HSV,
 dense mixed arithmetic, marks, target sections, `pick`, arrays, loops, and `timeline.emit`.
 
-The renderer benches live in `crates/dawn-elaboration/benches/render_bench.rs`. They load
-`examples/starter/project.dawn`, benchmark renderer preparation, and render frames
+The renderer benches live in `crates/donder-elaboration/benches/render_bench.rs`. They load
+`examples/starter/project.donder`, benchmark renderer preparation, and render frames
 `144`, `2088`, `5904`, `9504`, `11520`, `19080`, and `25934`.
 
 Renderer benches assert frame checksums and active effect counts. Update those committed expected
@@ -79,13 +79,13 @@ values only when a renderer or Effect DSL behavior change is intentional.
 Run one VM benchmark by name:
 
 ```powershell
-cargo bench -p dawn-language --bench effect_vm_bench -- scan_sweep
+cargo bench -p donder-language --bench effect_vm_bench -- scan_sweep
 ```
 
 Run one render benchmark by frame:
 
 ```powershell
-cargo bench -p dawn-elaboration --bench render_bench -- render_frame_9504
+cargo bench -p donder-elaboration --bench render_bench -- render_frame_9504
 ```
 
 ## Regression Classes
@@ -101,7 +101,7 @@ Current coverage:
 - Rust tests under `crates/*/tests` and desktop service tests where present
 
 When adding future coverage, prefer realistic fixtures from `examples/starter`.
-Use temporary directories for invalid or synthetic Dawn documents.
+Use temporary directories for invalid or synthetic Donder documents.
 
 ### Document Editing And Serialization
 

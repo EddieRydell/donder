@@ -619,8 +619,8 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
     ? `Flip ${name} copy?`
     : `Edit ${name} copy?`;
   const copyDialogDescription = pendingCopyAction === "flipHorizontal" || pendingCopyAction === "flipVertical"
-    ? `This ${label} is linked from the library. Dawn will make an editable custom copy before applying the flip.`
-    : `This ${label} is linked from the library. Dawn will make an editable custom copy so changes do not modify the library ${label}.`;
+    ? `This ${label} is linked from the library. Donder will make an editable custom copy before applying the flip.`
+    : `This ${label} is linked from the library. Donder will make an editable custom copy so changes do not modify the library ${label}.`;
   return (
     <div className={`param-source-shell ${linked ? "linked" : ""}`}>
       <div className="param-source-row">

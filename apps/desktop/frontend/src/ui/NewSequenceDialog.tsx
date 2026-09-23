@@ -4,13 +4,13 @@ import type { SyntheticEvent } from "react";
 import { commands } from "../api";
 import { useAppStore } from "../store";
 
-const NEW_SEQUENCE_EVENT = "dawn:new-sequence";
+const NEW_SEQUENCE_EVENT = "donder:new-sequence";
 
 export function NewSequenceDialog() {
   const snapshot = useAppStore((store) => store.snapshot);
   const [open, setOpen] = useState(false);
   const [objectKey, setObjectKey] = useState("main");
-  const [filePath, setFilePath] = useState("sequences/main.sequence.dawn");
+  const [filePath, setFilePath] = useState("sequences/main.sequence.donder");
   const [durationSeconds, setDurationSeconds] = useState("60");
   const [frameRate, setFrameRate] = useState("60");
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function NewSequenceDialog() {
     const onNewSequence = () => {
       const nextKey = nextSequenceKey(snapshot?.projectEntries.map((entry) => entry.path) ?? []);
       setObjectKey(nextKey);
-      setFilePath(`sequences/${nextKey}.sequence.dawn`);
+      setFilePath(`sequences/${nextKey}.sequence.donder`);
       setDurationSeconds("60");
       setFrameRate("60");
       setPathEdited(false);
@@ -77,7 +77,7 @@ export function NewSequenceDialog() {
                 onChange={(event) => {
                   const next = event.target.value;
                   setObjectKey(next);
-                  if (!pathEdited) setFilePath(`sequences/${next}.sequence.dawn`);
+                  if (!pathEdited) setFilePath(`sequences/${next}.sequence.donder`);
                   setError(null);
                 }}
               />
@@ -144,8 +144,8 @@ function validateRequest(
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(objectKey)) {
     return "Sequence id must start with a letter or underscore and contain only letters, digits, or underscores.";
   }
-  if (!filePath.startsWith("sequences/") || !filePath.endsWith(".sequence.dawn") || filePath.includes("..")) {
-    return "File path must be under sequences/ and end with .sequence.dawn.";
+  if (!filePath.startsWith("sequences/") || !filePath.endsWith(".sequence.donder") || filePath.includes("..")) {
+    return "File path must be under sequences/ and end with .sequence.donder.";
   }
   const duration = Number(durationSeconds);
   if (!Number.isFinite(duration) || duration <= 0) return "Duration must be greater than zero.";
@@ -156,7 +156,7 @@ function validateRequest(
 
 function nextSequenceKey(paths: string[]): string {
   let index = 1;
-  while (paths.includes(`sequences/sequence_${index}.sequence.dawn`)) index += 1;
+  while (paths.includes(`sequences/sequence_${index}.sequence.donder`)) index += 1;
   return `sequence_${index}`;
 }
 

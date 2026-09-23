@@ -1,7 +1,7 @@
-use dawn_language::fixture::{FixtureDefinitionId, FixtureTransform, Pixel, PixelId};
-use dawn_language::identity::SourceIdentity;
-use dawn_language::values::DistanceSpan;
-use dawn_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_language::fixture::{FixtureDefinitionId, FixtureTransform, Pixel, PixelId};
+use donder_language::identity::SourceIdentity;
+use donder_language::values::DistanceSpan;
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 
 use super::{
     GuiMutationError,
@@ -109,7 +109,7 @@ fn pixel_diameter(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
 
 pub(crate) fn checked_point(
     point: Point3Meters,
-) -> Result<dawn_language::values::Point3, GuiMutationError> {
+) -> Result<donder_language::values::Point3, GuiMutationError> {
     if [point.x_meters, point.y_meters, point.z_meters]
         .iter()
         .any(|value| !value.is_finite() || value.abs() > 2_000.0)

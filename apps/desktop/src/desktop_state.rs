@@ -16,7 +16,7 @@ use crate::dto::{
 use crate::persistence::PersistenceService;
 use crate::state_tasks::{GuiHistory, LatestScheduler, RenderRefreshPayload, WorkingCopyPayload};
 use camino::{Utf8Path, Utf8PathBuf};
-use dawn_project_io::ProjectSession;
+use donder_project_io::ProjectSession;
 use workspace_state::WorkspaceState;
 
 #[derive(Clone)]

@@ -1,11 +1,11 @@
 use std::io;
 
 use camino::Utf8Path;
-use dawn_package::{
+use donder_package::{
     CacheStatus, CandidateResolution, Dependency, Lockfile, PackageManifest, PackageService,
     PreparedPackageCandidate, RegistryConfig, ResolvedModuleOrigin,
 };
-use dawn_project_io::{
+use donder_project_io::{
     PackageCompatibilityReport, ProjectSession, analyze_package_candidate, load_package_with_cache,
     validate_registry_package_artifact,
 };
@@ -283,7 +283,7 @@ impl DesktopState {
             Err(rollback_error) => self.package_operation_error(
                 status,
                 format!(
-                    "{operation_error}; restoring dawn-package.json also failed: {rollback_error}"
+                    "{operation_error}; restoring donder-package.json also failed: {rollback_error}"
                 ),
             ),
         }
@@ -317,16 +317,16 @@ fn prepare_loaded_candidate(
 }
 
 pub(crate) fn package_status(root: &Utf8Path, session: Option<&ProjectSession>) -> PackageStatus {
-    package_status_with_sources(root, session, &dawn_project_io::SourceOverrides::new())
+    package_status_with_sources(root, session, &donder_project_io::SourceOverrides::new())
 }
 
 pub(super) fn package_status_with_sources(
     root: &Utf8Path,
     session: Option<&ProjectSession>,
-    sources: &dawn_project_io::SourceOverrides,
+    sources: &donder_project_io::SourceOverrides,
 ) -> PackageStatus {
     let manifest = sources
-        .get(Utf8Path::new(dawn_package::MANIFEST_FILE))
+        .get(Utf8Path::new(donder_package::MANIFEST_FILE))
         .map_or_else(
             || PackageManifest::read(root).map_err(|error| error.to_string()),
             |text| {
@@ -339,13 +339,13 @@ pub(super) fn package_status_with_sources(
         Err(error) => {
             return invalid_status(
                 root,
-                root.join(dawn_package::LOCK_FILE).is_file(),
+                root.join(donder_package::LOCK_FILE).is_file(),
                 error.to_string(),
             );
         }
     };
     let lock = sources
-        .get(Utf8Path::new(dawn_package::LOCK_FILE))
+        .get(Utf8Path::new(donder_package::LOCK_FILE))
         .map_or_else(
             || read_optional_lock(root),
             |text| {
@@ -372,8 +372,8 @@ pub(super) fn package_status_with_sources(
             };
         }
     };
-    let cache =
-        dawn_package::DawnDirectories::discover().map(|directories| directories.package_cache());
+    let cache = donder_package::DonderDirectories::discover()
+        .map(|directories| directories.package_cache());
     let dependencies = manifest
         .dependencies
         .iter()
@@ -446,7 +446,7 @@ pub(super) fn package_status_with_sources(
     }
 }
 
-fn package_website_url(registry: &str, package: &dawn_package::PackageId) -> Option<String> {
+fn package_website_url(registry: &str, package: &donder_package::PackageId) -> Option<String> {
     let registry = RegistryConfig {
         registry: registry.to_string(),
     }
@@ -566,7 +566,7 @@ fn dependency_modules(session: Option<&ProjectSession>) -> Vec<PackageModuleStat
 fn read_optional_lock(root: &Utf8Path) -> Result<Option<Lockfile>, String> {
     match Lockfile::read(root) {
         Ok(lock) => Ok(Some(lock)),
-        Err(dawn_package::PackageError::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
+        Err(donder_package::PackageError::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
             Ok(None)
         }
         Err(error) => Err(error.to_string()),

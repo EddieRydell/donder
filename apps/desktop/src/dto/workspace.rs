@@ -392,13 +392,13 @@ pub enum TextDocumentSyntax {
     EffectDsl,
 }
 
-impl From<dawn_project_io::SourceDocumentFormat> for TextDocumentSyntax {
-    fn from(format: dawn_project_io::SourceDocumentFormat) -> Self {
+impl From<donder_project_io::SourceDocumentFormat> for TextDocumentSyntax {
+    fn from(format: donder_project_io::SourceDocumentFormat) -> Self {
         match format {
-            dawn_project_io::SourceDocumentFormat::Effect
-            | dawn_project_io::SourceDocumentFormat::Operator => Self::EffectDsl,
-            dawn_project_io::SourceDocumentFormat::Dawn
-            | dawn_project_io::SourceDocumentFormat::Other => Self::Yaml,
+            donder_project_io::SourceDocumentFormat::Effect
+            | donder_project_io::SourceDocumentFormat::Operator => Self::EffectDsl,
+            donder_project_io::SourceDocumentFormat::Donder
+            | donder_project_io::SourceDocumentFormat::Other => Self::Yaml,
         }
     }
 }

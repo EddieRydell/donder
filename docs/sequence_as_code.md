@@ -1,8 +1,8 @@
 # Sequence-as-Code Contract
 
-A Dawn sequence is declarative YAML that names a duration, frame rate, layers,
+A Donder sequence is declarative YAML that names a duration, frame rate, layers,
 effect instances, a composition graph, and parameter automation clips. It
-is loaded into the typed `dawn_language::sequence::Sequence`; YAML is never an
+is loaded into the typed `donder_language::sequence::Sequence`; YAML is never an
 editable runtime model after load.
 
 ## Fixed parameter declarations
@@ -146,18 +146,18 @@ plus document ownership/import metadata.
 
 ### Verification coverage
 
-`crates/dawn-project-io/tests/semantic_preservation.rs` exercises a typed edit of
+`crates/donder-project-io/tests/semantic_preservation.rs` exercises a typed edit of
 `examples/starter`, full typed-project equality after save/reload, meaningful
 list order, document inventories/ownership, import edges, asset references,
 retained DSL text, and canonical serialization stability. It also verifies
 unknown-key rejection, unused-object preservation, missing-import diagnostics,
 and refusal to save inconsistent inventories without touching files.
-`crates/dawn-project-io/tests/roundtrip.rs` additionally checks same-named definitions in different files
+`crates/donder-project-io/tests/roundtrip.rs` additionally checks same-named definitions in different files
 through save/reload and insertion of a sequence in a new nested file.
-`crates/dawn-elaboration/tests/generator_source_scope.rs` checks cross-document
+`crates/donder-elaboration/tests/generator_source_scope.rs` checks cross-document
 and local generator children, mutual imports, rejection of caller-scope lookup,
 and actual starter generator emission with nonempty marks/gradients.
-`crates/dawn-project-io/tests/path_refactor.rs` covers import-path moves and
+`crates/donder-project-io/tests/path_refactor.rs` covers import-path moves and
 dependency-export identity through save/reload and dependency document moves.
 
 These are focused IO/preparation checks, not an exhaustive GUI action matrix,
@@ -174,7 +174,7 @@ This is a breaking authoring correction within `languageVersion: "0.1"`.
 Single-string local DSL imports are rejected; there is no compatibility parser.
 
 ```text
-import bursts from ["effects/impact-burst.effect.dawn"];
+import bursts from ["effects/impact-burst.effect.donder"];
 
 effect Hits {
   param gradient palette;
@@ -227,7 +227,7 @@ serialization.
 
 ## Validity
 
-The canonical validator is `dawn_language::validation::validate_sequence`.
+The canonical validator is `donder_language::validation::validate_sequence`.
 Project loading and checking, accepted GUI edits, and runtime preparation all
 use that validator. A sequence must satisfy these rules:
 
@@ -251,7 +251,7 @@ use that validator. A sequence must satisfy these rules:
 Curves are normalized, piecewise-linear values. They must contain at least one
 point; each point’s position and value must be finite; positions are in
 `[0, 1]` and strictly increasing. All sequence automation, native effects, and
-DSL curve reads use `dawn_language::sampling::sample_curve`.
+DSL curve reads use `donder_language::sampling::sample_curve`.
 
 ## Source diagnostics
 
@@ -272,13 +272,13 @@ implicit type default.
 The renderer limits a prepared sequence to 250,000 frames, generated effects
 to 100,000 per preparation, and custom-operator Signal sampling to 4,096 unique
 times per operator render. The DSL VM limits each invocation to 10,000 loop
-iterations. Exceeding a budget returns an error; Dawn does not silently clamp
+iterations. Exceeding a budget returns an error; Donder does not silently clamp
 or skip work.
 
 ## Authoring
 
-- Use `.sequence.dawn` YAML for sequence data.
-- Use `.effect.dawn` for custom effects and `.operator.dawn` for custom graph
+- Use `.sequence.donder` YAML for sequence data.
+- Use `.effect.donder` for custom effects and `.operator.donder` for custom graph
   operators; both receive DSL highlighting in the desktop editor.
 - Start from `examples/starter` for valid curve, effect, operator, and graph
   examples.

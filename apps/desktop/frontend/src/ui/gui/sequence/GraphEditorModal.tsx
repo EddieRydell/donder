@@ -54,7 +54,7 @@ type GraphNodeData = {
   outputs: GraphPort[];
 };
 
-type GraphFlowNode = Node<GraphNodeData, "dawn">;
+type GraphFlowNode = Node<GraphNodeData, "donder">;
 
 type GraphPort = {
   id: string;
@@ -93,7 +93,7 @@ type GraphContextMenu =
   | null;
 
 const GRAPH_NODE_TYPES = {
-  dawn: GraphFlowNodeView
+  donder: GraphFlowNodeView
 };
 
 export function GraphEditorModal({
@@ -766,7 +766,7 @@ function graphFlowNodes(
 ): GraphFlowNode[] {
   return nodes.map((node) => ({
     id: node.id,
-    type: "dawn",
+    type: "donder",
     position: { x: node.x, y: node.y },
     sourcePosition: Position.Right,
     targetPosition: Position.Left,

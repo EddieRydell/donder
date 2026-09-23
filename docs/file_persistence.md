@@ -1,13 +1,13 @@
 # File persistence
 
-Dawn uses `dawn_package::atomic_write` for package metadata, authored project
+Donder uses `donder_package::atomic_write` for package metadata, authored project
 sources, path-refactor and rollback writes, CLI release artifacts, and desktop
 preferences. It writes and syncs a complete temporary file beside the
 destination before replacing that destination. This prevents a failed content
 write from truncating one file; it is not a crash-atomic multi-file transaction
 and does not promise synchronized directory entries.
 
-The typed `DawnProject` is authoritative after loading. `SourceProject` records
+The typed `DonderProject` is authoritative after loading. `SourceProject` records
 document ownership, imports, original non-YAML DSL source, and referenced
 assets. Saving derives canonical YAML from typed state. It does not mutate an
 editable YAML model, preserve incidental formatting, or reload text to validate

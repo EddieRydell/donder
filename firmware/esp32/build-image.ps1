@@ -2,8 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 # Build the controller image without opening a serial port or flashing a board.
 $outputDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../target/firmware'))
-$pendingImage = Join-Path $outputDirectory 'dawn-esp32.build.bin'
-$finalImage = Join-Path $outputDirectory 'dawn-esp32.bin'
+$pendingImage = Join-Path $outputDirectory 'donder-esp32.build.bin'
+$finalImage = Join-Path $outputDirectory 'donder-esp32.bin'
 
 Push-Location $PSScriptRoot
 try {
@@ -19,20 +19,20 @@ try {
     # Never include the persistent data partition in the installation image.
     # Derive its boundary from the same table passed to espflash.
     $dataPartition = Import-Csv -LiteralPath ./partitions.csv -Header Name, Type, SubType, Offset, Size, Flags |
-        Where-Object { $_.Name.Trim() -eq 'dawn' }
-    if (@($dataPartition).Count -ne 1) { throw 'Expected exactly one Dawn data partition.' }
+        Where-Object { $_.Name.Trim() -eq 'donder' }
+    if (@($dataPartition).Count -ne 1) { throw 'Expected exactly one Donder data partition.' }
     $dataOffset = [Convert]::ToInt64($dataPartition.Offset.Trim(), 16)
     $imageLength = (Get-Item -LiteralPath $pendingImage).Length
     if ($imageLength -le 0x10000 -or $imageLength -gt $dataOffset) {
-        throw 'Packaged image is empty or overlaps the Dawn data partition.'
+        throw 'Packaged image is empty or overlaps the Donder data partition.'
     }
 
     Move-Item -LiteralPath $pendingImage -Destination $finalImage -Force
     $bundledDirectory = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../apps/desktop/assets/firmware'))
     New-Item -ItemType Directory -Path $bundledDirectory -Force | Out-Null
-    Copy-Item -LiteralPath $finalImage -Destination (Join-Path $bundledDirectory 'dawn-esp32.bin') -Force
+    Copy-Item -LiteralPath $finalImage -Destination (Join-Path $bundledDirectory 'donder-esp32.bin') -Force
     $imageHash = (Get-FileHash -LiteralPath $finalImage -Algorithm SHA256).Hash
-    Set-Content -LiteralPath (Join-Path $bundledDirectory 'dawn-esp32.sha256') -Value $imageHash -Encoding Ascii
+    Set-Content -LiteralPath (Join-Path $bundledDirectory 'donder-esp32.sha256') -Value $imageHash -Encoding Ascii
     Write-Output "Controller image: $finalImage"
     Write-Output "Bytes: $imageLength"
     Write-Output "SHA256: $imageHash"

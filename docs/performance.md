@@ -1,6 +1,6 @@
 # Performance and hardware evidence
 
-Dawn treats representative playback cost, frame deadlines, and retained memory
+Donder treats representative playback cost, frame deadlines, and retained memory
 as acceptance evidence. Isolated microbenchmarks help locate work but do not
 justify complexity by themselves. The repeatable Criterion workflow is in
 [Regression tracking](regression_tracking.md).

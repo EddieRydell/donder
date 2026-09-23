@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/dawn-runtime", "crates/dawn-language", "crates/dawn-elaboration", "crates/dawn-output", "crates/dawn-project-io", "crates/dawn-package", "crates/dawn-cli"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-output", "crates/donder-project-io", "crates/donder-package", "crates/donder-cli"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -18,12 +18,12 @@ clap = { version = "4.6.6", features = ["derive"] }
 criterion = "0.8.2"
 directories = "6.0.0"
 dur = { version = "0.5.3", default-features = false }
-dawn-package = { path = "crates/dawn-package" }
-dawn-elaboration = { path = "crates/dawn-elaboration" }
-dawn-language = { path = "crates/dawn-language" }
-dawn-output = { path = "crates/dawn-output" }
-dawn-project-io = { path = "crates/dawn-project-io" }
-dawn-runtime = { path = "crates/dawn-runtime" }
+donder-package = { path = "crates/donder-package" }
+donder-elaboration = { path = "crates/donder-elaboration" }
+donder-language = { path = "crates/donder-language" }
+donder-output = { path = "crates/donder-output" }
+donder-project-io = { path = "crates/donder-project-io" }
+donder-runtime = { path = "crates/donder-runtime" }
 glam = "0.33.7"
 fs4 = "1.1.0"
 fugit = "0.5.0"

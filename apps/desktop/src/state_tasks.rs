@@ -15,7 +15,7 @@ mod tests {
 
     use super::*;
     use camino::Utf8Path;
-    use dawn_project_io::{ProjectSession, load_package};
+    use donder_project_io::{ProjectSession, load_package};
 
     fn entry(session: &ProjectSession, status_path: &str) -> GuiHistoryEntry {
         GuiHistoryEntry {

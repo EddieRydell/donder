@@ -1,0 +1,27 @@
+[package]
+name = "donder-package"
+edition.workspace = true
+version.workspace = true
+description = "Donder package manifests, resolution, lockfiles, cache, and release artifacts"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+camino.workspace = true
+directories.workspace = true
+fs4.workspace = true
+pubgrub.workspace = true
+reqwest.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+sha2.workspace = true
+spdx.workspace = true
+tempfile.workspace = true
+uuid.workspace = true
+url.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+httpmock = "0.8.3"

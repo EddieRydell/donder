@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use camino::Utf8Path;
-use dawn_language::effect::EffectInst;
-use dawn_language::identity::SourceIdentity;
-use dawn_language::sequence::SequenceId;
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_language::effect::EffectInst;
+use donder_language::identity::SourceIdentity;
+use donder_language::sequence::SequenceId;
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use crate::dto::{
     DiagnosticSeverity, DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand,

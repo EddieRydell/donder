@@ -1,6 +1,6 @@
 # Preparing a sequence for selected outputs
 
-`dawn_elaboration::PreparedSequenceOutput::prepare_selected` takes the project,
+`donder_elaboration::PreparedSequenceOutput::prepare_selected` takes the project,
 setup, sequence, and a slice of `(ControllerId, ControllerPortId)` pairs. Output
 buffers follow that slice's order. Select every port of a controller to prepare
 its independent playback fragment:
@@ -22,7 +22,7 @@ let mut buffers = sequence.output_widths.iter()
 sequence.evaluate(time, &mut buffers, &mut workspace)?;
 ```
 
-The returned `sequence` is the ordinary `dawn-runtime::sequence::PreparedSequence`.
+The returned `sequence` is the ordinary `donder-runtime::sequence::PreparedSequence`.
 Selection and compaction run entirely in elaboration. The runtime has no device
 selection branches, alternate executor, or fragment type.
 

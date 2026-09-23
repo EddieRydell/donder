@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use dawn_project_io::{ProjectCheckReport, ProjectSession, SourceTextWrite};
+use donder_project_io::{ProjectCheckReport, ProjectSession, SourceTextWrite};
 
 use super::workspace_state::WorkingDocument;
 use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
@@ -17,7 +17,7 @@ impl WorkingDocument {
             buffer: EditorBuffer {
                 path: path.to_string(),
                 name: path.file_name().unwrap_or(path.as_str()).to_string(),
-                syntax: dawn_project_io::source_document_format(path).into(),
+                syntax: donder_project_io::source_document_format(path).into(),
                 text,
                 dirty: false,
                 read_only: false,
@@ -223,8 +223,8 @@ impl DesktopState {
             }
             (root, writes)
         };
-        let result =
-            dawn_project_io::write_source_texts(&root, &writes).map_err(|error| error.to_string());
+        let result = donder_project_io::write_source_texts(&root, &writes)
+            .map_err(|error| error.to_string());
         let mut workspace = lock_unpoisoned(&self.workspace);
         for (path, write) in writes {
             let Some(document) = workspace.documents.get_mut(&path) else {
@@ -322,7 +322,7 @@ impl DesktopState {
             return Ok(self.snapshot());
         };
         let disk_sources =
-            dawn_project_io::project_source_texts(&root).map_err(|error| error.to_string())?;
+            donder_project_io::project_source_texts(&root).map_err(|error| error.to_string())?;
         let mut changed = false;
         {
             let mut workspace = lock_unpoisoned(&self.workspace);
@@ -491,7 +491,7 @@ pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
 mod tests {
     use super::*;
     use crate::desktop_foundation_tests::tests::starter_copy;
-    const SEQUENCE: &str = "sequences/layer_test.sequence.dawn";
+    const SEQUENCE: &str = "sequences/layer_test.sequence.donder";
 
     fn project() -> (tempfile::TempDir, Utf8PathBuf, DesktopState) {
         let (temporary, root) = starter_copy();
@@ -656,7 +656,7 @@ mod tests {
     #[test]
     fn new_gui_documents_remain_unsaved_and_are_available_to_text_analysis() {
         let (_temporary, root, state) = project();
-        let path = "sequences/unsaved.sequence.dawn";
+        let path = "sequences/unsaved.sequence.donder";
         state.create_sequence(NewSequenceRequest {
             file_path: path.into(),
             object_key: "new_sequence".into(),
@@ -692,7 +692,7 @@ mod tests {
         );
         assert!(!root.join(path).exists());
         state.save_all().unwrap();
-        assert!(dawn_project_io::check_package(&root).session.is_some());
+        assert!(donder_project_io::check_package(&root).session.is_some());
     }
 
     #[test]
@@ -704,7 +704,7 @@ mod tests {
             root: root.clone(),
             epoch: initial.project_epoch,
             revision: initial.project_revision,
-            sources: dawn_project_io::project_source_texts(&root).unwrap(),
+            sources: donder_project_io::project_source_texts(&root).unwrap(),
             typed: None,
             save: true,
             autosave_generation: 0,
@@ -767,7 +767,7 @@ mod tests {
             state.snapshot().active_buffer.unwrap().text
         );
         edit(&state, text.clone());
-        state.open_file_path(dawn_package::MANIFEST_FILE);
+        state.open_file_path(donder_package::MANIFEST_FILE);
         state.set_active_file_path(SEQUENCE);
         assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
         let snapshot = state.save_all().unwrap();
@@ -1000,7 +1000,7 @@ mod tests {
         state.open_project_path(root.as_str());
         state.open_file_path(SEQUENCE);
         let original = state.snapshot().active_buffer.unwrap().text;
-        let updated = format!("{original}\n# written outside Dawn\n");
+        let updated = format!("{original}\n# written outside Donder\n");
         std::fs::write(root.join(SEQUENCE), &updated).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         loop {

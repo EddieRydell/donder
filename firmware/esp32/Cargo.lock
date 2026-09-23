@@ -370,78 +370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dawn-device-storage"
-version = "0.1.0"
-dependencies = [
- "crc32fast",
- "littlefs2",
- "serde",
- "serde-json-core",
-]
-
-[[package]]
-name = "dawn-elaboration"
-version = "0.1.0"
-dependencies = [
- "dawn-language",
- "dawn-runtime",
- "glam",
- "indexmap",
-]
-
-[[package]]
-name = "dawn-esp32"
-version = "0.1.0"
-dependencies = [
- "crc32fast",
- "dawn-device-storage",
- "dawn-elaboration",
- "dawn-language",
- "dawn-runtime",
- "embassy-executor",
- "embassy-net",
- "embassy-sync 0.8.0",
- "embassy-time",
- "embedded-io-async 0.7.0",
- "esp-alloc",
- "esp-bootloader-esp-idf",
- "esp-hal",
- "esp-println",
- "esp-radio",
- "esp-radio-rtos-driver",
- "esp-rtos",
- "esp-storage",
- "heapless 0.9.3",
- "indexmap",
- "picoserve",
- "serde",
- "static_cell",
- "tinyrlibc",
-]
-
-[[package]]
-name = "dawn-language"
-version = "0.1.0"
-dependencies = [
- "camino",
- "dawn-runtime",
- "fugit",
- "indexmap",
- "uuid",
-]
-
-[[package]]
-name = "dawn-runtime"
-version = "0.1.0"
-dependencies = [
- "crc32fast",
- "fugit",
- "libm",
- "micromath",
- "rkyv",
-]
-
-[[package]]
 name = "defmt"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -539,6 +467,78 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
+]
+
+[[package]]
+name = "donder-device-storage"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "littlefs2",
+ "serde",
+ "serde-json-core",
+]
+
+[[package]]
+name = "donder-elaboration"
+version = "0.1.0"
+dependencies = [
+ "donder-language",
+ "donder-runtime",
+ "glam",
+ "indexmap",
+]
+
+[[package]]
+name = "donder-esp32"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "donder-device-storage",
+ "donder-elaboration",
+ "donder-language",
+ "donder-runtime",
+ "embassy-executor",
+ "embassy-net",
+ "embassy-sync 0.8.0",
+ "embassy-time",
+ "embedded-io-async 0.7.0",
+ "esp-alloc",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "esp-radio",
+ "esp-radio-rtos-driver",
+ "esp-rtos",
+ "esp-storage",
+ "heapless 0.9.3",
+ "indexmap",
+ "picoserve",
+ "serde",
+ "static_cell",
+ "tinyrlibc",
+]
+
+[[package]]
+name = "donder-language"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "donder-runtime",
+ "fugit",
+ "indexmap",
+ "uuid",
+]
+
+[[package]]
+name = "donder-runtime"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "fugit",
+ "libm",
+ "micromath",
+ "rkyv",
 ]
 
 [[package]]

@@ -26,7 +26,7 @@ impl DeviceClient {
         let mut value = HeaderValue::from_str(token).map_err(|_| "Invalid device token.")?;
         value.set_sensitive(true);
         let mut headers = HeaderMap::new();
-        headers.insert("x-dawn-token", value);
+        headers.insert("x-donder-token", value);
         let client = Client::builder()
             .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
@@ -98,7 +98,7 @@ impl DeviceClient {
             .ok_or("Compiled sequence header is missing.")?;
         let format = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
         if capabilities.sequence_format != format {
-            return Err("Device firmware and Dawn use different sequence formats. Rebuild the firmware and re-export together.".into());
+            return Err("Device firmware and Donder use different sequence formats. Rebuild the firmware and re-export together.".into());
         }
         if bytes.len() - 16 > capabilities.max_payload_bytes as usize {
             return Err(format!(
@@ -112,7 +112,7 @@ impl DeviceClient {
                     return Err(format!("Device accepts at most {lanes} outputs, each with at most {channels_per_lane} channels in multiples of {channel_multiple}. Adjust the selected controller ports in Display Setup."));
                 }
             }
-            DeviceOutputCapabilities::EvaluationOnly => return Err("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Dawn.".into()),
+            DeviceOutputCapabilities::EvaluationOnly => return Err("This firmware evaluates sequences but cannot drive lights. Install the output-enabled firmware before uploading from Donder.".into()),
         }
         let response = self.client.put(format!("http://{}/sequence", self.address))
             .header("content-type", "application/octet-stream").body(bytes).send()
@@ -173,7 +173,7 @@ mod tests {
                         break;
                     }
                     let (name, value) = line.trim().split_once(':').unwrap();
-                    if name.eq_ignore_ascii_case("x-dawn-token") {
+                    if name.eq_ignore_ascii_case("x-donder-token") {
                         authorized = value.trim() == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                     }
                     if name.eq_ignore_ascii_case("content-length") {
@@ -246,7 +246,7 @@ mod tests {
                         if name.eq_ignore_ascii_case("content-length") {
                             length = value.trim().parse().unwrap();
                         }
-                        if name.eq_ignore_ascii_case("x-dawn-token") {
+                        if name.eq_ignore_ascii_case("x-donder-token") {
                             authorized = value.trim() == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
                         }
                     }
@@ -256,7 +256,7 @@ mod tests {
                     let response = if path == "/capabilities" {
                         r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"frameRate":120},"sequenceStorage":"persistent"}"#
                     } else {
-                        assert_eq!(&body[..4], b"DAWN");
+                        assert_eq!(&body[..4], b"DOND");
                         "LOADED sequence"
                     };
                     write!(
@@ -272,7 +272,7 @@ mod tests {
                 DeviceClient::new(&address.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                     .unwrap();
             let mut bytes = vec![0; 16];
-            bytes[..4].copy_from_slice(b"DAWN");
+            bytes[..4].copy_from_slice(b"DOND");
             bytes[4..8].copy_from_slice(&6u32.to_le_bytes());
             let result = client.upload(bytes, &[width]);
             if should_upload {

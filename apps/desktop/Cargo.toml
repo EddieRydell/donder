@@ -1,20 +1,20 @@
 [package]
-name = "dawn-desktop"
+name = "donder-desktop"
 edition.workspace = true
 version.workspace = true
-description = "Dawn desktop"
-authors = ["Dawn"]
+description = "Donder desktop"
+authors = ["Donder"]
 license = "MIT"
-default-run = "dawn-desktop"
+default-run = "donder-desktop"
 
 [dependencies]
 camino.workspace = true
 bytemuck.workspace = true
-dawn-project-io.workspace = true
-dawn-package.workspace = true
-dawn-language.workspace = true
-dawn-output.workspace = true
-dawn-elaboration.workspace = true
+donder-project-io.workspace = true
+donder-package.workspace = true
+donder-language.workspace = true
+donder-output.workspace = true
+donder-elaboration.workspace = true
 glam.workspace = true
 ignore.workspace = true
 notify.workspace = true
@@ -44,7 +44,7 @@ tauri-build.workspace = true
 tempfile.workspace = true
 
 [[bin]]
-name = "dawn-desktop"
+name = "donder-desktop"
 path = "src/main.rs"
 
 [[bin]]

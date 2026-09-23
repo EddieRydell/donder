@@ -4,7 +4,7 @@ import { commands } from "../api";
 import { runSnapshotCommand, useAppStore } from "../store";
 import type { AppSettings } from "../types";
 
-const SETTINGS_EVENT = "dawn:settings";
+const SETTINGS_EVENT = "donder:settings";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);

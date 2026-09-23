@@ -1,5 +1,5 @@
 use crate::dto::{DiagnosticSeverity, ProjectDiagnostic, RelatedDiagnosticLocation};
-use dawn_project_io::{IoDiagnostic, IoDiagnosticSeverity, ProjectCheckReport};
+use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, ProjectCheckReport};
 
 pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic {
     ProjectDiagnostic {

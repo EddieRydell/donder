@@ -1,9 +1,9 @@
 {
   "lockVersion": 1,
-  "manifestSha256": "0a0b674ae7cfa1ff349a2216c2596aa9735aa350fc5835db43445457ff86d3aa",
-  "registry": "https://dawn.eddierydell.com",
+  "manifestSha256": "cd2edc3656642995b0fd14e7bebbd10b6c927e31f58519d4f698a2db1fc8388b",
+  "registry": "https://donder.eddierydell.com",
   "packages": {
-    "dawn/foundation": {
+    "donder/foundation": {
       "version": "1.4.0",
       "archiveSha256": "2222222222222222222222222222222222222222222222222222222222222222",
       "moduleId": "22222222-2222-4222-8222-222222222222",

@@ -4,11 +4,11 @@ use crate::dto::*;
 #[test]
 fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     use crate::desktop_foundation_tests::tests::starter_copy;
-    use dawn_project_io::load_package;
+    use donder_project_io::load_package;
     use std::fs;
     let (_temporary, root) = starter_copy();
     fs::write(
-        root.join("effects/array-values.effect.dawn"),
+        root.join("effects/array-values.effect.donder"),
         r#"
         effect ArrayValues {
             param array<curve> shapes;
@@ -18,9 +18,9 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     "#,
     )
     .unwrap();
-    let path = "sequences/empty.sequence.dawn";
+    let path = "sequences/empty.sequence.donder";
     let original = fs::read_to_string(root.join(path)).unwrap();
-    fs::write(root.join(path), format!("imports:\n- from: {{ documents: [effects/array-values.effect.dawn] }}\n  as: effects\n{original}")).unwrap();
+    fs::write(root.join(path), format!("imports:\n- from: {{ documents: [effects/array-values.effect.donder] }}\n  as: effects\n{original}")).unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;

@@ -1,5 +1,5 @@
-use dawn_elaboration::fixture::PreparedFixtureDefinitions;
-use dawn_language::layout::FixtureInstanceId;
+use donder_elaboration::fixture::PreparedFixtureDefinitions;
+use donder_language::layout::FixtureInstanceId;
 use std::ops::Range;
 
 use super::renderer::PreviewInstanceGpu;
@@ -20,7 +20,7 @@ pub(crate) struct PreviewScene {
 }
 
 impl PreviewScene {
-    pub fn from_project(revision: u64, project: &DawnProject) -> Result<Self, String> {
+    pub fn from_project(revision: u64, project: &DonderProject) -> Result<Self, String> {
         let setup = project
             .setups
             .get(&project.root.setup)

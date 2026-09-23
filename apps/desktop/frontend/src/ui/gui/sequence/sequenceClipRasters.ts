@@ -326,7 +326,7 @@ async function decodeClipRaster(payload: SequenceClipRaster): Promise<CanvasImag
   raster.height = payload.rows;
   const rasterContext = raster.getContext("2d");
   if (rasterContext === null) throw new Error("Raster canvas context is unavailable.");
-  const response = await fetch(convertFileSrc(payload.pixelsRgbaToken, "dawn-raster"));
+  const response = await fetch(convertFileSrc(payload.pixelsRgbaToken, "donder-raster"));
   if (!response.ok) throw new Error(`Raster pixel fetch failed with ${response.status}.`);
   const pixels = new Uint8ClampedArray(await response.arrayBuffer());
   const image = new ImageData(pixels, payload.columns, payload.rows);

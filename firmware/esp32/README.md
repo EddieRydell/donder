@@ -1,12 +1,12 @@
-# Dawn ESP32 firmware
+# Donder ESP32 firmware
 
 This standalone Cargo workspace owns the Xtensa target, ESP SDK dependencies,
 device persistence, profiling harnesses, and the Wi-Fi/I2S loader. Keeping it
 separate prevents embedded-only build scripts and target configuration from
-breaking the host workspace. Its local `crates/dawn-device-storage` crate owns
+breaking the host workspace. Its local `crates/donder-device-storage` crate owns
 LittleFS credential and archive storage.
 
-The firmware consumes `dawn-runtime` prepared sequences. Source parsing,
+The firmware consumes `donder-runtime` prepared sequences. Source parsing,
 imports, generator expansion, target resolution, and controller selection remain
 host concerns. See [prepared sequence loading](../../docs/esp32_loading.md) for
 the archive, transport, install, and verification workflow.
@@ -28,7 +28,7 @@ exists and the board checks are repeated.
 
 ## Binaries and features
 
-- `dawn-esp32` is the standalone benchmark harness.
+- `donder-esp32` is the standalone benchmark harness.
 - `pc_profile` with `pc-profile` records interrupted instruction addresses for
   host-side symbolization. It is not a call-stack profiler.
 - `loader` with `loader` enables persistent credentials and Wi-Fi upload.
@@ -44,13 +44,13 @@ Build the installable image from the repository root:
 For focused development builds from this directory:
 
 ```powershell
-cargo +esp build --release --bin dawn-esp32 --locked
+cargo +esp build --release --bin donder-esp32 --locked
 cargo +esp build --release --features pc-profile --bin pc_profile --locked
 cargo +esp build --release --features i2s-output --bin loader --locked
 ```
 
 Directly flashing the loader must use `partitions.csv`; omitting it loses the
-reserved Dawn data layout. Flashing changes the application, bootloader, and
+reserved Donder data layout. Flashing changes the application, bootloader, and
 partition table and is never part of a read-only validation run.
 
 ## Capture policy

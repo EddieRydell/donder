@@ -1,4 +1,4 @@
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{ResolvedGuiObject, blocked};
 use crate::dto::{GuiDocument, GuiObjectRef, ObjectKind, ProjectGuiDocument};
@@ -25,7 +25,7 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
 }
 
 fn object_ref(
-    identity: &dawn_language::identity::SourceIdentity,
+    identity: &donder_language::identity::SourceIdentity,
     kind: SourceObjectKind,
 ) -> GuiObjectRef {
     GuiObjectRef {

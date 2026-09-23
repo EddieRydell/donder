@@ -5,9 +5,9 @@ import { navigateToText } from "./workspace/navigation";
 import { runSnapshotCommand, useAppStore } from "./store";
 import type { SidebarView } from "./types";
 
-export const OPEN_COMMAND_PALETTE_EVENT = "dawn:open-command-palette";
-export const OPEN_QUICK_OPEN_EVENT = "dawn:open-quick-open";
-export const FOCUS_SIDEBAR_EVENT = "dawn:focus-sidebar";
+export const OPEN_COMMAND_PALETTE_EVENT = "donder:open-command-palette";
+export const OPEN_QUICK_OPEN_EVENT = "donder:open-quick-open";
+export const FOCUS_SIDEBAR_EVENT = "donder:focus-sidebar";
 
 export type CommandId =
   | "file.newProject"
@@ -49,13 +49,13 @@ const focusSidebar = (view: SidebarView) => () => {
 
 export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
-    window.dispatchEvent(new CustomEvent("dawn:new-project"));
+    window.dispatchEvent(new CustomEvent("donder:new-project"));
   }),
   "file.copyProject": command("Create Editable Project Copy...", "File", ["copy", "dependency", "fork"], () => {
-    window.dispatchEvent(new CustomEvent("dawn:copy-project"));
+    window.dispatchEvent(new CustomEvent("donder:copy-project"));
   }, hasProject),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
-    window.dispatchEvent(new CustomEvent("dawn:new-sequence"));
+    window.dispatchEvent(new CustomEvent("donder:new-sequence"));
   }, hasProject),
   "file.openProject": command("Open Project...", "File", ["folder", "workspace"], async () => {
     await openProjectDialog();
@@ -69,7 +69,7 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
     useAppStore.getState().resetGuiLocalState();
   }, hasProject),
   "file.settings": command("Settings...", "File", ["preferences"], () => {
-    window.dispatchEvent(new CustomEvent("dawn:settings"));
+    window.dispatchEvent(new CustomEvent("donder:settings"));
   }),
   "edit.undo": command("Undo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;

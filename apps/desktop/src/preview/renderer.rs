@@ -190,7 +190,7 @@ impl PreviewRenderer {
         &mut self,
         size: PreviewSize,
         scene: Option<&PreviewScene>,
-        frame: Option<&dawn_elaboration::RenderedSequenceFrame>,
+        frame: Option<&donder_elaboration::RenderedSequenceFrame>,
     ) {
         let size = size.clamp_to_max_dimension(self.max_surface_dimension);
         if size.width == 0 || size.height == 0 {
@@ -268,7 +268,7 @@ impl PreviewRenderer {
     fn update_scene(
         &mut self,
         scene: &PreviewScene,
-        frame: Option<&dawn_elaboration::RenderedSequenceFrame>,
+        frame: Option<&donder_elaboration::RenderedSequenceFrame>,
         size: PreviewSize,
     ) {
         if self.uploaded_revision != Some(scene.revision) {
@@ -308,7 +308,7 @@ impl PreviewRenderer {
     fn update_colors(
         &mut self,
         scene: &PreviewScene,
-        frame: Option<&dawn_elaboration::RenderedSequenceFrame>,
+        frame: Option<&donder_elaboration::RenderedSequenceFrame>,
     ) {
         self.color_workspace.clear();
         self.color_workspace
@@ -408,7 +408,7 @@ impl PreviewColorGpu {
         }
     }
 
-    pub(crate) fn from_color(color: dawn_language::values::Color) -> Self {
+    pub(crate) fn from_color(color: donder_language::values::Color) -> Self {
         Self {
             color: [
                 f32::from(color.red) / 255.0,

@@ -180,12 +180,12 @@ fn import_external_audio(snapshot: &AppSnapshot, selected_path: &Path) -> Result
 
     let project_root = camino::Utf8Path::from_path(&project_root)
         .ok_or_else(|| "Project path is not valid UTF-8".to_string())?;
-    let mut manifest = dawn_package::PackageManifest::read(project_root)
+    let mut manifest = donder_package::PackageManifest::read(project_root)
         .map_err(|error| format!("Could not read project manifest: {error}"))?;
     manifest.assets.insert(
         relative_path.clone(),
-        dawn_package::AssetDeclaration {
-            kind: dawn_package::AssetKind::Audio,
+        donder_package::AssetDeclaration {
+            kind: donder_package::AssetKind::Audio,
         },
     );
     manifest

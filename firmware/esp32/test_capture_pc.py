@@ -32,19 +32,19 @@ class Port:
 
     def read_until(self, delimiter):
         line = next(self.lines)
-        self.finished = line == b"DAWN PC END\n"
+        self.finished = line == b"DONDER PC END\n"
         return line
 
 
 def records():
-    lines = [b"DAWN PC BEGIN\n"]
+    lines = [b"DONDER PC BEGIN\n"]
     for effect in range(21):
         for period in [0, 997, 1999, 0]:
             count = int(period != 0)
             lines.append(f"PC CASE effect=effect{effect} period_us={period} frames=128 elapsed_us=2000000 samples={count}\n".encode())
             if count:
                 lines.append(b"PC 40000010\n")
-    return lines + [b"DAWN PC END\n"]
+    return lines + [b"DONDER PC END\n"]
 
 
 class CollectorTests(unittest.TestCase):
@@ -83,11 +83,11 @@ class CollectorTests(unittest.TestCase):
 
     def test_corruption_is_not_silently_removed(self):
         with self.assertRaises(UnicodeDecodeError):
-            self.collect([b"DAWN PC BEGIN\n", b"\xffPC 40000010\n"])
+            self.collect([b"DONDER PC BEGIN\n", b"\xffPC 40000010\n"])
 
     def test_incomplete_fixture_coverage(self):
         with self.assertRaisesRegex(RuntimeError, "Incomplete fixture"):
-            self.collect([b"DAWN PC BEGIN\n", b"DAWN PC END\n"])
+            self.collect([b"DONDER PC BEGIN\n", b"DONDER PC END\n"])
 
 
 if __name__ == "__main__":

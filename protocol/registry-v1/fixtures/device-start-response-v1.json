@@ -2,7 +2,7 @@
   "registryVersion": 1,
   "deviceCode": "device-code-fixture",
   "userCode": "A1B2C3D4",
-  "verificationUri": "https://dawn.eddierydell.com/device/approve",
+  "verificationUri": "https://donder.eddierydell.com/device/approve",
   "interval": 5,
   "expiresIn": 600
 }

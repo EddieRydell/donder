@@ -279,7 +279,7 @@ export function EditorPane({
   if (snapshot.tabs.length === 0) {
     return (
       <section className="editor-shell empty-editor">
-        <span>{snapshot.projectRoot !== null ? "Open a Dawn file from the project tree." : "Open a project to start."}</span>
+        <span>{snapshot.projectRoot !== null ? "Open a Donder file from the project tree." : "Open a project to start."}</span>
       </section>
     );
   }
@@ -624,7 +624,7 @@ function createState(
     extensions: [
       languageForSyntax(syntax),
       history(),
-      syntaxHighlighting(dawnHighlightStyle),
+      syntaxHighlighting(donderHighlightStyle),
       EditorState.readOnly.of(readOnly),
       EditorView.editable.of(!readOnly),
       linter(null, { autoPanel: false }),
@@ -804,15 +804,15 @@ function languageForSyntax(syntax: AppSnapshot["tabs"][number]["syntax"]): Exten
   return syntax === "effectDsl" ? cpp() : yaml();
 }
 
-const dawnHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: "var(--dawn-code-keyword)" },
-  { tag: [tags.name, tags.propertyName, tags.attributeName], color: "var(--dawn-code-name)" },
-  { tag: [tags.variableName, tags.definition(tags.variableName)], color: "var(--dawn-text)" },
-  { tag: [tags.function(tags.variableName), tags.function(tags.definition(tags.variableName))], color: "var(--dawn-code-function)" },
-  { tag: [tags.string, tags.special(tags.string)], color: "var(--dawn-code-string)" },
-  { tag: [tags.number, tags.bool, tags.null], color: "var(--dawn-code-number)" },
-  { tag: [tags.operator, tags.punctuation, tags.separator], color: "var(--dawn-text-muted)" },
-  { tag: tags.comment, color: "var(--dawn-text-muted)", fontStyle: "italic" },
-  { tag: [tags.typeName, tags.className], color: "var(--dawn-code-type)" },
-  { tag: tags.invalid, color: "var(--dawn-code-invalid)" }
+const donderHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: "var(--donder-code-keyword)" },
+  { tag: [tags.name, tags.propertyName, tags.attributeName], color: "var(--donder-code-name)" },
+  { tag: [tags.variableName, tags.definition(tags.variableName)], color: "var(--donder-text)" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.definition(tags.variableName))], color: "var(--donder-code-function)" },
+  { tag: [tags.string, tags.special(tags.string)], color: "var(--donder-code-string)" },
+  { tag: [tags.number, tags.bool, tags.null], color: "var(--donder-code-number)" },
+  { tag: [tags.operator, tags.punctuation, tags.separator], color: "var(--donder-text-muted)" },
+  { tag: tags.comment, color: "var(--donder-text-muted)", fontStyle: "italic" },
+  { tag: [tags.typeName, tags.className], color: "var(--donder-code-type)" },
+  { tag: tags.invalid, color: "var(--donder-code-invalid)" }
 ]);

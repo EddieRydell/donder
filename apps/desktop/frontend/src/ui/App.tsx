@@ -51,7 +51,7 @@ export function App() {
   }, []);
 
   if (!snapshot) {
-    return <div className="app-loading">Dawn</div>;
+    return <div className="app-loading">Donder</div>;
   }
 
   return (

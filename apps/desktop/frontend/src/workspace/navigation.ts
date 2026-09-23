@@ -2,7 +2,7 @@ import { commands } from "../api";
 import { runSnapshotCommand, selectGuiObject, useAppStore } from "../store";
 import type { GuiObjectRef, TextRange } from "../types";
 
-export const NAVIGATE_TO_TEXT_EVENT = "dawn:navigate-to-text";
+export const NAVIGATE_TO_TEXT_EVENT = "donder:navigate-to-text";
 
 export type TextNavigation = {
   path: string;

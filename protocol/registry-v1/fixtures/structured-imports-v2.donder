@@ -1,0 +1,10 @@
+imports:
+- from:
+    documents:
+    - layouts/main.layout.donder
+    - patches/main.patch.donder
+  as: local
+- from:
+    dependency: foundation
+    export: effects
+  as: foundation_effects

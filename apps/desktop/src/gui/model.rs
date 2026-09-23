@@ -1,7 +1,7 @@
 pub(super) fn sequence_mut<'a>(
     session: &'a mut ProjectSession,
     id: &SequenceId,
-) -> Result<&'a mut dawn_language::sequence::Sequence, GuiMutationError> {
+) -> Result<&'a mut donder_language::sequence::Sequence, GuiMutationError> {
     session
         .project
         .sequences
@@ -11,7 +11,7 @@ pub(super) fn sequence_mut<'a>(
 
 pub(super) fn register_sequence_audio_asset(
     session: &mut ProjectSession,
-    document: &dawn_language::identity::DocumentId,
+    document: &donder_language::identity::DocumentId,
     import_path: &str,
 ) -> Result<AssetId, GuiMutationError> {
     if let Some(asset) = session.source.referenced_assets.iter_mut().find(|asset| {
@@ -66,7 +66,7 @@ pub(super) fn register_sequence_audio_asset(
 pub(super) fn fixture_definition_mut<'a>(
     session: &'a mut ProjectSession,
     identity: &SourceIdentity,
-) -> Result<&'a mut dawn_language::fixture::FixtureDefinition, GuiMutationError> {
+) -> Result<&'a mut donder_language::fixture::FixtureDefinition, GuiMutationError> {
     let id = FixtureDefinitionId(identity.clone());
     session
         .project
@@ -78,7 +78,7 @@ pub(super) fn fixture_definition_mut<'a>(
 }
 
 pub(super) fn effect_mut(
-    sequence: &mut dawn_language::sequence::Sequence,
+    sequence: &mut donder_language::sequence::Sequence,
     id: u32,
 ) -> Result<&mut EffectInst, GuiMutationError> {
     sequence
@@ -89,7 +89,7 @@ pub(super) fn effect_mut(
 }
 
 pub(super) fn composition_graph_node_mut<'a>(
-    sequence: &'a mut dawn_language::sequence::Sequence,
+    sequence: &'a mut donder_language::sequence::Sequence,
     id: &CompositionGraphNodeId,
 ) -> Result<&'a mut CompositionGraphNode, GuiMutationError> {
     sequence
@@ -113,7 +113,7 @@ pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId,
 }
 
 pub(super) fn ensure_graph_node_exists(
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     node_id: &CompositionGraphNodeId,
 ) -> Result<(), GuiMutationError> {
     if sequence
@@ -131,7 +131,7 @@ pub(super) fn ensure_graph_node_exists(
 }
 
 pub(super) fn graph_input_cardinality(
-    definitions: &dawn_language::operator::OperatorDefinitionStore,
+    definitions: &donder_language::operator::OperatorDefinitionStore,
     kind: &CompositionGraphNodeKind,
     source_name: &str,
 ) -> Option<OperatorPortCardinality> {
@@ -149,7 +149,7 @@ pub(super) fn graph_input_cardinality(
     }
 }
 
-pub(super) fn next_composition_node_id(sequence: &dawn_language::sequence::Sequence) -> u32 {
+pub(super) fn next_composition_node_id(sequence: &donder_language::sequence::Sequence) -> u32 {
     sequence
         .composition_graph
         .nodes
@@ -188,7 +188,7 @@ pub(super) fn create_sequence_layer(
     let layer_node_id = CompositionGraphNodeId(next_composition_node_id(sequence));
     sequence
         .layers
-        .push(dawn_language::sequence::SequenceLayer {
+        .push(donder_language::sequence::SequenceLayer {
             id: SequenceLayerId(next_layer_id),
             name,
             color: parse_color(&color)?,
@@ -254,13 +254,13 @@ pub(crate) fn source_identity_from_gui(
     let module_id = uuid::Uuid::parse_str(module_id)
         .map_err(|_| GuiMutationError::Invalid("Source module ID is invalid.".to_string()))?;
     Ok(SourceIdentity::from_document(
-        dawn_language::identity::DocumentId::new(module_id, Utf8PathBuf::from(path)),
+        donder_language::identity::DocumentId::new(module_id, Utf8PathBuf::from(path)),
         object.to_string(),
     ))
 }
 
 pub(super) fn mark_collection_mut<'a>(
-    sequence: &'a mut dawn_language::sequence::Sequence,
+    sequence: &'a mut donder_language::sequence::Sequence,
     key: &str,
 ) -> Result<&'a mut MarkCollection, GuiMutationError> {
     sequence
@@ -271,7 +271,7 @@ pub(super) fn mark_collection_mut<'a>(
 }
 
 pub(super) fn automation_clip_mut(
-    sequence: &mut dawn_language::sequence::Sequence,
+    sequence: &mut donder_language::sequence::Sequence,
     id: u32,
 ) -> Result<&mut AutomationClip, GuiMutationError> {
     sequence
@@ -530,27 +530,27 @@ pub(super) fn scale3(scale: Scale3) -> DomainScale3 {
 use std::fs;
 
 use camino::Utf8PathBuf;
-use dawn_language::dsl::Identifier;
-use dawn_language::effect::{
+use donder_language::dsl::Identifier;
+use donder_language::effect::{
     CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
 };
-use dawn_language::fixture::FixtureDefinitionId;
-use dawn_language::identity::SourceIdentity;
-use dawn_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use dawn_language::operator::{
+use donder_language::fixture::FixtureDefinitionId;
+use donder_language::identity::SourceIdentity;
+use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
+use donder_language::operator::{
     BuiltinOperator, OperatorDefinitionId, OperatorPortCardinality, OperatorRef,
 };
-use dawn_language::sequence::{
+use donder_language::sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationMapping, AutomationValue,
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
     GraphNodePosition, GraphPortId, MarkCollection, MarkCollectionKey, SequenceId, SequenceLayerId,
     automation_value_at,
 };
-use dawn_language::values::{
+use donder_language::values::{
     Color, Curve, CurvePoint, Distance, Gradient, GradientStop, Point3,
     Rotation3 as DomainRotation3, Scale3 as DomainScale3,
 };
-use dawn_project_io::{
+use donder_project_io::{
     ProjectSession, ReferencedAsset, SourceObjectKind, ensure_document_can_reference_source,
 };
 

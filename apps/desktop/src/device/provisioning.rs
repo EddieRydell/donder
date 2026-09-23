@@ -83,7 +83,7 @@ fn read_line(
     let line = read_line_raw(port, pending, deadline)?;
     if let Some(error) = line
         .as_deref()
-        .and_then(|line| line.strip_prefix(b"DAWN ERROR "))
+        .and_then(|line| line.strip_prefix(b"DONDER ERROR "))
     {
         return Err(format!("Controller: {}", String::from_utf8_lossy(error)));
     }
@@ -135,10 +135,10 @@ fn erase_exchange(port: &mut (impl Read + Write + ?Sized)) -> Result<(), String>
         let Some(line) = read_line_raw(port, &mut pending, deadline)? else {
             continue;
         };
-        if line == b"DAWN RESET READY" {
+        if line == b"DONDER RESET READY" {
             break;
         }
-        if let Some(error) = line.strip_prefix(b"DAWN RESET UNAVAILABLE ") {
+        if let Some(error) = line.strip_prefix(b"DONDER RESET UNAVAILABLE ") {
             return Err(format!(
                 "Controller cannot erase saved data: {}",
                 String::from_utf8_lossy(error)
@@ -157,7 +157,7 @@ fn erase_exchange(port: &mut (impl Read + Write + ?Sized)) -> Result<(), String>
                 format!("Erase completion is unknown: {error}. Reconnect before retrying.")
             })?
             .as_deref()
-            == Some(b"DAWN RESET COMPLETE")
+            == Some(b"DONDER RESET COMPLETE")
         {
             return Ok(());
         }
@@ -173,11 +173,11 @@ fn exchange(
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
         if Instant::now() >= deadline {
-            return Err("Dawn firmware did not answer. Check the selected USB port and install the loader firmware.".into());
+            return Err("Donder firmware did not answer. Check the selected USB port and install the loader firmware.".into());
         }
         port.write_all(b"P")
             .map_err(|error| format!("USB handshake failed: {error}"))?;
-        if read_line(port, &mut pending, deadline)?.as_deref() == Some(b"DAWN PROVISION READY") {
+        if read_line(port, &mut pending, deadline)?.as_deref() == Some(b"DONDER PROVISION READY") {
             break;
         }
     }
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn device_storage_errors_are_reported_during_provisioning() {
         let mut port = SerialTranscript {
-            input: b"DAWN ERROR Cannot mount Dawn storage; data was not erased\n"
+            input: b"DONDER ERROR Cannot mount Donder storage; data was not erased\n"
                 .iter()
                 .copied()
                 .map(Some)
@@ -280,24 +280,25 @@ mod tests {
             written: Vec::new(),
         };
         let error = exchange(&mut port, "network", "password").err().unwrap();
-        assert!(error.contains("Cannot mount Dawn storage"));
+        assert!(error.contains("Cannot mount Donder storage"));
         assert!(!port.written.contains(&b'W'));
     }
 
     #[test]
     fn erase_requires_ready_and_accepts_recovery_from_damaged_storage() {
         let mut port = SerialTranscript {
-            input: b"DAWN ERROR Cannot mount storage\nDAWN RESET READY\nDAWN RESET COMPLETE\n"
-                .iter()
-                .copied()
-                .map(Some)
-                .collect(),
+            input:
+                b"DONDER ERROR Cannot mount storage\nDONDER RESET READY\nDONDER RESET COMPLETE\n"
+                    .iter()
+                    .copied()
+                    .map(Some)
+                    .collect(),
             written: Vec::new(),
         };
         erase_exchange(&mut port).unwrap();
         assert_eq!(port.written, b"RRF");
         let mut rejected = SerialTranscript {
-            input: b"DAWN RESET UNAVAILABLE Invalid partition table\n"
+            input: b"DONDER RESET UNAVAILABLE Invalid partition table\n"
                 .iter()
                 .copied()
                 .map(Some)
@@ -315,7 +316,7 @@ mod tests {
     #[test]
     fn erase_failure_is_not_reported_as_success() {
         let mut port = SerialTranscript {
-            input: b"DAWN RESET READY\nDAWN ERROR Storage erase failed\n"
+            input: b"DONDER RESET READY\nDONDER ERROR Storage erase failed\n"
                 .iter()
                 .copied()
                 .map(Some)
@@ -333,7 +334,7 @@ mod tests {
     fn provisioning_preserves_fragmented_replies_and_uses_utf8_byte_lengths() {
         let mut input = VecDeque::new();
         for part in [
-            b"boot log\nDAWN PRO".as_slice(),
+            b"boot log\nDONDER PRO".as_slice(),
             b"VISION READY\nTOKEN aaaaaaaaaaaa",
             b"aaaaaaaaaaaaaaaaaaaa\nWIFI CONNECTED\n",
             b"log: WIFI READY 192.168.1.50 80\n",
@@ -365,7 +366,7 @@ mod tests {
     }
     #[test]
     fn provisioning_rejects_malformed_tokens_without_echoing_serial_contents() {
-        let transcript = b"DAWN PROVISION READY\nTOKEN secret-invalid-token\n";
+        let transcript = b"DONDER PROVISION READY\nTOKEN secret-invalid-token\n";
         let mut serial = SerialTranscript {
             input: transcript.iter().copied().map(Some).collect(),
             written: Vec::new(),

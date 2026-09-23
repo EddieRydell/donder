@@ -11,24 +11,27 @@ pub(super) struct RenderInputSignatureData {
     effect: EffectInst,
     automation_clips: Vec<AutomationInputSignature>,
     definition: Option<EffectDefinition>,
-    generator_definitions: Vec<(dawn_language::effect::EffectDefinitionId, EffectDefinition)>,
+    generator_definitions: Vec<(
+        donder_language::effect::EffectDefinitionId,
+        EffectDefinition,
+    )>,
     curve_references: Vec<(CurveId, Option<CurveDefinition>)>,
     gradient_references: Vec<(GradientId, Option<GradientDefinition>)>,
-    mark_references: Vec<(MarkCollectionKey, Option<Vec<DawnTime>>)>,
+    mark_references: Vec<(MarkCollectionKey, Option<Vec<DonderTime>>)>,
     target_pixels: Vec<RenderedTargetPixelAddress>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct AutomationInputSignature {
     clip_id: u32,
-    start: DawnTime,
-    duration: dawn_language::values::DawnDuration,
+    start: DonderTime,
+    duration: donder_language::values::DonderDuration,
     curve: Curve,
     bindings: Vec<AutomationBinding>,
 }
 
 pub(super) fn render_signature(
-    project: &DawnProject,
+    project: &DonderProject,
     setup_id: &SetupId,
     sequence: &Sequence,
     effect: &EffectInst,
@@ -106,12 +109,12 @@ pub(super) fn render_signature(
 }
 
 pub(super) fn collect_param_references(
-    project: &DawnProject,
+    project: &DonderProject,
     sequence: &Sequence,
     value: &EffectParamValue,
     curve_references: &mut Vec<(CurveId, Option<CurveDefinition>)>,
     gradient_references: &mut Vec<(GradientId, Option<GradientDefinition>)>,
-    mark_references: &mut Vec<(MarkCollectionKey, Option<Vec<DawnTime>>)>,
+    mark_references: &mut Vec<(MarkCollectionKey, Option<Vec<DonderTime>>)>,
 ) {
     match value {
         EffectParamValue::Curve(CurveSource::Reference(id)) => {
@@ -282,7 +285,7 @@ pub(super) fn hash_effect_inst<H: Hasher>(effect: &EffectInst, state: &mut H) {
 }
 
 pub(super) fn hash_effect_target<H: Hasher>(
-    target: &dawn_language::layout::FixtureTarget,
+    target: &donder_language::layout::FixtureTarget,
     state: &mut H,
 ) {
     target.hash(state);
@@ -384,8 +387,8 @@ pub(super) fn hash_effect_definition<H: Hasher>(definition: &EffectDefinition, s
         target.hash(state);
     }
     match &definition.implementation {
-        dawn_language::effect::EffectImplementation::Native(builtin) => builtin.hash(state),
-        dawn_language::effect::EffectImplementation::Dsl(compiled) => {
+        donder_language::effect::EffectImplementation::Native(builtin) => builtin.hash(state),
+        donder_language::effect::EffectImplementation::Dsl(compiled) => {
             hash_compiled_effect(compiled, state)
         }
     }
@@ -433,7 +436,7 @@ pub(super) fn hash_curve<H: Hasher>(curve: &Curve, state: &mut H) {
     }
 }
 
-pub(super) fn hash_marks<H: Hasher>(marks: &[DawnTime], state: &mut H) {
+pub(super) fn hash_marks<H: Hasher>(marks: &[DonderTime], state: &mut H) {
     marks.len().hash(state);
     for mark in marks {
         mark.0.hash(state);

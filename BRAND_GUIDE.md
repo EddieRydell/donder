@@ -1,10 +1,10 @@
-# Dawn Brand Guide
+# Donder Brand Guide
 
-This document governs the visual system for Dawn.
+This document governs the visual system for Donder.
 
 ## 1. Core Identity
 
-**Dawn is a precise technical workbench for authoring light shows as source projects.**
+**Donder is a precise technical workbench for authoring light shows as source projects.**
 
 It should feel closer to a professional IDE than a visualizer. The interface exists to expose project structure, validation, sequencing, preview, and output control with clarity.
 
@@ -23,7 +23,7 @@ It should feel closer to a professional IDE than a visualizer. The interface exi
 - For the current prototype, avoid accent color entirely unless it is semantic and necessary.
 
 ### 2.3 Technical, But Legible
-- Dawn should feel like an IDE: dense, predictable, keyboard-friendly, and inspectable.
+- Donder should feel like an IDE: dense, predictable, keyboard-friendly, and inspectable.
 - Interactions should be direct and obvious.
 
 ### 2.4 GUI Over Hidden State
@@ -50,7 +50,7 @@ For now, active and selected states should be gray-only:
 
 ### 4.1 Neutral Tokens
 
-The Dawn desktop app should define colors as CSS custom properties in `apps/desktop/src/styles.css`.
+The Donder desktop app should define colors as CSS custom properties in `apps/desktop/src/styles.css`.
 
 | Token | Purpose |
 | --- | --- |

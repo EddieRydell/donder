@@ -1,10 +1,10 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::dto::{DocumentViewId, GuiDocumentRequest, SequenceExportPort};
-use dawn_language::{
+use donder_language::{
     controller::{ControllerId, ControllerPortId},
     sequence::SequenceId,
 };
-use dawn_project_io::ProjectSession;
+use donder_project_io::ProjectSession;
 use std::sync::Arc;
 
 fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
@@ -98,7 +98,7 @@ impl DesktopState {
                 .ok_or("Selected output is unavailable.")?;
             ports.push((controller.clone(), *port));
         }
-        let prepared = dawn_elaboration::PreparedSequenceOutput::prepare_selected(
+        let prepared = donder_elaboration::PreparedSequenceOutput::prepare_selected(
             &session.project,
             &session.project.root.setup,
             &id,

@@ -247,9 +247,9 @@ pub enum SetupControllerConfig {
     },
 }
 
-impl From<&dawn_language::controller::ControllerProtocol> for SetupControllerConfig {
-    fn from(protocol: &dawn_language::controller::ControllerProtocol) -> Self {
-        use dawn_language::controller::{ArtNetMode, ControllerProtocol, E131Mode};
+impl From<&donder_language::controller::ControllerProtocol> for SetupControllerConfig {
+    fn from(protocol: &donder_language::controller::ControllerProtocol) -> Self {
+        use donder_language::controller::{ArtNetMode, ControllerProtocol, E131Mode};
         match protocol {
             ControllerProtocol::E131(config) => Self::E131 {
                 source_name: config.source_name.clone(),

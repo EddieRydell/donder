@@ -21,18 +21,18 @@ pub(crate) async fn export_sequence_file(
         let bytes = state.prepare_sequence_export(&request, &outputs)?;
         let Some(path) = rfd::FileDialog::new()
             .set_title("Export compiled sequence")
-            .add_filter("Dawn compiled sequence", &["dawnseq"])
-            .set_file_name("sequence.dawnseq")
+            .add_filter("Donder compiled sequence", &["donderseq"])
+            .set_file_name("sequence.donderseq")
             .save_file()
         else {
             return Ok(None);
         };
         let path =
             camino::Utf8PathBuf::from_path_buf(path).map_err(|_| "Choose a UTF-8 file path.")?;
-        if path.extension() != Some("dawnseq") {
-            return Err("Export files must use the .dawnseq extension.".into());
+        if path.extension() != Some("donderseq") {
+            return Err("Export files must use the .donderseq extension.".into());
         }
-        dawn_package::atomic_write(&path, &bytes)
+        donder_package::atomic_write(&path, &bytes)
             .map_err(|error| format!("Could not save exported sequence: {error}"))?;
         Ok(Some(path.to_string()))
     })

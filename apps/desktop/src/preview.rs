@@ -4,7 +4,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use dawn_language::model::DawnProject;
+use donder_language::model::DonderProject;
 use glam::Vec2;
 use tauri::async_runtime::block_on;
 use tauri::window::WindowBuilder;
@@ -55,7 +55,7 @@ impl PreviewWindowService {
             .store(false, Ordering::Release);
 
         let window = WindowBuilder::new(&app, PREVIEW_LABEL)
-            .title("Dawn Preview")
+            .title("Donder Preview")
             .inner_size(960.0, 640.0)
             .min_inner_size(360.0, 240.0)
             .center()

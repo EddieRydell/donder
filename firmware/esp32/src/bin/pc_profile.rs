@@ -89,7 +89,7 @@ fn main() -> ! {
     let attach = Instant::now();
     while attach.elapsed().as_millis() < 3000 {}
 
-    println!("DAWN PC BEGIN cpu_mhz=240 core=1 stack_samples=false");
+    println!("DONDER PC BEGIN cpu_mhz=240 core=1 stack_samples=false");
     for case in 0..fixtures::NAMES.len()
         + workload::CHASE_PULSE_CASES.len()
         + workload::MARK_CASES.len()
@@ -118,7 +118,7 @@ fn main() -> ! {
             let (name, _, _) = workload::MARK_CASES[index];
             (
                 name,
-                dawn_runtime::wire::decode_sequence(
+                donder_runtime::wire::decode_sequence(
                     fixtures::MARK_SEQUENCES[index],
                     Default::default(),
                 )
@@ -132,7 +132,7 @@ fn main() -> ! {
                 - workload::MARK_CASES.len();
             (
                 fixtures::GENERATOR_NAMES[index],
-                dawn_runtime::wire::decode_sequence(
+                donder_runtime::wire::decode_sequence(
                     fixtures::GENERATOR_SEQUENCES[index],
                     Default::default(),
                 )
@@ -197,7 +197,7 @@ fn main() -> ! {
             }
         }
     }
-    println!("DAWN PC END");
+    println!("DONDER PC END");
     loop {
         core::hint::spin_loop();
     }

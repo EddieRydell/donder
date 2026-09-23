@@ -13,11 +13,11 @@ const server = await createServer({
 after(() => server.close());
 const { useAppStore, runGuiEditCommand } = await server.ssrLoadModule("/src/store.ts");
 const initialState = useAppStore.getState();
-const document = { type: "sequence", path: "main.dawn", objectKey: "main" };
+const document = { type: "sequence", path: "main.donder", objectKey: "main" };
 const snapshot = (stateRevision, projectRevision, overrides = {}) => ({
   stateRevision, projectRevision, projectEpoch: 1, projectRoot: "/project",
   guiProjection: null,
-  projectHealth: "ready", activeFile: "main.dawn", activeBuffer: null,
+  projectHealth: "ready", activeFile: "main.donder", activeBuffer: null,
   settings: { editorViewMode: "gui" },
   activeDocumentDescriptor: {
     availableViews: ["text", "sequence"],
@@ -127,7 +127,7 @@ for (const [name, overrides] of [
   ["invalid project", { projectHealth: "invalid" }],
   ["analysis in progress", { projectHealth: "checking" }],
   ["Text mode", { settings: { editorViewMode: "text" } }],
-  ["another file", { activeFile: "other.dawn" }],
+  ["another file", { activeFile: "other.donder" }],
   ["another project", { projectRoot: "/other", projectEpoch: 2 }],
   ["reopening the same project", { projectEpoch: 2 }]
 ]) {

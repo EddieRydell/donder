@@ -12,8 +12,8 @@
 )]
 
 fn main() {
-    if let Err(error) = dawn_desktop::run() {
-        eprintln!("failed to run Dawn desktop: {error}");
+    if let Err(error) = donder_desktop::run() {
+        eprintln!("failed to run Donder desktop: {error}");
         std::process::exit(1);
     }
 }

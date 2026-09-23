@@ -1342,152 +1342,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
-name = "dawn-cli"
-version = "0.1.0"
-dependencies = [
- "camino",
- "clap",
- "dawn-package",
- "dawn-project-io",
- "keyring",
- "keyring-core",
- "semver",
- "serde",
- "serde_json",
- "tempfile",
- "uuid",
- "webbrowser",
-]
-
-[[package]]
-name = "dawn-desktop"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "camino",
- "dawn-elaboration",
- "dawn-language",
- "dawn-output",
- "dawn-package",
- "dawn-project-io",
- "esp-idf-part",
- "espflash",
- "glam",
- "ignore",
- "indexmap 2.14.2",
- "kira",
- "notify",
- "reqwest",
- "rfd",
- "semver",
- "serde",
- "serde_json",
- "serialport",
- "specta",
- "specta-typescript",
- "tauri",
- "tauri-build",
- "tauri-specta",
- "tempfile",
- "uuid",
- "webbrowser",
- "wgpu",
- "yaml_serde",
-]
-
-[[package]]
-name = "dawn-elaboration"
-version = "0.1.0"
-dependencies = [
- "camino",
- "crc32fast",
- "criterion",
- "dawn-language",
- "dawn-project-io",
- "dawn-runtime",
- "glam",
- "indexmap 2.14.2",
-]
-
-[[package]]
-name = "dawn-language"
-version = "0.1.0"
-dependencies = [
- "camino",
- "criterion",
- "dawn-runtime",
- "fugit",
- "indexmap 2.14.2",
- "uuid",
-]
-
-[[package]]
-name = "dawn-output"
-version = "0.1.0"
-dependencies = [
- "artnet_protocol",
- "dawn-elaboration",
- "dawn-language",
- "indexmap 2.14.2",
- "sacn",
- "uuid",
-]
-
-[[package]]
-name = "dawn-package"
-version = "0.1.0"
-dependencies = [
- "camino",
- "directories",
- "fs4",
- "httpmock",
- "pubgrub",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "sha2 0.11.0",
- "spdx",
- "tempfile",
- "url",
- "uuid",
- "zip",
-]
-
-[[package]]
-name = "dawn-project-io"
-version = "0.1.0"
-dependencies = [
- "camino",
- "dawn-elaboration",
- "dawn-language",
- "dawn-package",
- "dur",
- "indexmap 2.14.2",
- "marked-yaml",
- "pathdiff",
- "semver",
- "serde",
- "serde_json",
- "serde_path_to_error",
- "tempfile",
- "uuid",
- "yaml_serde",
-]
-
-[[package]]
-name = "dawn-runtime"
-version = "0.1.0"
-dependencies = [
- "crc32fast",
- "fugit",
- "libm",
- "micromath",
- "rkyv",
-]
-
-[[package]]
 name = "dbus"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,6 +1583,152 @@ dependencies = [
  "precomputed-hash",
  "selectors",
  "tendril",
+]
+
+[[package]]
+name = "donder-cli"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "clap",
+ "donder-package",
+ "donder-project-io",
+ "keyring",
+ "keyring-core",
+ "semver",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "uuid",
+ "webbrowser",
+]
+
+[[package]]
+name = "donder-desktop"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "camino",
+ "donder-elaboration",
+ "donder-language",
+ "donder-output",
+ "donder-package",
+ "donder-project-io",
+ "esp-idf-part",
+ "espflash",
+ "glam",
+ "ignore",
+ "indexmap 2.14.2",
+ "kira",
+ "notify",
+ "reqwest",
+ "rfd",
+ "semver",
+ "serde",
+ "serde_json",
+ "serialport",
+ "specta",
+ "specta-typescript",
+ "tauri",
+ "tauri-build",
+ "tauri-specta",
+ "tempfile",
+ "uuid",
+ "webbrowser",
+ "wgpu",
+ "yaml_serde",
+]
+
+[[package]]
+name = "donder-elaboration"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "crc32fast",
+ "criterion",
+ "donder-language",
+ "donder-project-io",
+ "donder-runtime",
+ "glam",
+ "indexmap 2.14.2",
+]
+
+[[package]]
+name = "donder-language"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "criterion",
+ "donder-runtime",
+ "fugit",
+ "indexmap 2.14.2",
+ "uuid",
+]
+
+[[package]]
+name = "donder-output"
+version = "0.1.0"
+dependencies = [
+ "artnet_protocol",
+ "donder-elaboration",
+ "donder-language",
+ "indexmap 2.14.2",
+ "sacn",
+ "uuid",
+]
+
+[[package]]
+name = "donder-package"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "directories",
+ "fs4",
+ "httpmock",
+ "pubgrub",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2 0.11.0",
+ "spdx",
+ "tempfile",
+ "url",
+ "uuid",
+ "zip",
+]
+
+[[package]]
+name = "donder-project-io"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "donder-elaboration",
+ "donder-language",
+ "donder-package",
+ "dur",
+ "indexmap 2.14.2",
+ "marked-yaml",
+ "pathdiff",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "tempfile",
+ "uuid",
+ "yaml_serde",
+]
+
+[[package]]
+name = "donder-runtime"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "fugit",
+ "libm",
+ "micromath",
+ "rkyv",
 ]
 
 [[package]]

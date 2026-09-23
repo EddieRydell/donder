@@ -7,7 +7,7 @@ use tinyrlibc as _;
 
 #[path = "../storage.rs"]
 mod storage;
-use dawn_device_storage::{Record, credentials::Credentials};
+use donder_device_storage::{Record, credentials::Credentials};
 type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 
 #[cfg(feature = "i2s-output")]
@@ -22,8 +22,8 @@ use core::{
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
 #[cfg(feature = "i2s-output")]
-use dawn_runtime::values::{MICROS_PER_SECOND, sample_time_from_frame};
-use dawn_runtime::{
+use donder_runtime::values::{MICROS_PER_SECOND, sample_time_from_frame};
+use donder_runtime::{
     sequence::{PreparedSequence, SequenceWorkspace},
     values::SampleTime,
     wire::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence},
@@ -224,7 +224,7 @@ struct LoaderState {
 }
 
 fn authorized(state: &LoaderState, request: &picoserve::request::RequestParts<'_>) -> bool {
-    let Some(supplied) = request.headers().get("x-dawn-token") else {
+    let Some(supplied) = request.headers().get("x-donder-token") else {
         return false;
     };
     let supplied = supplied.as_raw();
@@ -288,13 +288,13 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
         if !authorized(state, &request.parts) {
             return (
                 StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Dawn-Token\n",
+                "Missing or invalid X-Donder-Token\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
         }
         let capabilities = Capabilities {
-            sequence_format: dawn_runtime::wire::FORMAT_VERSION,
+            sequence_format: donder_runtime::wire::FORMAT_VERSION,
             max_payload_bytes: LIMITS.payload_bytes,
             max_pixels: LIMITS.pixels,
             max_graph_nodes: LIMITS.graph_nodes,
@@ -334,7 +334,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         if !authorized(state, &request.parts) {
             return (
                 StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Dawn-Token\n",
+                "Missing or invalid X-Donder-Token\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
@@ -397,7 +397,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                 let pixels = playback.sequence.signals.pixel_count;
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
-                if dawn_device_storage::write(
+                if donder_device_storage::write(
                     &mut *state.storage.lock().await,
                     Record::Sequence,
                     &bytes,
@@ -449,7 +449,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
         if !authorized(state, &request.parts) {
             return (
                 StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Dawn-Token\n",
+                "Missing or invalid X-Donder-Token\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
@@ -566,7 +566,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
         if !authorized(state, &request.parts) {
             return (
                 StatusCode::UNAUTHORIZED,
-                "Missing or invalid X-Dawn-Token\n",
+                "Missing or invalid X-Donder-Token\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
@@ -814,11 +814,11 @@ async fn render_outputs(
 
 async fn storage_error(uart: &mut Uart<'_, esp_hal::Async>, error: &'static str) -> ! {
     loop {
-        let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+        let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
         let mut command = [0];
         let _ = uart.read_exact(&mut command).await;
         if command[0] == b'R' {
-            let _ = uart_reply(uart, format_args!("DAWN RESET UNAVAILABLE {error}")).await;
+            let _ = uart_reply(uart, format_args!("DONDER RESET UNAVAILABLE {error}")).await;
         }
     }
 }
@@ -827,14 +827,14 @@ async fn erase_storage(
     uart: &mut Uart<'_, esp_hal::Async>,
     storage: &mut storage::DeviceStorage,
 ) -> ! {
-    if dawn_device_storage::erase_all(storage).is_err() {
+    if donder_device_storage::erase_all(storage).is_err() {
         storage_error(
             uart,
             "Storage erase failed; reset the controller and retry erasing saved data",
         )
         .await;
     }
-    let _ = uart_reply(uart, format_args!("DAWN RESET COMPLETE")).await;
+    let _ = uart_reply(uart, format_args!("DONDER RESET COMPLETE")).await;
     let _ = embedded_io_async::Write::flush(uart).await;
     esp_hal::system::software_reset();
 }
@@ -845,7 +845,7 @@ async fn recover_storage(
     error: &'static str,
 ) -> ! {
     let mut erase_requested = false;
-    let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+    let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
     loop {
         let mut command = [0];
         if uart.read_exact(&mut command).await.is_err() {
@@ -854,12 +854,12 @@ async fn recover_storage(
         match command[0] {
             b'R' => {
                 erase_requested = true;
-                let _ = uart_reply(uart, format_args!("DAWN RESET READY")).await;
+                let _ = uart_reply(uart, format_args!("DONDER RESET READY")).await;
             }
             b'F' if erase_requested => erase_storage(uart, storage).await,
             _ => {
                 erase_requested = false;
-                let _ = uart_reply(uart, format_args!("DAWN ERROR {error}")).await;
+                let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
             }
         }
     }
@@ -892,11 +892,11 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         Ok(storage) => storage,
         Err(error) => storage_error(&mut uart, error).await,
     };
-    if dawn_device_storage::initialize(&mut storage).is_err() {
+    if donder_device_storage::initialize(&mut storage).is_err() {
         recover_storage(
             &mut uart,
             &mut storage,
-            "Cannot mount Dawn storage; erase saved data to recover",
+            "Cannot mount Donder storage; erase saved data to recover",
         )
         .await;
     }
@@ -925,11 +925,11 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         loop {
             if command[0] == b'P' {
                 erase_requested = false;
-                let _ = uart_reply(&mut uart, format_args!("DAWN PROVISION READY")).await;
+                let _ = uart_reply(&mut uart, format_args!("DONDER PROVISION READY")).await;
             }
             if command[0] == b'R' {
                 erase_requested = true;
-                let _ = uart_reply(&mut uart, format_args!("DAWN RESET READY")).await;
+                let _ = uart_reply(&mut uart, format_args!("DONDER RESET READY")).await;
             }
             if command[0] == b'F' && erase_requested {
                 erase_storage(&mut uart, &mut storage).await;
@@ -1003,7 +1003,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     );
     spawner.spawn(network(runner).unwrap());
     spawner.spawn(reconnect(controller).unwrap());
-    let restored = match dawn_device_storage::read(
+    let restored = match donder_device_storage::read(
         &mut storage,
         Record::Sequence,
         HEADER_BYTES + LIMITS.payload_bytes,

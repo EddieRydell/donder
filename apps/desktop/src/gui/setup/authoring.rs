@@ -1,6 +1,6 @@
 use super::{GuiMutationError, ensure_owned_target};
-use dawn_language::setup::Setup;
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_language::setup::Setup;
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 pub(super) fn copy_controller(
     session: &mut ProjectSession,
@@ -8,7 +8,7 @@ pub(super) fn copy_controller(
     controller: crate::dto::GuiObjectRef,
 ) -> Result<(), GuiMutationError> {
     ensure_owned_target(session, &setup.id.0)?;
-    let original = dawn_language::controller::ControllerId(super::source_identity_from_gui(
+    let original = donder_language::controller::ControllerId(super::source_identity_from_gui(
         &controller.module_id,
         &controller.path,
         &controller.object_key,
@@ -27,12 +27,12 @@ pub(super) fn copy_controller(
         "patches",
         "patch",
     )
-    .map(dawn_language::patch::PatchId)?;
-    dawn_language::setup::authoring::copy_controller(
+    .map(donder_language::patch::PatchId)?;
+    donder_language::setup::authoring::copy_controller(
         &mut session.project,
         &setup.id,
         &original,
-        dawn_language::controller::ControllerId(copy.clone()),
+        donder_language::controller::ControllerId(copy.clone()),
         patch.clone(),
     )
     .map_err(GuiMutationError::Invalid)?;
@@ -40,7 +40,7 @@ pub(super) fn copy_controller(
         (SourceObjectKind::Controller, &copy),
         (SourceObjectKind::Patch, &patch.0),
     ] {
-        dawn_project_io::ensure_document_can_reference_source(
+        donder_project_io::ensure_document_can_reference_source(
             session,
             setup.id.0.document_id(),
             kind,

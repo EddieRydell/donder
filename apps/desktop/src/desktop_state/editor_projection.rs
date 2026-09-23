@@ -3,7 +3,7 @@ use crate::dto::{
     ObjectKind,
 };
 use camino::Utf8Path;
-use dawn_project_io::{ProjectSession, source_document_text};
+use donder_project_io::{ProjectSession, source_document_text};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn generated_source_texts(

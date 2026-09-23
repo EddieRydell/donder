@@ -19,9 +19,9 @@ test("full snapshots from an older project or command cannot roll back state", (
 test("typing coalesces per document and navigation waits for the latest queued text", async () => {
   const calls = [];
   const sync = new DocumentSync((update) => new Promise((resolve) => calls.push({ update, resolve })), () => {}, assert.fail);
-  sync.queue(1, "sequence.dawn", 0, "first");
-  sync.queue(1, "sequence.dawn", 0, "second");
-  sync.queue(1, "sequence.dawn", 0, "latest");
+  sync.queue(1, "sequence.donder", 0, "first");
+  sync.queue(1, "sequence.donder", 0, "second");
+  sync.queue(1, "sequence.donder", 0, "latest");
   let navigated = false;
   const navigation = sync.flush().then(() => { navigated = true; });
   assert.equal(calls.length, 1);
@@ -34,7 +34,7 @@ test("typing coalesces per document and navigation waits for the latest queued t
   calls[1].resolve(acknowledgement(calls[1].update, 3));
   await navigation;
   assert.equal(navigated, true);
-  assert.equal(sync.pendingText(1, "sequence.dawn"), null);
+  assert.equal(sync.pendingText(1, "sequence.donder"), null);
 });
 
 test("out-of-order acknowledgements across documents never roll back the full snapshot", async () => {
@@ -43,8 +43,8 @@ test("out-of-order acknowledgements across documents never roll back the full sn
   const sync = new DocumentSync((update) => new Promise((resolve) => calls.push({ update, resolve })), (incoming) => {
     if (isNewerSnapshot(snapshot, incoming)) snapshot = incoming;
   }, assert.fail);
-  sync.queue(1, "a.dawn", 0, "A");
-  sync.queue(1, "b.dawn", 0, "B");
+  sync.queue(1, "a.donder", 0, "A");
+  sync.queue(1, "b.donder", 0, "B");
   calls[1].resolve(acknowledgement(calls[1].update, 7));
   calls[0].resolve(acknowledgement(calls[0].update, 6));
   await sync.flush();
@@ -54,9 +54,9 @@ test("out-of-order acknowledgements across documents never roll back the full sn
 test("failed text submission keeps the latest text and cancels the transition barrier", async () => {
   const error = new Error("document changed");
   const sync = new DocumentSync(() => Promise.reject(error), () => assert.fail("unexpected acknowledgement"), () => {});
-  sync.queue(1, "a.dawn", 0, "must survive");
+  sync.queue(1, "a.donder", 0, "must survive");
   await assert.rejects(sync.flush(), /document changed/);
-  assert.equal(sync.pendingText(1, "a.dawn"), "must survive");
+  assert.equal(sync.pendingText(1, "a.donder"), "must survive");
 });
 
 test("a rejected edit can only be rebased or discarded by an explicit conflict decision", async () => {
@@ -66,16 +66,16 @@ test("a rejected edit can only be rebased or discarded by an explicit conflict d
     if (calls.length === 1) throw new Error("document changed");
     return acknowledgement(update, 9);
   }, () => {}, () => {});
-  sync.queue(1, "a.dawn", 0, "mine");
+  sync.queue(1, "a.donder", 0, "mine");
   await assert.rejects(sync.flush());
-  sync.resolveFailure(1, "a.dawn", 4);
+  sync.resolveFailure(1, "a.donder", 4);
   await sync.flush();
   assert.equal(calls[1].expectedDocumentRevision, 4);
   assert.equal(calls[1].text, "mine");
   const rejected = new DocumentSync(() => Promise.reject(new Error("deleted")), () => {}, () => {});
-  rejected.queue(1, "b.dawn", 1, "pending");
+  rejected.queue(1, "b.donder", 1, "pending");
   await assert.rejects(rejected.flush());
-  rejected.resolveFailure(1, "b.dawn", null);
+  rejected.resolveFailure(1, "b.donder", null);
   await rejected.flush();
-  assert.equal(rejected.pendingText(1, "b.dawn"), null);
+  assert.equal(rejected.pendingText(1, "b.donder"), null);
 });

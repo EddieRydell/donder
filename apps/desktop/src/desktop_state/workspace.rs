@@ -22,13 +22,13 @@ impl DesktopState {
         let candidate = Utf8Path::new(path);
         let root = if candidate.is_dir() {
             candidate
-        } else if candidate.file_name() == Some(dawn_package::MANIFEST_FILE) {
+        } else if candidate.file_name() == Some(donder_package::MANIFEST_FILE) {
             candidate.parent().unwrap_or(candidate)
         } else {
             return self.snapshot_with_error(
                 "project.open",
                 path,
-                "Open a project by selecting its dawn-package.json manifest.",
+                "Open a project by selecting its donder-package.json manifest.",
             );
         };
         self.load_working_copy(root)
@@ -154,7 +154,7 @@ impl DesktopState {
         let project = self
             .project_session()
             .ok_or_else(|| "No project is open.".to_string())?;
-        let plan = dawn_project_io::plan_path_change(
+        let plan = donder_project_io::plan_path_change(
             &project,
             Utf8Path::new(&request.source),
             Utf8Path::new(&request.destination),
@@ -190,8 +190,8 @@ impl DesktopState {
             request,
             structural: plan.structural,
             ownership: match plan.ownership {
-                dawn_project_io::PathChangeOwnership::Project => WorkspacePathOwnership::Project,
-                dawn_project_io::PathChangeOwnership::PathDependency {
+                donder_project_io::PathChangeOwnership::Project => WorkspacePathOwnership::Project,
+                donder_project_io::PathChangeOwnership::PathDependency {
                     module_id,
                     module_root,
                 } => WorkspacePathOwnership::PathDependency {
@@ -231,7 +231,7 @@ impl DesktopState {
         let project = self
             .project_session()
             .ok_or_else(|| "No project is open.".to_string())?;
-        let plan = dawn_project_io::plan_path_change(
+        let plan = donder_project_io::plan_path_change(
             &project,
             Utf8Path::new(&request.source),
             Utf8Path::new(&request.destination),
@@ -240,7 +240,7 @@ impl DesktopState {
         self.render_refresh.invalidate_pending();
         let candidate = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
-            dawn_project_io::apply_path_change(&project, &plan)?
+            donder_project_io::apply_path_change(&project, &plan)?
         };
         let root = candidate.source.project_root().to_string();
         let candidate = std::sync::Arc::new(candidate);
@@ -289,8 +289,8 @@ impl DesktopState {
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
             workspace.render_target = workspace.render_target.as_ref().map(|(setup, sequence)| {
                 (
-                    dawn_language::setup::SetupId(plan.remap_identity(&setup.0)),
-                    dawn_language::sequence::SequenceId(plan.remap_identity(&sequence.0)),
+                    donder_language::setup::SetupId(plan.remap_identity(&setup.0)),
+                    donder_language::sequence::SequenceId(plan.remap_identity(&sequence.0)),
                 )
             });
             workspace.view.project_revision += 1;
@@ -456,7 +456,7 @@ impl DesktopState {
             let Some(original_root) = self.project_root_path() else {
                 return self.snapshot_with_error("project.copy", parent_path, "No project is open");
             };
-            match dawn_project_io::load_package(&original_root) {
+            match donder_project_io::load_package(&original_root) {
                 Ok(loaded) => std::sync::Arc::new(loaded.session),
                 Err(error) => {
                     return self.snapshot_with_error(
@@ -478,7 +478,7 @@ impl DesktopState {
         };
         let result = {
             let _filesystem = lock_unpoisoned(&self.filesystem);
-            dawn_project_io::export_editable_project(&project, &root)
+            donder_project_io::export_editable_project(&project, &root)
         };
         if let Err(error) = result {
             return self.snapshot_with_error("project.copy", root.as_str(), &error);
@@ -522,11 +522,11 @@ impl DesktopState {
             );
         };
         let mut edited = (*project).clone();
-        let result = dawn_project_io::insert_sequence(
+        let result = donder_project_io::insert_sequence(
             &mut edited,
             sequence_path.clone(),
             request.object_key.clone(),
-            dawn_language::values::DawnDuration(duration),
+            donder_language::values::DonderDuration(duration),
             request.frame_rate,
         );
         if let Err(error) = result {

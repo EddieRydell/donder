@@ -1,0 +1,21 @@
+[package]
+name = "donder-language"
+edition.workspace = true
+version.workspace = true
+description = "Donder language"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+camino.workspace = true
+donder-runtime.workspace = true
+fugit.workspace = true
+indexmap.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "effect_vm_bench"
+harness = false

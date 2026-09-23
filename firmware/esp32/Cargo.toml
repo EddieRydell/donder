@@ -1,13 +1,13 @@
 [package]
-name = "dawn-esp32"
+name = "donder-esp32"
 version = "0.1.0"
 edition = "2024"
 publish = false
 
 [features]
 pc-profile = []
-loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:dawn-device-storage", "dep:esp-storage", "dep:tinyrlibc"]
-i2s-output = ["loader", "dawn-runtime/atomic"]
+loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc"]
+i2s-output = ["loader", "donder-runtime/atomic"]
 
 [[bin]]
 name = "loader"
@@ -25,7 +25,7 @@ resolver = "2"
 [dependencies]
 # Supply only littlefs's two string routines absent from the ESP32 ROM bindings.
 tinyrlibc = { version = "0.5.1", default-features = false, features = ["strspn", "strcspn"], optional = true }
-dawn-device-storage = { path = "crates/dawn-device-storage", optional = true }
+donder-device-storage = { path = "crates/donder-device-storage", optional = true }
 esp-storage = { version = "0.10.0", features = ["esp32"], optional = true }
 serde = { version = "1.0.229", default-features = false, features = ["derive"], optional = true }
 esp-radio-rtos-driver = { version = "0.4.1", optional = true }
@@ -40,7 +40,7 @@ heapless = { version = "0.9.3", optional = true }
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "json"], optional = true }
 static_cell = { version = "2.1.1", optional = true }
 crc32fast = { version = "1.5.1", default-features = false }
-dawn-runtime = { path = "../../crates/dawn-runtime", default-features = false }
+donder-runtime = { path = "../../crates/donder-runtime", default-features = false }
 esp-hal = { version = "~1.2.0", features = ["esp32", "unstable"] }
 esp-alloc = { version = "0.11.0", features = ["esp32", "alloc-hooks"] }
 esp-println = { version = "0.18.0", default-features = false, features = ["esp32", "uart", "critical-section"] }
@@ -61,9 +61,9 @@ esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e55
 
 [build-dependencies]
 crc32fast = "1.5.1"
-dawn-elaboration = { path = "../../crates/dawn-elaboration" }
-dawn-language = { path = "../../crates/dawn-language" }
-dawn-runtime = { path = "../../crates/dawn-runtime" }
+donder-elaboration = { path = "../../crates/donder-elaboration" }
+donder-language = { path = "../../crates/donder-language" }
+donder-runtime = { path = "../../crates/donder-runtime" }
 indexmap = "2.14.0"
 
 [profile.release]

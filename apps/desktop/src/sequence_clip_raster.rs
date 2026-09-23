@@ -2,7 +2,7 @@
 //!
 //! The worker owns request coalescing, cancellation, cache records, and the
 //! pixel-token transport used by the Tauri protocol. Effect evaluation remains
-//! in `dawn-elaboration`; pixel decoding and drawing remain in the frontend.
+//! in `donder-elaboration`; pixel decoding and drawing remain in the frontend.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -13,22 +13,22 @@ use std::sync::{
 };
 use std::thread;
 
-use dawn_elaboration::{
+use donder_elaboration::{
     EffectRasterPrepareBatch, PreparedEffectRasterRenderer, RenderedTargetPixelAddress,
     resolve_effect_target_pixel_addresses,
 };
-use dawn_language::dsl::{EffectKind, hash_compiled_effect};
-use dawn_language::effect::{
+use donder_language::dsl::{EffectKind, hash_compiled_effect};
+use donder_language::effect::{
     CurveDefinition, CurveId, CurveSource, EffectDefinition, EffectInst, EffectInstId,
     EffectParamValue, EffectScope, GradientDefinition, GradientId, GradientSource,
 };
-use dawn_language::model::DawnProject;
-use dawn_language::sequence::{
+use donder_language::model::DonderProject;
+use donder_language::sequence::{
     AutomationBinding, AutomationMapping, MarkCollectionKey, Sequence, SequenceId,
 };
-use dawn_language::setup::SetupId;
-use dawn_language::values::{Curve, DawnTime, Gradient};
-use dawn_project_io::ProjectSession;
+use donder_language::setup::SetupId;
+use donder_language::values::{Curve, DonderTime, Gradient};
+use donder_project_io::ProjectSession;
 
 use crate::dto::{
     EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,

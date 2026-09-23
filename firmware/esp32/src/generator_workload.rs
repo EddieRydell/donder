@@ -1,15 +1,15 @@
 //! Host-built generator fixtures, archived for the same portable device evaluator.
-use dawn_language::dsl::{BoundParams, Identifier, compile_effects, validate_emission};
-use dawn_language::effect::*;
-use dawn_language::fixture::*;
-use dawn_language::identity::{DocumentId, SourceIdentity};
-use dawn_language::imports::SourceReference;
-use dawn_language::layout::*;
-use dawn_language::model::*;
-use dawn_language::sequence::*;
-use dawn_language::setup::*;
-use dawn_language::values::*;
-use dawn_runtime::sequence::PreparedSequence;
+use donder_language::dsl::{BoundParams, Identifier, compile_effects, validate_emission};
+use donder_language::effect::*;
+use donder_language::fixture::*;
+use donder_language::identity::{DocumentId, SourceIdentity};
+use donder_language::imports::SourceReference;
+use donder_language::layout::*;
+use donder_language::model::*;
+use donder_language::sequence::*;
+use donder_language::setup::*;
+use donder_language::values::*;
+use donder_runtime::sequence::PreparedSequence;
 use indexmap::IndexMap;
 use std::time::Duration;
 
@@ -82,7 +82,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     };
     let identity = |name: &str| {
         SourceIdentity::from_document(
-            DocumentId::new(Default::default(), "fixture.dawn".into()),
+            DocumentId::new(Default::default(), "fixture.donder".into()),
             name.into(),
         )
     };
@@ -143,7 +143,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     };
     let mut sequence = Sequence {
         id: sequence_id.clone(),
-        duration: DawnDuration(Duration::from_secs(8)),
+        duration: DonderDuration(Duration::from_secs(8)),
         frame_rate: 120,
         audio: SequenceAudio::None,
         mark_collections: vec![],
@@ -157,8 +157,8 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             .map(|index| EffectInst {
                 id: EffectInstId(index),
                 layer_id: SequenceLayerId(0),
-                start: DawnTime(Duration::ZERO),
-                duration: DawnDuration(Duration::from_secs(8)),
+                start: DonderTime(Duration::ZERO),
+                duration: DonderDuration(Duration::from_secs(8)),
                 target: FixtureTarget {
                     layout: layout_id.clone(),
                     fixture: FixtureInstanceId(0),
@@ -207,7 +207,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                     EffectParamValue::Gradient(GradientSource::Inline(Gradient {
                         stops: vec![GradientStop {
                             position: 0.0,
-                            color: dawn_runtime::sampling::hsv(index as f32 * 0.6, 1.0, 1.0),
+                            color: donder_runtime::sampling::hsv(index as f32 * 0.6, 1.0, 1.0),
                         }],
                     }))
                 })
@@ -262,8 +262,8 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     if automated {
         sequence.automation_clips.push(AutomationClip {
             id: AutomationClipId(0),
-            start: DawnTime(Duration::ZERO),
-            duration: DawnDuration(Duration::from_secs(8)),
+            start: DonderTime(Duration::ZERO),
+            duration: DonderDuration(Duration::from_secs(8)),
             anchor_lane_index: 0,
             lane_index: 0,
             curve: Curve {
@@ -316,7 +316,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                 .collect(),
         },
     );
-    let project = DawnProject {
+    let project = DonderProject {
         root: ProjectRoot {
             id: ProjectId(identity("project")),
             setup: setup_id.clone(),
@@ -327,7 +327,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             Setup {
                 id: setup_id.clone(),
                 layout: layout_id.clone(),
-                patch: dawn_language::patch::PatchId(identity("patch")),
+                patch: donder_language::patch::PatchId(identity("patch")),
                 controllers: vec![],
             },
         )]
@@ -352,7 +352,8 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         sequences: [(sequence_id.clone(), sequence)].into(),
         definitions,
     };
-    let signals = dawn_elaboration::elaborate_sequence(&project, &setup_id, &sequence_id).unwrap();
+    let signals =
+        donder_elaboration::elaborate_sequence(&project, &setup_id, &sequence_id).unwrap();
     let dummy =
         compile_effects("effect Placeholder { color sample() { return rgb(0.0, 0.0, 0.0); } }")
             .unwrap()

@@ -3,11 +3,11 @@ pub(crate) mod tests {
     use std::fs;
 
     use camino::{Utf8Path, Utf8PathBuf};
-    use dawn_project_io::load_package;
+    use donder_project_io::load_package;
 
     use crate::dto::{DocumentViewId, GuiDocument, GuiDocumentRequest, WorkspacePathChangeRequest};
 
-    fn starter() -> dawn_project_io::ProjectSession {
+    fn starter() -> donder_project_io::ProjectSession {
         let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .and_then(Utf8Path::parent)
@@ -48,7 +48,7 @@ pub(crate) mod tests {
     fn project_projection_lists_setup_and_sequences() {
         let session = starter();
         let descriptor =
-            crate::desktop_state::descriptor_for_path(&session, Utf8Path::new("project.dawn"))
+            crate::desktop_state::descriptor_for_path(&session, Utf8Path::new("project.donder"))
                 .unwrap();
         assert!(
             descriptor
@@ -57,7 +57,7 @@ pub(crate) mod tests {
         );
         let request = GuiDocumentRequest {
             project_revision: 0,
-            path: "project.dawn".to_string(),
+            path: "project.donder".to_string(),
             view: DocumentViewId::Project,
             object_key: Some("starter".to_string()),
         };
@@ -66,10 +66,13 @@ pub(crate) mod tests {
         else {
             panic!("project projection was blocked");
         };
-        assert_eq!(document.setup.path, "setups/main.setup.dawn");
+        assert_eq!(document.setup.path, "setups/main.setup.donder");
         assert_eq!(document.setup.object_key, "main");
         assert_eq!(document.sequences.len(), 2);
-        assert_eq!(document.sequences[0].path, "sequences/empty.sequence.dawn");
+        assert_eq!(
+            document.sequences[0].path,
+            "sequences/empty.sequence.donder"
+        );
     }
 
     #[test]
@@ -77,7 +80,7 @@ pub(crate) mod tests {
         let session = starter();
         let request = GuiDocumentRequest {
             project_revision: 0,
-            path: "setups/main.setup.dawn".to_string(),
+            path: "setups/main.setup.donder".to_string(),
             view: DocumentViewId::Setup,
             object_key: Some("main".to_string()),
         };
@@ -146,8 +149,8 @@ pub(crate) mod tests {
         let snapshot = state.open_project_path(root.as_str());
         let error = state
             .plan_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.effect.dawn".to_string(),
-                destination: "effects/impact.effect.dawn".to_string(),
+                source: "effects/impact-burst.effect.donder".to_string(),
+                destination: "effects/impact.effect.donder".to_string(),
                 project_revision: snapshot.project_revision.saturating_sub(1),
             })
             .unwrap_err();
@@ -162,7 +165,7 @@ pub(crate) mod tests {
         let mut settings = state.snapshot().settings;
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
-        let snapshot = state.open_file_path("sequences/layer_test.sequence.dawn");
+        let snapshot = state.open_file_path("sequences/layer_test.sequence.donder");
         let buffer = snapshot.active_buffer.unwrap();
         state
             .update_document(crate::dto::DocumentUpdate {
@@ -175,12 +178,12 @@ pub(crate) mod tests {
         let revision = state.snapshot().project_revision;
         let error = state
             .apply_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.effect.dawn".to_string(),
-                destination: "effects/impact.effect.dawn".to_string(),
+                source: "effects/impact-burst.effect.donder".to_string(),
+                destination: "effects/impact.effect.donder".to_string(),
                 project_revision: revision,
             })
             .unwrap_err();
         assert!(error.contains("saved"));
-        assert!(root.join("effects/impact-burst.effect.dawn").is_file());
+        assert!(root.join("effects/impact-burst.effect.donder").is_file());
     }
 }

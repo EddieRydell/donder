@@ -7,7 +7,7 @@ import { useAppStore } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { THEME_METRICS } from "../theme";
 
-const NEW_PROJECT_EVENT = "dawn:new-project";
+const NEW_PROJECT_EVENT = "donder:new-project";
 
 export function NewProjectDialog() {
   const [mode, setMode] = useState<"createProject" | "copyProject">("createProject");
@@ -28,11 +28,11 @@ export function NewProjectDialog() {
       setOpen(true);
       setError(null);
     };
-    window.addEventListener("dawn:copy-project", onCopyProject);
+    window.addEventListener("donder:copy-project", onCopyProject);
     window.addEventListener(NEW_PROJECT_EVENT, onNewProject);
     return () => {
       window.removeEventListener(NEW_PROJECT_EVENT, onNewProject);
-      window.removeEventListener("dawn:copy-project", onCopyProject);
+      window.removeEventListener("donder:copy-project", onCopyProject);
     };
   }, []);
 

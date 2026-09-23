@@ -265,7 +265,7 @@ impl PersistenceInner {
         }
         let path = camino::Utf8Path::from_path(&path)
             .ok_or_else(|| "Persistence path is not valid UTF-8.".to_string())?;
-        dawn_package::atomic_write(path, text.as_bytes()).map_err(|error| error.to_string())?;
+        donder_package::atomic_write(path, text.as_bytes()).map_err(|error| error.to_string())?;
         self.last_saved_text = Some(text);
         Ok(())
     }
@@ -347,7 +347,7 @@ mod tests {
                 .record_editor_state(
                     "C:/project",
                     PersistedEditorViewStateUpdate {
-                        path: "project.dawn".into(),
+                        path: "project.donder".into(),
                         state: PersistedEditorViewState {
                             cursor_anchor: cursor,
                             cursor_head: cursor,
@@ -359,7 +359,7 @@ mod tests {
         }
         let stored = decode_store(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(
-            stored.projects["C:/project"].editor_states["project.dawn"].cursor_head,
+            stored.projects["C:/project"].editor_states["project.donder"].cursor_head,
             41
         );
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dawn_project_io::ProjectSession;
+use donder_project_io::ProjectSession;
 
 use super::{DesktopState, lock_unpoisoned};
 use crate::state_tasks::RenderRefreshPayload;
@@ -8,8 +8,8 @@ use crate::state_tasks::RenderRefreshPayload;
 impl DesktopState {
     pub(super) fn refresh_render_session(
         &self,
-        project: &dawn_language::model::DawnProject,
-    ) -> Option<dawn_elaboration::SequenceOutputPrepareError> {
+        project: &donder_language::model::DonderProject,
+    ) -> Option<donder_elaboration::SequenceOutputPrepareError> {
         let mut rendering = lock_unpoisoned(&self.sequence_render);
         let result = rendering.refresh_project(project);
         if result.is_err() {
@@ -41,7 +41,7 @@ impl DesktopState {
     pub(super) fn schedule_sequence_render_prepare(
         &self,
         project: Arc<ProjectSession>,
-        sequence_id: dawn_language::sequence::SequenceId,
+        sequence_id: donder_language::sequence::SequenceId,
     ) {
         lock_unpoisoned(&self.workspace).render_target =
             Some((project.project.root.setup.clone(), sequence_id.clone()));
@@ -72,7 +72,7 @@ impl DesktopState {
         request: RenderRefreshPayload,
         result: Result<
             crate::rendering::PreparedSequenceOutput,
-            dawn_elaboration::SequenceOutputPrepareError,
+            donder_elaboration::SequenceOutputPrepareError,
         >,
     ) {
         let _authoring = lock_unpoisoned(&self.authoring);

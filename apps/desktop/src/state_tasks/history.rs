@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use dawn_project_io::ProjectSession;
+use donder_project_io::ProjectSession;
 
 #[derive(Clone)]
 pub(crate) struct GuiHistoryEntry {

@@ -1,8 +1,8 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
-use dawn_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind, LayoutId};
-use dawn_project_io::ProjectSession;
+use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_project_io::ProjectSession;
 
 pub(super) fn edit_layout(
     session: &mut ProjectSession,
@@ -19,14 +19,14 @@ pub(super) fn edit_layout(
                 .source
                 .add_object(
                     resolved.identity.document_id(),
-                    dawn_project_io::SourceObjectKind::FixtureDefinition,
+                    donder_project_io::SourceObjectKind::FixtureDefinition,
                     "fixture",
                 )
                 .map_err(GuiMutationError::Invalid)?;
-            let definition = dawn_language::fixture::FixtureDefinitionId(identity);
+            let definition = donder_language::fixture::FixtureDefinitionId(identity);
             session.project.definitions.fixtures.definitions.insert(
                 definition.clone(),
-                dawn_language::fixture::FixtureDefinition { pixels: Vec::new() },
+                donder_language::fixture::FixtureDefinition { pixels: Vec::new() },
             );
             add_instance(session, &id, name, definition, parent)?;
         }
@@ -120,7 +120,7 @@ fn add_instance(
     session: &mut ProjectSession,
     layout_id: &LayoutId,
     name: String,
-    definition: dawn_language::fixture::FixtureDefinitionId,
+    definition: donder_language::fixture::FixtureDefinitionId,
     parent: Option<u32>,
 ) -> Result<(), GuiMutationError> {
     let layout = session

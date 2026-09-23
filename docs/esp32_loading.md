@@ -1,11 +1,11 @@
 # Prepared sequence loading on ESP32
 
-The ESP32 loader runs `dawn-runtime`; it is not a second interpreter. The host
+The ESP32 loader runs `donder-runtime`; it is not a second interpreter. The host
 loads and validates source, elaborates generators and targets, selects controller
-ports, and writes a `.dawnseq` archive. The device validates and decodes that
+ports, and writes a `.donderseq` archive. The device validates and decodes that
 prepared representation before replacing its active immutable sequence.
 
-## Install from Dawn
+## Install from Donder
 
 The supported user path is the desktop controller editor. Build the bundled
 controller image from the repository root when firmware changes:
@@ -15,17 +15,17 @@ controller image from the repository root when firmware changes:
 ```
 
 The script builds the output-enabled loader, packages
-`target/firmware/dawn-esp32.bin`, and refreshes the committed image and SHA-256
+`target/firmware/donder-esp32.bin`, and refreshes the committed image and SHA-256
 under `apps/desktop/assets/firmware`. Do not edit those generated assets by hand.
 Installation writes the application image but deliberately does not include the
-persistent Dawn data partition.
+persistent Donder data partition.
 
-After installation, provision the board's 2.4 GHz Wi-Fi credentials from Dawn,
+After installation, provision the board's 2.4 GHz Wi-Fi credentials from Donder,
 export a compiled sequence for that controller's output ports, and upload it.
 The development uploader provides the same flow from `firmware/esp32`:
 
 ```powershell
-python upload.py ../../target/show.dawnseq --port COM4 --ssid YOUR_SSID
+python upload.py ../../target/show.donderseq --port COM4 --ssid YOUR_SSID
 ```
 
 The password prompt is not echoed. On English Windows,
@@ -61,7 +61,7 @@ sequence during replacement.
 Export a representative selected fragment from the repository root:
 
 ```powershell
-cargo run -p dawn-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.dawnseq
+cargo run -p donder-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.donderseq
 ```
 
 Build and flash from `firmware/esp32`:
@@ -75,7 +75,7 @@ espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-s
 Verify uploads, rejection behavior, frame checksums, and continuous playback:
 
 ```powershell
-uvx --from esptool python upload.py target/loaded-sequence.dawnseq --checksums target/loaded-sequence.dawnseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --windows-profile YOUR_PROFILE --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
+uvx --from esptool python upload.py target/loaded-sequence.donderseq --checksums target/loaded-sequence.donderseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --windows-profile YOUR_PROFILE --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
 ```
 
 Supplying `--checksums` is required for a frame-verification claim; an ordinary

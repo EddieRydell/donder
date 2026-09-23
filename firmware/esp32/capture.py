@@ -46,7 +46,7 @@ with (
         pending.clear()
         if line.startswith("PROFILE PANIC:"):
             raise RuntimeError(line)
-        if line.startswith("DAWN PROFILE BEGIN"):
+        if line.startswith("DONDER PROFILE BEGIN"):
             if started:
                 raise RuntimeError("Board restarted during profiling")
             started = True
@@ -75,13 +75,13 @@ with (
             if stage != "vm" and int(fields["first_alloc_calls"]) != 0:
                 raise RuntimeError(f"Prepared first-frame allocation: {stage}")
             stage = None
-        elif line.startswith("DAWN PROFILE END"):
+        elif line.startswith("DONDER PROFILE END"):
             if len(measurements) != 170:
                 raise RuntimeError(f"Incomplete run: {len(measurements)} measurements")
-            if stage is not None or line != "DAWN PROFILE END heap_free=163840":
+            if stage is not None or line != "DONDER PROFILE END heap_free=163840":
                 raise RuntimeError(f"Incomplete result or unrecovered heap: {line}")
             break
-        elif not line.startswith(("DAWN PROFILE BEGIN", "heap_total=", "first_frame_us=")):
+        elif not line.startswith(("DONDER PROFILE BEGIN", "heap_total=", "first_frame_us=")):
             raise RuntimeError(f"Unexpected profiling output: {line!r}")
     else:
         raise TimeoutError("Profiling did not finish within 600 seconds")

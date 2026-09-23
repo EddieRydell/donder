@@ -39,7 +39,7 @@ export function TitleBar() {
   return (
     <header className="titlebar" onMouseDown={startTitlebarDrag}>
       <div className="brand">
-        Dawn
+        Donder
       </div>
       <nav className="menu-row">
         <Menu

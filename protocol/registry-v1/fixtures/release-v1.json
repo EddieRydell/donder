@@ -1,43 +1,43 @@
 {
   "receiptVersion": 1,
   "moduleId": "11111111-1111-4111-8111-111111111111",
-  "package": "dawn/protocol-example",
+  "package": "donder/protocol-example",
   "version": "1.2.3",
-  "manifestSha256": "0a0b674ae7cfa1ff349a2216c2596aa9735aa350fc5835db43445457ff86d3aa",
+  "manifestSha256": "cd2edc3656642995b0fd14e7bebbd10b6c927e31f58519d4f698a2db1fc8388b",
   "files": {
     "audio/click.wav": {
       "sha256": "6ed8919ce20490a5e3ad8630a4fab69475297abd07db73918dd5f36fcfaeb11b",
       "size": 5
     },
-    "dawn-package.json": {
-      "sha256": "0a0b674ae7cfa1ff349a2216c2596aa9735aa350fc5835db43445457ff86d3aa",
-      "size": 559
+    "donder-package.json": {
+      "sha256": "d5bf70713456961648d97e73b1ce1261785a94002bf3597209270864dfbca7a4",
+      "size": 747
     },
-    "effects/pulse.effect.dawn": {
+    "effects/pulse.effect.donder": {
       "sha256": "dcb576426a17b7df13907007cb02a1f1dfc12fc6c69f603717abca59d03b888e",
       "size": 6
     },
-    "main.dawn": {
+    "main.donder": {
       "sha256": "0d6e4079e36703ebd37c00722f5891d28b0e2811dc114b129215123adcce3605",
       "size": 4
     }
   },
   "exports": {
     "effects": {
-      "documents": ["effects/pulse.effect.dawn"],
+      "documents": ["effects/pulse.effect.donder"],
       "objects": [
         {
-          "document": "effects/pulse.effect.dawn",
+          "document": "effects/pulse.effect.donder",
           "name": "pulse",
           "kind": "effect_definition"
         }
       ]
     },
     "project": {
-      "documents": ["main.dawn"],
+      "documents": ["main.donder"],
       "objects": [
         {
-          "document": "main.dawn",
+          "document": "main.donder",
           "name": "protocolExample",
           "kind": "project"
         }
@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "foundation": {
-      "package": "dawn/foundation",
+      "package": "donder/foundation",
       "version": "^1.2.0"
     }
   },

@@ -26,7 +26,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    if let Err(error) = dawn_desktop::bindings::export_typescript(path) {
+    if let Err(error) = donder_desktop::bindings::export_typescript(path) {
         eprintln!("failed to export TypeScript bindings: {error}");
         std::process::exit(1);
     }

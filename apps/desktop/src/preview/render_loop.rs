@@ -72,7 +72,7 @@ pub(crate) fn run_preview_loop(
             renderer.render(size, cached_scene.as_ref(), frame.as_ref());
             last_render_key = Some(render_key);
             if let Some(fps) = stats.record_frame() {
-                let _ = window.set_title(&format!("Dawn Preview - {fps:.0} FPS"));
+                let _ = window.set_title(&format!("Donder Preview - {fps:.0} FPS"));
             }
         }
         match preview_sleep_duration(clock.as_ref()) {

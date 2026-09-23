@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default permissions for the Dawn desktop window.",
+  "description": "Default permissions for the Donder desktop window.",
   "windows": ["main"],
   "permissions": [
     "core:default",

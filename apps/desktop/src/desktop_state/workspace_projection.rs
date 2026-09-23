@@ -7,7 +7,7 @@ use crate::dto::{
     WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryOwnership, WorkspaceEntryRole,
     WorkspaceOperation,
 };
-use dawn_project_io::{ProjectRecovery, ProjectSession};
+use donder_project_io::{ProjectRecovery, ProjectSession};
 
 #[derive(Clone, Copy)]
 pub(crate) enum FsEntryKind {
@@ -132,10 +132,10 @@ fn recovery_workspace_role(
     if matches!(kind, FsEntryKind::Directory) {
         return WorkspaceEntryRole::Directory;
     }
-    if path == Utf8Path::new(dawn_package::MANIFEST_FILE) {
+    if path == Utf8Path::new(donder_package::MANIFEST_FILE) {
         return WorkspaceEntryRole::Manifest;
     }
-    if path == Utf8Path::new(dawn_package::LOCK_FILE) {
+    if path == Utf8Path::new(donder_package::LOCK_FILE) {
         return WorkspaceEntryRole::Lockfile;
     }
     let Some(document) = recovery.documents.get(path) else {
@@ -150,10 +150,10 @@ fn recovery_workspace_role(
         };
     };
     match document.kind {
-        dawn_project_io::RecoveryDocumentKind::Effect => WorkspaceEntryRole::Effect,
-        dawn_project_io::RecoveryDocumentKind::Operator => WorkspaceEntryRole::Operator,
-        dawn_project_io::RecoveryDocumentKind::Other => WorkspaceEntryRole::File,
-        dawn_project_io::RecoveryDocumentKind::Dawn => document
+        donder_project_io::RecoveryDocumentKind::Effect => WorkspaceEntryRole::Effect,
+        donder_project_io::RecoveryDocumentKind::Operator => WorkspaceEntryRole::Operator,
+        donder_project_io::RecoveryDocumentKind::Other => WorkspaceEntryRole::File,
+        donder_project_io::RecoveryDocumentKind::Donder => document
             .objects
             .iter()
             .map(|object| crate::dto::workspace_role_for_source_object(&object.kind))
@@ -238,15 +238,15 @@ fn workspace_ownership(
     };
     let ownership = match session
         .source
-        .ownership(&dawn_language::identity::DocumentId::new(
+        .ownership(&donder_language::identity::DocumentId::new(
             module_id,
             module_relative.clone(),
         )) {
-        Some(dawn_project_io::SourceOwnership::ProjectOwned) => WorkspaceEntryOwnership::Project,
-        Some(dawn_project_io::SourceOwnership::PathDependencyOwned { .. }) => {
+        Some(donder_project_io::SourceOwnership::ProjectOwned) => WorkspaceEntryOwnership::Project,
+        Some(donder_project_io::SourceOwnership::PathDependencyOwned { .. }) => {
             WorkspaceEntryOwnership::PathDependency
         }
-        Some(dawn_project_io::SourceOwnership::RegistryReadOnly { .. }) => {
+        Some(donder_project_io::SourceOwnership::RegistryReadOnly { .. }) => {
             WorkspaceEntryOwnership::Registry
         }
         None => WorkspaceEntryOwnership::Project,
@@ -270,7 +270,7 @@ fn workspace_role(
             .any(|module| {
                 matches!(
                     module.origin,
-                    dawn_package::ResolvedModuleOrigin::PathDependency { .. }
+                    donder_package::ResolvedModuleOrigin::PathDependency { .. }
                 ) && module.root == session.source.project_root().join(path)
             })
         {
@@ -284,21 +284,21 @@ fn workspace_role(
     let Some(relative) = module_relative else {
         return WorkspaceEntryRole::File;
     };
-    if relative == Utf8Path::new(dawn_package::MANIFEST_FILE) {
+    if relative == Utf8Path::new(donder_package::MANIFEST_FILE) {
         return WorkspaceEntryRole::Manifest;
     }
-    if relative == Utf8Path::new(dawn_package::LOCK_FILE) {
+    if relative == Utf8Path::new(donder_package::LOCK_FILE) {
         return WorkspaceEntryRole::Lockfile;
     }
-    let document_id = dawn_language::identity::DocumentId::new(module_id, relative.to_path_buf());
+    let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
     if session.source.entrypoint.as_ref() == Some(&document_id) {
         return WorkspaceEntryRole::Entrypoint;
     }
     if let Some(document) = session.source.documents.get(&document_id) {
         return match document.kind() {
-            dawn_project_io::SourceDocumentKind::Effect { .. } => WorkspaceEntryRole::Effect,
-            dawn_project_io::SourceDocumentKind::Operator { .. } => WorkspaceEntryRole::Operator,
-            dawn_project_io::SourceDocumentKind::Dawn { .. } => document
+            donder_project_io::SourceDocumentKind::Effect { .. } => WorkspaceEntryRole::Effect,
+            donder_project_io::SourceDocumentKind::Operator { .. } => WorkspaceEntryRole::Operator,
+            donder_project_io::SourceDocumentKind::Donder { .. } => document
                 .objects()
                 .iter()
                 .map(|object| crate::dto::workspace_role_for_source_object(object.kind()))

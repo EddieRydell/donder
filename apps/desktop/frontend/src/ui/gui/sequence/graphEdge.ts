@@ -1,6 +1,6 @@
 import type { SequenceCompositionGraph, SequenceGraphEdge } from "../../../types";
 
-export const GRAPH_NEUTRAL_EDGE_COLOR = "var(--dawn-graph-edge-neutral)";
+export const GRAPH_NEUTRAL_EDGE_COLOR = "var(--donder-graph-edge-neutral)";
 
 export type GraphEdgeIdParts = {
   fromNode: string;

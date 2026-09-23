@@ -67,7 +67,7 @@ pub(super) fn project_sequence(
             .map(|builtin| {
                 graph_operator_definition_to_gui(
                     OperatorRef::Builtin(*builtin),
-                    dawn_language::operator::builtin_operator_definition(*builtin),
+                    donder_language::operator::builtin_operator_definition(*builtin),
                 )
             })
             .chain(
@@ -147,7 +147,7 @@ pub(super) fn project_sequence(
     }
 }
 
-fn automation_clips(sequence: &dawn_language::sequence::Sequence) -> Vec<SequenceAutomationClip> {
+fn automation_clips(sequence: &donder_language::sequence::Sequence) -> Vec<SequenceAutomationClip> {
     sequence
         .automation_clips
         .iter()
@@ -221,10 +221,10 @@ pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
 
 fn sequence_audio(
     session: &ProjectSession,
-    document: &dawn_language::identity::DocumentId,
-    audio: &dawn_language::sequence::SequenceAudio,
+    document: &donder_language::identity::DocumentId,
+    audio: &donder_language::sequence::SequenceAudio,
 ) -> Option<SequenceAudio> {
-    let dawn_language::sequence::SequenceAudio::Asset(id) = audio else {
+    let donder_language::sequence::SequenceAudio::Asset(id) = audio else {
         return None;
     };
     session
@@ -287,7 +287,7 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
     BuiltinEffect::ALL
         .into_iter()
         .map(|builtin| {
-            let definition = dawn_language::effect::builtin_effect_definition(builtin);
+            let definition = donder_language::effect::builtin_effect_definition(builtin);
             SequenceEffectDefinition {
                 name: definition.display_name.clone(),
                 kind: match definition.kind {
@@ -344,12 +344,12 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
         )
         .collect()
 }
-use dawn_language::dsl::EffectKind;
-use dawn_language::effect::{BuiltinEffect, EffectRef, EffectScope};
-use dawn_language::layout::{FixtureTarget as DomainFixtureTarget, Layout};
-use dawn_language::operator::{BuiltinOperator, OperatorRef};
-use dawn_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
-use dawn_project_io::ProjectSession;
+use donder_language::dsl::EffectKind;
+use donder_language::effect::{BuiltinEffect, EffectRef, EffectScope};
+use donder_language::layout::{FixtureTarget as DomainFixtureTarget, Layout};
+use donder_language::operator::{BuiltinOperator, OperatorRef};
+use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
+use donder_project_io::ProjectSession;
 
 mod spatial;
 use super::{ResolvedGuiObject, blocked, gui_diagnostic};

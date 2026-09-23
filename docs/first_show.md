@@ -1,6 +1,6 @@
 # Create your first LED show
 
-Create a project with **File > New Project**. Dawn starts with an empty layout,
+Create a project with **File > New Project**. Donder starts with an empty layout,
 patch, and sequence. Setup links to the native editors for each resource.
 
 ## Define and place pixels
@@ -32,7 +32,7 @@ ranges can route sections of an instance to different ports.
 
 ## Add an effect
 
-Open sequences/main.sequence.dawn. Right-click Pixel A's timeline row and add
+Open sequences/main.sequence.donder. Right-click Pixel A's timeline row and add
 Pulse. Set its start to 0 and duration to 60 seconds. Open preview and play:
 A should light up while B stays dark. Playback does not require an audio file.
 
@@ -48,7 +48,7 @@ test bypasses the patch and does not edit the project.
 
 For supported ESP32 standalone playback, choose **Export compiled sequence**,
 select output ports, install the bundled firmware, provision Wi-Fi, and upload.
-See [controller setup](esp32_loading.md#install-from-dawn).
+See [controller setup](esp32_loading.md#install-from-donder).
 
 Dependency resources remain read-only. Setup can create an editable layout or
 controller copy; shared dependency definitions must be exported to remain

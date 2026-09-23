@@ -34,7 +34,7 @@ pub fn apply_edit(
         (DocumentViewId::Patch, GuiEditCommand::Patch { routes }) => {
             super::patch::replace(
                 session,
-                &dawn_language::patch::PatchId(resolved.identity.clone()),
+                &donder_language::patch::PatchId(resolved.identity.clone()),
                 routes,
             )?;
         }

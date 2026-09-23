@@ -1,6 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use dawn_language::identity::DocumentId;
-use dawn_project_io::ProjectSession;
+use donder_language::identity::DocumentId;
+use donder_project_io::ProjectSession;
 
 /// Project files use workspace-relative tab paths. External dependency sources
 /// use their absolute paths, and can only be resolved from the loaded graph.

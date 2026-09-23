@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use dawn_project_io::{ProjectCheckReport, ProjectSession, SourceOverrides};
+use donder_project_io::{ProjectCheckReport, ProjectSession, SourceOverrides};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
@@ -114,13 +114,13 @@ pub(crate) fn analyze_working_copy(request: &WorkingCopyPayload) -> Option<Proje
     request
         .typed
         .is_none()
-        .then(|| dawn_project_io::check_package_with_overrides(&request.root, &request.sources))
+        .then(|| donder_project_io::check_package_with_overrides(&request.root, &request.sources))
 }
 
 pub(crate) struct RenderRefreshPayload {
     pub project: Arc<ProjectSession>,
-    pub setup_id: dawn_language::setup::SetupId,
-    pub sequence_id: dawn_language::sequence::SequenceId,
+    pub setup_id: donder_language::setup::SetupId,
+    pub sequence_id: donder_language::sequence::SequenceId,
     pub project_epoch: u32,
     pub project_revision: u32,
 }

@@ -96,7 +96,7 @@ def capture(elf, raw=None):
             pending.clear()
             if line.startswith("PROFILE PANIC:"):
                 raise RuntimeError(line)
-            if line.startswith("DAWN PC BEGIN"):
+            if line.startswith("DONDER PC BEGIN"):
                 if started:
                     raise RuntimeError("Board restarted")
                 started = True
@@ -106,13 +106,13 @@ def capture(elf, raw=None):
                 print(line, file=raw, flush=True)
             if not line.startswith("PC ") or line.startswith("PC CASE "):
                 print(line, flush=True)
-            if line.startswith("PC CASE ") or line == "DAWN PC END":
+            if line.startswith("PC CASE ") or line == "DONDER PC END":
                 if len(pcs) != expected:
                     raise RuntimeError("Missing PC samples")
                 if pcs:
                     profiles.append((*cases[-1], pcs))
                 pcs = []
-                if line == "DAWN PC END":
+                if line == "DONDER PC END":
                     if len(cases) != 84 or len({name for name, _ in cases}) != 21:
                         raise RuntimeError("Incomplete fixture coverage")
                     for index in range(0, len(cases), 4):
@@ -138,7 +138,7 @@ def capture(elf, raw=None):
                 pcs.append(int(line[3:], 16))
                 if len(pcs) > expected:
                     raise RuntimeError("Excess PC samples")
-            elif not line.startswith("DAWN PC BEGIN"):
+            elif not line.startswith("DONDER PC BEGIN"):
                 raise RuntimeError(f"Unexpected record: {line!r}")
         raise TimeoutError("PC profiling did not finish")
 

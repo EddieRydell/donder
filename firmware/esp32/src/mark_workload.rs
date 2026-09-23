@@ -1,7 +1,7 @@
-use dawn_runtime::dsl::{BoundParams, bytecode::BytecodeProgram};
-use dawn_runtime::sequence::PreparedSequence;
-use dawn_runtime::signal::*;
-use dawn_runtime::values::{SampleDuration, SampleTime};
+use donder_runtime::dsl::{BoundParams, bytecode::BytecodeProgram};
+use donder_runtime::sequence::PreparedSequence;
+use donder_runtime::signal::*;
+use donder_runtime::values::{SampleDuration, SampleTime};
 extern crate alloc;
 use alloc::vec;
 
@@ -12,11 +12,11 @@ pub fn mark_show(
     edge_fade: f32,
     program: BytecodeProgram,
 ) -> PreparedSequence {
-    use dawn_runtime::dsl::{
+    use donder_runtime::dsl::{
         GeneratorContext, Identifier, ParamDecl, TargetItemValue, TargetPixelValue, TargetValue,
         Type, Value,
     };
-    use dawn_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
+    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
     let mut show = super::workload::show(count, program, BoundParams::default());
     let ramp = Value::Curve(
         Curve {
@@ -111,11 +111,11 @@ pub fn mark_show(
         })
         .collect::<vec::Vec<_>>();
     let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-    let generator = dawn_elaboration::native_effect::bind_prepared(
+    let generator = donder_elaboration::native_effect::bind_prepared(
         if pulse {
-            dawn_runtime::BuiltinEffect::MarkPulse
+            donder_runtime::BuiltinEffect::MarkPulse
         } else {
-            dawn_runtime::BuiltinEffect::MarkChase
+            donder_runtime::BuiltinEffect::MarkChase
         },
         params,
     )

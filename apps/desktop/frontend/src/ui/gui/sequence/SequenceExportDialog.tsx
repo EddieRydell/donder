@@ -177,9 +177,9 @@ export function SequenceExportDialog() {
             </select></label>
             <button type="button" onClick={() => { void refreshDevices(); }}>Refresh USB devices</button>
             {!pending && serialPorts.length === 0 && <p>No serial devices found. Connect the controller with a data-capable USB cable.</p>}
-            {firmware !== null && <p>Dawn {firmware.version} firmware is included. Supports dual-core ESP32 controllers with 4 MB flash and a 40 MHz crystal. Installation can take several minutes. Keep Dawn open and the USB cable connected.</p>}
-            <label className="device-erase-confirmation"><input type="checkbox" checked={installConfirmed} onChange={(event) => { setInstallConfirmed(event.target.checked); }} />Replace firmware on the selected controller with Dawn. This overwrites its current software.</label>
-            <button type="button" disabled={serialPort === "" || !installConfirmed || firmware === null} onClick={() => { void installFirmware(); }}>Install Dawn firmware</button>
+            {firmware !== null && <p>Donder {firmware.version} firmware is included. Supports dual-core ESP32 controllers with 4 MB flash and a 40 MHz crystal. Installation can take several minutes. Keep Donder open and the USB cable connected.</p>}
+            <label className="device-erase-confirmation"><input type="checkbox" checked={installConfirmed} onChange={(event) => { setInstallConfirmed(event.target.checked); }} />Replace firmware on the selected controller with Donder. This overwrites its current software.</label>
+            <button type="button" disabled={serialPort === "" || !installConfirmed || firmware === null} onClick={() => { void installFirmware(); }}>Install Donder firmware</button>
             {installProgress !== null && <p role="status">{installProgress.stage === "connecting" ? "Connecting to controller bootloader..."
               : installProgress.stage === "writing" ? `Installing firmware: ${Math.round(100 * installProgress.completed / Math.max(1, installProgress.total))}%`
               : installProgress.stage === "verifying" ? "Verifying written firmware..." : "Restarting controller..."}</p>}
@@ -217,7 +217,7 @@ export function SequenceExportDialog() {
           </fieldset>}
           <div className="dialog-actions">
             <button type="button" disabled={pending} onClick={close}>Close</button>
-            <button type="button" disabled={pending || stale || selected.length === 0} onClick={() => { void save(); }}>{pending ? "Preparing…" : "Save .dawnseq file"}</button>
+            <button type="button" disabled={pending || stale || selected.length === 0} onClick={() => { void save(); }}>{pending ? "Preparing…" : "Save .donderseq file"}</button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

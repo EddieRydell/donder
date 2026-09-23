@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::gui::GuiMutationError;
-use dawn_language::sequence::SequenceId;
-use dawn_project_io::ProjectSession;
+use donder_language::sequence::SequenceId;
+use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};
 use crate::dto::{
@@ -156,7 +156,7 @@ impl DesktopState {
         let mut edited = (*before).clone();
         let value = mutate(&mut edited)?;
         affected_paths.extend(crate::gui::affected_paths(&edited, request)?);
-        dawn_language::validation::validate_project(&edited.project)
+        donder_language::validation::validate_project(&edited.project)
             .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         let generated_text =
             generated_source_texts(&edited, &affected_paths).map_err(GuiMutationError::Invalid)?;
@@ -355,12 +355,12 @@ mod fixed_parameter_tests {
         DocumentViewId, GuiDocument, SequenceAutomationMapping, SequenceAutomationTarget,
         SequenceEffectParamValue, SequenceEffectReference, SequenceGuiEdit,
     };
-    use dawn_language::effect::EffectParamValue;
+    use donder_language::effect::EffectParamValue;
 
     #[test]
     fn fixed_edits_history_detachment_and_persistence_use_canonical_metadata() {
         let (_temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
-        std::fs::write(root.join("effects/mark-impact-burst.effect.dawn"), "effect MarkImpactBurst { fixed param float level = 0.5; color sample() { return rgb(level, level, level); } } effect LiveLevel { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
+        std::fs::write(root.join("effects/mark-impact-burst.effect.donder"), "effect MarkImpactBurst { fixed param float level = 0.5; color sample() { return rgb(level, level, level); } } effect LiveLevel { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let mut settings = state.snapshot().settings;
@@ -385,7 +385,7 @@ mod fixed_parameter_tests {
         let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
         let reference = |name: &str| SequenceEffectReference::Custom {
             module_id: module_id.clone(),
-            path: "effects/mark-impact-burst.effect.dawn".into(),
+            path: "effects/mark-impact-burst.effect.donder".into(),
             effect_name: name.into(),
         };
         let result = edit(SequenceGuiEdit::ChangeEffectDefinition {
@@ -410,7 +410,7 @@ mod fixed_parameter_tests {
             value: SequenceEffectParamValue::Float { value: 0.8 },
         });
         assert!(matches!(result.document, GuiDocument::Sequence { .. }));
-        let level = dawn_language::dsl::Identifier::new("level".into()).unwrap();
+        let level = donder_language::dsl::Identifier::new("level".into()).unwrap();
         let current_level = || {
             state.project_session().unwrap().project.sequences[&sequence_id]
                 .effects
@@ -513,7 +513,7 @@ mod fixed_parameter_tests {
         state.redo_active_edit();
         let final_session = state.project_session().unwrap();
         state.save_all().unwrap();
-        let reloaded = dawn_project_io::load_package(&root).unwrap().session;
+        let reloaded = donder_project_io::load_package(&root).unwrap().session;
         assert_eq!(reloaded.project, final_session.project);
     }
 }

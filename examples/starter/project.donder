@@ -1,0 +1,16 @@
+imports:
+- from:
+    documents:
+    - setups/main.setup.donder
+  as: setups
+- from:
+    documents:
+    - sequences/empty.sequence.donder
+    - sequences/layer_test.sequence.donder
+  as: sequences
+starter:
+  type: project
+  setup: setups.main
+  sequences:
+  - sequences.empty
+  - sequences.layer_test

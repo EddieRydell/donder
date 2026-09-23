@@ -1,7 +1,7 @@
 pub(super) fn required_operator_param_value(
     ty: Type,
-    sequence: &dawn_language::sequence::Sequence,
-    color: dawn_language::values::Color,
+    sequence: &donder_language::sequence::Sequence,
+    color: donder_language::values::Color,
 ) -> Result<EffectParamValue, GuiMutationError> {
     if ty == Type::Marks {
         return sequence
@@ -156,7 +156,7 @@ pub(super) fn paste_sequence_clipboard(
                     lane_count,
                 );
                 value.id = EffectInstId(next_id);
-                value.start = DawnTime::from_seconds_f32(
+                value.start = DonderTime::from_seconds_f32(
                     (anchor.time_seconds + effect.start_seconds - min_start).max(0.0),
                 );
                 if let Some(Some(target)) = lane_targets.get(target_lane) {
@@ -191,7 +191,7 @@ pub(super) fn paste_sequence_clipboard(
                 let time_seconds = (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
                 collection
                     .marks
-                    .push(DawnTime::from_seconds_f32(time_seconds));
+                    .push(DonderTime::from_seconds_f32(time_seconds));
                 collection.marks.sort_by_key(|time| time.0);
                 let index = collection
                     .marks
@@ -274,7 +274,7 @@ pub(super) fn move_mark_selection(
             let collection = mark_collection_mut(sequence, &collection_key)?;
             if let Some(value) = collection.marks.get_mut(index) {
                 let time_seconds = (value.as_seconds_f32() + time_delta_seconds).max(0.0);
-                *value = DawnTime::from_seconds_f32(time_seconds);
+                *value = DonderTime::from_seconds_f32(time_seconds);
                 moved_times.push(time_seconds);
             }
         }
@@ -307,7 +307,7 @@ fn effect_selection_updates(
     session: &ProjectSession,
     sequence_id: &SequenceId,
     ids: &[u32],
-    update: impl Fn(&ProjectSession, &dawn_language::effect::EffectInst) -> (f32, f32, usize),
+    update: impl Fn(&ProjectSession, &donder_language::effect::EffectInst) -> (f32, f32, usize),
 ) -> Result<Vec<EffectUpdate>, GuiMutationError> {
     let sequence = session
         .project
@@ -343,8 +343,9 @@ fn apply_effect_updates(
     let mut moved = Vec::new();
     for update in updates {
         let effect = effect_mut(sequence, update.id)?;
-        effect.start = DawnTime::from_seconds_f32(update.start_seconds.max(0.0));
-        effect.duration = DawnDuration::from_seconds_f32(update.duration_seconds.max(0.000000001));
+        effect.start = DonderTime::from_seconds_f32(update.start_seconds.max(0.0));
+        effect.duration =
+            DonderDuration::from_seconds_f32(update.duration_seconds.max(0.000000001));
         if let Some((_, Some(target))) = targets.iter().find(|(id, _)| *id == update.id) {
             effect.target = target.clone();
         }
@@ -354,7 +355,7 @@ fn apply_effect_updates(
 }
 
 fn mark_time_seconds(
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     mark: &SequenceMarkRef,
 ) -> Option<f32> {
     sequence
@@ -363,7 +364,7 @@ fn mark_time_seconds(
         .find(|collection| collection.key.name == mark.collection_key)?
         .marks
         .get(mark.index as usize)
-        .map(DawnTime::as_seconds_f32)
+        .map(DonderTime::as_seconds_f32)
 }
 
 fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec<usize>> {
@@ -476,14 +477,14 @@ pub(super) fn mark_param_names(
 }
 use std::collections::BTreeMap;
 
-use dawn_language::dsl::Type;
-use dawn_language::effect::{
+use donder_language::dsl::Type;
+use donder_language::effect::{
     BuiltinEffect, EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef,
 };
-use dawn_language::layout::FixtureTarget;
-use dawn_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
-use dawn_language::values::{DawnDuration, DawnTime};
-use dawn_project_io::ProjectSession;
+use donder_language::layout::FixtureTarget;
+use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
+use donder_language::values::{DonderDuration, DonderTime};
+use donder_project_io::ProjectSession;
 
 use super::model::{effect_mut, mark_collection_mut, sequence_mut, source_identity_from_gui};
 use super::projection::active_layout;

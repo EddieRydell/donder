@@ -1,10 +1,10 @@
 use std::{fmt::Write, fs, path::PathBuf};
 
-use dawn_language::dsl::{Type, Value, compile_effects};
-use dawn_runtime::dsl::bytecode::Instruction;
+use donder_language::dsl::{Type, Value, compile_effects};
+use donder_runtime::dsl::bytecode::Instruction;
 
 #[allow(dead_code)]
-#[path = "../../crates/dawn-language/benches/fixtures/mod.rs"]
+#[path = "../../crates/donder-language/benches/fixtures/mod.rs"]
 mod fixtures;
 #[path = "src/generator_workload.rs"]
 mod generator_workload;
@@ -20,40 +20,40 @@ fn main() {
         std::env::var("CARGO_MANIFEST_DIR").unwrap()
     );
     println!("cargo:rerun-if-changed=rwtext_hook.x");
-    println!("cargo:rerun-if-changed=../../crates/dawn-language/benches/fixtures/mod.rs");
+    println!("cargo:rerun-if-changed=../../crates/donder-language/benches/fixtures/mod.rs");
     println!("cargo:rerun-if-changed=../../examples/starter/effects");
     println!("cargo:rerun-if-changed=src/workload.rs");
     println!("cargo:rerun-if-changed=src/mark_workload.rs");
     println!("cargo:rerun-if-changed=src/generator_workload.rs");
     println!(
-        "cargo:rerun-if-changed=../../crates/dawn-language/tests/fixtures/array-lifetimes.effect.dawn"
+        "cargo:rerun-if-changed=../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"
     );
     let mut generated = String::from(
         "use alloc::{boxed::Box, vec};\n\
          #[cfg(not(feature = \"i2s-output\"))] use alloc::rc::Rc as Arc;\n\
          #[cfg(feature = \"i2s-output\")] use alloc::sync::Arc;\n\
-         use dawn_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};\n\
-         use dawn_runtime::dsl::bytecode::*;\n\
-         use dawn_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
+         use donder_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};\n\
+         use donder_runtime::dsl::bytecode::*;\n\
+         use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
     );
     let mut golden = Vec::new();
     let gamma_lookup = workload::gamma_lookup();
     let mut gamma_golden = Vec::new();
-    let operator = dawn_language::dsl::compile_operators(workload::OPERATOR_SOURCE)
+    let operator = donder_language::dsl::compile_operators(workload::OPERATOR_SOURCE)
         .unwrap()
         .remove(0);
     let mut operator_golden = Vec::new();
     let mut nested_golden = Vec::new();
-    let grouped = dawn_language::dsl::compile_operators(workload::GROUPED_SOURCE)
+    let grouped = donder_language::dsl::compile_operators(workload::GROUPED_SOURCE)
         .unwrap()
         .remove(0);
-    let alternating = dawn_language::dsl::compile_operators(workload::ALTERNATING_SOURCE)
+    let alternating = donder_language::dsl::compile_operators(workload::ALTERNATING_SOURCE)
         .unwrap()
         .remove(0);
     let mut temporal_golden = Vec::new();
     let mut native_golden = Vec::new();
     let mut empty_golden = Vec::new();
-    let identity = dawn_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
+    let identity = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     let mut mixed_golden = Vec::new();
@@ -63,7 +63,7 @@ fn main() {
         .chain(fixtures::layer_cases())
         .chain([(
             "ArrayLifetimes",
-            include_str!("../../crates/dawn-language/tests/fixtures/array-lifetimes.effect.dawn"),
+            include_str!("../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"),
             indexmap::IndexMap::new(),
         )])
         .enumerate()
@@ -135,7 +135,7 @@ fn main() {
             };
             let mut workspace = show.workspace();
             let mut buffers = [vec![0; count * 3]];
-            let mut vm = dawn_language::dsl::VmWorkspace::default();
+            let mut vm = donder_language::dsl::VmWorkspace::default();
             let mut frames = Vec::new();
             let mut gamma_frames = Vec::new();
             for frame in 0..workload::FRAMES {
@@ -389,7 +389,7 @@ fn main() {
     for (name, _, _) in workload::MARK_CASES {
         writeln!(
             generated,
-            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.dawnseq\")),"
+            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.donderseq\")),"
         )
         .unwrap();
     }
@@ -431,7 +431,7 @@ fn main() {
     for name in generator_names {
         writeln!(
             generated,
-            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.dawnseq\")),"
+            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.donderseq\")),"
         )
         .unwrap();
     }
@@ -445,12 +445,12 @@ fn main() {
 
 fn export_fixture(
     name: &str,
-    show: &dawn_runtime::sequence::PreparedSequence,
+    show: &donder_runtime::sequence::PreparedSequence,
 ) -> [u32; workload::FRAMES] {
     let directory = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let bytes = dawn_runtime::wire::encode_sequence(show).unwrap();
-    let decoded = dawn_runtime::wire::decode_sequence(&bytes, Default::default()).unwrap();
-    fs::write(directory.join(format!("{name}.dawnseq")), bytes).unwrap();
+    let bytes = donder_runtime::wire::encode_sequence(show).unwrap();
+    let decoded = donder_runtime::wire::decode_sequence(&bytes, Default::default()).unwrap();
+    fs::write(directory.join(format!("{name}.donderseq")), bytes).unwrap();
     assert_eq!(&*show.output_widths, &[600]);
     let mut workspace = decoded.workspace();
     let mut output = [vec![0; 600]];
@@ -473,7 +473,7 @@ fn export_fixture(
         workload::checksum(&output[0])
     });
     fs::write(
-        directory.join(format!("{name}.dawnseq.checksums")),
+        directory.join(format!("{name}.donderseq.checksums")),
         checksums,
     )
     .unwrap();

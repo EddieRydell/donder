@@ -8,7 +8,7 @@ use crate::dto::{
     SidebarView,
 };
 use camino::{Utf8Path, Utf8PathBuf};
-use dawn_project_io::{ProjectCheckReport, ProjectSession};
+use donder_project_io::{ProjectCheckReport, ProjectSession};
 use std::sync::Arc;
 
 impl DesktopState {
@@ -18,14 +18,14 @@ impl DesktopState {
         self.disable_live_output();
         self.invalidate_prepared_project();
         lock_unpoisoned(&self.gui_history).clear();
-        let sources = match dawn_project_io::project_source_texts(&root) {
+        let sources = match donder_project_io::project_source_texts(&root) {
             Ok(sources) => sources,
             Err(error) => {
                 return self.snapshot_with_error("project.open", root.as_str(), &error.to_string());
             }
         };
         // Open from a single captured source input, including the package files.
-        let report = dawn_project_io::check_package_with_overrides(&root, &sources);
+        let report = donder_project_io::check_package_with_overrides(&root, &sources);
         let valid_paths = report
             .recovery
             .documents
@@ -48,7 +48,7 @@ impl DesktopState {
             {
                 paths.push(entrypoint.entrypoint.clone());
             } else {
-                paths.push(dawn_package::MANIFEST_FILE.into());
+                paths.push(donder_package::MANIFEST_FILE.into());
             }
         }
         let mut documents = sources
@@ -119,7 +119,7 @@ impl DesktopState {
             .filter(|(path, _)| {
                 matches!(
                     path.as_str(),
-                    dawn_package::MANIFEST_FILE | dawn_package::LOCK_FILE
+                    donder_package::MANIFEST_FILE | donder_package::LOCK_FILE
                 )
             })
             .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
@@ -244,7 +244,7 @@ impl DesktopState {
     pub(super) fn resolve_sequence_id(
         &self,
         request: &GuiDocumentRequest,
-    ) -> Option<dawn_language::sequence::SequenceId> {
+    ) -> Option<donder_language::sequence::SequenceId> {
         if request.project_revision != self.snapshot().project_revision
             || request.view != crate::dto::DocumentViewId::Sequence
         {
@@ -252,7 +252,7 @@ impl DesktopState {
         }
         let project = self.project_session()?;
         let resolved = crate::gui::resolve_request(&project, request).ok()?;
-        let id = dawn_language::sequence::SequenceId(resolved.identity);
+        let id = donder_language::sequence::SequenceId(resolved.identity);
         project.project.sequences.contains_key(&id).then_some(id)
     }
 }

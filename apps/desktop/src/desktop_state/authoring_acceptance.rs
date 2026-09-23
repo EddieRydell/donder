@@ -93,7 +93,7 @@ fn inline_definition_edits_share_instance_geometry_and_persist() {
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_project_files("Composition").unwrap()).unwrap();
     std::fs::write(
-        root.join("layouts/main.layout.dawn"),
+        root.join("layouts/main.layout.donder"),
         r#"
 assembly:
   type: fixture
@@ -124,11 +124,11 @@ main:
     state.update_app_settings(settings);
     let layout_request = || GuiDocumentRequest {
         project_revision: state.snapshot().project_revision,
-        path: "layouts/main.layout.dawn".into(),
+        path: "layouts/main.layout.donder".into(),
         object_key: Some("main".into()),
         view: DocumentViewId::Layout,
     };
-    state.open_file_path("layouts/main.layout.dawn");
+    state.open_file_path("layouts/main.layout.donder");
     let layout = layout_document(state.get_gui_document(layout_request()).document);
     let GuiLayoutFixtureKind::Fixture {
         definition: assembly,
@@ -153,7 +153,7 @@ main:
         ),
         GuiDocument::Fixture { .. }
     ));
-    state.open_file_path("layouts/main.layout.dawn");
+    state.open_file_path("layouts/main.layout.donder");
     let layout = layout_document(state.get_gui_document(layout_request()).document);
     assert_eq!(
         layout
@@ -171,7 +171,7 @@ main:
     );
     let accepted = state.project_session().unwrap();
     state.save_all().unwrap();
-    let reloaded = dawn_project_io::load_package(&root).unwrap().session;
+    let reloaded = donder_project_io::load_package(&root).unwrap().session;
     assert_eq!(reloaded.project, accepted.project);
     assert_eq!(
         reloaded.source.documents.len(),
@@ -398,7 +398,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert_eq!(*state.project_session().unwrap(), *before_copy);
     state.redo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *final_session);
-    let prepared = dawn_elaboration::PreparedSequenceOutput::prepare(
+    let prepared = donder_elaboration::PreparedSequenceOutput::prepare(
         &final_session.project,
         &setup_id,
         &sequence_id,
@@ -414,7 +414,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert!(illuminated);
     state.save_all().unwrap();
     assert_eq!(
-        dawn_project_io::load_package(&root)
+        donder_project_io::load_package(&root)
             .unwrap()
             .session
             .project,
@@ -431,10 +431,10 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     let starter = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let library = root.join("rig");
     let paths = [
-        "layouts/outputs.layout.dawn",
-        "patches/outputs.patch.dawn",
-        "setups/main.setup.dawn",
-        "fixtures/vertical.fixture.dawn",
+        "layouts/outputs.layout.donder",
+        "patches/outputs.patch.donder",
+        "setups/main.setup.donder",
+        "fixtures/vertical.fixture.donder",
     ];
     let mut originals = BTreeMap::new();
     for path in paths {
@@ -443,7 +443,7 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
         std::fs::write(library.join(path), &bytes).unwrap();
         originals.insert(path, bytes);
     }
-    let mut manifest = dawn_package::PackageManifest::read(&starter).unwrap();
+    let mut manifest = donder_package::PackageManifest::read(&starter).unwrap();
     manifest.module_id = uuid::Uuid::new_v4();
     manifest.project = None;
     manifest.assets.clear();
@@ -456,7 +456,7 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     .map(|(name, path)| {
         (
             name.into(),
-            dawn_package::ExportGroup {
+            donder_package::ExportGroup {
                 documents: if name == "layout" {
                     vec![path.into(), paths[3].into()]
                 } else {
@@ -467,18 +467,18 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     })
     .collect();
     manifest.write(&library).unwrap();
-    let mut project_manifest = dawn_package::PackageManifest::read(&root).unwrap();
+    let mut project_manifest = donder_package::PackageManifest::read(&root).unwrap();
     project_manifest.dependencies.insert(
         "rig".into(),
-        dawn_package::Dependency::Path { path: "rig".into() },
+        donder_package::Dependency::Path { path: "rig".into() },
     );
     project_manifest.write(&root).unwrap();
-    let registry = dawn_package::Lockfile::read(&root).unwrap().registry;
-    dawn_package::Lockfile::from_directory(&project_manifest, &root, registry)
+    let registry = donder_package::Lockfile::read(&root).unwrap().registry;
+    donder_package::Lockfile::from_directory(&project_manifest, &root, registry)
         .unwrap()
         .write(&root)
         .unwrap();
-    std::fs::write(root.join("setups/main.setup.dawn"), "imports:\n- from: { dependency: rig, export: layout }\n  as: layout\n- from: { dependency: rig, export: patch }\n  as: patch\n- from: { dependency: rig, export: controllers }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
+    std::fs::write(root.join("setups/main.setup.donder"), "imports:\n- from: { dependency: rig, export: layout }\n  as: layout\n- from: { dependency: rig, export: patch }\n  as: patch\n- from: { dependency: rig, export: controllers }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;
@@ -530,7 +530,7 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
         original.project.definitions.fixtures
     );
     let imported_request = GuiDocumentRequest {
-        path: "rig/setups/main.setup.dawn".into(),
+        path: "rig/setups/main.setup.donder".into(),
         ..request()
     };
     assert!(matches!(
@@ -572,7 +572,7 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     state.save_all().unwrap();
     let saved = state.project_session().unwrap();
     assert_eq!(
-        dawn_project_io::load_package(&root)
+        donder_project_io::load_package(&root)
             .unwrap()
             .session
             .project,

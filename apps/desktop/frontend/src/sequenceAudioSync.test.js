@@ -14,8 +14,8 @@ const { SequenceAudioSync, sequenceAudioKey } = await server.ssrLoadModule("/src
 const target = (key, revision = 1) => ({ key, request: { path: key, projectRevision: revision, view: "sequence", objectKey: "main" } });
 
 test("same-named silent sequences in different projects have separate transport identities", () => {
-  assert.notEqual(sequenceAudioKey(1, "main.dawn", "main", null, 60), sequenceAudioKey(2, "main.dawn", "main", null, 60));
-  assert.notEqual(sequenceAudioKey(1, "main.dawn", "main", null, 60), sequenceAudioKey(1, "main.dawn", "main", null, 90));
+  assert.notEqual(sequenceAudioKey(1, "main.donder", "main", null, 60), sequenceAudioKey(2, "main.donder", "main", null, 60));
+  assert.notEqual(sequenceAudioKey(1, "main.donder", "main", null, 60), sequenceAudioKey(1, "main.donder", "main", null, 90));
 });
 
 test("rapid navigation and cleanup leave the newest sequence loaded without overlapping commands", async () => {

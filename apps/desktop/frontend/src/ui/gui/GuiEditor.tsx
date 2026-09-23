@@ -154,7 +154,7 @@ function GuiEditorInner({
       className="gui-editor-shell"
       style={{
         gridTemplateColumns: workspaceLayout.inspectorCollapsed
-          ? "var(--dawn-gui-grid-template-collapsed)"
+          ? "var(--donder-gui-grid-template-collapsed)"
           : `minmax(0, 1fr) ${workspaceLayout.inspectorWidthPx}px`
       }}
       onKeyDownCapture={(event) => {

@@ -1,7 +1,7 @@
 pub(in crate::gui) fn effect_params(
     session: &ProjectSession,
-    sequence: &dawn_language::sequence::Sequence,
-    effect: &dawn_language::effect::EffectInst,
+    sequence: &donder_language::sequence::Sequence,
+    effect: &donder_language::effect::EffectInst,
 ) -> Vec<SequenceEffectParam> {
     let Some(definition) = session
         .project
@@ -52,7 +52,7 @@ pub(in crate::gui) fn effect_params(
 
 pub(in crate::gui) fn sequence_composition_graph_node(
     session: &ProjectSession,
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     node: &CompositionGraphNode,
 ) -> SequenceGraphNode {
     SequenceGraphNode {
@@ -90,7 +90,7 @@ pub(in crate::gui) fn graph_node_id(node_id: &CompositionGraphNodeId) -> String 
 
 fn graph_operator_params(
     session: &ProjectSession,
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
 ) -> Vec<SequenceEffectParam> {
@@ -122,7 +122,7 @@ fn graph_operator_params(
                     node_id: node_id.clone(),
                     param: declaration.name.clone(),
                 },
-                &dawn_language::values::DawnTime::from_nanos(0),
+                &donder_language::values::DonderTime::from_nanos(0),
                 &sequence.duration,
                 &mut value,
             );
@@ -246,10 +246,10 @@ fn graph_operator_to_gui(operator: &OperatorRef) -> SequenceGraphOperator {
 }
 
 fn param_automation(
-    sequence: &dawn_language::sequence::Sequence,
+    sequence: &donder_language::sequence::Sequence,
     target: &AutomationTarget,
-    start: &dawn_language::values::DawnTime,
-    duration: &dawn_language::values::DawnDuration,
+    start: &donder_language::values::DonderTime,
+    duration: &donder_language::values::DonderDuration,
     value: &mut SequenceEffectParamValue,
 ) -> Option<SequenceParamAutomation> {
     sequence.automation_clips.iter().find_map(|clip| {
@@ -471,7 +471,7 @@ fn default_value_for_type(ty: &Type) -> Option<SequenceEffectParamValue> {
     default_param_value(&ty.default_value(), ty)
 }
 
-fn library_source(id: &dawn_language::identity::SourceIdentity) -> SequenceLibrarySource {
+fn library_source(id: &donder_language::identity::SourceIdentity) -> SequenceLibrarySource {
     SequenceLibrarySource::Library {
         module_id: id.module_id().to_string(),
         path: id.document().to_string(),
@@ -558,17 +558,17 @@ fn array_param_from_sequence_values(
         },
     }
 }
-use dawn_language::dsl::{Type, Value as EffectValue};
-use dawn_language::effect::{CurveSource, EffectParamValue, GradientSource};
-use dawn_language::operator::{
+use donder_language::dsl::{Type, Value as EffectValue};
+use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
+use donder_language::operator::{
     BuiltinOperator, GraphOperatorNode, OperatorDefinition, OperatorPortCardinality,
     OperatorPortDefinition, OperatorRef,
 };
-use dawn_language::sequence::{
+use donder_language::sequence::{
     AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
     CompositionGraphNodeKind,
 };
-use dawn_project_io::ProjectSession;
+use donder_project_io::ProjectSession;
 
 use crate::dto::{
     SequenceAutomationMapping, SequenceBuiltinOperator, SequenceCurveLibraryItem,

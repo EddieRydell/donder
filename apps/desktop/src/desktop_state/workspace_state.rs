@@ -39,8 +39,8 @@ pub(super) struct WorkspaceState {
     pub typed_revision: Option<u32>,
     pub close_authorization: Option<(u32, u32)>,
     pub render_target: Option<(
-        dawn_language::setup::SetupId,
-        dawn_language::sequence::SequenceId,
+        donder_language::setup::SetupId,
+        donder_language::sequence::SequenceId,
     )>,
 }
 

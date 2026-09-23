@@ -13,8 +13,8 @@ const definition = (path, displayName) => ({
 });
 
 test("custom operator identity includes its declaring document", () => {
-  const first = definition("operators/first.operator.dawn", "First Gain");
-  const second = definition("operators/second.operator.dawn", "Second Gain");
+  const first = definition("operators/first.operator.donder", "First Gain");
+  const second = definition("operators/second.operator.donder", "Second Gain");
 
   assert.notEqual(graphOperatorKey(first.operator), graphOperatorKey(second.operator));
   assert.equal(

@@ -144,7 +144,7 @@ function PathRefactorDialog({
         <Dialog.Content className="dialog-content path-refactor-dialog">
           <Dialog.Title>Confirm structural path change</Dialog.Title>
           <Dialog.Description>
-            Dawn will move <strong>{plan?.request.source}</strong> to <strong>{plan?.request.destination}</strong> and rewrite typed references atomically.
+            Donder will move <strong>{plan?.request.source}</strong> to <strong>{plan?.request.destination}</strong> and rewrite typed references atomically.
           </Dialog.Description>
           <p className="dialog-warning">
             GUI undo/redo and pending rewrite state will be cleared after this operation.

@@ -1,8 +1,8 @@
-use dawn_language::controller::{
+use donder_language::controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
     ControllerPortId, ControllerProtocol, E131Config, E131Mode,
 };
-use dawn_project_io::{ProjectSession, SourceObjectKind};
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{

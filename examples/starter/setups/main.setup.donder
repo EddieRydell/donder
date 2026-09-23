@@ -1,0 +1,115 @@
+imports:
+- from:
+    documents:
+    - layouts/outputs.layout.donder
+  as: layouts
+- from:
+    documents:
+    - patches/outputs.patch.donder
+  as: patches
+main:
+  type: setup
+  layout: layouts.outputs_layout
+  patch: patches.outputs
+  controllers:
+  - output_controller
+output_controller:
+  type: controller
+  protocol:
+    type: e131
+    source_name: Donder Thirty Output Controller
+    bind_address: 0.0.0.0
+    priority: 100
+    mode: unicast
+    destination: 192.168.7.2
+  ports:
+  - id: 1
+    universe: 1
+    slot_count: 339
+  - id: 2
+    universe: 2
+    slot_count: 339
+  - id: 3
+    universe: 3
+    slot_count: 339
+  - id: 4
+    universe: 4
+    slot_count: 339
+  - id: 5
+    universe: 5
+    slot_count: 339
+  - id: 6
+    universe: 6
+    slot_count: 339
+  - id: 7
+    universe: 7
+    slot_count: 339
+  - id: 8
+    universe: 8
+    slot_count: 339
+  - id: 9
+    universe: 9
+    slot_count: 339
+  - id: 10
+    universe: 10
+    slot_count: 339
+  - id: 11
+    universe: 11
+    slot_count: 339
+  - id: 12
+    universe: 12
+    slot_count: 339
+  - id: 13
+    universe: 13
+    slot_count: 339
+  - id: 14
+    universe: 14
+    slot_count: 339
+  - id: 15
+    universe: 15
+    slot_count: 339
+  - id: 16
+    universe: 16
+    slot_count: 339
+  - id: 17
+    universe: 17
+    slot_count: 339
+  - id: 18
+    universe: 18
+    slot_count: 339
+  - id: 19
+    universe: 19
+    slot_count: 339
+  - id: 20
+    universe: 20
+    slot_count: 339
+  - id: 21
+    universe: 21
+    slot_count: 339
+  - id: 22
+    universe: 22
+    slot_count: 339
+  - id: 23
+    universe: 23
+    slot_count: 339
+  - id: 24
+    universe: 24
+    slot_count: 339
+  - id: 25
+    universe: 25
+    slot_count: 339
+  - id: 26
+    universe: 26
+    slot_count: 339
+  - id: 27
+    universe: 27
+    slot_count: 339
+  - id: 28
+    universe: 28
+    slot_count: 339
+  - id: 29
+    universe: 29
+    slot_count: 339
+  - id: 30
+    universe: 30
+    slot_count: 339

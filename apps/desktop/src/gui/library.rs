@@ -1,5 +1,5 @@
-use dawn_language::effect::{CurveId, GradientId};
-use dawn_project_io::ProjectSession;
+use donder_language::effect::{CurveId, GradientId};
+use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked, model};
 use crate::dto::{

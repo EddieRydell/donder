@@ -1,8 +1,8 @@
 use super::{GuiMutationError, ensure_owned_target};
-use dawn_language::layout::{LayoutFixtureKind, LayoutId};
-use dawn_language::patch::PatchId;
-use dawn_language::setup::Setup;
-use dawn_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_language::layout::{LayoutFixtureKind, LayoutId};
+use donder_language::patch::PatchId;
+use donder_language::setup::Setup;
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 
 pub(super) fn copy_layout(
     session: &mut ProjectSession,
@@ -52,7 +52,7 @@ pub(super) fn copy_layout(
             .inherit_dependency_imports(original.document_id(), copy.document_id())
             .map_err(GuiMutationError::Invalid)?;
     }
-    dawn_language::setup::authoring::copy_setup_layout(
+    donder_language::setup::authoring::copy_setup_layout(
         &mut session.project,
         &setup.id,
         layout.clone(),

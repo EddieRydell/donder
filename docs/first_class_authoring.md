@@ -1,24 +1,24 @@
 # Authoring architecture
 
-Dawn authors a typed project rather than editing YAML as an application model.
-`dawn-project-io` loads source documents into `DawnProject` and records document
+Donder authors a typed project rather than editing YAML as an application model.
+`donder-project-io` loads source documents into `DonderProject` and records document
 ownership, imports, original non-YAML source, and asset references in
 `SourceProject`. GUI edits mutate a single candidate `ProjectSession`; accepted
 state is then shared with history, persistence, rendering, and waveform work.
 
 ## Owning layers
 
-- `dawn-language` owns domain types, the effect/operator DSL, and semantic
+- `donder-language` owns domain types, the effect/operator DSL, and semantic
   validation.
-- `dawn-project-io` owns source documents, imports, linking, diagnostics,
+- `donder-project-io` owns source documents, imports, linking, diagnostics,
   serialization, and package/project loading.
   Its public facade reexports package loading/checking from `package_loading.rs`,
   release planning/validation from `package_artifact.rs`, project edits and
   save/export from `project_edit.rs`, and diagnostics/source indexing from
   `diagnostics.rs`. YAML serialization stays in `serialization/`.
-- `dawn-elaboration` expands generators, resolves targets, and prepares the
+- `donder-elaboration` expands generators, resolves targets, and prepares the
   portable runtime representation.
-- `dawn-runtime` evaluates prepared sequences. It does not resolve source names,
+- `donder-runtime` evaluates prepared sequences. It does not resolve source names,
   imports, layouts, or device selection per frame.
 - `apps/desktop/src/desktop_state` owns application workflows and background
   scheduling. `apps/desktop/src/gui` owns typed projection, edits, selection, and

@@ -62,8 +62,8 @@ if args.log:
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=handlers)
 
 payload = args.sequence.read_bytes()
-if len(payload) < 16 or payload[:4] != b"DAWN":
-    parser.error("sequence is not a Dawn prepared-sequence file")
+if len(payload) < 16 or payload[:4] != b"DOND":
+    parser.error("sequence is not a Donder prepared-sequence file")
 sequence_format, payload_bytes = struct.unpack_from("<II", payload, 4)
 if payload_bytes != len(payload) - 16:
     parser.error("sequence payload length does not match its header")
@@ -129,7 +129,7 @@ def provision():
             line = port.readline()
             if line:
                 transcript.append(line)
-                if line == b"DAWN PROVISION READY\n":
+                if line == b"DONDER PROVISION READY\n":
                     break
         else:
             recent = b"".join(transcript[-20:])
@@ -173,7 +173,7 @@ def request(method, path, body, supplied_token=token):
         body=body,
         headers={
             "Content-Type": "application/octet-stream",
-            "X-Dawn-Token": supplied_token,
+            "X-Donder-Token": supplied_token,
         },
     )
     response = connection.getresponse()
@@ -214,7 +214,7 @@ for _ in range(args.uploads):
 if args.exercise_rejections:
     wrong_token = "0" * 32 if token != "0" * 32 else "1" * 32
     status, response = request("PUT", "/sequence", b"", wrong_token)
-    assert (status, response) == (401, "Missing or invalid X-Dawn-Token"), (status, response)
+    assert (status, response) == (401, "Missing or invalid X-Donder-Token"), (status, response)
     logging.info("VERIFIED HTTP authorization rejection")
 
     version = bytearray(payload)
@@ -233,7 +233,7 @@ if args.exercise_rejections:
     interrupted = socket.create_connection((address, port), timeout=10)
     headers = (
         f"PUT /sequence HTTP/1.1\r\nHost: {address}\r\n"
-        f"X-Dawn-Token: {token}\r\nContent-Type: application/octet-stream\r\n"
+        f"X-Donder-Token: {token}\r\nContent-Type: application/octet-stream\r\n"
         f"Content-Length: {len(payload)}\r\nConnection: close\r\n\r\n"
     ).encode("ascii")
     interrupted.sendall(headers + payload[:32])
@@ -245,7 +245,7 @@ if args.exercise_rejections:
         body=payload,
         headers={
             "Content-Type": "application/octet-stream",
-            "X-Dawn-Token": token,
+            "X-Donder-Token": token,
         },
     )
     concurrent_response = concurrent.getresponse()
