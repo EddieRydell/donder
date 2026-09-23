@@ -1,7 +1,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
-import { ChevronRight, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
 
 import { commands } from "../../../api";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
@@ -1518,7 +1518,7 @@ export function SequenceCanvas({
                   <ContextMenu.Separator className="menu-separator" />
                   <ContextMenu.Sub>
                     <ContextMenu.SubTrigger className="menu-item">
-                      Retarget Effect <span className="shortcut">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âº</span>
+                      Retarget Effect <span className="shortcut"><ArrowRight size={THEME_METRICS.iconSizeExtraSmall} aria-hidden="true" /></span>
                     </ContextMenu.SubTrigger>
                     <ContextMenu.Portal>
                       <ContextMenu.SubContent className="menu-content">

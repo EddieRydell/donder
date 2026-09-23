@@ -2,6 +2,7 @@ import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
 import type { GuiDocument } from "../../../types";
 import { ControllerForm } from "./ControllerForm";
+import { OutputTestForm } from "./OutputTestForm";
 
 export function ControllerEditor({ document }: { document: Extract<GuiDocument, { type: "controller" }>["document"] }) {
   return <main className="setup-editor">
@@ -11,5 +12,6 @@ export function ControllerEditor({ document }: { document: Extract<GuiDocument, 
       controller={document.controller}
       onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "controller", config, ports })); }}
     /></section>
+    <OutputTestForm document={document.controller} />
   </main>;
 }

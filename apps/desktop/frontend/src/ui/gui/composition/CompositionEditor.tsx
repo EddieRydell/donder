@@ -1,9 +1,11 @@
 import { useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle } from "lucide-react";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
+import { THEME_METRICS } from "../../../theme";
 import type { GuiDocument, GuiDocumentRequest, GuiPixel, GuiLayoutFixture, GuiObjectRef, Transform } from "../../../types";
 import { SpatialCanvas } from "./SpatialCanvas";
 
@@ -184,8 +186,8 @@ function Pixels({ items, selected, onSelect, onChange, onError }: {
       <button type="button" disabled={pixel === undefined} onClick={() => {
         void onChange(items.filter((item) => item.id !== selected)).then(() => { onSelect(null); }).catch(onError);
       }}>Delete</button>
-      <button type="button" aria-label="Move pixel earlier" disabled={index <= 0} onClick={() => { change(reorder(items, index, index - 1)); }}>↑</button>
-      <button type="button" aria-label="Move pixel later" disabled={index < 0 || index === items.length - 1} onClick={() => { change(reorder(items, index, index + 1)); }}>↓</button>
+      <button type="button" aria-label="Move pixel earlier" disabled={index <= 0} onClick={() => { change(reorder(items, index, index - 1)); }}><ArrowUp size={THEME_METRICS.iconSizeSmall} /></button>
+      <button type="button" aria-label="Move pixel later" disabled={index < 0 || index === items.length - 1} onClick={() => { change(reorder(items, index, index + 1)); }}><ArrowDown size={THEME_METRICS.iconSizeSmall} /></button>
     </div>
     <div className="composition-tree pixel-list" aria-label="Pixels in output order">
       {items.length === 0 && <p className="composition-tree-empty">Add a pixel to get started.</p>}
@@ -235,7 +237,7 @@ function LayoutTreeItem({ item, pixels, selected, onSelect }: { item: GuiLayoutF
     ? `group · ${layoutFixtureCount(item.kind.children)} fixtures · ${pixelCount} pixels`
     : `${item.kind.definition.objectKey} · ${pixelCount} pixels · ${formatPosition(item.kind.transform.position)}`;
   return <details className="composition-tree-item" open={isGroup ? open : undefined} onToggle={(event) => { if (isGroup) setOpen(event.currentTarget.open); }} data-layout-item={item.id}>
-    <summary className={selected === item.id ? "selected" : ""} onClick={() => { onSelect(item.id); }}><span className="composition-tree-icon" aria-hidden="true">{isGroup ? (open ? "▾" : "▸") : "•"}</span><span className="composition-tree-name">{item.name}</span><span className="composition-tree-meta">{metadata}</span></summary>
+    <summary className={selected === item.id ? "selected" : ""} onClick={() => { onSelect(item.id); }}><span className="composition-tree-icon" aria-hidden="true">{isGroup ? (open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />) : <Circle size={THEME_METRICS.iconSizeExtraSmall} />}</span><span className="composition-tree-name">{item.name}</span><span className="composition-tree-meta">{metadata}</span></summary>
     {item.kind.type === "group" && <div className="composition-tree-children">{item.kind.children.map((child) => <LayoutTreeItem key={child.id} item={child} pixels={pixels} selected={selected} onSelect={onSelect} />)}</div>}
   </details>;
 }

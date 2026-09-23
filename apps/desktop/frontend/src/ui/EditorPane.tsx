@@ -288,25 +288,32 @@ export function EditorPane({
     <section className={`editor-shell ${editableSequenceDocument !== null ? "has-editor-toolbar" : ""} ${activeConflicted || failedDocumentSync !== null ? "has-conflict-banner" : ""}`}>
       <div className="tab-strip">
         {snapshot.tabs.map((tab) => (
-          <button
+          <div
             key={tab.path}
-            type="button"
             className={`tab ${tab.path === activeTabPath ? "active" : ""}`}
-            aria-current={tab.path === activeTabPath ? "page" : undefined}
-            onClick={() => void runSnapshotCommand(() => commands.setActiveFile(tab.path))}
           >
-            <span>{tab.name}</span>
-            {tab.dirty && <span className="dirty-dot" />}
-            {tab.externalState !== "current" && <span className="conflict-dot" />}
-            <X
+            <button
+              type="button"
+              className="tab-select"
+              aria-current={tab.path === activeTabPath ? "page" : undefined}
+              onClick={() => void runSnapshotCommand(() => commands.setActiveFile(tab.path))}
+            >
+              <span>{tab.name}</span>
+              {tab.dirty && <span className="dirty-dot" />}
+              {tab.externalState !== "current" && <span className="conflict-dot" />}
+            </button>
+            <button
+              type="button"
               className="tab-close"
-              size={THEME_METRICS.iconSizeSmall}
+              aria-label={`Close ${tab.name}`}
               onClick={(event) => {
                 event.stopPropagation();
                 void runWorkspaceTransition({ type: "closeFile", path: tab.path });
               }}
-            />
-          </button>
+            >
+              <X size={THEME_METRICS.iconSizeSmall} />
+            </button>
+          </div>
         ))}
       </div>
       {snapshot.projectHealth === "invalid" && (

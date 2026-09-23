@@ -129,7 +129,6 @@ export type ControllerGuiDocument = {
 };
 
 export type ControllerOutputTest = {
-	controllerIndex: number,
 	port: number,
 	startSlot: number,
 	slotCount: number,

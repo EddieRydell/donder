@@ -273,6 +273,7 @@
   --dawn-panel-shell-max-width: 528px;
   --dawn-conflict-banner-height: 36px;
   --dawn-tab-min-width: 118px;
+  --dawn-tab-close-size: 20px;
   --dawn-diagnostics-tooltip-max-height: 260px;
   --dawn-project-panel-min-width: 220px;
   --dawn-project-panel-max-width: 520px;
@@ -745,6 +746,7 @@ button:focus-visible,
 
 .tab-strip {
   display: flex;
+  position: relative;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -757,18 +759,71 @@ button:focus-visible,
 }
 
 .tab {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--dawn-space-5);
   max-width: var(--dawn-project-panel-min-width);
   min-width: var(--dawn-tab-min-width);
-  height: var(--dawn-panel-header-height);
-  padding: var(--dawn-space-0) var(--dawn-space-7) var(--dawn-space-0) var(--dawn-space-9);
+  height: calc(var(--dawn-panel-header-height) - var(--dawn-space-3));
+  margin-top: var(--dawn-space-3);
+  padding: var(--dawn-space-0) var(--dawn-icon-button-size) var(--dawn-space-0) var(--dawn-space-0);
   border: 0;
+  border-radius: var(--dawn-radius-lg) var(--dawn-radius-lg) 0 0;
   border-right: var(--dawn-border-width) solid var(--dawn-border);
   background: var(--dawn-bg-panel);
   color: var(--dawn-text-tab);
   font-size: var(--dawn-font-size-md);
+}
+
+.tab.active {
+  z-index: 2;
+}
+
+.tab.active::after {
+  position: absolute;
+  left: calc(-1 * var(--dawn-radius-lg));
+  bottom: 0;
+  z-index: -1;
+  width: calc(100% + 2 * var(--dawn-radius-lg));
+  height: var(--dawn-radius-lg);
+  background: inherit;
+  content: "";
+  pointer-events: none;
+  clip-path: polygon(
+    0% 0%,
+    0% 100%,
+    var(--dawn-radius-lg) 100%,
+    var(--dawn-radius-lg) 0%,
+    calc(100% - var(--dawn-radius-lg)) 0%,
+    calc(100% - var(--dawn-radius-lg)) 100%,
+    100% 100%,
+    100% 0%
+  );
+  --tab-inverse-mask: linear-gradient(
+    90deg,
+    transparent var(--dawn-radius-lg),
+    black var(--dawn-radius-lg),
+    black calc(100% - var(--dawn-radius-lg)),
+    transparent calc(100% - var(--dawn-radius-lg))
+  ), radial-gradient(var(--dawn-radius-lg) at var(--dawn-radius-lg) 0, transparent 98%, black) calc(-1 * var(--dawn-radius-lg));
+  -webkit-mask: var(--tab-inverse-mask);
+  mask: var(--tab-inverse-mask);
+}
+
+.tab-select {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--dawn-space-5);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: var(--dawn-space-0) var(--dawn-space-5) var(--dawn-space-0) var(--dawn-space-9);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
 }
 
 .tab.active {
@@ -783,15 +838,31 @@ button:focus-visible,
 }
 
 .tab-close {
-  flex: 0 0 auto;
-  margin-left: auto;
+  position: absolute;
+  top: 50%;
+  right: calc(var(--dawn-space-2) + (var(--dawn-icon-button-size) - var(--dawn-tab-close-size)) / 2);
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: var(--dawn-space-0);
+  width: var(--dawn-tab-close-size);
+  height: var(--dawn-tab-close-size);
+  border: 0;
   border-radius: var(--dawn-radius-sm);
+  background: transparent;
   color: var(--dawn-text-muted);
+  pointer-events: auto;
+  transform: translateY(-50%);
 }
 
-.tab-close:hover {
-  background: var(--dawn-surface-control-hover);
+.tab-close:hover,
+.tab-close:focus-visible {
   color: var(--dawn-text-strong);
+}
+
+.tab-close:hover svg,
+.tab-close:focus-visible svg {
+  stroke-width: 3;
 }
 
 .tab span:first-child {
@@ -3280,11 +3351,12 @@ button:focus-visible,
 }
 
 .project-overview {
-  width: min(100%, var(--dawn-object-overview-max-width));
+  width: 100%;
+  max-width: none;
   height: 100%;
-  margin: 0 auto;
+  margin: 0;
   overflow: auto;
-  padding: var(--dawn-space-13);
+  padding: var(--dawn-space-12) var(--dawn-space-13) var(--dawn-space-14);
   background: var(--canvas-background, var(--dawn-bg));
 }
 
@@ -3298,8 +3370,9 @@ button:focus-visible,
 }
 
 .object-overview-header {
-  padding-bottom: var(--dawn-space-11);
-  border-bottom: var(--dawn-border-width) solid var(--dawn-border-soft);
+  align-items: flex-end;
+  padding-bottom: var(--dawn-space-8);
+  border-bottom: var(--dawn-border-width) solid var(--dawn-border);
 }
 
 .object-overview-header h2,
@@ -3318,7 +3391,7 @@ button:focus-visible,
 .object-overview-group {
   display: grid;
   gap: var(--dawn-space-4);
-  margin-top: var(--dawn-space-12);
+  margin-top: var(--dawn-space-11);
 }
 
 .object-overview-group h3 { margin-bottom: var(--dawn-space-3); }
@@ -3330,18 +3403,53 @@ button:focus-visible,
   align-items: center;
   gap: var(--dawn-space-7);
   width: 100%;
-  padding: var(--dawn-space-7) var(--dawn-space-8);
-  border: var(--dawn-border-width) solid var(--dawn-border-soft);
-  border-radius: var(--dawn-radius-xl);
-  background: var(--dawn-surface-setup);
+  padding: var(--dawn-space-5) 0;
+  border: 0;
+  border-bottom: var(--dawn-border-width) solid var(--dawn-border-soft);
+  background: transparent;
   color: var(--dawn-text);
   text-align: left;
   text-decoration: none;
 }
 
 .object-overview-row:hover {
-  border-color: var(--dawn-border-hover);
-  background: var(--dawn-hover);
+  border-bottom-color: var(--dawn-border-hover);
+  background: linear-gradient(90deg, var(--dawn-hover), transparent 88%);
+}
+
+.object-overview-row-with-actions {
+  position: relative;
+}
+
+.setup-controller-actions {
+  position: absolute;
+  top: var(--dawn-space-5);
+  right: 0;
+}
+
+.setup-controller-actions summary {
+  display: grid;
+  width: var(--dawn-icon-button-size);
+  height: var(--dawn-icon-button-size);
+  cursor: pointer;
+  list-style: none;
+  place-items: center;
+  color: var(--dawn-text-muted);
+}
+
+.setup-controller-actions summary::-webkit-details-marker { display: none; }
+.setup-controller-actions summary:hover { color: var(--dawn-text-strong); }
+
+.setup-controller-actions > div {
+  position: absolute;
+  top: calc(100% + var(--dawn-space-2));
+  right: 0;
+  z-index: 2;
+  width: min(360px, calc(100vw - var(--dawn-space-14)));
+  padding: var(--dawn-space-6);
+  border: var(--dawn-border-width) solid var(--dawn-border-control);
+  background: var(--dawn-bg-panel);
+  box-shadow: var(--dawn-shadow-dialog);
 }
 
 .object-overview-icon {
@@ -3349,9 +3457,7 @@ button:focus-visible,
   height: var(--dawn-object-overview-icon-size);
   display: grid;
   place-items: center;
-  border-radius: var(--dawn-radius-lg);
-  background: var(--dawn-accent-subtle);
-  color: var(--dawn-text-accent);
+  color: var(--dawn-text-muted);
 }
 
 .object-overview-icon svg,
@@ -3379,9 +3485,31 @@ button:focus-visible,
 }
 
 .object-overview-empty {
-  padding: var(--dawn-space-8);
-  border: var(--dawn-border-width) dashed var(--dawn-border-soft);
-  border-radius: var(--dawn-radius-xl);
+  margin: 0;
+  padding: var(--dawn-space-3) 0;
+}
+
+.object-overview-group-header {
+  min-height: var(--dawn-control-height-md);
+}
+
+.object-overview-group-header button,
+.object-overview-group > button {
+  min-height: var(--dawn-control-height-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--dawn-radius-zero);
+  background: transparent;
+  color: var(--dawn-text-accent);
+  font-weight: var(--dawn-font-weight-semibold);
+}
+
+.object-overview-group-header button:hover:not(:disabled),
+.object-overview-group > button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--dawn-text-strong);
+  filter: none;
+  text-decoration: underline;
 }
 
 .setup-editor > header,
@@ -3619,7 +3747,7 @@ button:focus-visible,
   width: 100%;
   aspect-ratio: 1;
   border: 0;
-  border-left: var(--dawn-border-width-strong) solid transparent;
+  border-radius: var(--dawn-radius-lg) 0 0 var(--dawn-radius-lg);
   background: transparent;
   color: var(--dawn-text-muted);
   place-items: center;
@@ -3627,12 +3755,14 @@ button:focus-visible,
 
 .activity-bar button:hover {
   background: var(--dawn-hover);
-  color: var(--dawn-text);
+  color: var(--dawn-text-strong);
 }
 
 .activity-bar button.active {
-  border-left-color: var(--dawn-accent);
+  border-radius: var(--dawn-radius-lg) 0 0 var(--dawn-radius-lg);
+  background: var(--dawn-surface-accent-active);
   color: var(--dawn-text-strong);
+  font-weight: var(--dawn-font-weight-semibold);
 }
 
 .activity-badge {

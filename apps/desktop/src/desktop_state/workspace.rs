@@ -116,23 +116,23 @@ impl DesktopState {
         let descriptor = self
             .project_session()
             .and_then(|project| descriptor_for_path(&project, &relative));
-        {
+        let path = {
             let mut workspace = lock_unpoisoned(&self.workspace);
-            if !workspace.tabs.contains(&relative) {
-                workspace.tabs.push(relative);
+            let path = workspace.documents[&relative].buffer.path.clone();
+            let document_path = Utf8PathBuf::from(&path);
+            if !workspace.tabs.contains(&document_path) {
+                workspace.tabs.push(document_path);
             }
-            workspace.view.active_file = Some(path.to_string());
-        }
+            workspace.view.active_file = Some(path.clone());
+            path
+        };
         self.update_snapshot(|snapshot| {
             snapshot.active_document_descriptor = descriptor;
             snapshot
                 .workspace_explorer
                 .recent_files
-                .retain(|item| item != path);
-            snapshot
-                .workspace_explorer
-                .recent_files
-                .insert(0, path.into());
+                .retain(|item| Utf8Path::new(item) != Utf8Path::new(&path));
+            snapshot.workspace_explorer.recent_files.insert(0, path);
             snapshot.workspace_explorer.recent_files.truncate(20);
         })
     }
@@ -361,13 +361,14 @@ impl DesktopState {
     }
 
     pub(super) fn close_file_path(&self, path: &str) -> AppSnapshot {
+        let path = Utf8Path::new(path);
         let next = {
             let mut workspace = lock_unpoisoned(&self.workspace);
-            let Some(index) = workspace.tabs.iter().position(|item| item.as_str() == path) else {
+            let Some(index) = workspace.tabs.iter().position(|item| item == path) else {
                 return workspace.snapshot();
             };
             workspace.tabs.remove(index);
-            if workspace.view.active_file.as_deref() == Some(path) {
+            if workspace.view.active_file.as_deref().map(Utf8Path::new) == Some(path) {
                 workspace.view.active_file = workspace
                     .tabs
                     .get(index)

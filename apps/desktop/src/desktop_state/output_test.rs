@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::dto::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
 use dawn_elaboration::ControllerPortFrame;
-use dawn_language::setup::SetupId;
+use dawn_language::controller::ControllerId;
 
 impl DesktopState {
     pub(crate) fn start_output_test(
@@ -15,26 +15,18 @@ impl DesktopState {
                 "The project changed. Reopen the output test with the current setup.".into(),
             );
         }
-        if request.view != DocumentViewId::Setup {
-            return Err("Open a setup to test its outputs.".into());
+        if request.view != DocumentViewId::Controller {
+            return Err("Open a controller to test its outputs.".into());
         }
         let session = self
             .project_session()
             .ok_or("Open a valid project to test outputs.")?;
         let resolved = crate::gui::resolve_request(&session, request)?;
-        let setup = session
-            .project
-            .setups
-            .get(&SetupId(resolved.identity))
-            .ok_or("Setup is missing.")?;
-        let id = setup
-            .controllers
-            .get(test.controller_index as usize)
-            .ok_or("Choose a controller in this setup.")?;
+        let id = ControllerId(resolved.identity);
         let mut controller = session
             .project
             .controllers
-            .get(id)
+            .get(&id)
             .ok_or("Controller is missing.")?
             .clone();
         let port = controller
@@ -91,14 +83,14 @@ mod tests {
         state.open_project_path(root.as_str());
         let setup = state.project_session().unwrap().project.root.setup.clone();
         state.open_file_path(setup.0.document().as_str());
-        let request = || GuiDocumentRequest {
+        let setup_request = || GuiDocumentRequest {
             project_revision: state.snapshot().project_revision,
             path: setup.0.document().to_string(),
             view: DocumentViewId::Setup,
             object_key: Some(setup.0.object().into()),
         };
         let added = state.apply_gui_edit(
-            request(),
+            setup_request(),
             GuiEditCommand::Setup {
                 edit: SetupGuiEdit::AddController {
                     config: SetupControllerConfig::ArtNet {
@@ -126,9 +118,23 @@ mod tests {
             "{:?}",
             added.document
         );
+        let controller = state
+            .project_session()
+            .unwrap()
+            .project
+            .setups
+            .get(&setup)
+            .unwrap()
+            .controllers[0]
+            .clone();
+        let request = || GuiDocumentRequest {
+            project_revision: state.snapshot().project_revision,
+            path: controller.0.document().to_string(),
+            view: DocumentViewId::Controller,
+            object_key: Some(controller.0.object().into()),
+        };
         let original = state.project_session().unwrap();
         let test = ControllerOutputTest {
-            controller_index: 0,
             port: 2,
             start_slot: 1,
             slot_count: 3,

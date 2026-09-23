@@ -3,7 +3,7 @@ warm_gradient:
   stops:
   - position: 0.0
     color: '#fff4d6'
-  - position: 0.35
+  - position: 0.3499999940395355
     color: '#ffb000'
   - position: 1.0
     color: '#ff2a00'
@@ -12,7 +12,7 @@ cool_gradient:
   stops:
   - position: 0.0
     color: '#d9ffff'
-  - position: 0.45
+  - position: 0.44999998807907104
     color: '#00a6ff'
   - position: 1.0
     color: '#3d00ff'
@@ -23,7 +23,7 @@ club_gradient:
     color: '#ffffff'
   - position: 0.25
     color: '#ff2bd6'
-  - position: 0.6
+  - position: 0.6000000238418579
     color: '#2de2ff'
   - position: 1.0
     color: '#7cff00'
@@ -32,9 +32,9 @@ fire_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#ffd15c'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#ff4a00'
   - position: 1.0
     color: '#1a0000'
@@ -43,9 +43,9 @@ ice_glass_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#b9f7ff'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#40b8ff'
   - position: 1.0
     color: '#1020a8'
@@ -54,9 +54,9 @@ electric_blue_gradient:
   stops:
   - position: 0.0
     color: '#f8ffff'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#00f0ff'
-  - position: 0.52
+  - position: 0.5199999809265137
     color: '#0066ff'
   - position: 1.0
     color: '#050044'
@@ -65,7 +65,7 @@ neon_candy_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.2
+  - position: 0.20000000298023224
     color: '#ff2bd6'
   - position: 0.5
     color: '#00f5ff'
@@ -78,9 +78,9 @@ laser_magenta_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.22
+  - position: 0.2199999988079071
     color: '#ff55ff'
-  - position: 0.58
+  - position: 0.5799999833106995
     color: '#ba00ff'
   - position: 1.0
     color: '#180020'
@@ -89,9 +89,9 @@ acid_green_gradient:
   stops:
   - position: 0.0
     color: '#f6ffd6'
-  - position: 0.28
+  - position: 0.2800000011920929
     color: '#b7ff00'
-  - position: 0.65
+  - position: 0.6499999761581421
     color: '#00ff66'
   - position: 1.0
     color: '#003315'
@@ -100,9 +100,9 @@ sodium_vapor_gradient:
   stops:
   - position: 0.0
     color: '#fff8df'
-  - position: 0.35
+  - position: 0.3499999940395355
     color: '#ffb300'
-  - position: 0.72
+  - position: 0.7200000286102295
     color: '#ff5a00'
   - position: 1.0
     color: '#3b0700'
@@ -111,11 +111,11 @@ molten_gold_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.2
+  - position: 0.20000000298023224
     color: '#ffe680'
   - position: 0.5
     color: '#ff9d00'
-  - position: 0.78
+  - position: 0.7799999713897705
     color: '#b83a00'
   - position: 1.0
     color: '#120300'
@@ -124,11 +124,11 @@ ember_core_gradient:
   stops:
   - position: 0.0
     color: '#fff0d8'
-  - position: 0.16
+  - position: 0.1599999964237213
     color: '#ff7a00'
   - position: 0.5
     color: '#e00020'
-  - position: 0.82
+  - position: 0.8199999928474426
     color: '#4d0015'
   - position: 1.0
     color: '#000000'
@@ -137,11 +137,11 @@ plasma_storm_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#55ffea'
-  - position: 0.42
+  - position: 0.41999998688697815
     color: '#3355ff'
-  - position: 0.7
+  - position: 0.699999988079071
     color: '#ff00aa'
   - position: 1.0
     color: '#20003f'
@@ -150,11 +150,11 @@ aurora_gradient:
   stops:
   - position: 0.0
     color: '#062b31'
-  - position: 0.2
+  - position: 0.20000000298023224
     color: '#00d2a8'
-  - position: 0.48
+  - position: 0.47999998927116394
     color: '#77ff66'
-  - position: 0.72
+  - position: 0.7200000286102295
     color: '#5b7cff'
   - position: 1.0
     color: '#2a005f'
@@ -165,9 +165,9 @@ sunset_pop_gradient:
     color: '#fff1a8'
   - position: 0.25
     color: '#ff8a00'
-  - position: 0.52
+  - position: 0.5199999809265137
     color: '#ff006a'
-  - position: 0.78
+  - position: 0.7799999713897705
     color: '#7a2cff'
   - position: 1.0
     color: '#050019'
@@ -178,7 +178,7 @@ deep_ocean_gradient:
     color: '#d8ffff'
   - position: 0.25
     color: '#00c2c7'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#0065a8'
   - position: 1.0
     color: '#000b2e'
@@ -189,7 +189,7 @@ mint_violet_gradient:
     color: '#eaffff'
   - position: 0.25
     color: '#7cffc7'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#48a0ff'
   - position: 1.0
     color: '#b33cff'
@@ -198,9 +198,9 @@ hot_pink_lime_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.22
+  - position: 0.2199999988079071
     color: '#ff1493'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#ffea00'
   - position: 1.0
     color: '#39ff14'
@@ -209,9 +209,9 @@ redline_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#ff3030'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#b00000'
   - position: 1.0
     color: '#120000'
@@ -220,9 +220,9 @@ white_strobe_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.3
+  - position: 0.30000001192092896
     color: '#f3fbff'
-  - position: 0.72
+  - position: 0.7200000286102295
     color: '#b9cfff'
   - position: 1.0
     color: '#000000'
@@ -231,9 +231,9 @@ blacklight_gradient:
   stops:
   - position: 0.0
     color: '#1b003d'
-  - position: 0.3
+  - position: 0.30000001192092896
     color: '#5600ff'
-  - position: 0.62
+  - position: 0.6200000047683716
     color: '#ff00f5'
   - position: 1.0
     color: '#00124d'
@@ -246,7 +246,7 @@ cyberpunk_gradient:
     color: '#005eff'
   - position: 0.5
     color: '#ff00cc'
-  - position: 0.76
+  - position: 0.7599999904632568
     color: '#ffea00'
   - position: 1.0
     color: '#050505'
@@ -268,15 +268,15 @@ prism_gradient:
   stops:
   - position: 0.0
     color: '#ff0033'
-  - position: 0.18
+  - position: 0.18000000715255737
     color: '#ff9d00'
-  - position: 0.34
+  - position: 0.3400000035762787
     color: '#fff200'
   - position: 0.5
     color: '#00ff66'
-  - position: 0.68
+  - position: 0.6800000071525574
     color: '#00b7ff'
-  - position: 0.84
+  - position: 0.8399999737739563
     color: '#4b3cff'
   - position: 1.0
     color: '#d600ff'
@@ -285,9 +285,9 @@ ghost_blue_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.22
+  - position: 0.2199999988079071
     color: '#d8f7ff'
-  - position: 0.58
+  - position: 0.5799999833106995
     color: '#7ca7ff'
   - position: 1.0
     color: '#060c35'
@@ -298,7 +298,7 @@ royal_purple_gradient:
     color: '#fff7ff'
   - position: 0.25
     color: '#c464ff'
-  - position: 0.58
+  - position: 0.5799999833106995
     color: '#6c00d4'
   - position: 1.0
     color: '#120022'
@@ -307,9 +307,9 @@ toxic_sludge_gradient:
   stops:
   - position: 0.0
     color: '#f8ff9d'
-  - position: 0.28
+  - position: 0.2800000011920929
     color: '#a7ff00'
-  - position: 0.6
+  - position: 0.6000000238418579
     color: '#00b84d'
   - position: 1.0
     color: '#1b2b00'
@@ -318,9 +318,9 @@ arctic_pink_gradient:
   stops:
   - position: 0.0
     color: '#ffffff'
-  - position: 0.24
+  - position: 0.23999999463558197
     color: '#9ff7ff'
-  - position: 0.55
+  - position: 0.550000011920929
     color: '#7d7cff'
   - position: 1.0
     color: '#ff66d8'

@@ -4,35 +4,35 @@ ease_down:
   - position: 0.0
     value: 1.0
   - position: 0.0625
-    value: 0.879
+    value: 0.8790000081062317
   - position: 0.125
-    value: 0.766
+    value: 0.765999972820282
   - position: 0.1875
-    value: 0.66
+    value: 0.6600000262260437
   - position: 0.25
-    value: 0.563
+    value: 0.5630000233650208
   - position: 0.3125
-    value: 0.473
+    value: 0.4729999899864197
   - position: 0.375
-    value: 0.391
+    value: 0.39100000262260437
   - position: 0.4375
-    value: 0.316
+    value: 0.3160000145435333
   - position: 0.5
     value: 0.25
   - position: 0.5625
-    value: 0.191
+    value: 0.19099999964237213
   - position: 0.625
-    value: 0.141
+    value: 0.14100000262260437
   - position: 0.6875
-    value: 0.098
+    value: 0.09799999743700027
   - position: 0.75
-    value: 0.063
+    value: 0.06300000101327896
   - position: 0.8125
-    value: 0.035
+    value: 0.03500000014901161
   - position: 0.875
-    value: 0.016
+    value: 0.01600000075995922
   - position: 0.9375
-    value: 0.004
+    value: 0.004000000189989805
   - position: 1.0
     value: 0.0
 ease_up:
@@ -41,35 +41,35 @@ ease_up:
   - position: 0.0
     value: 0.0
   - position: 0.0625
-    value: 0.121
+    value: 0.12099999934434891
   - position: 0.125
-    value: 0.234
+    value: 0.23399999737739563
   - position: 0.1875
-    value: 0.34
+    value: 0.3400000035762787
   - position: 0.25
-    value: 0.438
+    value: 0.43799999356269836
   - position: 0.3125
-    value: 0.527
+    value: 0.5270000100135803
   - position: 0.375
-    value: 0.609
+    value: 0.609000027179718
   - position: 0.4375
-    value: 0.684
+    value: 0.6840000152587891
   - position: 0.5
     value: 0.75
   - position: 0.5625
-    value: 0.809
+    value: 0.8090000152587891
   - position: 0.625
-    value: 0.859
+    value: 0.859000027179718
   - position: 0.6875
-    value: 0.902
+    value: 0.9020000100135803
   - position: 0.75
-    value: 0.938
+    value: 0.9380000233650208
   - position: 0.8125
-    value: 0.965
+    value: 0.9649999737739563
   - position: 0.875
-    value: 0.984
+    value: 0.984000027179718
   - position: 0.9375
-    value: 0.996
+    value: 0.9959999918937683
   - position: 1.0
     value: 1.0
 ease_down_in:
@@ -78,35 +78,35 @@ ease_down_in:
   - position: 0.0
     value: 1.0
   - position: 0.0625
-    value: 0.996
+    value: 0.9959999918937683
   - position: 0.125
-    value: 0.984
+    value: 0.984000027179718
   - position: 0.1875
-    value: 0.965
+    value: 0.9649999737739563
   - position: 0.25
-    value: 0.938
+    value: 0.9380000233650208
   - position: 0.3125
-    value: 0.902
+    value: 0.9020000100135803
   - position: 0.375
-    value: 0.859
+    value: 0.859000027179718
   - position: 0.4375
-    value: 0.809
+    value: 0.8090000152587891
   - position: 0.5
     value: 0.75
   - position: 0.5625
-    value: 0.684
+    value: 0.6840000152587891
   - position: 0.625
-    value: 0.609
+    value: 0.609000027179718
   - position: 0.6875
-    value: 0.527
+    value: 0.5270000100135803
   - position: 0.75
-    value: 0.438
+    value: 0.43799999356269836
   - position: 0.8125
-    value: 0.34
+    value: 0.3400000035762787
   - position: 0.875
-    value: 0.234
+    value: 0.23399999737739563
   - position: 0.9375
-    value: 0.121
+    value: 0.12099999934434891
   - position: 1.0
     value: 0.0
 ease_up_in:
@@ -115,35 +115,35 @@ ease_up_in:
   - position: 0.0
     value: 0.0
   - position: 0.0625
-    value: 0.004
+    value: 0.004000000189989805
   - position: 0.125
-    value: 0.016
+    value: 0.01600000075995922
   - position: 0.1875
-    value: 0.035
+    value: 0.03500000014901161
   - position: 0.25
-    value: 0.063
+    value: 0.06300000101327896
   - position: 0.3125
-    value: 0.098
+    value: 0.09799999743700027
   - position: 0.375
-    value: 0.141
+    value: 0.14100000262260437
   - position: 0.4375
-    value: 0.191
+    value: 0.19099999964237213
   - position: 0.5
     value: 0.25
   - position: 0.5625
-    value: 0.316
+    value: 0.3160000145435333
   - position: 0.625
-    value: 0.391
+    value: 0.39100000262260437
   - position: 0.6875
-    value: 0.473
+    value: 0.4729999899864197
   - position: 0.75
-    value: 0.563
+    value: 0.5630000233650208
   - position: 0.8125
-    value: 0.66
+    value: 0.6600000262260437
   - position: 0.875
-    value: 0.766
+    value: 0.765999972820282
   - position: 0.9375
-    value: 0.879
+    value: 0.8790000081062317
   - position: 1.0
     value: 1.0
 linear_down:
@@ -165,12 +165,12 @@ soft_pulse:
   points:
   - position: 0.0
     value: 0.0
-  - position: 0.15
-    value: 0.65
-  - position: 0.32
+  - position: 0.15000000596046448
+    value: 0.6499999761581421
+  - position: 0.3199999928474426
     value: 1.0
-  - position: 0.6
-    value: 0.42
+  - position: 0.6000000238418579
+    value: 0.41999998688697815
   - position: 1.0
     value: 0.0
 hard_pulse:
@@ -178,10 +178,10 @@ hard_pulse:
   points:
   - position: 0.0
     value: 1.0
-  - position: 0.08
+  - position: 0.07999999821186066
     value: 1.0
-  - position: 0.22
-    value: 0.45
+  - position: 0.2199999988079071
+    value: 0.44999998807907104
   - position: 1.0
     value: 0.0
 center_peak:
@@ -202,10 +202,10 @@ hold_then_drop:
   points:
   - position: 0.0
     value: 1.0
-  - position: 0.6
+  - position: 0.6000000238418579
     value: 1.0
-  - position: 0.78
-    value: 0.35
+  - position: 0.7799999713897705
+    value: 0.3499999940395355
   - position: 1.0
     value: 0.0
 drop_then_hold:
@@ -213,9 +213,9 @@ drop_then_hold:
   points:
   - position: 0.0
     value: 1.0
-  - position: 0.18
-    value: 0.35
-  - position: 0.4
+  - position: 0.18000000715255737
+    value: 0.3499999940395355
+  - position: 0.4000000059604645
     value: 0.0
   - position: 1.0
     value: 0.0

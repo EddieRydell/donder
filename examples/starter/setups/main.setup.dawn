@@ -9,10 +9,10 @@ imports:
   as: patches
 main:
   type: setup
+  layout: layouts.outputs_layout
   patch: patches.outputs
   controllers:
   - output_controller
-  layout: layouts.outputs_layout
 output_controller:
   type: controller
   protocol:

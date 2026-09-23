@@ -127,7 +127,6 @@ pub struct DeviceTransportStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ControllerOutputTest {
-    pub controller_index: u32,
     pub port: u32,
     pub start_slot: u16,
     pub slot_count: u16,

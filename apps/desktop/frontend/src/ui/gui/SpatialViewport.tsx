@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import { clamp, fitViewport, type RenderBounds, type SpatialViewport } from "./shared";
+import { THEME_METRICS } from "../../theme";
 
 const sessionViewports = new Map<string, SpatialViewport>();
 
@@ -25,5 +27,5 @@ export function useSpatialViewport(bounds: RenderBounds, resetKey?: string, sess
 }
 
 export function SpatialControls({ view, reset, zoomAt }: { view: SpatialViewport; reset: () => void; zoomAt: (factor: number, x: number, y: number) => void }) {
-  return <div className="spatial-controls"><button onClick={() => { zoomAt(0.8, 0, 0); }} aria-label="Zoom out">−</button><span>{Math.round(view.scale / view.fitScale * 100)}%</span><button onClick={() => { zoomAt(1.25, 0, 0); }} aria-label="Zoom in">+</button><button onClick={reset}>Fit</button></div>;
+  return <div className="spatial-controls"><button type="button" onClick={() => { zoomAt(0.8, 0, 0); }} aria-label="Zoom out"><ZoomOut size={THEME_METRICS.iconSizeSmall} /></button><span>{Math.round(view.scale / view.fitScale * 100)}%</span><button type="button" onClick={() => { zoomAt(1.25, 0, 0); }} aria-label="Zoom in"><ZoomIn size={THEME_METRICS.iconSizeSmall} /></button><button type="button" onClick={reset}>Fit</button></div>;
 }

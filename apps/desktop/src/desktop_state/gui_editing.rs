@@ -35,9 +35,16 @@ impl DesktopState {
             .ok_or("Source object was not found.")?;
         let path = crate::source_documents::editor_path(&session, identity.document_id())
             .ok_or("Source document has no file location.")?;
+        let workspace = lock_unpoisoned(&self.workspace);
+        // Camino compares equivalent Windows separators, while the frontend
+        // uses the buffer's exact path string as its editor identity.
+        let path = match workspace.documents.get(&path) {
+            Some(document) => document.buffer.path.clone(),
+            None => path.to_string(),
+        };
         Ok(GuiDocumentRequest {
-            project_revision: self.snapshot().project_revision,
-            path: path.to_string(),
+            project_revision: workspace.view.project_revision,
+            path,
             object_key: Some(object_key.to_string()),
             view: crate::dto::ObjectKind::from(object.kind())
                 .document_view()

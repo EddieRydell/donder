@@ -25,24 +25,23 @@ export async function navigateToText(path: string, range: TextRange | null): Pro
 }
 
 export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "moduleId" | "path" | "objectKey">): Promise<void> {
-  let target;
   try {
-    target = await commands.resolveGuiSource(reference.moduleId, reference.path, reference.objectKey);
+    const target = await commands.resolveGuiSource(reference.moduleId, reference.path, reference.objectKey);
+    if (target.view === "text") {
+      await navigateToText(target.path, null);
+      return;
+    }
+    if (useAppStore.getState().guiRequest?.path === target.path) {
+      selectGuiObject({ path: target.path, objectKey: reference.objectKey }, "modal");
+      return;
+    }
+    const snapshot = await runSnapshotCommand(() => commands.openFile(target.path));
+    if (snapshot.settings.editorViewMode !== "gui") {
+      await runSnapshotCommand(() => commands.setEditorViewMode("gui"));
+    }
+    selectGuiObject({ path: target.path, objectKey: reference.objectKey });
   } catch (error) {
     useAppStore.getState().setError(String(error));
     throw error;
   }
-  if (target.view === "text") {
-    await navigateToText(target.path, null);
-    return;
-  }
-  if (useAppStore.getState().guiRequest?.path === target.path) {
-    selectGuiObject({ path: target.path, objectKey: reference.objectKey }, "modal");
-    return;
-  }
-  const snapshot = await runSnapshotCommand(() => commands.openFile(target.path));
-  if (snapshot.settings.editorViewMode !== "gui") {
-    await runSnapshotCommand(() => commands.setEditorViewMode("gui"));
-  }
-  selectGuiObject({ path: target.path, objectKey: reference.objectKey });
 }
