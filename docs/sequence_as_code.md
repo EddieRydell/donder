@@ -124,11 +124,13 @@ plus document ownership/import metadata.
 - Missing imports for typed cross-document references cause serialization errors;
   serialization does not invent an alias or flatten the referenced definition.
   Reference-changing workflows must arrange imports before saving.
-- Typed effect-parameter values reject unknown keys according to their variant,
-  including recursive array items and curve/gradient array shorthands. Diagnostics
-  identify the unexpected field and its value location. This is not a promise to
-  retain arbitrary metadata or a claim that every other schema mapping has been
-  exhaustively audited for unknown-key rejection.
+- Authored YAML objects and nested schema mappings reject unknown keys, including
+  fields belonging to another variant. Successful parsing checks for unconsumed
+  fields through a shared mapping boundary; strict Serde leaf schemas enforce the
+  same rule for curve points and gradient stops. Diagnostics identify the field
+  and its value location. Document object names and parameter names are deliberate
+  dictionary keys, but their values are parsed strictly. Arbitrary metadata is
+  not retained or silently discarded.
 - Saving retained DSL text does not project edits to compiled effect/operator
   definitions back into source. Generated child effects are derived preparation
   output, not independently editable source objects. Editing generated output
@@ -256,9 +258,15 @@ DSL curve reads use `donder_language::sampling::sample_curve`.
 ## Source diagnostics
 
 Present optional values must have their declared shape. For example,
-`automation_clips: wrong` is an error, not an empty clip list. The sequence
-object's fields are closed: unknown keys there are errors. This does not yet
-hold for every nested mapping; see the preservation limitations above.
+`automation_clips: wrong` is an error, not an empty clip list. Objects and nested
+schema mappings are closed: unknown keys are errors. A misspelled optional field
+cannot produce an accepted project that silently uses its default instead.
+Parsing a selected variant consumes only that variant's fields, without a
+separate allowed-key list. When parsing already fails (for example, on a missing
+required field), that error may precede unknown-field diagnostics. Recovery and
+source indexing may inspect partial mappings, but cannot accept a project in
+place of the strict loader. Semantic validation and reference resolution remain
+separate from field-shape validation.
 Duration parsing is fallible and never invokes panicking duration
 constructors.
 

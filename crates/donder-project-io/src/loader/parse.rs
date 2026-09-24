@@ -1,5 +1,18 @@
+use super::mapping::{MappingReader, parse_mapping};
 use donder_language::fixture::FixtureDefinitionId;
 use donder_language::layout::LayoutId;
+pub(crate) fn parse_project_fields(
+    path: &Utf8Path,
+    value: &Value,
+) -> Result<(String, Vec<String>), LoadProjectError> {
+    parse_mapping(path, value, "project", |fields| {
+        fields.string("type")?;
+        Ok((
+            fields.string("setup")?.to_owned(),
+            fields.strings("sequences")?,
+        ))
+    })
+}
 pub(crate) fn parse_automation_curve(
     path: &Utf8Path,
     value: &Value,
@@ -11,29 +24,31 @@ pub(crate) fn parse_sequence_layer(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<SequenceLayer, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["id", "name", "color", "enabled"], "layer")?;
-    Ok(SequenceLayer {
-        id: SequenceLayerId(u32_field(path, value, "id")?),
-        name: string_field(path, value, "name")?.to_string(),
-        color: parse_color(string_field(path, value, "color")?).map_err(|error| {
-            with_yaml_location(
-                error,
-                path,
-                source_range_for_field_value(path, value, "color"),
-            )
-        })?,
-        enabled: optional_field(value, "enabled")
-            .map(|enabled| {
-                enabled
-                    .as_bool()
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: source_range_for_field_value(path, value, "enabled"),
-                        message: "layer enabled must be a bool".to_string(),
-                    })
-            })
-            .transpose()?
-            .unwrap_or(true),
+    parse_mapping(path, value, "layer", |fields| {
+        Ok(SequenceLayer {
+            id: SequenceLayerId(fields.u32("id")?),
+            name: fields.string("name")?.to_string(),
+            color: parse_color(fields.string("color")?).map_err(|error| {
+                with_yaml_location(
+                    error,
+                    path,
+                    source_range_for_field_value(path, value, "color"),
+                )
+            })?,
+            enabled: fields
+                .optional("enabled")
+                .map(|enabled| {
+                    enabled
+                        .as_bool()
+                        .ok_or_else(|| LoadProjectError::InvalidDocument {
+                            path: path.to_path_buf(),
+                            range: source_range_for_field_value(path, value, "enabled"),
+                            message: "layer enabled must be a bool".to_string(),
+                        })
+                })
+                .transpose()?
+                .unwrap_or(true),
+        })
     })
 }
 
@@ -41,11 +56,12 @@ pub(crate) fn parse_automation_binding(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<AutomationBinding, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["target", "mapping"], "automation binding")?;
-    let target = parse_automation_target(path, required_field(path, value, "target")?)?;
-    Ok(AutomationBinding {
-        target,
-        mapping: parse_automation_mapping(path, required_field(path, value, "mapping")?)?,
+    parse_mapping(path, value, "automation binding", |fields| {
+        let target = parse_automation_target(path, fields.required("target")?)?;
+        Ok(AutomationBinding {
+            target,
+            mapping: parse_automation_mapping(path, fields.required("mapping")?)?,
+        })
     })
 }
 
@@ -53,28 +69,24 @@ pub(crate) fn parse_detached_automation_binding(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<DetachedAutomationBinding, LoadProjectError> {
-    require_allowed_mapping_keys(
-        path,
-        value,
-        &["target", "mapping", "reason"],
-        "detached automation binding",
-    )?;
-    let target = parse_automation_target(path, required_field(path, value, "target")?)?;
-    let reason = match string_field(path, value, "reason")? {
-        "target_deleted" => AutomationDetachmentReason::TargetDeleted,
-        "definition_changed" => AutomationDetachmentReason::DefinitionChanged,
-        other => {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, "reason"),
-                message: format!("unsupported automation detachment reason `{other}`"),
-            });
-        }
-    };
-    Ok(DetachedAutomationBinding {
-        target,
-        mapping: parse_automation_mapping(path, required_field(path, value, "mapping")?)?,
-        reason,
+    parse_mapping(path, value, "detached automation binding", |fields| {
+        let target = parse_automation_target(path, fields.required("target")?)?;
+        let reason = match fields.string("reason")? {
+            "target_deleted" => AutomationDetachmentReason::TargetDeleted,
+            "definition_changed" => AutomationDetachmentReason::DefinitionChanged,
+            other => {
+                return Err(LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: source_range_for_field_value(path, value, "reason"),
+                    message: format!("unsupported automation detachment reason `{other}`"),
+                });
+            }
+        };
+        Ok(DetachedAutomationBinding {
+            target,
+            mapping: parse_automation_mapping(path, fields.required("mapping")?)?,
+            reason,
+        })
     })
 }
 
@@ -82,28 +94,24 @@ pub(crate) fn parse_automation_target(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<AutomationTarget, LoadProjectError> {
-    require_allowed_mapping_keys(
-        path,
-        value,
-        &["type", "effect_id", "node_id", "param"],
-        "automation target",
-    )?;
-    Ok(match string_field(path, value, "type")? {
-        "effect_param" => AutomationTarget::EffectParam {
-            effect_id: EffectInstId(u32_field(path, value, "effect_id")?),
-            param: parse_identifier_field(path, value, "param")?,
-        },
-        "composition_node_param" => AutomationTarget::CompositionNodeParam {
-            node_id: CompositionGraphNodeId(u32_field(path, value, "node_id")?),
-            param: parse_identifier_field(path, value, "param")?,
-        },
-        other => {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, "type"),
-                message: format!("unsupported automation target `{other}`"),
-            });
-        }
+    parse_mapping(path, value, "automation target", |fields| {
+        Ok(match fields.string("type")? {
+            "effect_param" => AutomationTarget::EffectParam {
+                effect_id: EffectInstId(fields.u32("effect_id")?),
+                param: parse_identifier_field(path, value, fields, "param")?,
+            },
+            "composition_node_param" => AutomationTarget::CompositionNodeParam {
+                node_id: CompositionGraphNodeId(fields.u32("node_id")?),
+                param: parse_identifier_field(path, value, fields, "param")?,
+            },
+            other => {
+                return Err(LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: source_range_for_field_value(path, value, "type"),
+                    message: format!("unsupported automation target `{other}`"),
+                });
+            }
+        })
     })
 }
 
@@ -111,54 +119,52 @@ pub(crate) fn parse_automation_mapping(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<AutomationMapping, LoadProjectError> {
-    require_allowed_mapping_keys(
-        path,
-        value,
-        &["type", "min", "max", "values"],
-        "automation mapping",
-    )?;
-    Ok(match string_field(path, value, "type")? {
-        "float" => AutomationMapping::Float {
-            min: f32_field(path, value, "min")?,
-            max: f32_field(path, value, "max")?,
-        },
-        "int" => AutomationMapping::Int {
-            min: i32_field(path, value, "min")?,
-            max: i32_field(path, value, "max")?,
-        },
-        "bool" => AutomationMapping::Bool,
-        "enum" => AutomationMapping::Enum {
-            values: sequence_field(path, value, "values")?
-                .into_iter()
-                .map(|enum_value| {
-                    Identifier::new(enum_value).map_err(|_| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: source_range_for_field_value(path, value, "values"),
-                        message: "enum automation values must be identifiers".to_string(),
+    parse_mapping(path, value, "automation mapping", |fields| {
+        Ok(match fields.string("type")? {
+            "float" => AutomationMapping::Float {
+                min: fields.f32("min")?,
+                max: fields.f32("max")?,
+            },
+            "int" => AutomationMapping::Int {
+                min: fields.i32("min")?,
+                max: fields.i32("max")?,
+            },
+            "bool" => AutomationMapping::Bool,
+            "enum" => AutomationMapping::Enum {
+                values: fields
+                    .strings("values")?
+                    .into_iter()
+                    .map(|enum_value| {
+                        Identifier::new(enum_value).map_err(|_| LoadProjectError::InvalidDocument {
+                            path: path.to_path_buf(),
+                            range: source_range_for_field_value(path, value, "values"),
+                            message: "enum automation values must be identifiers".to_string(),
+                        })
                     })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        },
-        "curve" => AutomationMapping::Curve {
-            min: f32_field(path, value, "min")?,
-            max: f32_field(path, value, "max")?,
-        },
-        other => {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, "type"),
-                message: format!("unsupported automation mapping `{other}`"),
-            });
-        }
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            "curve" => AutomationMapping::Curve {
+                min: fields.f32("min")?,
+                max: fields.f32("max")?,
+            },
+            other => {
+                return Err(LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: source_range_for_field_value(path, value, "type"),
+                    message: format!("unsupported automation mapping `{other}`"),
+                });
+            }
+        })
     })
 }
 
 pub(crate) fn parse_identifier_field(
     path: &Utf8Path,
     value: &Value,
+    fields: &MappingReader<'_>,
     key: &str,
 ) -> Result<Identifier, LoadProjectError> {
-    let raw = string_field(path, value, key)?;
+    let raw = fields.string(key)?;
     Identifier::new(raw.to_string()).map_err(|_| LoadProjectError::InvalidDocument {
         path: path.to_path_buf(),
         range: source_range_for_field_value(path, value, key),
@@ -236,76 +242,50 @@ pub(crate) struct SourceObjectValue<'a> {
     pub(crate) value: &'a Value,
 }
 
-pub(crate) fn require_allowed_mapping_keys(
-    path: &Utf8Path,
-    value: &Value,
-    allowed: &[&str],
-    label: &str,
-) -> Result<(), LoadProjectError> {
-    let mapping = mapping(value).ok_or_else(|| LoadProjectError::InvalidDocument {
-        path: path.to_path_buf(),
-        range: source_range_for_value(path, value),
-        message: format!("{label} must be a mapping"),
-    })?;
-    for key in mapping.keys() {
-        let key = key
-            .as_str()
-            .ok_or_else(|| LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: format!("{label} keys must be strings"),
-            })?;
-        if !allowed.contains(&key) {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, key),
-                message: format!("{label} has an unknown field `{key}`"),
-            });
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn parse_mark_collection(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<MarkCollection, LoadProjectError> {
-    Ok(MarkCollection {
-        key: MarkCollectionKey {
-            name: string_field(path, value, "key")?.to_string(),
-        },
-        name: string_field(path, value, "name")?.to_string(),
-        display_color: parse_color(string_field(path, value, "color")?).map_err(|error| {
-            with_yaml_location(
-                error,
-                path,
-                source_range_for_field_value(path, value, "color"),
-            )
-        })?,
-        marks: sequence_values(path, value, "marks")?
-            .iter()
-            .map(|mark| {
-                mark.as_str()
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "marks must be duration strings".to_string(),
-                    })
-                    .and_then(|duration| {
-                        parse_duration_as_time(duration).map_err(|error| {
-                            with_yaml_location(error, path, source_range_for_value(path, mark))
+    parse_mapping(path, value, "mark collection", |fields| {
+        Ok(MarkCollection {
+            key: MarkCollectionKey {
+                name: fields.string("key")?.to_string(),
+            },
+            name: fields.string("name")?.to_string(),
+            display_color: parse_color(fields.string("color")?).map_err(|error| {
+                with_yaml_location(
+                    error,
+                    path,
+                    source_range_for_field_value(path, value, "color"),
+                )
+            })?,
+            marks: fields
+                .sequence("marks")?
+                .iter()
+                .map(|mark| {
+                    mark.as_str()
+                        .ok_or_else(|| LoadProjectError::InvalidDocument {
+                            path: path.to_path_buf(),
+                            range: None,
+                            message: "marks must be duration strings".to_string(),
                         })
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?,
+                        .and_then(|duration| {
+                            parse_duration_as_time(duration).map_err(|error| {
+                                with_yaml_location(error, path, source_range_for_value(path, mark))
+                            })
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        })
     })
 }
 
 pub(crate) fn parse_effect_scope(
     path: &Utf8Path,
     value: &Value,
+    fields: &MappingReader<'_>,
 ) -> Result<EffectScope, LoadProjectError> {
-    match string_field(path, value, "scope")? {
+    match fields.string("scope")? {
         "per_fixture" => Ok(EffectScope::PerFixture),
         "whole_target" => Ok(EffectScope::WholeTarget),
         other => Err(LoadProjectError::InvalidDocument {
@@ -320,9 +300,11 @@ pub(crate) fn parse_graph_position(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<GraphNodePosition, LoadProjectError> {
-    Ok(GraphNodePosition {
-        x: f32_field(path, value, "x")?,
-        y: f32_field(path, value, "y")?,
+    parse_mapping(path, value, "graph position", |fields| {
+        Ok(GraphNodePosition {
+            x: fields.f32("x")?,
+            y: fields.f32("y")?,
+        })
     })
 }
 
@@ -330,17 +312,37 @@ pub(crate) fn parse_graph_edge(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<EffectGraphEdge, LoadProjectError> {
-    Ok(EffectGraphEdge {
-        from: CompositionGraphNodeId(u32_field(path, value, "from")?),
-        from_port: GraphPortId(string_field(path, value, "from_port")?.to_string()),
-        to: CompositionGraphNodeId(u32_field(path, value, "to")?),
-        to_port: GraphPortId(string_field(path, value, "to_port")?.to_string()),
+    parse_mapping(path, value, "graph edge", |fields| {
+        Ok(EffectGraphEdge {
+            from: CompositionGraphNodeId(fields.u32("from")?),
+            from_port: GraphPortId(fields.string("from_port")?.to_string()),
+            to: CompositionGraphNodeId(fields.u32("to")?),
+            to_port: GraphPortId(fields.string("to_port")?.to_string()),
+        })
     })
 }
 
 pub(crate) fn parse_curve(path: &Utf8Path, value: &Value) -> Result<Curve, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["type", "points", "curve"], "curve")?;
-    let points = sequence_values(path, value, "points")?
+    parse_mapping(path, value, "curve", |fields| {
+        parse_curve_fields(path, value, fields)
+    })
+}
+pub(crate) fn parse_curve_fields(
+    path: &Utf8Path,
+    value: &Value,
+    fields: &MappingReader<'_>,
+) -> Result<Curve, LoadProjectError> {
+    if let Some(kind) = fields.optional("type")
+        && kind.as_str() != Some("curve")
+    {
+        return Err(LoadProjectError::InvalidDocument {
+            path: path.to_owned(),
+            range: source_range_for_value(path, kind),
+            message: "invalid curve type".into(),
+        });
+    }
+    let points = fields
+        .sequence("points")?
         .iter()
         .map(|point| {
             let point: crate::schema::CurvePoint =
@@ -363,8 +365,25 @@ pub(crate) fn parse_curve(path: &Utf8Path, value: &Value) -> Result<Curve, LoadP
 }
 
 pub(crate) fn parse_gradient(path: &Utf8Path, value: &Value) -> Result<Gradient, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["type", "stops", "gradient"], "gradient")?;
-    let stops = sequence_values(path, value, "stops")?
+    parse_mapping(path, value, "gradient", |fields| {
+        parse_gradient_fields(path, fields)
+    })
+}
+pub(crate) fn parse_gradient_fields(
+    path: &Utf8Path,
+    fields: &MappingReader<'_>,
+) -> Result<Gradient, LoadProjectError> {
+    if let Some(kind) = fields.optional("type")
+        && kind.as_str() != Some("gradient")
+    {
+        return Err(LoadProjectError::InvalidDocument {
+            path: path.to_owned(),
+            range: source_range_for_value(path, kind),
+            message: "invalid gradient type".into(),
+        });
+    }
+    let stops = fields
+        .sequence("stops")?
         .iter()
         .map(|stop| {
             let fields: crate::schema::GradientStop =
@@ -386,30 +405,32 @@ pub(crate) fn parse_gradient(path: &Utf8Path, value: &Value) -> Result<Gradient,
 }
 
 pub(crate) fn parse_point3(path: &Utf8Path, value: &Value) -> Result<Point3, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "point")?;
-    let distance = |axis| {
-        let meters = required_field(path, value, axis)?.as_f64().ok_or_else(|| {
-            LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, axis),
-                message: "Coordinate must be a number.".into(),
+    parse_mapping(path, value, "point", |fields| {
+        let distance = |axis| {
+            let meters = fields.required(axis)?.as_f64().ok_or_else(|| {
+                LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: source_range_for_field_value(path, value, axis),
+                    message: "Coordinate must be a number.".into(),
+                }
+            })?;
+            if !meters.is_finite() || meters.abs() > 2_000.0 {
+                return Err(LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: source_range_for_field_value(path, value, axis),
+                    message: "Coordinates must be finite and within 2,000 meters of the origin."
+                        .into(),
+                });
             }
-        })?;
-        if !meters.is_finite() || meters.abs() > 2_000.0 {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, axis),
-                message: "Coordinates must be finite and within 2,000 meters of the origin.".into(),
-            });
-        }
-        Ok(Distance {
-            micrometers: (meters * 1_000_000.0).round() as i32,
+            Ok(Distance {
+                micrometers: (meters * 1_000_000.0).round() as i32,
+            })
+        };
+        Ok(Point3 {
+            x: distance("x")?,
+            y: distance("y")?,
+            z: distance("z")?,
         })
-    };
-    Ok(Point3 {
-        x: distance("x")?,
-        y: distance("y")?,
-        z: distance("z")?,
     })
 }
 
@@ -417,20 +438,22 @@ pub(crate) fn parse_rotation3(
     path: &Utf8Path,
     value: &Value,
 ) -> Result<Rotation3, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "rotation")?;
-    Ok(Rotation3 {
-        x: f32_field(path, value, "x")?,
-        y: f32_field(path, value, "y")?,
-        z: f32_field(path, value, "z")?,
+    parse_mapping(path, value, "rotation", |fields| {
+        Ok(Rotation3 {
+            x: fields.f32("x")?,
+            y: fields.f32("y")?,
+            z: fields.f32("z")?,
+        })
     })
 }
 
 pub(crate) fn parse_scale3(path: &Utf8Path, value: &Value) -> Result<Scale3, LoadProjectError> {
-    require_allowed_mapping_keys(path, value, &["x", "y", "z"], "scale")?;
-    Ok(Scale3 {
-        x: f32_field(path, value, "x")?,
-        y: f32_field(path, value, "y")?,
-        z: f32_field(path, value, "z")?,
+    parse_mapping(path, value, "scale", |fields| {
+        Ok(Scale3 {
+            x: fields.f32("x")?,
+            y: fields.f32("y")?,
+            z: fields.f32("z")?,
+        })
     })
 }
 
@@ -481,164 +504,6 @@ pub(crate) fn mapping(value: &Value) -> Option<&Mapping> {
     }
 }
 
-pub(crate) fn required_field<'a>(
-    path: &Utf8Path,
-    value: &'a Value,
-    key: &str,
-) -> Result<&'a Value, LoadProjectError> {
-    mapping(value)
-        .and_then(|mapping| mapping.get(Value::String(key.to_string())))
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_value(path, value),
-            message: format!("missing field `{key}`"),
-        })
-}
-
-pub(crate) fn optional_field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
-    mapping(value).and_then(|mapping| mapping.get(Value::String(key.to_string())))
-}
-
-pub(crate) fn optional_mapping<'a>(
-    path: &Utf8Path,
-    value: &'a Value,
-    key: &str,
-) -> Result<Option<&'a Mapping>, LoadProjectError> {
-    optional_field(value, key)
-        .map(|field| {
-            mapping(field).ok_or_else(|| LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, key),
-                message: format!("field `{key}` must be a mapping"),
-            })
-        })
-        .transpose()
-}
-
-pub(crate) fn optional_sequence<'a>(
-    path: &Utf8Path,
-    value: &'a Value,
-    key: &str,
-) -> Result<Option<&'a Vec<Value>>, LoadProjectError> {
-    optional_field(value, key)
-        .map(|field| {
-            field
-                .as_sequence()
-                .ok_or_else(|| LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_field_value(path, value, key),
-                    message: format!("field `{key}` must be a sequence"),
-                })
-        })
-        .transpose()
-}
-
-pub(crate) fn sequence_values<'a>(
-    path: &Utf8Path,
-    value: &'a Value,
-    key: &str,
-) -> Result<&'a Vec<Value>, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_sequence()
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a sequence"),
-        })
-}
-
-pub(crate) fn sequence_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<Vec<String>, LoadProjectError> {
-    sequence_values(path, value, key)?
-        .iter()
-        .map(|value| {
-            value.as_str().map(ToString::to_string).ok_or_else(|| {
-                LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_value(path, value),
-                    message: format!("field `{key}` values must be strings"),
-                }
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()
-}
-
-pub(crate) fn string_field<'a>(
-    path: &Utf8Path,
-    value: &'a Value,
-    key: &str,
-) -> Result<&'a str, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_str()
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a string"),
-        })
-}
-
-pub(crate) fn u32_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<u32, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_u64()
-        .and_then(|value| u32::try_from(value).ok())
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a u32"),
-        })
-}
-
-pub(crate) fn i32_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<i32, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_i64()
-        .and_then(|value| i32::try_from(value).ok())
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be an integer"),
-        })
-}
-
-pub(crate) fn f32_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<f32, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_f64()
-        .map(|value| value as f32)
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a number"),
-        })
-}
-
-pub(crate) fn bool_field(
-    path: &Utf8Path,
-    value: &Value,
-    key: &str,
-) -> Result<bool, LoadProjectError> {
-    required_field(path, value, key)?
-        .as_bool()
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: source_range_for_field_value(path, value, key),
-            message: format!("field `{key}` must be a bool"),
-        })
-}
-
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::controller::ControllerId;
 use donder_language::dsl::Identifier;
@@ -663,3 +528,63 @@ use crate::diagnostics::{
     source_range_for_field_value, source_range_for_value, with_yaml_location,
 };
 use crate::{LoadProjectError, SourceObjectKind};
+
+#[cfg(test)]
+mod strict_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn automation_mappings_only_accept_their_own_variant_fields() {
+        let path = Utf8Path::new("test.donder");
+        for (source, forbidden) in [
+            ("{type: bool}", "min"),
+            ("{type: float, min: 0, max: 1}", "values"),
+            ("{type: int, min: 0, max: 1}", "values"),
+            ("{type: curve, min: 0, max: 1}", "values"),
+            ("{type: enum, values: [one, two]}", "max"),
+        ] {
+            let mut value: Value = yaml_serde::from_str(source).unwrap();
+            parse_automation_mapping(path, &value).unwrap();
+            value
+                .as_mapping_mut()
+                .unwrap()
+                .insert(Value::String(forbidden.into()), Value::Null);
+            let error = parse_automation_mapping(path, &value).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("unknown field `{forbidden}`")),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn automation_targets_only_accept_their_own_variant_fields() {
+        let path = Utf8Path::new("test.donder");
+        for (source, forbidden) in [
+            (
+                "{type: effect_param, effect_id: 1, param: level}",
+                "node_id",
+            ),
+            (
+                "{type: composition_node_param, node_id: 1, param: level}",
+                "effect_id",
+            ),
+        ] {
+            let mut value: Value = yaml_serde::from_str(source).unwrap();
+            parse_automation_target(path, &value).unwrap();
+            value
+                .as_mapping_mut()
+                .unwrap()
+                .insert(Value::String(forbidden.into()), Value::Number(2.into()));
+            let error = parse_automation_target(path, &value).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("unknown field `{forbidden}`")),
+                "{error}"
+            );
+        }
+    }
+}

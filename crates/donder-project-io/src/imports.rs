@@ -2,7 +2,8 @@ use crate::diagnostics::{
     source_range_for_field_value, source_range_for_scalar, source_range_for_value,
 };
 use crate::loader::Loader;
-use crate::loader::parse::{ResolvedObject, string_field};
+use crate::loader::mapping::parse_mapping;
+use crate::loader::parse::ResolvedObject;
 use crate::source::{ImportEdge, ProjectSession, SourceDocument, SourceObjectKind};
 use crate::{
     ExportProjectError, IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoRelatedLocation,
@@ -11,7 +12,7 @@ use crate::{
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::{DocumentId, SourceIdentity};
 use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 use yaml_serde::{Mapping, Value};
 
 #[derive(Clone, Debug)]
@@ -25,167 +26,73 @@ pub(crate) fn parse_imports(
     path: &Utf8Path,
     map: &Mapping,
 ) -> Result<Vec<ParsedImport>, LoadProjectError> {
-    let Some(imports) = map.get(Value::String("imports".to_string())) else {
+    let Some(imports) = map.get(Value::String("imports".into())) else {
         return Ok(Vec::new());
     };
     let imports = imports
         .as_sequence()
         .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
+            path: path.to_owned(),
             range: source_range_for_value(path, imports),
-            message: "imports must be a sequence".to_string(),
+            message: "imports must be a sequence".into(),
         })?;
     imports
         .iter()
         .map(|import| {
-            let import_mapping =
-                import
-                    .as_mapping()
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "import must be a mapping".to_string(),
-                    })?;
-            require_exact_mapping_keys(path, import_mapping, &["from", "as"], "import")?;
-            let from_value = import_mapping
-                .get(Value::String("from".to_string()))
-                .ok_or_else(|| LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: None,
-                    message: "import is missing `from`".to_string(),
-                })?;
-            let from_mapping =
-                from_value
-                    .as_mapping()
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "import `from` must be a structured mapping".to_string(),
-                    })?;
-            let source = if let Some(documents_value) =
-                from_mapping.get(Value::String("documents".to_string()))
-            {
-                require_exact_mapping_keys(
-                    path,
-                    from_mapping,
-                    &["documents"],
-                    "local import source",
-                )?;
-                let raw_documents = documents_value.as_sequence().ok_or_else(|| {
-                    LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "local import `documents` must be a non-empty sequence"
-                            .to_string(),
+            parse_mapping(path, import, "import", |fields| {
+                let from = fields.required("from")?;
+                let (source, source_ranges) = parse_mapping(path, from, "import source", |source| {
+                    if let Some(documents) = source.optional("documents") {
+                        let documents = documents
+                            .as_sequence()
+                            .filter(|values| !values.is_empty())
+                            .ok_or_else(|| LoadProjectError::InvalidDocument {
+                                path: path.to_owned(),
+                                range: source_range_for_value(path, documents),
+                                message: "local import `documents` must be a non-empty sequence".into(),
+                            })?;
+                        let paths = documents
+                            .iter()
+                            .map(|value| {
+                                value.as_str().map(Utf8PathBuf::from).ok_or_else(|| {
+                                    LoadProjectError::InvalidDocument {
+                                        path: path.to_owned(),
+                                        range: source_range_for_value(path, value),
+                                        message: "local import `documents` must contain document paths".into(),
+                                    }
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let ranges = documents
+                            .iter()
+                            .map(|value| source_range_for_value(path, value))
+                            .collect();
+                        Ok((ImportSource::LocalDocuments { documents: paths }, ranges))
+                    } else {
+                        let dependency = source.string("dependency")?.to_owned();
+                        let export = source.string("export")?.to_owned();
+                        let ranges = ["dependency", "export"]
+                            .iter()
+                            .map(|key| source_range_for_field_value(path, from, key))
+                            .collect();
+                        Ok((ImportSource::DependencyExport { dependency, export }, ranges))
                     }
                 })?;
-                if raw_documents.is_empty() {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "local import `documents` must be a non-empty sequence"
-                            .to_string(),
-                    });
-                }
-                let mut documents = Vec::new();
-                for raw_document in raw_documents {
-                    let value =
-                        raw_document
-                            .as_str()
-                            .ok_or_else(|| LoadProjectError::InvalidDocument {
-                                path: path.to_path_buf(),
-                                range: None,
-                                message: "local import `documents` must contain document paths"
-                                    .to_string(),
-                            })?;
-                    documents.push(Utf8PathBuf::from(value));
-                }
-                donder_language::imports::ImportSource::LocalDocuments { documents }
-            } else {
-                require_exact_mapping_keys(
-                    path,
-                    from_mapping,
-                    &["dependency", "export"],
-                    "dependency import source",
-                )?;
-                let dependency = from_mapping
-                    .get(Value::String("dependency".to_string()))
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "dependency import requires a dependency alias".to_string(),
-                    })?;
-                let export = from_mapping
-                    .get(Value::String("export".to_string()))
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "dependency import requires an export group".to_string(),
-                    })?;
-                donder_language::imports::ImportSource::DependencyExport {
-                    dependency: dependency.to_string(),
-                    export: export.to_string(),
-                }
-            };
-            let alias = string_field(path, import, "as")?;
-            Ok(ParsedImport {
-                declaration: ImportDeclaration {
-                    source,
-                    alias: ImportAlias::new(alias).map_err(|message| {
-                        LoadProjectError::InvalidDocument {
-                            path: path.to_path_buf(),
-                            range: source_range_for_field_value(path, import, "as"),
-                            message,
-                        }
-                    })?,
-                },
-                range: source_range_for_value(path, import),
-                source_ranges: if let Some(documents) = from_mapping
-                    .get(Value::String("documents".into()))
-                    .and_then(Value::as_sequence)
-                {
-                    documents
-                        .iter()
-                        .map(|value| source_range_for_value(path, value))
-                        .collect()
-                } else {
-                    ["dependency", "export"]
-                        .into_iter()
-                        .map(|key| {
-                            source_range_for_value(path, &from_mapping[Value::String(key.into())])
-                        })
-                        .collect()
-                },
+                let alias = ImportAlias::new(fields.string("as")?).map_err(|message| {
+                    LoadProjectError::InvalidDocument {
+                        path: path.to_owned(),
+                        range: source_range_for_field_value(path, import, "as"),
+                        message,
+                    }
+                })?;
+                Ok(ParsedImport {
+                    declaration: ImportDeclaration { source, alias },
+                    range: source_range_for_value(path, import),
+                    source_ranges,
+                })
             })
         })
         .collect()
-}
-
-fn require_exact_mapping_keys(
-    path: &Utf8Path,
-    mapping: &Mapping,
-    expected: &[&str],
-    label: &str,
-) -> Result<(), LoadProjectError> {
-    let keys = mapping
-        .keys()
-        .map(|key| key.as_str())
-        .collect::<Option<IndexSet<_>>>()
-        .ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: None,
-            message: format!("{label} keys must be strings"),
-        })?;
-    if keys.len() != expected.len() || expected.iter().any(|key| !keys.contains(key)) {
-        return Err(LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: None,
-            message: format!("{label} has missing or unknown fields"),
-        });
-    }
-    Ok(())
 }
 
 pub(crate) fn validate_import_document_path(

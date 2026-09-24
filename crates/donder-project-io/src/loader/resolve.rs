@@ -1,3 +1,4 @@
+use super::mapping::{MappingReader, parse_mapping};
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::fixture::*;
 use donder_language::identity::DocumentId;
@@ -17,56 +18,55 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::Setup(id.clone()))?;
         let document_path = document_id.path().to_path_buf();
-        require_allowed_mapping_keys(
-            &document_path,
-            &value,
-            &["type", "layout", "patch", "controllers"],
-            "setup",
-        )?;
-        let layout_ref = string_field(&document_path, &value, "layout")?;
-        let patch_ref = string_field(&document_path, &value, "patch")?;
-        let layout = match self.loader.resolve_reference(&document_id, layout_ref)? {
-            ResolvedObject::Layout(id) => id,
-            _ => return Err(invalid(&document_path, "Expected a layout reference.")),
-        };
-        let patch = match self.loader.resolve_reference(&document_id, patch_ref)? {
-            ResolvedObject::Patch(patch) => patch,
-            _ => {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document_path.clone(),
-                    range: source_range_for_scalar(&document_path, patch_ref),
-                    reference: patch_ref.to_string(),
-                });
-            }
-        };
-        let controllers = sequence_field(&document_path, &value, "controllers")?
-            .iter()
-            .map(
-                |reference| match self.loader.resolve_reference(&document_id, reference)? {
-                    ResolvedObject::Controller(controller) => Ok(controller),
-                    _ => Err(LoadProjectError::InvalidReference {
+
+        parse_mapping(&document_path, &value, "setup", |fields| {
+            fields.string("type")?;
+            let layout_ref = fields.string("layout")?;
+            let patch_ref = fields.string("patch")?;
+            let layout = match self.loader.resolve_reference(&document_id, layout_ref)? {
+                ResolvedObject::Layout(id) => id,
+                _ => return Err(invalid(&document_path, "Expected a layout reference.")),
+            };
+            let patch = match self.loader.resolve_reference(&document_id, patch_ref)? {
+                ResolvedObject::Patch(patch) => patch,
+                _ => {
+                    return Err(LoadProjectError::InvalidReference {
                         path: document_path.clone(),
-                        range: source_range_for_scalar(&document_path, reference),
-                        reference: reference.clone(),
-                    }),
+                        range: source_range_for_scalar(&document_path, patch_ref),
+                        reference: patch_ref.to_string(),
+                    });
+                }
+            };
+            let controllers = fields
+                .strings("controllers")?
+                .iter()
+                .map(
+                    |reference| match self.loader.resolve_reference(&document_id, reference)? {
+                        ResolvedObject::Controller(controller) => Ok(controller),
+                        _ => Err(LoadProjectError::InvalidReference {
+                            path: document_path.clone(),
+                            range: source_range_for_scalar(&document_path, reference),
+                            reference: reference.clone(),
+                        }),
+                    },
+                )
+                .collect::<Result<Vec<_>, _>>()?;
+            self.project.setups.insert(
+                id.clone(),
+                Setup {
+                    id: id.clone(),
+                    layout: layout.clone(),
+                    patch: patch.clone(),
+                    controllers: controllers.clone(),
                 },
-            )
-            .collect::<Result<Vec<_>, _>>()?;
-        self.project.setups.insert(
-            id.clone(),
-            Setup {
-                id: id.clone(),
-                layout: layout.clone(),
-                patch: patch.clone(),
-                controllers: controllers.clone(),
-            },
-        );
-        self.resolve_layout(&layout)?;
-        self.resolve_patch(&patch)?;
-        for controller in controllers {
-            self.resolve_controller(&controller)?;
-        }
-        Ok(())
+            );
+            self.resolve_layout(&layout)?;
+            self.resolve_patch(&patch)?;
+            for controller in controllers {
+                self.resolve_controller(&controller)?;
+            }
+            Ok(())
+        })
     }
 
     pub(super) fn resolve_controller(&mut self, id: &ControllerId) -> Result<(), LoadProjectError> {
@@ -77,116 +77,107 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::Controller(id.clone()))?;
         let path = document_id.path().to_path_buf();
-        let protocol_value = required_field(&path, &value, "protocol")?;
-        require_allowed_mapping_keys(&path, &value, &["type", "protocol", "ports"], "controller")?;
-        let protocol = match string_field(&path, protocol_value, "type")? {
-            "e131" => {
-                let mode = match string_field(&path, protocol_value, "mode")? {
-                    "multicast" => {
-                        require_allowed_mapping_keys(
-                            &path,
-                            protocol_value,
-                            &["type", "source_name", "bind_address", "priority", "mode"],
-                            "multicast E1.31 protocol",
-                        )?;
-                        E131Mode::Multicast
-                    }
-                    "unicast" => {
-                        require_allowed_mapping_keys(
-                            &path,
-                            protocol_value,
-                            &[
-                                "type",
-                                "source_name",
-                                "bind_address",
-                                "priority",
-                                "mode",
-                                "destination",
-                            ],
-                            "unicast E1.31 protocol",
-                        )?;
-                        E131Mode::Unicast {
-                            destination: string_field(&path, protocol_value, "destination")?
+
+        parse_mapping(&path, &value, "controller", |fields| {
+            fields.string("type")?;
+            let protocol_value = fields.required("protocol")?;
+            let protocol = parse_mapping(
+                &path,
+                protocol_value,
+                "controller protocol",
+                |protocol_fields| {
+                    Ok(match protocol_fields.string("type")? {
+                        "e131" => {
+                            let mode = match protocol_fields.string("mode")? {
+                                "multicast" => E131Mode::Multicast,
+                                "unicast" => E131Mode::Unicast {
+                                    destination: protocol_fields
+                                        .string("destination")?
+                                        .parse()
+                                        .map_err(|_| {
+                                            invalid(&path, "invalid E1.31 destination address")
+                                        })?,
+                                },
+                                other => {
+                                    return Err(invalid(
+                                        &path,
+                                        &format!("invalid E1.31 mode `{other}`"),
+                                    ));
+                                }
+                            };
+                            ControllerProtocol::E131(E131Config {
+                                source_name: protocol_fields.string("source_name")?.to_string(),
+                                bind_address: protocol_fields
+                                    .string("bind_address")?
+                                    .parse()
+                                    .map_err(|_| invalid(&path, "invalid E1.31 bind address"))?,
+                                priority: u8::try_from(protocol_fields.u32("priority")?)
+                                    .map_err(|_| invalid(&path, "E1.31 priority must be a u8"))?,
+                                mode,
+                            })
+                        }
+                        "artnet" => ControllerProtocol::ArtNet(ArtNetConfig {
+                            bind_address: protocol_fields
+                                .string("bind_address")?
                                 .parse()
-                                .map_err(|_| invalid(&path, "invalid E1.31 destination address"))?,
-                        }
-                    }
-                    other => return Err(invalid(&path, &format!("invalid E1.31 mode `{other}`"))),
-                };
-                ControllerProtocol::E131(E131Config {
-                    source_name: string_field(&path, protocol_value, "source_name")?.to_string(),
-                    bind_address: string_field(&path, protocol_value, "bind_address")?
-                        .parse()
-                        .map_err(|_| invalid(&path, "invalid E1.31 bind address"))?,
-                    priority: u8::try_from(u32_field(&path, protocol_value, "priority")?)
-                        .map_err(|_| invalid(&path, "E1.31 priority must be a u8"))?,
-                    mode,
-                })
-            }
-            "artnet" => {
-                require_allowed_mapping_keys(
-                    &path,
-                    protocol_value,
-                    &["type", "bind_address", "destination", "mode"],
-                    "Art-Net protocol",
-                )?;
-                ControllerProtocol::ArtNet(ArtNetConfig {
-                    bind_address: string_field(&path, protocol_value, "bind_address")?
-                        .parse()
-                        .map_err(|_| invalid(&path, "invalid Art-Net bind socket"))?,
-                    destination: string_field(&path, protocol_value, "destination")?
-                        .parse()
-                        .map_err(|_| invalid(&path, "invalid Art-Net destination socket"))?,
-                    mode: match string_field(&path, protocol_value, "mode")? {
-                        "unicast" => ArtNetMode::Unicast,
-                        "broadcast" => ArtNetMode::Broadcast,
+                                .map_err(|_| invalid(&path, "invalid Art-Net bind socket"))?,
+                            destination: protocol_fields.string("destination")?.parse().map_err(
+                                |_| invalid(&path, "invalid Art-Net destination socket"),
+                            )?,
+                            mode: match protocol_fields.string("mode")? {
+                                "unicast" => ArtNetMode::Unicast,
+                                "broadcast" => ArtNetMode::Broadcast,
+                                other => {
+                                    return Err(invalid(
+                                        &path,
+                                        &format!("invalid Art-Net mode `{other}`"),
+                                    ));
+                                }
+                            },
+                        }),
                         other => {
-                            return Err(invalid(&path, &format!("invalid Art-Net mode `{other}`")));
+                            return Err(invalid(
+                                &path,
+                                &format!("unsupported controller protocol `{other}`"),
+                            ));
                         }
-                    },
+                    })
+                },
+            )?;
+            let ports = fields
+                .sequence("ports")?
+                .iter()
+                .map(|port| {
+                    parse_mapping(&path, port, "controller port", |port_fields| {
+                        let id = ControllerPortId(port_fields.u32("id")?);
+                        let slot_count = u16::try_from(port_fields.u32("slot_count")?)
+                            .map_err(|_| invalid(&path, "controller slot count must be a u16"))?;
+                        let address = match &protocol {
+                            ControllerProtocol::E131(_) => ControllerPortAddress::E131Universe(
+                                u16::try_from(port_fields.u32("universe")?)
+                                    .map_err(|_| invalid(&path, "E1.31 universe must be a u16"))?,
+                            ),
+                            ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(
+                                u16::try_from(port_fields.u32("port_address")?).map_err(|_| {
+                                    invalid(&path, "Art-Net port address must be a u16")
+                                })?,
+                            ),
+                        };
+                        Ok(ControllerPort {
+                            id,
+                            address,
+                            slot_count,
+                        })
+                    })
                 })
-            }
-            other => {
-                return Err(invalid(
-                    &path,
-                    &format!("unsupported controller protocol `{other}`"),
-                ));
-            }
-        };
-        let ports = sequence_values(&path, &value, "ports")?
-            .iter()
-            .map(|port| {
-                let fields: &[&str] = match &protocol {
-                    ControllerProtocol::E131(_) => &["id", "slot_count", "universe"],
-                    ControllerProtocol::ArtNet(_) => &["id", "slot_count", "port_address"],
-                };
-                require_allowed_mapping_keys(&path, port, fields, "controller port")?;
-                let id = ControllerPortId(u32_field(&path, port, "id")?);
-                let slot_count = u16::try_from(u32_field(&path, port, "slot_count")?)
-                    .map_err(|_| invalid(&path, "controller slot count must be a u16"))?;
-                let address = match &protocol {
-                    ControllerProtocol::E131(_) => ControllerPortAddress::E131Universe(
-                        u16::try_from(u32_field(&path, port, "universe")?)
-                            .map_err(|_| invalid(&path, "E1.31 universe must be a u16"))?,
-                    ),
-                    ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(
-                        u16::try_from(u32_field(&path, port, "port_address")?)
-                            .map_err(|_| invalid(&path, "Art-Net port address must be a u16"))?,
-                    ),
-                };
-                Ok(ControllerPort {
-                    id,
-                    address,
-                    slot_count,
-                })
-            })
-            .collect::<Result<Vec<_>, LoadProjectError>>()?;
-        let controller = Controller { protocol, ports };
-        controller
-            .validate()
-            .map_err(|error| invalid(&path, &format!("invalid controller: {error:?}")))?;
-        self.project.controllers.insert(id.clone(), controller);
-        Ok(())
+                .collect::<Result<Vec<_>, LoadProjectError>>()?;
+            let controller = Controller { protocol, ports };
+            controller
+                .validate()
+                .map_err(|error| invalid(&path, &format!("invalid controller: {error:?}")))?;
+            self.project.controllers.insert(id.clone(), controller);
+            Ok(())
+        })
     }
 
     pub(super) fn resolve_fixture(
@@ -205,31 +196,31 @@ impl DomainResolver<'_> {
         let (document, _, value) = self
             .loader
             .object_value(&ResolvedObject::FixtureDefinition(id.clone()))?;
-        require_allowed_mapping_keys(
-            document.path(),
-            &value,
-            &["type", "pixels"],
-            "fixture definition",
-        )?;
-        let pixels = sequence_values(document.path(), &value, "pixels")?
-            .iter()
-            .map(|value| Self::parse_pixel(&document, value))
-            .collect::<Result<Vec<_>, _>>()?;
-        self.project
-            .definitions
-            .fixtures
-            .definitions
-            .insert(id.clone(), FixtureDefinition { pixels });
-        Ok(())
+
+        parse_mapping(document.path(), &value, "fixture definition", |fields| {
+            fields.string("type")?;
+            let pixels = fields
+                .sequence("pixels")?
+                .iter()
+                .map(|value| Self::parse_pixel(&document, value))
+                .collect::<Result<Vec<_>, _>>()?;
+            self.project
+                .definitions
+                .fixtures
+                .definitions
+                .insert(id.clone(), FixtureDefinition { pixels });
+            Ok(())
+        })
     }
 
     fn fixture_reference(
         &self,
         document: &DocumentId,
-        value: &Value,
+
+        fields: &MappingReader<'_>,
         key: &str,
     ) -> Result<FixtureDefinitionId, LoadProjectError> {
-        let reference = string_field(document.path(), value, key)?;
+        let reference = fields.string(key)?;
         match self.loader.resolve_reference(document, reference)? {
             ResolvedObject::FixtureDefinition(id) => Ok(id),
             _ => Err(invalid(
@@ -241,25 +232,29 @@ impl DomainResolver<'_> {
 
     fn parse_pixel(document: &DocumentId, value: &Value) -> Result<Pixel, LoadProjectError> {
         let path = document.path();
-        require_allowed_mapping_keys(path, value, &["id", "position", "diameter"], "pixel")?;
-        let diameter = required_field(path, value, "diameter")?
-            .as_f64()
-            .ok_or_else(|| invalid(path, "Pixel diameter must be a number."))?;
-        if !diameter.is_finite() || diameter < 0.000001 || diameter > 100.0 {
-            return Err(invalid(
-                path,
-                "Pixel diameter must be between 0.000001 and 100 meters.",
-            ));
-        }
-        Ok(Pixel {
-            id: PixelId(u32_field(path, value, "id")?),
-            position: optional_field(value, "position")
-                .map(|point| parse_point3(path, point))
-                .transpose()?
-                .unwrap_or_default(),
-            diameter: donder_language::values::DistanceSpan {
-                micrometers: (diameter * 1_000_000.0).round() as u32,
-            },
+
+        parse_mapping(path, value, "pixel", |fields| {
+            let diameter = fields
+                .required("diameter")?
+                .as_f64()
+                .ok_or_else(|| invalid(path, "Pixel diameter must be a number."))?;
+            if !diameter.is_finite() || diameter < 0.000001 || diameter > 100.0 {
+                return Err(invalid(
+                    path,
+                    "Pixel diameter must be between 0.000001 and 100 meters.",
+                ));
+            }
+            Ok(Pixel {
+                id: PixelId(fields.u32("id")?),
+                position: fields
+                    .optional("position")
+                    .map(|point| parse_point3(path, point))
+                    .transpose()?
+                    .unwrap_or_default(),
+                diameter: donder_language::values::DistanceSpan {
+                    micrometers: (diameter * 1_000_000.0).round() as u32,
+                },
+            })
         })
     }
 
@@ -270,19 +265,23 @@ impl DomainResolver<'_> {
         let (document, _, value) = self
             .loader
             .object_value(&ResolvedObject::Layout(id.clone()))?;
-        require_allowed_mapping_keys(document.path(), &value, &["type", "fixtures"], "layout")?;
-        let fixtures = sequence_values(document.path(), &value, "fixtures")?
-            .iter()
-            .map(|value| self.parse_layout_fixture(&document, value))
-            .collect::<Result<_, _>>()?;
-        self.project.layouts.insert(
-            id.clone(),
-            Layout {
-                id: id.clone(),
-                fixtures,
-            },
-        );
-        Ok(())
+
+        parse_mapping(document.path(), &value, "layout", |fields| {
+            fields.string("type")?;
+            let fixtures = fields
+                .sequence("fixtures")?
+                .iter()
+                .map(|value| self.parse_layout_fixture(&document, value))
+                .collect::<Result<_, _>>()?;
+            self.project.layouts.insert(
+                id.clone(),
+                Layout {
+                    id: id.clone(),
+                    fixtures,
+                },
+            );
+            Ok(())
+        })
     }
 
     fn parse_layout_fixture(
@@ -291,39 +290,27 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<LayoutFixture, LoadProjectError> {
         let path = document.path();
-        let kind = match string_field(path, value, "type")? {
-            "fixture" => {
-                require_allowed_mapping_keys(
-                    path,
-                    value,
-                    &["type", "id", "name", "transform", "definition"],
-                    "fixture instance",
-                )?;
-                LayoutFixtureKind::Fixture {
-                    definition: self.fixture_reference(document, value, "definition")?,
-                    transform: parse_fixture_transform(path, optional_field(value, "transform"))?,
-                }
-            }
-            "group" => {
-                require_allowed_mapping_keys(
-                    path,
-                    value,
-                    &["type", "id", "name", "children"],
-                    "layout group",
-                )?;
-                LayoutFixtureKind::Group {
-                    children: sequence_values(path, value, "children")?
+
+        parse_mapping(path, value, "layout fixture", |fields| {
+            let kind = match fields.string("type")? {
+                "fixture" => LayoutFixtureKind::Fixture {
+                    definition: self.fixture_reference(document, fields, "definition")?,
+                    transform: parse_fixture_transform(path, fields.optional("transform"))?,
+                },
+                "group" => LayoutFixtureKind::Group {
+                    children: fields
+                        .sequence("children")?
                         .iter()
                         .map(|child| self.parse_layout_fixture(document, child))
                         .collect::<Result<_, _>>()?,
-                }
-            }
-            _ => return Err(invalid(path, "Expected fixture or group.")),
-        };
-        Ok(LayoutFixture {
-            id: FixtureInstanceId(u32_field(path, value, "id")?),
-            name: string_field(path, value, "name")?.to_owned(),
-            kind,
+                },
+                _ => return Err(invalid(path, "Expected fixture or group.")),
+            };
+            Ok(LayoutFixture {
+                id: FixtureInstanceId(fields.u32("id")?),
+                name: fields.string("name")?.to_owned(),
+                kind,
+            })
         })
     }
 
@@ -334,19 +321,23 @@ impl DomainResolver<'_> {
         let (document, _, value) = self
             .loader
             .object_value(&ResolvedObject::Patch(id.clone()))?;
-        require_allowed_mapping_keys(document.path(), &value, &["type", "routes"], "patch")?;
-        let routes = sequence_values(document.path(), &value, "routes")?
-            .iter()
-            .map(|value| self.parse_pixel_route(&document, value))
-            .collect::<Result<_, _>>()?;
-        self.project.patches.insert(
-            id.clone(),
-            Patch {
-                id: id.clone(),
-                routes,
-            },
-        );
-        Ok(())
+
+        parse_mapping(document.path(), &value, "patch", |fields| {
+            fields.string("type")?;
+            let routes = fields
+                .sequence("routes")?
+                .iter()
+                .map(|value| self.parse_pixel_route(&document, value))
+                .collect::<Result<_, _>>()?;
+            self.project.patches.insert(
+                id.clone(),
+                Patch {
+                    id: id.clone(),
+                    routes,
+                },
+            );
+            Ok(())
+        })
     }
 
     fn parse_fixture_target(
@@ -355,17 +346,19 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<FixtureTarget, LoadProjectError> {
         let path = document.path();
-        require_allowed_mapping_keys(path, value, &["layout", "fixture"], "fixture target")?;
-        let layout = match self
-            .loader
-            .resolve_reference(document, string_field(path, value, "layout")?)?
-        {
-            ResolvedObject::Layout(id) => id,
-            _ => return Err(invalid(path, "Expected a layout reference.")),
-        };
-        Ok(FixtureTarget {
-            layout,
-            fixture: FixtureInstanceId(u32_field(path, value, "fixture")?),
+
+        parse_mapping(path, value, "fixture target", |fields| {
+            let layout = match self
+                .loader
+                .resolve_reference(document, fields.string("layout")?)?
+            {
+                ResolvedObject::Layout(id) => id,
+                _ => return Err(invalid(path, "Expected a layout reference.")),
+            };
+            Ok(FixtureTarget {
+                layout,
+                fixture: FixtureInstanceId(fields.u32("fixture")?),
+            })
         })
     }
 
@@ -375,74 +368,68 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<PixelRoute, LoadProjectError> {
         let path = document.path();
-        require_allowed_mapping_keys(
-            path,
-            value,
-            &[
-                "id",
-                "target",
-                "pixels",
-                "controller",
-                "port",
-                "start_slot",
-                "encoding",
-                "gamma",
-                "brightness",
-            ],
-            "LED route",
-        )?;
-        let controller = match self
-            .loader
-            .resolve_reference(document, string_field(path, value, "controller")?)?
-        {
-            ResolvedObject::Controller(id) => id,
-            _ => return Err(invalid(path, "Expected a controller reference.")),
-        };
-        let pixels = optional_field(value, "pixels")
-            .map(|span| {
-                require_allowed_mapping_keys(path, span, &["start", "count"], "output pixel span")?;
-                Ok::<_, LoadProjectError>(PixelSpan {
-                    start: u32_field(path, span, "start")?,
-                    count: u32_field(path, span, "count")?,
+
+        parse_mapping(path, value, "LED route", |fields| {
+            let controller = match self
+                .loader
+                .resolve_reference(document, fields.string("controller")?)?
+            {
+                ResolvedObject::Controller(id) => id,
+                _ => return Err(invalid(path, "Expected a controller reference.")),
+            };
+            let pixels = fields
+                .optional("pixels")
+                .map(|span| {
+                    parse_mapping(path, span, "output pixel span", |span_fields| {
+                        Ok::<_, LoadProjectError>(PixelSpan {
+                            start: span_fields.u32("start")?,
+                            count: span_fields.u32("count")?,
+                        })
+                    })
                 })
-            })
-            .transpose()?;
-        let encoding = required_field(path, value, "encoding")?;
-        require_allowed_mapping_keys(path, encoding, &["type", "order"], "pixel encoding")?;
-        let order = sequence_values(path, encoding, "order")?
-            .iter()
-            .map(|channel| {
-                channel
-                    .as_u64()
-                    .and_then(|channel| u8::try_from(channel).ok())
-                    .ok_or_else(|| invalid(path, "Channel order must contain byte indices."))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let encoding = match string_field(path, encoding, "type")? {
-            "rgb" => PixelEncoding::Rgb {
-                order: order
+                .transpose()?;
+            let encoding = fields.required("encoding")?;
+            let encoding = parse_mapping(path, encoding, "pixel encoding", |encoding_fields| {
+                let order = encoding_fields
+                    .sequence("order")?
+                    .iter()
+                    .map(|channel| {
+                        channel
+                            .as_u64()
+                            .and_then(|channel| u8::try_from(channel).ok())
+                            .ok_or_else(|| {
+                                invalid(path, "Channel order must contain byte indices.")
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(match encoding_fields.string("type")? {
+                    "rgb" => PixelEncoding::Rgb {
+                        order: order
+                            .try_into()
+                            .map_err(|_| invalid(path, "RGB needs three channel indices."))?,
+                    },
+                    "rgbw" => PixelEncoding::Rgbw {
+                        order: order
+                            .try_into()
+                            .map_err(|_| invalid(path, "RGBW needs four channel indices."))?,
+                    },
+                    _ => return Err(invalid(path, "Expected rgb or rgbw encoding.")),
+                })
+            })?;
+            Ok(PixelRoute {
+                id: PixelRouteId(fields.u32("id")?),
+                target: self.parse_fixture_target(document, fields.required("target")?)?,
+                pixels,
+                controller,
+                port: ControllerPortId(fields.u32("port")?),
+                start_slot: fields
+                    .u32("start_slot")?
                     .try_into()
-                    .map_err(|_| invalid(path, "RGB needs three channel indices."))?,
-            },
-            "rgbw" => PixelEncoding::Rgbw {
-                order: order
-                    .try_into()
-                    .map_err(|_| invalid(path, "RGBW needs four channel indices."))?,
-            },
-            _ => return Err(invalid(path, "Expected rgb or rgbw encoding.")),
-        };
-        Ok(PixelRoute {
-            id: PixelRouteId(u32_field(path, value, "id")?),
-            target: self.parse_fixture_target(document, required_field(path, value, "target")?)?,
-            pixels,
-            controller,
-            port: ControllerPortId(u32_field(path, value, "port")?),
-            start_slot: u32_field(path, value, "start_slot")?
-                .try_into()
-                .map_err(|_| invalid(path, "Start slot is out of range."))?,
-            encoding,
-            gamma: f32_field(path, value, "gamma")?,
-            brightness: f32_field(path, value, "brightness")?,
+                    .map_err(|_| invalid(path, "Start slot is out of range."))?,
+                encoding,
+                gamma: fields.f32("gamma")?,
+                brightness: fields.f32("brightness")?,
+            })
         })
     }
 
@@ -454,92 +441,86 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::Sequence(id.clone()))?;
         let document_path = document_id.path().to_path_buf();
-        require_allowed_mapping_keys(
-            &document_path,
-            &value,
-            &[
-                "type",
-                "duration",
-                "frame_rate",
-                "audio",
-                "mark_collections",
-                "layers",
-                "effects",
-                "composition_graph",
-                "automation_clips",
-            ],
-            "sequence",
-        )?;
-        let duration =
-            parse_duration(string_field(&document_path, &value, "duration")?).map_err(|error| {
+
+        parse_mapping(&document_path, &value, "sequence", |fields| {
+            fields.string("type")?;
+            let duration = parse_duration(fields.string("duration")?).map_err(|error| {
                 with_yaml_location(
                     error,
                     &document_path,
                     source_range_for_field_value(&document_path, &value, "duration"),
                 )
             })?;
-        let audio = self.parse_audio(&document_id, &value)?;
-        let mark_collections = optional_sequence(&document_path, &value, "mark_collections")?
-            .into_iter()
-            .flatten()
-            .map(|collection| parse_mark_collection(&document_path, collection))
-            .collect::<Result<Vec<_>, _>>()?;
-        let layers = sequence_values(&document_path, &value, "layers")?
-            .iter()
-            .map(|layer| parse_sequence_layer(&document_path, layer))
-            .collect::<Result<Vec<_>, _>>()?;
-        let effects = sequence_values(&document_path, &value, "effects")?
-            .iter()
-            .map(|effect| self.parse_sequence_effect(&document_id, effect))
-            .collect::<Result<Vec<_>, _>>()?;
-        let composition_graph = self.parse_composition_graph(
-            &document_id,
-            required_field(&document_path, &value, "composition_graph")?,
-        )?;
-        let automation_clips = optional_sequence(&document_path, &value, "automation_clips")?
-            .into_iter()
-            .flatten()
-            .map(|clip| self.parse_automation_clip(&document_path, clip))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut automation_targets = IndexSet::new();
-        for target in automation_clips.iter().flat_map(|clip| {
-            clip.bindings
+            let audio = self.parse_audio(&document_id, fields)?;
+            let mark_collections = fields
+                .optional_sequence("mark_collections")?
+                .into_iter()
+                .flatten()
+                .map(|collection| parse_mark_collection(&document_path, collection))
+                .collect::<Result<Vec<_>, _>>()?;
+            let layers = fields
+                .sequence("layers")?
                 .iter()
-                .map(|binding| &binding.target)
-                .chain(clip.detached_bindings.iter().map(|binding| &binding.target))
-        }) {
-            if !automation_targets.insert(target.clone()) {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: document_path.clone(),
-                    range: source_range_for_field_value(&document_path, &value, "automation_clips"),
-                    message: "sequence has duplicate automation targets".to_string(),
-                });
+                .map(|layer| parse_sequence_layer(&document_path, layer))
+                .collect::<Result<Vec<_>, _>>()?;
+            let effects = fields
+                .sequence("effects")?
+                .iter()
+                .map(|effect| self.parse_sequence_effect(&document_id, effect))
+                .collect::<Result<Vec<_>, _>>()?;
+            let composition_graph =
+                self.parse_composition_graph(&document_id, fields.required("composition_graph")?)?;
+            let automation_clips = fields
+                .optional_sequence("automation_clips")?
+                .into_iter()
+                .flatten()
+                .map(|clip| self.parse_automation_clip(&document_path, clip))
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut automation_targets = IndexSet::new();
+            for target in automation_clips.iter().flat_map(|clip| {
+                clip.bindings
+                    .iter()
+                    .map(|binding| &binding.target)
+                    .chain(clip.detached_bindings.iter().map(|binding| &binding.target))
+            }) {
+                if !automation_targets.insert(target.clone()) {
+                    return Err(LoadProjectError::InvalidDocument {
+                        path: document_path.clone(),
+                        range: source_range_for_field_value(
+                            &document_path,
+                            &value,
+                            "automation_clips",
+                        ),
+                        message: "sequence has duplicate automation targets".to_string(),
+                    });
+                }
             }
-        }
-        self.project.sequences.insert(
-            id.clone(),
-            Sequence {
-                id: id.clone(),
-                duration,
-                frame_rate: u32_field(&document_path, &value, "frame_rate")?,
-                audio,
-                mark_collections,
-                layers,
-                effects,
-                composition_graph,
-                automation_clips,
-            },
-        );
-        Ok(())
+            self.project.sequences.insert(
+                id.clone(),
+                Sequence {
+                    id: id.clone(),
+                    duration,
+                    frame_rate: fields.u32("frame_rate")?,
+                    audio,
+                    mark_collections,
+                    layers,
+                    effects,
+                    composition_graph,
+                    automation_clips,
+                },
+            );
+            Ok(())
+        })
     }
 
     pub(super) fn parse_audio(
         &mut self,
         document_id: &donder_language::identity::DocumentId,
-        value: &Value,
+
+        fields: &MappingReader<'_>,
     ) -> Result<SequenceAudio, LoadProjectError> {
         let path = document_id.path();
-        let Some(audio) = optional_field(value, "audio") else {
+        let Some(audio) = fields.optional("audio") else {
             return Ok(SequenceAudio::None);
         };
         if matches!(audio, Value::Null) {
@@ -609,32 +590,32 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<EffectInst, LoadProjectError> {
         let path = document_id.path();
-        let definition = self.parse_effect_definition(document_id, value)?;
-        let param_overrides = self.parse_param_overrides(document_id, value)?;
-        Ok(EffectInst {
-            id: EffectInstId(u32_field(path, value, "id")?),
-            layer_id: SequenceLayerId(u32_field(path, value, "layer_id")?),
-            start: parse_duration_as_time(string_field(path, value, "start")?).map_err(
-                |error| {
+
+        parse_mapping(path, value, "effect instance", |fields| {
+            let definition = self.parse_effect_definition(document_id, value, fields)?;
+            let param_overrides = self.parse_param_overrides(document_id, fields)?;
+            Ok(EffectInst {
+                id: EffectInstId(fields.u32("id")?),
+                layer_id: SequenceLayerId(fields.u32("layer_id")?),
+                start: parse_duration_as_time(fields.string("start")?).map_err(|error| {
                     with_yaml_location(
                         error,
                         path,
                         source_range_for_field_value(path, value, "start"),
                     )
-                },
-            )?,
-            duration: parse_duration(string_field(path, value, "duration")?).map_err(|error| {
-                with_yaml_location(
-                    error,
-                    path,
-                    source_range_for_field_value(path, value, "duration"),
-                )
-            })?,
-            target: self
-                .parse_fixture_target(document_id, required_field(path, value, "target")?)?,
-            scope: parse_effect_scope(path, value)?,
-            definition,
-            param_overrides,
+                })?,
+                duration: parse_duration(fields.string("duration")?).map_err(|error| {
+                    with_yaml_location(
+                        error,
+                        path,
+                        source_range_for_field_value(path, value, "duration"),
+                    )
+                })?,
+                target: self.parse_fixture_target(document_id, fields.required("target")?)?,
+                scope: parse_effect_scope(path, value, fields)?,
+                definition,
+                param_overrides,
+            })
         })
     }
 
@@ -644,24 +625,29 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<SequenceCompositionGraph, LoadProjectError> {
         let path = document_id.path();
-        let graph = SequenceCompositionGraph {
-            nodes: sequence_values(path, value, "nodes")?
-                .iter()
-                .map(|node| self.parse_composition_graph_node(document_id, node))
-                .collect::<Result<Vec<_>, _>>()?,
-            edges: sequence_values(path, value, "edges")?
-                .iter()
-                .map(|edge| parse_graph_edge(path, edge))
-                .collect::<Result<Vec<_>, _>>()?,
-        };
-        validate_composition_graph(&graph, &self.project.definitions.operators).map_err(
-            |error| LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: error.message,
-            },
-        )?;
-        Ok(graph)
+
+        parse_mapping(path, value, "composition graph", |fields| {
+            let graph = SequenceCompositionGraph {
+                nodes: fields
+                    .sequence("nodes")?
+                    .iter()
+                    .map(|node| self.parse_composition_graph_node(document_id, node))
+                    .collect::<Result<Vec<_>, _>>()?,
+                edges: fields
+                    .sequence("edges")?
+                    .iter()
+                    .map(|edge| parse_graph_edge(path, edge))
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            validate_composition_graph(&graph, &self.project.definitions.operators).map_err(
+                |error| LoadProjectError::InvalidDocument {
+                    path: path.to_path_buf(),
+                    range: None,
+                    message: error.message,
+                },
+            )?;
+            Ok(graph)
+        })
     }
 
     pub(super) fn parse_composition_graph_node(
@@ -670,27 +656,30 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<CompositionGraphNode, LoadProjectError> {
         let path = document_id.path();
-        let kind = match string_field(path, value, "type")? {
-            "layer" => CompositionGraphNodeKind::Layer {
-                layer_id: SequenceLayerId(u32_field(path, value, "layer_id")?),
-            },
-            "operator" => CompositionGraphNodeKind::Operator(GraphOperatorNode {
-                operator: self.parse_graph_operator_ref(document_id, value)?,
-                params: self.parse_graph_operator_params(document_id, value)?,
-            }),
-            "output" => CompositionGraphNodeKind::Output,
-            other => {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_field_value(path, value, "type"),
-                    message: format!("unsupported composition graph node type `{other}`"),
-                });
-            }
-        };
-        Ok(CompositionGraphNode {
-            id: CompositionGraphNodeId(u32_field(path, value, "id")?),
-            position: parse_graph_position(path, required_field(path, value, "position")?)?,
-            kind,
+
+        parse_mapping(path, value, "graph node", |fields| {
+            let kind = match fields.string("type")? {
+                "layer" => CompositionGraphNodeKind::Layer {
+                    layer_id: SequenceLayerId(fields.u32("layer_id")?),
+                },
+                "operator" => CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                    operator: self.parse_graph_operator_ref(document_id, value, fields)?,
+                    params: self.parse_param_overrides(document_id, fields)?,
+                }),
+                "output" => CompositionGraphNodeKind::Output,
+                other => {
+                    return Err(LoadProjectError::InvalidDocument {
+                        path: path.to_path_buf(),
+                        range: source_range_for_field_value(path, value, "type"),
+                        message: format!("unsupported composition graph node type `{other}`"),
+                    });
+                }
+            };
+            Ok(CompositionGraphNode {
+                id: CompositionGraphNodeId(fields.u32("id")?),
+                position: parse_graph_position(path, fields.required("position")?)?,
+                kind,
+            })
         })
     }
 
@@ -698,9 +687,10 @@ impl DomainResolver<'_> {
         &mut self,
         document_id: &donder_language::identity::DocumentId,
         value: &Value,
+        fields: &MappingReader<'_>,
     ) -> Result<EffectRef, LoadProjectError> {
         let path = document_id.path();
-        let effect_ref = string_field(path, value, "effect")?;
+        let effect_ref = fields.string("effect")?;
         let reference = donder_language::imports::SourceReference::parse(effect_ref)
             .ok()
             .and_then(|reference| {
@@ -724,51 +714,33 @@ impl DomainResolver<'_> {
     fn parse_param_overrides(
         &mut self,
         document_id: &donder_language::identity::DocumentId,
-        value: &Value,
+
+        fields: &MappingReader<'_>,
     ) -> Result<IndexMap<Identifier, EffectParamValue>, LoadProjectError> {
         let path = document_id.path();
-        Ok(optional_mapping(path, value, "params")?
-            .map(|mapping| {
-                mapping
-                    .iter()
-                    .map(|(key, value)| {
-                        let key =
-                            key.as_str()
-                                .ok_or_else(|| LoadProjectError::InvalidDocument {
-                                    path: path.to_path_buf(),
-                                    range: None,
-                                    message: "parameter keys must be strings".to_string(),
-                                })?;
-                        let identifier = Identifier::new(key.to_string()).map_err(|_| {
-                            LoadProjectError::InvalidDocument {
-                                path: path.to_path_buf(),
-                                range: None,
-                                message: format!("invalid parameter name `{key}`"),
-                            }
-                        })?;
-                        Ok((identifier, self.parse_effect_param(document_id, value)?))
-                    })
-                    .collect::<Result<IndexMap<_, _>, LoadProjectError>>()
-            })
-            .transpose()?
-            .unwrap_or_else(IndexMap::new))
-    }
-
-    pub(super) fn parse_graph_operator_params(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<IndexMap<Identifier, EffectParamValue>, LoadProjectError> {
-        self.parse_param_overrides(document_id, value)
+        Ok(fields
+            .dictionary("params", |key, value| {
+                let identifier = Identifier::new(key.to_string()).map_err(|_| {
+                    LoadProjectError::InvalidDocument {
+                        path: path.to_path_buf(),
+                        range: None,
+                        message: format!("invalid parameter name `{key}`"),
+                    }
+                })?;
+                Ok((identifier, self.parse_effect_param(document_id, value)?))
+            })?
+            .into_iter()
+            .collect())
     }
 
     pub(super) fn parse_graph_operator_ref(
         &self,
         document_id: &donder_language::identity::DocumentId,
         value: &Value,
+        fields: &MappingReader<'_>,
     ) -> Result<OperatorRef, LoadProjectError> {
         let path = document_id.path();
-        let name = string_field(path, value, "operator")?;
+        let name = fields.string("operator")?;
         if let Some(builtin) = BuiltinOperator::from_source_name(name) {
             return Ok(OperatorRef::Builtin(builtin));
         }
@@ -808,28 +780,26 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<EffectParamValue, LoadProjectError> {
         let path = document_id.path();
-        let kind = string_field(path, value, "type")?;
-        let fields: &[&str] = match kind {
-            "integer" | "float" | "bool" | "color" | "enum" => &["type", "value"],
-            "marks" => &["type", "key"],
-            "curve" => &["type", "curve"],
-            "gradient" => &["type", "gradient"],
-            "array" => &["type", "values"],
-            other => {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_field_value(path, value, "type"),
-                    message: format!("unsupported effect param type `{other}`"),
-                });
-            }
-        };
-        require_allowed_mapping_keys(path, value, fields, "effect parameter value")?;
+
+        parse_mapping(path, value, "effect parameter value", |fields| {
+            self.parse_effect_param_fields(document_id, value, fields)
+        })
+    }
+
+    fn parse_effect_param_fields(
+        &mut self,
+        document_id: &DocumentId,
+        value: &Value,
+        fields: &MappingReader<'_>,
+    ) -> Result<EffectParamValue, LoadProjectError> {
+        let path = document_id.path();
+        let kind = fields.string("type")?;
         match kind {
-            "integer" => Ok(EffectParamValue::Int(i32_field(path, value, "value")?)),
-            "float" => Ok(EffectParamValue::Float(f32_field(path, value, "value")?)),
-            "bool" => Ok(EffectParamValue::Bool(bool_field(path, value, "value")?)),
+            "integer" => Ok(EffectParamValue::Int(fields.i32("value")?)),
+            "float" => Ok(EffectParamValue::Float(fields.f32("value")?)),
+            "bool" => Ok(EffectParamValue::Bool(fields.bool("value")?)),
             "color" => Ok(EffectParamValue::Color(
-                parse_color(string_field(path, value, "value")?).map_err(|error| {
+                parse_color(fields.string("value")?).map_err(|error| {
                     with_yaml_location(
                         error,
                         path,
@@ -838,7 +808,7 @@ impl DomainResolver<'_> {
                 })?,
             )),
             "enum" => Ok(EffectParamValue::Enum(
-                Identifier::new(string_field(path, value, "value")?.to_string()).map_err(|_| {
+                Identifier::new(fields.string("value")?.to_string()).map_err(|_| {
                     LoadProjectError::InvalidDocument {
                         path: path.to_path_buf(),
                         range: None,
@@ -847,18 +817,17 @@ impl DomainResolver<'_> {
                 })?,
             )),
             "marks" => Ok(EffectParamValue::Marks(MarkCollectionKey {
-                name: string_field(path, value, "key")?.to_string(),
+                name: fields.string("key")?.to_string(),
             })),
-            "curve" => Ok(EffectParamValue::Curve(self.parse_curve_source(
-                document_id,
-                required_field(path, value, "curve")?,
-            )?)),
-            "gradient" => Ok(EffectParamValue::Gradient(self.parse_gradient_source(
-                document_id,
-                required_field(path, value, "gradient")?,
-            )?)),
+            "curve" => Ok(EffectParamValue::Curve(
+                self.parse_curve_source(document_id, fields.required("curve")?)?,
+            )),
+            "gradient" => Ok(EffectParamValue::Gradient(
+                self.parse_gradient_source(document_id, fields.required("gradient")?)?,
+            )),
             "array" => {
-                let values = sequence_values(path, value, "values")?
+                let values = fields
+                    .sequence("values")?
                     .iter()
                     .map(|item| self.parse_array_item(document_id, item))
                     .collect::<Result<Vec<_>, _>>()?;
@@ -878,20 +847,20 @@ impl DomainResolver<'_> {
         value: &Value,
     ) -> Result<EffectParamValue, LoadProjectError> {
         let path = document_id.path();
-        if optional_field(value, "type").is_some() {
-            return self.parse_effect_param(document_id, value);
-        }
-        if let Some(curve) = optional_field(value, "curve") {
-            require_allowed_mapping_keys(path, value, &["curve"], "curve array item")?;
-            return Ok(EffectParamValue::Curve(
-                self.parse_curve_source(document_id, curve)?,
-            ));
-        }
-        let gradient = required_field(path, value, "gradient")?;
-        require_allowed_mapping_keys(path, value, &["gradient"], "gradient array item")?;
-        Ok(EffectParamValue::Gradient(
-            self.parse_gradient_source(document_id, gradient)?,
-        ))
+        parse_mapping(path, value, "array item", |fields| {
+            if fields.optional("type").is_some() {
+                return self.parse_effect_param_fields(document_id, value, fields);
+            }
+            if let Some(curve) = fields.optional("curve") {
+                return Ok(EffectParamValue::Curve(
+                    self.parse_curve_source(document_id, curve)?,
+                ));
+            }
+            let gradient = fields.required("gradient")?;
+            Ok(EffectParamValue::Gradient(
+                self.parse_gradient_source(document_id, gradient)?,
+            ))
+        })
     }
 
     pub(super) fn parse_curve_source(
@@ -914,10 +883,14 @@ impl DomainResolver<'_> {
             self.resolve_curve(path, &id)?;
             return Ok(CurveSource::Reference(id));
         }
-        if let Some(curve_value) = optional_field(value, "curve") {
-            return self.parse_curve_source(document_id, curve_value);
-        }
-        Ok(CurveSource::Inline(parse_curve(path, value)?))
+        parse_mapping(path, value, "curve source", |fields| {
+            if let Some(curve_value) = fields.optional("curve") {
+                return self.parse_curve_source(document_id, curve_value);
+            }
+            Ok(CurveSource::Inline(super::parse::parse_curve_fields(
+                path, value, fields,
+            )?))
+        })
     }
 
     pub(super) fn resolve_curve(
@@ -967,10 +940,14 @@ impl DomainResolver<'_> {
             }
             return Ok(GradientSource::Reference(id));
         }
-        if let Some(gradient) = optional_field(value, "gradient") {
-            return self.parse_gradient_source(document_id, gradient);
-        }
-        Ok(GradientSource::Inline(parse_gradient(path, value)?))
+        parse_mapping(path, value, "gradient source", |fields| {
+            if let Some(gradient) = fields.optional("gradient") {
+                return self.parse_gradient_source(document_id, gradient);
+            }
+            Ok(GradientSource::Inline(super::parse::parse_gradient_fields(
+                path, fields,
+            )?))
+        })
     }
 
     pub(super) fn parse_automation_clip(
@@ -978,52 +955,55 @@ impl DomainResolver<'_> {
         path: &Utf8Path,
         value: &Value,
     ) -> Result<AutomationClip, LoadProjectError> {
-        let bindings = sequence_values(path, value, "bindings")?
-            .iter()
-            .map(|binding| parse_automation_binding(path, binding))
-            .collect::<Result<Vec<_>, _>>()?;
-        let detached_bindings = optional_sequence(path, value, "detached_bindings")?
-            .into_iter()
-            .flatten()
-            .map(|binding| parse_detached_automation_binding(path, binding))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut seen = IndexSet::new();
-        for target in bindings
-            .iter()
-            .map(|binding| &binding.target)
-            .chain(detached_bindings.iter().map(|binding| &binding.target))
-        {
-            if !seen.insert(target.clone()) {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_field_value(path, value, "bindings"),
-                    message: "automation clip has duplicate bindings for a parameter".to_string(),
-                });
+        parse_mapping(path, value, "automation clip", |fields| {
+            let bindings = fields
+                .sequence("bindings")?
+                .iter()
+                .map(|binding| parse_automation_binding(path, binding))
+                .collect::<Result<Vec<_>, _>>()?;
+            let detached_bindings = fields
+                .optional_sequence("detached_bindings")?
+                .into_iter()
+                .flatten()
+                .map(|binding| parse_detached_automation_binding(path, binding))
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut seen = IndexSet::new();
+            for target in bindings
+                .iter()
+                .map(|binding| &binding.target)
+                .chain(detached_bindings.iter().map(|binding| &binding.target))
+            {
+                if !seen.insert(target.clone()) {
+                    return Err(LoadProjectError::InvalidDocument {
+                        path: path.to_path_buf(),
+                        range: source_range_for_field_value(path, value, "bindings"),
+                        message: "automation clip has duplicate bindings for a parameter"
+                            .to_string(),
+                    });
+                }
             }
-        }
-        Ok(AutomationClip {
-            id: AutomationClipId(u32_field(path, value, "id")?),
-            start: parse_duration_as_time(string_field(path, value, "start")?).map_err(
-                |error| {
+            Ok(AutomationClip {
+                id: AutomationClipId(fields.u32("id")?),
+                start: parse_duration_as_time(fields.string("start")?).map_err(|error| {
                     with_yaml_location(
                         error,
                         path,
                         source_range_for_field_value(path, value, "start"),
                     )
-                },
-            )?,
-            duration: parse_duration(string_field(path, value, "duration")?).map_err(|error| {
-                with_yaml_location(
-                    error,
-                    path,
-                    source_range_for_field_value(path, value, "duration"),
-                )
-            })?,
-            anchor_lane_index: u32_field(path, value, "anchor_lane_index")?,
-            lane_index: u32_field(path, value, "lane_index")?,
-            curve: parse_automation_curve(path, required_field(path, value, "curve")?)?,
-            bindings,
-            detached_bindings,
+                })?,
+                duration: parse_duration(fields.string("duration")?).map_err(|error| {
+                    with_yaml_location(
+                        error,
+                        path,
+                        source_range_for_field_value(path, value, "duration"),
+                    )
+                })?,
+                anchor_lane_index: fields.u32("anchor_lane_index")?,
+                lane_index: fields.u32("lane_index")?,
+                curve: parse_automation_curve(path, fields.required("curve")?)?,
+                bindings,
+                detached_bindings,
+            })
         })
     }
 }
@@ -1060,12 +1040,10 @@ use yaml_serde::Value;
 
 use super::Loader;
 use super::parse::{
-    ResolvedObject, bool_field, f32_field, i32_field, optional_field, optional_mapping,
-    optional_sequence, parse_automation_binding, parse_automation_curve, parse_color, parse_curve,
+    ResolvedObject, parse_automation_binding, parse_automation_curve, parse_color,
     parse_detached_automation_binding, parse_duration, parse_duration_as_time, parse_effect_scope,
-    parse_gradient, parse_graph_edge, parse_graph_position, parse_mark_collection, parse_point3,
-    parse_rotation3, parse_scale3, parse_sequence_layer, require_allowed_mapping_keys,
-    required_field, sequence_field, sequence_values, string_field, u32_field,
+    parse_graph_edge, parse_graph_position, parse_mark_collection, parse_point3, parse_rotation3,
+    parse_scale3, parse_sequence_layer,
 };
 use crate::LoadProjectError;
 use crate::diagnostics::{
@@ -1080,24 +1058,23 @@ fn parse_fixture_transform(
     let Some(value) = value else {
         return Ok(FixtureTransform::default());
     };
-    require_allowed_mapping_keys(
-        path,
-        value,
-        &["position", "rotation", "scale"],
-        "fixture transform",
-    )?;
-    Ok(FixtureTransform {
-        position: optional_field(value, "position")
-            .map(|point| parse_point3(path, point))
-            .transpose()?
-            .unwrap_or_default(),
-        rotation: optional_field(value, "rotation")
-            .map(|rotation| parse_rotation3(path, rotation))
-            .transpose()?
-            .unwrap_or_default(),
-        scale: optional_field(value, "scale")
-            .map(|scale| parse_scale3(path, scale))
-            .transpose()?
-            .unwrap_or_default(),
+    parse_mapping(path, value, "fixture transform", |fields| {
+        Ok(FixtureTransform {
+            position: fields
+                .optional("position")
+                .map(|point| parse_point3(path, point))
+                .transpose()?
+                .unwrap_or_default(),
+            rotation: fields
+                .optional("rotation")
+                .map(|rotation| parse_rotation3(path, rotation))
+                .transpose()?
+                .unwrap_or_default(),
+            scale: fields
+                .optional("scale")
+                .map(|scale| parse_scale3(path, scale))
+                .transpose()?
+                .unwrap_or_default(),
+        })
     })
 }

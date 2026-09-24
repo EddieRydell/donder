@@ -1,3 +1,6 @@
+pub(crate) mod inspection;
+use inspection::string_field;
+pub(crate) mod mapping;
 use crate::imports::parse_imports;
 use donder_language::fixture::FixtureDefinitionId;
 use donder_language::imports::SourceReference;
@@ -6,9 +9,7 @@ pub(crate) mod parse;
 mod resolve;
 
 pub(crate) use parse::mapping;
-use parse::{
-    ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, sequence_field, string_field,
-};
+use parse::{ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, parse_project_fields};
 use resolve::DomainResolver;
 
 pub(super) struct Loader {
@@ -502,9 +503,12 @@ impl Loader {
             })?;
             let object_type = string_field(relative, object_value, "type")?;
             let object = match object_type {
-                "project" => ResolvedObject::Project(ProjectId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
+                "project" => {
+                    parse_project_fields(relative, object_value)?;
+                    ResolvedObject::Project(ProjectId(
+                        self.source_identity(document_id, key.to_string()),
+                    ))
+                }
                 "setup" => ResolvedObject::Setup(SetupId(
                     self.source_identity(document_id, key.to_string()),
                 )),
@@ -608,11 +612,10 @@ impl Loader {
                     .to_string(),
             ),
         );
-        let setup = self.reference_as_setup(
-            entrypoint,
-            string_field(entrypoint.path(), root_object.value, "setup")?,
-        )?;
-        let sequences = sequence_field(entrypoint.path(), root_object.value, "sequences")?
+        let (setup_ref, sequence_refs) =
+            parse_project_fields(entrypoint.path(), root_object.value)?;
+        let setup = self.reference_as_setup(entrypoint, &setup_ref)?;
+        let sequences = sequence_refs
             .iter()
             .map(|reference| self.reference_as_sequence(entrypoint, reference))
             .collect::<Result<Vec<_>, _>>()?;

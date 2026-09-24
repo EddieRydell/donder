@@ -81,13 +81,13 @@ fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
             "layouts/outputs.layout.donder",
             "    name: All Outputs",
             4,
-            "layout group",
+            "layout fixture",
         ),
         (
             "layouts/outputs.layout.donder",
             "      name: Output 01",
             6,
-            "fixture instance",
+            "layout fixture",
         ),
         (
             "layouts/outputs.layout.donder",

@@ -206,13 +206,21 @@ fn parameter_variants_and_array_shorthands_reject_extra_keys() {
     let path = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
     let original = donder_project_io::project_source_texts(&root).unwrap();
     let mut payloads: Vec<_> = [
-        "integer", "float", "bool", "color", "enum", "marks", "curve", "gradient", "array",
+        ("integer", "value: 6"),
+        ("float", "value: 0.5"),
+        ("bool", "value: true"),
+        ("color", "value: '#ffffff'"),
+        ("enum", "value: test"),
+        ("marks", "key: marks"),
+        ("curve", "curve: curves.ease_down"),
+        ("gradient", "gradient: gradients.ember_core_gradient"),
+        ("array", "values: []"),
     ]
     .iter()
-    .map(|kind| format!("type: {kind}\n        unexpected: 1"))
+    .map(|(kind, body)| format!("type: {kind}\n        {body}\n        unexpected: 1"))
     .collect();
     payloads.extend([
-        "type: array\n        values:\n        - type: float\n          unexpected: 1".into(),
+        "type: array\n        values:\n        - type: float\n          value: 0.5\n          unexpected: 1".into(),
         "type: array\n        values:\n        - curve: curves.ease_down\n          unexpected: 1".into(),
         "type: array\n        values:\n        - gradient: gradients.ember_core_gradient\n          unexpected: 1".into(),
     ]);

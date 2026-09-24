@@ -11,10 +11,11 @@ use crate::diagnostics::{
     load_error_diagnostic, parse_yaml_value, push_diagnostic, source_range_for_field_value,
     source_range_for_value, with_yaml_location,
 };
-use crate::loader::parse::{
-    bool_field, f32_field, mapping, optional_sequence, parse_color, parse_duration,
-    parse_duration_as_time, required_field, sequence_values, string_field, u32_field,
+use crate::loader::inspection::{
+    bool_field, f32_field, optional_sequence, required_field, sequence_values, string_field,
+    u32_field,
 };
+use crate::loader::parse::{mapping, parse_color, parse_duration, parse_duration_as_time};
 use crate::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, SourceDocumentFormat,
     SourceObjectKind, TextPosition, TextRange, source_document_format,
