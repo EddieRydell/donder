@@ -15,6 +15,18 @@ pub(crate) fn sequence_viewport_key(path: &str, object_key: &str) -> String {
     format!("{path}::{object_key}")
 }
 
+fn remap_object_views<T>(views: &mut BTreeMap<String, T>, source: &str, destination: &str) {
+    *views = std::mem::take(views)
+        .into_iter()
+        .map(|(key, state)| {
+            let remapped = key.split_once("::").map_or(key.clone(), |(path, object)| {
+                sequence_viewport_key(&remap_workspace_path(path, source, destination), object)
+            });
+            (remapped, state)
+        })
+        .collect();
+}
+
 #[derive(Debug, Default)]
 pub struct PersistenceService {
     inner: Mutex<PersistenceInner>,
@@ -128,6 +140,37 @@ impl PersistenceService {
         inner.save_now()
     }
 
+    pub fn record_graph_view(
+        &self,
+        project_root: &str,
+        update: PersistedGraphViewStateUpdate,
+    ) -> Result<(), String> {
+        if update.state.viewport.as_ref().is_some_and(|view| {
+            !view.x.is_finite() || !view.y.is_finite() || !view.zoom.is_finite() || view.zoom <= 0.0
+        }) || update.state.node_sizes.values().any(|size| {
+            !size.width.is_finite()
+                || !size.height.is_finite()
+                || size.width <= 0.0
+                || size.height <= 0.0
+        }) {
+            return Err("Graph view geometry must be finite with positive sizes and zoom.".into());
+        }
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Ok(());
+        }
+        let session = inner
+            .store
+            .projects
+            .entry(project_root.to_string())
+            .or_insert_with(PersistedProjectSession::new);
+        session.graph_views.insert(
+            sequence_viewport_key(&update.path, &update.object_key),
+            update.state,
+        );
+        inner.save_now()
+    }
+
     pub fn remap_project_paths(
         &self,
         project_root: &str,
@@ -151,15 +194,8 @@ impl PersistenceService {
             .into_iter()
             .map(|(path, state)| (remap_workspace_path(&path, source, destination), state))
             .collect();
-        session.sequence_viewports = std::mem::take(&mut session.sequence_viewports)
-            .into_iter()
-            .map(|(key, state)| {
-                let remapped = key.split_once("::").map_or(key.clone(), |(path, object)| {
-                    sequence_viewport_key(&remap_workspace_path(path, source, destination), object)
-                });
-                (remapped, state)
-            })
-            .collect();
+        remap_object_views(&mut session.sequence_viewports, source, destination);
+        remap_object_views(&mut session.graph_views, source, destination);
         session.workspace_explorer.expanded_paths = session
             .workspace_explorer
             .expanded_paths
@@ -200,11 +236,13 @@ impl PersistenceService {
             return ProjectRestoreState {
                 editor_states: BTreeMap::new(),
                 sequence_viewports: BTreeMap::new(),
+                graph_views: BTreeMap::new(),
             };
         };
         ProjectRestoreState {
             editor_states: session.editor_states.clone(),
             sequence_viewports: session.sequence_viewports.clone(),
+            graph_views: session.graph_views.clone(),
         }
     }
 

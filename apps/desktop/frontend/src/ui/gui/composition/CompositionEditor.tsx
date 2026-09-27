@@ -158,7 +158,11 @@ export function CompositionEditor({ gui }: { gui: Document }) {
             ? commands.applyFixtureGuiEdit(request, { type: "movePixel", id, delta })
             : commands.applyLayoutGuiEdit(request, { type: "moveFixture", id, delta }), origin);
           setError(null);
-        } catch (error: unknown) { reportError(error); }
+          return true;
+        } catch (error: unknown) {
+          reportError(error);
+          return false;
+        }
       };
     }} />
   </div>;

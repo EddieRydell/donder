@@ -1,0 +1,37 @@
+import { commands } from "../../../api";
+import { runGuiEditCommand } from "../../../store";
+import type { SequenceEditorDocument, SequenceGraphNode } from "../../../types";
+import type { AutomationClipChooser } from "../shared";
+import { TypedParamInput } from "./params/TypedParamInput";
+import { LayerProperties, useSequenceEditable } from "./sequenceLayers";
+
+export function GraphNodeControls({ node, document, automationClipChooser, setAutomationClipChooser }: {
+  node: SequenceGraphNode;
+  document: SequenceEditorDocument;
+  automationClipChooser: AutomationClipChooser;
+  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
+}) {
+  const editable = useSequenceEditable();
+  if (node.kind.type === "layer") {
+    const layerId = node.kind.layerId;
+    const layer = document.layers.find((item) => item.id === layerId);
+    if (layer === undefined) throw new Error(`Graph layer ${layerId} was not found.`);
+    return <div className="graph-node-layer-controls">
+      <LayerProperties layer={layer} />
+      <p>{document.effects.filter((effect) => effect.layerId === layer.id).length} effects{layer.isDefault ? " · Default layer" : ""}</p>
+    </div>;
+  }
+  if (node.kind.type !== "operator") return null;
+  return <fieldset className="graph-node-parameters" disabled={!editable} aria-label={`${node.kind.operator.type === "builtin" ? "Built-in" : "Project"} operator parameters`}>
+    {node.kind.params.map((param, index) => <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
+      <TypedParamInput param={param} commitParam={(name, value) =>
+        runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+          type: "updateGraphOperatorParam", nodeId: node.id, name, value
+        })).then(() => undefined)
+      } curveLibrary={document.curveLibrary} gradientLibrary={document.gradientLibrary} markCollections={document.markCollections}
+        automation={{ target: { type: "compositionNodeParam", nodeId: node.id, param: param.name },
+          automationClips: document.automationClips, canCreateAutomationClip: document.layers.length > 0,
+          automationClipChooser, setAutomationClipChooser }} />
+    </div>)}
+  </fieldset>;
+}

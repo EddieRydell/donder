@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use donder_preview::{
-    PreviewClockSnapshot, PreviewInstance, PreviewPlayback, PreviewPlaybackState, PreviewRenderer,
-    PreviewScene, PreviewSize, PreviewStyle,
+    PreviewClockSnapshot, PreviewInstance, PreviewPlayback, PreviewPlaybackState,
+    PreviewRenderOutcome, PreviewRenderer, PreviewScene, PreviewSize, PreviewStyle,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -83,6 +83,8 @@ struct PreviewHostApplication {
     playback: PreviewPlayback,
     style: PreviewStyle,
     next_wake: Option<Instant>,
+    fps_interval_started_at: Instant,
+    presented_frames: u32,
     closed_reported: bool,
 }
 
@@ -98,6 +100,8 @@ impl PreviewHostApplication {
             playback: PreviewPlayback::new(style.unlit_color()),
             style,
             next_wake: None,
+            fps_interval_started_at: Instant::now(),
+            presented_frames: 0,
             closed_reported: false,
         })
     }
@@ -105,7 +109,7 @@ impl PreviewHostApplication {
     fn initialize(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
         let appearance = self.startup.appearance;
         let mut attributes = Window::default_attributes()
-            .with_title("Donder Preview")
+            .with_title("Donder Preview — FPS: --")
             .with_inner_size(LogicalSize::new(
                 appearance.window_width,
                 appearance.window_height,
@@ -233,6 +237,7 @@ impl PreviewHostApplication {
         let window = self
             .window
             .as_ref()
+            .cloned()
             .ok_or_else(|| "Preview window is unavailable.".to_string())?;
         let surface = self
             .surface
@@ -243,7 +248,7 @@ impl PreviewHostApplication {
             .as_mut()
             .ok_or_else(|| "Preview renderer is unavailable.".to_string())?;
         let physical = window.inner_size();
-        renderer
+        let outcome = renderer
             .render(
                 surface,
                 PreviewSize::nonzero(physical.width, physical.height),
@@ -252,8 +257,23 @@ impl PreviewHostApplication {
                 self.style,
             )
             .map_err(|error| error.to_string())?;
+        if outcome == PreviewRenderOutcome::Presented {
+            self.record_presented_frame(&window, now);
+        }
         self.next_wake = self.playback.next_deadline(now);
         Ok(())
+    }
+
+    fn record_presented_frame(&mut self, window: &Window, now: Instant) {
+        self.presented_frames = self.presented_frames.saturating_add(1);
+        let elapsed = now.duration_since(self.fps_interval_started_at);
+        if elapsed.as_secs_f32() < 1.0 {
+            return;
+        }
+        let fps = self.presented_frames as f32 / elapsed.as_secs_f32();
+        window.set_title(&format!("Donder Preview — FPS: {fps:.1}"));
+        self.fps_interval_started_at = now;
+        self.presented_frames = 0;
     }
 
     fn report_geometry(&self, closed: bool) {

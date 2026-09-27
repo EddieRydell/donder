@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { OverlayPortal } from "../../../OverlayPortal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { ArrowDown, ArrowUp, ChevronRight, CopyPlus, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, Trash2, X } from "lucide-react";
 
@@ -615,6 +616,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
     }
     setPendingCopyAction(null);
   };
+  const portalContainer = useContext(OverlayPortal);
   const copyDialogTitle = pendingCopyAction === "flipHorizontal" || pendingCopyAction === "flipVertical"
     ? `Flip ${name} copy?`
     : `Edit ${name} copy?`;
@@ -683,7 +685,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         showName: false
       })}
       <AlertDialog.Root open={pendingCopyAction !== null} onOpenChange={(open) => { if (!open) setPendingCopyAction(null); }}>
-        <AlertDialog.Portal>
+        <AlertDialog.Portal container={portalContainer}>
           <AlertDialog.Overlay className="dialog-overlay" />
           <AlertDialog.Content className="dialog-content">
             <AlertDialog.Title>{copyDialogTitle}</AlertDialog.Title>

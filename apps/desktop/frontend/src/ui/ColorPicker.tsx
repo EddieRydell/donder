@@ -1,6 +1,7 @@
 import { THEME_COLORS, THEME_METRICS } from "../theme";
 import { normalizeHexColor } from "../color";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { OverlayPortal } from "./OverlayPortal";
 import { createPortal } from "react-dom";
 import { HexColorPicker } from "react-colorful";
 
@@ -27,6 +28,7 @@ export function ColorPicker({
   commit: (value: string) => Promise<void>;
 }) {
   const normalizedValue = normalizeHexColor(value) ?? THEME_COLORS.white;
+  const portalContainer = useContext(OverlayPortal);
   const [internalOpen, setInternalOpen] = useState(false);
   const [dismissedOpenRequestKey, setDismissedOpenRequestKey] = useState(0);
   const [pickerDraft, setPickerDraft] = useState({ value: normalizedValue, requestKey: openRequestKey });
@@ -98,7 +100,16 @@ export function ColorPicker({
   };
 
   return (
-    <div ref={rootRef} className={`color-picker ${className}`}>
+    <div ref={rootRef} className={`color-picker ${className}`} onKeyDownCapture={(event) => {
+      if (open && event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setInternalOpen(false);
+        setDismissedOpenRequestKey(openRequestKey);
+        onOpenChange?.(false);
+        triggerRef.current?.focus();
+      }
+    }}>
       <button
         ref={triggerRef}
         type="button"
@@ -159,7 +170,7 @@ export function ColorPicker({
             <NumberColorInput label="V" value={Math.round(hsv.v)} min={0} max={100} commit={(v) => { updateHsv({ ...hsv, v }); }} />
           </div>
         </div>,
-        document.body
+        portalContainer ?? document.body
       )}
     </div>
   );

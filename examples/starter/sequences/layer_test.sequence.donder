@@ -41,7 +41,7 @@ layer_test:
     enabled: true
   - id: 1
     name: Time Warp
-    color: '#f45b69'
+    color: '#e0414f'
     enabled: true
   effects:
   - id: 3
@@ -912,25 +912,25 @@ layer_test:
     nodes:
     - id: 1
       position:
-        x: 413.11151123046875
-        y: 45.88434982299805
+        x: 566.4541625976562
+        y: -474.1409912109375
       type: layer
       layer_id: 0
     - id: 2
       position:
-        x: 810.1220092773438
-        y: 176.6793212890625
+        x: 1393.0885009765625
+        y: -375.66229248046875
       type: output
     - id: 4
       position:
-        x: 360.66314697265625
-        y: 277.9154357910156
+        x: 444.03857421875
+        y: -40.094635009765625
       type: layer
       layer_id: 1
     - id: 5
       position:
-        x: 584.7223510742188
-        y: 229.77146911621094
+        x: 815.0806884765625
+        y: -62.51920700073242
       type: operator
       operator: operators.TimeWarp
     edges:

@@ -220,6 +220,7 @@ pub enum WorkspaceEntryRole {
     Project,
     Entrypoint,
     Setup,
+    Controller,
     Layout,
     Fixture,
     Patch,
@@ -239,9 +240,9 @@ pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> Works
     match kind {
         SourceObjectKind::Project => WorkspaceEntryRole::Project,
         SourceObjectKind::Setup => WorkspaceEntryRole::Setup,
-        SourceObjectKind::Layout | SourceObjectKind::FixtureDefinition => {
-            WorkspaceEntryRole::Layout
-        }
+        SourceObjectKind::Controller => WorkspaceEntryRole::Controller,
+        SourceObjectKind::Layout => WorkspaceEntryRole::Layout,
+        SourceObjectKind::FixtureDefinition => WorkspaceEntryRole::Fixture,
         SourceObjectKind::Patch => WorkspaceEntryRole::Patch,
         SourceObjectKind::Curve => WorkspaceEntryRole::Curve,
         SourceObjectKind::Gradient => WorkspaceEntryRole::Gradient,
@@ -250,7 +251,6 @@ pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> Works
             WorkspaceEntryRole::Effect
         }
         SourceObjectKind::OperatorDefinition => WorkspaceEntryRole::Operator,
-        SourceObjectKind::Controller => WorkspaceEntryRole::File,
     }
 }
 

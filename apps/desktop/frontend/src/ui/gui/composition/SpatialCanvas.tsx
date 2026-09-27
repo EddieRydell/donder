@@ -1,30 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Point3Meters, SpatialRenderPlan } from "../../../types";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, unproject } from "../shared";
 import { SpatialControls, useSpatialViewport } from "../SpatialViewport";
 
-type Move = (delta: Point3Meters) => Promise<void>;
-type Gesture = { type: "pan"; x: number; y: number } | { type: "move"; owner: number; x: number; y: number; scale: number; commit: Move };
-type Offset = { owner: number; x: number; y: number };
+type Move = (delta: Point3Meters) => Promise<boolean>;
+type Gesture = { type: "pan"; x: number; y: number } | { type: "move"; owner: number; x: number; y: number; scale: number; commit: Move; pixels: SpatialRenderPixel[] };
+type Offset = { owner: number; x: number; y: number; pixels: SpatialRenderPixel[] };
 
 export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveStart }: { plan: SpatialRenderPlan; documentKey: string; selected: number | null; onSelect: (owner: number | null) => void; onMoveStart: (owner: number) => Move | null }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const gesture = useRef<Gesture | null>(null);
+  const settledOffsets = useRef(new WeakSet<Offset>());
   const [offset, setOffset] = useState<Offset | null>(null);
   const bounds = useMemo(() => normalizeBounds(plan.bounds), [plan.bounds]);
   const spatial = useSpatialViewport(bounds, documentKey, documentKey);
   const points = useMemo(() => plan.pixels.map((pixel) => normalizePoint(pixel.position)), [plan.pixels]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = canvas.current;
     if (element === null) return;
+    let displayOffset = offset;
+    if (offset !== null && (settledOffsets.current.has(offset) || offsetIsCommitted(offset, plan.pixels))) {
+      settledOffsets.current.add(offset);
+      displayOffset = null;
+    }
     const draw = () => {
       const rect = element.getBoundingClientRect();
       spatial.resize(rect.width, rect.height);
       drawSpatialCanvas(element, bounds, (context, project) => {
         plan.pixels.forEach((pixel) => {
           const position = normalizePoint(pixel.position);
-          if (offset?.owner === pixel.owner) { position.x += offset.x; position.y += offset.y; }
+          if (displayOffset?.owner === pixel.owner) { position.x += displayOffset.x; position.y += displayOffset.y; }
           const point = project(position);
           const radius = Math.max(THEME_METRICS.spatialPointRadius, pixel.diameterMeters * spatial.view.scale / 2);
           context.fillStyle = selected === pixel.owner ? THEME_COLORS.layoutSelected : THEME_COLORS.playhead;
@@ -51,7 +57,7 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
         onSelect(owner);
         const commit = owner !== null && event.button === 0 && !event.altKey ? onMoveStart(owner) : null;
         gesture.current = commit !== null && owner !== null
-          ? { type: "move", owner, x: event.clientX, y: event.clientY, scale: spatial.view.scale, commit }
+          ? { type: "move", owner, x: event.clientX, y: event.clientY, scale: spatial.view.scale, commit, pixels: plan.pixels.filter((pixel) => pixel.owner === owner) }
           : { type: "pan", x: event.clientX, y: event.clientY };
       }}
       onPointerMove={(event) => {
@@ -61,7 +67,7 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
           spatial.panBy(event.clientX - active.x, event.clientY - active.y);
           gesture.current = { type: "pan", x: event.clientX, y: event.clientY };
         } else {
-          setOffset({ owner: active.owner, x: (event.clientX - active.x) / active.scale, y: (active.y - event.clientY) / active.scale });
+          setOffset({ owner: active.owner, x: (event.clientX - active.x) / active.scale, y: (active.y - event.clientY) / active.scale, pixels: active.pixels });
         }
       }}
       onPointerUp={(event) => {
@@ -69,7 +75,7 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
         gesture.current = null;
         if (active?.type === "move") {
           const delta = { xMeters: (event.clientX - active.x) / active.scale, yMeters: (active.y - event.clientY) / active.scale, zMeters: 0 };
-          if (delta.xMeters !== 0 || delta.yMeters !== 0) void active.commit(delta).finally(() => { setOffset(null); });
+          if (delta.xMeters !== 0 || delta.yMeters !== 0) void active.commit(delta).then((committed) => { if (!committed) setOffset(null); });
           else setOffset(null);
         }
       }}
@@ -83,4 +89,18 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
     />
     <SpatialControls view={spatial.view} reset={spatial.reset} zoomAt={spatial.zoomAt} />
   </div>;
+}
+
+function offsetIsCommitted(offset: Offset, pixels: SpatialRenderPixel[]) {
+  const byIndex = new Map(pixels.filter((pixel) => pixel.owner === offset.owner).map((pixel) => [pixel.index, pixel]));
+  return offset.pixels.length > 0 && offset.pixels.every((pixel) => {
+    const current = byIndex.get(pixel.index);
+    return current !== undefined
+      && closeEnough(current.position.xMeters, pixel.position.xMeters + offset.x)
+      && closeEnough(current.position.yMeters, pixel.position.yMeters + offset.y);
+  });
+}
+
+function closeEnough(left: number, right: number) {
+  return Math.abs(left - right) < 0.0001;
 }

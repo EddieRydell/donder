@@ -129,6 +129,15 @@ pub(crate) fn undo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn save_graph_view_state(
+    update: PersistedGraphViewStateUpdate,
+    state: State<'_, DesktopState>,
+) -> AppSnapshot {
+    state.save_graph_view_state(update)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn redo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
     state.redo_active_edit()
 }

@@ -230,6 +230,14 @@ pub struct SequenceGraphNode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceGraphNodePosition {
+    pub node_id: String,
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -452,10 +460,6 @@ pub enum SequenceGuiEdit {
         id: u32,
         enabled: bool,
     },
-    DeleteLayer {
-        id: u32,
-        migrate_to_layer_id: u32,
-    },
     SetEffectLayer {
         id: u32,
         layer_id: u32,
@@ -497,13 +501,14 @@ pub enum SequenceGuiEdit {
         x: f32,
         y: f32,
     },
-    MoveGraphNode {
-        node_id: String,
-        x: f32,
-        y: f32,
+    MoveGraphNodes {
+        positions: Vec<SequenceGraphNodePosition>,
     },
-    DeleteGraphNode {
-        node_id: String,
+    DeleteGraphItems {
+        node_ids: Vec<String>,
+        layer_ids: Vec<u32>,
+        edges: Vec<SequenceGraphEdge>,
+        migrate_to_layer_id: Option<u32>,
     },
     ConnectGraphNodes {
         from_node: String,
@@ -511,11 +516,9 @@ pub enum SequenceGuiEdit {
         to_node: String,
         to_port: String,
     },
-    DisconnectGraphNodes {
-        from_node: String,
-        from_port: String,
-        to_node: String,
-        to_port: String,
+    ReconnectGraphEdge {
+        previous: SequenceGraphEdge,
+        connection: SequenceGraphEdge,
     },
     UpdateGraphOperatorParam {
         node_id: String,

@@ -15,7 +15,7 @@ use crate::dto::{
     WorkspaceLayoutState, WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 use crate::persistence::{
-    PersistedEditorViewStateUpdate, PersistedPreviewWindowState,
+    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate, PersistedPreviewWindowState,
     PersistedSequenceViewportStateUpdate, ProjectRestoreState,
 };
 
@@ -70,6 +70,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         set_editor_view_mode,
         save_editor_view_state,
         save_sequence_viewport_state,
+        save_graph_view_state,
         undo_active_edit,
         redo_active_edit,
         get_gui_document,

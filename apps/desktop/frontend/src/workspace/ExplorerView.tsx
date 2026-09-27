@@ -5,18 +5,23 @@ import {
   ChevronDown,
   ChevronRight,
   File,
-  FileAudio,
   FileJson2,
   FileLock2,
   FilePlus2,
+  AudioLines,
+  Blend,
+  Boxes,
+  Cable,
+  ChartSpline,
+  CircuitBoard,
   Folder,
   FolderOpen,
   FolderPlus,
-  Image,
-  Layers3,
+  LayoutGrid,
+  Lightbulb,
   Pencil,
   RefreshCw,
-  SearchCode,
+  Sparkles,
   SquareStack,
   Trash2,
   Workflow
@@ -349,17 +354,18 @@ function roleIcon(role: WorkspaceEntryRole, open: boolean) {
     case "pathDependency": return open ? <FolderOpen size={size} /> : <Folder size={size} />;
     case "manifest": return <FileJson2 size={size} />;
     case "lockfile": return <FileLock2 size={size} />;
-    case "asset": return <FileAudio size={size} />;
+    case "asset": return <AudioLines size={size} />;
     case "project":
     case "entrypoint": return <Workflow size={size} />;
-    case "setup":
-    case "layout":
-    case "fixture":
-    case "patch": return <Layers3 size={size} />;
-    case "curve":
-    case "gradient": return <Image size={size} />;
-    case "effect":
-    case "operator": return <SearchCode size={size} />;
+    case "setup": return <Boxes size={size} />;
+    case "controller": return <CircuitBoard size={size} />;
+    case "layout": return <LayoutGrid size={size} />;
+    case "fixture": return <Lightbulb size={size} />;
+    case "patch": return <Cable size={size} />;
+    case "curve": return <ChartSpline size={size} />;
+    case "gradient": return <Blend size={size} />;
+    case "effect": return <Sparkles size={size} />;
+    case "operator": return <Workflow size={size} />;
     case "sequence": return <SquareStack size={size} />;
     case "file": return <File size={size} />;
   }

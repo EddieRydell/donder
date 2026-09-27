@@ -13,7 +13,8 @@ use crate::dto::{
     WorkspacePathChangeRequest, WorkspacePathOwnership,
 };
 use crate::persistence::{
-    PersistedEditorViewStateUpdate, PersistedSequenceViewportStateUpdate, ProjectRestoreState,
+    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate,
+    PersistedSequenceViewportStateUpdate, ProjectRestoreState,
 };
 use crate::project::{new_project_files, write_new_project_files};
 
@@ -66,12 +67,26 @@ impl DesktopState {
         }
     }
 
+    pub fn save_graph_view_state(&self, update: PersistedGraphViewStateUpdate) -> AppSnapshot {
+        let snapshot = self.snapshot();
+        let Some(project_root) = snapshot.project_root.as_deref() else {
+            return snapshot;
+        };
+        match self.persistence.record_graph_view(project_root, update) {
+            Ok(()) => snapshot,
+            Err(error) => {
+                self.set_persistence_error(format!("Graph view state was not saved: {error}"))
+            }
+        }
+    }
+
     pub fn restored_view_state(&self) -> ProjectRestoreState {
         let snapshot = self.snapshot();
         let Some(project_root) = snapshot.project_root.as_deref() else {
             return ProjectRestoreState {
                 editor_states: Default::default(),
                 sequence_viewports: Default::default(),
+                graph_views: Default::default(),
             };
         };
         self.persistence.restore_view_state(project_root)
@@ -183,6 +198,7 @@ impl DesktopState {
                     .editor_states
                     .into_keys()
                     .chain(state.sequence_viewports.into_keys())
+                    .chain(state.graph_views.into_keys())
             })
             .filter(|path| path_matches_or_is_child(path, &request.source))
             .collect();

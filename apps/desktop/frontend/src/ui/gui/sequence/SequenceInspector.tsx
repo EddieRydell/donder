@@ -21,6 +21,7 @@ import { TypedParamInput } from "./params/TypedParamInput";
 import { defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
+import { defaultLayerColor, LayerProperties, nextLayerName, reportSequenceEditError, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
 
 type SequenceInspectorTab = "effect" | "layers" | "marks";
 
@@ -54,11 +55,6 @@ function effectReferenceKey(reference: SequenceEffectDefinition["effect"]) {
   return reference.type === "builtin"
     ? `builtin:${reference.effect}`
     : `${reference.moduleId}:${reference.path}:${reference.effectName}`;
-}
-
-function defaultLayerColor(index: number) {
-  const colors = [THEME_COLORS.graphBlue, THEME_COLORS.graphRed, THEME_COLORS.graphGreen, THEME_COLORS.graphYellow, THEME_COLORS.graphPurple, THEME_COLORS.graphPink];
-  return colors[index % colors.length] ?? THEME_COLORS.graphBlue;
 }
 
 function supportsAutomation(document: SequenceEditorDocument, target: SequenceAutomationTarget) {
@@ -434,93 +430,22 @@ function detachmentReasonLabel(reason: import("../../../types").SequenceAutomati
 }
 
 function LayerInspectorPanel({ document }: { document: SequenceEditorDocument }) {
-  return (
-    <>
-      <h2>Layers</h2>
-      <button
-        type="button"
-        className="neutral-button"
-        onClick={() =>
-          void runGuiEditCommand((request) =>
-            commands.applySequenceGuiEdit(request, {
-              type: "createLayer",
-              name: `Layer ${document.layers.length + 1}`,
-              color: defaultLayerColor(document.layers.length)
-            })
-          )
-        }
-      >
-        Add layer
-      </button>
-      <div className="sequence-layer-list">
-        {document.layers.map((layer) => (
-          <div key={layer.id} className="sequence-layer-row">
-            <input
-              type="checkbox"
-              checked={layer.enabled}
-              aria-label={`${layer.name} enabled`}
-              onChange={(event) =>
-                void runGuiEditCommand((request) =>
-                  commands.applySequenceGuiEdit(request, {
-                    type: "setLayerEnabled",
-                    id: layer.id,
-                    enabled: event.currentTarget.checked
-                  })
-                )
-              }
-            />
-            <ColorPicker
-              value={layer.color}
-              label={`${layer.name} color`}
-              commit={(color) =>
-                runGuiEditCommand((request) =>
-                  commands.applySequenceGuiEdit(request, {
-                    type: "setLayerColor",
-                    id: layer.id,
-                    color
-                  })
-                ).then(() => undefined)
-              }
-            />
-            <input
-              key={`${layer.id}:name:${layer.name}`}
-              defaultValue={layer.name}
-              aria-label="Layer name"
-              onBlur={(event) => {
-                const name = event.currentTarget.value.trim() || layer.name;
-                if (name === layer.name) return;
-                void runGuiEditCommand((request) =>
-                  commands.applySequenceGuiEdit(request, {
-                    type: "renameLayer",
-                    id: layer.id,
-                    name
-                  })
-                );
-              }}
-            />
-            {!layer.isDefault && (
-              <button
-                type="button"
-                onClick={() => {
-                  const effectCount = document.effects.filter((effect) => effect.layerId === layer.id).length;
-                  if (effectCount > 0 && !window.confirm(`Delete ${layer.name} and move ${effectCount} effects to Default?`)) return;
-                  void runGuiEditCommand((request) =>
-                    commands.applySequenceGuiEdit(request, {
-                      type: "deleteLayer",
-                      id: layer.id,
-                      migrateToLayerId: 0
-                    })
-                  );
-                }}
-              >
-                Delete
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
-  );
+  const editable = useSequenceEditable();
+  const { requestDelete, dialog } = useGraphDeletion(document);
+  return <>
+    <h2>Layers</h2>
+    <button type="button" className="neutral-button" disabled={!editable} onClick={() => {
+      void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+        type: "createLayer", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length)
+      })).catch(reportSequenceEditError);
+    }}>Add layer</button>
+    <div className="sequence-layer-list">
+      {document.layers.map((layer) => <LayerProperties key={layer.id} layer={layer} onDelete={() => {
+        requestDelete([], [], [layer.id]);
+      }} />)}
+    </div>
+    {dialog}
+  </>;
 }
 
 function MarkInspectorPanel({

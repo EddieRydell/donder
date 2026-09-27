@@ -1,7 +1,23 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, beforeEach, test } from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import { createServer } from "vite";
+
+const stylesheet = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const cssVariables = new Map(
+  [...stylesheet.matchAll(/^\s*(--donder-[\w-]+):\s*([^;]+);/gm)].map(([, name, value]) => [name, value.trim()])
+);
+const cssValue = (name, seen = new Set()) => {
+  if (seen.has(name)) throw new Error(`Circular CSS variable: ${name}`);
+  const value = cssVariables.get(name) ?? "";
+  const reference = /^var\((--donder-[\w-]+)\)$/.exec(value);
+  return reference === null ? value : cssValue(reference[1], new Set([...seen, name]));
+};
+Object.assign(globalThis, {
+  document: { documentElement: {} },
+  getComputedStyle: () => ({ getPropertyValue: cssValue })
+});
 
 // Load the real store without opening a port or invoking the native backend.
 const server = await createServer({

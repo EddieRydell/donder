@@ -1,4 +1,4 @@
-import { FolderCog, ListVideo } from "lucide-react";
+import { Boxes, ListVideo } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { ProjectGuiDocument } from "../../../types";
@@ -18,7 +18,7 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
       <section className="object-overview-group">
         <h3>Display setup</h3>
         <ObjectRow
-          icon={<FolderCog aria-hidden="true" />}
+          icon={<Boxes aria-hidden="true" />}
           title={document.setup.objectKey}
           reference={`${document.setup.path} · setup`}
           detail="Layout, fixture instances and controls, patch, and controllers"

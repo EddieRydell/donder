@@ -39,12 +39,6 @@ export function SequenceEditor({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
-  const selectedGraphItem =
-    selected?.type === "graphNode"
-      ? { type: "node" as const, id: selected.nodeId }
-      : selected?.type === "graphEdge"
-        ? { type: "edge" as const, id: selected.edgeId }
-        : null;
   const setSelectedGraphItem = useCallback(
     (item: { type: "node"; id: string } | { type: "edge"; id: string } | null) => {
       if (item === null) {
@@ -65,11 +59,7 @@ export function SequenceEditor({
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
   }, [setCompositionGraphOpen, setSelected]);
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape" && compositionGraphOpen) {
-      event.preventDefault();
-      closeCompositionGraph();
-      return;
-    }
+    if (compositionGraphOpen) return;
     if (event.key === "Escape" && automationClipChooser !== null) {
       event.preventDefault();
       setAutomationClipChooser(null);
@@ -97,7 +87,6 @@ export function SequenceEditor({
       {compositionGraphOpen && (
         <GraphEditorModal
           document={document}
-          selectedItem={selectedGraphItem}
           setSelectedItem={setSelectedGraphItem}
           automationClipChooser={automationClipChooser}
           setAutomationClipChooser={setAutomationClipChooser}

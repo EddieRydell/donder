@@ -28,6 +28,36 @@ pub struct PersistedSequenceViewportState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub struct PersistedGraphViewport {
+    pub x: f32,
+    pub y: f32,
+    pub zoom: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedGraphNodeSize {
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedGraphViewState {
+    pub viewport: Option<PersistedGraphViewport>,
+    pub node_sizes: BTreeMap<String, PersistedGraphNodeSize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedGraphViewStateUpdate {
+    pub path: String,
+    pub object_key: String,
+    pub state: PersistedGraphViewState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct PersistedWindowState {
     pub x: i32,
     pub y: i32,
@@ -63,6 +93,7 @@ pub struct PersistedSequenceViewportStateUpdate {
 pub struct ProjectRestoreState {
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
+    pub graph_views: BTreeMap<String, PersistedGraphViewState>,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +155,8 @@ pub struct PersistedProjectSession {
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
     #[serde(default)]
+    pub graph_views: BTreeMap<String, PersistedGraphViewState>,
+    #[serde(default)]
     pub workspace_explorer: WorkspaceExplorerState,
 }
 
@@ -136,6 +169,7 @@ impl PersistedProjectSession {
             audio_home_seconds: 0.0,
             editor_states: BTreeMap::new(),
             sequence_viewports: BTreeMap::new(),
+            graph_views: BTreeMap::new(),
             workspace_explorer: WorkspaceExplorerState::default(),
         }
     }

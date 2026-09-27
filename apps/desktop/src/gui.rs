@@ -16,6 +16,7 @@ mod dispatch;
 mod document;
 mod edit;
 mod fixture;
+mod graph;
 mod layout;
 mod library;
 pub(crate) mod model;

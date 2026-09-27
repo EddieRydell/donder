@@ -158,7 +158,7 @@ function GuiEditorInner({
           : `minmax(0, 1fr) ${workspaceLayout.inspectorWidthPx}px`
       }}
       onKeyDownCapture={(event) => {
-        if (gui.type === "sequence" && !markSelectionConsumesKey(selected, event.key)) {
+        if (gui.type === "sequence" && !compositionGraphOpen && !markSelectionConsumesKey(selected, event.key)) {
           const audioTransport = useAppStore.getState().snapshot?.audioTransport;
           if (audioTransport === undefined) return;
           handleSequencePlaybackShortcut(

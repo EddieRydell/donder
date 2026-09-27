@@ -38,7 +38,7 @@
   --donder-canvas-axis: #59626d;
   --donder-canvas-major-grid: #343b44;
   --donder-canvas-label: #7d858f;
-  --donder-preview-background: var(--donder-canvas-background);
+  --donder-preview-background: #000000;
   --donder-preview-unlit: #000000;
   --donder-preview-window-width: 960;
   --donder-preview-window-height: 640;
@@ -176,10 +176,6 @@
   --donder-border-success: #487a5b;
   --donder-alpha-black-45: rgb(0 0 0 / 45%);
   --donder-alpha-black-55: rgb(0 0 0 / 55%);
-  --donder-surface-graph-inspector: #181a1d;
-  --donder-text-graph-muted: #8e9299;
-  --donder-text-graph-heading: #f0ece4;
-  --donder-text-graph-code: #a9c7ad;
   --donder-alpha-white-4: rgb(255 255 255 / 4%);
 
 
@@ -217,7 +213,6 @@
   --donder-font-size-lg: 13px;
   --donder-font-size-xl: 14px;
   --donder-font-size-dialog: 16px;
-  --donder-font-size-graph-heading: 15px;
   --donder-font-weight-medium: 500;
   --donder-font-weight-semibold: 600;
   --donder-font-weight-bold: 700;
@@ -273,6 +268,7 @@
   --donder-command-dialog-max-height: 440px;
   --donder-search-preview-max-lines: 2;
   --donder-scrollbar-width: 14px;
+  --donder-scrollbar-thumb-inset: 2px;
   --donder-resize-handle-width: 8px;
   --donder-gui-grid-template-collapsed: minmax(0, 1fr) var(--donder-resize-handle-width);
   --donder-titlebar-control-width: 46px;
@@ -387,7 +383,24 @@
   --donder-scrollbar-thumb-min-height: 28px;
   --donder-graph-edge-interaction-width: 32px;
   --donder-graph-node-min-height: 80px;
-  --donder-graph-node-min-width: 140px;
+  --donder-graph-node-min-width: 180px;
+  --donder-graph-node-initial-width: 216px;
+  --donder-graph-node-initial-height: 112px;
+  --donder-graph-arrow-tangent-sample: 1px;
+  --donder-graph-node-header-height: 36px;
+  --donder-graph-node-body-padding: 12px;
+  --donder-graph-port-row-height: 28px;
+  --donder-graph-node-controls-min-height: 120px;
+  --donder-graph-node-controls-max-height: 360px;
+  --donder-graph-node-param-row-height: 76px;
+  --donder-graph-layer-controls-height: 84px;
+  --donder-graph-node-editor-width: 320px;
+  --donder-graph-node-editor-min-width: 280px;
+  --donder-graph-port-hit-size: 24px;
+  --donder-graph-port-dot-size: 10px;
+  --donder-graph-min-zoom: 0.2;
+  --donder-graph-max-zoom: 2;
+  --donder-graph-keyboard-large-step: 5;
   --donder-graph-node-stroke-width-strong: 2px;
   --donder-graph-point-radius: 4px;
   --donder-graph-point-radius-selected: 5px;
@@ -476,6 +489,36 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Default scrollbars for desktop webviews; dedicated editor rails keep their
+   diagnostic markers and explicitly hide their underlying native scrollbars. */
+::-webkit-scrollbar {
+  width: var(--donder-scrollbar-width);
+  height: var(--donder-scrollbar-width);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: var(--donder-bg-rail);
+}
+
+::-webkit-scrollbar-thumb {
+  min-width: var(--donder-scrollbar-thumb-min-height);
+  min-height: var(--donder-scrollbar-thumb-min-height);
+  border: var(--donder-scrollbar-thumb-inset) solid var(--donder-bg-rail);
+  border-radius: calc(var(--donder-radius-md) + var(--donder-scrollbar-thumb-inset));
+  background: var(--donder-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--donder-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
 }
 
 html,
@@ -988,8 +1031,8 @@ button:focus-visible,
   position: absolute;
   z-index: var(--donder-z-scrollbar-thumb);
   top: 0;
-  right: 2px;
-  left: 2px;
+  right: var(--donder-scrollbar-thumb-inset);
+  left: var(--donder-scrollbar-thumb-inset);
   min-height: var(--donder-control-height-md);
   border-radius: var(--donder-radius-md);
   background: var(--donder-scrollbar-thumb);
@@ -2849,7 +2892,7 @@ button:focus-visible,
 }
 
 .graph-modal-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: var(--donder-z-graph-modal);
   display: grid;
@@ -2858,6 +2901,10 @@ button:focus-visible,
 }
 
 .graph-modal {
+  position: fixed;
+  z-index: var(--donder-z-graph-modal);
+  inset: 0;
+  margin: auto;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(var(--donder-graph-dialog-max-width), calc(100% - var(--donder-toolbar-height)));
@@ -2870,14 +2917,13 @@ button:focus-visible,
 }
 
 .graph-workspace {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
 
-.graph-modal-header,
-.graph-modal-toolbar {
+.graph-modal-header {
   display: flex;
   align-items: center;
   gap: var(--donder-space-8);
@@ -2889,75 +2935,61 @@ button:focus-visible,
   justify-content: space-between;
 }
 
-.graph-modal-header h2,
-.graph-modal-toolbar h3 {
+.graph-modal-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--donder-icon-button-size);
+  height: var(--donder-icon-button-size);
+  padding: 0;
+  border: var(--donder-border-width) solid transparent;
+  border-radius: var(--donder-radius-md);
+  background: transparent;
+  color: var(--donder-text-muted);
+  box-shadow: none;
+}
+
+.graph-modal-close > svg {
+  display: block;
+}
+
+.graph-modal-close:hover {
+  background: var(--donder-surface-control);
+  color: var(--donder-text-strong);
+}
+
+.graph-modal-close:focus-visible {
+  outline: var(--donder-border-width-strong) solid var(--donder-accent);
+  outline-offset: var(--donder-space-2);
+}
+
+.graph-flow-direction {
+  fill: none;
+  stroke: none;
+  stroke-width: var(--donder-graph-node-stroke-width-strong);
+  pointer-events: none;
+}
+
+
+.graph-modal-header h2 {
   margin: var(--donder-space-0);
   color: var(--donder-text-strong);
   font-size: var(--donder-font-size-xl);
 }
 
-.graph-modal-header span,
-.graph-context-menu {
+.graph-modal-header span {
   color: var(--donder-text-muted);
   font-size: var(--donder-font-size-md);
 }
 
-.graph-modal-toolbar label {
-  display: grid;
-  gap: 4px;
-  min-width: 180px;
-  color: var(--donder-text-muted);
-  font-size: var(--donder-font-size-sm);
-}
-
-.graph-modal-toolbar select {
-  min-width: 0;
-  height: var(--donder-control-height-md);
-  border: var(--donder-border-width) solid var(--donder-border);
-  border-radius: var(--donder-radius-md);
-  background: var(--donder-bg-page);
-  padding: var(--donder-space-0) var(--donder-space-5);
-  color: var(--donder-text);
-}
-
 .graph-modal-body {
+  flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
-.graph-operator-inspector {
-  width: 300px;
-  min-height: 0;
-  border-left: var(--donder-border-width) solid var(--donder-border-soft);
-  background: var(--donder-surface-graph-inspector);
-  padding: var(--donder-space-10);
-  overflow: auto;
-}
-
-.graph-operator-inspector-heading {
-  display: grid;
-  gap: var(--donder-space-3);
-  margin-bottom: var(--donder-space-10);
-}
-
-.graph-operator-inspector-heading span,
-.graph-operator-no-params {
-  color: var(--donder-text-graph-muted);
-  font-size: var(--donder-font-size-sm);
-}
-
-.graph-operator-inspector-heading h3 {
-  margin: var(--donder-space-0);
-  color: var(--donder-text-graph-heading);
-  font-size: var(--donder-font-size-graph-heading);
-}
-
-.graph-operator-inspector-heading code {
-  color: var(--donder-text-graph-code);
-  font-size: var(--donder-font-size-sm);
-}
 
 .graph-flow-pane {
   min-width: 0;
@@ -2984,16 +3016,61 @@ button:focus-visible,
 .graph-flow-node-card {
   position: relative;
   display: grid;
-  grid-template-rows: 32px 64px;
+  grid-template-rows: var(--donder-graph-node-header-height) minmax(0, 1fr);
   width: 100%;
   height: 100%;
   border: var(--donder-border-width) solid var(--donder-border-control);
-  border-radius: var(--donder-border-width-strong);
+  border-radius: var(--donder-radius-lg);
   background: var(--donder-bg-rail);
   padding: 0;
   box-shadow: 0 1px 0 var(--donder-alpha-white-4) inset;
   transition: border-color var(--donder-transition-fast), background var(--donder-transition-fast), transform var(--donder-transition-fast), box-shadow var(--donder-transition-fast);
   overflow: visible;
+}
+
+.graph-flow-node-card.has-controls {
+  grid-template-rows: var(--donder-graph-node-header-height) auto minmax(0, 1fr);
+}
+
+.graph-flow-node-controls {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-top: var(--donder-border-width) solid var(--donder-border-soft);
+  border-radius: 0 0 var(--donder-radius-lg) var(--donder-radius-lg);
+  cursor: default;
+}
+
+.graph-node-parameters {
+  display: grid;
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.graph-node-parameters .effect-param-row:first-child {
+  border-top: 0;
+}
+
+.graph-node-layer-controls {
+  padding: var(--donder-space-9);
+}
+
+.graph-node-layer-controls .sequence-layer-row {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+.graph-node-layer-controls input:not([type="checkbox"]) {
+  min-width: 0;
+  width: 100%;
+}
+
+.graph-node-layer-controls p {
+  margin: var(--donder-space-8) 0 0;
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-sm);
 }
 
 .graph-flow-node-card.layer {
@@ -3015,7 +3092,6 @@ button:focus-visible,
 }
 
 .react-flow__node.dragging .graph-flow-node-card {
-  transform: translateY(-1px);
   border-color: var(--donder-warning);
   background: var(--donder-sequence-grid);
   box-shadow: 0 10px 28px var(--donder-alpha-black-32);
@@ -3056,7 +3132,7 @@ button:focus-visible,
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   min-height: 0;
-  padding: var(--donder-space-6) var(--donder-space-8);
+  padding: var(--donder-graph-node-body-padding) var(--donder-space-8);
 }
 
 .graph-flow-port-column {
@@ -3074,7 +3150,7 @@ button:focus-visible,
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 20px;
+  min-height: var(--donder-graph-port-row-height);
   color: var(--donder-text-graph-port);
   font-size: var(--donder-font-size-xs);
 }
@@ -3083,48 +3159,90 @@ button:focus-visible,
   justify-content: flex-end;
 }
 
-.graph-flow-handle {
-  z-index: var(--donder-z-graph-handle);
-  width: 10px !important;
-  height: 10px !important;
-  border: var(--donder-border-width) solid var(--donder-bg-page) !important;
-  background: var(--donder-automation) !important;
+.graph-flow-port-row > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.graph-flow-resize-edge,
+.graph-flow-handle {
+  z-index: var(--donder-z-graph-handle);
+  width: var(--donder-graph-port-dot-size) !important;
+  height: var(--donder-graph-port-dot-size) !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: grid;
+  place-items: center;
+}
+
+.graph-flow-handle::before {
+  content: "";
+  position: absolute;
+  width: var(--donder-graph-port-hit-size);
+  height: var(--donder-graph-port-hit-size);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.graph-flow-handle::after {
+  content: "";
+  width: var(--donder-graph-port-dot-size);
+  height: var(--donder-graph-port-dot-size);
+  border: var(--donder-border-width-strong) solid var(--donder-automation);
+  border-radius: 50%;
+  background: var(--donder-bg-rail);
+  pointer-events: none;
+  transition: background var(--donder-transition-fast), box-shadow var(--donder-transition-fast);
+}
+
+.graph-flow-handle.output::after {
+  border-color: var(--donder-accent);
+}
+
+.graph-flow-handle.connectionindicator:hover::after,
+.graph-flow-handle.connectingfrom::after,
+.graph-flow-handle.valid::after {
+  background: var(--donder-accent);
+  border-color: var(--donder-text-strong);
+  box-shadow: 0 0 0 var(--donder-space-4) var(--donder-alpha-automation-45);
+}
+
+.graph-flow-node-title > svg {
+  width: var(--donder-icon-size-sm);
+  height: var(--donder-icon-size-sm);
+  flex-shrink: 0;
+}
+
+
+.graph-flow-pane .react-flow__connection-path {
+  stroke: var(--donder-accent);
+  stroke-width: var(--donder-graph-node-stroke-width-strong);
+}
+
+.graph-flow-pane .react-flow__edgeupdater {
+  cursor: crosshair;
+}
+
 .graph-flow-resize-corner {
   z-index: var(--donder-z-graph-resize);
   border: 0 !important;
   background: transparent !important;
-}
-
-.graph-flow-resize-edge.left,
-.graph-flow-resize-edge.right {
-  width: var(--donder-scrollbar-width) !important;
-}
-
-.graph-flow-resize-edge.top,
-.graph-flow-resize-edge.bottom {
-  height: var(--donder-scrollbar-width) !important;
-}
-
-.graph-flow-resize-corner {
   width: 22px !important;
   height: 22px !important;
 }
 
 .graph-flow-handle.input {
-  left: -16px !important;
+  left: calc(0px - var(--donder-space-8) - var(--donder-border-width-accent)) !important;
 }
 
 .graph-flow-handle.output {
-  right: -16px !important;
-  background: var(--donder-accent) !important;
+  right: calc(0px - var(--donder-space-8) - var(--donder-border-width)) !important;
 }
 
 .graph-flow-edge .react-flow__edge-path {
-  stroke: var(--donder-automation);
-  stroke-width: 2;
+  stroke-width: var(--donder-graph-node-stroke-width-strong);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -3222,52 +3340,8 @@ button:focus-visible,
   color: var(--donder-danger-text);
 }
 
-.graph-context-menu {
-  position: fixed;
-  z-index: var(--donder-z-context-menu);
-  display: grid;
-  min-width: 180px;
-  border: var(--donder-border-width) solid var(--donder-border-control);
-  border-radius: var(--donder-radius-xl);
-  background: var(--donder-bg-rail);
-  box-shadow: 0 12px 36px var(--donder-alpha-black-38);
-  padding: var(--donder-space-3);
-}
 
-.graph-context-menu button {
-  height: var(--donder-control-height-md);
-  border: 0;
-  border-radius: var(--donder-radius-md);
-  background: transparent;
-  padding: var(--donder-space-0) var(--donder-space-6);
-  color: var(--donder-text);
-  text-align: left;
-}
-
-.graph-context-menu button:not(:disabled):hover {
-  background: var(--donder-border-soft);
-}
-
-.graph-context-menu button:disabled {
-  color: var(--donder-text-faint);
-}
-
-.graph-context-menu-heading {
-  padding: var(--donder-space-5) var(--donder-space-6) var(--donder-space-2-5);
-  color: var(--donder-text-context-label);
-  font-size: var(--donder-font-size-xs);
-  font-weight: 700;
-  letter-spacing: var(--donder-letter-spacing-label);
-  text-transform: var(--donder-text-transform-label);
-}
-
-.graph-context-menu-divider {
-  height: 1px;
-  margin: var(--donder-space-3) var(--donder-space-0);
-  background: var(--donder-border-soft);
-}
-
-.graph-delete-dialog-backdrop {
+.graph-delete-overlay {
   position: fixed;
   z-index: var(--donder-z-delete-dialog);
   inset: 0;
@@ -3277,6 +3351,7 @@ button:focus-visible,
 }
 
 .graph-delete-dialog {
+  z-index: var(--donder-z-delete-dialog);
   display: grid;
   gap: var(--donder-space-10);
   width: min(var(--donder-editor-tooltip-max-width), calc(100vw - var(--donder-toolbar-height)));
@@ -3288,7 +3363,7 @@ button:focus-visible,
   color: var(--donder-text);
 }
 
-.graph-delete-dialog h3,
+.graph-delete-dialog h2,
 .graph-delete-dialog p {
   margin: var(--donder-space-0);
 }
@@ -3300,12 +3375,6 @@ button:focus-visible,
 
 .graph-delete-dialog select {
   height: 32px;
-}
-
-.graph-delete-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--donder-space-6);
 }
 
 .graph-delete-dialog .danger-button {
@@ -3366,6 +3435,45 @@ button:focus-visible,
   overflow: auto;
   padding: var(--donder-space-12) var(--donder-space-13) var(--donder-space-14);
   background: var(--canvas-background, var(--donder-bg));
+}
+
+.graph-canvas-workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.graph-menu {
+  z-index: var(--donder-z-context-menu);
+  max-height: var(--radix-popper-available-height);
+  overflow-y: auto;
+}
+
+
+.graph-dialog-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+fieldset.sequence-layer-row {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.graph-edit-error {
+  margin: 0;
+  padding: var(--donder-space-6) var(--donder-space-9);
+  color: var(--donder-danger);
+}
+
+.graph-flow-node-card.disabled {
+  border-style: dashed;
+  color: var(--donder-text-muted);
 }
 
 .object-overview-header,

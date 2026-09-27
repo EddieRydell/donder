@@ -248,6 +248,38 @@ use that validator. A sequence must satisfy these rules:
   unresolved target only after an explicit detachment reason.
 - Control clips are valid, in range, and non-overlapping for the same target.
 
+## Composition graph editing
+
+The graph has no inspector sidebar: operator parameters and automation controls
+are inside each operator node, and layer name, color, and enabled-state controls
+are inside each layer node. Layer controls are shared with the sequence's
+Layers inspector. Larger parameter panels scroll inside resizable nodes without
+panning the canvas; port connections remain outside the scrolling area.
+Right-click empty canvas to add a layer or operator at that position. Right-click
+a node, connection, or selection to delete it. There are no graph add/delete
+toolbar buttons; the Delete/Backspace keyboard shortcut also remains available.
+Deleting layers used by effects asks for a surviving destination layer;
+the effects move there in the same transaction. Default and Output are protected.
+Deleting operators detaches their automation bindings with a target-deleted reason.
+
+Graph selection supports modifier-click, marquee selection, and Select All.
+Moving or deleting a selection is one GUI history entry. Arrow keys move selected
+nodes by one grid interval (Shift uses a larger step). Undo/redo restores authored
+node positions, and rejected gestures restore the current document's positions.
+
+Drag between ports to create a connection, or drag an existing wire endpoint to
+reconnect it. Reconnection is a single typed GUI transaction and history entry;
+invalid or stale edits leave the original connection intact. Connecting to a
+single-input port replaces its previous incoming connection in the same edit.
+Node refreshes retain React Flow's measured geometry, while changed port layouts
+explicitly refresh handle bounds.
+
+Node sizes and graph pan/zoom are workspace view preferences, saved per sequence
+alongside the timeline viewport. Drag any node's bottom-right corner to resize it;
+selection is not required and the resize target has no visible button or icon.
+These preferences survive reopening the graph and restarting the desktop;
+they do not change the authored sequence or create project undo entries.
+
 ## Curves
 
 Curves are normalized, piecewise-linear values. They must contain at least one
