@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { commands } from "./api";
 import { effectiveEditorViewMode } from "./editorViewMode";
 import { DocumentSync } from "./documentSync";
+import { PREVIEW_APPEARANCE } from "./previewAppearance";
 import { isNewerSnapshot, reconcileGuiRequest, sameGuiDocument } from "./snapshotState";
 import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentRequest, GuiEditResult, LiveOutputSnapshot, ProjectRestoreState } from "./types";
 
@@ -129,6 +130,7 @@ export const useAppStore = create<AppStore>((set) => ({
     set({ localText });
   },
   hydrate: async () => {
+    await commands.setPreviewAppearance(PREVIEW_APPEARANCE);
     const snapshot = await commands.getSnapshot();
     useAppStore.getState().setSnapshot(snapshot, "hydrate");
     const restoreState = await commands.getRestoredViewState();

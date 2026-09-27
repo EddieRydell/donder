@@ -17,13 +17,6 @@ pub fn read_window_state<R: Runtime>(window: &Window<R>) -> Option<PersistedWind
     })
 }
 
-pub fn read_window_state_or<R: Runtime>(
-    window: &Window<R>,
-    fallback: Option<PersistedWindowState>,
-) -> Option<PersistedWindowState> {
-    read_window_state(window).or(fallback)
-}
-
 pub fn apply_window_state<R: Runtime>(window: &Window<R>, state: &PersistedWindowState) {
     if !state_is_visible_on_monitor(window, state) {
         return;

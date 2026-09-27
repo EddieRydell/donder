@@ -1,5 +1,18 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewAppearance {
+    pub background_rgb: [u8; 3],
+    pub unlit_rgb: [u8; 3],
+    pub window_width: u32,
+    pub window_height: u32,
+    pub window_min_width: u32,
+    pub window_min_height: u32,
+    pub canvas_fill_ratio: f32,
+    pub minimum_radius_pixels: f32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FixtureGuiDocument {

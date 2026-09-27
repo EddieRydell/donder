@@ -26,6 +26,7 @@ pub struct AudioClockRenderedFrame {
     pub frame: RenderedSequenceFrame,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct AudioClockRenderIdentity {
     pub session_generation: u64,
@@ -35,6 +36,11 @@ pub struct AudioClockRenderIdentity {
     pub frame_rate: u32,
     pub frame_count: u32,
     pub frame_index: u32,
+}
+
+pub(crate) struct EncodedPreviewSequence {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) fixtures: Vec<(u32, usize)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -132,6 +138,7 @@ impl SequenceRenderService {
         })
     }
 
+    #[cfg(test)]
     pub fn active_render_identity(
         &self,
         audio: &AudioTransportSnapshot,
@@ -170,6 +177,32 @@ impl SequenceRenderService {
         self.session
             .as_ref()
             .map(|session| (session.setup_id.clone(), session.sequence_id.clone()))
+    }
+
+    pub(crate) fn session_generation(&self) -> u64 {
+        self.session_generation
+    }
+
+    pub(crate) fn encode_preview_sequence(&self) -> Result<Option<EncodedPreviewSequence>, String> {
+        self.session
+            .as_ref()
+            .map(|session| {
+                Ok(EncodedPreviewSequence {
+                    bytes: session
+                        .renderer
+                        .encode()
+                        .map_err(|error| format!("{error:?}"))?,
+                    fixtures: session
+                        .renderer
+                        .sequence
+                        .signals
+                        .fixtures
+                        .iter()
+                        .map(|fixture| (fixture.id, fixture.pixel_count))
+                        .collect(),
+                })
+            })
+            .transpose()
     }
 
     pub fn apply_prepared(&mut self, session: PreparedSequenceOutput) {

@@ -29,7 +29,14 @@ mod sequence_clip_raster;
 mod source_documents;
 mod state_tasks;
 
-pub fn run() -> Result<(), tauri::Error> {
+pub fn run() -> Result<(), String> {
+    if let Some(startup) = preview::startup_from_arguments()? {
+        return preview::run_host(startup);
+    }
+    run_desktop().map_err(|error| error.to_string())
+}
+
+fn run_desktop() -> Result<(), tauri::Error> {
     let bindings = bindings::builder();
 
     tauri::Builder::default()
@@ -70,20 +77,6 @@ pub fn run() -> Result<(), tauri::Error> {
                         && let Some(project) = last_project
                     {
                         state.open_project_path(&project);
-                    }
-                    if settings_snapshot.settings.reopen_preview_window
-                        && state.persistence().preview_window().open
-                    {
-                        let preview = app.state::<preview::PreviewWindowService>();
-                        if preview
-                            .open_or_focus(handle, state.persistence().preview_window())
-                            .is_ok()
-                        {
-                            state.update_snapshot(|snapshot| {
-                                snapshot.preview_open = true;
-                                snapshot.preview_error = None;
-                            });
-                        }
                     }
                 }
                 Err(error) => {

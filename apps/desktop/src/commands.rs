@@ -102,6 +102,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         audio_stop,
         audio_rewind_to_zero,
         audio_seek,
+        set_preview_appearance,
         set_live_output_active,
         start_output_test,
         set_preview_window_open,

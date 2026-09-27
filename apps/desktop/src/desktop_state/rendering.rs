@@ -99,6 +99,7 @@ impl DesktopState {
                 self.set_render_error_if_changed(format!("Render refresh failed: {error:?}"));
             }
         }
+        self.preview_wake.notify();
     }
 
     pub(super) fn unload_render_session(&self) {

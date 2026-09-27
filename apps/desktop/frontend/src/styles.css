@@ -38,6 +38,14 @@
   --donder-canvas-axis: #59626d;
   --donder-canvas-major-grid: #343b44;
   --donder-canvas-label: #7d858f;
+  --donder-preview-background: var(--donder-canvas-background);
+  --donder-preview-unlit: #000000;
+  --donder-preview-window-width: 960;
+  --donder-preview-window-height: 640;
+  --donder-preview-window-min-width: 360;
+  --donder-preview-window-min-height: 240;
+  --donder-preview-canvas-fill-ratio: 0.82;
+  --donder-preview-minimum-radius-pixels: 2;
   --donder-layout-selected: #d7dbe0;
   --donder-layout-label: #aeb4bc;
   --donder-layout-emitter: #8ecae6;

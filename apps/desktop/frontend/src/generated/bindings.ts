@@ -65,6 +65,7 @@ export const commands = {
 	audioStop: () => __TAURI_INVOKE<AppSnapshot>("audio_stop"),
 	audioRewindToZero: () => __TAURI_INVOKE<AppSnapshot>("audio_rewind_to_zero"),
 	audioSeek: (positionSeconds: number) => __TAURI_INVOKE<AppSnapshot>("audio_seek", { positionSeconds }),
+	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })),
 	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })),
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })),
 	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }),
@@ -464,6 +465,17 @@ export type Point3Meters = {
 	xMeters: number,
 	yMeters: number,
 	zMeters: number,
+};
+
+export type PreviewAppearance = {
+	backgroundRgb: [number, number, number],
+	unlitRgb: [number, number, number],
+	windowWidth: number,
+	windowHeight: number,
+	windowMinWidth: number,
+	windowMinHeight: number,
+	canvasFillRatio: number,
+	minimumRadiusPixels: number,
 };
 
 export type ProjectDiagnostic = {

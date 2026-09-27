@@ -9,6 +9,8 @@ import type {
 
 export const commands = {
   ...generatedCommands,
+  setPreviewAppearance: async (appearance: import("./types").PreviewAppearance) =>
+    unwrapResult(await generatedCommands.setPreviewAppearance(appearance)),
   resolveGuiSource: async (moduleId: string, path: string, objectKey: string) =>
     unwrapResult(await generatedCommands.resolveGuiSource(moduleId, path, objectKey)),
   setLiveOutputActive: async (active: boolean) =>

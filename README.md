@@ -21,8 +21,8 @@ That makes the project useful as a technical showcase for:
 - Open and validate Donder project files.
 - Edit project documents in a CodeMirror-based desktop editor.
 - Compose pixel fixture definitions, place reusable instances in layouts, group them for effects, and route RGB/RGBW output to controllers.
-- Render one shared logical/controller frame through the Rust runtime.
-- Preview effect rasters and sequence output in the desktop UI.
+- Evaluate preview and controller output through the same portable Rust runtime.
+- Preview effect rasters and sequence output in a native GPU window.
 - Transmit live E1.31 or Art-Net output with blackout and stream lifecycle handling.
 - Install bundled ESP32 firmware over USB, configure Wi-Fi, and upload a sequence
   for persistent standalone playback. See [controller setup](docs/esp32_loading.md#install-from-donder)
@@ -37,7 +37,7 @@ That makes the project useful as a technical showcase for:
 - Tauri 2 desktop runtime
 - React, TypeScript, and Vite frontend
 - CodeMirror editor integration
-- wgpu-backed rendering infrastructure
+- winit/wgpu native Preview with a portable renderer core
 - Criterion benchmarks
 - pnpm workspace tooling
 
@@ -54,6 +54,7 @@ apps/desktop/frontend/        React/TypeScript frontend
 apps/desktop/frontend/src/ui/gui/sequence/sequenceWaveform.ts  Timeline waveform cache/rendering
 crates/donder-language/         Donder authoring model and effect/operator compiler
 crates/donder-runtime/          Portable no_std bytecode VM and sequence evaluation core
+crates/donder-preview/          Portable Preview playback, scene, and wgpu renderer core
 crates/donder-elaboration/      Host-side generator expansion, lowering, and output preparation
 crates/donder-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
 crates/donder-project-io/       Donder project loading, diagnostics, source ownership, save/export
@@ -197,7 +198,9 @@ references; dependency deep imports and root escapes are rejected.
 
 Project IO loads reachable source files, validates imports and references, tracks source locations for diagnostics, compiles DSL definitions, and builds the authoritative typed `DonderProject`. `SourceProject` retains document ownership, import, original-source, and asset metadata; it is not a second editable project model. GUI commands make one private mutable candidate from the current immutable project snapshot; accepted snapshots are shared by state, history, save, and render work. Project IO serializes typed state directly without reparsing or synchronizing a YAML model.
 
-After DSL compilation, `donder-elaboration` validates the selected setup and sequence, expands generators, resolves targets, and lowers authored graphs into prepared numeric data. `donder-runtime::sequence::PreparedSequence` is the complete playback artifact: its `signals` field holds a `PreparedSignalGraph`, alongside controls, fixture behavior, and the prepared patch. Create its workspace and output buffers once, then call `sequence.evaluate(time, &mut buffers, &mut workspace)` for each frame. The runtime evaluates logical colors, applies controls and fixture behavior, and executes the patch into those buffers. `donder-runtime::signal::PreparedSignalGraph::evaluate` is the narrower logical-color interface; its `SignalPlan` contains the graph connections and preassigned buffer/VM schedule. Workspace creation reserves reusable VM, automation, array, and patch storage; prepared-frame allocation tests cover the playback hot path. Networking and physical pin timing remain outside the runtime. Preview and live output consume the same `RenderedSequenceFrame`; neither reinterprets colors, fixture channels, or patch ordering. Live output is opt-in for each application run and fails closed by blacking out active ports and terminating E1.31 streams.
+After DSL compilation, `donder-elaboration` validates the selected setup and sequence, expands generators, resolves targets, and lowers authored graphs into prepared numeric data. `donder-runtime::sequence::PreparedSequence` is the complete playback artifact: its `signals` field holds a `PreparedSignalGraph`, alongside controls, fixture behavior, and the prepared patch. Create its workspace and output buffers once, then call `sequence.evaluate(time, &mut buffers, &mut workspace)` for each frame. The runtime evaluates logical colors, applies controls and fixture behavior, and executes the patch into those buffers. `donder-runtime::signal::PreparedSignalGraph::evaluate` is the narrower logical-color interface; its `SignalPlan` contains the graph connections and preassigned buffer/VM schedule. Workspace creation reserves reusable VM, automation, array, and patch storage; prepared-frame allocation tests cover the playback hot path. Networking and physical pin timing remain outside the runtime.
+
+The desktop sends the prepared sequence archive, projected fixture geometry, and clock anchors to a dedicated native Preview process when their revisions change. `donder-preview` decodes the same `PreparedSequence` format and evaluates logical fixture colors locally with `donder-runtime`, so per-frame pixels do not cross Tauri IPC. The Preview process owns its winit window and wgpu surface, which also keeps GTK and wgpu from sharing one Wayland surface. Live output evaluates the prepared sequence for controller bytes in the desktop service. Both paths therefore share authored playback semantics while keeping their host-specific presentation and transport work separate. Live output is opt-in for each application run and fails closed by blacking out active ports and terminating E1.31 streams.
 
 Use `PreparedSequenceOutput::prepare_selected` to prepare a compact sequence for selected controller ports. See [output selection](docs/output_selection.md) for the API, preserved sampling semantics, and measured memory reductions.
 

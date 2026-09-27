@@ -1,0 +1,13 @@
+[package]
+name = "donder-preview"
+edition.workspace = true
+version.workspace = true
+description = "Portable Donder preview playback and GPU renderer"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+bytemuck.workspace = true
+donder-runtime.workspace = true
+glam.workspace = true
+wgpu.workspace = true

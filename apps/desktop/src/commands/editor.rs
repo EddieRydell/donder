@@ -64,7 +64,7 @@ pub(crate) fn complete_close(
         }
         let preview = app.state::<crate::preview::PreviewWindowService>();
         preview
-            .close_for_main_shutdown(&app, state.persistence())
+            .close_for_main_shutdown(state.persistence())
             .map_err(|error| error.to_string())?;
         state.shutdown_live_output();
         window.destroy().map_err(|error| error.to_string())

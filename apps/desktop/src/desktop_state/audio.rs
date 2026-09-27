@@ -95,6 +95,7 @@ impl DesktopState {
         })
     }
 
+    #[cfg(test)]
     pub fn render_current_sequence_frame(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderedFrame, crate::rendering::SequenceRenderError>
@@ -105,6 +106,7 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_render).render_current_sequence_frame(&audio_transport)
     }
 
+    #[cfg(test)]
     pub fn active_preview_render_identity(
         &self,
     ) -> Result<crate::rendering::AudioClockRenderIdentity, crate::rendering::SequenceRenderError>
@@ -115,18 +117,41 @@ impl DesktopState {
         lock_unpoisoned(&self.sequence_render).active_render_identity(&audio_transport)
     }
 
-    pub fn preview_scene(&self) -> Result<Option<crate::preview::PreviewScene>, String> {
+    pub(crate) fn preview_content_identity(&self) -> crate::preview::PreviewContentIdentity {
+        self.render_refresh.finish_pending();
         let _authoring = lock_unpoisoned(&self.authoring);
-        let Some(session) = self.project_session() else {
-            return Ok(None);
-        };
-        crate::preview::PreviewScene::from_project(self.project_revision(), &session.project)
-            .map(Some)
+        let snapshot = self.snapshot();
+        crate::preview::PreviewContentIdentity {
+            project_epoch: snapshot.project_epoch,
+            project_revision: self.project_revision(),
+            sequence_generation: lock_unpoisoned(&self.sequence_render).session_generation(),
+            project_loaded: self.project_session().is_some(),
+        }
     }
 
-    pub fn preview_scene_revision(&self) -> Option<u64> {
+    pub(crate) fn preview_content(&self) -> Result<crate::preview::PreviewContent, String> {
+        self.render_refresh.finish_pending();
         let _authoring = lock_unpoisoned(&self.authoring);
-        self.project_session().map(|_| self.project_revision())
+        let Some(session) = self.project_session() else {
+            return Ok(crate::preview::PreviewContent {
+                instances: Vec::new(),
+                sequence: None,
+            });
+        };
+        let geometry = crate::preview::PreviewGeometry::from_project(&session.project)?;
+        let sequence = lock_unpoisoned(&self.sequence_render)
+            .encode_preview_sequence()
+            .map_err(|error| format!("Cannot encode prepared Preview sequence: {error}"))?;
+        if let Some(sequence) = sequence.as_ref()
+            && sequence.fixtures != geometry.fixtures
+        {
+            return Err("Prepared Preview sequence does not match the active layout.".to_string());
+        }
+
+        Ok(crate::preview::PreviewContent {
+            instances: geometry.instances,
+            sequence: sequence.map(|sequence| sequence.bytes),
+        })
     }
 }
 

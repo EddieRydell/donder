@@ -151,16 +151,25 @@ Treat benchmark timing as a signal to investigate, not as a hard failure.
 
 ### Preview And Audio Sync
 
-Risk: preview refactors render stale frames, reschedule too often, miss frame boundaries, lose
-effect-preview filtering, or desynchronize from native audio clock behavior.
+Risk: preview refactors send stale prepared archives or layout revisions, reschedule too often,
+miss frame boundaries, lose effect-preview filtering, mishandle native window lifecycle, or drift
+between audio clock anchors.
 
 Current coverage:
 
 - `pnpm check`
 - renderer benchmark checksums for real project frames
+- native and `wasm32-unknown-unknown` compile checks for the portable `donder-preview` core
+
+The desktop Preview service sends prepared sequence and projected geometry revisions to a dedicated
+winit process. That process owns the window, wgpu surface, reusable runtime workspace, and frame
+evaluation. Audio state crosses the process boundary as timestamped clock anchors; the Preview
+interpolates between anchors and corrects to each new native-audio position. Per-frame colors stay
+inside the Preview process.
 
 Future coverage should prefer headless traces of source refresh, play, pause, seek, rewind,
-effect-preview selection, native-audio tick, and frame-boundary behavior.
+effect-preview selection, clock-anchor correction, native window close/reopen, and frame-boundary
+behavior.
 
 ## Refactor Policy
 
