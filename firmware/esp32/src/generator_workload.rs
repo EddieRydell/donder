@@ -307,11 +307,14 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     definitions.fixtures.definitions.insert(
         fixture_id.clone(),
         FixtureDefinition {
-            pixels: (0..count)
-                .map(|index| Pixel {
-                    id: PixelId(index as u32),
-                    position: Default::default(),
+            elements: (0..count)
+                .map(|index| FixtureElement {
+                    id: FixtureElementId(index as u32),
+                    name: format!("Pixel {index}"),
+                    transform: Default::default(),
                     diameter: DistanceSpan { micrometers: 10000 },
+                    reverse: false,
+                    shape: FixtureShape::Pixel,
                 })
                 .collect(),
         },

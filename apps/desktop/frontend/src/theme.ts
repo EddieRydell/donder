@@ -110,6 +110,10 @@ export const THEME_COLORS = {
 } as const;
 
 export const THEME_METRICS = {
+  fixtureHandleRadius: cssNumber("--donder-fixture-handle-radius"),
+  fixtureGuideWidth: cssNumber("--donder-fixture-guide-width"),
+  fixtureArrowSize: cssNumber("--donder-fixture-arrow-size"),
+  fixtureLabelSpacing: cssNumber("--donder-fixture-label-spacing"),
   projectPanelMinWidth: cssNumber("--donder-project-panel-min-width"),
   projectPanelMaxWidth: cssNumber("--donder-project-panel-max-width"),
   inspectorMinWidth: cssNumber("--donder-inspector-min-width"),

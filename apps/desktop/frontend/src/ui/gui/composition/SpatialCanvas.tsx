@@ -1,10 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, unproject } from "../shared";
 import { SpatialControls, useSpatialViewport } from "../SpatialViewport";
 import { LayoutAddMenu } from "./LayoutAddMenu";
+import { FixtureContextMenu } from "./FixtureContextMenu";
+import { useFixtureCanvasTools, type FixtureCanvasTools } from "./fixtureCanvasTools";
 
 type Move = (delta: Point3Meters) => Promise<boolean>;
 type Gesture = { type: "pan"; x: number; y: number } | { type: "move"; owner: number; x: number; y: number; scale: number; commit: Move; pixels: SpatialRenderPixel[] };
@@ -17,7 +19,7 @@ type LayoutMenu = {
   onAddGroup: () => void;
 };
 
-export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveStart, layoutMenu }: { plan: SpatialRenderPlan; documentKey: string; selected: number | null; onSelect: (owner: number | null) => void; onMoveStart: (owner: number) => Move | null; layoutMenu?: LayoutMenu }) {
+export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveStart, layoutMenu, fixtureTools }: { plan: SpatialRenderPlan; documentKey: string; selected: number | null; onSelect: (owner: number | null) => void; onMoveStart: (owner: number) => Move | null; layoutMenu?: LayoutMenu; fixtureTools?: FixtureCanvasTools }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const settledOffsets = useRef(new WeakSet<Offset>());
@@ -25,6 +27,8 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
   const [menuPosition, setMenuPosition] = useState<Point3Meters | null>(null);
   const bounds = useMemo(() => normalizeBounds(plan.bounds), [plan.bounds]);
   const spatial = useSpatialViewport(bounds, documentKey, documentKey);
+  const fixture = useFixtureCanvasTools(fixtureTools, selected, spatial.view.scale, plan);
+  useEffect(() => { if (fixtureTools?.tool !== null && fixtureTools?.tool !== undefined) canvas.current?.focus(); }, [fixtureTools?.tool]);
   const points = useMemo(() => plan.pixels.map((pixel) => normalizePoint(pixel.position)), [plan.pixels]);
   useLayoutEffect(() => {
     const element = canvas.current;
@@ -46,21 +50,25 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
           context.fillStyle = selected === pixel.owner ? THEME_COLORS.layoutSelected : THEME_COLORS.playhead;
           context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.fill();
         });
+        const selectedOffset = displayOffset?.owner === selected ? displayOffset : null;
+        fixture.draw(context, selectedOffset === null ? project : (point) => project({ ...point, x: point.x + selectedOffset.x, y: point.y + selectedOffset.y }));
       }, spatial.view);
     };
     draw();
     const observer = new ResizeObserver(draw);
     observer.observe(element);
     return () => { observer.disconnect(); };
-  }, [bounds, plan, selected, spatial, offset]);
+  }, [bounds, plan, selected, spatial, offset, fixture]);
   const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Fixture pixels"
-      onKeyDown={(event) => { if (event.key === "Home") { event.preventDefault(); spatial.reset(); } }}
+      onKeyDown={(event) => { if (event.key === "Home") { event.preventDefault(); spatial.reset(); } else if (fixtureTools !== undefined && fixture.key(event.key)) event.preventDefault(); }}
       onPointerDown={(event) => {
         if (event.button !== 0 && event.button !== 1) return;
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
+        event.currentTarget.focus();
         const rect = event.currentTarget.getBoundingClientRect();
         const world = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+        if (event.button === 0 && !event.altKey && fixture.down(world)) return;
         const index = nearestPoint(points, world, THEME_METRICS.spatialHitRadius / spatial.view.scale);
         const owner = index === null ? null : plan.pixels[index]?.owner ?? null;
         onSelect(owner);
@@ -70,6 +78,8 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
           : { type: "pan", x: event.clientX, y: event.clientY };
       }}
       onPointerMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (gesture.current === null && fixture.move(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view))) return;
         const active = gesture.current;
         if (active === null) return;
         if (active.type === "pan") {
@@ -80,6 +90,8 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
         }
       }}
       onPointerUp={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (gesture.current === null && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view))) return;
         const active = gesture.current;
         gesture.current = null;
         if (active?.type === "move") {
@@ -88,22 +100,29 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
           else setOffset(null);
         }
       }}
-      onPointerCancel={() => { gesture.current = null; setOffset(null); }}
+      onPointerCancel={() => { gesture.current = null; setOffset(null); fixture.cancel(); }}
       onWheel={(event) => {
         event.preventDefault();
-        if (gesture.current !== null) return;
+        if (gesture.current !== null || fixture.active) return;
         const rect = event.currentTarget.getBoundingClientRect();
         spatial.zoomAt(Math.exp(-event.deltaY * THEME_METRICS.spatialWheelZoomScale), event.clientX - rect.left, event.clientY - rect.top);
       }}
       onContextMenu={(event) => {
-        if (layoutMenu === undefined) return;
         const rect = event.currentTarget.getBoundingClientRect();
         const point = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+        if (fixtureTools !== undefined) {
+          const index = nearestPoint(points, point, THEME_METRICS.spatialHitRadius / spatial.view.scale);
+          onSelect(index === null ? null : plan.pixels[index]?.owner ?? null);
+        }
+        if (layoutMenu === undefined) return;
         setMenuPosition({ xMeters: point.x, yMeters: point.y, zMeters: point.z });
       }}
     />;
   return <div className="spatial-canvas-shell">
-    {layoutMenu === undefined ? canvasElement : <ContextMenu.Root onOpenChange={(open) => { if (!open) setMenuPosition(null); }}>
+    {layoutMenu === undefined ? fixtureTools === undefined ? canvasElement : <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>{canvasElement}</ContextMenu.Trigger>
+      <ContextMenu.Portal><ContextMenu.Content className="menu-content"><FixtureContextMenu enabled={fixtureTools.enabled} onTool={fixtureTools.onTool} selected={selected !== null} onDuplicate={fixtureTools.onDuplicate} onDelete={fixtureTools.onDelete} /></ContextMenu.Content></ContextMenu.Portal>
+    </ContextMenu.Root> : <ContextMenu.Root onOpenChange={(open) => { if (!open) setMenuPosition(null); }}>
       <ContextMenu.Trigger asChild disabled={!layoutMenu.enabled}>{canvasElement}</ContextMenu.Trigger>
       {menuPosition !== null && <ContextMenu.Portal><ContextMenu.Content className="menu-content">
         <LayoutAddMenu

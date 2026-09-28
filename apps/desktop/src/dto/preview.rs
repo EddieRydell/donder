@@ -19,16 +19,78 @@ pub struct FixtureGuiDocument {
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
-    pub pixels: Vec<GuiPixel>,
+    pub elements: Vec<GuiFixtureElement>,
+    pub handles: Vec<GuiFixtureHandle>,
     pub render_plan: SpatialRenderPlan,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct GuiPixel {
+pub struct GuiFixtureElement {
     pub id: u32,
-    pub position: Point3Meters,
+    pub name: String,
+    pub transform: Transform,
     pub diameter_meters: f32,
+    pub reverse: bool,
+    pub shape: GuiFixtureShape,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiFixtureHandle {
+    pub element: u32,
+    pub index: u32,
+    pub position: Point3Meters,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiGridAxis {
+    Rows,
+    Columns,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GuiGridCorner {
+    BottomLeft,
+    BottomRight,
+    TopLeft,
+    TopRight,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiFixtureShape {
+    Pixel,
+    Line {
+        length: f32,
+        count: u32,
+    },
+    Polyline {
+        points: Vec<Point3Meters>,
+        count: u32,
+    },
+    Arc {
+        radius: f32,
+        start_degrees: f32,
+        sweep_degrees: f32,
+        count: u32,
+        closed: bool,
+    },
+    Grid {
+        columns: u32,
+        rows: u32,
+        width: f32,
+        height: f32,
+        axis: GuiGridAxis,
+        corner: GuiGridCorner,
+        serpentine: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -38,8 +100,21 @@ pub struct GuiPixel {
     rename_all_fields = "camelCase"
 )]
 pub enum FixtureGuiEdit {
-    SetPixels { pixels: Vec<GuiPixel> },
-    MovePixel { id: u32, delta: Point3Meters },
+    SetElements {
+        elements: Vec<GuiFixtureElement>,
+    },
+    MoveElement {
+        id: u32,
+        delta: Point3Meters,
+    },
+    MoveHandle {
+        id: u32,
+        index: u32,
+        position: Point3Meters,
+    },
+    ConvertToPixels {
+        id: u32,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -86,6 +161,7 @@ pub enum GuiLayoutFixtureKind {
 pub enum LayoutGuiEdit {
     AddDefinition {
         name: String,
+        storage: FixtureStorage,
         parent: Option<u32>,
         transform: Transform,
     },
@@ -96,6 +172,13 @@ pub enum LayoutGuiEdit {
         id: u32,
         delta: Point3Meters,
     },
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum FixtureStorage {
+    Inline,
+    NewFile,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

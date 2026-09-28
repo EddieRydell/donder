@@ -560,3 +560,53 @@ use crate::dto::{
     SequenceBuiltinOperator, SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope,
     SequenceGradientStop, SequenceGraphOperator, SequenceLibrarySource,
 };
+
+pub(super) fn create_object_document(
+    session: &mut ProjectSession,
+    kind: donder_project_io::SourceObjectKind,
+    name: &str,
+    directory: &str,
+    suffix: &str,
+) -> Result<donder_language::identity::SourceIdentity, GuiMutationError> {
+    let mut key = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    while key.contains("__") {
+        key = key.replace("__", "_");
+    }
+    key = key.trim_matches('_').to_string();
+    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        key = format!("item_{key}");
+    }
+    for index in 1_u32.. {
+        let stem = if index == 1 {
+            key.clone()
+        } else {
+            format!("{key}_{index}")
+        };
+        let path = camino::Utf8PathBuf::from(format!("{directory}/{stem}.{suffix}.donder"));
+        let document = session.source.project_document(path.clone());
+        if session.source.documents.contains_key(&document)
+            || session.source.project_root().join(&path).exists()
+        {
+            continue;
+        }
+        return session
+            .source
+            .add_yaml_document(path, vec![(kind, stem)])
+            .map_err(GuiMutationError::Invalid)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| GuiMutationError::Invalid("New document has no object.".into()));
+    }
+    Err(GuiMutationError::Invalid(
+        "No source document names remain.".into(),
+    ))
+}

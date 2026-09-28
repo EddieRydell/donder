@@ -1,14 +1,14 @@
 main:
   type: layout
   fixtures:
-  - id: 2
-    name: Desk
+  - id: 1
+    name: Desk Left
     type: fixture
-    definition: fixture_2
+    definition: fixture_1
     transform:
       position:
-        x: 0.321041
-        y: 0.810195
+        x: 0.258134
+        y: 0.712581
         z: 0.0
       rotation:
         x: 0.0
@@ -20,7 +20,25 @@ main:
         z: 1.0
 fixture_1:
   type: fixture
-  pixels: []
-fixture_2:
-  type: fixture
-  pixels: []
+  elements:
+  - id: 1
+    name: Line 1
+    diameter: 0.01
+    transform:
+      position:
+        x: -0.001052
+        y: -0.002953
+        z: 0.0
+      rotation:
+        x: 0.0
+        y: 0.0
+        z: 90.0
+      scale:
+        x: 1.0
+        y: 1.0
+        z: 1.0
+    reverse: false
+    shape:
+      type: line
+      length: 1.0005906820297241
+      count: 30

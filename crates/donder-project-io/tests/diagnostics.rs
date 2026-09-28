@@ -132,14 +132,14 @@ fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
 }
 
 #[test]
-fn fixture_pixel_field_typos_are_rejected_without_changing_the_saved_project() {
+fn fixture_element_field_typos_are_rejected_without_changing_the_saved_project() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     write_imported_sequence_project(&root, &minimal_sequence_body(""));
     let path = Utf8PathBuf::from("display.donder");
     let display = fs::read_to_string(root.join(&path)).unwrap().replace(
-        "  - id: 1\n    diameter: 0.01",
-        "  - id: 1\n    diameter: 0.01\n    position: { x: 0, y: 0, z: 0 }",
+        "    diameter: 0.01",
+        "    diameter: 0.01\n    transform: { position: { x: 0, y: 0, z: 0 } }",
     );
     fs::write(root.join(&path), &display).unwrap();
     let baseline = check_package(&root);
@@ -151,7 +151,7 @@ fn fixture_pixel_field_typos_are_rejected_without_changing_the_saved_project() {
     let original = donder_project_io::project_source_texts(&root).unwrap();
     for (anchor, indentation, label) in [
         ("  type: fixture", 2, "fixture definition"),
-        ("    diameter: 0.01", 4, "pixel"),
+        ("    diameter: 0.01", 4, "fixture element"),
     ] {
         let edited = display.replacen(
             anchor,
@@ -319,7 +319,7 @@ fn repeated_reference_text_reports_the_failing_occurrence() {
         "imports:\n- from:\n    documents:\n    - display.donder\n  as: display\n- from:\n    documents:\n    - patch.donder\n  as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
     )
     .unwrap();
-    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  pixels:\n  - id: 1\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
+    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  elements:\n  - id: 1\n    name: Pixel\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
     fs::write(
         root.join("patch.donder"),
         "main:\n  type: patch\n  routes: []\n",
@@ -582,7 +582,7 @@ fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
         "imports:\n  - from:\n      documents:\n      - display.donder\n    as: display\n  - from:\n      documents:\n      - patch.donder\n    as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
     )
     .unwrap();
-    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  pixels:\n  - id: 1\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
+    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  elements:\n  - id: 1\n    name: Pixel\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
     fs::write(
         root.join("patch.donder"),
         "main:\n  type: patch\n  routes: []\n",

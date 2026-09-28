@@ -1,21 +1,126 @@
-//! Reusable fixtures contain ordered pixels. Layouts own grouping and placement.
+//! Reusable fixtures contain ordered shapes. Layouts own grouping and placement.
 use crate::identity::SourceIdentity;
 use crate::values::{DistanceSpan, Point3, Rotation3, Scale3};
 use indexmap::IndexMap;
 use std::collections::HashSet;
+
+pub const MAX_FIXTURE_PIXELS: u32 = 1_000_000;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FixtureDefinitionId(pub SourceIdentity);
 
 /// Stable within a definition; list order determines output order.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct PixelId(pub u32);
+pub struct FixtureElementId(pub u32);
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Pixel {
-    pub id: PixelId,
-    pub position: Point3,
+pub struct FixtureElement {
+    pub id: FixtureElementId,
+    pub name: String,
+    pub transform: FixtureTransform,
     pub diameter: DistanceSpan,
+    pub reverse: bool,
+    pub shape: FixtureShape,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridAxis {
+    Rows,
+    Columns,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridCorner {
+    BottomLeft,
+    BottomRight,
+    TopLeft,
+    TopRight,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum FixtureShape {
+    Pixel,
+    Line {
+        length: f32,
+        count: u32,
+    },
+    Polyline {
+        points: Vec<Point3>,
+        count: u32,
+    },
+    Arc {
+        radius: f32,
+        start_degrees: f32,
+        sweep_degrees: f32,
+        count: u32,
+        closed: bool,
+    },
+    Grid {
+        columns: u32,
+        rows: u32,
+        width: f32,
+        height: f32,
+        axis: GridAxis,
+        corner: GridCorner,
+        serpentine: bool,
+    },
+}
+
+impl FixtureShape {
+    pub fn pixel_count(&self) -> Option<u32> {
+        match self {
+            Self::Pixel => Some(1),
+            Self::Line { count, .. } | Self::Polyline { count, .. } | Self::Arc { count, .. } => {
+                Some(*count)
+            }
+            Self::Grid { columns, rows, .. } => columns.checked_mul(*rows),
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        let positive = |v: f32| v.is_finite() && v > 0.0 && v <= 2_000.0;
+        if !matches!(self.pixel_count(), Some(1..=MAX_FIXTURE_PIXELS)) {
+            return false;
+        }
+        match self {
+            Self::Pixel => true,
+            Self::Line { length, .. } => positive(*length),
+            Self::Polyline { points, .. } => {
+                points.len() >= 2 && points.windows(2).any(|pair| pair[0] != pair[1])
+            }
+            Self::Arc {
+                radius,
+                start_degrees,
+                sweep_degrees,
+                closed,
+                ..
+            } => {
+                positive(*radius)
+                    && start_degrees.is_finite()
+                    && sweep_degrees.is_finite()
+                    && *sweep_degrees != 0.0
+                    && sweep_degrees.abs() <= 360.0
+                    && (!closed || sweep_degrees.abs() == 360.0)
+            }
+            Self::Grid {
+                columns,
+                rows,
+                width,
+                height,
+                ..
+            } => *columns > 0 && *rows > 0 && positive(*width) && positive(*height),
+        }
+    }
+}
+
+impl FixtureElement {
+    pub fn is_valid(&self) -> bool {
+        !self.name.trim().is_empty()
+            && self.transform.is_valid()
+            && self.diameter != DistanceSpan::ZERO
+            && self.diameter.as_meters_f32() <= 100.0
+            && self.shape.is_valid()
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -37,7 +142,7 @@ impl FixtureTransform {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FixtureDefinition {
-    pub pixels: Vec<Pixel>,
+    pub elements: Vec<FixtureElement>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -48,46 +153,58 @@ pub struct FixtureDefinitions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FixtureDefinitionError {
     TooManyPixels(FixtureDefinitionId),
-    DuplicatePixel {
+    DuplicateElement {
         definition: FixtureDefinitionId,
-        pixel: PixelId,
+        element: FixtureElementId,
     },
-    EmptyPixel {
+    InvalidElement {
         definition: FixtureDefinitionId,
-        pixel: PixelId,
+        element: FixtureElementId,
     },
 }
+impl FixtureDefinition {
+    pub fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
+        let mut seen = HashSet::new();
+        let mut total = 0u32;
+        for element in &self.elements {
+            if !seen.insert(element.id) {
+                return Err(FixtureDefinitionError::DuplicateElement {
+                    definition: id.clone(),
+                    element: element.id,
+                });
+            }
+            if !element.is_valid() {
+                return Err(FixtureDefinitionError::InvalidElement {
+                    definition: id.clone(),
+                    element: element.id,
+                });
+            }
+            total = total
+                .checked_add(
+                    element
+                        .shape
+                        .pixel_count()
+                        .ok_or_else(|| FixtureDefinitionError::TooManyPixels(id.clone()))?,
+                )
+                .filter(|count| *count <= MAX_FIXTURE_PIXELS)
+                .ok_or_else(|| FixtureDefinitionError::TooManyPixels(id.clone()))?;
+        }
+        Ok(total)
+    }
+}
+
 impl FixtureDefinitions {
     pub fn pixel_counts(
         &self,
     ) -> Result<IndexMap<FixtureDefinitionId, u32>, FixtureDefinitionError> {
-        self.validate()?;
         self.definitions
             .iter()
-            .map(|(id, definition)| {
-                u32::try_from(definition.pixels.len())
-                    .map(|count| (id.clone(), count))
-                    .map_err(|_| FixtureDefinitionError::TooManyPixels(id.clone()))
-            })
+            .map(|(id, definition)| definition.validate(id).map(|count| (id.clone(), count)))
             .collect()
     }
     pub fn validate(&self) -> Result<(), FixtureDefinitionError> {
         for (id, definition) in &self.definitions {
-            let mut seen = HashSet::new();
-            for pixel in &definition.pixels {
-                if !seen.insert(pixel.id) {
-                    return Err(FixtureDefinitionError::DuplicatePixel {
-                        definition: id.clone(),
-                        pixel: pixel.id,
-                    });
-                }
-                if pixel.diameter == DistanceSpan::ZERO {
-                    return Err(FixtureDefinitionError::EmptyPixel {
-                        definition: id.clone(),
-                        pixel: pixel.id,
-                    });
-                }
-            }
+            definition.validate(id)?;
         }
         Ok(())
     }

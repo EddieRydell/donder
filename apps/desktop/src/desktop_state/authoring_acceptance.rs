@@ -97,10 +97,13 @@ fn inline_definition_edits_share_instance_geometry_and_persist() {
         r#"
 assembly:
   type: fixture
-  pixels:
+  elements:
   - id: 11
+    name: Pixel
+    reverse: false
+    shape: {type: pixel}
     diameter: 0.01
-    position: { x: 1, y: 0, z: 0 }
+    transform: {position: { x: 1, y: 0, z: 0 }}
 main:
   type: layout
   fixtures:
@@ -142,7 +145,7 @@ main:
         fixture_edit(
             &state,
             assembly,
-            FixtureGuiEdit::MovePixel {
+            FixtureGuiEdit::MoveElement {
                 id: 11,
                 delta: Point3Meters {
                     x_meters: 3.0,
@@ -199,6 +202,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
         edit_layout(
             &state,
             LayoutGuiEdit::AddDefinition {
+                storage: FixtureStorage::Inline,
                 name: "Strip".into(),
                 parent: None,
                 transform: transform(0.0),
@@ -213,18 +217,21 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     };
     let definition = definition.clone();
     assert_eq!(definition.path, layout.path);
-    let pixels = (1..=3)
-        .map(|id| GuiPixel {
+    let elements = (1..=3)
+        .map(|id| GuiFixtureElement {
             id,
-            position: transform((id - 1) as f32).position,
+            name: format!("Pixel {id}"),
+            reverse: false,
+            shape: GuiFixtureShape::Pixel,
+            transform: transform((id - 1) as f32),
             diameter_meters: 0.01,
         })
         .collect::<Vec<_>>();
     let GuiDocument::Fixture { document } = fixture_edit(
         &state,
         &definition,
-        FixtureGuiEdit::SetPixels {
-            pixels: pixels.clone(),
+        FixtureGuiEdit::SetElements {
+            elements: elements.clone(),
         },
     ) else {
         panic!("definition edit failed")
@@ -349,10 +356,13 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     let result = fixture_edit(
         &state,
         &definition,
-        FixtureGuiEdit::SetPixels {
-            pixels: vec![GuiPixel {
+        FixtureGuiEdit::SetElements {
+            elements: vec![GuiFixtureElement {
                 id: 1,
-                position: transform(0.0).position,
+                name: "Invalid".into(),
+                reverse: false,
+                shape: GuiFixtureShape::Pixel,
+                transform: transform(0.0),
                 diameter_meters: 0.0,
             }],
         },
@@ -362,12 +372,14 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
         &before_invalid,
         &state.project_session().unwrap()
     ));
-    let mut reordered = pixels;
+    let mut reordered = elements;
     reordered.reverse();
     let GuiDocument::Fixture { document } = fixture_edit(
         &state,
         &definition,
-        FixtureGuiEdit::SetPixels { pixels: reordered },
+        FixtureGuiEdit::SetElements {
+            elements: reordered,
+        },
     ) else {
         panic!("reorder failed")
     };
@@ -582,4 +594,305 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     for (path, bytes) in originals {
         assert_eq!(std::fs::read(library.join(path)).unwrap(), bytes);
     }
+}
+
+#[test]
+fn shape_handles_conversion_and_undo_preserve_output_order() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
+    write_new_project_files(&root, &new_project_files("Shapes").unwrap()).unwrap();
+    let state = DesktopState::new(|_| {});
+    state.open_project_path(root.as_str());
+    let mut settings = state.snapshot().settings;
+    settings.autosave_project_edits = false;
+    state.update_app_settings(settings);
+    let layout = layout_document(
+        edit_layout(
+            &state,
+            LayoutGuiEdit::AddDefinition {
+                storage: FixtureStorage::Inline,
+                name: "Shapes".into(),
+                parent: None,
+                transform: transform(0.0),
+            },
+        )
+        .document,
+    );
+    let GuiLayoutFixtureKind::Fixture { definition, .. } = &layout.fixtures[0].kind else {
+        panic!("missing fixture")
+    };
+    let element = GuiFixtureElement {
+        id: 1,
+        name: "Line".into(),
+        transform: transform(1.0),
+        diameter_meters: 0.01,
+        reverse: true,
+        shape: GuiFixtureShape::Line {
+            length: 2.0,
+            count: 3,
+        },
+    };
+    assert!(matches!(
+        fixture_edit(
+            &state,
+            definition,
+            FixtureGuiEdit::SetElements {
+                elements: vec![element]
+            }
+        ),
+        GuiDocument::Fixture { .. }
+    ));
+    let GuiDocument::Fixture { document: moved } = fixture_edit(
+        &state,
+        definition,
+        FixtureGuiEdit::MoveHandle {
+            id: 1,
+            index: 1,
+            position: Point3Meters {
+                x_meters: 1.0,
+                y_meters: 4.0,
+                z_meters: 0.0,
+            },
+        },
+    ) else {
+        panic!("handle edit failed")
+    };
+    let positions = |document: &FixtureGuiDocument| {
+        document
+            .render_plan
+            .pixels
+            .iter()
+            .map(|pixel| (pixel.position.x_meters, pixel.position.y_meters))
+            .collect::<Vec<_>>()
+    };
+    for ((x, y), (expected_x, expected_y)) in
+        positions(&moved)
+            .into_iter()
+            .zip([(1.0, 4.0), (1.0, 2.0), (1.0, 0.0)])
+    {
+        assert!((x - expected_x).abs() < 0.00001 && (y - expected_y).abs() < 0.00001);
+    }
+    let before_conversion = state.project_session().unwrap();
+    let GuiDocument::Fixture {
+        document: converted,
+    } = fixture_edit(
+        &state,
+        definition,
+        FixtureGuiEdit::ConvertToPixels { id: 1 },
+    )
+    else {
+        panic!("conversion failed")
+    };
+    assert_eq!(converted.elements.len(), 3);
+    assert!(
+        converted
+            .elements
+            .iter()
+            .all(|element| matches!(element.shape, GuiFixtureShape::Pixel))
+    );
+    for ((x, y), (expected_x, expected_y)) in
+        positions(&converted).into_iter().zip(positions(&moved))
+    {
+        assert!((x - expected_x).abs() < 0.00001 && (y - expected_y).abs() < 0.00001);
+    }
+    let after_conversion = state.project_session().unwrap();
+    state.undo_active_edit();
+    assert_eq!(
+        state.project_session().unwrap().project,
+        before_conversion.project
+    );
+    state.redo_active_edit();
+    assert_eq!(
+        state.project_session().unwrap().project,
+        after_conversion.project
+    );
+    state.save_all().unwrap();
+    assert_eq!(
+        donder_project_io::load_package(&root)
+            .unwrap()
+            .session
+            .project,
+        after_conversion.project
+    );
+}
+
+#[test]
+fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
+    for storage in [FixtureStorage::Inline, FixtureStorage::NewFile] {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
+        write_new_project_files(&root, &new_project_files("Storage").unwrap()).unwrap();
+        let state = DesktopState::new(|_| {});
+        state.open_project_path(root.as_str());
+        let mut settings = state.snapshot().settings;
+        settings.autosave_project_edits = false;
+        state.update_app_settings(settings);
+        let layout = layout_document(
+            edit_layout(
+                &state,
+                LayoutGuiEdit::AddDefinition {
+                    name: "My Strip".into(),
+                    storage,
+                    parent: None,
+                    transform: transform(0.0),
+                },
+            )
+            .document,
+        );
+        let GuiLayoutFixtureKind::Fixture { definition, .. } = &layout.fixtures[0].kind else {
+            panic!("fixture missing")
+        };
+        assert_eq!(
+            definition.path,
+            match storage {
+                FixtureStorage::Inline => "layouts/main.layout.donder",
+                FixtureStorage::NewFile => "fixtures/my_strip.fixture.donder",
+            }
+        );
+        state.save_all().unwrap();
+        assert_eq!(
+            donder_project_io::load_package(&root)
+                .unwrap()
+                .session
+                .project,
+            state.project_session().unwrap().project
+        );
+        let mut second = layout.fixtures[0].clone();
+        second.id = 2;
+        second.name = "Shared placement".into();
+        let group = GuiLayoutFixture {
+            id: 3,
+            name: "Group".into(),
+            kind: GuiLayoutFixtureKind::Group {
+                children: vec![second],
+            },
+        };
+        layout_document(
+            edit_layout(
+                &state,
+                LayoutGuiEdit::SetFixtures {
+                    fixtures: vec![layout.fixtures[0].clone(), group.clone()],
+                },
+            )
+            .document,
+        );
+        layout_document(
+            edit_layout(
+                &state,
+                LayoutGuiEdit::SetFixtures {
+                    fixtures: vec![group],
+                },
+            )
+            .document,
+        );
+        assert_eq!(
+            state
+                .project_session()
+                .unwrap()
+                .project
+                .definitions
+                .fixtures
+                .definitions
+                .len(),
+            1
+        );
+        let before = state.project_session().unwrap();
+        let removed = layout_document(
+            edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: vec![] }).document,
+        );
+        assert!(removed.fixtures.is_empty());
+        let after = state.project_session().unwrap();
+        assert_eq!(
+            after.project.definitions.fixtures.definitions.len(),
+            usize::from(matches!(storage, FixtureStorage::NewFile))
+        );
+        state.undo_active_edit();
+        assert_eq!(*state.project_session().unwrap(), *before);
+        state.redo_active_edit();
+        assert_eq!(*state.project_session().unwrap(), *after);
+        state.save_all().unwrap();
+        assert_eq!(
+            donder_project_io::load_package(&root)
+                .unwrap()
+                .session
+                .project,
+            after.project
+        );
+        let text = std::fs::read_to_string(root.join("layouts/main.layout.donder")).unwrap();
+        assert!(!text.contains("fixture_1:"));
+        if matches!(storage, FixtureStorage::NewFile) {
+            assert!(root.join("fixtures/my_strip.fixture.donder").exists());
+        }
+    }
+}
+
+#[test]
+fn inline_fixture_cleanup_waits_for_its_last_layout_reference() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
+    write_new_project_files(&root, &new_project_files("Shared").unwrap()).unwrap();
+    let state = DesktopState::new(|_| {});
+    state.open_project_path(root.as_str());
+    let mut settings = state.snapshot().settings;
+    settings.autosave_project_edits = false;
+    state.update_app_settings(settings);
+    layout_document(
+        edit_layout(
+            &state,
+            LayoutGuiEdit::AddDefinition {
+                name: "Shared".into(),
+                storage: FixtureStorage::Inline,
+                parent: None,
+                transform: transform(0.0),
+            },
+        )
+        .document,
+    );
+    setup_edit(&state, SetupGuiEdit::CopyLayout);
+    state.open_file_path("layouts/main.layout.donder");
+    layout_document(
+        state
+            .apply_gui_edit(
+                GuiDocumentRequest {
+                    project_revision: state.snapshot().project_revision,
+                    path: "layouts/main.layout.donder".into(),
+                    object_key: Some("main".into()),
+                    view: DocumentViewId::Layout,
+                },
+                GuiEditCommand::Layout {
+                    edit: LayoutGuiEdit::SetFixtures { fixtures: vec![] },
+                },
+            )
+            .document,
+    );
+    assert_eq!(
+        state
+            .project_session()
+            .unwrap()
+            .project
+            .definitions
+            .fixtures
+            .definitions
+            .len(),
+        1
+    );
+    layout_document(edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: vec![] }).document);
+    assert!(
+        state
+            .project_session()
+            .unwrap()
+            .project
+            .definitions
+            .fixtures
+            .definitions
+            .is_empty()
+    );
+    state.save_all().unwrap();
+    assert_eq!(
+        donder_project_io::load_package(&root)
+            .unwrap()
+            .session
+            .project,
+        state.project_session().unwrap().project
+    );
 }

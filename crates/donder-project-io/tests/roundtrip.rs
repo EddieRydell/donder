@@ -66,7 +66,7 @@ fn audio_reference_cannot_escape_its_module() {
     .unwrap();
     fs::write(
         project_root.join("display.donder"),
-        "pixel:\n  type: fixture\n  pixels:\n  - id: 1\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n",
+        "pixel:\n  type: fixture\n  elements:\n  - id: 1\n    name: Pixel\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n",
     )
     .unwrap();
     fs::write(

@@ -5,15 +5,15 @@ patch, and sequence. Setup links to the native editors for each resource.
 
 ## Define and place pixels
 
-Open Layout and right-click the inset tree. Choose **Add fixture**, enter
-**Pixel A**, and choose **New definition**. In the pixel editor, click **Add pixel**.
+Open Layout and right-click the inset tree. Choose **Add fixture > Create new fixture**
+and enter **Pixel A**. In the fixture editor, choose **Pixel** and click the canvas.
 Its default diameter is 0.01 meters; edit its position and diameter as needed.
 
-Close the pixel editor. Add another fixture named **Pixel B**, choosing the
-existing definition. Drag B on the layout canvas to place it. Both instances
-share the definition while retaining independent effect targets. Right-click
-a fixture row and choose **Edit definition** to change its pixels later.
-Definitions contain only pixels; layout groups organize instances for effect
+Close the fixture editor. Add the existing fixture through **Add fixture** and
+rename its new instance to **Pixel B**. Drag B on the layout canvas to place it.
+Both instances share their shapes while retaining independent effect targets.
+Right-click a fixture row and choose **Edit fixture** to edit its shapes later.
+Fixtures contain ordered shapes; layout groups organize instances for effect
 targeting. See [fixture authoring](fixture_authoring.md).
 
 ## Route the output

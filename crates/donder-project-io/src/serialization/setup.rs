@@ -196,19 +196,98 @@ pub(super) fn fixture_definition_value(
 ) -> Result<Value, ExportProjectError> {
     let mut value = typed_object("fixture");
     value.insert(
-        string_value("pixels"),
+        string_value("elements"),
         Value::Sequence(
             definition
-                .pixels
+                .elements
                 .iter()
-                .map(|pixel| {
+                .map(|element| {
                     let mut value = Mapping::new();
-                    value.insert(string_value("id"), serialized_value(pixel.id.0)?);
-                    value.insert(string_value("position"), point_value(&pixel.position)?);
+                    value.insert(string_value("id"), serialized_value(element.id.0)?);
+                    value.insert(string_value("name"), string_value(&element.name));
                     value.insert(
                         string_value("diameter"),
-                        serialized_value(f64::from(pixel.diameter.micrometers) / 1_000_000.0)?,
+                        serialized_value(f64::from(element.diameter.micrometers) / 1_000_000.0)?,
                     );
+                    value.insert(
+                        string_value("transform"),
+                        transform_value(&element.transform)?,
+                    );
+                    value.insert(string_value("reverse"), serialized_value(element.reverse)?);
+                    let mut shape = Mapping::new();
+                    match &element.shape {
+                        FixtureShape::Pixel => {
+                            shape.insert(string_value("type"), string_value("pixel"));
+                        }
+                        FixtureShape::Line { length, count } => {
+                            shape.insert(string_value("type"), string_value("line"));
+                            shape.insert(string_value("length"), serialized_value(length)?);
+                            shape.insert(string_value("count"), serialized_value(count)?);
+                        }
+                        FixtureShape::Polyline { points, count } => {
+                            shape.insert(string_value("type"), string_value("polyline"));
+                            shape.insert(
+                                string_value("points"),
+                                Value::Sequence(
+                                    points.iter().map(point_value).collect::<Result<_, _>>()?,
+                                ),
+                            );
+                            shape.insert(string_value("count"), serialized_value(count)?);
+                        }
+                        FixtureShape::Arc {
+                            radius,
+                            start_degrees,
+                            sweep_degrees,
+                            count,
+                            closed,
+                        } => {
+                            shape.insert(string_value("type"), string_value("arc"));
+                            shape.insert(string_value("radius"), serialized_value(radius)?);
+                            shape.insert(
+                                string_value("start_degrees"),
+                                serialized_value(start_degrees)?,
+                            );
+                            shape.insert(
+                                string_value("sweep_degrees"),
+                                serialized_value(sweep_degrees)?,
+                            );
+                            shape.insert(string_value("count"), serialized_value(count)?);
+                            shape.insert(string_value("closed"), serialized_value(closed)?);
+                        }
+                        FixtureShape::Grid {
+                            columns,
+                            rows,
+                            width,
+                            height,
+                            axis,
+                            corner,
+                            serpentine,
+                        } => {
+                            shape.insert(string_value("type"), string_value("grid"));
+                            shape.insert(string_value("columns"), serialized_value(columns)?);
+                            shape.insert(string_value("rows"), serialized_value(rows)?);
+                            shape.insert(string_value("width"), serialized_value(width)?);
+                            shape.insert(string_value("height"), serialized_value(height)?);
+                            shape.insert(
+                                string_value("axis"),
+                                string_value(match axis {
+                                    GridAxis::Rows => "rows",
+                                    GridAxis::Columns => "columns",
+                                }),
+                            );
+                            shape.insert(
+                                string_value("corner"),
+                                string_value(match corner {
+                                    GridCorner::BottomLeft => "bottom_left",
+                                    GridCorner::BottomRight => "bottom_right",
+                                    GridCorner::TopLeft => "top_left",
+                                    GridCorner::TopRight => "top_right",
+                                }),
+                            );
+                            shape.insert(string_value("serpentine"), serialized_value(serpentine)?);
+                        }
+                    }
+                    value.insert(string_value("shape"), Value::Mapping(shape));
                     Ok(Value::Mapping(value))
                 })
                 .collect::<Result<_, ExportProjectError>>()?,

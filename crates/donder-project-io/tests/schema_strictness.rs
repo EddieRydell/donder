@@ -157,7 +157,7 @@ layout:
     definition: pixel
 pixel:
   type: fixture
-  pixels: [{ id: 1, diameter: 0.01 }]
+  elements: [{ id: 1, name: Pixel, reverse: false, shape: {type: pixel}, diameter: 0.01 }]
 patch:
   type: patch
   routes: []

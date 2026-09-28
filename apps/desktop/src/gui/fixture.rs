@@ -1,8 +1,3 @@
-use donder_language::fixture::{FixtureDefinitionId, FixtureTransform, Pixel, PixelId};
-use donder_language::identity::SourceIdentity;
-use donder_language::values::DistanceSpan;
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
-
 use super::{
     GuiMutationError,
     model::{
@@ -10,42 +5,318 @@ use super::{
         source_identity_from_gui,
     },
 };
-use crate::dto::{FixtureGuiEdit, GuiObjectRef, GuiPixel, ObjectKind, Point3Meters, Transform};
+use crate::dto::*;
+use donder_language::fixture::*;
+use donder_language::identity::SourceIdentity;
+use donder_language::values::DistanceSpan;
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 
 pub(super) fn edit_fixture(
     session: &mut ProjectSession,
     identity: &SourceIdentity,
     edit: FixtureGuiEdit,
 ) -> Result<(), GuiMutationError> {
+    let fixture = fixture_definition_mut(session, identity)?;
     match edit {
-        FixtureGuiEdit::SetPixels { pixels } => {
-            fixture_definition_mut(session, identity)?.pixels = pixels
+        FixtureGuiEdit::SetElements { elements } => {
+            fixture.elements = elements
                 .into_iter()
-                .map(domain_pixel)
+                .map(domain_element)
                 .collect::<Result<_, _>>()?;
         }
-        FixtureGuiEdit::MovePixel { id, delta } => {
-            let pixel = fixture_definition_mut(session, identity)?
-                .pixels
+        FixtureGuiEdit::MoveElement { id, delta } => {
+            let element = fixture
+                .elements
                 .iter_mut()
-                .find(|pixel| pixel.id == PixelId(id))
-                .ok_or_else(|| GuiMutationError::Invalid("Pixel was not found.".into()))?;
-            pixel.position = checked_point(Point3Meters {
-                x_meters: pixel.position.x.as_meters_f32() + delta.x_meters,
-                y_meters: pixel.position.y.as_meters_f32() + delta.y_meters,
-                z_meters: pixel.position.z.as_meters_f32() + delta.z_meters,
+                .find(|element| element.id.0 == id)
+                .ok_or_else(|| GuiMutationError::Invalid("Shape was not found.".into()))?;
+            element.transform.position = checked_point(Point3Meters {
+                x_meters: element.transform.position.x.as_meters_f32() + delta.x_meters,
+                y_meters: element.transform.position.y.as_meters_f32() + delta.y_meters,
+                z_meters: element.transform.position.z.as_meters_f32() + delta.z_meters,
             })?;
         }
+        FixtureGuiEdit::MoveHandle {
+            id,
+            index,
+            position,
+        } => {
+            let element = fixture
+                .elements
+                .iter_mut()
+                .find(|element| element.id.0 == id)
+                .ok_or_else(|| GuiMutationError::Invalid("Shape was not found.".into()))?;
+            move_handle(element, index, position)?;
+        }
+        FixtureGuiEdit::ConvertToPixels { id } => {
+            let index = fixture
+                .elements
+                .iter()
+                .position(|element| element.id.0 == id)
+                .ok_or_else(|| GuiMutationError::Invalid("Shape was not found.".into()))?;
+            let element = &fixture.elements[index];
+            let mut next = fixture
+                .elements
+                .iter()
+                .map(|element| element.id.0)
+                .max()
+                .unwrap_or(0);
+            let pixels = donder_elaboration::fixture::element_pixels(element)
+                .map_err(|error| {
+                    GuiMutationError::Invalid(format!("Cannot expand shape: {error:?}"))
+                })?
+                .into_iter()
+                .enumerate()
+                .map(|(ordinal, pixel)| {
+                    next = next
+                        .checked_add(1)
+                        .ok_or_else(|| GuiMutationError::Invalid("No shape IDs remain.".into()))?;
+                    Ok(FixtureElement {
+                        id: FixtureElementId(next),
+                        name: format!("{} {}", element.name, ordinal + 1),
+                        transform: FixtureTransform {
+                            position: checked_point(Point3Meters {
+                                x_meters: pixel.position.x,
+                                y_meters: pixel.position.y,
+                                z_meters: pixel.position.z,
+                            })?,
+                            ..Default::default()
+                        },
+                        diameter: element.diameter,
+                        reverse: false,
+                        shape: FixtureShape::Pixel,
+                    })
+                })
+                .collect::<Result<Vec<_>, GuiMutationError>>()?;
+            fixture.elements.splice(index..=index, pixels);
+        }
+    }
+    fixture
+        .validate(&FixtureDefinitionId(identity.clone()))
+        .map_err(|error| GuiMutationError::Invalid(format!("Invalid fixture: {error:?}")))?;
+    // Validate generated coordinates before accepting the candidate edit.
+    for element in &fixture.elements {
+        donder_elaboration::fixture::element_pixels(element).map_err(|error| {
+            GuiMutationError::Invalid(format!(
+                "Shape is outside the supported geometry: {error:?}"
+            ))
+        })?;
     }
     Ok(())
 }
 
-fn domain_pixel(pixel: GuiPixel) -> Result<Pixel, GuiMutationError> {
-    Ok(Pixel {
-        id: PixelId(pixel.id),
-        position: checked_point(pixel.position)?,
-        diameter: pixel_diameter(pixel.diameter_meters)?,
-    })
+fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutationError> {
+    let shape = match element.shape {
+        GuiFixtureShape::Pixel => FixtureShape::Pixel,
+        GuiFixtureShape::Line { length, count } => FixtureShape::Line { length, count },
+        GuiFixtureShape::Polyline { points, count } => FixtureShape::Polyline {
+            points: points
+                .into_iter()
+                .map(checked_point)
+                .collect::<Result<_, _>>()?,
+            count,
+        },
+        GuiFixtureShape::Arc {
+            radius,
+            start_degrees,
+            sweep_degrees,
+            count,
+            closed,
+        } => FixtureShape::Arc {
+            radius,
+            start_degrees,
+            sweep_degrees,
+            count,
+            closed,
+        },
+        GuiFixtureShape::Grid {
+            columns,
+            rows,
+            width,
+            height,
+            axis,
+            corner,
+            serpentine,
+        } => FixtureShape::Grid {
+            columns,
+            rows,
+            width,
+            height,
+            axis: match axis {
+                GuiGridAxis::Rows => GridAxis::Rows,
+                GuiGridAxis::Columns => GridAxis::Columns,
+            },
+            corner: match corner {
+                GuiGridCorner::BottomLeft => GridCorner::BottomLeft,
+                GuiGridCorner::BottomRight => GridCorner::BottomRight,
+                GuiGridCorner::TopLeft => GridCorner::TopLeft,
+                GuiGridCorner::TopRight => GridCorner::TopRight,
+            },
+            serpentine,
+        },
+    };
+    let element = FixtureElement {
+        id: FixtureElementId(element.id),
+        name: element.name,
+        transform: checked_transform(element.transform)?,
+        diameter: pixel_diameter(element.diameter_meters)?,
+        reverse: element.reverse,
+        shape,
+    };
+    if !element.is_valid() {
+        return Err(GuiMutationError::Invalid(
+            "Invalid shape geometry, name, or pixel count.".into(),
+        ));
+    }
+    Ok(element)
+}
+
+pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
+    let shape = match &element.shape {
+        FixtureShape::Pixel => GuiFixtureShape::Pixel,
+        FixtureShape::Line { length, count } => GuiFixtureShape::Line {
+            length: *length,
+            count: *count,
+        },
+        FixtureShape::Polyline { points, count } => GuiFixtureShape::Polyline {
+            points: points
+                .iter()
+                .map(|point| crate::preview::point3_meters(*point))
+                .collect(),
+            count: *count,
+        },
+        FixtureShape::Arc {
+            radius,
+            start_degrees,
+            sweep_degrees,
+            count,
+            closed,
+        } => GuiFixtureShape::Arc {
+            radius: *radius,
+            start_degrees: *start_degrees,
+            sweep_degrees: *sweep_degrees,
+            count: *count,
+            closed: *closed,
+        },
+        FixtureShape::Grid {
+            columns,
+            rows,
+            width,
+            height,
+            axis,
+            corner,
+            serpentine,
+        } => GuiFixtureShape::Grid {
+            columns: *columns,
+            rows: *rows,
+            width: *width,
+            height: *height,
+            axis: match axis {
+                GridAxis::Rows => GuiGridAxis::Rows,
+                GridAxis::Columns => GuiGridAxis::Columns,
+            },
+            corner: match corner {
+                GridCorner::BottomLeft => GuiGridCorner::BottomLeft,
+                GridCorner::BottomRight => GuiGridCorner::BottomRight,
+                GridCorner::TopLeft => GuiGridCorner::TopLeft,
+                GridCorner::TopRight => GuiGridCorner::TopRight,
+            },
+            serpentine: *serpentine,
+        },
+    };
+    GuiFixtureElement {
+        id: element.id.0,
+        name: element.name.clone(),
+        transform: gui_transform(&element.transform),
+        diameter_meters: element.diameter.as_meters_f32(),
+        reverse: element.reverse,
+        shape,
+    }
+}
+
+pub(crate) fn gui_transform(value: &FixtureTransform) -> Transform {
+    Transform {
+        position: crate::preview::point3_meters(value.position),
+        rotation: Rotation3Degrees {
+            x_degrees: value.rotation.x,
+            y_degrees: value.rotation.y,
+            z_degrees: value.rotation.z,
+        },
+        scale: Scale3 {
+            x: value.scale.x,
+            y: value.scale.y,
+            z: value.scale.z,
+        },
+    }
+}
+
+fn move_handle(
+    element: &mut FixtureElement,
+    index: u32,
+    position: Point3Meters,
+) -> Result<(), GuiMutationError> {
+    let position = checked_point(position)?;
+    if index == 0 && !matches!(element.shape, FixtureShape::Polyline { .. }) {
+        element.transform.position = position;
+        return Ok(());
+    }
+    let to_vec = |point: donder_language::values::Point3| {
+        glam::Vec3::new(
+            point.x.as_meters_f32(),
+            point.y.as_meters_f32(),
+            point.z.as_meters_f32(),
+        )
+    };
+    let transform = donder_elaboration::fixture::fixture_transform(&element.transform);
+    let local = transform.inverse().transform_point3(to_vec(position));
+    match &mut element.shape {
+        FixtureShape::Line { length, .. } if index == 1 => {
+            let direction = glam::Vec2::new(
+                local.x,
+                local.y * element.transform.scale.y / element.transform.scale.x,
+            );
+            *length = direction.length();
+            element.transform.rotation.z += direction.y.atan2(direction.x).to_degrees();
+        }
+        FixtureShape::Polyline { points, .. } => {
+            *points.get_mut(index as usize).ok_or_else(|| {
+                GuiMutationError::Invalid("Control point was not found.".into())
+            })? = checked_point(Point3Meters {
+                x_meters: local.x,
+                y_meters: local.y,
+                z_meters: local.z,
+            })?;
+        }
+        FixtureShape::Arc {
+            radius,
+            start_degrees,
+            sweep_degrees,
+            closed,
+            ..
+        } if index == 1 || (index == 2 && !*closed) => {
+            let angle = local.y.atan2(local.x).to_degrees();
+            if index == 1 {
+                *radius = local.truncate().length();
+                *start_degrees = angle;
+            } else {
+                *sweep_degrees = if *sweep_degrees > 0.0 {
+                    (angle - *start_degrees).rem_euclid(360.0)
+                } else {
+                    -(*start_degrees - angle).rem_euclid(360.0)
+                };
+            }
+        }
+        FixtureShape::Grid { width, height, .. } if index == 1 => {
+            *width = local.x;
+            *height = local.y;
+        }
+        _ => {
+            return Err(GuiMutationError::Invalid(
+                "Control point was not found.".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn reference_definition(

@@ -1,7 +1,7 @@
 use crate::dto::*;
 use crate::gui::{ResolvedGuiObject, blocked};
 use donder_elaboration::fixture::PreparedFixtureDefinitions;
-use donder_language::fixture::{FixtureDefinitionId, FixtureTransform};
+use donder_language::fixture::FixtureDefinitionId;
 use donder_language::layout::{LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -25,27 +25,46 @@ pub(in crate::gui) fn project_fixture(
         .iter()
         .enumerate()
         .map(|(index, pixel)| SpatialRenderPixel {
-            owner: pixel.id.0,
+            owner: pixel.element.0,
             index: index as u32,
             position: point(pixel.position),
             diameter_meters: pixel.diameter_meters,
         })
         .collect();
+    let handles: Vec<GuiFixtureHandle> = definition
+        .elements
+        .iter()
+        .flat_map(|element| {
+            donder_elaboration::fixture::element_handles(element)
+                .into_iter()
+                .enumerate()
+                .map(|(index, position)| GuiFixtureHandle {
+                    element: element.id.0,
+                    index: index as u32,
+                    position: point(position),
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let mut plan = render_plan(pixels);
+    for handle in &handles {
+        plan.bounds.min_x_meters = plan.bounds.min_x_meters.min(handle.position.x_meters);
+        plan.bounds.max_x_meters = plan.bounds.max_x_meters.max(handle.position.x_meters);
+        plan.bounds.min_y_meters = plan.bounds.min_y_meters.min(handle.position.y_meters);
+        plan.bounds.max_y_meters = plan.bounds.max_y_meters.max(handle.position.y_meters);
+    }
     GuiDocument::Fixture {
         document: FixtureGuiDocument {
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
-            pixels: definition
-                .pixels
+            elements: definition
+                .elements
                 .iter()
-                .map(|pixel| GuiPixel {
-                    id: pixel.id.0,
-                    position: crate::preview::point3_meters(pixel.position),
-                    diameter_meters: pixel.diameter.as_meters_f32(),
-                })
+                .map(crate::gui::fixture::gui_element)
                 .collect(),
-            render_plan: render_plan(pixels),
+            handles,
+            render_plan: plan,
         },
     }
 }
@@ -127,27 +146,11 @@ fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
                 transform: value,
             } => GuiLayoutFixtureKind::Fixture {
                 definition: definition_ref(definition),
-                transform: transform(value),
+                transform: crate::gui::fixture::gui_transform(value),
             },
             LayoutFixtureKind::Group { children } => GuiLayoutFixtureKind::Group {
                 children: children.iter().map(self::fixture).collect(),
             },
-        },
-    }
-}
-
-fn transform(value: &FixtureTransform) -> Transform {
-    Transform {
-        position: crate::preview::point3_meters(value.position),
-        rotation: Rotation3Degrees {
-            x_degrees: value.rotation.x,
-            y_degrees: value.rotation.y,
-            z_degrees: value.rotation.z,
-        },
-        scale: Scale3 {
-            x: value.scale.x,
-            y: value.scale.y,
-            z: value.scale.z,
         },
     }
 }

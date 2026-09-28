@@ -199,16 +199,16 @@ impl DomainResolver<'_> {
 
         parse_mapping(document.path(), &value, "fixture definition", |fields| {
             fields.string("type")?;
-            let pixels = fields
-                .sequence("pixels")?
+            let elements = fields
+                .sequence("elements")?
                 .iter()
-                .map(|value| Self::parse_pixel(&document, value))
+                .map(|value| Self::parse_fixture_element(&document, value))
                 .collect::<Result<Vec<_>, _>>()?;
             self.project
                 .definitions
                 .fixtures
                 .definitions
-                .insert(id.clone(), FixtureDefinition { pixels });
+                .insert(id.clone(), FixtureDefinition { elements });
             Ok(())
         })
     }
@@ -230,31 +230,78 @@ impl DomainResolver<'_> {
         }
     }
 
-    fn parse_pixel(document: &DocumentId, value: &Value) -> Result<Pixel, LoadProjectError> {
+    fn parse_fixture_element(
+        document: &DocumentId,
+        value: &Value,
+    ) -> Result<FixtureElement, LoadProjectError> {
         let path = document.path();
-
-        parse_mapping(path, value, "pixel", |fields| {
-            let diameter = fields
-                .required("diameter")?
-                .as_f64()
-                .ok_or_else(|| invalid(path, "Pixel diameter must be a number."))?;
-            if !diameter.is_finite() || diameter < 0.000001 || diameter > 100.0 {
+        parse_mapping(path, value, "fixture element", |fields| {
+            let diameter = fields.f32("diameter")?;
+            if !diameter.is_finite() || !(0.000001..=100.0).contains(&diameter) {
                 return Err(invalid(
                     path,
                     "Pixel diameter must be between 0.000001 and 100 meters.",
                 ));
             }
-            Ok(Pixel {
-                id: PixelId(fields.u32("id")?),
-                position: fields
-                    .optional("position")
-                    .map(|point| parse_point3(path, point))
-                    .transpose()?
-                    .unwrap_or_default(),
-                diameter: donder_language::values::DistanceSpan {
-                    micrometers: (diameter * 1_000_000.0).round() as u32,
-                },
-            })
+            let shape = parse_mapping(path, fields.required("shape")?, "fixture shape", |shape| {
+                Ok(match shape.string("type")? {
+                    "pixel" => FixtureShape::Pixel,
+                    "line" => FixtureShape::Line {
+                        length: shape.f32("length")?,
+                        count: shape.u32("count")?,
+                    },
+                    "polyline" => FixtureShape::Polyline {
+                        points: shape
+                            .sequence("points")?
+                            .iter()
+                            .map(|point| parse_point3(path, point))
+                            .collect::<Result<_, _>>()?,
+                        count: shape.u32("count")?,
+                    },
+                    "arc" => FixtureShape::Arc {
+                        radius: shape.f32("radius")?,
+                        start_degrees: shape.f32("start_degrees")?,
+                        sweep_degrees: shape.f32("sweep_degrees")?,
+                        count: shape.u32("count")?,
+                        closed: shape.bool("closed")?,
+                    },
+                    "grid" => FixtureShape::Grid {
+                        columns: shape.u32("columns")?,
+                        rows: shape.u32("rows")?,
+                        width: shape.f32("width")?,
+                        height: shape.f32("height")?,
+                        axis: match shape.string("axis")? {
+                            "rows" => GridAxis::Rows,
+                            "columns" => GridAxis::Columns,
+                            _ => return Err(invalid(path, "Grid axis must be rows or columns.")),
+                        },
+                        corner: match shape.string("corner")? {
+                            "bottom_left" => GridCorner::BottomLeft,
+                            "bottom_right" => GridCorner::BottomRight,
+                            "top_left" => GridCorner::TopLeft,
+                            "top_right" => GridCorner::TopRight,
+                            _ => return Err(invalid(path, "Unknown grid starting corner.")),
+                        },
+                        serpentine: shape.bool("serpentine")?,
+                    },
+                    _ => return Err(invalid(path, "Unknown fixture shape type.")),
+                })
+            })?;
+            let element = FixtureElement {
+                id: FixtureElementId(fields.u32("id")?),
+                name: fields.string("name")?.to_owned(),
+                transform: parse_fixture_transform(path, fields.optional("transform"))?,
+                diameter: donder_language::values::DistanceSpan::from_meters(diameter),
+                reverse: fields.bool("reverse")?,
+                shape,
+            };
+            if !element.is_valid() {
+                return Err(invalid(
+                    path,
+                    "Invalid fixture shape geometry, pixel count, name, or transform.",
+                ));
+            }
+            Ok(element)
         })
     }
 

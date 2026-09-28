@@ -1,7 +1,7 @@
 use donder_elaboration::fixture::PreparedFixtureDefinitions;
 use donder_language::fixture::{
     FixtureDefinition, FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions,
-    FixtureTransform, Pixel, PixelId,
+    FixtureElement, FixtureElementId, FixtureShape, FixtureTransform, GridAxis, GridCorner,
 };
 use donder_language::identity::{DocumentId, SourceIdentity};
 use donder_language::layout::{
@@ -35,10 +35,13 @@ fn translation(x: f32, y: f32) -> FixtureTransform {
     }
 }
 
-fn pixel(id: u32, x: f32) -> Pixel {
-    Pixel {
-        id: PixelId(id),
-        position: translation(x, 0.0).position,
+fn pixel(id: u32, x: f32) -> FixtureElement {
+    FixtureElement {
+        id: FixtureElementId(id),
+        name: format!("Pixel {id}"),
+        reverse: false,
+        shape: FixtureShape::Pixel,
+        transform: translation(x, 0.0),
         diameter: DistanceSpan::from_meters(0.01),
     }
 }
@@ -54,7 +57,7 @@ fn instance(id: u32, definition: &str) -> LayoutFixture {
     }
 }
 
-fn definitions(items: &[(&str, Vec<Pixel>)]) -> FixtureDefinitions {
+fn definitions(items: &[(&str, Vec<FixtureElement>)]) -> FixtureDefinitions {
     FixtureDefinitions {
         definitions: items
             .iter()
@@ -62,7 +65,7 @@ fn definitions(items: &[(&str, Vec<Pixel>)]) -> FixtureDefinitions {
                 (
                     definition_id(name),
                     FixtureDefinition {
-                        pixels: parts.clone(),
+                        elements: parts.clone(),
                     },
                 )
             })
@@ -78,13 +81,13 @@ fn reordering_changes_order_without_changing_pixel_identity() {
         .definitions
         .get_mut(&definition_id("pair"))
         .unwrap()
-        .pixels
+        .elements
         .reverse();
     let after = PreparedFixtureDefinitions::prepare(&definitions).unwrap();
     let before = before.pixels(&definition_id("pair")).unwrap();
     let after = after.pixels(&definition_id("pair")).unwrap();
-    assert_eq!(before[0].id, after[1].id);
-    assert_eq!(before[1].id, after[0].id);
+    assert_eq!(before[0].element, after[1].element);
+    assert_eq!(before[1].element, after[0].element);
     assert_eq!(before[0].position, after[1].position);
 }
 
@@ -132,13 +135,13 @@ fn layout_targets_remain_independent_after_definition_flattening() {
 }
 
 #[test]
-fn duplicate_pixel_ids_are_rejected() {
+fn duplicate_element_ids_are_rejected() {
     let duplicate = definitions(&[("a", vec![pixel(1, 0.0), pixel(1, 1.0)])]);
     assert_eq!(
         PreparedFixtureDefinitions::prepare(&duplicate).unwrap_err(),
-        FixtureDefinitionError::DuplicatePixel {
+        FixtureDefinitionError::DuplicateElement {
             definition: definition_id("a"),
-            pixel: PixelId(1)
+            element: FixtureElementId(1)
         }
     );
 }
@@ -159,4 +162,181 @@ fn empty_layouts_and_definitions_are_valid_authoring_states() {
             .instances
             .is_empty()
     );
+}
+
+fn shape_pixels(shape: FixtureShape) -> Vec<donder_elaboration::fixture::PreparedPixel> {
+    let mut element = pixel(7, 0.0);
+    element.shape = shape;
+    donder_elaboration::fixture::element_pixels(&element).unwrap()
+}
+
+fn assert_positions(pixels: &[donder_elaboration::fixture::PreparedPixel], expected: &[[f32; 3]]) {
+    assert_eq!(pixels.len(), expected.len());
+    for (pixel, expected) in pixels.iter().zip(expected) {
+        assert!(
+            (pixel.position - glam::Vec3::from_array(*expected)).length() < 0.00001,
+            "{:?} != {expected:?}",
+            pixel.position
+        );
+    }
+}
+
+#[test]
+fn lines_and_polylines_space_pixels_along_the_whole_path() {
+    assert_positions(
+        &shape_pixels(FixtureShape::Line {
+            length: 4.0,
+            count: 3,
+        }),
+        &[[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [4.0, 0.0, 0.0]],
+    );
+    let point = |x, y| translation(x, y).position;
+    assert_positions(
+        &shape_pixels(FixtureShape::Polyline {
+            points: vec![
+                point(0.0, 0.0),
+                point(1.0, 0.0),
+                point(1.0, 0.0),
+                point(1.0, 3.0),
+            ],
+            count: 5,
+        }),
+        &[
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [1.0, 2.0, 0.0],
+            [1.0, 3.0, 0.0],
+        ],
+    );
+    assert_positions(
+        &shape_pixels(FixtureShape::Line {
+            length: 4.0,
+            count: 1,
+        }),
+        &[[0.0, 0.0, 0.0]],
+    );
+}
+
+#[test]
+fn arcs_include_endpoints_and_circles_do_not_repeat_the_start() {
+    assert_positions(
+        &shape_pixels(FixtureShape::Arc {
+            radius: 2.0,
+            start_degrees: 0.0,
+            sweep_degrees: 180.0,
+            count: 3,
+            closed: false,
+        }),
+        &[[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [-2.0, 0.0, 0.0]],
+    );
+    assert_positions(
+        &shape_pixels(FixtureShape::Arc {
+            radius: 2.0,
+            start_degrees: 0.0,
+            sweep_degrees: -360.0,
+            count: 4,
+            closed: true,
+        }),
+        &[
+            [2.0, 0.0, 0.0],
+            [0.0, -2.0, 0.0],
+            [-2.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0],
+        ],
+    );
+}
+
+#[test]
+fn grid_traversal_and_reversal_preserve_pixel_identity() {
+    let mut element = pixel(7, 10.0);
+    element.shape = FixtureShape::Grid {
+        columns: 3,
+        rows: 2,
+        width: 2.0,
+        height: 1.0,
+        axis: GridAxis::Rows,
+        corner: GridCorner::TopRight,
+        serpentine: true,
+    };
+    let forward = donder_elaboration::fixture::element_pixels(&element).unwrap();
+    assert_positions(
+        &forward,
+        &[
+            [12.0, 1.0, 0.0],
+            [11.0, 1.0, 0.0],
+            [10.0, 1.0, 0.0],
+            [10.0, 0.0, 0.0],
+            [11.0, 0.0, 0.0],
+            [12.0, 0.0, 0.0],
+        ],
+    );
+    element.reverse = true;
+    let reversed = donder_elaboration::fixture::element_pixels(&element).unwrap();
+    for (a, b) in forward.iter().zip(reversed.iter().rev()) {
+        assert_eq!(
+            (a.element, a.ordinal, a.position),
+            (b.element, b.ordinal, b.position)
+        );
+    }
+    assert_positions(
+        &shape_pixels(FixtureShape::Grid {
+            columns: 2,
+            rows: 3,
+            width: 1.0,
+            height: 2.0,
+            axis: GridAxis::Columns,
+            corner: GridCorner::BottomLeft,
+            serpentine: true,
+        }),
+        &[
+            [0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [1.0, 2.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0],
+        ],
+    );
+}
+
+#[test]
+fn malformed_or_unbounded_shapes_are_rejected_before_expansion() {
+    for shape in [
+        FixtureShape::Line {
+            length: 1.0,
+            count: 0,
+        },
+        FixtureShape::Line {
+            length: f32::NAN,
+            count: 3,
+        },
+        FixtureShape::Polyline {
+            points: vec![Point3::default(); 2],
+            count: 2,
+        },
+        FixtureShape::Arc {
+            radius: 1.0,
+            start_degrees: 0.0,
+            sweep_degrees: 90.0,
+            count: 4,
+            closed: true,
+        },
+        FixtureShape::Grid {
+            columns: u32::MAX,
+            rows: 2,
+            width: 1.0,
+            height: 1.0,
+            axis: GridAxis::Rows,
+            corner: GridCorner::BottomLeft,
+            serpentine: false,
+        },
+    ] {
+        let mut element = pixel(1, 0.0);
+        element.shape = shape;
+        assert!(
+            PreparedFixtureDefinitions::prepare(&definitions(&[("invalid", vec![element])]))
+                .is_err()
+        );
+    }
 }

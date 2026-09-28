@@ -14,7 +14,7 @@
   --donder-text-soft: #c7c0b6;
   --donder-hover: #2c3036;
   --donder-accent: #aeb4bc;
-  --donder-editor-cursor: var(--donder-text-strong);
+  --donder-editor-cursor: #d3d3d3;
   --donder-accent-bg: #3b4149;
   --donder-warning: #f0c46b;
   --donder-danger: #df6b6b;
@@ -2417,11 +2417,11 @@ button:focus-visible,
   display: none;
 }
 
-.cm-content {
+.cm-editor .cm-scroller .cm-content {
   caret-color: var(--donder-editor-cursor);
 }
 
-.cm-cursor {
+.cm-editor .cm-scroller .cm-cursor {
   border-left-color: var(--donder-editor-cursor);
 }
 
@@ -4512,19 +4512,34 @@ button.status-chip:hover {
 .composition-tree-meta { min-width: 0; overflow: hidden; color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-icon { color: var(--donder-text-muted); }
 .composition-add-dialog { width: min(var(--donder-command-dialog-width), calc(100vw - var(--donder-space-14) * 2)); }
+.fixture-editor-sidebar { overflow: auto; }
+.fixture-editor-sidebar > .composition-controls { flex: none; gap: var(--donder-space-6); }
+.fixture-editor-sidebar .composition-tree { flex: none; }
+:root {
+  --donder-fixture-handle-radius: 5;
+  --donder-fixture-guide-width: 1;
+  --donder-fixture-arrow-size: 4;
+  --donder-fixture-label-spacing: 28;
+}
+.fixture-drawing-tools, .fixture-tool-options, .fixture-shape-fields, .fixture-control-point { display: grid; gap: var(--donder-space-6); }
+.fixture-drawing-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fixture-drawing-tools button[aria-pressed="true"] { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
+.fixture-tool-options, .fixture-shape-fields, .fixture-control-point { padding-block: var(--donder-space-6); }
+.fixture-tool-options > label, .fixture-shape-fields > label, .fixture-control-point > label { display: grid; gap: var(--donder-space-3); }
+.fixture-shape-fields .fixture-checkbox, .fixture-checkbox { display: flex; align-items: center; gap: var(--donder-space-3); }
+.fixture-checkbox input { width: auto; }
+.fixture-control-point { border-bottom: var(--donder-border-width) solid var(--donder-border-soft); }
 .composition-add-dialog .setup-authoring-form fieldset { display: grid; grid-template-columns: minmax(0, 1fr); }
 .composition-add-advanced > summary { cursor: pointer; color: var(--donder-text-muted); }
 .composition-add-advanced > p { margin-block: var(--donder-space-6); color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
 .composition-add-advanced > label { display: grid; gap: var(--donder-space-3); }
 .composition-title { margin: 0 0 var(--donder-space-6); font-weight: var(--donder-font-weight-bold); }
-.pixel-actions { display: flex; flex-wrap: wrap; gap: var(--donder-space-4); margin-bottom: var(--donder-space-8); }
-.pixel-list { margin-bottom: var(--donder-space-8); cursor: default; }
-.pixel-row { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-8); flex-shrink: 0; padding: var(--donder-space-6); border: 0; border-radius: var(--donder-radius-md); background: transparent; text-align: left; font-size: var(--donder-font-size-xl); }
-.pixel-row[aria-pressed="true"] { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
-.pixel-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--donder-space-6); }
+.fixture-shape-actions { display: flex; flex-wrap: wrap; gap: var(--donder-space-4); margin-bottom: var(--donder-space-8); }
+.fixture-shape-row { display: flex; align-items: center; justify-content: space-between; gap: var(--donder-space-8); flex-shrink: 0; padding: var(--donder-space-6); border: 0; border-radius: var(--donder-radius-md); background: transparent; text-align: left; font-size: var(--donder-font-size-xl); }
+.fixture-shape-row[aria-pressed="true"] { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
 .placement-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--donder-space-6); margin-top: var(--donder-space-8); }
-.pixel-fields label, .placement-fields label { display: grid; gap: var(--donder-space-4); min-width: 0; }
-.pixel-fields input, .placement-fields input { width: 100%; min-width: 0; }
+.placement-fields label { display: grid; gap: var(--donder-space-4); min-width: 0; }
+.placement-fields input { width: 100%; min-width: 0; }
 
 .element-tree-editor { min-width: 0; min-height: 0; overflow: auto; padding: var(--donder-space-8); }
 .element-tree-editor .setup-row { grid-template-columns: auto minmax(0, 1fr); }

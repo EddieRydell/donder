@@ -245,11 +245,14 @@ export type FixtureGuiDocument = {
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
-	pixels: GuiPixel[],
+	elements: GuiFixtureElement[],
+	handles: GuiFixtureHandle[],
 	renderPlan: SpatialRenderPlan,
 };
 
-export type FixtureGuiEdit = { type: "setPixels"; pixels: GuiPixel[] } | { type: "movePixel"; id: number; delta: Point3Meters };
+export type FixtureGuiEdit = { type: "setElements"; elements: GuiFixtureElement[] } | { type: "moveElement"; id: number; delta: Point3Meters } | { type: "moveHandle"; id: number; index: number; position: Point3Meters } | { type: "convertToPixels"; id: number };
+
+export type FixtureStorage = "inline" | "newFile";
 
 export type FixtureTarget = {
 	fixture: number,
@@ -290,6 +293,27 @@ export type GuiEditResult = {
 	document: GuiDocument,
 };
 
+export type GuiFixtureElement = {
+	id: number,
+	name: string,
+	transform: Transform,
+	diameterMeters: number,
+	reverse: boolean,
+	shape: GuiFixtureShape,
+};
+
+export type GuiFixtureHandle = {
+	element: number,
+	index: number,
+	position: Point3Meters,
+};
+
+export type GuiFixtureShape = { type: "pixel" } | { type: "line"; length: number; count: number } | { type: "polyline"; points: Point3Meters[]; count: number } | { type: "arc"; radius: number; startDegrees: number; sweepDegrees: number; count: number; closed: boolean } | { type: "grid"; columns: number; rows: number; width: number; height: number; axis: GuiGridAxis; corner: GuiGridCorner; serpentine: boolean };
+
+export type GuiGridAxis = "rows" | "columns";
+
+export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
+
 export type GuiLayoutFixture = {
 	id: number,
 	name: string,
@@ -304,12 +328,6 @@ export type GuiObjectRef = {
 	objectKey: string,
 	kind: ObjectKind,
 	id: string,
-};
-
-export type GuiPixel = {
-	id: number,
-	position: Point3Meters,
-	diameterMeters: number,
 };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
@@ -341,7 +359,7 @@ export type LayoutGuiDocument = {
 	renderPlan: SpatialRenderPlan,
 };
 
-export type LayoutGuiEdit = { type: "addDefinition"; name: string; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+export type LayoutGuiEdit = { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 export type LiveOutputControllerSnapshot = {
 	id: string,

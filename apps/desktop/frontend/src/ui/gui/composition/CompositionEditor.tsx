@@ -1,12 +1,14 @@
 import { useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Circle } from "lucide-react";
+import { ChevronDown, ChevronRight, Circle } from "lucide-react";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
-import type { GuiDocument, GuiDocumentRequest, GuiPixel, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
+import type { FixtureStorage, GuiDocument, GuiDocumentRequest, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
+import { FixtureEditor } from "./FixtureEditor";
+import { Placement } from "./FixtureFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 import { LayoutAddMenu } from "./LayoutAddMenu";
 
@@ -18,11 +20,15 @@ type TreeAction =
   | { type: "rename"; id: number; origin: GuiDocumentRequest };
 
 export function CompositionEditor({ gui }: { gui: Document }) {
+  return gui.type === "fixture" ? <FixtureEditor key={gui.document.sourceRef.id} document={gui.document} /> : <LayoutEditor gui={gui} />;
+}
+
+function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [menuTarget, setMenuTarget] = useState<number | null>(null);
   const [action, setAction] = useState<TreeAction | null>(null);
   const [name, setName] = useState("");
-  const [definitionIndex, setDefinitionIndex] = useState("");
+  const [storage, setStorage] = useState<FixtureStorage>("inline");
   const [error, setError] = useState<string | null>(null);
   const request = useAppStore((state) => state.guiRequest);
   const revision = useAppStore((state) => state.guiDocumentRevision);
@@ -31,35 +37,31 @@ export function CompositionEditor({ gui }: { gui: Document }) {
   const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
   const ready = request !== null && revision === request.projectRevision;
   const editable = ready && !pending && !readOnly;
-  const target = gui.type === "layout" && menuTarget !== null ? findLayoutItem(gui.document.fixtures, menuTarget) : null;
-  const instance = gui.type === "layout" && selected !== null ? findLayoutItem(gui.document.fixtures, selected) : null;
+  const target = menuTarget !== null ? findLayoutItem(gui.document.fixtures, menuTarget) : null;
+  const instance = selected !== null ? findLayoutItem(gui.document.fixtures, selected) : null;
   const reportError = (error: unknown) => { setError(String(error)); };
-  const changePixels = async (pixels: GuiPixel[]) => {
-    await runGuiEditCommand((request) => commands.applyFixtureGuiEdit(request, { type: "setPixels", pixels }), request);
-    setError(null);
-  };
   const changeTransform = (transform: Transform) => {
-    if (gui.type !== "layout" || instance === null) return;
+    if (instance === null) return;
     const fixtures = updateLayoutItem(gui.document.fixtures, instance.id, (item) => item.kind.type === "fixture" ? { ...item, kind: { ...item.kind, transform } } : item);
     void runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "setFixtures", fixtures }), request)
       .then(() => { setError(null); }).catch(reportError);
   };
   const beginAdd = (type: "group" | "fixture", parent = target?.id ?? null, position?: Point3Meters) => {
-    if (request === null || gui.type !== "layout") return;
+    if (request === null) return;
     setAction(position === undefined
       ? { type, parent, origin: request }
       : { type, parent, origin: request, position });
     setName(type === "group" ? "Group" : "");
-    setDefinitionIndex("");
+    setStorage("inline");
     setError(null);
   };
   const submitAction = async () => {
-    if (action === null || gui.type !== "layout" || name.trim() === "") return;
+    if (action === null || name.trim() === "") return;
     let definitionToOpen: GuiObjectRef | null = null;
     const id = nextInstanceId(gui.document.fixtures);
-    if (action.type === "fixture" && definitionIndex === "") {
+    if (action.type === "fixture") {
       const result = await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
-        type: "addDefinition", name: name.trim(), parent: action.parent, transform: identityTransform(action.position)
+        type: "addDefinition", name: name.trim(), storage, parent: action.parent, transform: identityTransform(action.position)
       }), action.origin);
       const added = result.document.type === "layout" ? findLayoutItem(result.document.document.fixtures, id) : null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
@@ -68,13 +70,8 @@ export function CompositionEditor({ gui }: { gui: Document }) {
       let fixtures: GuiLayoutFixture[];
       if (action.type === "rename") {
         fixtures = updateLayoutItem(gui.document.fixtures, action.id, (item) => ({ ...item, name: name.trim() }));
-      } else if (action.type === "group") {
-        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), kind: { type: "group", children: [] } });
       } else {
-        if (definitionIndex === "") return;
-        const definition = gui.document.availableFixtures[Number(definitionIndex)];
-        if (definition === undefined) return;
-        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), kind: { type: "fixture", definition, transform: identityTransform(action.position) } });
+        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), kind: { type: "group", children: [] } });
       }
       await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "setFixtures", fixtures }), action.origin);
     }
@@ -84,7 +81,7 @@ export function CompositionEditor({ gui }: { gui: Document }) {
     if (definitionToOpen !== null) await navigateToGuiObject(definitionToOpen);
   };
   const addExistingFixtureAt = async (definition: GuiObjectRef, parent: number | null, position?: Point3Meters) => {
-    if (gui.type !== "layout" || request === null) return;
+    if (request === null) return;
     const id = nextInstanceId(gui.document.fixtures);
     const fixtures = addChild(gui.document.fixtures, parent, {
       id,
@@ -95,16 +92,16 @@ export function CompositionEditor({ gui }: { gui: Document }) {
     setSelected(id);
     setError(null);
   };
-  const layoutMenu = gui.type === "layout" ? {
+  const layoutMenu = {
     availableFixtures: gui.document.availableFixtures,
     enabled: editable,
     onAddFixture: (definition: GuiObjectRef, position: Point3Meters) => { void addExistingFixtureAt(definition, null, position).catch(reportError); },
     onCreateFixture: (position: Point3Meters) => { beginAdd("fixture", null, position); },
     onAddGroup: () => { beginAdd("group", null); }
-  } : null;
+  };
   return <div className="layout-authoring">
     <ContextMenu.Root>
-      <ContextMenu.Trigger asChild disabled={gui.type !== "layout" || !ready}>
+      <ContextMenu.Trigger asChild disabled={!ready}>
         <aside className="layout-hierarchy layout-tree-sidebar" onContextMenuCapture={(event) => {
           const row = event.target instanceof Element ? event.target.closest("[data-layout-item]") : null;
           const id = row === null ? null : Number(row.getAttribute("data-layout-item"));
@@ -114,16 +111,14 @@ export function CompositionEditor({ gui }: { gui: Document }) {
           {!inline && <h2 className="composition-title">{documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
           {error !== null && action === null && <p role="alert">{error}</p>}
           <fieldset className="composition-controls" disabled={!editable}>
-            {gui.type === "fixture"
-              ? <Pixels items={gui.document.pixels} selected={selected} onSelect={setSelected} onChange={changePixels} onError={reportError} />
-              : <LayoutTree items={gui.document.fixtures} pixels={gui.document.renderPlan.pixels} selected={selected} onSelect={setSelected} />}
+            <LayoutTree items={gui.document.fixtures} pixels={gui.document.renderPlan.pixels} selected={selected} onSelect={setSelected} />
             {instance?.kind.type === "fixture" && <Placement value={instance.kind.transform} onChange={changeTransform} />}
           </fieldset>
         </aside>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="menu-content" onCloseAutoFocus={(event) => { if (action !== null) event.preventDefault(); }}>
-          {gui.type === "layout" && (target === null || target.kind.type === "group") && <LayoutAddMenu
+          {(target === null || target.kind.type === "group") && <LayoutAddMenu
             availableFixtures={gui.document.availableFixtures}
             enabled={editable}
             onAddFixture={(definition) => { void addExistingFixtureAt(definition, target?.id ?? null).catch(reportError); }}
@@ -139,8 +134,7 @@ export function CompositionEditor({ gui }: { gui: Document }) {
               setAction({ type: "rename", id: target.id, origin: request }); setName(target.name); setError(null);
             }}>Rename</ContextMenu.Item>
             <ContextMenu.Item className="menu-item danger" disabled={!editable} onSelect={() => {
-              if (gui.type !== "layout") return;
-              void runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
+                            void runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
                 type: "setFixtures", fixtures: updateLayoutItem(gui.document.fixtures, target.id, () => null)
               }), request).then(() => { setSelected(null); setError(null); }).catch(reportError);
             }}>Remove</ContextMenu.Item>
@@ -155,17 +149,13 @@ export function CompositionEditor({ gui }: { gui: Document }) {
           <form className="setup-authoring-form" onSubmit={(event) => { event.preventDefault(); void submitAction().catch(reportError); }}>
             <fieldset disabled={!editable}>
               <label>Name<input required value={name} onFocus={(event) => { event.currentTarget.select(); }} onChange={(event) => { setName(event.target.value); }} /></label>
-              {action?.type === "fixture" && gui.type === "layout" && <details className="composition-add-advanced">
+              {action?.type === "fixture" && <details className="composition-add-advanced">
                 <summary>Advanced settings</summary>
-                <p>New fixtures are saved in this layout file. Reusing a fixture shares its pixels across placements.</p>
-                <label>Fixture source<select value={definitionIndex} onChange={(event) => {
-                  setDefinitionIndex(event.target.value);
-                  const definition = event.target.value === "" ? undefined : gui.document.availableFixtures[Number(event.target.value)];
-                  if (name === "" && definition !== undefined) setName(definition.objectKey);
-                }}><option value="">Create new fixture in this layout</option>
-                  {gui.document.availableFixtures.length === 0 && <option disabled>No existing fixtures available</option>}
-                  {gui.document.availableFixtures.map((definition, index) => <option key={definition.id} value={index}>{definition.objectKey} ({definition.path})</option>)}
+                <label>Save fixture in<select value={storage} onChange={(event) => { if (event.target.value === "inline" || event.target.value === "newFile") setStorage(event.target.value); }}>
+                  <option value="inline">This layout file (default)</option>
+                  <option value="newFile">A new fixture file</option>
                 </select></label>
+                <p>{storage === "inline" ? "Stored in this layout file. Removed with its last placement when no layout uses it." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
               </details>}
               {error !== null && <p role="alert">{error}</p>}
               <div className="dialog-actions">
@@ -177,14 +167,12 @@ export function CompositionEditor({ gui }: { gui: Document }) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <SpatialCanvas plan={gui.document.renderPlan} documentKey={gui.document.path + ":" + gui.document.objectKey} selected={selected} onSelect={setSelected} {...(layoutMenu === null ? {} : { layoutMenu })} onMoveStart={(id) => {
+    <SpatialCanvas plan={gui.document.renderPlan} documentKey={gui.document.path + ":" + gui.document.objectKey} selected={selected} onSelect={setSelected} layoutMenu={layoutMenu} onMoveStart={(id) => {
       if (!editable) return null;
       const origin = request;
       return async (delta) => {
         try {
-          await runGuiEditCommand((request) => gui.type === "fixture"
-            ? commands.applyFixtureGuiEdit(request, { type: "movePixel", id, delta })
-            : commands.applyLayoutGuiEdit(request, { type: "moveFixture", id, delta }), origin);
+          await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "moveFixture", id, delta }), origin);
           setError(null);
           return true;
         } catch (error: unknown) {
@@ -193,64 +181,6 @@ export function CompositionEditor({ gui }: { gui: Document }) {
         }
       };
     }} />
-  </div>;
-}
-
-function Pixels({ items, selected, onSelect, onChange, onError }: {
-  items: GuiPixel[]; selected: number | null; onSelect: (id: number | null) => void;
-  onChange: (pixels: GuiPixel[]) => Promise<void>; onError: (error: unknown) => void;
-}) {
-  const index = items.findIndex((pixel) => pixel.id === selected);
-  const pixel = items[index];
-  const nextId = items.reduce((id, pixel) => Math.max(id, pixel.id), 0) + 1;
-  const change = (pixels: GuiPixel[]) => { void onChange(pixels).catch(onError); };
-  const add = (duplicate: boolean) => {
-    const previous = duplicate ? pixel : items[items.length - 1];
-    const added: GuiPixel = { id: nextId, position: previous === undefined ? { xMeters: 0, yMeters: 0, zMeters: 0 } : { ...previous.position, xMeters: previous.position.xMeters + previous.diameterMeters }, diameterMeters: previous?.diameterMeters ?? 0.01 };
-    const pixels = [...items];
-    pixels.splice(duplicate ? index + 1 : items.length, 0, added);
-    void onChange(pixels).then(() => { onSelect(added.id); }).catch(onError);
-  };
-  return <>
-    <div className="pixel-actions">
-      <button type="button" onClick={() => { add(false); }}>Add pixel</button>
-      <button type="button" disabled={pixel === undefined} onClick={() => { add(true); }}>Duplicate</button>
-      <button type="button" disabled={pixel === undefined} onClick={() => {
-        void onChange(items.filter((item) => item.id !== selected)).then(() => { onSelect(null); }).catch(onError);
-      }}>Delete</button>
-      <button type="button" aria-label="Move pixel earlier" disabled={index <= 0} onClick={() => { change(reorder(items, index, index - 1)); }}><ArrowUp size={THEME_METRICS.iconSizeSmall} /></button>
-      <button type="button" aria-label="Move pixel later" disabled={index < 0 || index === items.length - 1} onClick={() => { change(reorder(items, index, index + 1)); }}><ArrowDown size={THEME_METRICS.iconSizeSmall} /></button>
-    </div>
-    <div className="composition-tree pixel-list" aria-label="Pixels in output order">
-      {items.length === 0 && <p className="composition-tree-empty">Add a pixel to get started.</p>}
-      {items.map((pixel, index) => <button type="button" className="pixel-row" aria-pressed={pixel.id === selected} key={pixel.id} onClick={() => { onSelect(pixel.id); }}>
-        <span>Pixel {index + 1}</span><span className="composition-tree-meta">{pixel.position.xMeters}, {pixel.position.yMeters}, {pixel.position.zMeters} m · Ø {pixel.diameterMeters} m</span>
-      </button>)}
-    </div>
-    {pixel !== undefined && <div className="pixel-fields">
-      {(["xMeters", "yMeters", "zMeters"] as const).map((axis) => <CoordinateField key={`${axis}-${pixel.id}`} label={axis.charAt(0).toUpperCase() + " (m)"} value={pixel.position[axis]} min={-2000} max={2000} onChange={(value) => { change(items.map((item) => item.id === pixel.id ? { ...item, position: { ...item.position, [axis]: value } } : item)); }} />)}
-      <CoordinateField key={`diameter-${pixel.id}`} label="Diameter (m)" value={pixel.diameterMeters} min={0.000001} max={100} onChange={(diameterMeters) => { change(items.map((item) => item.id === pixel.id ? { ...item, diameterMeters } : item)); }} />
-    </div>}
-  </>;
-}
-
-function CoordinateField({ label, value, min, max, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
-  return <label>{label}<input key={value} type="number" required step="any" min={min} max={max} defaultValue={value} onKeyDown={(event) => {
-    if (event.key === "Enter") event.currentTarget.blur();
-    if (event.key === "Escape") { event.currentTarget.value = String(value); event.currentTarget.blur(); }
-  }} onBlur={(event) => {
-    if (!event.currentTarget.reportValidity()) { event.currentTarget.value = String(value); return; }
-    const next = event.currentTarget.valueAsNumber;
-    event.currentTarget.value = String(value);
-    if (next !== value) onChange(next);
-  }} /></label>;
-}
-
-function Placement({ value, onChange }: { value: Transform; onChange: (value: Transform) => void }) {
-  return <div className="placement-fields">
-    {(["xMeters", "yMeters", "zMeters"] as const).map((axis) => <CoordinateField key={axis} label={axis.charAt(0).toUpperCase() + " (m)"} value={value.position[axis]} min={-2000} max={2000} onChange={(next) => { onChange({ ...value, position: { ...value.position, [axis]: next } }); }} />)}
-    {(["xDegrees", "yDegrees", "zDegrees"] as const).map((axis) => <CoordinateField key={axis} label={"Rotate " + axis.charAt(0).toUpperCase() + " (°)"} value={value.rotation[axis]} onChange={(next) => { onChange({ ...value, rotation: { ...value.rotation, [axis]: next } }); }} />)}
-    {(["x", "y", "z"] as const).map((axis) => <CoordinateField key={axis} label={"Scale " + axis.toUpperCase()} value={value.scale[axis]} onChange={(next) => { onChange({ ...value, scale: { ...value.scale, [axis]: next } }); }} />)}
   </div>;
 }
 
@@ -293,13 +223,7 @@ function formatPosition(position: Transform["position"]): string {
   return `position ${position.xMeters}, ${position.yMeters}, ${position.zMeters}`;
 }
 
-function reorder<T>(items: T[], from: number, to: number): T[] {
-  if (!Number.isInteger(to) || to < 0 || to >= items.length) return items;
-  const result = [...items];
-  const [item] = result.splice(from, 1);
-  if (item !== undefined) result.splice(to, 0, item);
-  return result;
-}
+
 
 function nextInstanceId(fixtures: GuiLayoutFixture[]): number {
   return Math.max(0, ...fixtures.map((fixture) => Math.max(fixture.id, fixture.kind.type === "group" ? nextInstanceId(fixture.kind.children) - 1 : 0))) + 1;

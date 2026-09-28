@@ -1,6 +1,6 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
+use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
 use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
 
@@ -13,28 +13,65 @@ pub(super) fn edit_layout(
     match edit {
         LayoutGuiEdit::AddDefinition {
             name,
+            storage,
             parent,
             transform,
         } => {
             if name.trim().is_empty() {
                 return Err(GuiMutationError::Invalid("Enter a fixture name.".into()));
             }
-            let identity = session
-                .source
-                .add_object(
-                    resolved.identity.document_id(),
+            let identity = match storage {
+                FixtureStorage::Inline => session
+                    .source
+                    .add_object(
+                        resolved.identity.document_id(),
+                        donder_project_io::SourceObjectKind::FixtureDefinition,
+                        "fixture",
+                    )
+                    .map_err(GuiMutationError::Invalid)?,
+                FixtureStorage::NewFile => super::model::create_object_document(
+                    session,
                     donder_project_io::SourceObjectKind::FixtureDefinition,
+                    &name,
+                    "fixtures",
                     "fixture",
-                )
-                .map_err(GuiMutationError::Invalid)?;
+                )?,
+            };
             let definition = donder_language::fixture::FixtureDefinitionId(identity);
             session.project.definitions.fixtures.definitions.insert(
                 definition.clone(),
-                donder_language::fixture::FixtureDefinition { pixels: Vec::new() },
+                donder_language::fixture::FixtureDefinition {
+                    elements: Vec::new(),
+                },
             );
+            donder_project_io::ensure_document_can_reference_source(
+                session,
+                resolved.identity.document_id(),
+                donder_project_io::SourceObjectKind::FixtureDefinition,
+                &definition.0,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
             add_instance(session, &id, name, definition, parent, transform)?;
         }
         LayoutGuiEdit::SetFixtures { fixtures } => {
+            let previous = session
+                .project
+                .layouts
+                .get(&id)
+                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
+                .iter_fixtures()
+                .filter_map(|fixture| match &fixture.kind {
+                    LayoutFixtureKind::Fixture { definition, .. }
+                        if session.source.is_project_owned(definition.0.document_id())
+                            && session.project.layouts.keys().any(|layout| {
+                                layout.0.document_id() == definition.0.document_id()
+                            }) =>
+                    {
+                        Some(definition.clone())
+                    }
+                    _ => None,
+                })
+                .collect::<std::collections::HashSet<_>>();
             let fixtures = fixtures
                 .into_iter()
                 .map(|fixture| domain_fixture(session, &id, fixture))
@@ -45,6 +82,26 @@ pub(super) fn edit_layout(
                 .get_mut(&id)
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
                 .fixtures = fixtures;
+            for definition in previous {
+                let used = session.project.layouts.values().any(|layout| layout.iter_fixtures().any(|fixture|
+                    matches!(&fixture.kind, LayoutFixtureKind::Fixture { definition: other, .. } if other == &definition)
+                ));
+                if !used {
+                    session
+                        .source
+                        .remove_object(
+                            &definition.0,
+                            donder_project_io::SourceObjectKind::FixtureDefinition,
+                        )
+                        .map_err(GuiMutationError::Invalid)?;
+                    session
+                        .project
+                        .definitions
+                        .fixtures
+                        .definitions
+                        .shift_remove(&definition);
+                }
+            }
         }
         LayoutGuiEdit::MoveFixture {
             id: fixture_id,

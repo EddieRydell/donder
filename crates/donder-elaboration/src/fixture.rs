@@ -4,7 +4,8 @@
 use std::ops::Range;
 
 use donder_language::fixture::{
-    FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions, FixtureTransform, PixelId,
+    FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions, FixtureElementId,
+    FixtureTransform,
 };
 use donder_language::layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
@@ -15,11 +16,16 @@ use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub struct PreparedPixel {
-    pub id: PixelId,
+    pub element: FixtureElementId,
+    /// Stable ordinal within its shape, independent of output reversal.
+    pub ordinal: u32,
     /// Meters, relative to the containing definition.
     pub position: Vec3,
     pub diameter_meters: f32,
 }
+
+mod shapes;
+pub use shapes::{InvalidFixtureElement, element_handles, element_pixels};
 
 #[derive(Clone, Debug, Default)]
 pub struct PreparedFixtureDefinitions {
@@ -49,24 +55,18 @@ impl PreparedFixtureDefinitions {
                 .definitions
                 .iter()
                 .map(|(id, definition)| {
-                    (
-                        id.clone(),
-                        definition
-                            .pixels
-                            .iter()
-                            .map(|pixel| PreparedPixel {
-                                id: pixel.id,
-                                position: Vec3::new(
-                                    pixel.position.x.as_meters_f32(),
-                                    pixel.position.y.as_meters_f32(),
-                                    pixel.position.z.as_meters_f32(),
-                                ),
-                                diameter_meters: pixel.diameter.as_meters_f32(),
-                            })
-                            .collect(),
-                    )
+                    let mut pixels = Vec::new();
+                    for element in &definition.elements {
+                        pixels.extend(element_pixels(element).map_err(|error| {
+                            FixtureDefinitionError::InvalidElement {
+                                definition: id.clone(),
+                                element: error.0,
+                            }
+                        })?);
+                    }
+                    Ok((id.clone(), pixels))
                 })
-                .collect(),
+                .collect::<Result<_, FixtureDefinitionError>>()?,
         })
     }
 
@@ -126,7 +126,7 @@ impl PreparedLayout {
     }
 }
 
-fn fixture_transform(transform: &FixtureTransform) -> Affine3A {
+pub fn fixture_transform(transform: &FixtureTransform) -> Affine3A {
     Affine3A::from_scale_rotation_translation(
         Vec3::new(transform.scale.x, transform.scale.y, transform.scale.z),
         Quat::from_euler(
