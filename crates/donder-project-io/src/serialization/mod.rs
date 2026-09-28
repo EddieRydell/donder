@@ -93,14 +93,14 @@ pub fn write_source_texts(
             if actual != write.expected {
                 return Err(io::Error::other("Source changed during save"));
             }
-            donder_package::atomic_write(path, write.text.as_bytes()).map_err(io::Error::other)
+            crate::atomic_write(path, write.text.as_bytes()).map_err(io::Error::other)
         })();
         if let Err(error) = result {
             let mut failures = Vec::new();
             for (_, written_path, previous) in prepared[..index].iter().rev() {
                 let rollback = match &previous.expected {
                     Some(bytes) => {
-                        donder_package::atomic_write(written_path, bytes).map_err(io::Error::other)
+                        crate::atomic_write(written_path, bytes).map_err(io::Error::other)
                     }
                     None => fs::remove_file(written_path),
                 };
@@ -399,13 +399,6 @@ pub(super) fn import_decls_value(imports: &[ImportEdge]) -> Value {
                                     .collect(),
                             ),
                         );
-                    }
-                    ImportSource::DependencyExport { dependency, export } => {
-                        from.insert(
-                            string_value("dependency"),
-                            Value::String(dependency.clone()),
-                        );
-                        from.insert(string_value("export"), Value::String(export.clone()));
                     }
                 };
                 value.insert(string_value("from"), Value::Mapping(from));

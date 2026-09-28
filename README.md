@@ -28,7 +28,7 @@ That makes the project useful as a technical showcase for:
   for persistent standalone playback. See [controller setup](docs/esp32_loading.md#install-from-donder)
   for supported hardware and the current verification limits.
 - Generate TypeScript bindings from Rust command and data types.
-- Resolve, cache, inspect, pack, publish, fork, and template Donder packages.
+- Share and customize ordinary local source files and project folders.
 - Benchmark effect VM and render performance with Criterion.
 
 ## Tech Stack
@@ -56,12 +56,11 @@ crates/donder-language/         Donder authoring model and effect/operator compi
 crates/donder-runtime/          Portable no_std bytecode VM and sequence evaluation core
 crates/donder-preview/          Portable Preview playback, scene, and wgpu renderer core
 crates/donder-elaboration/      Host-side generator expansion, lowering, and output preparation
-crates/donder-package/          Manifest v2, resolution, locks, cache, registry protocol, packing
 crates/donder-project-io/       Donder project loading, diagnostics, source ownership, save/export
 crates/donder-project-io/src/loader/  Project loading, import resolution, and document parsing
 crates/donder-project-io/src/serialization/  Domain-specific Donder document serialization
 crates/donder-output/           E1.31 and Art-Net socket/codec lifecycle
-crates/donder-cli/              Standalone `donder` package and project CLI
+crates/donder-cli/              Local project initialization, checking, and copying
 firmware/esp32/               ESP32 workspace, device storage, Wi-Fi transport, I2S output, and profiling
 examples/starter/             The single maintained example project
 docs/                         Current user, architecture, loading, and validation references
@@ -71,9 +70,9 @@ docs/                         Current user, architecture, loading, and validatio
 
 To use the app, follow [Your first show](docs/first_show.md) for a two-prop project,
 preview playback, output assignment, and saving without editing YAML.
-To customize a show that imports packages, choose **File → Create Editable
-Project Copy...**. Donder opens a separate project containing the show, imported
-definitions, and referenced audio as editable project files.
+To copy a show into a separate folder, choose **File > Create Standalone Project
+Copy...**. Donder opens a project containing the loaded definitions and referenced
+audio as editable local files.
 
 ### Prerequisites
 
@@ -122,10 +121,10 @@ This starts the Vite frontend through Tauri and opens the Donder desktop app.
 
 ### Try An Example Project
 
-After the app opens, load the example package manifest:
+After the app opens, load the example project configuration:
 
 ```text
-examples/starter/donder-package.json
+examples/starter/donder.json
 ```
 
 `examples/starter` is the complete 30-output starter project, including example effects, gradients, curves, operators, sequences, and audio assets.
@@ -176,43 +175,32 @@ toolchain and lockfile are isolated from desktop builds. See
 [ESP32 loading](docs/esp32_loading.md) for the loader and
 [firmware instructions](firmware/esp32/README.md) for build and board commands.
 
-## Package and CLI workflow
+## Local files and CLI
 
-Every project and module starts at `donder-package.json`. The manifest owns the
-stable UUID module identity, exact language version, optional project entrypoint,
-explicit exports, alias-keyed dependencies, and
-audio declarations. `donder.lock` pins the registry, exact release versions,
-archive hashes, module identities, dependency edges, and path-dependency
-content hashes. Opening a project is offline and deterministic; use Sync
-explicitly when its lock or cache is missing.
-
-Run the standalone client from the workspace with:
+A project folder contains `donder.json` with its format marker, stable project
+UUID, and entrypoint. It has no dependency list, asset inventory, or lockfile.
+All imports point to files inside that folder. Download files or extract a folder
+from the registry, then edit imports and sequence targets to fit your show.
+Donder does not automatically download other resources or resolve versions.
 
 ```bash
 cargo run -p donder-cli -- --help
+cargo run -p donder-cli -- --path examples/starter check
 ```
 
-It provides `init`, `check`, `add`, `remove`, `sync`, `update`, `tree`, `pack`,
-`publish`, `login`, `logout`, `whoami`, `fork`, and `new --from`. Login uses
-browser device approval and OS credential storage. Registry artifacts are
-downloaded to a content-addressed cache, structurally inspected, compiler
-validated in temporary storage, and atomically installed. Desktop package
-operations use the same service layer.
-
-`donder fork <alias>` copies that direct registry dependency into
-`modules/<package-name>/`, assigns the copy a new module ID, clears its
-publication identity, and replaces the registry requirement with a path
-dependency under the same alias. The copied package keeps its own exports,
-assets, local imports, and transitive dependencies; project dependency imports
-therefore continue to resolve through the same alias and export groups.
+The CLI provides `init`, `check`, and `copy <destination>`. `init` creates the
+configuration for an existing entrypoint; `check` validates reachable documents;
+`copy` creates an independent project with its loaded sources and referenced audio.
+Unreferenced files remain available in the explorer without blocking the active
+show. Missing imports or incompatible targets in reachable documents produce
+local diagnostics and remain repairable in the text editor.
 
 ## How A Donder Project Works
 
-The manifest's `project.entrypoint` imports the rest of the show definition:
+The configuration's `entrypoint` imports the rest of the show definition:
 setups, layouts, pixel fixture definitions, LED patches, controllers, curves,
 gradients, effects, operators, sequences, and assets. Imports are
-structured as module-local document lists or dependency alias/export-group
-references; dependency deep imports and root escapes are rejected.
+explicit project-relative document lists; paths escaping the project are rejected.
 
 Project IO loads reachable source files, validates imports and references, tracks source locations for diagnostics, compiles DSL definitions, and builds the authoritative typed `DonderProject`. `SourceProject` retains document ownership, import, original-source, and asset metadata; it is not a second editable project model. GUI commands make one private mutable candidate from the current immutable project snapshot; accepted snapshots are shared by state, history, save, and render work. Project IO serializes typed state directly without reparsing or synchronizing a YAML model.
 

@@ -156,8 +156,8 @@ ranges, so review the patch when changing fixture wiring. Effects continue to
 target whole instances or groups.
 
 Copying a layout preserves shared fixtures and instance IDs, creates its own
-patch, and retargets affected sequences. Dependency fixtures remain read-only
-and must be exported/imported to stay referenced from the copied layout.
+patch, and retargets affected sequences. Shared fixtures remain linked through
+explicit local imports and can be edited at their source.
 
 
 The layout hierarchy supports dragging fixtures and groups. Drop onto the middle

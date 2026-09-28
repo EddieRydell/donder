@@ -9,9 +9,8 @@ fn main() {
         args.len() == 2,
         "usage: export_sequence PROJECT OUTPUT.donderseq"
     );
-    let project = donder_project_io::load_package(&Utf8PathBuf::from(&args[0]))
+    let project = donder_project_io::load_project(&Utf8PathBuf::from(&args[0]))
         .unwrap()
-        .session
         .project;
     let id = project
         .root

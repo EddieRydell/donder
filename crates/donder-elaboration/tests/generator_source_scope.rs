@@ -3,7 +3,7 @@ use donder_elaboration::PreparedSequenceOutput;
 use donder_language::dsl::Identifier;
 use donder_language::effect::{CurveSource, EffectParamValue, EffectRef, GradientSource};
 use donder_language::values::DonderTime;
-use donder_project_io::{check_package_with_overrides, project_source_texts};
+use donder_project_io::{check_project_with_overrides, project_source_texts};
 use std::time::Duration;
 
 #[test]
@@ -49,7 +49,7 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
         };
         overrides.insert(generator_path.clone(), generator_source);
         overrides.insert(child_path.clone(), child_source);
-        let report = check_package_with_overrides(&root, &overrides);
+        let report = check_project_with_overrides(&root, &overrides);
         if matches!(scope, Scope::MissingImport) {
             assert!(report.session.is_none());
             assert!(
@@ -102,7 +102,7 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
 #[test]
 fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut session = donder_project_io::load_package(&root).unwrap().session;
+    let mut session = donder_project_io::load_project(&root).unwrap();
     let definitions = &session.project.definitions;
     let generator_id = definitions
         .effects

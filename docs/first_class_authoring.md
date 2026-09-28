@@ -11,9 +11,9 @@ state is then shared with history, persistence, rendering, and waveform work.
 - `donder-language` owns domain types, the effect/operator DSL, and semantic
   validation.
 - `donder-project-io` owns source documents, imports, linking, diagnostics,
-  serialization, and package/project loading.
-  Its public facade reexports package loading/checking from `package_loading.rs`,
-  release planning/validation from `package_artifact.rs`, project edits and
+  serialization, and local project loading.
+  Its public facade reexports project loading/checking from `project_loading.rs`,
+  project configuration from `project_config.rs`, project edits and
   save/export from `project_edit.rs`, and diagnostics/source indexing from
   `diagnostics.rs`. YAML serialization stays in `serialization/`.
 - `donder-elaboration` expands generators, resolves targets, and prepares the
@@ -48,8 +48,7 @@ settings below Name. Inline values do not acquire synthetic source keys.
 Routing follows independent layout/controller copies. A shared patch becomes
 owned before changing its routes; active sequences become owned before their
 layout targets change. Undo and redo include source registration and imports.
-Imported dependency sources remain read-only, but their owners can make linked
-values independent when retained references are available through package exports.
+Imported sources are ordinary editable files inside the project.
 A standalone project copy creates and opens a separate project with local copies
 of imported sources and referenced audio.
 

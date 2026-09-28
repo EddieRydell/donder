@@ -17,7 +17,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::{DocumentId, SourceIdentity};
 use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
 use indexmap::IndexMap;
-pub(crate) use ownership::{inherit_relocated_reference_import, write_object_reference};
+pub(crate) use ownership::write_object_reference;
 use yaml_serde::{Mapping, Value};
 
 #[derive(Clone, Debug)]
@@ -74,13 +74,7 @@ pub(crate) fn parse_imports(
                             .collect();
                         Ok((ImportSource::LocalDocuments { documents: paths }, ranges))
                     } else {
-                        let dependency = source.string("dependency")?.to_owned();
-                        let export = source.string("export")?.to_owned();
-                        let ranges = ["dependency", "export"]
-                            .iter()
-                            .map(|key| source_range_for_field_value(path, from, key))
-                            .collect();
-                        Ok((ImportSource::DependencyExport { dependency, export }, ranges))
+                        Err(LoadProjectError::InvalidDocument { path: path.to_owned(), range: source_range_for_value(path, from), message: "Import source requires a non-empty documents list".into() })
                     }
                 })?;
                 let alias = ImportAlias::new(fields.string("as")?).map_err(|message| {
@@ -104,7 +98,7 @@ pub(crate) fn validate_import_document_path(
     document: &Utf8Path,
     value: &str,
 ) -> Result<(), LoadProjectError> {
-    if donder_package::validate_module_relative_donder_path(value).is_err() {
+    if crate::validate_document_path(value).is_err() {
         return Err(LoadProjectError::InvalidDocument {
             path: document.to_path_buf(),
             range: None,
@@ -156,9 +150,7 @@ fn ensure_document_imports_target(
         return Err(ExportProjectError::InvalidReference {
             path: from_path.to_path_buf(),
             reference: reference.to_string(),
-            message:
-                "dependency objects must be exposed through an explicitly declared export import"
-                    .into(),
+            message: "referenced objects must belong to the same project".into(),
         });
     }
     document.imports.push(ImportEdge {
@@ -512,70 +504,6 @@ impl Loader {
                     Ok(target)
                 })
                 .collect(),
-            donder_language::imports::ImportSource::DependencyExport { dependency, export } => {
-                for (index, name) in [dependency, export].into_iter().enumerate() {
-                    donder_package::validate_package_reference_name(name).map_err(|error| {
-                        LoadProjectError::InvalidDocument {
-                            path: importer.path().to_path_buf(),
-                            range: import
-                                .source_ranges
-                                .get(index)
-                                .cloned()
-                                .flatten()
-                                .or_else(|| import.range.clone()),
-                            message: error.to_string(),
-                        }
-                    })?;
-                }
-                let target_module = self
-                    .source_graph
-                    .dependency(importer.module_id(), dependency)
-                    .map_err(|error| LoadProjectError::InvalidDocument {
-                        path: importer.path().to_path_buf(),
-                        range: import
-                            .source_ranges
-                            .first()
-                            .cloned()
-                            .flatten()
-                            .or_else(|| import.range.clone()),
-                        message: error.to_string(),
-                    })?;
-                let group = target_module.manifest.exports.get(export).ok_or_else(|| {
-                    LoadProjectError::InvalidDocument {
-                        path: importer.path().to_path_buf(),
-                        range: import
-                            .source_ranges
-                            .get(1)
-                            .cloned()
-                            .flatten()
-                            .or_else(|| import.range.clone()),
-                        message: format!(
-                            "dependency `{dependency}` does not export group `{export}`"
-                        ),
-                    }
-                })?;
-                group
-                    .documents
-                    .iter()
-                    .map(|path| {
-                        let target = donder_language::identity::DocumentId::new(
-                            target_module.manifest.module_id,
-                            Utf8PathBuf::from(path),
-                        );
-                        let absolute = self.absolute_document_path(&target)?;
-                        if !absolute.is_file() && !self.source_overrides.contains_key(&target) {
-                            return Err(LoadProjectError::InvalidDocument {
-                                path: importer.path().to_path_buf(),
-                                range: import.range.clone(),
-                                message: format!(
-                                    "dependency `{dependency}` export `{export}` is missing `{path}`"
-                                ),
-                            });
-                        }
-                        Ok(target)
-                    })
-                    .collect()
-            }
         }
     }
 }
@@ -583,7 +511,6 @@ impl Loader {
 fn target_range(import: &ParsedImport, index: usize) -> Option<TextRange> {
     match import.declaration.source {
         ImportSource::LocalDocuments { .. } => import.source_ranges.get(index).cloned().flatten(),
-        ImportSource::DependencyExport { .. } => import.source_ranges.get(1).cloned().flatten(),
     }
     .or_else(|| import.range.clone())
 }

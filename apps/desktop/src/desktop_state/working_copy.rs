@@ -76,10 +76,7 @@ impl DesktopState {
                 return Err("The document changed before the text was received".into());
             }
             if document.buffer.read_only {
-                return Err(
-                    "This package source is read-only. Use File > Create Standalone Project Copy to change package sources in a separate project."
-                        .into(),
-                );
+                return Err("This source is not editable in the current project.".into());
             }
             if document.buffer.text == update.text {
                 return Ok(workspace.snapshot());
@@ -174,7 +171,7 @@ impl DesktopState {
                     continue;
                 }
                 if document.buffer.read_only {
-                    return Err(format!("Dependency source {path} is read-only"));
+                    return Err(format!("Source {path} is not editable in this project"));
                 }
                 let actual = match read_disk(&root.join(path)) {
                     Ok(actual) => actual,
@@ -708,7 +705,7 @@ mod tests {
         );
         assert!(!root.join(path).exists());
         state.save_all().unwrap();
-        assert!(donder_project_io::check_package(&root).session.is_some());
+        assert!(donder_project_io::check_project(&root).session.is_some());
     }
 
     #[test]
@@ -783,7 +780,7 @@ mod tests {
             state.snapshot().active_buffer.unwrap().text
         );
         edit(&state, text.clone());
-        state.open_file_path(donder_package::MANIFEST_FILE);
+        state.open_file_path(donder_project_io::PROJECT_CONFIG_FILE);
         state.set_active_file_path(SEQUENCE);
         assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
         let snapshot = state.save_all().unwrap();

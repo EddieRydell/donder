@@ -565,13 +565,10 @@ fn qualified_generator_emit_references_report_specific_diagnostics() {
 #[test]
 fn effect_document_compilation_retains_explicit_imports_and_source_spans() {
     use donder_language::dsl::compile_effect_document;
-    let source = "import bursts from [\"effects/child.effect.donder\"];\nimport library from local-effects.child-effects;\neffect Parent { void generate() { timeline.emit bursts.Child { start: 0.0, duration: 1.0, target: target }; } }";
+    let source = "import bursts from [\"effects/child.effect.donder\"];\nimport library from [\"effects/library.effect.donder\"];\neffect Parent { void generate() { timeline.emit bursts.Child { start: 0.0, duration: 1.0, target: target }; } }";
     let compiled = compile_effect_document(source).unwrap();
     let donder_language::imports::ImportSource::LocalDocuments { documents } =
-        &compiled.imports[0].declaration.source
-    else {
-        panic!("document import")
-    };
+        &compiled.imports[0].declaration.source;
     assert_eq!(documents[0], "effects/child.effect.donder");
     let span = compiled.imports[0].source_spans[0];
     assert_eq!(
@@ -580,9 +577,8 @@ fn effect_document_compilation_retains_explicit_imports_and_source_spans() {
     );
     assert_eq!(
         compiled.imports[1].declaration.source,
-        donder_language::imports::ImportSource::DependencyExport {
-            dependency: "local-effects".into(),
-            export: "child-effects".into()
+        donder_language::imports::ImportSource::LocalDocuments {
+            documents: vec!["effects/library.effect.donder".into()]
         }
     );
     assert_eq!(

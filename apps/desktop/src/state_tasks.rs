@@ -15,7 +15,7 @@ mod tests {
 
     use super::*;
     use camino::Utf8Path;
-    use donder_project_io::{ProjectSession, load_package};
+    use donder_project_io::{ProjectSession, load_project};
 
     fn entry(session: &ProjectSession, status_path: &str) -> GuiHistoryEntry {
         GuiHistoryEntry {
@@ -32,9 +32,7 @@ mod tests {
             .parent()
             .and_then(Utf8Path::parent)
             .unwrap();
-        let session = load_package(&workspace.join("examples/starter"))
-            .unwrap()
-            .session;
+        let session = load_project(&workspace.join("examples/starter")).unwrap();
         let mut history = GuiHistory::new(2);
         history.push_redo(entry(&session, "redo"));
         history.push_undo(entry(&session, "one"));

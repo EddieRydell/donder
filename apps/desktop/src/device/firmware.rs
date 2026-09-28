@@ -1,15 +1,22 @@
 use crate::dto::{DeviceFirmwareInfo, DeviceInstallProgress};
-use donder_package::sha256_hex;
 use espflash::{
     connection::{Connection, ResetAfterOperation, ResetBeforeOperation},
     flasher::{DeviceInfo, FlashSize, Flasher},
     target::{Chip, ProgressCallbacks, XtalFrequency, efuse::esp32},
 };
+use sha2::{Digest, Sha256};
 use std::time::Duration;
 
 const IMAGE: &[u8] = include_bytes!("../../assets/firmware/donder-esp32.bin");
 const IMAGE_HASH: &str = include_str!("../../assets/firmware/donder-esp32.sha256");
 const PARTITIONS: &str = include_str!("../../../../firmware/esp32/partitions.csv");
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 fn validate_image(image: &[u8], expected_hash: &str) -> Result<(), String> {
     if !sha256_hex(image).eq_ignore_ascii_case(expected_hash.trim()) {

@@ -20,17 +20,19 @@ pub(super) fn register_sequence_audio_asset(
         return Ok(asset.id.clone());
     }
 
-    let module = session
-        .source
-        .module(document.module_id())
-        .ok_or_else(|| GuiMutationError::Invalid("Source module was not found.".to_string()))?;
-    let selected_path = module.root.join(import_path);
+    if !session.source.is_project_owned(document) {
+        return Err(GuiMutationError::Invalid(
+            "Audio must belong to this project.".into(),
+        ));
+    }
+    donder_project_io::validate_relative_path(import_path).map_err(GuiMutationError::Invalid)?;
+    let selected_path = session.source.project_root().join(import_path);
     let absolute_path = fs::canonicalize(&selected_path)
         .map_err(|error| GuiMutationError::Invalid(format!("Audio file was not found: {error}")))?;
     let absolute_path = Utf8PathBuf::from_path_buf(absolute_path).map_err(|path| {
         GuiMutationError::Invalid(format!("Audio path is not valid UTF-8: {}", path.display()))
     })?;
-    if !absolute_path.is_file() || !absolute_path.starts_with(&module.root) {
+    if !absolute_path.is_file() || !absolute_path.starts_with(session.source.project_root()) {
         return Err(GuiMutationError::Invalid(
             "Selected audio path is not a file inside the project module.".to_string(),
         ));
@@ -235,7 +237,7 @@ pub(super) fn graph_operator_from_gui(
         } => {
             let identity =
                 source_identity_from_gui(module_id, path, identifier(object_key)?.as_str())?;
-            if session.source.module(identity.module_id()).is_none() {
+            if !session.source.is_project_owned(identity.document_id()) {
                 return Err(GuiMutationError::Invalid(
                     "Operator source module was not found.".to_string(),
                 ));

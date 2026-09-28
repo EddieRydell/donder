@@ -125,20 +125,8 @@ impl<'source> Parser<'source> {
             );
             ImportSource::LocalDocuments { documents }
         } else {
-            let start = self.current().span.start;
-            let dependency = self.parse_package_name()?;
-            source_spans.push(TextSpan {
-                start,
-                end: self.tokens[self.cursor - 1].span.end,
-            });
-            self.expect(TokenKind::Dot, "expected `.` between dependency and export");
-            let start = self.current().span.start;
-            let export = self.parse_package_name()?;
-            source_spans.push(TextSpan {
-                start,
-                end: self.tokens[self.cursor - 1].span.end,
-            });
-            ImportSource::DependencyExport { dependency, export }
+            self.error_here("expected a non-empty document list after `from`");
+            return None;
         };
         let end = self.current().span.end;
         self.expect(TokenKind::Semicolon, "expected `;` after import");
@@ -147,30 +135,6 @@ impl<'source> Parser<'source> {
             span: TextSpan { start, end },
             source_spans,
         })
-    }
-
-    fn parse_package_name(&mut self) -> Option<String> {
-        let start = self.current().span.start;
-        let mut end = start;
-        while matches!(
-            self.current().kind,
-            TokenKind::Identifier
-                | TokenKind::Keyword(_)
-                | TokenKind::Minus
-                | TokenKind::IntegerLiteral
-        ) {
-            end = self.current().span.end;
-            self.advance();
-        }
-        let name = &self.source[start..end];
-        if name.is_empty() {
-            self.error(
-                TextSpan { start, end },
-                "expected a package dependency or export name",
-            );
-            return None;
-        }
-        Some(name.to_string())
     }
 
     fn parse_operator(&mut self) -> Option<OperatorDecl> {

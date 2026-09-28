@@ -7,7 +7,6 @@ use crate::dsl::Identifier;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ImportSource {
     LocalDocuments { documents: Vec<Utf8PathBuf> },
-    DependencyExport { dependency: String, export: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

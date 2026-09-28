@@ -21,7 +21,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequenceOutput {
         "effects/mark-impact-burst.effect.donder".into(),
         source.into(),
     );
-    let report = donder_project_io::check_package_with_overrides(&root, &sources);
+    let report = donder_project_io::check_project_with_overrides(&root, &sources);
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let mut session = report.session.unwrap();
     let generator = session

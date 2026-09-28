@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-output", "crates/donder-project-io", "crates/donder-package", "crates/donder-cli", "crates/donder-preview"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-output", "crates/donder-project-io", "crates/donder-cli", "crates/donder-preview"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -16,9 +16,7 @@ artnet_protocol = "0.4.4"
 camino = "1.2.5"
 clap = { version = "4.6.6", features = ["derive"] }
 criterion = "0.8.2"
-directories = "6.0.0"
 dur = { version = "0.5.3", default-features = false }
-donder-package = { path = "crates/donder-package" }
 donder-elaboration = { path = "crates/donder-elaboration" }
 donder-language = { path = "crates/donder-language" }
 donder-output = { path = "crates/donder-output" }
@@ -26,10 +24,7 @@ donder-project-io = { path = "crates/donder-project-io" }
 donder-preview = { path = "crates/donder-preview" }
 donder-runtime = { path = "crates/donder-runtime" }
 glam = "0.33.7"
-fs4 = "1.1.0"
 fugit = "0.5.0"
-keyring = { version = "4.2.0", default-features = false, features = ["v1", "windows-native-keyring-store"] }
-keyring-core = "1.0.0"
 libm = "0.2.16"
 micromath = { version = "2.1.0", default-features = false }
 indexmap = "2.14.2"
@@ -38,11 +33,9 @@ notify = "=8.2.0"
 kira = "0.12.4"
 marked-yaml = "0.8.0"
 pathdiff = { version = "0.2.3", features = ["camino"] }
-pubgrub = "0.4.0"
 sacn = "0.11.1"
 rfd = "0.17.2"
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "json", "rustls"] }
-semver = { version = "1.0.28", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1"
 serialport = { version = "4.10.0", default-features = false }
@@ -50,7 +43,6 @@ espflash = { version = "4.5.0", default-features = false, features = ["serialpor
 esp-idf-part = "0.6.0"
 serde_path_to_error = "0.1.20"
 sha2 = "0.11.0"
-spdx = "0.13.5"
 specta = { version = "2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "0.0.12"
 tauri = { version = "2.11.5", features = ["protocol-asset", "unstable"] }
@@ -58,9 +50,7 @@ tauri-build = "2.6.3"
 tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
 tempfile = "3.27.0"
 uuid = { version = "1.26.0", features = ["serde", "v4"] }
-url = { version = "2.5.8", features = ["serde"] }
 webbrowser = "1.2.4"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }
 winit = "0.30.13"
 yaml_serde = "0.10.7"

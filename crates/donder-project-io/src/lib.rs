@@ -17,9 +17,12 @@ mod imports;
 mod loader;
 mod ownership_edit;
 pub use ownership_edit::maintain_ownership_sources;
-mod package_artifact;
-mod package_loading;
-mod package_update;
+mod project_config;
+mod project_loading;
+pub use project_config::{
+    PROJECT_CONFIG_FILE, PROJECT_FORMAT_VERSION, ProjectConfig, ProjectWorkspace, atomic_write,
+    validate_document_path, validate_relative_path,
+};
 mod path_refactor;
 mod project_edit;
 mod schema;
@@ -37,27 +40,18 @@ pub use imports::{
     available_reusable_sources, ensure_document_can_reference_object,
     ensure_document_can_reference_source, link_reusable_source,
 };
-pub use package_artifact::{pack_package, validate_registry_package_artifact};
-pub use package_loading::{
-    CompiledPackage, CompiledSourceGraph, LoadedPackageProject, PackageLoadError, SourceOverrides,
-    check_document_text, check_package, check_package_with_cache, check_package_with_overrides,
-    check_project_document_text, check_source_graph, compile_package, compile_package_with_cache,
-    compile_source_graph, load_package, load_package_with_cache, load_source_graph,
-    project_source_texts,
-};
-pub use package_update::{
-    PackageCompatibilityIssue, PackageCompatibilityIssueKind, PackageCompatibilityReport,
-    analyze_package_candidate,
-};
 pub use path_refactor::{
-    PathChangeImpact, PathChangeOwnership, PathChangePlan, PathChangeSourceKind, apply_path_change,
-    plan_path_change,
+    PathChangeImpact, PathChangePlan, PathChangeSourceKind, apply_path_change, plan_path_change,
 };
 pub use project_edit::{export_project, save_project, source_document_text};
+pub use project_loading::{
+    ProjectLoadError, SourceOverrides, check_document_text, check_project,
+    check_project_document_text, check_project_with_overrides, load_project, project_source_texts,
+};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
     ExportReport, ImportEdge, ImportSource, ProjectSession, ReferencedAsset, SaveReport,
     SourceDocument, SourceDocumentFormat, SourceDocumentKind, SourceObjectId, SourceObjectKind,
-    SourceOwnership, SourceProject, source_document_format, source_file_list,
+    SourceProject, source_document_format, source_file_list,
 };
 pub use source_copy::export_editable_project;

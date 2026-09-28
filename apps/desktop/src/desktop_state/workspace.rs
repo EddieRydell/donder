@@ -9,7 +9,7 @@ use super::{
 use crate::dto::{AppSnapshot, EditorViewMode, NewSequenceRequest};
 use crate::dto::{
     WorkspaceExplorerState, WorkspacePathChangeImpact, WorkspacePathChangePlan,
-    WorkspacePathChangeRequest, WorkspacePathOwnership,
+    WorkspacePathChangeRequest,
 };
 use crate::persistence::{
     PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate,
@@ -22,13 +22,13 @@ impl DesktopState {
         let candidate = Utf8Path::new(path);
         let root = if candidate.is_dir() {
             candidate
-        } else if candidate.file_name() == Some(donder_package::MANIFEST_FILE) {
+        } else if candidate.file_name() == Some(donder_project_io::PROJECT_CONFIG_FILE) {
             candidate.parent().unwrap_or(candidate)
         } else {
             return self.snapshot_with_error(
                 "project.open",
                 path,
-                "Open a project by selecting its donder-package.json manifest.",
+                "Open a project folder or its donder.json configuration.",
             );
         };
         self.load_working_copy(root)
@@ -218,22 +218,11 @@ impl DesktopState {
         Ok(WorkspacePathChangePlan {
             request,
             structural: plan.structural,
-            ownership: match plan.ownership {
-                donder_project_io::PathChangeOwnership::Project => WorkspacePathOwnership::Project,
-                donder_project_io::PathChangeOwnership::PathDependency {
-                    module_id,
-                    module_root,
-                } => WorkspacePathOwnership::PathDependency {
-                    module_id: module_id.to_string(),
-                    module_root,
-                },
-            },
             impact: WorkspacePathChangeImpact {
                 documents: plan.impact.documents,
                 imports: plan.impact.imports,
-                manifests: plan.impact.manifests,
+                configuration: plan.impact.configuration,
                 assets: plan.impact.assets,
-                modules: plan.impact.modules,
                 open_files,
                 recent_files,
                 persisted_state,
@@ -275,7 +264,6 @@ impl DesktopState {
         let candidate = std::sync::Arc::new(candidate);
         lock_unpoisoned(&self.gui_history).clear();
         let entries = super::workspace_entries(&candidate);
-        let package = super::package_status(Utf8Path::new(&root), Some(&candidate));
         let remap = |path: &str| remap_workspace_path(path, &request.source, &request.destination);
         let mut refresh_errors = Vec::new();
         {
@@ -357,7 +345,6 @@ impl DesktopState {
                 .map(|path| remap(path))
                 .collect();
             snapshot.project_entries = entries;
-            snapshot.package = package;
             snapshot.status = if description.structural {
                 "Structural path change applied; GUI undo and redo history were cleared."
                     .to_string()
@@ -486,8 +473,8 @@ impl DesktopState {
             let Some(original_root) = self.project_root_path() else {
                 return self.snapshot_with_error("project.copy", parent_path, "No project is open");
             };
-            match donder_project_io::load_package(&original_root) {
-                Ok(loaded) => std::sync::Arc::new(loaded.session),
+            match donder_project_io::load_project(&original_root) {
+                Ok(loaded) => std::sync::Arc::new(loaded),
                 Err(error) => {
                     return self.snapshot_with_error(
                         "project.copy",

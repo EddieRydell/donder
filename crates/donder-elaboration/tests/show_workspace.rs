@@ -1,12 +1,12 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::PreparedSequenceOutput;
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 use donder_runtime::values::{SampleTime, sample_time_from_frame};
 
 #[test]
 fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let session = load_package(&root).unwrap().session;
+    let session = load_project(&root).unwrap();
     for sequence in session
         .project
         .root

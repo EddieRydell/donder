@@ -134,7 +134,7 @@ pub(crate) fn ensure_owned_gui_document(
         Ok(())
     } else {
         Err(GuiMutationError::Blocked(
-            "Imported dependency documents are read-only.".to_string(),
+            "The selected document does not belong to this project.".to_string(),
         ))
     }
 }

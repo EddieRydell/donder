@@ -4,7 +4,7 @@ use crate::dto::*;
 #[test]
 fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     use crate::desktop_foundation_tests::tests::starter_copy;
-    use donder_project_io::load_package;
+    use donder_project_io::load_project;
     use std::fs;
     let (_temporary, root) = starter_copy();
     fs::write(
@@ -165,7 +165,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     }
     state.save_all().unwrap();
     assert_eq!(
-        load_package(&root).unwrap().session.project,
+        load_project(&root).unwrap().project,
         state.project_session().unwrap().project
     );
 }

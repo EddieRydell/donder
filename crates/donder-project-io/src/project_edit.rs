@@ -1,6 +1,6 @@
 use crate::serialization::{document_text, write_source_documents};
 use crate::{ExportProjectError, ExportReport, ProjectSession, SaveReport, serialization};
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
 use std::fs;
 
 pub fn export_project(
@@ -17,35 +17,20 @@ pub fn export_project(
         source,
     })?;
 
-    // Export alone clones the session because external asset paths are rewritten
-    // for the destination. Normal saves serialize the shared session directly.
-    let mut synced = session.clone();
-    let project_module_id = synced.source.project_module_id();
-    for asset in &mut synced.source.referenced_assets {
-        if asset.module_id != project_module_id {
-            let file_name = asset.absolute_path.file_name().ok_or_else(|| {
-                ExportProjectError::InvalidReference {
-                    path: asset.absolute_path.clone(),
-                    reference: asset.absolute_path.to_string(),
-                    message: "external asset has no file name".to_string(),
-                }
-            })?;
-            asset.relative_path = Utf8PathBuf::from("assets")
-                .join(asset.id.0.to_string())
-                .join(file_name);
-            asset.module_id = project_module_id;
-        }
-    }
-    let written_files = write_source_documents(&synced, output_root)?;
-
-    let mut copied_assets = Vec::new();
-    for (source_asset, exported_asset) in session
+    let mut written_files = write_source_documents(session, output_root)?;
+    session
         .source
-        .referenced_assets
-        .iter()
-        .zip(&synced.source.referenced_assets)
-    {
-        let output_path = output_root.join(&exported_asset.relative_path);
+        .workspace
+        .config
+        .write(output_root)
+        .map_err(|message| ExportProjectError::Io {
+            path: output_root.join(crate::PROJECT_CONFIG_FILE),
+            source: std::io::Error::other(message),
+        })?;
+    written_files.push(crate::PROJECT_CONFIG_FILE.into());
+    let mut copied_assets = Vec::new();
+    for source_asset in &session.source.referenced_assets {
+        let output_path = output_root.join(&source_asset.relative_path);
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent).map_err(|source| ExportProjectError::Io {
                 path: parent.to_path_buf(),
@@ -58,7 +43,7 @@ pub fn export_project(
                 source,
             }
         })?;
-        copied_assets.push(exported_asset.relative_path.clone());
+        copied_assets.push(source_asset.relative_path.clone());
     }
 
     Ok(ExportReport {

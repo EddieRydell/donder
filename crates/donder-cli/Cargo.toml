@@ -2,25 +2,17 @@
 name = "donder-cli"
 edition.workspace = true
 version.workspace = true
-description = "Donder package and project command line client"
+description = "Donder local project command line client"
 authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
 camino.workspace = true
 clap.workspace = true
-donder-package.workspace = true
 donder-project-io.workspace = true
-keyring.workspace = true
-semver.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tempfile.workspace = true
-uuid.workspace = true
-webbrowser.workspace = true
 
 [dev-dependencies]
-keyring-core.workspace = true
+tempfile.workspace = true
 
 [[bin]]
 name = "donder"

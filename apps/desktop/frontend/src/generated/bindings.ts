@@ -5,12 +5,6 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 /** Commands */
 export const commands = {
 	getSnapshot: () => __TAURI_INVOKE<AppSnapshot>("get_snapshot"),
-	syncPackages: () => __TAURI_INVOKE<AppSnapshot>("sync_packages"),
-	checkPackageUpdates: () => __TAURI_INVOKE<AppSnapshot>("check_package_updates"),
-	updatePackages: (alias: string | null) => __TAURI_INVOKE<AppSnapshot>("update_packages", { alias }),
-	removePackageDependency: (alias: string) => __TAURI_INVOKE<AppSnapshot>("remove_package_dependency", { alias }),
-	forkPackageDependency: (alias: string) => __TAURI_INVOKE<AppSnapshot>("fork_package_dependency", { alias }),
-	openPackagePage: (alias: string) => __TAURI_INVOKE<AppSnapshot>("open_package_page", { alias }),
 	updateAppSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSnapshot>("update_app_settings", { settings }),
 	saveWorkspaceLayoutState: (stateUpdate: WorkspaceLayoutState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_layout_state", { stateUpdate }),
 	saveWorkspaceExplorerState: (stateUpdate: WorkspaceExplorerState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_explorer_state", { stateUpdate }),
@@ -109,7 +103,6 @@ export type AppSnapshot = {
 	previewOpen: boolean,
 	audioTransport: AudioTransportSnapshot,
 	liveOutput: LiveOutputSnapshot,
-	package: PackageStatus,
 };
 
 export type AudioTransportSnapshot = {
@@ -408,52 +401,6 @@ export type NewSequenceResult = {
 export type NewSequenceStorage = { type: "inline" } | { type: "sameFile"; name: string } | { type: "newFile"; name: string };
 
 export type ObjectKind = "project" | "setup" | "controller" | "layout" | "fixture" | "patch" | "sequence" | "curve" | "gradient" | "effect" | "operator";
-
-export type PackageCacheState = "ready" | "missing" | "local" | "error" | "unknown";
-
-export type PackageCompatibilityWarning = {
-	package: string,
-	message: string,
-	breaking: boolean,
-};
-
-export type PackageDependencySource = "registry" | "path";
-
-export type PackageDependencyStatus = {
-	alias: string,
-	source: PackageDependencySource,
-	requirement: string,
-	package: string | null,
-	lockedVersion: string | null,
-	moduleId: string | null,
-	cache: PackageCacheState,
-	updateAvailable: boolean | null,
-	websiteUrl: string | null,
-	warnings: string[],
-};
-
-export type PackageModuleStatus = {
-	identity: string,
-	moduleId: string,
-	version: string | null,
-	documents: string[],
-};
-
-export type PackageReadiness = "noProject" | "invalid" | "needsSync" | "ready" | "warning";
-
-export type PackageStatus = {
-	readiness: PackageReadiness,
-	root: string | null,
-	manifestValid: boolean,
-	lockPresent: boolean,
-	lockCurrent: boolean,
-	registry: string | null,
-	updateChecked: boolean,
-	dependencies: PackageDependencyStatus[],
-	modules: PackageModuleStatus[],
-	warnings: PackageCompatibilityWarning[],
-	message: string | null,
-};
 
 export type PatchFixtureTarget = {
 	id: number,
@@ -966,7 +913,7 @@ export type SetupGuiDocument = {
 
 export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
 
-export type SidebarView = "explorer" | "search" | "packages" | "problems";
+export type SidebarView = "explorer" | "search" | "problems";
 
 export type SpatialGuide = {
 	axis: SpatialGuideAxis,
@@ -1031,16 +978,13 @@ export type WorkspaceEntry = {
 	name: string,
 	parent: string,
 	role: WorkspaceEntryRole,
-	ownership: WorkspaceEntryOwnership,
 	operations: WorkspaceOperation[],
 	operationExplanation: string | null,
 };
 
 export type WorkspaceEntryKind = "directory" | "file";
 
-export type WorkspaceEntryOwnership = "project" | "pathDependency" | "registry";
-
-export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "manifest" | "lockfile" | "asset" | "pathDependency" | "file";
+export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "configuration" | "asset" | "file";
 
 export type WorkspaceExplorerState = {
 	expandedPaths: string[],
@@ -1060,9 +1004,8 @@ export type WorkspaceOperation = "open" | "create" | "rename" | "delete" | "move
 export type WorkspacePathChangeImpact = {
 	documents: string[],
 	imports: string[],
-	manifests: string[],
+	configuration: string[],
 	assets: string[],
-	modules: string[],
 	openFiles: string[],
 	recentFiles: string[],
 	persistedState: string[],
@@ -1071,7 +1014,6 @@ export type WorkspacePathChangeImpact = {
 export type WorkspacePathChangePlan = {
 	request: WorkspacePathChangeRequest,
 	structural: boolean,
-	ownership: WorkspacePathOwnership,
 	impact: WorkspacePathChangeImpact,
 };
 
@@ -1080,11 +1022,6 @@ export type WorkspacePathChangeRequest = {
 	destination: string,
 	projectRevision: number,
 };
-
-export type WorkspacePathOwnership = "project" | { pathDependency: {
-	module_id: string,
-	module_root: string,
-} };
 
 export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | { type: "copyProject"; parentPath: string; directoryName: string } | { type: "closeApplication" };
 

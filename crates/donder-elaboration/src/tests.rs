@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 
 use crate::PreparedSequenceOutput;
 
@@ -8,9 +8,7 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
         .join("../..")
         .join("examples")
         .join(name);
-    load_package(&path)
-        .map(|loaded| loaded.session)
-        .unwrap_or_else(|error| panic!("failed to load {name}: {error}"))
+    load_project(&path).unwrap_or_else(|error| panic!("failed to load {name}: {error}"))
 }
 
 #[test]

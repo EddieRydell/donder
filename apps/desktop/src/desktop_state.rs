@@ -10,8 +10,8 @@ use std::sync::{
 };
 
 use crate::dto::{
-    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, PackageReadiness,
-    PackageStatus, ProjectHealth, WorkspaceExplorerState, WorkspaceLayoutState,
+    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, ProjectHealth,
+    WorkspaceExplorerState, WorkspaceLayoutState,
 };
 use crate::persistence::PersistenceService;
 use crate::state_tasks::{GuiHistory, LatestScheduler, RenderRefreshPayload, WorkingCopyPayload};
@@ -348,8 +348,6 @@ mod editor_projection;
 pub(super) use editor_projection::{descriptor_for_path, generated_source_texts};
 mod filesystem;
 mod gui_editing;
-mod packages;
-pub(crate) use packages::package_status;
 mod output_test;
 mod project_lifecycle;
 mod rendering;
@@ -388,19 +386,6 @@ fn empty_snapshot() -> AppSnapshot {
         preview_open: false,
         audio_transport: crate::audio::AudioEngine::empty_snapshot(),
         live_output: crate::output::disabled_snapshot(0),
-        package: PackageStatus {
-            readiness: PackageReadiness::NoProject,
-            root: None,
-            manifest_valid: false,
-            lock_present: false,
-            lock_current: false,
-            registry: None,
-            update_checked: false,
-            dependencies: Vec::new(),
-            modules: Vec::new(),
-            warnings: Vec::new(),
-            message: None,
-        },
     }
 }
 

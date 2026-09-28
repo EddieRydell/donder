@@ -4,11 +4,10 @@ use donder_language::values::sample_time_from_frame;
 use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence};
 
 fn project() -> donder_project_io::ProjectSession {
-    donder_project_io::load_package(
+    donder_project_io::load_project(
         &Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter"),
     )
     .unwrap()
-    .session
 }
 
 #[test]

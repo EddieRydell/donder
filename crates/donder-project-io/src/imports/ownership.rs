@@ -148,70 +148,7 @@ pub fn ensure_document_can_reference_object(
     ensure_document_can_reference_source(session, from, kind, root)
 }
 
-/// Ownership relocation may move an existing, explicitly imported dependency
-/// reference into a new YAML scope. Ordinary reference edits never infer imports.
-pub(crate) fn inherit_relocated_reference_import(
-    session: &mut ProjectSession,
-    from: &DocumentId,
-    target: &DocumentId,
-) -> Result<(), ExportProjectError> {
-    if target.module_id() == from.module_id() {
-        return Ok(());
-    }
-    let error = |message: &str| ExportProjectError::InvalidReference {
-        path: from.path().to_owned(),
-        reference: target.path().to_string(),
-        message: message.into(),
-    };
-    let document = session
-        .source
-        .documents
-        .get(from)
-        .ok_or_else(|| error("Source document is missing."))?;
-    if document
-        .imports
-        .iter()
-        .any(|edge| edge.targets.contains(target))
-    {
-        return Ok(());
-    }
-    let mut edge = session
-        .source
-        .documents
-        .iter()
-        .filter(|(id, _)| id.module_id() == from.module_id())
-        .flat_map(|(_, document)| &document.imports)
-        .find(|edge| edge.targets.contains(target))
-        .cloned()
-        .ok_or_else(|| {
-            error("The linked source must be exposed by a declared dependency export import.")
-        })?;
-    if edge.targets.iter().any(|target| {
-        document
-            .imports
-            .iter()
-            .any(|existing| existing.targets.contains(target))
-    }) {
-        return Err(error(
-            "Dependency export overlaps an existing import; use one export group for these sources.",
-        ));
-    }
-    let alias = super::available_import_alias(document, edge.declaration.alias.as_str())
-        .ok_or_else(|| error("No import alias remains for the moved reference."))?;
-    edge.declaration.alias =
-        donder_language::imports::ImportAlias::new(&alias).map_err(|message| error(&message))?;
-    session
-        .source
-        .documents
-        .get_mut(from)
-        .ok_or_else(|| error("Source document is missing."))?
-        .imports
-        .push(edge);
-    Ok(())
-}
-
-/// Named sources available for an explicit GUI link choice. Dependency sources
-/// must already be exposed by a declared export in the owning module.
+/// Named local sources available for an explicit GUI link choice.
 pub fn available_reusable_sources(
     session: &ProjectSession,
     owner: &DocumentId,
@@ -221,20 +158,7 @@ pub fn available_reusable_sources(
         .source
         .documents
         .iter()
-        .filter(|(id, _)| {
-            id.module_id() == owner.module_id()
-                || session
-                    .source
-                    .documents
-                    .iter()
-                    .filter(|(from, _)| from.module_id() == owner.module_id())
-                    .any(|(_, document)| {
-                        document
-                            .imports
-                            .iter()
-                            .any(|edge| edge.targets.contains(id))
-                    })
-        })
+        .filter(|(id, _)| id.module_id() == owner.module_id())
         .flat_map(|(id, document)| {
             document
                 .objects
@@ -259,6 +183,5 @@ pub fn link_reusable_source(
     source: &SourceIdentity,
 ) -> Result<(), ExportProjectError> {
     validate_reference_target(session, owner, &kind, source)?;
-    inherit_relocated_reference_import(session, owner, source.document_id())?;
     ensure_document_can_reference_source(session, owner, kind, source)
 }

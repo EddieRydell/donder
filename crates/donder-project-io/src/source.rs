@@ -40,7 +40,7 @@ pub struct ProjectSession {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SourceProject {
-    pub source_graph: donder_package::ResolvedSourceGraph,
+    pub workspace: crate::ProjectWorkspace,
     pub entrypoint: Option<DocumentId>,
     pub documents: IndexMap<DocumentId, SourceDocument>,
     pub referenced_assets: Vec<ReferencedAsset>,
@@ -156,69 +156,28 @@ impl SourceProject {
     }
 
     pub fn project_module_id(&self) -> Uuid {
-        self.source_graph.project_module_id()
+        self.workspace.config.project_id
     }
-
     pub fn project_root(&self) -> &Utf8Path {
-        self.source_graph.project_module().root.as_path()
+        &self.workspace.root
     }
-
-    pub fn module(&self, module_id: Uuid) -> Option<&donder_package::ResolvedModule> {
-        self.source_graph.module(module_id).ok()
-    }
-
-    pub fn ownership(&self, document: &DocumentId) -> Option<SourceOwnership> {
-        self.module(document.module_id())
-            .map(|module| match &module.origin {
-                donder_package::ResolvedModuleOrigin::Project => SourceOwnership::ProjectOwned,
-                donder_package::ResolvedModuleOrigin::PathDependency { declared_path, .. } => {
-                    SourceOwnership::PathDependencyOwned {
-                        declared_path: declared_path.clone(),
-                        module_id: document.module_id(),
-                    }
-                }
-                donder_package::ResolvedModuleOrigin::RegistryDependency { package, .. } => {
-                    SourceOwnership::RegistryReadOnly {
-                        package: package.as_str().to_string(),
-                        module_id: document.module_id(),
-                    }
-                }
-            })
-    }
-
     pub fn absolute_path(&self, document: &DocumentId) -> Option<Utf8PathBuf> {
-        self.module(document.module_id())
-            .map(|module| module.root.join(document.path()))
+        self.is_project_owned(document)
+            .then(|| self.workspace.root.join(document.path()))
     }
-
-    pub fn workspace_module_for_path(
-        &self,
-        relative_path: &Utf8Path,
-    ) -> Option<(Uuid, Utf8PathBuf)> {
-        workspace_module_for_path(&self.source_graph, relative_path)
+    pub fn workspace_module_for_path(&self, path: &Utf8Path) -> Option<(Uuid, Utf8PathBuf)> {
+        crate::validate_relative_path(path.as_str()).ok()?;
+        Some((self.project_module_id(), path.to_owned()))
     }
-
-    pub fn document_for_workspace_path(&self, relative_path: &Utf8Path) -> Option<DocumentId> {
-        let (module_id, module_relative) = self.workspace_module_for_path(relative_path)?;
-        let document_id = DocumentId::new(module_id, module_relative);
-        self.documents
-            .contains_key(&document_id)
-            .then_some(document_id)
+    pub fn document_for_workspace_path(&self, path: &Utf8Path) -> Option<DocumentId> {
+        let (id, path) = self.workspace_module_for_path(path)?;
+        let document = DocumentId::new(id, path);
+        self.documents.contains_key(&document).then_some(document)
     }
-
     pub fn workspace_path_for_document(&self, document: &DocumentId) -> Option<Utf8PathBuf> {
-        let module = self.module(document.module_id())?;
-        if matches!(
-            module.origin,
-            donder_package::ResolvedModuleOrigin::RegistryDependency { .. }
-        ) {
-            return None;
-        }
-        let absolute = module.root.join(document.path());
-        let relative = absolute.strip_prefix(self.project_root()).ok()?;
-        Some(relative.to_path_buf())
+        self.is_project_owned(document)
+            .then(|| document.path().to_owned())
     }
-
     pub fn is_structural_workspace_path(&self, path: &Utf8Path) -> bool {
         self.entrypoint
             .iter()
@@ -242,47 +201,11 @@ impl SourceProject {
     }
 
     pub fn is_project_owned(&self, document: &DocumentId) -> bool {
-        self.ownership(document) == Some(SourceOwnership::ProjectOwned)
+        document.module_id() == self.project_module_id()
     }
-
     pub fn is_editable(&self, document: &DocumentId) -> bool {
-        matches!(
-            self.ownership(document),
-            Some(SourceOwnership::ProjectOwned | SourceOwnership::PathDependencyOwned { .. })
-        )
+        self.is_project_owned(document)
     }
-}
-
-pub(crate) fn workspace_module_for_path(
-    graph: &donder_package::ResolvedSourceGraph,
-    relative_path: &Utf8Path,
-) -> Option<(Uuid, Utf8PathBuf)> {
-    let absolute = graph.project_module().root.join(relative_path);
-    let (module_id, module) = graph
-        .modules()
-        .iter()
-        .filter(|(_, module)| {
-            !matches!(
-                module.origin,
-                donder_package::ResolvedModuleOrigin::RegistryDependency { .. }
-            ) && absolute.starts_with(&module.root)
-        })
-        .max_by_key(|(_, module)| module.root.components().count())?;
-    let module_relative = absolute.strip_prefix(&module.root).ok()?;
-    Some((*module_id, module_relative.to_path_buf()))
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SourceOwnership {
-    ProjectOwned,
-    PathDependencyOwned {
-        declared_path: String,
-        module_id: Uuid,
-    },
-    RegistryReadOnly {
-        package: String,
-        module_id: Uuid,
-    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]

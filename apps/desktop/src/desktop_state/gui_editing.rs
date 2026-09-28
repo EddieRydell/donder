@@ -516,7 +516,7 @@ mod fixed_parameter_tests {
         state.redo_active_edit();
         let final_session = state.project_session().unwrap();
         state.save_all().unwrap();
-        let reloaded = donder_project_io::load_package(&root).unwrap().session;
+        let reloaded = donder_project_io::load_project(&root).unwrap();
         assert_eq!(reloaded.project, final_session.project);
     }
 }

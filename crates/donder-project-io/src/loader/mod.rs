@@ -14,8 +14,8 @@ use parse::{ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, pars
 use resolve::DomainResolver;
 
 pub(super) struct Loader {
-    pub(crate) source_graph: donder_package::ResolvedSourceGraph,
-    pub(crate) entrypoint: Option<donder_language::identity::DocumentId>,
+    pub(crate) workspace: crate::ProjectWorkspace,
+    pub(crate) entrypoint: donder_language::identity::DocumentId,
     pub(crate) documents: IndexMap<donder_language::identity::DocumentId, SourceDocument>,
     pub(crate) visible_objects:
         IndexMap<donder_language::identity::DocumentId, IndexMap<SourceReference, ResolvedObject>>,
@@ -30,37 +30,21 @@ pub(super) struct Loader {
 }
 
 impl Loader {
-    pub(super) fn new(
-        source_graph: donder_package::ResolvedSourceGraph,
-    ) -> Result<Self, LoadProjectError> {
-        source_graph
+    pub(super) fn new(workspace: crate::ProjectWorkspace) -> Result<Self, LoadProjectError> {
+        workspace
+            .config
             .validate()
-            .map_err(|error| LoadProjectError::InvalidDocument {
-                path: Utf8PathBuf::from(donder_package::MANIFEST_FILE),
+            .map_err(|message| LoadProjectError::InvalidDocument {
+                path: crate::PROJECT_CONFIG_FILE.into(),
                 range: None,
-                message: error.to_string(),
+                message,
             })?;
-        let project_module = source_graph
-            .module(source_graph.project_module_id())
-            .map_err(|error| LoadProjectError::InvalidDocument {
-                path: Utf8PathBuf::from(donder_package::MANIFEST_FILE),
-                range: None,
-                message: error.to_string(),
-            })?;
-        let entrypoint = project_module.manifest.project.as_ref().map(|project| {
-            donder_language::identity::DocumentId::new(
-                source_graph.project_module_id(),
-                Utf8PathBuf::from(&project.entrypoint),
-            )
-        });
-        if let Some(entrypoint) = &entrypoint {
-            let absolute = project_module.root.join(entrypoint.path());
-            if !absolute.is_file() {
-                return Err(LoadProjectError::InvalidEntrypoint { path: absolute });
-            }
-        }
+        let entrypoint = donder_language::identity::DocumentId::new(
+            workspace.config.project_id,
+            workspace.config.entrypoint.clone(),
+        );
         Ok(Self {
-            source_graph,
+            workspace,
             entrypoint,
             documents: IndexMap::new(),
             visible_objects: IndexMap::new(),
@@ -82,99 +66,29 @@ impl Loader {
         donder_language::identity::SourceIdentity::from_document(document.clone(), object)
     }
 
-    pub(super) fn load(mut self) -> Result<ProjectSession, LoadProjectError> {
-        let compiled = self.compile()?;
-        let project = compiled
-            .project
-            .ok_or_else(|| LoadProjectError::InvalidEntrypoint {
-                path: compiled
-                    .source
-                    .project_root()
-                    .join(donder_package::MANIFEST_FILE),
-            })?;
-        Ok(ProjectSession {
-            project,
-            source: compiled.source,
-        })
-    }
-
-    pub(super) fn compile(&mut self) -> Result<crate::CompiledSourceGraph, LoadProjectError> {
-        let mut roots = std::collections::BTreeSet::new();
-        for (module_id, module) in self.source_graph.modules() {
-            for export in module.manifest.exports.values() {
-                for document in &export.documents {
-                    roots.insert(donder_language::identity::DocumentId::new(
-                        *module_id,
-                        Utf8PathBuf::from(document),
-                    ));
-                }
-            }
-        }
-        if let Some(entrypoint) = &self.entrypoint {
-            roots.insert(entrypoint.clone());
-        }
-        for root in &roots {
-            self.load_document(root)?;
-        }
+    pub(super) fn load(&mut self) -> Result<ProjectSession, LoadProjectError> {
+        let entrypoint = self.entrypoint.clone();
+        self.load_document(&entrypoint)?;
         self.build_document_scopes()?;
         self.link_generated_effects()?;
-
-        let mut typed = if let Some(entrypoint) = self.entrypoint.clone() {
-            self.resolve_project(&entrypoint)?
-        } else {
-            self.workspace_project(roots.iter().next().cloned().unwrap_or_else(|| {
-                donder_language::identity::DocumentId::new(
-                    self.source_graph.project_module_id(),
-                    Utf8PathBuf::from(donder_package::MANIFEST_FILE),
-                )
-            }))
-        };
-        self.resolve_loaded_objects(&mut typed)?;
-        if let Some(entrypoint) = &self.entrypoint {
-            donder_language::validation::validate_project(&typed).map_err(|error| {
-                LoadProjectError::InvalidDocument {
-                    path: entrypoint.path().to_path_buf(),
-                    range: None,
-                    message: format!("project validation failed: {error:?}"),
-                }
-            })?;
-        }
-        let definitions = typed.definitions.clone();
-        let project = self.entrypoint.as_ref().map(|_| typed);
-        Ok(crate::CompiledSourceGraph {
+        let mut project = self.resolve_project(&entrypoint)?;
+        self.resolve_loaded_objects(&mut project)?;
+        donder_language::validation::validate_project(&project).map_err(|error| {
+            LoadProjectError::InvalidDocument {
+                path: entrypoint.path().to_path_buf(),
+                range: None,
+                message: format!("project validation failed: {error:?}"),
+            }
+        })?;
+        Ok(ProjectSession {
+            project,
             source: SourceProject {
-                source_graph: self.source_graph.clone(),
-                entrypoint: self.entrypoint.take(),
+                workspace: self.workspace.clone(),
+                entrypoint: Some(entrypoint),
                 documents: std::mem::take(&mut self.documents),
                 referenced_assets: std::mem::take(&mut self.referenced_assets),
             },
-            project,
-            definitions,
         })
-    }
-
-    fn workspace_project(&self, document: donder_language::identity::DocumentId) -> DonderProject {
-        let project_identity = donder_language::identity::SourceIdentity::from_document(
-            document.clone(),
-            "__package_compile_project".to_string(),
-        );
-        let setup_identity = donder_language::identity::SourceIdentity::from_document(
-            document,
-            "__package_compile_setup".to_string(),
-        );
-        DonderProject {
-            root: ProjectRoot {
-                id: ProjectId(project_identity),
-                setup: ValueSource::Reference(SetupId(setup_identity.into())),
-                sequences: Vec::new(),
-            },
-            setups: IndexMap::new(),
-            layouts: IndexMap::new(),
-            patches: IndexMap::new(),
-            controllers: IndexMap::new(),
-            sequences: IndexMap::new(),
-            definitions: self.definitions.clone(),
-        }
     }
 
     fn resolve_loaded_objects(
@@ -202,15 +116,12 @@ impl Loader {
         for (document, object) in objects {
             match object {
                 ResolvedObject::Project(id) => {
-                    if active_entrypoint.as_ref() != Some(&document)
-                        || resolver.project.root.id != id
-                    {
+                    if active_entrypoint != document || resolver.project.root.id != id {
                         return Err(LoadProjectError::InvalidDocument {
                             path: document.path().to_path_buf(),
                             range: None,
-                            message:
-                                "exported project objects must be the active manifest entrypoint"
-                                    .to_string(),
+                            message: "project objects must be the active configuration entrypoint"
+                                .to_string(),
                         });
                     }
                 }
@@ -298,14 +209,37 @@ impl Loader {
         &self,
         document_id: &donder_language::identity::DocumentId,
     ) -> Result<Utf8PathBuf, LoadProjectError> {
-        self.source_graph
-            .module(document_id.module_id())
-            .map(|module| module.root.join(document_id.path()))
-            .map_err(|error| LoadProjectError::InvalidDocument {
-                path: document_id.path().to_path_buf(),
+        if document_id.module_id() != self.workspace.config.project_id {
+            return Err(LoadProjectError::InvalidDocument {
+                path: document_id.path().to_owned(),
                 range: None,
-                message: error.to_string(),
-            })
+                message: "Document belongs to another project".into(),
+            });
+        }
+        crate::validate_document_path(document_id.path().as_str()).map_err(|message| {
+            LoadProjectError::InvalidDocument {
+                path: document_id.path().to_owned(),
+                range: None,
+                message,
+            }
+        })?;
+        let path = self.workspace.root.join(document_id.path());
+        if path.exists() {
+            let absolute = path
+                .canonicalize_utf8()
+                .map_err(|source| LoadProjectError::Io {
+                    path: path.clone(),
+                    source,
+                })?;
+            if !absolute.starts_with(&self.workspace.root) {
+                return Err(LoadProjectError::InvalidDocument {
+                    path: document_id.path().to_owned(),
+                    range: None,
+                    message: "Document escapes the project root".into(),
+                });
+            }
+        }
+        Ok(path)
     }
 
     pub(super) fn read_source(
@@ -329,7 +263,7 @@ impl Loader {
     ) -> Result<(), LoadProjectError> {
         let relative = document_id.path();
         let source = self.read_source(document_id, absolute)?;
-        if let Ok(path) = absolute.strip_prefix(&self.source_graph.project_module().root) {
+        if let Ok(path) = absolute.strip_prefix(&self.workspace.root) {
             self.checked_dsl_documents.insert(path.to_path_buf());
         }
         let compiled = compile_effect_document(&source).map_err(|diagnostics| {
@@ -413,7 +347,7 @@ impl Loader {
     ) -> Result<(), LoadProjectError> {
         let relative = document_id.path();
         let source = self.read_source(document_id, absolute)?;
-        if let Ok(path) = absolute.strip_prefix(&self.source_graph.project_module().root) {
+        if let Ok(path) = absolute.strip_prefix(&self.workspace.root) {
             self.checked_dsl_documents.insert(path.to_path_buf());
         }
         let compiled = compile_operators(&source).map_err(|diagnostics| {
@@ -615,7 +549,22 @@ impl Loader {
         );
         let (setup_ref, sequence_refs) =
             parse_project_fields(entrypoint.path(), root_object.value)?;
-        let mut project = self.workspace_project(entrypoint.clone());
+        let mut project = DonderProject {
+            root: ProjectRoot {
+                id: root_id.clone(),
+                setup: ValueSource::Reference(SetupId(
+                    self.source_identity(entrypoint, "__loading_setup".into())
+                        .into(),
+                )),
+                sequences: Vec::new(),
+            },
+            setups: IndexMap::new(),
+            layouts: IndexMap::new(),
+            patches: IndexMap::new(),
+            controllers: IndexMap::new(),
+            sequences: IndexMap::new(),
+            definitions: self.definitions.clone(),
+        };
         let owner = donder_language::identity::ObjectIdentity::from(root_id.0.clone());
         let mut resolver = DomainResolver {
             loader: self,

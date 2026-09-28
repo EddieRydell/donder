@@ -25,7 +25,6 @@ pub struct AppSnapshot {
     pub preview_open: bool,
     pub audio_transport: AudioTransportSnapshot,
     pub live_output: LiveOutputSnapshot,
-    pub package: PackageStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

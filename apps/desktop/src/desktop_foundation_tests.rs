@@ -3,7 +3,7 @@ pub(crate) mod tests {
     use std::fs;
 
     use camino::{Utf8Path, Utf8PathBuf};
-    use donder_project_io::load_package;
+    use donder_project_io::load_project;
 
     use crate::dto::{DocumentViewId, GuiDocument, GuiDocumentRequest, WorkspacePathChangeRequest};
 
@@ -12,9 +12,7 @@ pub(crate) mod tests {
             .parent()
             .and_then(Utf8Path::parent)
             .unwrap();
-        load_package(&workspace.join("examples/starter"))
-            .unwrap()
-            .session
+        load_project(&workspace.join("examples/starter")).unwrap()
     }
 
     pub(crate) fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {

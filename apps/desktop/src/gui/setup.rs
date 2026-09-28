@@ -157,7 +157,7 @@ pub(super) fn ensure_owned_target(
         Ok(())
     } else {
         Err(GuiMutationError::Blocked(format!(
-            "{} is a read-only package source. Copy it into the project from its setup, or use File > Create Standalone Project Copy.",
+            "{} does not belong to this project.",
             identity.root_source().object()
         )))
     }

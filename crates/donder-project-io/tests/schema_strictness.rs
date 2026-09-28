@@ -1,7 +1,7 @@
 mod common;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{check_package_with_overrides, project_source_texts};
+use donder_project_io::{check_project_with_overrides, project_source_texts};
 use std::collections::BTreeSet;
 use yaml_serde::Value;
 
@@ -79,7 +79,7 @@ fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
         .unwrap()
         .join("examples/starter");
     let original = project_source_texts(&root).unwrap();
-    let baseline = check_package_with_overrides(&root, &original);
+    let baseline = check_project_with_overrides(&root, &original);
     assert!(baseline.session.is_some(), "{:?}", baseline.diagnostics);
     let mut seen = BTreeSet::new();
     let mut checked = 0;
@@ -107,7 +107,7 @@ fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
                 .unwrap();
             let mut overrides = original.clone();
             overrides.insert(path.clone(), text.clone());
-            let report = check_package_with_overrides(&root, &overrides);
+            let report = check_project_with_overrides(&root, &overrides);
             assert!(report.session.is_none(), "accepted {path}:{steps:?}");
             let diagnostic = report
                 .diagnostics
@@ -185,8 +185,8 @@ show:
     )
     .unwrap();
     std::fs::write(root.join("effect.effect.donder"), "effect Defaults { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
-    common::write_project_package(&root);
-    common::load_project_package(&root);
+    common::write_project_config(&root);
+    common::load_project(&root);
     (temporary, root)
 }
 
@@ -200,7 +200,7 @@ fn misspelled_optional_params_cannot_load_as_defaults_or_be_saved() {
         path.clone(),
         original[&path].replace("    params:", "    param:"),
     );
-    let report = check_package_with_overrides(&root, &overrides);
+    let report = check_project_with_overrides(&root, &overrides);
     assert!(report.session.is_none());
     assert!(
         report.diagnostics.iter().any(|d| d.message
@@ -215,7 +215,7 @@ fn misspelled_optional_params_cannot_load_as_defaults_or_be_saved() {
         path.clone(),
         original[&path].replace("    params: { level: { type: float, value: 0.5 } }\n", ""),
     );
-    let report = check_package_with_overrides(&root, &overrides);
+    let report = check_project_with_overrides(&root, &overrides);
     assert!(report.session.is_some(), "{:?}", report.diagnostics);
 }
 
@@ -244,7 +244,7 @@ fn graph_variants_and_non_string_keys_cannot_be_silently_discarded() {
         assert!(original[&path].contains(before));
         let mut overrides = original.clone();
         overrides.insert(path.clone(), original[&path].replace(before, after));
-        let report = check_package_with_overrides(&root, &overrides);
+        let report = check_project_with_overrides(&root, &overrides);
         assert!(report.session.is_none());
         assert!(
             report.diagnostics.iter().any(|d| d.message == expected),

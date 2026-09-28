@@ -5,13 +5,13 @@ use donder_language::layout::FixtureInstanceId;
 use donder_language::model::DonderProject;
 use donder_language::patch::PixelSpan;
 use donder_language::sequence::SequenceId;
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 use donder_runtime::sequence::PreparedSequence;
 use donder_runtime::values::{Color, SampleTime, sample_time_from_frame};
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    load_package(&root).unwrap().session.project
+    load_project(&root).unwrap().project
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn controller_fragments_retain_nested_generator_parameter_dependencies() {
         }
         "#.into(),
     );
-    let report = donder_project_io::check_package_with_overrides(&root, &sources);
+    let report = donder_project_io::check_project_with_overrides(&root, &sources);
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let mut project = report.session.unwrap().project;
     let generator = project

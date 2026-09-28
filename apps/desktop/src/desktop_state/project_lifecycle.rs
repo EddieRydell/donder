@@ -24,8 +24,8 @@ impl DesktopState {
                 return self.snapshot_with_error("project.open", root.as_str(), &error.to_string());
             }
         };
-        // Open from a single captured source input, including the package files.
-        let report = donder_project_io::check_package_with_overrides(&root, &sources);
+        // Open from a single captured source input, including project configuration.
+        let report = donder_project_io::check_project_with_overrides(&root, &sources);
         let valid_paths = report
             .recovery
             .documents
@@ -40,15 +40,10 @@ impl DesktopState {
             .map(|value| value.session.tabs.clone())
             .unwrap_or_default();
         if paths.is_empty() {
-            if let Some(entrypoint) = report
-                .recovery
-                .manifest
-                .as_ref()
-                .and_then(|manifest| manifest.project.as_ref())
-            {
-                paths.push(entrypoint.entrypoint.clone());
+            if let Some(entrypoint) = report.recovery.config.as_ref() {
+                paths.push(entrypoint.entrypoint.to_string());
             } else {
-                paths.push(donder_package::MANIFEST_FILE.into());
+                paths.push(donder_project_io::PROJECT_CONFIG_FILE.into());
             }
         }
         let mut documents = sources
@@ -112,23 +107,6 @@ impl DesktopState {
 
     pub(super) fn apply_analysis(&self, report: ProjectCheckReport) {
         let diagnostics = project_diagnostics(&report);
-        let root = report.recovery.root.clone();
-        let package_sources = lock_unpoisoned(&self.workspace)
-            .documents
-            .iter()
-            .filter(|(path, _)| {
-                matches!(
-                    path.as_str(),
-                    donder_package::MANIFEST_FILE | donder_package::LOCK_FILE
-                )
-            })
-            .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
-            .collect();
-        let package = super::packages::package_status_with_sources(
-            &root,
-            report.session.as_ref(),
-            &package_sources,
-        );
         let session = report.session.map(Arc::new);
         let entries = session.as_ref().map_or_else(
             || recovery_workspace_entries(&report.recovery),
@@ -173,7 +151,6 @@ impl DesktopState {
             };
             snapshot.project_entries = entries;
             snapshot.active_document_descriptor = descriptor;
-            snapshot.package = package;
             snapshot.diagnostics = diagnostics;
             snapshot.status = if session.is_some() {
                 "Project checked".into()

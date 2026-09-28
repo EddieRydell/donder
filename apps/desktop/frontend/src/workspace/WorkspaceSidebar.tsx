@@ -1,6 +1,6 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { AlertTriangle, Boxes, Files, Search, X } from "lucide-react";
+import { AlertTriangle, Files, Search, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
 import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
@@ -12,7 +12,6 @@ import type {
   WorkspacePathChangePlan
 } from "../types";
 import { ExplorerView } from "./ExplorerView";
-import { PackagesView } from "./PackagesView";
 import { ProblemsView } from "./ProblemsView";
 import { SearchView } from "./SearchView";
 
@@ -23,7 +22,6 @@ const activityItems: Array<{
 }> = [
   { view: "explorer", label: "Explorer", icon: Files },
   { view: "search", label: "Search", icon: Search },
-  { view: "packages", label: "Packages", icon: Boxes },
   { view: "problems", label: "Problems", icon: AlertTriangle }
 ];
 
@@ -98,7 +96,6 @@ export function WorkspaceSidebar({
             <ExplorerView snapshot={snapshot} onRequestPathChange={requestPathChange} />
           )}
           {layout.activeSidebarView === "search" && <SearchView snapshot={snapshot} />}
-          {layout.activeSidebarView === "packages" && <PackagesView snapshot={snapshot} />}
           {layout.activeSidebarView === "problems" && <ProblemsView snapshot={snapshot} />}
         </aside>
       )}
@@ -130,9 +127,8 @@ function PathRefactorDialog({
     : [
         ["Documents", plan.impact.documents],
         ["Importing documents", plan.impact.imports],
-        ["Manifests and lockfiles", plan.impact.manifests],
+        ["Project configuration", plan.impact.configuration],
         ["Assets", plan.impact.assets],
-        ["Local modules", plan.impact.modules],
         ["Open files", plan.impact.openFiles],
         ["Recent files", plan.impact.recentFiles],
         ["Persisted editor state", plan.impact.persistedState]

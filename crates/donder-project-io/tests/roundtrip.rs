@@ -2,11 +2,11 @@ mod common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::values::DonderDuration;
-use donder_project_io::{export_project, load_package, save_project};
+use donder_project_io::{export_project, load_project, save_project};
 use std::fs;
 use std::time::Duration;
 
-use common::{load_project_package, write_project_package};
+use common::{load_project as load_local_project, write_project_config};
 
 #[test]
 fn exact_text_writer_preserves_formatting_and_checks_all_disk_preconditions() {
@@ -79,9 +79,9 @@ fn audio_reference_cannot_escape_its_module() {
         "main:\n  type: sequence\n  duration: 1s\n  frame_rate: 30\n  audio: ../external.wav\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  automation_clips: []\n",
     )
     .unwrap();
-    write_project_package(&project_root);
+    write_project_config(&project_root);
 
-    assert!(load_package(&project_root).is_err());
+    assert!(load_project(&project_root).is_err());
 }
 
 #[test]
@@ -90,11 +90,11 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
         .parent()
         .and_then(Utf8Path::parent)
         .unwrap();
-    let starter = load_project_package(&workspace_root.join("examples/starter"));
+    let starter = load_local_project(&workspace_root.join("examples/starter"));
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
     fs::create_dir_all(root.join("identity-a")).unwrap();
     fs::create_dir_all(root.join("identity-b")).unwrap();
@@ -119,7 +119,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     )
     .unwrap();
 
-    let loaded = load_project_package(&root);
+    let loaded = load_local_project(&root);
     let identities = loaded
         .project
         .definitions
@@ -139,7 +139,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
         .collect()
     );
     save_project(&loaded).unwrap();
-    let reloaded = load_project_package(&root);
+    let reloaded = load_local_project(&root);
     assert_eq!(loaded.project, reloaded.project);
 }
 
@@ -149,12 +149,12 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         .parent()
         .and_then(Utf8Path::parent)
         .unwrap();
-    let starter = load_project_package(&workspace_root.join("examples/starter"));
+    let starter = load_local_project(&workspace_root.join("examples/starter"));
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    write_project_package(&root);
-    let mut session = load_project_package(&root);
+    write_project_config(&root);
+    let mut session = load_local_project(&root);
 
     let color = session.project.sequences.values().next().unwrap().layers[0].color;
     let index = session.project.root.sequences.len();
@@ -186,7 +186,7 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     let id = session.project.root.sequences[index].id().clone();
     save_project(&session).unwrap();
 
-    let reloaded = load_project_package(&root);
+    let reloaded = load_local_project(&root);
     assert!(reloaded.project.sequences.contains_key(&id));
     assert!(
         reloaded
@@ -205,12 +205,12 @@ fn local_document_import_cannot_escape_module() {
         .parent()
         .and_then(Utf8Path::parent)
         .unwrap();
-    let starter = load_project_package(&workspace_root.join("examples/starter"));
+    let starter = load_local_project(&workspace_root.join("examples/starter"));
     let temp = tempfile::tempdir().unwrap();
     let temp_root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let root = temp_root.join("project");
     export_project(&starter, &root).unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
     fs::write(
         temp_root.join("dependency.effect.donder"),
         "effect Dependency { color sample() { return #ffffff; } }",
@@ -227,5 +227,5 @@ fn local_document_import_cannot_escape_module() {
     )
     .unwrap();
 
-    assert!(load_package(&root).is_err());
+    assert!(load_project(&root).is_err());
 }

@@ -3,12 +3,12 @@ mod common;
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::DocumentId;
 use donder_project_io::{
-    IoDiagnosticCode, IoDiagnosticSeverity, TextRange, check_document_text, check_package,
+    IoDiagnosticCode, IoDiagnosticSeverity, TextRange, check_document_text, check_project,
     check_project_document_text,
 };
 use std::fs;
 
-use common::{load_project_package, write_project_package};
+use common::{load_project as load_local_project, write_project_config};
 
 #[test]
 fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
@@ -25,7 +25,7 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
         sequence.clone(),
         original[&sequence].replace("frame_rate: 144", "frame_rate: 90"),
     );
-    let report = donder_project_io::check_package_with_overrides(&root, &overrides);
+    let report = donder_project_io::check_project_with_overrides(&root, &overrides);
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let session = report.session.unwrap();
     assert!(
@@ -36,15 +36,14 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
             .any(|sequence| sequence.frame_rate == 90)
     );
     for path in [
-        donder_package::MANIFEST_FILE,
-        donder_package::LOCK_FILE,
+        donder_project_io::PROJECT_CONFIG_FILE,
         "effects/scan-sweep.effect.donder",
         "operators/gain.operator.donder",
         sequence.as_str(),
     ] {
         let mut invalid = original.clone();
         invalid.insert(path.into(), "[ invalid source".into());
-        let report = donder_project_io::check_package_with_overrides(&root, &invalid);
+        let report = donder_project_io::check_project_with_overrides(&root, &invalid);
         assert!(report.session.is_none(), "{path} unexpectedly compiled");
         assert!(
             report
@@ -142,7 +141,7 @@ fn fixture_element_field_typos_are_rejected_without_changing_the_saved_project()
         "    diameter: 0.01\n    transform: { position: { x: 0, y: 0, z: 0 } }",
     );
     fs::write(root.join(&path), &display).unwrap();
-    let baseline = check_package(&root);
+    let baseline = check_project(&root);
     assert!(
         baseline.diagnostics.is_empty(),
         "{:?}",
@@ -184,7 +183,7 @@ fn assert_unknown_setup_field(
 ) {
     let mut overrides = original.clone();
     overrides.insert(path.clone(), edited.to_owned());
-    let report = donder_project_io::check_package_with_overrides(root, &overrides);
+    let report = donder_project_io::check_project_with_overrides(root, &overrides);
     assert!(
         report.session.is_none(),
         "{label} silently accepted an unknown field"
@@ -222,9 +221,9 @@ fn invalid_yaml_reports_parser_range() {
         "broken:\n  type: project\n  setup: [\n  sequences: []\n",
     )
     .unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -288,9 +287,9 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
         "main:\n  type: project\n  setup: missing.setup\n  sequences: []\n",
     )
     .unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -325,9 +324,9 @@ fn repeated_reference_text_reports_the_failing_occurrence() {
         "main:\n  type: patch\n  routes: []\n",
     )
     .unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -346,7 +345,7 @@ fn project_document_override_runs_semantic_validation() {
         &root,
         "  duration: 1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  automation_clips: []\n",
     );
-    let session = load_project_package(&root);
+    let session = load_local_project(&root);
     let document = DocumentId::new(session.source.project_module_id(), "sequence.donder".into());
     let diagnostics = check_project_document_text(
         &session,
@@ -365,9 +364,9 @@ fn missing_required_field_reports_containing_object_range() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let entrypoint = root.join("project.donder");
     fs::write(&entrypoint, "main:\n  type: project\n  sequences: []\n").unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -390,9 +389,9 @@ fn wrong_field_type_reports_bad_value_range() {
         "main:\n  type: project\n  setup: [bad]\n  sequences: []\n",
     )
     .unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -408,9 +407,9 @@ fn unsupported_enum_string_reports_that_string_range() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let entrypoint = root.join("project.donder");
     fs::write(&entrypoint, "main:\n  type: nope\n").unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -429,7 +428,7 @@ fn nested_invalid_color_reports_nested_scalar_range() {
         "  duration: 1s\n  frame_rate: 30\n  mark_collections:\n    - key: beats\n      name: Beats\n      color: bad-color\n      marks: []\n",
     );
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -448,7 +447,7 @@ fn nested_invalid_duration_reports_nested_scalar_range() {
         "  duration: soon\n  frame_rate: 30\n  layers: []\n  effects: []\n  composition_graph:\n    nodes: []\n    edges: []\n",
     );
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -467,7 +466,7 @@ fn negative_duration_is_a_diagnostic_not_a_loader_panic() {
         "  duration: -1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n",
     );
 
-    let report = check_package(&root);
+    let report = check_project(&root);
 
     assert!(
         report
@@ -484,7 +483,7 @@ fn malformed_optional_sequence_and_unknown_sequence_field_are_diagnostics() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     write_imported_sequence_project(&root, &minimal_sequence_body("  automation_clips: wrong\n"));
-    let malformed = check_package(&root);
+    let malformed = check_project(&root);
     assert!(malformed.diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -492,7 +491,7 @@ fn malformed_optional_sequence_and_unknown_sequence_field_are_diagnostics() {
     }));
 
     write_imported_sequence_project(&root, &minimal_sequence_body("  automtion_clips: []\n"));
-    let typo = check_package(&root);
+    let typo = check_project(&root);
     assert!(typo.diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -515,9 +514,9 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
         "effect Bad {\n  color sample() {\n    return @;\n  }\n}\n",
     )
     .unwrap();
-    write_project_package(&root);
+    write_project_config(&root);
 
-    let report = check_package(&root);
+    let report = check_project(&root);
     let effect_diagnostics = report
         .diagnostics
         .iter()
@@ -547,13 +546,13 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
 }
 
 #[test]
-fn missing_manifest_reports_no_range() {
+fn missing_configuration_reports_no_range() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let report = check_package(&root);
+    let report = check_project(&root);
     let diagnostic = report.diagnostics.first().unwrap();
 
-    assert_eq!(diagnostic.code, IoDiagnosticCode::DonderLoad);
+    assert_eq!(diagnostic.code, IoDiagnosticCode::ProjectConfiguration);
     assert_eq!(diagnostic.range, None);
 }
 
@@ -565,7 +564,7 @@ fn valid_example_project_loads_without_diagnostics() {
         .unwrap();
     let root = workspace_root.join("examples/starter");
 
-    let report = check_package(&root);
+    let report = check_project(&root);
 
     assert!(report.session.is_some());
     assert_eq!(report.diagnostics, Vec::new());
@@ -593,7 +592,7 @@ fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
         format!("main:\n  type: sequence\n{sequence_body}"),
     )
     .unwrap();
-    write_project_package(root);
+    write_project_config(root);
 }
 
 fn minimal_sequence_body(extra: &str) -> String {

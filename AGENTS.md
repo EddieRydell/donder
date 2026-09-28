@@ -6,13 +6,13 @@ This is a Rust workspace. Domain types and DSL compilation live in `crates/donde
 
 The typed `DonderProject` is authoritative after loading. `SourceProject` records document ownership, imports, original source needed for non-YAML DSL documents, and referenced assets. Saving derives YAML directly from typed state; do not add a synchronization or typed-to-YAML mutation phase.
 The preservation contract is semantic, not lossless YAML editing: preserve typed meaning, meaningful list order, imports, document/object identity, ownership, and asset references. Comments, whitespace, quoting, mapping key order, and original YAML spelling are not requirements. Do not add CST round-tripping or per-scalar provenance without a concrete new requirement. See `docs/sequence_as_code.md` for the contract and current limitations.
-Project/source metadata and ownership live in `crates/donder-project-io/src/source.rs`. Canonical import declarations, aliases, and symbolic references belong to `donder-language::imports`; package names and safe document paths are validated by `donder-package`. Project import expansion, scopes, linking, reverse reference formatting, and edit-time visibility belong to `crates/donder-project-io/src/imports.rs`. Package loading and checking live in `package_loading.rs`; release planning and artifact validation in `package_artifact.rs`; diagnostics and YAML source indexing in `diagnostics.rs`; project save/export and sequence insertion in `project_edit.rs`. Keep `lib.rs` as the public facade.
+Project/source metadata and ownership live in `crates/donder-project-io/src/source.rs`. Canonical import declarations, aliases, and symbolic references belong to `donder-language::imports`; project configuration and safe document paths are validated in `donder-project-io/src/project_config.rs`. Project import expansion, scopes, linking, reverse reference formatting, and edit-time visibility belong to `crates/donder-project-io/src/imports.rs`. Project loading and checking live in `project_loading.rs`; diagnostics and YAML source indexing in `diagnostics.rs`; project save/export and sequence insertion in `project_edit.rs`. Keep `lib.rs` as the public facade.
 
 Desktop state orchestration is split by workflow under `apps/desktop/src/desktop_state`, and typed GUI behavior is split into projection, editing, selection, and model conversion under `apps/desktop/src/gui`. Keep new behavior with the owning workflow instead of growing the module roots.
 Mutual Donder document imports are valid. The loader indexes a document's local objects before following imports; do not reject an in-progress document as a cycle error.
-Generator cross-file references use explicit imports in the effect document itself, resolved through the shared package import graph before elaboration. They never inherit the calling YAML document's scope. Keep import identity and path remapping out of per-frame evaluation.
+Generator cross-file references use explicit imports in the effect document itself, resolved through the shared local import graph before elaboration. They never inherit the calling YAML document's scope. Keep import identity and path remapping out of per-frame evaluation.
 Generated events carry only a numeric child slot. Elaboration indexes the definition's ordered linked target table for local, imported, and built-in children; it must not reconstruct identities or look up names.
-DSL local imports use `from ["..."]` with a non-empty module-root-relative document list; YAML uses `from: { documents: [...] }`. Both use the shared identifier alias policy, while dependency and export-group names retain package naming rules.
+DSL local imports use `from ["..."]` with a non-empty project-root-relative document list; YAML uses `from: { documents: [...] }`. Both use the shared identifier alias policy.
 
 ## Testing Guidelines
 
@@ -40,7 +40,7 @@ Do not reintroduce custom benchmark CLIs, JSON reporters, legacy aliases, or old
 ### Development version policy
 
 Donder is pre-release software with no users or compatibility obligations. Treat
-the Donder product version and the current project/package/serialization formats
+the Donder product version and the current project/serialization formats
 as one moving development line, currently `0.1` / `0.1.0` where a full
 semantic version is required. Do not add migrations, compatibility layers,
 legacy aliases, version ranges, or support for intermediate versions that were

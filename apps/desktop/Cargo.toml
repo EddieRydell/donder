@@ -11,7 +11,7 @@ default-run = "donder-desktop"
 camino.workspace = true
 bytemuck.workspace = true
 donder-project-io.workspace = true
-donder-package.workspace = true
+sha2.workspace = true
 donder-language.workspace = true
 donder-output.workspace = true
 donder-preview.workspace = true
@@ -23,7 +23,6 @@ indexmap.workspace = true
 kira.workspace = true
 reqwest.workspace = true
 rfd.workspace = true
-semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serialport.workspace = true
@@ -36,7 +35,6 @@ tauri-specta.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 uuid.workspace = true
-webbrowser.workspace = true
 yaml_serde.workspace = true
 
 [build-dependencies]

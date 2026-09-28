@@ -56,7 +56,6 @@ pub enum SidebarView {
     #[default]
     Explorer,
     Search,
-    Packages,
     Problems,
 }
 
@@ -250,10 +249,8 @@ pub enum WorkspaceEntryRole {
     Effect,
     Operator,
     Sequence,
-    Manifest,
-    Lockfile,
+    Configuration,
     Asset,
-    PathDependency,
     File,
 }
 
@@ -273,14 +270,6 @@ pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> Works
         }
         SourceObjectKind::OperatorDefinition => WorkspaceEntryRole::Operator,
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum WorkspaceEntryOwnership {
-    Project,
-    PathDependency,
-    Registry,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Type)]
@@ -338,22 +327,11 @@ pub struct WorkspacePathChangeRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum WorkspacePathOwnership {
-    Project,
-    PathDependency {
-        module_id: String,
-        module_root: String,
-    },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub struct WorkspacePathChangeImpact {
     pub documents: Vec<String>,
     pub imports: Vec<String>,
-    pub manifests: Vec<String>,
+    pub configuration: Vec<String>,
     pub assets: Vec<String>,
-    pub modules: Vec<String>,
     pub open_files: Vec<String>,
     pub recent_files: Vec<String>,
     pub persisted_state: Vec<String>,
@@ -364,7 +342,6 @@ pub struct WorkspacePathChangeImpact {
 pub struct WorkspacePathChangePlan {
     pub request: WorkspacePathChangeRequest,
     pub structural: bool,
-    pub ownership: WorkspacePathOwnership,
     pub impact: WorkspacePathChangeImpact,
 }
 
@@ -481,7 +458,6 @@ pub struct WorkspaceEntry {
     pub name: String,
     pub parent: String,
     pub role: WorkspaceEntryRole,
-    pub ownership: WorkspaceEntryOwnership,
     pub operations: Vec<WorkspaceOperation>,
     pub operation_explanation: Option<String>,
 }

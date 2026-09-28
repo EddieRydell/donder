@@ -29,33 +29,7 @@ pub(super) fn sequence_value(
                     reference: id.0.to_string(),
                     message: "sequence audio asset is missing from source metadata".to_string(),
                 })?;
-            let audio = if asset.module_id == from_document.module_id() {
-                Value::String(asset.relative_path.to_string())
-            } else {
-                let dependency = session
-                    .source
-                    .module(from_document.module_id())
-                    .and_then(|module| {
-                        module
-                            .dependencies
-                            .iter()
-                            .find(|(_, id)| **id == asset.module_id)
-                    })
-                    .map(|(name, _)| name)
-                    .ok_or_else(|| ExportProjectError::InvalidReference {
-                        path: from_document.path().to_owned(),
-                        reference: asset.relative_path.to_string(),
-                        message: "Audio source requires a declared dependency on its package."
-                            .into(),
-                    })?;
-                Value::Mapping(yaml_serde::Mapping::from_iter([
-                    (string_value("dependency"), string_value(dependency)),
-                    (
-                        string_value("path"),
-                        string_value(asset.relative_path.as_str()),
-                    ),
-                ]))
-            };
+            let audio = Value::String(asset.relative_path.to_string());
             value.insert(string_value("audio"), audio);
         }
     }

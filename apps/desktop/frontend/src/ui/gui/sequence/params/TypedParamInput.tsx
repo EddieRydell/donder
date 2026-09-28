@@ -8,7 +8,7 @@ import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
 import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationMapping, SequenceAutomationTarget, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../types";
 
-import { runGuiEditCommand, useAppStore } from "../../../../store";
+import { runGuiEditCommand } from "../../../../store";
 import { navigateToGuiObject } from "../../../../workspace/navigation";
 
 import { ColorPicker } from "../../../ColorPicker";
@@ -570,7 +570,6 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
 }) {
   const [pendingUnlinkAction, setPendingUnlinkAction] = useState<UnlinkAction | null>(null);
   const librarySource = source.type === "library" ? source : null;
-  const sourcePackage = useAppStore((state) => state.snapshot?.package.modules.find((module) => module.moduleId === librarySource?.moduleId));
   const linked = librarySource !== null;
   const linkedLabel = librarySource?.displayName ?? "";
   const availableSources = sources;
@@ -656,7 +655,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         {actions !== null && <div className="effect-param-actions">{actions}</div>}
       </div>
       <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Make independent to customize this parameter, or open the shared source.` : `Custom ${label} - Stored in this parameter.`}</p>
-      {librarySource !== null && <p className="param-source-description">{sourcePackage === undefined ? "Project source" : `Read-only source from package: ${sourcePackage.identity}`} · {librarySource.path}</p>}
+      {librarySource !== null && <p className="param-source-description">Source: {librarySource.path}</p>}
       {!disabled && (
         <div className="param-source-actions">
           {linked && (

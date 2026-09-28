@@ -1,7 +1,7 @@
 # File persistence
 
-Donder uses `donder_package::atomic_write` for package metadata, authored project
-sources, path-refactor and rollback writes, CLI release artifacts, and desktop
+Donder uses `donder_project_io::atomic_write` for project configuration, authored project
+sources, path-refactor and rollback writes, and desktop
 preferences. It writes and syncs a complete temporary file beside the
 destination before replacing that destination. This prevents a failed content
 write from truncating one file; it is not a crash-atomic multi-file transaction

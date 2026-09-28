@@ -1,10 +1,10 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { AlertTriangle, Box, CheckCircle2, CircleX, FolderOpen, Save } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleX, FolderOpen, Save } from "lucide-react";
 import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { THEME_METRICS } from "../theme";
 import { useAppStore, type AppStaticSnapshot } from "../store";
-import type { AppSnapshot, SidebarView } from "../types";
+import type { SidebarView } from "../types";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const localText = useAppStore((store) => store.localText);
@@ -34,13 +34,6 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
           {...(snapshot.projectHealth === "invalid"
             ? { onClick: () => { focusSidebar("problems"); } }
             : {})}
-        />
-        <StatusChip
-          label={packageLabel(snapshot.package.readiness)}
-          tooltip={snapshot.package.message ?? packageTooltip(snapshot)}
-          icon={<Box size={THEME_METRICS.iconSizeSmall} />}
-          tone={`readiness-${snapshot.package.readiness}`}
-          onClick={() => { focusSidebar("packages"); }}
         />
         <span className="status-spacer" title={snapshot.status}>{snapshot.status}</span>
         {snapshot.projectRoot !== null && (
@@ -103,18 +96,3 @@ function focusSidebar(view: SidebarView) {
   window.dispatchEvent(new CustomEvent<SidebarView>(FOCUS_SIDEBAR_EVENT, { detail: view }));
 }
 
-function packageLabel(readiness: AppSnapshot["package"]["readiness"]): string {
-  switch (readiness) {
-    case "noProject": return "Packages";
-    case "invalid": return "Invalid package";
-    case "needsSync": return "Packages need sync";
-    case "warning": return "Package warnings";
-    case "ready": return "Packages ready";
-  }
-}
-
-function packageTooltip(snapshot: AppStaticSnapshot): string {
-  const root = snapshot.package.root ?? "No package root";
-  const registry = snapshot.package.registry ?? "No registry selected";
-  return `${root} · ${registry}`;
-}

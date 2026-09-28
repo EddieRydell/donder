@@ -23,7 +23,6 @@ mod app;
 mod audio;
 mod editor;
 mod output;
-mod packages;
 mod preview;
 mod project;
 mod sequence;
@@ -33,7 +32,6 @@ pub(crate) use app::*;
 pub(crate) use audio::*;
 pub(crate) use editor::*;
 pub(crate) use output::*;
-pub(crate) use packages::*;
 pub(crate) use preview::*;
 pub(crate) use project::*;
 pub(crate) use sequence::*;
@@ -42,12 +40,6 @@ pub(crate) use workspace::*;
 pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
     builder.commands(collect_commands![
         get_snapshot,
-        sync_packages,
-        check_package_updates,
-        update_packages,
-        remove_package_dependency,
-        fork_package_dependency,
-        open_package_page,
         update_app_settings,
         save_workspace_layout_state,
         save_workspace_explorer_state,
@@ -181,19 +173,6 @@ fn import_external_audio(snapshot: &AppSnapshot, selected_path: &Path) -> Result
         .ok_or_else(|| "Copied audio path is not valid UTF-8".to_string())?
         .replace('\\', "/");
 
-    let project_root = camino::Utf8Path::from_path(&project_root)
-        .ok_or_else(|| "Project path is not valid UTF-8".to_string())?;
-    let mut manifest = donder_package::PackageManifest::read(project_root)
-        .map_err(|error| format!("Could not read project manifest: {error}"))?;
-    manifest.assets.insert(
-        relative_path.clone(),
-        donder_package::AssetDeclaration {
-            kind: donder_package::AssetKind::Audio,
-        },
-    );
-    manifest
-        .write(project_root)
-        .map_err(|error| format!("Could not update project manifest: {error}"))?;
     Ok(relative_path)
 }
 

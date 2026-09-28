@@ -740,54 +740,33 @@ impl DomainResolver<'_> {
         if matches!(audio, Value::Null) {
             return Ok(SequenceAudio::None);
         }
-        let (module_id, audio_path) = if let Some(path) = audio.as_str() {
-            (document_id.module_id(), path.to_owned())
-        } else {
-            parse_mapping(path, audio, "audio reference", |fields| {
-                let dependency = fields.string("dependency")?;
-                let module = self
-                    .loader
-                    .source_graph
-                    .dependency(document_id.module_id(), dependency)
-                    .map_err(|error| LoadProjectError::InvalidDocument {
-                        path: path.to_owned(),
-                        range: None,
-                        message: error.to_string(),
-                    })?;
-                Ok((module.manifest.module_id, fields.string("path")?.to_owned()))
-            })?
-        };
-        let audio_path = audio_path.as_str();
-        let module = self
-            .loader
-            .source_graph
-            .module(module_id)
-            .map_err(|error| LoadProjectError::InvalidDocument {
+        let audio_path = audio
+            .as_str()
+            .ok_or_else(|| LoadProjectError::InvalidDocument {
                 path: path.to_owned(),
                 range: None,
-                message: error.to_string(),
+                message: "Audio must be a project-relative file path".into(),
             })?;
-        if !module.manifest.assets.contains_key(audio_path) {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
+        crate::validate_relative_path(audio_path).map_err(|message| {
+            LoadProjectError::InvalidDocument {
+                path: path.to_owned(),
                 range: None,
-                message: format!(
-                    "audio asset `{audio_path}` is not declared in donder-package.json"
-                ),
-            });
-        }
-        let unresolved = module.root.join(audio_path);
+                message,
+            }
+        })?;
+        let module_id = self.loader.workspace.config.project_id;
+        let unresolved = self.loader.workspace.root.join(audio_path);
         let absolute = unresolved
             .canonicalize_utf8()
             .map_err(|source| LoadProjectError::Io {
                 path: unresolved,
                 source,
             })?;
-        if !absolute.is_file() || !absolute.starts_with(&module.root) {
+        if !absolute.is_file() || !absolute.starts_with(&self.loader.workspace.root) {
             return Err(LoadProjectError::InvalidDocument {
                 path: path.to_path_buf(),
                 range: None,
-                message: format!("audio asset does not exist inside its module: {audio_path}"),
+                message: format!("audio asset does not exist inside the project: {audio_path}"),
             });
         }
         let relative = Utf8PathBuf::from(audio_path);

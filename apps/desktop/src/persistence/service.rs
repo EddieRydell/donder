@@ -345,7 +345,8 @@ impl PersistenceInner {
         }
         let path = camino::Utf8Path::from_path(&path)
             .ok_or_else(|| "Persistence path is not valid UTF-8.".to_string())?;
-        donder_package::atomic_write(path, text.as_bytes()).map_err(|error| error.to_string())?;
+        donder_project_io::atomic_write(path, text.as_bytes())
+            .map_err(|error| error.to_string())?;
         self.last_saved_text = Some(text);
         Ok(())
     }

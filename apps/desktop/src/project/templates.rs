@@ -1,9 +1,7 @@
-use std::collections::BTreeMap;
 use std::fs;
 
 use camino::Utf8Path;
-use donder_package::{ExportGroup, Lockfile, PackageManifest, ProjectManifest, canonical_json};
-use uuid::Uuid;
+use donder_project_io::{PROJECT_CONFIG_FILE, ProjectConfig};
 
 pub(crate) struct ProjectBoilerplateFile {
     path: &'static str,
@@ -18,41 +16,11 @@ pub(crate) fn new_project_files(
         .ok_or("Invalid initial project color.")?
         .to_hex();
     let project_id = object_key_from_name(project_name);
-    let manifest = PackageManifest {
-        manifest_version: donder_package::MANIFEST_VERSION,
-        module_id: Uuid::new_v4(),
-        language_version: donder_package::LANGUAGE_VERSION.to_string(),
-        project: Some(ProjectManifest {
-            entrypoint: "project.donder".to_string(),
-        }),
-        publication: None,
-        exports: BTreeMap::from([(
-            "project".to_string(),
-            ExportGroup {
-                documents: vec!["project.donder".to_string()],
-            },
-        )]),
-        dependencies: BTreeMap::new(),
-        assets: BTreeMap::new(),
-    };
-    let registry = donder_package::RegistryConfig::read().map_err(|error| error.to_string())?;
-    let lockfile =
-        Lockfile::new(&manifest, &registry.registry).map_err(|error| error.to_string())?;
-    let manifest_text =
-        String::from_utf8(canonical_json(&manifest).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
-    let lockfile_text =
-        String::from_utf8(canonical_json(&lockfile).map_err(|error| error.to_string())?)
-            .map_err(|error| error.to_string())?;
-
+    let config = ProjectConfig::new("project.donder".into());
     Ok(vec![
         ProjectBoilerplateFile {
-            path: donder_package::MANIFEST_FILE,
-            text: manifest_text,
-        },
-        ProjectBoilerplateFile {
-            path: donder_package::LOCK_FILE,
-            text: lockfile_text,
+            path: PROJECT_CONFIG_FILE,
+            text: config.to_text()?,
         },
         ProjectBoilerplateFile {
             path: "project.donder",
@@ -191,7 +159,7 @@ mod tests {
             1
         );
         write_new_project_files(&root, &files).unwrap();
-        let session = donder_project_io::load_package(&root).unwrap().session;
+        let session = donder_project_io::load_project(&root).unwrap();
         let setup = session
             .project
             .setup(session.project.root.setup.id())

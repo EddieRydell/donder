@@ -7,7 +7,7 @@ export function AvailableControllers({ document }: { document: SetupDocument }) 
   return <div className="setup-controller-library">
     <h4>Available controllers</h4>
     {document.availableControllers.map((controller) => <div className="setup-summary" key={JSON.stringify(controller.sourceRef)}>
-      <span>{controller.label}{controller.readOnly ? " (read-only package source)" : ""}</span>
+      <span>{controller.label}{controller.readOnly ? " (unavailable source)" : ""}</span>
       <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "attachController", controller: controller.sourceRef }))}>Use in this setup</button>
     </div>)}
   </div>;

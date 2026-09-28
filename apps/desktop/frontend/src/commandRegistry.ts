@@ -23,18 +23,14 @@ export type CommandId =
   | "view.toggleProjectTree"
   | "view.focusExplorer"
   | "view.focusSearch"
-  | "view.focusPackages"
   | "view.focusProblems"
   | "workbench.quickOpen"
   | "workbench.commandPalette"
-  | "project.reload"
-  | "packages.sync"
-  | "packages.checkUpdates"
-  | "packages.updateAll";
+  | "project.reload";
 
 export type CommandDefinition = {
   label: string;
-  category: "File" | "Edit" | "View" | "Project" | "Packages" | "Workbench";
+  category: "File" | "Edit" | "View" | "Project" | "Workbench";
   keywords: string[];
   shortcut?: string;
   enabled: () => boolean;
@@ -51,7 +47,7 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
     window.dispatchEvent(new CustomEvent("donder:new-project"));
   }),
-  "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "dependency", "fork"], () => {
+  "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "folder"], () => {
     window.dispatchEvent(new CustomEvent("donder:copy-project"));
   }, hasProject),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {
@@ -93,7 +89,6 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   }, always, "Ctrl+B"),
   "view.focusExplorer": command("Focus Explorer", "View", ["files", "sidebar"], focusSidebar("explorer")),
   "view.focusSearch": command("Focus Search", "View", ["find", "sidebar"], focusSidebar("search")),
-  "view.focusPackages": command("Focus Packages", "View", ["dependencies", "sidebar"], focusSidebar("packages")),
   "view.focusProblems": command("Focus Problems", "View", ["diagnostics", "errors", "sidebar"], focusSidebar("problems")),
   "workbench.quickOpen": command("Quick Open...", "Workbench", ["file", "recent"], () => {
     window.dispatchEvent(new CustomEvent(OPEN_QUICK_OPEN_EVENT));
@@ -104,15 +99,6 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "project.reload": command("Reload / Check Project", "Project", ["refresh", "diagnostics"], async () => {
     await runWorkspaceTransition({ type: "reloadProject" });
   }, hasProject, "Ctrl+R"),
-  "packages.sync": command("Synchronize Packages", "Packages", ["lock", "cache"], async () => {
-    await runSnapshotCommand(commands.syncPackages);
-  }, hasProject),
-  "packages.checkUpdates": command("Check Package Updates", "Packages", ["registry"], async () => {
-    await runSnapshotCommand(commands.checkPackageUpdates);
-  }, hasProject),
-  "packages.updateAll": command("Update All Packages", "Packages", ["registry", "upgrade"], async () => {
-    await runSnapshotCommand(() => commands.updatePackages(null));
-  }, hasProject)
 };
 
 export function installGlobalShortcuts() {

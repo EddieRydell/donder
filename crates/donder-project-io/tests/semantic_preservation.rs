@@ -6,12 +6,12 @@ use std::fs;
 
 fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf, ProjectSession) {
     let starter_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let starter = common::load_project_package(&starter_root);
+    let starter = common::load_project(&starter_root);
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    common::write_project_package(&root);
-    let session = common::load_project_package(&root);
+    common::write_project_config(&root);
+    let session = common::load_project(&root);
     (temporary, root, session)
 }
 
@@ -35,7 +35,7 @@ fn typed_save_preserves_semantics_imports_ownership_assets_and_dsl_not_yaml_pres
     );
     assert_ne!(presentation, original);
     fs::write(&path, presentation).unwrap();
-    let mut edited = common::load_project_package(&root);
+    let mut edited = common::load_project(&root);
     assert_eq!(session.project, edited.project);
     let sequence = edited.project.sequences.get_mut(&sequence_id).unwrap();
     sequence.layers[0].name.push_str(" edited");
@@ -45,7 +45,7 @@ fn typed_save_preserves_semantics_imports_ownership_assets_and_dsl_not_yaml_pres
     save_project(&edited).unwrap();
     let saved = fs::read_to_string(&path).unwrap();
     assert!(!saved.contains("# disposable presentation"));
-    let reloaded = common::load_project_package(&root);
+    let reloaded = common::load_project(&root);
     assert_eq!(edited.project, reloaded.project);
     assert_eq!(edited.source.entrypoint, reloaded.source.entrypoint);
     assert_eq!(
@@ -60,7 +60,10 @@ fn typed_save_preserves_semantics_imports_ownership_assets_and_dsl_not_yaml_pres
         let after = &reloaded.source.documents[id];
         assert_eq!(before.imports(), after.imports(), "{id:?}");
         assert_eq!(before.objects(), after.objects(), "{id:?}");
-        assert_eq!(edited.source.ownership(id), reloaded.source.ownership(id));
+        assert_eq!(
+            edited.source.is_project_owned(id),
+            reloaded.source.is_project_owned(id)
+        );
         let before_text = source_document_text(&edited, id).unwrap().unwrap();
         assert_eq!(
             before_text,
@@ -120,7 +123,7 @@ fn unknown_nested_parameter_metadata_is_rejected_without_changing_source() {
     );
     assert_ne!(original, with_metadata);
     fs::write(&path, &with_metadata).unwrap();
-    let report = donder_project_io::check_package(&root);
+    let report = donder_project_io::check_project(&root);
     assert!(report.session.is_none());
     assert!(
         report.diagnostics.iter().any(|diagnostic| diagnostic
@@ -187,7 +190,7 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
         format!("{original}\n{}", original.replacen("empty:", "unused:", 1)),
     )
     .unwrap();
-    let mut session = common::load_project_package(&root);
+    let mut session = common::load_project(&root);
     let id = session
         .project
         .sequences
@@ -205,7 +208,7 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
     );
     session.project.sequences.get_mut(&id).unwrap().frame_rate = 60;
     save_project(&session).unwrap();
-    assert_eq!(session.project, common::load_project_package(&root).project);
+    assert_eq!(session.project, common::load_project(&root).project);
 }
 
 #[test]
@@ -238,7 +241,7 @@ fn parameter_variants_and_array_shorthands_reject_extra_keys() {
         let changed = original[&path].replacen("type: integer\n        value: 6", &payload, 1);
         assert_ne!(original[&path], changed);
         overrides.insert(path.clone(), changed);
-        let report = donder_project_io::check_package_with_overrides(&root, &overrides);
+        let report = donder_project_io::check_project_with_overrides(&root, &overrides);
         assert!(report.session.is_none(), "{payload}");
         assert!(
             report
@@ -305,7 +308,7 @@ fn invalid_generator_imports_are_reported_during_loading() {
         assert_ne!(source, &changed);
         let mut overrides = original.clone();
         overrides.insert(path.clone(), changed);
-        let report = donder_project_io::check_package_with_overrides(&root, &overrides);
+        let report = donder_project_io::check_project_with_overrides(&root, &overrides);
         assert!(report.session.is_none(), "{expected}");
         assert!(
             report

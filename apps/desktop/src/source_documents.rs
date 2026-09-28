@@ -2,13 +2,9 @@ use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::DocumentId;
 use donder_project_io::ProjectSession;
 
-/// Project files use workspace-relative tab paths. External dependency sources
-/// use their absolute paths, and can only be resolved from the loaded graph.
+/// All source tabs use project-relative paths.
 pub(crate) fn editor_path(session: &ProjectSession, document: &DocumentId) -> Option<Utf8PathBuf> {
-    match session.source.workspace_path_for_document(document) {
-        Some(path) => Some(path),
-        None => session.source.absolute_path(document),
-    }
+    session.source.workspace_path_for_document(document)
 }
 
 pub(crate) fn document_for_editor_path(

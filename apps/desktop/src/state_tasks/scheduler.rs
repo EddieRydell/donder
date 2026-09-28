@@ -114,7 +114,7 @@ pub(crate) fn analyze_working_copy(request: &WorkingCopyPayload) -> Option<Proje
     request
         .typed
         .is_none()
-        .then(|| donder_project_io::check_package_with_overrides(&request.root, &request.sources))
+        .then(|| donder_project_io::check_project_with_overrides(&request.root, &request.sources))
 }
 
 pub(crate) struct RenderRefreshPayload {

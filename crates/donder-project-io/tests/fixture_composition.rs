@@ -1,27 +1,14 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::layout::{FixtureInstanceId, FixtureTarget, LayoutFixtureKind};
-use donder_project_io::{export_project, load_package, save_project};
+use donder_project_io::{export_project, load_project, save_project};
 
 fn starter() -> donder_project_io::ProjectSession {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    load_package(&root).unwrap().session
+    load_project(&root).unwrap()
 }
 
 fn export_starter(session: &donder_project_io::ProjectSession, root: &Utf8Path) {
     export_project(session, root).unwrap();
-    let source = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    for name in ["donder-package.json", "donder.lock"] {
-        std::fs::copy(source.join(name), root.join(name)).unwrap();
-    }
-    for path in donder_package::PackageManifest::read(&source)
-        .unwrap()
-        .assets
-        .keys()
-    {
-        let destination = root.join(path);
-        std::fs::create_dir_all(destination.parent().unwrap()).unwrap();
-        std::fs::copy(source.join(path), destination).unwrap();
-    }
 }
 
 #[test]
@@ -66,7 +53,7 @@ fn starter_layout_targets_and_led_routes_round_trip() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     export_starter(&session, root);
-    let loaded = load_package(root).unwrap().session;
+    let loaded = load_project(root).unwrap();
     assert_eq!(loaded.project, session.project);
 }
 
@@ -81,7 +68,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     source.push_str("\nassembly:\n  type: fixture\n  elements:\n  - id: 90\n    name: First\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\n    transform: {position: {x: 1, y: 0, z: 0}}\n  - id: 10\n    name: Second\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.02\n    transform: {position: {x: 2, y: 0, z: 0}}\n");
     std::fs::write(&fixture_path, source).unwrap();
     // The extra definition is indexed even though no layout uses it yet.
-    let mut loaded = load_package(root).unwrap().session;
+    let mut loaded = load_project(root).unwrap();
     let (id, definition) = loaded
         .project
         .definitions
@@ -97,7 +84,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     assert_eq!(definition.elements[0].id.0, 90);
     definition.elements.swap(0, 1);
     save_project(&loaded).unwrap();
-    let saved = load_package(root).unwrap().session;
+    let saved = load_project(root).unwrap();
     assert_eq!(saved.project, loaded.project);
     let definition = saved
         .project
@@ -192,8 +179,8 @@ fn all_shape_parameters_round_trip_in_authored_order() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     export_starter(&session, root);
-    let loaded = load_package(root).unwrap().session;
+    let loaded = load_project(root).unwrap();
     assert_eq!(loaded.project, session.project);
     save_project(&loaded).unwrap();
-    assert_eq!(load_package(root).unwrap().session.project, session.project);
+    assert_eq!(load_project(root).unwrap().project, session.project);
 }

@@ -32,7 +32,7 @@ pub(crate) async fn export_sequence_file(
         if path.extension() != Some("donderseq") {
             return Err("Export files must use the .donderseq extension.".into());
         }
-        donder_package::atomic_write(&path, &bytes)
+        donder_project_io::atomic_write(&path, &bytes)
             .map_err(|error| format!("Could not save exported sequence: {error}"))?;
         Ok(Some(path.to_string()))
     })

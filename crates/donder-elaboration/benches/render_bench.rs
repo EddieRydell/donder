@@ -4,7 +4,7 @@ use donder_elaboration::{
     PreparedSequenceOutput, PreparedSignalGraph, RenderedFrame, elaborate_sequence,
 };
 use donder_language::values::{Color, sample_time_from_frame};
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -73,9 +73,7 @@ struct RenderScenario {
 
 fn bench_render(c: &mut Criterion) {
     pin_benchmark_thread();
-    let session = load_package(&project_path())
-        .expect("benchmark project should load")
-        .session;
+    let session = load_project(&project_path()).expect("benchmark project should load");
     let setup_id = session.project.root.setup.id();
     let sequence_id = session
         .project
@@ -177,7 +175,7 @@ fn bench_mark_playback(c: &mut Criterion) {
     use donder_runtime::signal::PreparedEffectImplementation;
     use donder_runtime::values::SampleTime;
     pin_benchmark_thread();
-    let source_project = load_package(&project_path()).unwrap().session.project;
+    let source_project = load_project(&project_path()).unwrap().project;
     for (name, pulse) in [("pulse", true), ("chase", false)] {
         let mut project = source_project.clone();
         let id = project

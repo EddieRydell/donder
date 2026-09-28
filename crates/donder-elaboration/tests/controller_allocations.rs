@@ -6,7 +6,7 @@ use donder_elaboration::PreparedSequenceOutput;
 use donder_language::dsl::Identifier;
 use donder_language::sequence::AutomationTarget;
 use donder_language::values::sample_time_from_frame;
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 
 struct CountingAllocator;
 
@@ -54,9 +54,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     let project_path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("examples/starter");
-    let session = load_package(&project_path)
-        .expect("starter project should load")
-        .session;
+    let session = load_project(&project_path).expect("starter project should load");
     for sequence_id in session
         .project
         .root

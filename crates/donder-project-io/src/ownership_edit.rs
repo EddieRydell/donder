@@ -74,11 +74,6 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     }
     for (from, targets) in references {
         for target in targets {
-            crate::imports::inherit_relocated_reference_import(
-                session,
-                &from,
-                target.document_id(),
-            )?;
             ensure_document_can_reference_object(session, &from, &target)?;
         }
     }
@@ -102,22 +97,11 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
             asset
                 .referenced_by
                 .insert(sequence.id.0.document_id().clone());
-            if asset.module_id != sequence.id.0.module_id()
-                && !session
-                    .source
-                    .source_graph
-                    .module(sequence.id.0.module_id())
-                    .is_ok_and(|module| {
-                        module
-                            .dependencies
-                            .values()
-                            .any(|id| *id == asset.module_id)
-                    })
-            {
+            if asset.module_id != sequence.id.0.module_id() {
                 return Err(ExportProjectError::InvalidReference {
                     path: sequence.id.0.document().to_owned(),
                     reference: asset.relative_path.to_string(),
-                    message: "Audio source requires a declared dependency on its package.".into(),
+                    message: "Audio source belongs to another project.".into(),
                 });
             }
         }

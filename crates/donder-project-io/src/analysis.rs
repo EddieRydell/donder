@@ -18,13 +18,13 @@ use crate::loader::inspection::{
 use crate::loader::parse::{mapping, parse_color, parse_duration, parse_duration_as_time};
 use crate::{
     IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, SourceDocumentFormat,
-    SourceObjectKind, TextPosition, TextRange, source_document_format,
+    SourceObjectKind, TextRange, source_document_format,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectRecovery {
     pub root: Utf8PathBuf,
-    pub manifest: Option<donder_package::PackageManifest>,
+    pub config: Option<crate::ProjectConfig>,
     pub documents: IndexMap<Utf8PathBuf, RecoveryDocument>,
 }
 
@@ -50,9 +50,10 @@ pub struct RecoveryObject {
 
 pub(crate) fn analyze_project_documents(
     root: &Utf8Path,
-    manifest: Option<donder_package::PackageManifest>,
+    config: Option<crate::ProjectConfig>,
     overrides: &crate::SourceOverrides,
     checked_dsl_documents: &indexmap::IndexSet<Utf8PathBuf>,
+    active_documents: Option<&indexmap::IndexSet<Utf8PathBuf>>,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) -> ProjectRecovery {
     let mut documents = IndexMap::new();
@@ -61,6 +62,12 @@ pub(crate) fn analyze_project_documents(
         .chain(overrides.keys().cloned())
         .collect();
     for path in paths {
+        let mut inactive_diagnostics = Vec::new();
+        let diagnostics = if active_documents.is_none_or(|active| active.contains(&path)) {
+            &mut *diagnostics
+        } else {
+            &mut inactive_diagnostics
+        };
         let absolute = root.join(&path);
         let kind = document_kind(&path);
         let document = match kind {
@@ -90,7 +97,7 @@ pub(crate) fn analyze_project_documents(
     }
     ProjectRecovery {
         root: root.to_path_buf(),
-        manifest,
+        config,
         documents,
     }
 }
@@ -669,51 +676,6 @@ fn schema_diagnostic(
         detail: None,
         related: Vec::new(),
     }
-}
-
-pub(crate) fn package_parse_diagnostic(
-    path: &str,
-    error: donder_package::PackageFileParseError,
-    code: IoDiagnosticCode,
-) -> IoDiagnostic {
-    let position = TextPosition {
-        line: error.line,
-        character: error.column,
-    };
-    IoDiagnostic {
-        path: Utf8PathBuf::from(path),
-        range: Some(TextRange {
-            start: position.clone(),
-            end: TextPosition {
-                line: position.line,
-                character: position.character.saturating_add(1),
-            },
-        }),
-        severity: IoDiagnosticSeverity::Error,
-        code,
-        message: error.message,
-        detail: error.field_path.map(|path| format!("JSON field: {path}")),
-        related: Vec::new(),
-    }
-}
-
-pub(crate) fn package_validation_diagnostics(
-    path: &str,
-    issues: Vec<donder_package::PackageValidationIssue>,
-    code: IoDiagnosticCode,
-) -> Vec<IoDiagnostic> {
-    issues
-        .into_iter()
-        .map(|issue| IoDiagnostic {
-            path: Utf8PathBuf::from(path),
-            range: None,
-            severity: IoDiagnosticSeverity::Error,
-            code: code.clone(),
-            message: issue.message,
-            detail: Some(format!("JSON field: {}", issue.field_path)),
-            related: Vec::new(),
-        })
-        .collect()
 }
 
 pub(crate) fn sort_diagnostics(diagnostics: &mut Vec<IoDiagnostic>) {

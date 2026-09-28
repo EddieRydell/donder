@@ -200,7 +200,7 @@ main:
     );
     let accepted = state.project_session().unwrap();
     state.save_all().unwrap();
-    let reloaded = donder_project_io::load_package(&root).unwrap().session;
+    let reloaded = donder_project_io::load_project(&root).unwrap();
     assert_eq!(reloaded.project, accepted.project);
     assert_eq!(
         reloaded.source.documents.len(),
@@ -220,10 +220,7 @@ main:
     );
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         state.project_session().unwrap().project
     );
 }
@@ -538,20 +535,16 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert!(illuminated);
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         final_session.project
     );
 }
 
 #[test]
-fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
-    use std::collections::BTreeMap;
+fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-    write_new_project_files(&root, &new_test_project_files("Dependency copy").unwrap()).unwrap();
+    write_new_project_files(&root, &new_test_project_files("Local copy").unwrap()).unwrap();
     let starter = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let library = root.join("rig");
     let paths = [
@@ -560,51 +553,20 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
         "setups/main.setup.donder",
         "fixtures/vertical.fixture.donder",
     ];
-    let mut originals = BTreeMap::new();
     for path in paths {
-        let bytes = std::fs::read(starter.join(path)).unwrap();
+        let text = std::fs::read_to_string(starter.join(path)).unwrap();
+        let bytes = paths
+            .iter()
+            .fold(text, |text, path| {
+                text.replace(&format!("- {path}"), &format!("- rig/{path}"))
+            })
+            .into_bytes();
         std::fs::create_dir_all(library.join(path).parent().unwrap()).unwrap();
         std::fs::write(library.join(path), &bytes).unwrap();
-        originals.insert(path, bytes);
     }
-    let mut manifest = donder_package::PackageManifest::read(&starter).unwrap();
-    manifest.module_id = uuid::Uuid::new_v4();
-    manifest.project = None;
-    manifest.assets.clear();
-    manifest.exports = [
-        ("layout", paths[0]),
-        ("patch", paths[1]),
-        ("controllers", paths[2]),
-    ]
-    .into_iter()
-    .map(|(name, path)| {
-        (
-            name.into(),
-            donder_package::ExportGroup {
-                documents: if name == "layout" {
-                    vec![path.into(), paths[3].into()]
-                } else {
-                    vec![path.into()]
-                },
-            },
-        )
-    })
-    .collect();
-    manifest.write(&library).unwrap();
-    let mut project_manifest = donder_package::PackageManifest::read(&root).unwrap();
-    project_manifest.dependencies.insert(
-        "rig".into(),
-        donder_package::Dependency::Path { path: "rig".into() },
-    );
-    project_manifest.write(&root).unwrap();
-    let registry = donder_package::Lockfile::read(&root).unwrap().registry;
-    donder_package::Lockfile::from_directory(&project_manifest, &root, registry)
-        .unwrap()
-        .write(&root)
-        .unwrap();
     std::fs::create_dir_all(root.join("setups")).unwrap();
     std::fs::write(root.join("project.donder"), "imports:\n- from: { documents: [setups/main.setup.donder] }\n  as: setups\nshow:\n  type: project\n  setup: setups.main\n  sequences: []\n").unwrap();
-    std::fs::write(root.join("setups/main.setup.donder"), "imports:\n- from: { dependency: rig, export: layout }\n  as: layout\n- from: { dependency: rig, export: patch }\n  as: patch\n- from: { dependency: rig, export: controllers }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
+    std::fs::write(root.join("setups/main.setup.donder"), "imports:\n- from: { documents: [rig/layouts/outputs.layout.donder] }\n  as: layout\n- from: { documents: [rig/patches/outputs.patch.donder] }\n  as: patch\n- from: { documents: [rig/setups/main.setup.donder] }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;
@@ -623,8 +585,8 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     let GuiDocument::Setup { document } = state.get_gui_document(request()).document else {
         panic!("setup missing")
     };
-    assert!(document.layout_read_only && document.patch_read_only);
-    assert!(document.controllers[0].read_only);
+    assert!(!document.layout_read_only && !document.patch_read_only);
+    assert!(!document.controllers[0].read_only);
     for slot in [
         GuiOwnershipSlot::Controller { index: 0 },
         GuiOwnershipSlot::Layout,
@@ -723,14 +685,18 @@ fn dependency_controller_and_layout_copies_preserve_package_files_and_reopen() {
     state.save_all().unwrap();
     let saved = state.project_session().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         saved.project
     );
-    for (path, bytes) in originals {
-        assert_eq!(std::fs::read(library.join(path)).unwrap(), bytes);
+    for path in paths {
+        let document = original
+            .source
+            .document_for_workspace_path(&Utf8PathBuf::from(format!("rig/{path}")));
+        let document = document.unwrap();
+        assert_eq!(
+            donder_project_io::source_document_text(&saved, &document).unwrap(),
+            donder_project_io::source_document_text(&original, &document).unwrap(),
+        );
     }
 }
 
@@ -844,10 +810,7 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
     );
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         after_conversion.project
     );
 }
@@ -889,10 +852,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         );
         state.save_all().unwrap();
         assert_eq!(
-            donder_project_io::load_package(&root)
-                .unwrap()
-                .session
-                .project,
+            donder_project_io::load_project(&root).unwrap().project,
             state.project_session().unwrap().project
         );
         let mut second = layout.fixtures[0].clone();
@@ -950,10 +910,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         assert_eq!(*state.project_session().unwrap(), *after);
         state.save_all().unwrap();
         assert_eq!(
-            donder_project_io::load_package(&root)
-                .unwrap()
-                .session
-                .project,
+            donder_project_io::load_project(&root).unwrap().project,
             after.project
         );
         let text = std::fs::read_to_string(root.join("project.donder")).unwrap();
@@ -1086,10 +1043,7 @@ fn inline_fixture_copies_have_independent_ownership() {
     );
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         state.project_session().unwrap().project
     );
 }
@@ -1147,7 +1101,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(*state.project_session().unwrap(), *after);
     // Use the desktop save barrier so this readback cannot race background autosave.
     state.save_all().unwrap();
-    let reloaded = donder_project_io::load_package(&root).unwrap().session;
+    let reloaded = donder_project_io::load_project(&root).unwrap();
     assert_eq!(reloaded.project, after.project);
 }
 #[test]
@@ -1247,10 +1201,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 assert_eq!(*state.project_session().unwrap(), *after);
                 state.save_all().unwrap();
                 assert_eq!(
-                    donder_project_io::load_package(&root)
-                        .unwrap()
-                        .session
-                        .project,
+                    donder_project_io::load_project(&root).unwrap().project,
                     after.project
                 );
             }
@@ -1332,10 +1283,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         assert_eq!(*state.project_session().unwrap(), *after);
         state.save_all().unwrap();
         assert_eq!(
-            donder_project_io::load_package(&root)
-                .unwrap()
-                .session
-                .project,
+            donder_project_io::load_project(&root).unwrap().project,
             after.project
         );
     }
@@ -1488,10 +1436,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         );
         state.save_all().unwrap();
         assert_eq!(
-            donder_project_io::load_package(&root)
-                .unwrap()
-                .session
-                .project,
+            donder_project_io::load_project(&root).unwrap().project,
             changed.project
         );
     }
@@ -1643,10 +1588,7 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
     ));
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         current.project
     );
 }
@@ -1781,10 +1723,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
     }
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         after.project
     );
 }
@@ -1888,10 +1827,7 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
     }
     state.save_all().unwrap();
     assert_eq!(
-        donder_project_io::load_package(&root)
-            .unwrap()
-            .session
-            .project,
+        donder_project_io::load_project(&root).unwrap().project,
         state.project_session().unwrap().project
     );
 }

@@ -153,22 +153,18 @@ layout become independent before their targets change. Reusable originals remain
 unchanged. Unused reusable sequences validate against their own target layouts;
 sequences included in the project must target the active layout.
 
-Ownership changes maintain imports from typed references, including fixture,
-effect, operator, curve, gradient, and route targets. A dependency reference moved
-to another document reuses a declared export import with an alias unique in that
-document. Private sources unavailable through an export cannot become direct
-links in a local copy. Audio retains its asset identity: local assets use a path
-string, while another package's asset uses `{dependency: package_alias, path:
-audio/song.wav}`. The package must be a declared direct dependency and the asset
-must appear in its manifest. Copying a sequence does not copy or modify audio bytes.
+Ownership changes maintain local imports from typed references, including fixture,
+effect, operator, curve, gradient, and route targets. A reference moved to another
+document reuses or creates an explicit local import with a unique alias. Audio
+is a project-relative path string; copying a sequence preserves that path and
+does not copy or modify audio bytes. No audio inventory is required.
 
 New projects begin with a single `project.donder` document containing an owned
 setup, empty layout and patch, and an owned initial sequence. Source actions can
 promote those values to reusable objects when sharing is needed. **Use existing
 source** establishes an explicit link at any supported ownership slot. Replacing
 a layout/controller follows the affected routing; incompatible targets reject
-the entire edit. Source pickers offer named project objects and dependency objects
-exposed by declared export imports; inline children are never offered as symbols.
+the entire edit. Source pickers offer named objects in loaded local documents; inline children are never offered as symbols.
 
 ### Current limitations
 
@@ -197,8 +193,7 @@ exposed by declared export imports; inline children are never offered as symbols
   group. Cross-file children require an explicit effect-document import (below).
   Imports do not re-export imported names, and operator documents do not support
   imports: operators currently have no corresponding cross-file call construct.
-- Project save writes project-owned documents, not dependency documents. This
-  contract is not a dependency vendoring or cross-package editing mechanism.
+- Project save writes loaded local documents. Unreferenced files are left alone.
 - Semantic round-tripping is not byte-identical round-tripping. The separate
   source-text write API writes supplied text exactly; that does not imply that a
   later typed project save preserves its presentation.
@@ -217,20 +212,17 @@ through save/reload and insertion of a sequence in a new nested file.
 and local generator children, mutual imports, rejection of caller-scope lookup,
 and actual starter generator emission with nonempty marks/gradients.
 `crates/donder-project-io/tests/path_refactor.rs` covers import-path moves and
-dependency-export identity through save/reload and dependency document moves.
+object identity through save/reload, directory moves, and audio path updates.
 
 These are focused IO/preparation checks, not an exhaustive GUI action matrix,
 proof for every schema field, or a rendered-output equivalence benchmark.
 
 ## Generator imports
 
-Effect imports precede declarations and use the existing module/package import
-resolver. Local paths are **module-root relative**, just like YAML imports, not
+Effect imports precede declarations and use the local document import
+resolver. Local paths are **project-root relative**, just like YAML imports, not
 relative to the effect file. Local DSL imports use the shared non-empty
 document-list form:
-
-This is a breaking authoring correction within `languageVersion: "0.1"`.
-Single-string local DSL imports are rejected; there is no compatibility parser.
 
 ```text
 import bursts from ["effects/impact-burst.effect.donder"];
@@ -251,12 +243,9 @@ effect Hits {
 }
 ```
 
-For a declared package dependency, use `import bursts from library.effects;`,
-where `library` is the manifest dependency alias and `effects` is its export
-group. Package names may contain hyphens; local aliases use letters, digits,
-and underscores, with a non-digit first character; keywords and `builtins` are
-reserved. The export group can contain several documents, with unique object
-names. Imports are explicit, not transitive. Duplicate
+Local aliases use letters, digits, and underscores, with a non-digit first
+character; keywords and `builtins` are reserved. An import can contain several
+documents with unique object names. Imports are explicit, not transitive. Duplicate
 aliases, duplicate target documents, unsafe/missing paths, unresolved children,
 and child references to non-effect objects are errors.
 
@@ -276,7 +265,7 @@ IO builds scopes after all reachable local inventories are available and uses
 the same lookup for YAML references and emitted children. Imports expose only
 their targets' own objects. Same-document GUI references need no import; other
 local selections reuse an import or create deterministic aliases such as
-`effects_2`. Dependency selections require an explicit export import.
+`effects_2`.
 
 Prepared playback bytecode does not retain generator import
 tables, and no per-frame path or name resolution is introduced. Structural path

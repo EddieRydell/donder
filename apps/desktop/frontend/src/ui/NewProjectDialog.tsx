@@ -86,7 +86,7 @@ export function NewProjectDialog() {
         <AlertDialog.Overlay className="dialog-overlay" />
         <AlertDialog.Content className="dialog-content new-project-dialog">
           <AlertDialog.Title>{mode === "copyProject" ? "Create Standalone Project Copy" : "New Project"}</AlertDialog.Title>
-          {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and referenced audio. Package sources become local files in the new project, so you can change them independently. The original project and packages stay unchanged. Choose a new folder.</AlertDialog.Description>}
+          {mode === "copyProject" && <AlertDialog.Description>Create and open a separate project containing the current show, imported definitions, and referenced audio. The copied files can be edited independently. Choose a new folder.</AlertDialog.Description>}
           <form className="new-project-form" onSubmit={(event) => void createProject(event)}>
             <label>
               <span>Project folder name</span>

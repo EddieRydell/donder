@@ -3,10 +3,7 @@ use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::dto::{
-    WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryOwnership, WorkspaceEntryRole,
-    WorkspaceOperation,
-};
+use crate::dto::{WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceOperation};
 use donder_project_io::{ProjectRecovery, ProjectSession};
 
 #[derive(Clone, Copy)]
@@ -95,10 +92,7 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                 .unwrap_or_else(|| path.to_string());
             let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
             let role = recovery_workspace_role(recovery, &path, kind);
-            let fixed = matches!(
-                role,
-                WorkspaceEntryRole::Manifest | WorkspaceEntryRole::Lockfile
-            );
+            let fixed = matches!(role, WorkspaceEntryRole::Configuration);
             WorkspaceEntry {
                 path: canonical_relative_path(&path).to_string(),
                 kind: match kind {
@@ -108,13 +102,12 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                 name,
                 parent,
                 role,
-                ownership: WorkspaceEntryOwnership::Project,
                 operations: match kind {
                     FsEntryKind::File => vec![WorkspaceOperation::Open],
                     FsEntryKind::Directory => Vec::new(),
                 },
                 operation_explanation: Some(if fixed {
-                    "Package manifests and lockfiles remain fixed at the project root.".to_string()
+                    "Project configuration remains at the project root.".to_string()
                 } else {
                     "Project-model operations are disabled until project errors are fixed."
                         .to_string()
@@ -132,22 +125,11 @@ fn recovery_workspace_role(
     if matches!(kind, FsEntryKind::Directory) {
         return WorkspaceEntryRole::Directory;
     }
-    if path == Utf8Path::new(donder_package::MANIFEST_FILE) {
-        return WorkspaceEntryRole::Manifest;
-    }
-    if path == Utf8Path::new(donder_package::LOCK_FILE) {
-        return WorkspaceEntryRole::Lockfile;
+    if path == Utf8Path::new(donder_project_io::PROJECT_CONFIG_FILE) {
+        return WorkspaceEntryRole::Configuration;
     }
     let Some(document) = recovery.documents.get(path) else {
-        return if recovery
-            .manifest
-            .as_ref()
-            .is_some_and(|manifest| manifest.assets.contains_key(path.as_str()))
-        {
-            WorkspaceEntryRole::Asset
-        } else {
-            WorkspaceEntryRole::File
-        };
+        return WorkspaceEntryRole::File;
     };
     match document.kind {
         donder_project_io::RecoveryDocumentKind::Effect => WorkspaceEntryRole::Effect,
@@ -172,12 +154,8 @@ fn workspace_entry(
         .map(ToString::to_string)
         .unwrap_or_else(|| path.to_string());
     let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
-    let (ownership, module_id, module_relative) = workspace_ownership(session, &path);
-    let role = workspace_role(session, &path, kind, module_id, module_relative.as_deref());
-    let fixed = matches!(
-        role,
-        WorkspaceEntryRole::Manifest | WorkspaceEntryRole::Lockfile
-    );
+    let role = workspace_role(session, &path, kind);
+    let fixed = matches!(role, WorkspaceEntryRole::Configuration);
     let structural = session.source.is_structural_workspace_path(&path);
     let operations = match kind {
         FsEntryKind::Directory => {
@@ -210,10 +188,9 @@ fn workspace_entry(
         name,
         parent,
         role,
-        ownership,
         operations,
         operation_explanation: if fixed {
-            Some("Package manifests and lockfiles remain fixed at their module root.".to_string())
+            Some("Project configuration remains at the project root.".to_string())
         } else if structural {
             Some(
                 "Imported documents cannot be deleted; rename or move them through the typed path workflow."
@@ -225,70 +202,17 @@ fn workspace_entry(
     }
 }
 
-fn workspace_ownership(
-    session: &ProjectSession,
-    path: &Utf8Path,
-) -> (
-    WorkspaceEntryOwnership,
-    Option<uuid::Uuid>,
-    Option<Utf8PathBuf>,
-) {
-    let Some((module_id, module_relative)) = session.source.workspace_module_for_path(path) else {
-        return (WorkspaceEntryOwnership::Project, None, None);
-    };
-    let ownership = match session
-        .source
-        .ownership(&donder_language::identity::DocumentId::new(
-            module_id,
-            module_relative.clone(),
-        )) {
-        Some(donder_project_io::SourceOwnership::ProjectOwned) => WorkspaceEntryOwnership::Project,
-        Some(donder_project_io::SourceOwnership::PathDependencyOwned { .. }) => {
-            WorkspaceEntryOwnership::PathDependency
-        }
-        Some(donder_project_io::SourceOwnership::RegistryReadOnly { .. }) => {
-            WorkspaceEntryOwnership::Registry
-        }
-        None => WorkspaceEntryOwnership::Project,
-    };
-    (ownership, Some(module_id), Some(module_relative))
-}
-
 fn workspace_role(
     session: &ProjectSession,
-    path: &Utf8Path,
+    relative: &Utf8Path,
     kind: FsEntryKind,
-    module_id: Option<uuid::Uuid>,
-    module_relative: Option<&Utf8Path>,
 ) -> WorkspaceEntryRole {
     if matches!(kind, FsEntryKind::Directory) {
-        if session
-            .source
-            .source_graph
-            .modules()
-            .values()
-            .any(|module| {
-                matches!(
-                    module.origin,
-                    donder_package::ResolvedModuleOrigin::PathDependency { .. }
-                ) && module.root == session.source.project_root().join(path)
-            })
-        {
-            return WorkspaceEntryRole::PathDependency;
-        }
         return WorkspaceEntryRole::Directory;
     }
-    let Some(module_id) = module_id else {
-        return WorkspaceEntryRole::File;
-    };
-    let Some(relative) = module_relative else {
-        return WorkspaceEntryRole::File;
-    };
-    if relative == Utf8Path::new(donder_package::MANIFEST_FILE) {
-        return WorkspaceEntryRole::Manifest;
-    }
-    if relative == Utf8Path::new(donder_package::LOCK_FILE) {
-        return WorkspaceEntryRole::Lockfile;
+    let module_id = session.source.project_module_id();
+    if relative == Utf8Path::new(donder_project_io::PROJECT_CONFIG_FILE) {
+        return WorkspaceEntryRole::Configuration;
     }
     let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
     if session.source.entrypoint.as_ref() == Some(&document_id) {
@@ -306,13 +230,11 @@ fn workspace_role(
                 .unwrap_or(WorkspaceEntryRole::File),
         };
     }
-    let module = session.source.source_graph.module(module_id).ok();
-    if module.is_some_and(|module| module.manifest.assets.contains_key(relative.as_str()))
-        || session
-            .source
-            .referenced_assets
-            .iter()
-            .any(|asset| asset.module_id == module_id && asset.relative_path == relative)
+    if session
+        .source
+        .referenced_assets
+        .iter()
+        .any(|asset| asset.module_id == module_id && asset.relative_path == relative)
     {
         WorkspaceEntryRole::Asset
     } else {

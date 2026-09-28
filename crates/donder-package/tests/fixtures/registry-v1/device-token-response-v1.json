@@ -1,7 +1,0 @@
-{
-  "registryVersion": 1,
-  "accessToken": "access-token-fixture",
-  "refreshCredential": "refresh-credential-fixture",
-  "expiresIn": 900,
-  "refreshExpiresIn": 7776000
-}

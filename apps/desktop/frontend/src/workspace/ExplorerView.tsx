@@ -6,7 +6,6 @@ import {
   ChevronRight,
   File,
   FileJson2,
-  FileLock2,
   FilePlus2,
   AudioLines,
   Blend,
@@ -350,10 +349,8 @@ function validateName(value: string): string | null {
 function roleIcon(role: WorkspaceEntryRole, open: boolean) {
   const size = THEME_METRICS.iconSizeCompact;
   switch (role) {
-    case "directory":
-    case "pathDependency": return open ? <FolderOpen size={size} /> : <Folder size={size} />;
-    case "manifest": return <FileJson2 size={size} />;
-    case "lockfile": return <FileLock2 size={size} />;
+    case "directory": return open ? <FolderOpen size={size} /> : <Folder size={size} />;
+    case "configuration": return <FileJson2 size={size} />;
     case "asset": return <AudioLines size={size} />;
     case "project":
     case "entrypoint": return <Workflow size={size} />;

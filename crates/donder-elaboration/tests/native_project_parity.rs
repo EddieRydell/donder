@@ -3,12 +3,12 @@ use donder_language::dsl::{Identifier, compile_effects};
 use donder_language::effect::{EffectDefinition, EffectDefinitionId, EffectRef};
 use donder_language::identity::{DocumentId, SourceIdentity};
 use donder_language::sequence::AutomationTarget;
-use donder_project_io::load_package;
+use donder_project_io::load_project;
 
 #[test]
 fn native_effects_match_reference_dsl_in_real_project_frames() {
     let root = camino::Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let session = load_package(&root).unwrap().session;
+    let session = load_project(&root).unwrap();
     let mut native_project = session.project.clone();
     let automated_sequence_id = native_project
         .root

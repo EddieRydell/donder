@@ -3,7 +3,7 @@ use donder_language::effect::EffectRef;
 use donder_language::identity::DocumentId;
 use donder_language::imports::ImportAlias;
 use donder_project_io::{
-    SourceObjectKind, check_package_with_overrides, ensure_document_can_reference_source,
+    SourceObjectKind, check_project_with_overrides, ensure_document_can_reference_source,
     project_source_texts,
 };
 
@@ -37,7 +37,7 @@ fn unused_imported_emissions_validate_types_and_fixed_parameters() {
         *generator = format!(
             "import check from [\"{EXTRA}\"];\n{generator}\neffect UnusedParent {{ param float live = 0.5; void generate() {{ if (false) {{ timeline.emit check.Child {{ start: 0.0, duration: 1.0, target: target, value: {argument} }}; }} }} }}"
         );
-        let report = check_package_with_overrides(&root(), &sources);
+        let report = check_project_with_overrides(&root(), &sources);
         if expected.is_empty() {
             assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
         } else {
@@ -91,7 +91,7 @@ fn yaml_and_dsl_grouped_declarations_have_identical_ordered_targets() {
             &format!("imports:\n- from: {{ documents: [{CHILD}, {EXTRA}] }}\n  as: {alias}\n"),
             1,
         );
-        let report = check_package_with_overrides(&root(), &sources);
+        let report = check_project_with_overrides(&root(), &sources);
         assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
         let session = report.session.unwrap();
         let module = session.source.project_module_id();
@@ -144,7 +144,7 @@ fn alias_policy_is_shared_without_package_name_restrictions() {
             ),
         );
         assert!(
-            check_package_with_overrides(&root(), &sources)
+            check_project_with_overrides(&root(), &sources)
                 .session
                 .is_none(),
             "DSL {alias}"
@@ -159,7 +159,7 @@ fn alias_policy_is_shared_without_package_name_restrictions() {
             1,
         );
         assert!(
-            check_package_with_overrides(&root(), &sources)
+            check_project_with_overrides(&root(), &sources)
                 .session
                 .is_none(),
             "YAML {alias}"
@@ -210,7 +210,7 @@ fn grouped_collisions_report_both_source_occurrences_in_both_formats() {
                 text + &generator("fx.ImpactBurst")
             };
             sources.insert(path.into(), declaration);
-            let report = check_package_with_overrides(&root(), &sources);
+            let report = check_project_with_overrides(&root(), &sources);
             let diagnostic = report
                 .diagnostics
                 .iter()
@@ -233,7 +233,7 @@ fn missing_group_member_points_at_its_own_path_token() {
         generator("fx.ImpactBurst")
     );
     sources.insert(GENERATOR.into(), text);
-    let report = check_package_with_overrides(&root(), &sources);
+    let report = check_project_with_overrides(&root(), &sources);
     let diagnostic = report
         .diagnostics
         .iter()
@@ -269,7 +269,7 @@ fn scope_is_non_transitive_and_wrong_kinds_and_builtin_names_are_link_errors() {
         let start = text.find(&format!("emit {reference}")).unwrap() + 5;
         let line_start = text[..start].rfind('\n').unwrap() + 1;
         sources.insert(GENERATOR.into(), text);
-        let report = check_package_with_overrides(&root(), &sources);
+        let report = check_project_with_overrides(&root(), &sources);
         let diagnostic = report
             .diagnostics
             .iter()
@@ -307,7 +307,7 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
         "",
     ] {
         assert!(
-            donder_package::validate_module_relative_donder_path(path).is_err(),
+            donder_project_io::validate_document_path(path).is_err(),
             "{path}"
         );
         for yaml in [false, true] {
@@ -330,7 +330,7 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
                     ),
                 );
             }
-            let report = check_package_with_overrides(&root(), &sources);
+            let report = check_project_with_overrides(&root(), &sources);
             assert!(report.session.is_none(), "{path}");
             assert!(
                 report
@@ -343,7 +343,7 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
         }
     }
     for path in ["effects/Upper-name_1.effect.donder", "effects/a b.donder"] {
-        assert!(donder_package::validate_module_relative_donder_path(path).is_ok());
+        assert!(donder_project_io::validate_document_path(path).is_ok());
     }
 }
 
@@ -377,7 +377,7 @@ fn linked_target_slots_include_local_imported_and_builtin_children_in_source_ord
             &format!("imports:\n- from: {{ documents: [{first}] }}\n  as: first\n"),
             1,
         );
-        let report = check_package_with_overrides(&root(), &reordered);
+        let report = check_project_with_overrides(&root(), &reordered);
         assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
         let session = report.session.unwrap();
         let definition = session
@@ -401,7 +401,7 @@ fn linked_target_slots_include_local_imported_and_builtin_children_in_source_ord
 
 #[test]
 fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases() {
-    let mut session = donder_project_io::load_package(&root()).unwrap().session;
+    let mut session = donder_project_io::load_project(&root()).unwrap();
     let module = session.source.project_module_id();
     let from = DocumentId::new(module, GENERATOR.into());
     let definitions = &session.project.definitions.effects.definitions;

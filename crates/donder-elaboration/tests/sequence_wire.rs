@@ -6,10 +6,7 @@ use donder_runtime::wire::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence,
 #[test]
 fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_package(&path)
-        .unwrap()
-        .session
-        .project;
+    let project = donder_project_io::load_project(&path).unwrap().project;
     let setup = &project.setups[project.root.setup.id()];
     let controller = setup.controllers[0].id();
     let port = project.controllers[controller].ports[0].id;

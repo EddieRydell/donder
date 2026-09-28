@@ -453,7 +453,7 @@ pub(super) fn mark_param_names(
             effect_name,
         } => {
             let identity = source_identity_from_gui(module_id, path, effect_name)?;
-            if session.source.module(identity.module_id()).is_none() {
+            if !session.source.is_project_owned(identity.document_id()) {
                 return Err(GuiMutationError::Invalid(
                     "Effect source module was not found.".to_string(),
                 ));
