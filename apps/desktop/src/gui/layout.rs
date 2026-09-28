@@ -11,7 +11,11 @@ pub(super) fn edit_layout(
 ) -> Result<(), GuiMutationError> {
     let id = LayoutId(resolved.identity.clone());
     match edit {
-        LayoutGuiEdit::AddDefinition { name, parent } => {
+        LayoutGuiEdit::AddDefinition {
+            name,
+            parent,
+            transform,
+        } => {
             if name.trim().is_empty() {
                 return Err(GuiMutationError::Invalid("Enter a fixture name.".into()));
             }
@@ -28,7 +32,7 @@ pub(super) fn edit_layout(
                 definition.clone(),
                 donder_language::fixture::FixtureDefinition { pixels: Vec::new() },
             );
-            add_instance(session, &id, name, definition, parent)?;
+            add_instance(session, &id, name, definition, parent, transform)?;
         }
         LayoutGuiEdit::SetFixtures { fixtures } => {
             let fixtures = fixtures
@@ -122,6 +126,7 @@ fn add_instance(
     name: String,
     definition: donder_language::fixture::FixtureDefinitionId,
     parent: Option<u32>,
+    transform: crate::dto::Transform,
 ) -> Result<(), GuiMutationError> {
     let layout = session
         .project
@@ -153,7 +158,7 @@ fn add_instance(
         name,
         kind: LayoutFixtureKind::Fixture {
             definition,
-            transform: Default::default(),
+            transform: checked_transform(transform)?,
         },
     });
     Ok(())

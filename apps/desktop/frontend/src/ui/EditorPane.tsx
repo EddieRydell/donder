@@ -17,6 +17,7 @@ import { effectiveEditorViewMode } from "../editorViewMode";
 import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnapshot } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
+import { ReadOnlySourceNotice } from "./ReadOnlySourceNotice";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
 import { THEME_METRICS } from "../theme";
 import { scheduleViewStateSave } from "../viewStatePersistence";
@@ -405,15 +406,18 @@ export function EditorPane({
           </Dialog.Content></Dialog.Portal>
         </Dialog.Root></>
       ) : (
-        <div className="editor-scrollbar-shell">
-          <div ref={editorHost} className={`editor-host ${activeConflicted ? "conflicted" : ""}`} />
-          <EditorScrollbar
-            activePath={activePath}
-            diagnostics={snapshot.diagnostics}
-            editorSignal={editorSignal}
-            projectRoot={snapshot.projectRoot}
-            view={editorView}
-          />
+        <div className="resource-editor-frame">
+          {activeReadOnly && activeBuffer !== null && <ReadOnlySourceNotice name={activeBuffer.name} />}
+          <div className="editor-scrollbar-shell">
+            <div ref={editorHost} className={`editor-host ${activeConflicted ? "conflicted" : ""}`} />
+            <EditorScrollbar
+              activePath={activePath}
+              diagnostics={snapshot.diagnostics}
+              editorSignal={editorSignal}
+              projectRoot={snapshot.projectRoot}
+              view={editorView}
+            />
+          </div>
         </div>
       )}
     </section>

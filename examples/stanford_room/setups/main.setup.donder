@@ -1,0 +1,14 @@
+imports:
+- from:
+    documents:
+    - layouts/main.layout.donder
+  as: layout
+- from:
+    documents:
+    - patches/main.patch.donder
+  as: patches
+main:
+  type: setup
+  layout: layout.main
+  patch: patches.main
+  controllers: []

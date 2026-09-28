@@ -226,7 +226,7 @@ export async function runSnapshotCommand(command: () => Promise<AppSnapshot>) {
 }
 
 export async function runGuiEditCommand<T extends GuiEditResult>(command: (request: GuiDocumentRequest) => Promise<T>, origin?: GuiDocumentRequest | null): Promise<T> {
-  if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) throw new Error("Dependency sources are read-only. Create an independent copy to edit them.");
+  if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) throw new Error("This package source is read-only. Use File > Create Standalone Project Copy to change package sources in a separate project.");
   const { guiRequest: request, guiDocumentRevision, guiEditPending } = useAppStore.getState();
   if (request === null) throw new Error("GUI edit attempted without an active GUI document request.");
   if (guiDocumentRevision !== request.projectRevision) throw new Error("The current GUI document is still loading.");

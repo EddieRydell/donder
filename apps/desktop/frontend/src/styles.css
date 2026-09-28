@@ -2077,6 +2077,7 @@ button:focus-visible,
 
 .param-source-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--donder-space-5);
   min-height: 30px;
@@ -2645,6 +2646,7 @@ button:focus-visible,
   padding: var(--donder-space-0) var(--donder-space-6);
   font-size: var(--donder-font-size-md);
   outline: none;
+  text-align: left;
 }
 
 .menu-item[data-highlighted] {
@@ -3042,6 +3044,13 @@ button:focus-visible,
   cursor: default;
 }
 
+.param-source-description {
+  margin: var(--donder-space-0);
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
 .graph-node-parameters {
   display: grid;
   min-width: 0;
@@ -3407,6 +3416,10 @@ button:focus-visible,
 }
 
 .resource-editor-readonly {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--donder-space-8);
   margin: 0;
   padding: var(--donder-space-5) var(--donder-space-8);
   color: var(--donder-text-muted);
@@ -3474,6 +3487,10 @@ fieldset.sequence-layer-row {
 .graph-flow-node-card.disabled {
   border-style: dashed;
   color: var(--donder-text-muted);
+}
+
+.resource-editor-frame > .editor-scrollbar-shell {
+  flex: 1;
 }
 
 .object-overview-header,
@@ -4495,6 +4512,10 @@ button.status-chip:hover {
 .composition-tree-meta { min-width: 0; overflow: hidden; color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-icon { color: var(--donder-text-muted); }
 .composition-add-dialog { width: min(var(--donder-command-dialog-width), calc(100vw - var(--donder-space-14) * 2)); }
+.composition-add-dialog .setup-authoring-form fieldset { display: grid; grid-template-columns: minmax(0, 1fr); }
+.composition-add-advanced > summary { cursor: pointer; color: var(--donder-text-muted); }
+.composition-add-advanced > p { margin-block: var(--donder-space-6); color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); }
+.composition-add-advanced > label { display: grid; gap: var(--donder-space-3); }
 .composition-title { margin: 0 0 var(--donder-space-6); font-weight: var(--donder-font-weight-bold); }
 .pixel-actions { display: flex; flex-wrap: wrap; gap: var(--donder-space-4); margin-bottom: var(--donder-space-8); }
 .pixel-list { margin-bottom: var(--donder-space-8); cursor: default; }

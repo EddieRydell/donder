@@ -11,7 +11,7 @@ The supported user path is the desktop controller editor. Build the bundled
 controller image from the repository root when firmware changes:
 
 ```powershell
-./firmware/esp32/build-image.ps1
+pnpm firmware:build
 ```
 
 The script builds the output-enabled loader, packages
@@ -64,11 +64,12 @@ Export a representative selected fragment from the repository root:
 cargo run -p donder-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.donderseq
 ```
 
-Build and flash from `firmware/esp32`:
+Configure the ESP tool paths from the [firmware prerequisites](../firmware/esp32/README.md#toolchain-and-dependencies).
+Build from the repository root, then flash from `firmware/esp32`:
 
 ```powershell
-. ./export-esp.ps1
-cargo +esp build --release --features i2s-output --bin loader --locked
+pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
+cd firmware/esp32
 espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
 ```
 

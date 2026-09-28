@@ -18,8 +18,11 @@ DSL local imports use `from ["..."]` with a non-empty module-root-relative docum
 
 `pnpm check` includes `pnpm storage:test`, which executes the firmware-owned
 device-storage tests on the host from the repository root. Keep this coverage
-when changing workspace boundaries. Use host libclang for the host gate;
-`firmware/esp32/export-esp.ps1` selects a different library for Xtensa builds.
+when changing workspace boundaries. Configure `DONDER_HOST_LIBCLANG_PATH` for
+the host gate; `storage:test` passes it to Cargo as `LIBCLANG_PATH` and uses
+`target/storage-host` for build artifacts.
+`pnpm firmware:build` and `pnpm firmware:cargo` select ESP tools in child processes
+using `DONDER_ESP_LIBCLANG_PATH` and `DONDER_ESP_TOOLCHAIN_BIN`.
 
 Rust integration tests live under `crates/*/tests`, and desktop service tests may live beside the service modules. Do not add or modify tests unless specifically requested. 
 When tests are requested for project analysis, document edits, diagnostics, or model behavior, prefer fixtures from `examples/starter` for realistic project flows and use temporary test directories for invalid or synthetic Donder documents.

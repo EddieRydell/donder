@@ -1,14 +1,14 @@
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { OverlayPortal } from "../../../OverlayPortal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
-import { ArrowDown, ArrowUp, ChevronRight, CopyPlus, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { commands } from "../../../../api";
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
 import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationMapping, SequenceAutomationTarget, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../types";
 
-import { runGuiEditCommand } from "../../../../store";
+import { runGuiEditCommand, useAppStore } from "../../../../store";
 import { navigateToGuiObject } from "../../../../workspace/navigation";
 
 import { ColorPicker } from "../../../ColorPicker";
@@ -505,7 +505,7 @@ type CurveEditorProps<T extends { time: number }> = {
   showName?: boolean;
 };
 
-type CopyAction = "edit" | "flipHorizontal" | "flipVertical";
+type UnlinkAction = "edit" | "flipHorizontal" | "flipVertical";
 
 function CurveValueEditor({ name, value, sources, commit, disabled = false, actions = null }: {
   name: string;
@@ -568,8 +568,9 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   flipVerticalPoints?: (points: T[]) => T[];
   render: (props: CurveEditorProps<T>) => ReactNode;
 }) {
-  const [pendingCopyAction, setPendingCopyAction] = useState<CopyAction | null>(null);
+  const [pendingUnlinkAction, setPendingUnlinkAction] = useState<UnlinkAction | null>(null);
   const librarySource = source.type === "library" ? source : null;
+  const sourcePackage = useAppStore((state) => state.snapshot?.package.modules.find((module) => module.moduleId === librarySource?.moduleId));
   const linked = librarySource !== null;
   const linkedLabel = librarySource?.displayName ?? "";
   const availableSources = sources;
@@ -580,14 +581,14 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
       && item.objectKey === librarySource.objectKey
     )
     : -1;
-  const requestEditableCopy = (action: CopyAction) => {
+  const requestUnlink = (action: UnlinkAction) => {
     if (!linked) return;
-    setPendingCopyAction(action);
+    setPendingUnlinkAction(action);
   };
   const flipHorizontal = () => {
     const next = sortCurvePoints(points.map((point) => ({ ...point, time: roundCurveValue(1 - point.time) }))) as T[];
     if (linked) {
-      requestEditableCopy("flipHorizontal");
+      requestUnlink("flipHorizontal");
     } else {
       void commit(next);
     }
@@ -596,13 +597,13 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
     if (flipVerticalPoints === undefined) return;
     const next = flipVerticalPoints(points);
     if (linked) {
-      requestEditableCopy("flipVertical");
+      requestUnlink("flipVertical");
     } else {
       void commit(next);
     }
   };
-  const confirmPendingCopyAction = () => {
-    const action = pendingCopyAction;
+  const confirmPendingUnlinkAction = () => {
+    const action = pendingUnlinkAction;
     if (action === null) return;
     if (action === "flipHorizontal") {
       const next = sortCurvePoints(points.map((point) => ({ ...point, time: roundCurveValue(1 - point.time) }))) as T[];
@@ -614,15 +615,15 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
     } else {
       void unlink();
     }
-    setPendingCopyAction(null);
+    setPendingUnlinkAction(null);
   };
   const portalContainer = useContext(OverlayPortal);
-  const copyDialogTitle = pendingCopyAction === "flipHorizontal" || pendingCopyAction === "flipVertical"
-    ? `Flip ${name} copy?`
-    : `Edit ${name} copy?`;
-  const copyDialogDescription = pendingCopyAction === "flipHorizontal" || pendingCopyAction === "flipVertical"
-    ? `This ${label} is linked from the library. Donder will make an editable custom copy before applying the flip.`
-    : `This ${label} is linked from the library. Donder will make an editable custom copy so changes do not modify the library ${label}.`;
+  const unlinkDialogTitle = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
+    ? `Unlink and flip ${name}?`
+    : `Unlink ${name} from ${linkedLabel}?`;
+  const unlinkDialogDescription = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
+    ? `Keep the current ${label} from ${linkedLabel} in this parameter, then apply the flip. The library source stays unchanged, and this parameter will no longer follow changes to it.`
+    : `Keep the current ${label} from ${linkedLabel} in this parameter. Changes here will leave the library source unchanged, and this parameter will no longer follow changes to it.`;
   return (
     <div className={`param-source-shell ${linked ? "linked" : ""}`}>
       <div className="param-source-row">
@@ -633,7 +634,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
           onChange={(event) => {
             const value = event.currentTarget.value;
             if (value === "custom") {
-              if (linked) void unlink();
+              if (linked) requestUnlink("edit");
               return;
             }
             const index = Number(value.replace("library:", ""));
@@ -642,7 +643,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
             void link(source);
           }}
         >
-          <option value="custom">Custom {label}</option>
+          <option value="custom">{linked ? "Unlink and customize..." : `Custom ${label} - This parameter`}</option>
           {linked && selectedSourceIndex === -1 && (
             <option value="library:-1">{linkedLabel}</option>
           )}
@@ -654,24 +655,27 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         </select>
         {actions !== null && <div className="effect-param-actions">{actions}</div>}
       </div>
+      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Unlink to customize this parameter, or open the shared source.` : `Custom ${label} - Stored in this parameter.`}</p>
+      {librarySource !== null && <p className="param-source-description">{sourcePackage === undefined ? "Project source" : `Read-only source from package: ${sourcePackage.identity}`} · {librarySource.path}</p>}
       {!disabled && (
         <div className="param-source-actions">
           {linked && (
             <a href="#" className="neutral-button" onClick={(event) => {
               event.preventDefault();
               void navigateToGuiObject({ moduleId: librarySource.moduleId, path: librarySource.path, objectKey: librarySource.objectKey });
-            }}>Edit source</a>
+            }}>Open source</a>
           )}
           {linked && (
-            <button type="button" className="neutral-button icon-button" title="Make editable copy" onClick={() => { requestEditableCopy("edit"); }}>
-              <CopyPlus size={THEME_METRICS.iconSizeSmall} />
+            <button type="button" className="neutral-button" onClick={() => { requestUnlink("edit"); }}>
+              <Link2Off size={THEME_METRICS.iconSizeSmall} />
+              Unlink and customize
             </button>
           )}
-          <button type="button" className="neutral-button icon-button" title="Flip horizontal" onClick={flipHorizontal}>
+          <button type="button" className="neutral-button icon-button" title={linked ? "Unlink and flip horizontal" : "Flip horizontal"} onClick={flipHorizontal}>
             <FlipHorizontal2 size={THEME_METRICS.iconSizeSmall} />
           </button>
           {flipVerticalPoints !== undefined && (
-            <button type="button" className="neutral-button icon-button" title="Flip vertical" onClick={flipVertical}>
+            <button type="button" className="neutral-button icon-button" title={linked ? "Unlink and flip vertical" : "Flip vertical"} onClick={flipVertical}>
               <FlipVertical2 size={THEME_METRICS.iconSizeSmall} />
             </button>
           )}
@@ -681,18 +685,18 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         points,
         commit,
         readOnly: disabled || linked,
-        ...(disabled ? {} : { requestInlineEdit: () => { requestEditableCopy("edit"); } }),
+        ...(disabled ? {} : { requestInlineEdit: () => { requestUnlink("edit"); } }),
         showName: false
       })}
-      <AlertDialog.Root open={pendingCopyAction !== null} onOpenChange={(open) => { if (!open) setPendingCopyAction(null); }}>
+      <AlertDialog.Root open={pendingUnlinkAction !== null} onOpenChange={(open) => { if (!open) setPendingUnlinkAction(null); }}>
         <AlertDialog.Portal container={portalContainer}>
           <AlertDialog.Overlay className="dialog-overlay" />
           <AlertDialog.Content className="dialog-content">
-            <AlertDialog.Title>{copyDialogTitle}</AlertDialog.Title>
-            <AlertDialog.Description>{copyDialogDescription}</AlertDialog.Description>
+            <AlertDialog.Title>{unlinkDialogTitle}</AlertDialog.Title>
+            <AlertDialog.Description>{unlinkDialogDescription}</AlertDialog.Description>
             <div className="dialog-actions">
               <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action onClick={confirmPendingCopyAction}>Make Copy</AlertDialog.Action>
+              <AlertDialog.Action onClick={confirmPendingUnlinkAction}>{pendingUnlinkAction === "edit" ? "Unlink and customize" : "Unlink and flip"}</AlertDialog.Action>
             </div>
           </AlertDialog.Content>
         </AlertDialog.Portal>

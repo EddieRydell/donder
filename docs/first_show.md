@@ -52,6 +52,6 @@ See [controller setup](esp32_loading.md#install-from-donder).
 
 Dependency resources remain read-only. Setup can create an editable layout or
 controller copy; shared dependency definitions must be exported to remain
-referenced. To edit a whole imported project, use **Create Editable Project Copy**.
+referenced. To change a whole imported project independently, use **Create Standalone Project Copy**. This creates and opens a separate project with local copies of imported sources and referenced audio.
 A rejected edit leaves the accepted project intact. A save failure reports the
 path and remains unsaved until corrected.

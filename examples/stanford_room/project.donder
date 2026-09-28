@@ -1,0 +1,14 @@
+imports:
+- from:
+    documents:
+    - setups/main.setup.donder
+  as: setups
+- from:
+    documents:
+    - sequences/main.sequence.donder
+  as: sequences
+stanford_room:
+  type: project
+  setup: setups.main
+  sequences:
+  - sequences.main

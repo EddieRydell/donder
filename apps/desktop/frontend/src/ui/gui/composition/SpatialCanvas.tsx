@@ -1,18 +1,28 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
+import * as ContextMenu from "@radix-ui/react-context-menu";
+import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { drawSpatialCanvas, nearestPoint, normalizeBounds, normalizePoint, unproject } from "../shared";
 import { SpatialControls, useSpatialViewport } from "../SpatialViewport";
+import { LayoutAddMenu } from "./LayoutAddMenu";
 
 type Move = (delta: Point3Meters) => Promise<boolean>;
 type Gesture = { type: "pan"; x: number; y: number } | { type: "move"; owner: number; x: number; y: number; scale: number; commit: Move; pixels: SpatialRenderPixel[] };
 type Offset = { owner: number; x: number; y: number; pixels: SpatialRenderPixel[] };
+type LayoutMenu = {
+  availableFixtures: GuiObjectRef[];
+  enabled: boolean;
+  onAddFixture: (definition: GuiObjectRef, position: Point3Meters) => void;
+  onCreateFixture: (position: Point3Meters) => void;
+  onAddGroup: () => void;
+};
 
-export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveStart }: { plan: SpatialRenderPlan; documentKey: string; selected: number | null; onSelect: (owner: number | null) => void; onMoveStart: (owner: number) => Move | null }) {
+export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveStart, layoutMenu }: { plan: SpatialRenderPlan; documentKey: string; selected: number | null; onSelect: (owner: number | null) => void; onMoveStart: (owner: number) => Move | null; layoutMenu?: LayoutMenu }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const settledOffsets = useRef(new WeakSet<Offset>());
   const [offset, setOffset] = useState<Offset | null>(null);
+  const [menuPosition, setMenuPosition] = useState<Point3Meters | null>(null);
   const bounds = useMemo(() => normalizeBounds(plan.bounds), [plan.bounds]);
   const spatial = useSpatialViewport(bounds, documentKey, documentKey);
   const points = useMemo(() => plan.pixels.map((pixel) => normalizePoint(pixel.position)), [plan.pixels]);
@@ -43,8 +53,7 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
     observer.observe(element);
     return () => { observer.disconnect(); };
   }, [bounds, plan, selected, spatial, offset]);
-  return <div className="spatial-canvas-shell">
-    <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Fixture pixels"
+  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Fixture pixels"
       onKeyDown={(event) => { if (event.key === "Home") { event.preventDefault(); spatial.reset(); } }}
       onPointerDown={(event) => {
         if (event.button !== 0 && event.button !== 1) return;
@@ -86,7 +95,26 @@ export function SpatialCanvas({ plan, documentKey, selected, onSelect, onMoveSta
         const rect = event.currentTarget.getBoundingClientRect();
         spatial.zoomAt(Math.exp(-event.deltaY * THEME_METRICS.spatialWheelZoomScale), event.clientX - rect.left, event.clientY - rect.top);
       }}
-    />
+      onContextMenu={(event) => {
+        if (layoutMenu === undefined) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const point = unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view);
+        setMenuPosition({ xMeters: point.x, yMeters: point.y, zMeters: point.z });
+      }}
+    />;
+  return <div className="spatial-canvas-shell">
+    {layoutMenu === undefined ? canvasElement : <ContextMenu.Root onOpenChange={(open) => { if (!open) setMenuPosition(null); }}>
+      <ContextMenu.Trigger asChild disabled={!layoutMenu.enabled}>{canvasElement}</ContextMenu.Trigger>
+      {menuPosition !== null && <ContextMenu.Portal><ContextMenu.Content className="menu-content">
+        <LayoutAddMenu
+          availableFixtures={layoutMenu.availableFixtures}
+          enabled={layoutMenu.enabled}
+          onAddFixture={(fixture) => { layoutMenu.onAddFixture(fixture, menuPosition); }}
+          onCreateFixture={() => { layoutMenu.onCreateFixture(menuPosition); }}
+          onAddGroup={layoutMenu.onAddGroup}
+        />
+      </ContextMenu.Content></ContextMenu.Portal>}
+    </ContextMenu.Root>}
     <SpatialControls view={spatial.view} reset={spatial.reset} zoomAt={spatial.zoomAt} />
   </div>;
 }

@@ -1,4 +1,5 @@
 import { CompositionEditor } from "./composition/CompositionEditor";
+import { ReadOnlySourceNotice } from "../ReadOnlySourceNotice";
 import { useEffect, useState } from "react";
 
 import type { GuiDocument, WorkspaceLayoutState } from "../../types";
@@ -35,7 +36,7 @@ export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
   const gui = props.guiDocument;
   const key = gui !== null && gui.type !== "blocked" ? guiEditorKey(props.snapshot.activeFile, gui) : "unavailable";
   return <div className="resource-editor-frame">
-    {readOnly && <p className="resource-editor-readonly">Dependency source — read only</p>}
+    {readOnly && props.snapshot.activeBuffer !== null && <ReadOnlySourceNotice name={props.snapshot.activeBuffer.name} />}
     <fieldset className="resource-editor-content" disabled={readOnly}><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
   </div>;
 }

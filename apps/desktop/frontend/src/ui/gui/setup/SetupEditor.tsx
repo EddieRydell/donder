@@ -18,13 +18,16 @@ export function SetupEditor({ document }: { document: SetupDocument }) {
       </header>
       <section className="object-overview-group">
         <h3>Composition</h3>
-        <SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={referenceLabel(document.layoutRef)} detail="Fixture instances and groups" onOpen={() => void navigateToGuiObject(document.layoutRef)} />
-        <SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={referenceLabel(document.patchRef)} detail="LED output routes" onOpen={() => void navigateToGuiObject(document.patchRef)} />
-        {(document.layoutReadOnly || document.patchReadOnly) && <button className="object-overview-inline-action" type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "copyLayout" }))}>Make independent layout copy</button>}
+        <SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={referenceLabel(document.layoutRef)} detail={document.layoutReadOnly ? "Read-only package source" : "Fixture instances and groups"} onOpen={() => void navigateToGuiObject(document.layoutRef)} />
+        <SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={referenceLabel(document.patchRef)} detail={document.patchReadOnly ? "Read-only package source" : "LED output routes"} onOpen={() => void navigateToGuiObject(document.patchRef)} />
+        {(document.layoutReadOnly || document.patchReadOnly) && <div>
+          <p className="param-source-description">Use local copies of the layout and patch in this setup. For the active setup, sequence targets follow the copied layout. Fixture definitions remain shared.</p>
+          <button className="object-overview-inline-action" type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "copyLayout" }))}>Copy layout and patch into project</button>
+        </div>}
       </section>
       <section className="object-overview-group">
         <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addController", config, ports })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
-        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={referenceLabel(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={referenceLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><details className="setup-controller-actions"><summary aria-label={`Setup actions for ${controller.label}`}><MoreHorizontal aria-hidden="true" /></summary><div><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></div></details></div>)}
+        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={referenceLabel(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={referenceLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs${controller.readOnly ? " - Read-only package source" : ""}`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><details className="setup-controller-actions"><summary aria-label={`Setup actions for ${controller.label}`}><MoreHorizontal aria-hidden="true" /></summary><div><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></div></details></div>)}
       </section>
     </main>
   );

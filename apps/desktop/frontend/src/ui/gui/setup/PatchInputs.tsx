@@ -10,5 +10,5 @@ export function ReferenceInput({ label, value, choices, onChange }: { label: str
   return <div><label>{label}<select value={index} onChange={(event) => { const next = choices[Number(event.target.value)]; if (next !== undefined) onChange(next); }}>
     {index < 0 && <option value={-1} disabled>{value.path}#{value.objectKey} (unavailable)</option>}
     {choices.map((choice, index) => <option key={index} value={index}>{choice.path}#{choice.objectKey}</option>)}
-  </select></label><a href="#" onClick={(event) => { event.preventDefault(); void navigateToGuiObject(value); }}>Edit source</a></div>;
+  </select></label><a href="#" onClick={(event) => { event.preventDefault(); void navigateToGuiObject(value); }}>Open source</a></div>;
 }

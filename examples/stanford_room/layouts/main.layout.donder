@@ -1,0 +1,26 @@
+main:
+  type: layout
+  fixtures:
+  - id: 2
+    name: Desk
+    type: fixture
+    definition: fixture_2
+    transform:
+      position:
+        x: 0.321041
+        y: 0.810195
+        z: 0.0
+      rotation:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      scale:
+        x: 1.0
+        y: 1.0
+        z: 1.0
+fixture_1:
+  type: fixture
+  pixels: []
+fixture_2:
+  type: fixture
+  pixels: []

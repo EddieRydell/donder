@@ -60,7 +60,7 @@ effects select whole instances or layout groups and retain parameter automation.
 
 Copying a layout preserves shared definitions and instance IDs, creates its own
 patch, and retargets affected sequences. Dependency definitions remain read-only
-and must be exported/imported to stay referenced from an editable copy.
+and must be exported/imported to stay referenced from the copied layout.
 
 Preparation converts pixel coordinates once and resolves layout targets to
 instance ranges. Playback does not resolve names, imports, or groups per frame.

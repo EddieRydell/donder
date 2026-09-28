@@ -16,8 +16,9 @@ This runs generated binding export, TypeScript typecheck, frontend lint and unus
 analysis, production frontend build, frontend tests, Rust format/check/tests, the
 firmware-owned storage recovery tests on the host, and strict workspace Clippy.
 Run `pnpm storage:test` from the repository root for the storage tests alone.
-They require a host C compiler and host libclang; `LIBCLANG_PATH` must not point
-to the ESP cross-toolchain library. See the firmware README for the boundary.
+They require a host C compiler and `DONDER_HOST_LIBCLANG_PATH` configured per
+the root [prerequisites](../README.md#prerequisites). The runner overrides
+inherited `LIBCLANG_PATH` for Cargo and isolates host storage build artifacts.
 
 For documentation-only, example-only, or other changes unaffected by build/test checks, `pnpm check`
 is not required.

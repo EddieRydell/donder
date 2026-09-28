@@ -18,7 +18,7 @@ pub fn copy_controller(
         .position(|id| id == original)
         .ok_or("Choose a controller in this setup.")?;
     if project.controllers.contains_key(&copy) || project.patches.contains_key(&patch_id) {
-        return Err("Editable copies require new source identities.".into());
+        return Err("Controller and patch copies require new source identities.".into());
     }
     let controller = project
         .controllers
@@ -101,7 +101,7 @@ pub fn detach_controller(
             .values()
             .any(|other| &other.id != setup_id && other.patch == patch_id)
         {
-            return Err("Another setup uses this patch. Make an independent patch copy before removing its controller outputs.".into());
+            return Err("Another setup uses this patch. Choose Use controller copy in this setup first; this also copies the patch so output changes stay in this setup.".into());
         }
         let patch = project
             .patches

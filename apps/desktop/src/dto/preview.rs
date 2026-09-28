@@ -84,9 +84,18 @@ pub enum GuiLayoutFixtureKind {
     rename_all_fields = "camelCase"
 )]
 pub enum LayoutGuiEdit {
-    AddDefinition { name: String, parent: Option<u32> },
-    SetFixtures { fixtures: Vec<GuiLayoutFixture> },
-    MoveFixture { id: u32, delta: Point3Meters },
+    AddDefinition {
+        name: String,
+        parent: Option<u32>,
+        transform: Transform,
+    },
+    SetFixtures {
+        fixtures: Vec<GuiLayoutFixture>,
+    },
+    MoveFixture {
+        id: u32,
+        delta: Point3Meters,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

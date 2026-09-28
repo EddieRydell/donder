@@ -65,7 +65,6 @@ crates/donder-cli/              Standalone `donder` package and project CLI
 firmware/esp32/               ESP32 workspace, device storage, Wi-Fi transport, I2S output, and profiling
 examples/starter/             The single maintained example project
 docs/                         Current user, architecture, loading, and validation references
-tools/                        Repository tooling
 ```
 
 ## Getting Started
@@ -85,8 +84,27 @@ Install:
 - pnpm version pinned in `package.json`
 - Tauri 2 system dependencies for your operating system
 - A host C compiler and host libclang for `pnpm storage:test`, included in
-  `pnpm check`. Set `LIBCLANG_PATH` to the host library, not ESP32's cross-toolchain
-  library, when running the host gate.
+  `pnpm check`. Install native LLVM/libclang and set `DONDER_HOST_LIBCLANG_PATH`
+  in your development environment to its library file or containing directory.
+  This is a machine-specific setting; do not commit an installation path.
+
+Typical host LLVM setup:
+
+| Platform | Install | Set `DONDER_HOST_LIBCLANG_PATH` to |
+| --- | --- | --- |
+| Windows | `winget install LLVM.LLVM` | Your LLVM `bin` directory, commonly `C:\Program Files\LLVM\bin` |
+| macOS | `brew install llvm` | The `lib` directory under `brew --prefix llvm` |
+| Debian/Ubuntu | `apt install libclang-dev` | The installed LLVM `lib` directory containing `libclang.so` |
+
+For example, in a Windows PowerShell session use
+`$env:DONDER_HOST_LIBCLANG_PATH = 'C:\Program Files\LLVM\bin'`; in a POSIX shell
+use `export DONDER_HOST_LIBCLANG_PATH=/path/to/llvm/lib`. Configure the same
+variable in CI's environment when running the gate.
+
+`pnpm storage:test` requires this setting and passes it as `LIBCLANG_PATH` only
+to its Cargo child process, overriding any inherited ESP LLVM selection.
+Host storage build artifacts live in `target/storage-host`. The command uses
+Node already required by pnpm and runs unchanged on Windows, macOS, and Linux.
 
 ### Install Dependencies
 

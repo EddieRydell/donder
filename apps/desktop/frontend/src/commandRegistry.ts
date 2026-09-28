@@ -51,7 +51,7 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "file.newProject": command("New Project...", "File", ["create"], () => {
     window.dispatchEvent(new CustomEvent("donder:new-project"));
   }),
-  "file.copyProject": command("Create Editable Project Copy...", "File", ["copy", "dependency", "fork"], () => {
+  "file.copyProject": command("Create Standalone Project Copy...", "File", ["copy", "dependency", "fork"], () => {
     window.dispatchEvent(new CustomEvent("donder:copy-project"));
   }, hasProject),
   "file.newSequence": command("New Sequence...", "File", ["create", "document"], () => {

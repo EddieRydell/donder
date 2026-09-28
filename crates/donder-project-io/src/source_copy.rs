@@ -92,14 +92,14 @@ pub(crate) fn remap_documents(
     Ok(())
 }
 
-/// Export the loaded show and its complete imported source graph as one editable
+/// Export the loaded show and its complete imported source graph as one standalone
 /// project. All writes are staged; the destination must not already exist.
 pub fn export_editable_project(
     session: &ProjectSession,
     destination: &Utf8Path,
 ) -> Result<ExportReport, String> {
     if destination.exists() {
-        return Err("Choose a new folder for the editable project copy.".into());
+        return Err("Choose a new folder for the standalone project copy.".into());
     }
     let parent = destination
         .parent()
@@ -217,9 +217,9 @@ pub fn export_editable_project(
         .write(&staged)
         .map_err(|error| error.to_string())?;
     crate::load_package(&staged)
-        .map_err(|error| format!("Editable copy could not be loaded: {error:?}"))?;
+        .map_err(|error| format!("Standalone project copy could not be loaded: {error:?}"))?;
     std::fs::rename(&staged, destination)
-        .map_err(|error| format!("Could not finish editable copy: {error}"))?;
+        .map_err(|error| format!("Could not finish standalone project copy: {error}"))?;
     written_files.extend([
         donder_package::MANIFEST_FILE.into(),
         donder_package::LOCK_FILE.into(),

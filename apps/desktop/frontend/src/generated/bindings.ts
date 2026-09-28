@@ -341,7 +341,7 @@ export type LayoutGuiDocument = {
 	renderPlan: SpatialRenderPlan,
 };
 
-export type LayoutGuiEdit = { type: "addDefinition"; name: string; parent: number | null } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+export type LayoutGuiEdit = { type: "addDefinition"; name: string; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 export type LiveOutputControllerSnapshot = {
 	id: string,

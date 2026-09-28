@@ -13,11 +13,19 @@ the archive, transport, install, and verification workflow.
 
 ## Toolchain and dependencies
 
-Enter the environment before firmware commands:
+Install the ESP Rust toolchain with [espup](https://github.com/esp-rs/espup)
+and install `espflash`. Configure these machine-local environment variables:
 
-```powershell
-. ./export-esp.ps1
-```
+- `DONDER_ESP_LIBCLANG_PATH`: ESP's libclang file or containing directory.
+- `DONDER_ESP_TOOLCHAIN_BIN`: the directory containing `xtensa-esp32-elf-gcc`
+  (`xtensa-esp32-elf-gcc.exe` on Windows).
+
+Use the installation locations reported by espup. These vary by platform and
+toolchain version; do not commit local paths. Node and pnpm use the root
+package's requirements. The firmware runner sets PATH, LIBCLANG_PATH, and
+CARGO_TARGET_DIR only for child processes, with build output in this directory's
+`target/`. No shell activation is required. Host storage tests separately use
+`DONDER_HOST_LIBCLANG_PATH`.
 
 The workspace targets the classic ESP32 using the esp-rs toolchain. SDK crates
 are patched together to upstream revision
@@ -38,15 +46,15 @@ exists and the board checks are repeated.
 Build the installable image from the repository root:
 
 ```powershell
-./firmware/esp32/build-image.ps1
+pnpm firmware:build
 ```
 
-For focused development builds from this directory:
+For focused development builds from the repository root:
 
 ```powershell
-cargo +esp build --release --bin donder-esp32 --locked
-cargo +esp build --release --features pc-profile --bin pc_profile --locked
-cargo +esp build --release --features i2s-output --bin loader --locked
+pnpm firmware:cargo build --release --bin donder-esp32 --locked
+pnpm firmware:cargo build --release --features pc-profile --bin pc_profile --locked
+pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
 ```
 
 Directly flashing the loader must use `partitions.csv`; omitting it loses the
@@ -70,21 +78,21 @@ See the [evidence policy](../../docs/performance.md) and the
 The root `pnpm check` runs all six device-storage recovery tests through
 `pnpm storage:test`. Run that command from the repository root: it uses the
 host Rust toolchain and does not inherit this directory's Xtensa Cargo config.
-These tests require a host C compiler and host libclang. On Windows, set
-`LIBCLANG_PATH` to a host LLVM library before running the gate; do not use the
-ESP cross-toolchain libclang selected by `export-esp.ps1`. A wrong library can
-make bindgen fail with a host pointer-size assertion. This machine also has a
-usable host library bundled with RStudio; its location is machine configuration,
-not a repository dependency.
+These tests require a host C compiler and host libclang. Configure
+`DONDER_HOST_LIBCLANG_PATH` as described in the root [prerequisites](../../README.md#prerequisites).
+The runner passes that path to Cargo as `LIBCLANG_PATH`, overriding the ESP
+selection without modifying the calling shell. It uses `target/storage-host`
+under the repository root for host storage artifacts. Missing configuration
+fails before Cargo starts; an incompatible library fails during binding generation.
 
 The desktop and ESP32 workspaces have different toolchains. Do not run host
-builds with `+esp`. From this directory, firmware validation is:
+builds with `+esp`. From the repository root, firmware validation is:
 
 ```powershell
-cargo +1.98.1 fmt --check
-cargo +esp clippy --release --features pc-profile --bins --locked -- -D warnings
-cargo +esp clippy --release --features i2s-output --bin loader --locked -- -D warnings
-uvx --from esptool python -m unittest test_capture_pc
+cargo fmt --manifest-path firmware/esp32/Cargo.toml --check
+pnpm firmware:cargo clippy --release --features pc-profile --bins --locked -- -D warnings
+pnpm firmware:cargo clippy --release --features i2s-output --bin loader --locked -- -D warnings
+uvx --from esptool python -m unittest discover -s firmware/esp32 -p test_capture_pc.py
 ```
 
 These checks do not flash a board or verify physical LED output. Report source

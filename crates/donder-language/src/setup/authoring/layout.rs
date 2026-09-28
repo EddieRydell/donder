@@ -15,7 +15,7 @@ pub fn copy_setup_layout(
 ) -> Result<(), String> {
     let setup = project.setups.get(setup_id).ok_or("Setup was not found.")?;
     if project.layouts.contains_key(&layout_id) || project.patches.contains_key(&patch_id) {
-        return Err("Editable copies require new source identities.".into());
+        return Err("Layout and patch copies require new source identities.".into());
     }
     let original = setup.layout.clone();
     let mut layout = project

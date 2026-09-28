@@ -201,6 +201,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
             LayoutGuiEdit::AddDefinition {
                 name: "Strip".into(),
                 parent: None,
+                transform: transform(0.0),
             },
         )
         .document,

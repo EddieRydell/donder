@@ -39,7 +39,19 @@ authoring targets layout instances or groups and edits typed effects, operators,
 parameters, automation, and timing.
 
 Definitions shared by multiple instances remain one object. Imported dependency
-objects are read-only; an editable copy is created explicitly. Mutual document
+objects are explicitly marked read-only. Setup actions copy controllers or the
+layout and patch into the project and switch that setup to the copies. A
+standalone project copy instead creates and opens a separate project with local
+copies of its imported sources and referenced audio.
+
+Linked curves and gradients are references to shared definitions, not local
+parameter values. **Open source** navigates to the definition; changing a writable
+source affects parameters linked to it. **Unlink and customize** retains the
+current curve or gradient directly in this parameter, leaving the source
+unchanged and no longer following its changes. The dropdown, preview editing,
+and flip actions explain and confirm unlinking through the same dialog.
+
+Mutual document
 imports are valid because the loader indexes local objects before following
 imports. DSL generators declare their own imports and never inherit the caller's
 YAML scope.
@@ -48,7 +60,7 @@ Each GUI edit deep-clones the session once, applies the mutation to that
 candidate, validates the edit contract, and publishes the accepted immutable
 snapshot. A rejected edit leaves the prior snapshot untouched. Save and render
 refresh are scheduled from the accepted revision; they do not introduce another
-editable copy or reload YAML to validate a GUI mutation.
+mutable session clone or reload YAML to validate a GUI mutation.
 
 ## Playback boundary
 

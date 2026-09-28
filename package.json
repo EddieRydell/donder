@@ -10,6 +10,8 @@
     "pnpm": "12.3.4"
   },
   "scripts": {
+    "firmware:build": "node firmware/esp32/firmware.mjs build",
+    "firmware:cargo": "node firmware/esp32/firmware.mjs cargo",
     "generate:bindings": "pnpm --dir apps/desktop bindings",
     "typecheck": "pnpm generate:bindings && pnpm --dir apps/desktop/frontend typecheck",
     "lint": "pnpm --dir apps/desktop/frontend lint",
@@ -18,7 +20,7 @@
     "rust:fmt": "cargo fmt --check",
     "rust:check": "cargo check --workspace --all-targets",
     "rust:test": "cargo test --workspace",
-    "storage:test": "cargo test --manifest-path firmware/esp32/Cargo.toml -p donder-device-storage --lib --locked",
+    "storage:test": "node -e \"const p=process.env.DONDER_HOST_LIBCLANG_PATH; if (!p || !require('node:fs').existsSync(p)) { console.error('Set DONDER_HOST_LIBCLANG_PATH to your native LLVM library or its containing directory. See README.md prerequisites.'); process.exit(1); } const r=require('node:child_process').spawnSync('cargo',['test','--manifest-path','firmware/esp32/Cargo.toml','-p','donder-device-storage','--lib','--locked'],{stdio:'inherit',env:{...process.env,LIBCLANG_PATH:p,CARGO_TARGET_DIR:require('node:path').resolve('target/storage-host')}}); if (r.error) console.error(r.error.message); process.exit(r.status ?? 1);\"",
     "rust:clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     "check": "pnpm typecheck && pnpm lint && pnpm --dir apps/desktop/frontend knip && pnpm frontend:build && pnpm frontend:test && pnpm rust:fmt && pnpm rust:check && pnpm rust:test && pnpm storage:test && pnpm rust:clippy",
     "ci": "pnpm check",

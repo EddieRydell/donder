@@ -153,7 +153,7 @@ pub(super) fn ensure_owned_target(
         Ok(())
     } else {
         Err(GuiMutationError::Blocked(format!(
-            "{} belongs to a dependency. Make a project-owned copy before editing it.",
+            "{} is a read-only package source. Copy it into the project from its setup, or use File > Create Standalone Project Copy.",
             identity.object()
         )))
     }

@@ -77,7 +77,7 @@ impl DesktopState {
             }
             if document.buffer.read_only {
                 return Err(
-                    "Dependency sources are read-only. Create an independent copy to edit them."
+                    "This package source is read-only. Use File > Create Standalone Project Copy to change package sources in a separate project."
                         .into(),
                 );
             }

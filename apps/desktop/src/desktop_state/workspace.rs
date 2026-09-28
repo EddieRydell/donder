@@ -487,7 +487,7 @@ impl DesktopState {
                 return self.snapshot_with_error(
                     "project.copy",
                     parent_path,
-                    "Fix project errors before creating an editable copy",
+                    "Fix project errors before creating a standalone project copy",
                 );
             };
             project
