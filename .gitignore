@@ -54,3 +54,5 @@ firmware/esp32/results/*
 !firmware/esp32/results/README.md
 !firmware/esp32/results/accepted/
 !firmware/esp32/results/accepted/**
+
+*.mp3
