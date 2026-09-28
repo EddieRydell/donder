@@ -19,7 +19,6 @@ pub enum PathChangeSourceKind {
 pub struct PathChangeImpact {
     pub documents: Vec<String>,
     pub imports: Vec<String>,
-    pub configuration: Vec<String>,
     pub assets: Vec<String>,
 }
 
@@ -78,8 +77,8 @@ pub fn plan_path_change(
         return Err("Only regular files and directories can be moved.".to_string());
     };
 
-    if source.as_str() == crate::PROJECT_CONFIG_FILE {
-        return Err("Project configuration remains at the project root.".into());
+    if source.as_str() == crate::PROJECT_ROOT_FILE {
+        return Err("project.donder must remain at the project root.".into());
     }
     let document_remaps = session
         .source
@@ -114,18 +113,7 @@ pub fn plan_path_change(
         })
         .map(|(id, _)| id.path().to_string())
         .collect();
-    let configuration = if replace_prefix(
-        &session.source.workspace.config.entrypoint,
-        &source,
-        &destination,
-    )
-    .is_some()
-    {
-        vec![crate::PROJECT_CONFIG_FILE.into()]
-    } else {
-        Vec::new()
-    };
-    let structural = !document_remaps.is_empty() || !assets.is_empty() || !configuration.is_empty();
+    let structural = !document_remaps.is_empty() || !assets.is_empty();
     Ok(PathChangePlan {
         source,
         destination,
@@ -137,7 +125,6 @@ pub fn plan_path_change(
                 .map(|id| id.path().to_string())
                 .collect(),
             imports,
-            configuration,
             assets,
         },
         document_remaps,
@@ -229,12 +216,6 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
         &mut candidate.project,
         &plan.document_remaps,
     );
-    if let Some(entrypoint) = candidate.source.entrypoint.as_mut()
-        && let Some(next) = plan.document_remaps.get(entrypoint)
-    {
-        *entrypoint = next.clone();
-    }
-
     crate::source_copy::remap_documents(&mut candidate.source, &plan.document_remaps)?;
 
     let root = candidate.source.project_root().to_owned();
@@ -254,13 +235,6 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
         }
         asset.absolute_path = root.join(&asset.relative_path);
     }
-    if let Some(next) = replace_prefix(
-        &candidate.source.workspace.config.entrypoint,
-        &plan.source,
-        &plan.destination,
-    ) {
-        candidate.source.workspace.config.entrypoint = next;
-    }
     Ok(())
 }
 
@@ -273,18 +247,11 @@ fn prepare_writes(candidate: &ProjectSession) -> Result<BTreeMap<Utf8PathBuf, Ve
             text.into_bytes(),
         );
     }
-    writes.insert(
-        candidate
-            .source
-            .project_root()
-            .join(crate::PROJECT_CONFIG_FILE),
-        candidate.source.workspace.config.to_text()?.into_bytes(),
-    );
     Ok(writes)
 }
 
 fn validate_candidate(candidate: &ProjectSession) -> Result<(), String> {
-    candidate.source.workspace.config.validate()?;
+    candidate.source.workspace.metadata.validate()?;
     crate::serialization::validate_source_inventory(candidate).map_err(|error| error.to_string())
 }
 

@@ -124,7 +124,12 @@ impl SourceProject {
                     format!("{prefix}_{index}")
                 }
             })
-            .find(|key| source.objects.iter().all(|object| object.id() != key))
+            .find(|key| {
+                key != "imports"
+                    && !(document.path() == Utf8Path::new(crate::PROJECT_ROOT_FILE)
+                        && key == "workspace")
+                    && source.objects.iter().all(|object| object.id() != key)
+            })
             .ok_or_else(|| "No source object identifiers remain.".to_string())?;
         source.objects.push(SourceObjectId::new(kind, key.clone())?);
         Ok(donder_language::identity::SourceIdentity::from_document(
@@ -156,7 +161,7 @@ impl SourceProject {
     }
 
     pub fn project_module_id(&self) -> Uuid {
-        self.workspace.config.project_id
+        self.workspace.metadata.project_id
     }
     pub fn project_root(&self) -> &Utf8Path {
         &self.workspace.root

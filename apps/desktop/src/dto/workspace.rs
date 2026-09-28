@@ -249,7 +249,6 @@ pub enum WorkspaceEntryRole {
     Effect,
     Operator,
     Sequence,
-    Configuration,
     Asset,
     File,
 }
@@ -330,7 +329,6 @@ pub struct WorkspacePathChangeRequest {
 pub struct WorkspacePathChangeImpact {
     pub documents: Vec<String>,
     pub imports: Vec<String>,
-    pub configuration: Vec<String>,
     pub assets: Vec<String>,
     pub open_files: Vec<String>,
     pub recent_files: Vec<String>,

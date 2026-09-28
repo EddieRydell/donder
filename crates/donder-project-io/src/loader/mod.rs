@@ -32,16 +32,16 @@ pub(super) struct Loader {
 impl Loader {
     pub(super) fn new(workspace: crate::ProjectWorkspace) -> Result<Self, LoadProjectError> {
         workspace
-            .config
+            .metadata
             .validate()
             .map_err(|message| LoadProjectError::InvalidDocument {
-                path: crate::PROJECT_CONFIG_FILE.into(),
+                path: crate::PROJECT_ROOT_FILE.into(),
                 range: None,
                 message,
             })?;
         let entrypoint = donder_language::identity::DocumentId::new(
-            workspace.config.project_id,
-            workspace.config.entrypoint.clone(),
+            workspace.metadata.project_id,
+            crate::PROJECT_ROOT_FILE.into(),
         );
         Ok(Self {
             workspace,
@@ -120,8 +120,9 @@ impl Loader {
                         return Err(LoadProjectError::InvalidDocument {
                             path: document.path().to_path_buf(),
                             range: None,
-                            message: "project objects must be the active configuration entrypoint"
-                                .to_string(),
+                            message:
+                                "project objects must belong to the root project.donder document"
+                                    .to_string(),
                         });
                     }
                 }
@@ -209,7 +210,7 @@ impl Loader {
         &self,
         document_id: &donder_language::identity::DocumentId,
     ) -> Result<Utf8PathBuf, LoadProjectError> {
-        if document_id.module_id() != self.workspace.config.project_id {
+        if document_id.module_id() != self.workspace.metadata.project_id {
             return Err(LoadProjectError::InvalidDocument {
                 path: document_id.path().to_owned(),
                 range: None,
@@ -428,7 +429,9 @@ impl Loader {
                     message: "object keys must be strings".to_string(),
                 });
             };
-            if key == "imports" {
+            if key == "imports"
+                || (relative == Utf8Path::new(crate::PROJECT_ROOT_FILE) && key == "workspace")
+            {
                 continue;
             }
             Identifier::new(key.to_string()).map_err(|_| LoadProjectError::InvalidDocument {
@@ -599,7 +602,7 @@ impl Loader {
             let Some(key) = key.as_str() else {
                 continue;
             };
-            if key == "imports" {
+            if key == "imports" || key == "workspace" {
                 continue;
             }
             if string_field(path, value, "type")? == "project" {

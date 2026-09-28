@@ -92,7 +92,7 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                 .unwrap_or_else(|| path.to_string());
             let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
             let role = recovery_workspace_role(recovery, &path, kind);
-            let fixed = matches!(role, WorkspaceEntryRole::Configuration);
+            let fixed = matches!(role, WorkspaceEntryRole::Entrypoint);
             WorkspaceEntry {
                 path: canonical_relative_path(&path).to_string(),
                 kind: match kind {
@@ -107,7 +107,7 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                     FsEntryKind::Directory => Vec::new(),
                 },
                 operation_explanation: Some(if fixed {
-                    "Project configuration remains at the project root.".to_string()
+                    "project.donder must remain at the project root.".to_string()
                 } else {
                     "Project-model operations are disabled until project errors are fixed."
                         .to_string()
@@ -125,8 +125,8 @@ fn recovery_workspace_role(
     if matches!(kind, FsEntryKind::Directory) {
         return WorkspaceEntryRole::Directory;
     }
-    if path == Utf8Path::new(donder_project_io::PROJECT_CONFIG_FILE) {
-        return WorkspaceEntryRole::Configuration;
+    if path == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
+        return WorkspaceEntryRole::Entrypoint;
     }
     let Some(document) = recovery.documents.get(path) else {
         return WorkspaceEntryRole::File;
@@ -155,7 +155,7 @@ fn workspace_entry(
         .unwrap_or_else(|| path.to_string());
     let parent = path.parent().map(Utf8Path::to_string).unwrap_or_default();
     let role = workspace_role(session, &path, kind);
-    let fixed = matches!(role, WorkspaceEntryRole::Configuration);
+    let fixed = matches!(role, WorkspaceEntryRole::Entrypoint);
     let structural = session.source.is_structural_workspace_path(&path);
     let operations = match kind {
         FsEntryKind::Directory => {
@@ -190,7 +190,7 @@ fn workspace_entry(
         role,
         operations,
         operation_explanation: if fixed {
-            Some("Project configuration remains at the project root.".to_string())
+            Some("project.donder must remain at the project root.".to_string())
         } else if structural {
             Some(
                 "Imported documents cannot be deleted; rename or move them through the typed path workflow."
@@ -211,13 +211,10 @@ fn workspace_role(
         return WorkspaceEntryRole::Directory;
     }
     let module_id = session.source.project_module_id();
-    if relative == Utf8Path::new(donder_project_io::PROJECT_CONFIG_FILE) {
-        return WorkspaceEntryRole::Configuration;
-    }
-    let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
-    if session.source.entrypoint.as_ref() == Some(&document_id) {
+    if relative == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
         return WorkspaceEntryRole::Entrypoint;
     }
+    let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
     if let Some(document) = session.source.documents.get(&document_id) {
         return match document.kind() {
             donder_project_io::SourceDocumentKind::Effect { .. } => WorkspaceEntryRole::Effect,

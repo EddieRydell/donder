@@ -20,7 +20,7 @@ pub use ownership_edit::maintain_ownership_sources;
 mod project_config;
 mod project_loading;
 pub use project_config::{
-    PROJECT_CONFIG_FILE, PROJECT_FORMAT_VERSION, ProjectConfig, ProjectWorkspace, atomic_write,
+    PROJECT_FORMAT_VERSION, PROJECT_ROOT_FILE, ProjectMetadata, ProjectWorkspace, atomic_write,
     validate_document_path, validate_relative_path,
 };
 mod path_refactor;

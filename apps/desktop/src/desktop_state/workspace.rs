@@ -22,13 +22,13 @@ impl DesktopState {
         let candidate = Utf8Path::new(path);
         let root = if candidate.is_dir() {
             candidate
-        } else if candidate.file_name() == Some(donder_project_io::PROJECT_CONFIG_FILE) {
+        } else if candidate.file_name() == Some(donder_project_io::PROJECT_ROOT_FILE) {
             candidate.parent().unwrap_or(candidate)
         } else {
             return self.snapshot_with_error(
                 "project.open",
                 path,
-                "Open a project folder or its donder.json configuration.",
+                "Open a project folder or its root project.donder document.",
             );
         };
         self.load_working_copy(root)
@@ -221,7 +221,6 @@ impl DesktopState {
             impact: WorkspacePathChangeImpact {
                 documents: plan.impact.documents,
                 imports: plan.impact.imports,
-                configuration: plan.impact.configuration,
                 assets: plan.impact.assets,
                 open_files,
                 recent_files,
@@ -508,16 +507,10 @@ impl DesktopState {
         if opened.project_root.as_deref() != Some(root.as_str()) {
             return opened;
         }
-        let Some(project) = self.project_session() else {
+        if self.project_session().is_none() {
             return self.snapshot();
-        };
-        let entrypoint = project
-            .source
-            .entrypoint
-            .as_ref()
-            .map(|document| document.path().as_str().to_string())
-            .unwrap_or_else(|| project.project.root.id.0.document().to_string());
-        self.open_file_path(&entrypoint);
+        }
+        self.open_file_path(donder_project_io::PROJECT_ROOT_FILE);
         // The workspace transition already holds the authoring lock, and the
         // freshly loaded typed project has passed analysis.
         let mut settings = self.snapshot().settings;

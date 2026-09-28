@@ -984,7 +984,7 @@ export type WorkspaceEntry = {
 
 export type WorkspaceEntryKind = "directory" | "file";
 
-export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "configuration" | "asset" | "file";
+export type WorkspaceEntryRole = "directory" | "project" | "entrypoint" | "setup" | "controller" | "layout" | "fixture" | "patch" | "curve" | "gradient" | "effect" | "operator" | "sequence" | "asset" | "file";
 
 export type WorkspaceExplorerState = {
 	expandedPaths: string[],
@@ -1004,7 +1004,6 @@ export type WorkspaceOperation = "open" | "create" | "rename" | "delete" | "move
 export type WorkspacePathChangeImpact = {
 	documents: string[],
 	imports: string[],
-	configuration: string[],
 	assets: string[],
 	openFiles: string[],
 	recentFiles: string[],

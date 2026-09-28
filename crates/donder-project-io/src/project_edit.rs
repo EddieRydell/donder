@@ -17,17 +17,7 @@ pub fn export_project(
         source,
     })?;
 
-    let mut written_files = write_source_documents(session, output_root)?;
-    session
-        .source
-        .workspace
-        .config
-        .write(output_root)
-        .map_err(|message| ExportProjectError::Io {
-            path: output_root.join(crate::PROJECT_CONFIG_FILE),
-            source: std::io::Error::other(message),
-        })?;
-    written_files.push(crate::PROJECT_CONFIG_FILE.into());
+    let written_files = write_source_documents(session, output_root)?;
     let mut copied_assets = Vec::new();
     for source_asset in &session.source.referenced_assets {
         let output_path = output_root.join(&source_asset.relative_path);

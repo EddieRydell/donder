@@ -121,10 +121,10 @@ This starts the Vite frontend through Tauri and opens the Donder desktop app.
 
 ### Try An Example Project
 
-After the app opens, load the example project configuration:
+After the app opens, load the example project:
 
 ```text
-examples/starter/donder.json
+examples/starter/project.donder
 ```
 
 `examples/starter` is the complete 30-output starter project, including example effects, gradients, curves, operators, sequences, and audio assets.
@@ -177,8 +177,10 @@ toolchain and lockfile are isolated from desktop builds. See
 
 ## Local files and CLI
 
-A project folder contains `donder.json` with its format marker, stable project
-UUID, and entrypoint. It has no dependency list, asset inventory, or lockfile.
+A project folder starts at the fixed root `project.donder` document. Its `workspace`
+block contains `format_version` and a stable `project_id` UUID, followed by imports
+and authored objects. It has no separate manifest, dependency list, asset inventory,
+or lockfile.
 All imports point to files inside that folder. Download files or extract a folder
 from the registry, then edit imports and sequence targets to fit your show.
 Donder does not automatically download other resources or resolve versions.
@@ -189,7 +191,7 @@ cargo run -p donder-cli -- --path examples/starter check
 ```
 
 The CLI provides `init`, `check`, and `copy <destination>`. `init` creates the
-configuration for an existing entrypoint; `check` validates reachable documents;
+workspace metadata inside an existing root `project.donder`; `check` validates reachable documents;
 `copy` creates an independent project with its loaded sources and referenced audio.
 Unreferenced files remain available in the explorer without blocking the active
 show. Missing imports or incompatible targets in reachable documents produce
@@ -197,7 +199,7 @@ local diagnostics and remain repairable in the text editor.
 
 ## How A Donder Project Works
 
-The configuration's `entrypoint` imports the rest of the show definition:
+The root `project.donder` imports the rest of the show definition:
 setups, layouts, pixel fixture definitions, LED patches, controllers, curves,
 gradients, effects, operators, sequences, and assets. Imports are
 explicit project-relative document lists; paths escaping the project are rejected.

@@ -4,8 +4,8 @@ use crate::diagnostics::{
 };
 use crate::loader::Loader;
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, PROJECT_CONFIG_FILE,
-    ProjectCheckReport, ProjectConfig, ProjectSession, ProjectWorkspace, SourceDocumentFormat,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, PROJECT_ROOT_FILE,
+    ProjectCheckReport, ProjectMetadata, ProjectSession, ProjectWorkspace, SourceDocumentFormat,
     analysis, source_document_format,
 };
 use camino::{Utf8Path, Utf8PathBuf};
@@ -38,7 +38,7 @@ pub type SourceOverrides = std::collections::BTreeMap<Utf8PathBuf, String>;
 pub fn project_source_texts(root: &Utf8Path) -> io::Result<SourceOverrides> {
     analysis::project_file_inventory(root)
         .into_iter()
-        .filter(|path| path.extension() == Some("donder") || path.as_str() == PROJECT_CONFIG_FILE)
+        .filter(|path| path.extension() == Some("donder"))
         .map(|path| fs::read_to_string(root.join(&path)).map(|text| (path, text)))
         .collect()
 }
@@ -57,24 +57,14 @@ pub fn check_project_with_overrides(
     overrides: &SourceOverrides,
 ) -> ProjectCheckReport {
     let mut diagnostics = Vec::new();
-    let config = overrides
-        .get(Utf8Path::new(PROJECT_CONFIG_FILE))
-        .map_or_else(
-            || ProjectConfig::read(root),
-            |text| ProjectConfig::parse(text),
-        );
+    let config = overrides.get(Utf8Path::new(PROJECT_ROOT_FILE)).map_or_else(
+        || ProjectMetadata::read(root),
+        |text| ProjectMetadata::parse(text),
+    );
     let config = match config {
         Ok(config) => Some(config),
-        Err(message) => {
-            diagnostics.push(IoDiagnostic {
-                path: PROJECT_CONFIG_FILE.into(),
-                range: None,
-                severity: IoDiagnosticSeverity::Error,
-                code: IoDiagnosticCode::ProjectConfiguration,
-                message,
-                detail: None,
-                related: Vec::new(),
-            });
+        Err(error) => {
+            push_load_error_diagnostics(&mut diagnostics, error);
             None
         }
     };
@@ -84,7 +74,7 @@ pub fn check_project_with_overrides(
             Ok(workspace) => workspace,
             Err(message) => {
                 diagnostics.push(IoDiagnostic {
-                    path: PROJECT_CONFIG_FILE.into(),
+                    path: PROJECT_ROOT_FILE.into(),
                     range: None,
                     severity: IoDiagnosticSeverity::Error,
                     code: IoDiagnosticCode::DonderLoad,
@@ -126,7 +116,6 @@ pub fn check_project_with_overrides(
     });
     let recovery = analysis::analyze_project_documents(
         root,
-        config,
         overrides,
         &checked_dsl_documents,
         active_documents.as_ref(),

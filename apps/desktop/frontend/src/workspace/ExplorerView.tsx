@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronRight,
   File,
-  FileJson2,
   FilePlus2,
   AudioLines,
   Blend,
@@ -350,7 +349,6 @@ function roleIcon(role: WorkspaceEntryRole, open: boolean) {
   const size = THEME_METRICS.iconSizeCompact;
   switch (role) {
     case "directory": return open ? <FolderOpen size={size} /> : <Folder size={size} />;
-    case "configuration": return <FileJson2 size={size} />;
     case "asset": return <AudioLines size={size} />;
     case "project":
     case "entrypoint": return <Workflow size={size} />;

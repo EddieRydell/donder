@@ -127,7 +127,6 @@ function PathRefactorDialog({
     : [
         ["Documents", plan.impact.documents],
         ["Importing documents", plan.impact.imports],
-        ["Project configuration", plan.impact.configuration],
         ["Assets", plan.impact.assets],
         ["Open files", plan.impact.openFiles],
         ["Recent files", plan.impact.recentFiles],

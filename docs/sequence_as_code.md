@@ -381,3 +381,16 @@ owned values, including geometry that originally used reusable sources. Copies
 receive new placement IDs next to the originals in the same group. Existing
 routes and effect targets continue to address the originals; a copy is not
 patched to hardware automatically.
+
+### Root document
+
+Every project has a fixed `project.donder` at its root. The reserved top-level
+`workspace` block stores `format_version: 1` and a non-nil `project_id` UUID.
+The UUID establishes document and object identity before imports are resolved.
+The same document contains imports and exactly one project object, and may
+contain other authored objects. Saving serializes workspace metadata alongside
+typed content through the normal document save path.
+
+The root document cannot be moved, renamed, or deleted through workspace
+operations. Imported documents retain the normal move/rename behavior. No
+configurable entrypoint or separate JSON manifest is used.

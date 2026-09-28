@@ -1,7 +1,7 @@
 use std::fs;
 
 use camino::Utf8Path;
-use donder_project_io::{PROJECT_CONFIG_FILE, ProjectConfig};
+use donder_project_io::{PROJECT_ROOT_FILE, ProjectMetadata};
 
 pub(crate) struct ProjectBoilerplateFile {
     path: &'static str,
@@ -16,16 +16,11 @@ pub(crate) fn new_project_files(
         .ok_or("Invalid initial project color.")?
         .to_hex();
     let project_id = object_key_from_name(project_name);
-    let config = ProjectConfig::new("project.donder".into());
-    Ok(vec![
-        ProjectBoilerplateFile {
-            path: PROJECT_CONFIG_FILE,
-            text: config.to_text()?,
-        },
-        ProjectBoilerplateFile {
-            path: "project.donder",
-            text: format!(
-                r#"{project_id}:
+    let config = ProjectMetadata::default();
+    Ok(vec![ProjectBoilerplateFile {
+        path: PROJECT_ROOT_FILE,
+        text: config.initialize_document(&format!(
+            r#"{project_id}:
   type: project
   setup:
     type: setup
@@ -73,9 +68,8 @@ pub(crate) fn new_project_files(
         to_port: input
     automation_clips: []
 "#
-            ),
-        },
-    ])
+        ))?,
+    }])
 }
 
 pub(crate) fn write_new_project_files(
@@ -109,7 +103,10 @@ fn object_key_from_name(name: &str) -> String {
         }
     }
     let key = key.trim_matches('_').to_string();
-    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+    if key.is_empty()
+        || matches!(key.as_str(), "workspace" | "imports")
+        || key.as_bytes().first().is_some_and(u8::is_ascii_digit)
+    {
         format!("project_{key}")
     } else {
         key

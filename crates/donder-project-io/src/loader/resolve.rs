@@ -754,7 +754,7 @@ impl DomainResolver<'_> {
                 message,
             }
         })?;
-        let module_id = self.loader.workspace.config.project_id;
+        let module_id = self.loader.workspace.metadata.project_id;
         let unresolved = self.loader.workspace.root.join(audio_path);
         let absolute = unresolved
             .canonicalize_utf8()

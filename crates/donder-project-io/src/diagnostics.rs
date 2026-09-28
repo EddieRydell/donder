@@ -67,15 +67,6 @@ pub(crate) fn dsl_diagnostic(
 
 pub(crate) fn load_error_diagnostic(error: LoadProjectError) -> IoDiagnostic {
     match error {
-        LoadProjectError::InvalidEntrypoint { path } => IoDiagnostic {
-            path,
-            range: None,
-            severity: IoDiagnosticSeverity::Error,
-            code: IoDiagnosticCode::DonderLoad,
-            message: "invalid entrypoint".to_string(),
-            detail: None,
-            related: Vec::new(),
-        },
         LoadProjectError::Io { path, source } => IoDiagnostic {
             path,
             range: None,
@@ -438,7 +429,6 @@ pub enum IoDiagnosticCode {
     EffectCompile,
     OperatorCompile,
     IoRead,
-    ProjectConfiguration,
     SequenceField,
     SequenceItem,
     YamlParse,
@@ -452,7 +442,6 @@ impl IoDiagnosticCode {
             Self::EffectCompile => "effect.compile",
             Self::OperatorCompile => "operator.compile",
             Self::IoRead => "io.read",
-            Self::ProjectConfiguration => "project.configuration",
             Self::SequenceField => "sequence.field",
             Self::SequenceItem => "sequence.item",
             Self::YamlParse => "yaml.parse",

@@ -8,9 +8,6 @@ pub enum LoadProjectError {
         path: Utf8PathBuf,
         diagnostics: Vec<IoDiagnostic>,
     },
-    InvalidEntrypoint {
-        path: Utf8PathBuf,
-    },
     Io {
         path: Utf8PathBuf,
         source: io::Error,
@@ -63,7 +60,6 @@ pub enum ExportProjectError {
 impl fmt::Display for LoadProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidEntrypoint { path } => write!(formatter, "invalid entrypoint {path}"),
             Self::Io { path, source } => write!(formatter, "{path}: {source}"),
             Self::ParseYaml { path, message, .. } => write!(formatter, "{path}: {message}"),
             Self::InvalidDocument { path, message, .. } => write!(formatter, "{path}: {message}"),

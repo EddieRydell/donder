@@ -24,7 +24,6 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectRecovery {
     pub root: Utf8PathBuf,
-    pub config: Option<crate::ProjectConfig>,
     pub documents: IndexMap<Utf8PathBuf, RecoveryDocument>,
 }
 
@@ -50,7 +49,6 @@ pub struct RecoveryObject {
 
 pub(crate) fn analyze_project_documents(
     root: &Utf8Path,
-    config: Option<crate::ProjectConfig>,
     overrides: &crate::SourceOverrides,
     checked_dsl_documents: &indexmap::IndexSet<Utf8PathBuf>,
     active_documents: Option<&indexmap::IndexSet<Utf8PathBuf>>,
@@ -97,7 +95,6 @@ pub(crate) fn analyze_project_documents(
     }
     ProjectRecovery {
         root: root.to_path_buf(),
-        config,
         documents,
     }
 }
@@ -240,6 +237,11 @@ fn analyze_donder_text(
             objects: Vec::new(),
         };
     };
+    if path == Utf8Path::new(crate::PROJECT_ROOT_FILE)
+        && let Err(error) = crate::ProjectMetadata::from_document(&value)
+    {
+        push_diagnostic(diagnostics, load_error_diagnostic(error));
+    }
     analyze_imports(path, root, diagnostics);
 
     let mut objects = Vec::new();
@@ -254,7 +256,9 @@ fn analyze_donder_text(
             );
             continue;
         };
-        if key == "imports" {
+        if key == "imports"
+            || (path == Utf8Path::new(crate::PROJECT_ROOT_FILE) && key == "workspace")
+        {
             continue;
         }
         if Identifier::new(key.to_string()).is_err() {

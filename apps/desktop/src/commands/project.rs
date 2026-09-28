@@ -4,8 +4,8 @@ use super::*;
 #[specta::specta]
 pub(crate) fn open_project_dialog() -> Option<String> {
     let path = rfd::FileDialog::new()
-        .add_filter("Donder project configuration", &["json"])
-        .set_file_name(donder_project_io::PROJECT_CONFIG_FILE)
+        .add_filter("Donder project", &["donder"])
+        .set_file_name(donder_project_io::PROJECT_ROOT_FILE)
         .pick_file()?;
     path.to_str().map(ToString::to_string)
 }

@@ -129,6 +129,25 @@ pub(super) fn document_text(
     match &document.kind {
         SourceDocumentKind::Donder { .. } => {
             let mut root = Mapping::new();
+            if document_id.path() == Utf8Path::new(crate::PROJECT_ROOT_FILE) {
+                session
+                    .source
+                    .workspace
+                    .metadata
+                    .validate()
+                    .map_err(|message| ExportProjectError::Io {
+                        path: document_id.path().to_path_buf(),
+                        source: io::Error::other(message),
+                    })?;
+                let metadata =
+                    yaml_serde::to_value(&session.source.workspace.metadata).map_err(|source| {
+                        ExportProjectError::Serialize {
+                            path: document_id.path().to_path_buf(),
+                            source,
+                        }
+                    })?;
+                root.insert(string_value("workspace"), metadata);
+            }
             if !document.imports.is_empty() {
                 root.insert(
                     string_value("imports"),

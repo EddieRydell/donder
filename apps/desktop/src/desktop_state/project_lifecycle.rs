@@ -40,11 +40,7 @@ impl DesktopState {
             .map(|value| value.session.tabs.clone())
             .unwrap_or_default();
         if paths.is_empty() {
-            if let Some(entrypoint) = report.recovery.config.as_ref() {
-                paths.push(entrypoint.entrypoint.to_string());
-            } else {
-                paths.push(donder_project_io::PROJECT_CONFIG_FILE.into());
-            }
+            paths.push(donder_project_io::PROJECT_ROOT_FILE.into());
         }
         let mut documents = sources
             .into_iter()
