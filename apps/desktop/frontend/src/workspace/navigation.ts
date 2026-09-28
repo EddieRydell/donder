@@ -24,22 +24,23 @@ export async function navigateToText(path: string, range: TextRange | null): Pro
   });
 }
 
-export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "moduleId" | "path" | "objectKey">): Promise<void> {
+export async function navigateToGuiObject(reference: Pick<GuiObjectRef, "moduleId" | "path" | "objectKey" | "ownedPath">): Promise<void> {
   try {
     const target = await commands.resolveGuiSource(reference.moduleId, reference.path, reference.objectKey);
+    const selection = { path: target.path, objectKey: reference.objectKey, ownedPath: reference.ownedPath, view: reference.ownedPath[reference.ownedPath.length - 1]?.type ?? target.view };
     if (target.view === "text") {
       await navigateToText(target.path, null);
       return;
     }
     if (useAppStore.getState().guiRequest?.path === target.path) {
-      selectGuiObject({ path: target.path, objectKey: reference.objectKey }, "modal");
+      selectGuiObject(selection, "modal");
       return;
     }
     const snapshot = await runSnapshotCommand(() => commands.openFile(target.path));
     if (snapshot.settings.editorViewMode !== "gui") {
       await runSnapshotCommand(() => commands.setEditorViewMode("gui"));
     }
-    selectGuiObject({ path: target.path, objectKey: reference.objectKey });
+    selectGuiObject(selection);
   } catch (error) {
     useAppStore.getState().setError(String(error));
     throw error;

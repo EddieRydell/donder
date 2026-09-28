@@ -51,7 +51,9 @@ fn instance(id: u32, definition: &str) -> LayoutFixture {
         id: FixtureInstanceId(id),
         name: format!("Fixture {id}"),
         kind: LayoutFixtureKind::Fixture {
-            definition: definition_id(definition),
+            definition: donder_language::fixture::FixtureSource::Reference(definition_id(
+                definition,
+            )),
             transform: translation(id as f32, 0.0),
         },
     }
@@ -99,7 +101,7 @@ fn layout_targets_remain_independent_after_definition_flattening() {
     )]);
     let prepared = PreparedFixtureDefinitions::prepare(&definitions).unwrap();
     let layout = Layout {
-        id: LayoutId(identity("layout")),
+        id: LayoutId(identity("layout").into()),
         fixtures: vec![LayoutFixture {
             id: FixtureInstanceId(100),
             name: "All".into(),
@@ -126,7 +128,7 @@ fn layout_targets_remain_independent_after_definition_flattening() {
         let selected = layout.target(&target(id)).unwrap();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, FixtureInstanceId(id));
-        assert_eq!(prepared.pixels(&selected[0].definition).unwrap().len(), 4);
+        assert_eq!(selected[0].pixels.len(), 4);
     }
     assert_eq!(
         layout.target(&target(20)).unwrap_err(),
@@ -152,7 +154,7 @@ fn empty_layouts_and_definitions_are_valid_authoring_states() {
     let prepared = PreparedFixtureDefinitions::prepare(&definitions).unwrap();
     assert!(prepared.pixels(&definition_id("empty")).unwrap().is_empty());
     let layout = Layout {
-        id: LayoutId(identity("layout")),
+        id: LayoutId(identity("layout").into()),
         fixtures: vec![],
     };
     assert!(

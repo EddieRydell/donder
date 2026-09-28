@@ -77,7 +77,8 @@ impl DesktopState {
             WorkspaceTransition::CreateProject {
                 parent_path,
                 directory_name,
-            } => self.create_new_project_locked(&parent_path, &directory_name),
+                initial_color,
+            } => self.create_new_project_locked(&parent_path, &directory_name, &initial_color),
             WorkspaceTransition::CopyProject {
                 parent_path,
                 directory_name,

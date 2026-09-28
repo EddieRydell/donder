@@ -12,12 +12,10 @@ pub(crate) struct PreviewGeometry {
 impl PreviewGeometry {
     pub(crate) fn from_project(project: &DonderProject) -> Result<Self, String> {
         let setup = project
-            .setups
-            .get(&project.root.setup)
+            .setup(project.root.setup.id())
             .ok_or_else(|| "Preview setup was not found.".to_string())?;
         let layout = project
-            .layouts
-            .get(&setup.layout)
+            .layout(setup.layout.id())
             .ok_or_else(|| "Preview layout was not found.".to_string())?;
         let definitions = PreparedFixtureDefinitions::prepare(&project.definitions.fixtures)
             .map_err(|error| format!("Cannot prepare preview fixtures: {error:?}"))?;
@@ -27,9 +25,7 @@ impl PreviewGeometry {
         let mut instances = Vec::new();
         let mut fixtures = Vec::new();
         for fixture in &layout.instances {
-            let pixels = definitions
-                .pixels(&fixture.definition)
-                .ok_or_else(|| "Preview fixture definition was not prepared.".to_string())?;
+            let pixels = fixture.pixels.as_ref();
             for pixel in pixels {
                 let point = fixture.transform.transform_point3(pixel.position);
                 instances.push([point.x, point.y, pixel.diameter_meters / 2.0, 0.0]);

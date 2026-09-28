@@ -44,6 +44,7 @@ pub enum GuiDocument {
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiDocumentRequest {
+    pub owned_path: Vec<GuiOwnedStep>,
     pub project_revision: u32,
     pub path: String,
     pub view: DocumentViewId,
@@ -53,6 +54,7 @@ pub struct GuiDocumentRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiObjectRef {
+    pub owned_path: Vec<GuiOwnedStep>,
     pub module_id: String,
     pub path: String,
     pub object_key: String,
@@ -67,6 +69,10 @@ pub struct GuiObjectRef {
     rename_all_fields = "camelCase"
 )]
 pub enum GuiEditCommand {
+    Ownership {
+        slot: GuiOwnershipSlot,
+        edit: GuiOwnershipEdit,
+    },
     Patch {
         routes: Vec<GuiPixelRoute>,
     },
@@ -157,6 +163,7 @@ pub struct GradientGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGuiDocument {
+    pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
     pub object_key: String,
     pub setup: GuiObjectRef,
@@ -166,6 +173,7 @@ pub struct ProjectGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupGuiDocument {
+    pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
@@ -209,11 +217,11 @@ pub struct SetupControllerPort {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+#[expect(
+    clippy::enum_variant_names,
+    reason = "Setup wire actions identify the child being edited."
+)]
 pub enum SetupGuiEdit {
-    CopyLayout,
-    CopyController {
-        controller: GuiObjectRef,
-    },
     AddController {
         config: SetupControllerConfig,
         ports: Vec<SetupControllerPort>,
@@ -267,4 +275,80 @@ impl From<&donder_language::controller::ControllerProtocol> for SetupControllerC
             },
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum GuiOwnedStep {
+    Setup,
+    Layout,
+    Patch,
+    Controller { id: u32 },
+    Sequence { id: u32 },
+    Fixture { id: u32 },
+}
+
+impl From<&donder_language::identity::OwnedObjectSlot> for GuiOwnedStep {
+    fn from(slot: &donder_language::identity::OwnedObjectSlot) -> Self {
+        use donder_language::identity::OwnedObjectSlot;
+        match slot {
+            OwnedObjectSlot::Setup => Self::Setup,
+            OwnedObjectSlot::Layout => Self::Layout,
+            OwnedObjectSlot::Patch => Self::Patch,
+            OwnedObjectSlot::Controller(id) => Self::Controller { id: *id },
+            OwnedObjectSlot::Sequence(id) => Self::Sequence { id: *id },
+            OwnedObjectSlot::Fixture(id) => Self::Fixture { id: *id },
+        }
+    }
+}
+impl From<&GuiOwnedStep> for donder_language::identity::OwnedObjectSlot {
+    fn from(slot: &GuiOwnedStep) -> Self {
+        match slot {
+            GuiOwnedStep::Setup => Self::Setup,
+            GuiOwnedStep::Layout => Self::Layout,
+            GuiOwnedStep::Patch => Self::Patch,
+            GuiOwnedStep::Controller { id } => Self::Controller(*id),
+            GuiOwnedStep::Sequence { id } => Self::Sequence(*id),
+            GuiOwnedStep::Fixture { id } => Self::Fixture(*id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiOwnershipSlot {
+    Setup,
+    Sequence { index: u32 },
+    Layout,
+    Patch,
+    Controller { index: u32 },
+    Fixture { id: u32 },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiOwnershipEdit {
+    UseExisting {
+        source: GuiObjectRef,
+    },
+    MakeIndependent,
+    MakeReusable {
+        name: String,
+        storage: ReusableStorage,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ReusableStorage {
+    SameFile,
+    NewFile,
 }

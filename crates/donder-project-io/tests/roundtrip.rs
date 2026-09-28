@@ -156,19 +156,46 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     write_project_package(&root);
     let mut session = load_project_package(&root);
 
-    let id = donder_project_io::insert_sequence(
-        &mut session,
-        "sequences/nested/new.sequence.donder".into(),
-        "nested_sequence".to_string(),
+    let color = session.project.sequences.values().next().unwrap().layers[0].color;
+    let index = session.project.root.sequences.len();
+    donder_language::ownership::edit::add_sequence(
+        &mut session.project,
         DonderDuration(Duration::from_secs(30)),
         60,
+        color,
     )
     .unwrap();
+    let destination = session
+        .source
+        .add_yaml_document(
+            "sequences/nested/new.sequence.donder".into(),
+            vec![(
+                donder_project_io::SourceObjectKind::Sequence,
+                "nested_sequence".into(),
+            )],
+        )
+        .unwrap()
+        .remove(0);
+    donder_language::ownership::edit::make_reusable(
+        &mut session.project,
+        &donder_language::ownership::edit::OwnershipSite::ProjectSequence(index),
+        destination,
+    )
+    .unwrap();
+    donder_project_io::maintain_ownership_sources(&mut session).unwrap();
+    let id = session.project.root.sequences[index].id().clone();
     save_project(&session).unwrap();
 
     let reloaded = load_project_package(&root);
     assert!(reloaded.project.sequences.contains_key(&id));
-    assert!(reloaded.project.root.sequences.contains(&id));
+    assert!(
+        reloaded
+            .project
+            .root
+            .sequences
+            .iter()
+            .any(|source| source.id() == &id)
+    );
     assert!(root.join(id.0.document()).is_file());
 }
 

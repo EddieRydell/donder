@@ -1,11 +1,14 @@
+import { SpatialSelectionControls } from "./SpatialSelectionControls";
+import { layoutItems, selectedItems, selectionClick, moveLayout, type SpatialMove } from "./spatialSelection";
+import { LayoutTree } from "./LayoutTree";
+import { guiObjectKey } from "../../../workspace/guiIdentity";
+import { OwnershipActions } from "../OwnershipActions";
 import { useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ChevronDown, ChevronRight, Circle } from "lucide-react";
 import { navigateToGuiObject } from "../../../workspace/navigation";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import { THEME_METRICS } from "../../../theme";
 import type { FixtureStorage, GuiDocument, GuiDocumentRequest, GuiLayoutFixture, GuiObjectRef, Point3Meters, Transform } from "../../../types";
 import { FixtureEditor } from "./FixtureEditor";
 import { Placement } from "./FixtureFields";
@@ -20,11 +23,15 @@ type TreeAction =
   | { type: "rename"; id: number; origin: GuiDocumentRequest };
 
 export function CompositionEditor({ gui }: { gui: Document }) {
-  return gui.type === "fixture" ? <FixtureEditor key={gui.document.sourceRef.id} document={gui.document} /> : <LayoutEditor gui={gui} />;
+  return gui.type === "fixture" ? <FixtureEditor key={guiObjectKey(gui.document.sourceRef)} document={gui.document} /> : <LayoutEditor key={guiObjectKey(gui.document.sourceRef)} gui={gui} />;
 }
 
 function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selection, setSelection] = useState<number[]>([]);
+  const selected = selection.length === 1 ? selection[0] ?? null : null;
+  const setSelected = (id: number | null) => { setSelection(id === null ? [] : [id]); };
+  const items = layoutItems(gui.document.fixtures, gui.document.renderPlan);
+  const chosen = selectedItems(items, selection);
   const [menuTarget, setMenuTarget] = useState<number | null>(null);
   const [action, setAction] = useState<TreeAction | null>(null);
   const [name, setName] = useState("");
@@ -39,6 +46,11 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const editable = ready && !pending && !readOnly;
   const target = menuTarget !== null ? findLayoutItem(gui.document.fixtures, menuTarget) : null;
   const instance = selected !== null ? findLayoutItem(gui.document.fixtures, selected) : null;
+  const fixtureSource = (fixture: GuiLayoutFixture): GuiObjectRef => {
+    if (fixture.kind.type !== "fixture") throw new Error("Select a fixture.");
+    if (fixture.kind.definition.type === "reference") return fixture.kind.definition.source;
+    return { ...gui.document.sourceRef, kind: "fixture", ownedPath: [...gui.document.sourceRef.ownedPath, { type: "fixture", id: fixture.id }] };
+  };
   const reportError = (error: unknown) => { setError(String(error)); };
   const changeTransform = (transform: Transform) => {
     if (instance === null) return;
@@ -65,7 +77,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       }), action.origin);
       const added = result.document.type === "layout" ? findLayoutItem(result.document.document.fixtures, id) : null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
-      definitionToOpen = added.kind.definition;
+      definitionToOpen = fixtureSource(added);
     } else {
       let fixtures: GuiLayoutFixture[];
       if (action.type === "rename") {
@@ -86,11 +98,32 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     const fixtures = addChild(gui.document.fixtures, parent, {
       id,
       name: definition.objectKey,
-      kind: { type: "fixture", definition, transform: identityTransform(position) }
+      kind: { type: "fixture", definition: { type: "reference", source: definition }, transform: identityTransform(position) }
     });
     await runGuiEditCommand((currentRequest) => commands.applyLayoutGuiEdit(currentRequest, { type: "setFixtures", fixtures }), request);
     setSelected(id);
     setError(null);
+  };
+  const moveSelection = async (moves: SpatialMove[]) => {
+    await runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures: moveLayout(gui.document.fixtures, moves) }), request);
+    setError(null);
+  };
+  const repeat = (offsets: Point3Meters[]) => {
+    const originalIds = new Set(items.map((item) => item.id));
+    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "repeatFixtures", ids: chosen.map((item) => item.id), offsets }), request)
+      .then((result) => {
+        if (result.document.type === "layout") {
+          const copies = layoutItems(result.document.document.fixtures, result.document.document.renderPlan);
+          setSelection(selectedItems(copies, copies.filter((item) => !originalIds.has(item.id)).map((item) => item.id)).map((item) => item.id));
+        }
+        setError(null);
+      }).catch(reportError);
+  };
+  const duplicate = () => { repeat([{ xMeters: 0, yMeters: 0, zMeters: 0 }]); };
+  const remove = () => {
+    let fixtures = gui.document.fixtures;
+    for (const item of chosen) fixtures = updateLayoutItem(fixtures, item.id, () => null);
+    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures }), request).then(() => { setSelection([]); setError(null); }).catch(reportError);
   };
   const layoutMenu = {
     availableFixtures: gui.document.availableFixtures,
@@ -106,13 +139,14 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
           const row = event.target instanceof Element ? event.target.closest("[data-layout-item]") : null;
           const id = row === null ? null : Number(row.getAttribute("data-layout-item"));
           setMenuTarget(id);
-          if (id !== null) setSelected(id);
+          if (id !== null && !selection.includes(id)) setSelected(id);
         }}>
-          {!inline && <h2 className="composition-title">{documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
+          {!inline && <h2 className="composition-title">{gui.document.sourceRef.ownedPath.length > 0 ? "Layout" : documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
           {error !== null && action === null && <p role="alert">{error}</p>}
           <fieldset className="composition-controls" disabled={!editable}>
-            <LayoutTree items={gui.document.fixtures} pixels={gui.document.renderPlan.pixels} selected={selected} onSelect={setSelected} />
-            {instance?.kind.type === "fixture" && <Placement value={instance.kind.transform} onChange={changeTransform} />}
+            <LayoutTree items={gui.document.fixtures} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
+            <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
+            {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions sources={gui.document.availableFixtures} key={instance.id} source={fixtureSource(instance)} slot={{ type: "fixture", id: instance.id }} label={instance.name} /></>}
           </fieldset>
         </aside>
       </ContextMenu.Trigger>
@@ -126,18 +160,15 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
             onAddGroup={() => { beginAdd("group"); }}
           />}
           {target?.kind.type === "fixture" && <ContextMenu.Item className="menu-item" onSelect={() => {
-            if (target.kind.type === "fixture") void navigateToGuiObject(target.kind.definition).catch(reportError);
+            if (target.kind.type === "fixture") void navigateToGuiObject(fixtureSource(target)).catch(reportError);
           }}>Edit fixture</ContextMenu.Item>}
           {target !== null && <>
+            <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={duplicate}>Duplicate selection</ContextMenu.Item>
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => {
               if (request === null) return;
               setAction({ type: "rename", id: target.id, origin: request }); setName(target.name); setError(null);
             }}>Rename</ContextMenu.Item>
-            <ContextMenu.Item className="menu-item danger" disabled={!editable} onSelect={() => {
-                            void runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
-                type: "setFixtures", fixtures: updateLayoutItem(gui.document.fixtures, target.id, () => null)
-              }), request).then(() => { setSelected(null); setError(null); }).catch(reportError);
-            }}>Remove</ContextMenu.Item>
+            <ContextMenu.Item className="menu-item danger" disabled={!editable} onSelect={remove}>Delete selection</ContextMenu.Item>
           </>}
         </ContextMenu.Content>
       </ContextMenu.Portal>
@@ -151,11 +182,12 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
               <label>Name<input required value={name} onFocus={(event) => { event.currentTarget.select(); }} onChange={(event) => { setName(event.target.value); }} /></label>
               {action?.type === "fixture" && <details className="composition-add-advanced">
                 <summary>Advanced settings</summary>
-                <label>Save fixture in<select value={storage} onChange={(event) => { if (event.target.value === "inline" || event.target.value === "newFile") setStorage(event.target.value); }}>
-                  <option value="inline">This layout file (default)</option>
-                  <option value="newFile">A new fixture file</option>
+                <label>Save fixture in<select value={storage} onChange={(event) => { if (event.target.value === "inline" || event.target.value === "sameFile" || event.target.value === "newFile") setStorage(event.target.value); }}>
+                  <option value="inline">Inside this fixture (default)</option>
+                  <option value="sameFile">Reusable fixture in this file</option>
+                  <option value="newFile">Reusable fixture in a new file</option>
                 </select></label>
-                <p>{storage === "inline" ? "Stored in this layout file. Removed with its last placement when no layout uses it." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
+                <p>{storage === "inline" ? "Stored inside this fixture. Duplicating the fixture makes an independent copy; removing it removes its geometry." : storage === "sameFile" ? "Creates a reusable source in this file. Removing this placement keeps the source available." : "Creates a file in the fixtures folder, named after this fixture. The file stays available when you remove its placement."}</p>
               </details>}
               {error !== null && <p role="alert">{error}</p>}
               <div className="dialog-actions">
@@ -167,41 +199,17 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-    <SpatialCanvas plan={gui.document.renderPlan} documentKey={gui.document.path + ":" + gui.document.objectKey} selected={selected} onSelect={setSelected} layoutMenu={layoutMenu} onMoveStart={(id) => {
+    <SpatialCanvas reference={gui.document.sourceRef} plan={gui.document.renderPlan} documentKey={guiObjectKey(gui.document.sourceRef)} selection={selection} items={items} onSelect={setSelection} layoutMenu={layoutMenu} onDelete={remove} onDuplicate={duplicate} onMoveStart={(ids, anchor) => {
       if (!editable) return null;
-      const origin = request;
-      return async (delta) => {
-        try {
-          await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "moveFixture", id, delta }), origin);
-          setError(null);
-          return true;
-        } catch (error: unknown) {
-          reportError(error);
-          return false;
-        }
-      };
+      const chosen = selectedItems(items, ids);
+      const origin = items.find((item) => item.id === anchor)?.origin;
+      if (origin === undefined) return null;
+      return { origin, owners: chosen.flatMap((item) => item.owners), commit: async (delta) => {
+        try { await moveSelection(chosen.map((item) => ({ id: item.id, delta }))); return true; }
+        catch (error: unknown) { reportError(error); return false; }
+      } };
     }} />
   </div>;
-}
-
-function LayoutTree({ items, pixels, selected, onSelect }: { items: GuiLayoutFixture[]; pixels: { owner: number }[]; selected: number | null; onSelect: (id: number) => void }) {
-  return <div className="composition-tree">
-    {items.length === 0 && <p className="composition-tree-empty">Right-click to add a group or fixture.</p>}
-    {items.map((item) => <LayoutTreeItem key={item.id} item={item} pixels={pixels} selected={selected} onSelect={onSelect} />)}
-  </div>;
-}
-
-function LayoutTreeItem({ item, pixels, selected, onSelect }: { item: GuiLayoutFixture; pixels: { owner: number }[]; selected: number | null; onSelect: (id: number) => void }) {
-  const isGroup = item.kind.type === "group";
-  const [open, setOpen] = useState(isGroup);
-  const pixelCount = item.kind.type === "group" ? item.kind.children.reduce((total, child) => total + layoutPixelCount(child, pixels), 0) : pixels.filter((pixel) => pixel.owner === item.id).length;
-  const metadata = item.kind.type === "group"
-    ? `group · ${layoutFixtureCount(item.kind.children)} fixtures · ${pixelCount} pixels`
-    : `${item.kind.definition.objectKey} · ${pixelCount} pixels · ${formatPosition(item.kind.transform.position)}`;
-  return <details className="composition-tree-item" open={isGroup ? open : undefined} onToggle={(event) => { if (isGroup) setOpen(event.currentTarget.open); }} data-layout-item={item.id}>
-    <summary className={selected === item.id ? "selected" : ""} onClick={() => { onSelect(item.id); }}><span className="composition-tree-icon" aria-hidden="true">{isGroup ? (open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />) : <Circle size={THEME_METRICS.iconSizeExtraSmall} />}</span><span className="composition-tree-name">{item.name}</span><span className="composition-tree-meta">{metadata}</span></summary>
-    {item.kind.type === "group" && <div className="composition-tree-children">{item.kind.children.map((child) => <LayoutTreeItem key={child.id} item={child} pixels={pixels} selected={selected} onSelect={onSelect} />)}</div>}
-  </details>;
 }
 
 function addChild(items: GuiLayoutFixture[], parentId: number | null, child: GuiLayoutFixture): GuiLayoutFixture[] {
@@ -210,20 +218,6 @@ function addChild(items: GuiLayoutFixture[], parentId: number | null, child: Gui
     ? { ...item, kind: { type: "group", children: [...item.kind.children, child] } }
     : item.kind.type === "group" ? { ...item, kind: { type: "group", children: addChild(item.kind.children, parentId, child) } } : item);
 }
-
-function layoutFixtureCount(items: GuiLayoutFixture[]): number {
-  return items.reduce((count, item) => count + (item.kind.type === "group" ? layoutFixtureCount(item.kind.children) : 1), 0);
-}
-
-function layoutPixelCount(item: GuiLayoutFixture, pixels: { owner: number }[]): number {
-  return item.kind.type === "group" ? item.kind.children.reduce((total, child) => total + layoutPixelCount(child, pixels), 0) : pixels.filter((pixel) => pixel.owner === item.id).length;
-}
-
-function formatPosition(position: Transform["position"]): string {
-  return `position ${position.xMeters}, ${position.yMeters}, ${position.zMeters}`;
-}
-
-
 
 function nextInstanceId(fixtures: GuiLayoutFixture[]): number {
   return Math.max(0, ...fixtures.map((fixture) => Math.max(fixture.id, fixture.kind.type === "group" ? nextInstanceId(fixture.kind.children) - 1 : 0))) + 1;

@@ -69,10 +69,11 @@ fn controller_fragments_retain_nested_generator_parameter_dependencies() {
 }
 
 fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
-    project.setups[&project.root.setup]
+    project.setups[project.root.setup.id()]
         .controllers
         .iter()
-        .flat_map(|id| {
+        .flat_map(|source| {
+            let id = source.id();
             project.controllers[id]
                 .ports
                 .iter()
@@ -86,9 +87,9 @@ fn compare(
     id: &SequenceId,
     selected: &[(ControllerId, ControllerPortId)],
 ) -> PreparedSequence {
-    let full = PreparedSequenceOutput::prepare(project, &project.root.setup, id).unwrap();
+    let full = PreparedSequenceOutput::prepare(project, project.root.setup.id(), id).unwrap();
     let fragment =
-        PreparedSequenceOutput::prepare_selected(project, &project.root.setup, id, selected)
+        PreparedSequenceOutput::prepare_selected(project, project.root.setup.id(), id, selected)
             .unwrap();
     let mut full_workspace = full.workspace();
     let mut workspace = fragment.workspace();
@@ -121,7 +122,7 @@ fn compare(
                 frame,
                 expected,
                 "{} at {time:?}, port {port:?}",
-                id.0.object()
+                id.0.root_source().object()
             );
         }
     }
@@ -132,8 +133,8 @@ fn compare(
 fn every_starter_port_matches_the_full_sequence_across_seeks() {
     let project = starter();
     let ports = ports(&project);
-    for id in &project.root.sequences {
-        let full = PreparedSequenceOutput::prepare(&project, &project.root.setup, id).unwrap();
+    for id in project.root.sequences.iter().map(|source| source.id()) {
+        let full = PreparedSequenceOutput::prepare(&project, project.root.setup.id(), id).unwrap();
         for port in &ports {
             let fragment = compare(&project, id, std::slice::from_ref(port));
             assert_eq!(fragment.signals.fixtures.len(), 1);
@@ -152,7 +153,7 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
         };
         println!(
             "{}: pixels {} -> {}; target records {} -> {}; effects {} -> {}; programs {} -> {}; pixel routes {} -> {}; graph buffer bytes {} -> {}",
-            id.0.object(),
+            id.0.root_source().object(),
             full.sequence.signals.pixel_count,
             fragment.signals.pixel_count,
             full.sequence.signals.target_pixels.len(),
@@ -174,7 +175,7 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
 #[test]
 fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     let mut project = starter();
-    let patch_id = project.setups[&project.root.setup].patch.clone();
+    let patch_id = project.setups[project.root.setup.id()].patch.id().clone();
     let patch = project.patches.get_mut(&patch_id).unwrap();
     // Two ports wire disjoint spans of one fixture, preserving authored effect coordinates.
     for (index, start) in [(0, 0), (1, 76)] {
@@ -184,7 +185,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         route.start_slot = 7;
     }
     let ports = ports(&project);
-    for id in &project.root.sequences {
+    for id in project.root.sequences.iter().map(|source| source.id()) {
         let fragment = compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
         assert_eq!(fragment.signals.fixtures.len(), 1);
         assert_eq!(fragment.signals.pixel_count, 74);
@@ -205,7 +206,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
                 .to_vec();
         }
     }
-    for id in &project.root.sequences {
+    for id in project.root.sequences.iter().map(|source| source.id()) {
         compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
     }
     // Spatial reads must not see the compacted 37-pixel output domain. Local
@@ -237,7 +238,8 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             .root
             .sequences
             .iter()
-            .find(|id| id.0.object() == "layer_test")
+            .map(|source| source.id())
+            .find(|id| id.0.root_source().object() == "layer_test")
             .unwrap();
         let fragment = compare(&project, id, &ports[1..2]);
         assert_eq!(fragment.signals.pixel_count, expected_pixels, "{query}");
@@ -272,18 +274,26 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
     let mut project = starter();
     let selected = ports(&project);
     let original_id = selected[0].0.clone();
-    let other_id = ControllerId(SourceIdentity::from_document(
-        original_id.0.document_id().clone(),
-        "other_controller".into(),
-    ));
-    let other = project.controllers[&original_id].clone();
+    let other_id = ControllerId(
+        SourceIdentity::from_document(
+            original_id.0.document_id().clone(),
+            "other_controller".into(),
+        )
+        .into(),
+    );
+    let mut other = project.controllers[&original_id].clone();
+    other.id = other_id.clone();
     project.controllers.insert(other_id.clone(), other);
-    let setup = project.setups.get_mut(&project.root.setup).unwrap();
-    setup.controllers.push(other_id.clone());
-    let patch = project.patches.get_mut(&setup.patch).unwrap();
+    let setup = project.setups.get_mut(project.root.setup.id()).unwrap();
+    setup
+        .controllers
+        .push(donder_language::ownership::ValueSource::Reference(
+            other_id.clone(),
+        ));
+    let patch = project.patches.get_mut(setup.patch.id()).unwrap();
     patch.routes[1].controller = other_id.clone();
     patch.routes[1].target = patch.routes[0].target.clone();
-    for id in &project.root.sequences {
+    for id in project.root.sequences.iter().map(|source| source.id()) {
         let fragment = compare(
             &project,
             id,
@@ -312,7 +322,8 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
         .root
         .sequences
         .iter()
-        .find(|id| id.0.object() == "layer_test")
+        .map(|source| source.id())
+        .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap()
         .clone();
     let sequence = project.sequences.get_mut(&id).unwrap();
@@ -383,7 +394,7 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
 fn empty_and_unknown_selections_are_explicit() {
     let project = starter();
     let ports = ports(&project);
-    let id = &project.root.sequences[0];
+    let id = project.root.sequences[0].id();
     let empty = compare(&project, id, &[]);
     assert!(empty.signals.fixtures.is_empty());
     assert!(empty.signals.effects.is_empty());
@@ -392,7 +403,7 @@ fn empty_and_unknown_selections_are_explicit() {
     assert!(empty.patch.routes.is_empty());
     let duplicate = PreparedSequenceOutput::prepare_selected(
         &project,
-        &project.root.setup,
+        project.root.setup.id(),
         id,
         &[ports[0].clone(), ports[0].clone()],
     );
@@ -402,7 +413,7 @@ fn empty_and_unknown_selections_are_explicit() {
     ));
     let unknown = PreparedSequenceOutput::prepare_selected(
         &project,
-        &project.root.setup,
+        project.root.setup.id(),
         id,
         &[(ports[0].0.clone(), ControllerPortId(u32::MAX))],
     );

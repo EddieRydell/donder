@@ -475,7 +475,7 @@ fn preparing_snapshot(
         controllers: active
             .iter()
             .map(|id| LiveOutputControllerSnapshot {
-                id: format!("{}:{}", id.0.document(), id.0.object()),
+                id: format!("{:?}", id.0),
                 state: LiveOutputControllerState::Opening,
                 last_error: None,
             })
@@ -506,12 +506,16 @@ mod tests {
             ControllerProtocol,
         };
         use donder_language::identity::{DocumentId, SourceIdentity};
-        let id = ControllerId(SourceIdentity::from_document(
-            DocumentId::new(uuid::Uuid::new_v4(), "controller.donder".into()),
-            "broken".into(),
-        ));
+        let id = ControllerId(
+            SourceIdentity::from_document(
+                DocumentId::new(uuid::Uuid::new_v4(), "controller.donder".into()),
+                "broken".into(),
+            )
+            .into(),
+        );
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
+            id: id.clone(),
             protocol: ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: "127.0.0.1:0".parse().unwrap(),
                 destination: "127.0.0.1:6454".parse().unwrap(),

@@ -1,13 +1,15 @@
 //! Layout fixtures are effect targets. Parts inside a definition are not layout targets.
 
+mod editing;
+
 use std::collections::HashSet;
 
-use crate::fixture::{FixtureDefinitionId, FixtureTransform};
-use crate::identity::SourceIdentity;
+use crate::fixture::{FixtureDefinitionId, FixtureGeometryError, FixtureSource, FixtureTransform};
+use crate::identity::ObjectIdentity;
 use indexmap::IndexMap;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LayoutId(pub SourceIdentity);
+pub struct LayoutId(pub ObjectIdentity);
 
 /// Stable across renames, reordering and group moves; unique in a layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -29,7 +31,7 @@ pub struct LayoutFixture {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutFixtureKind {
     Fixture {
-        definition: FixtureDefinitionId,
+        definition: FixtureSource,
         transform: FixtureTransform,
     },
     Group {
@@ -50,6 +52,10 @@ pub enum LayoutError {
     DuplicateId(FixtureInstanceId),
     EmptyName(FixtureInstanceId),
     MissingDefinition(FixtureDefinitionId),
+    InvalidFixture {
+        fixture: FixtureInstanceId,
+        error: FixtureGeometryError,
+    },
     InvalidTransform(FixtureInstanceId),
     MissingFixture(FixtureInstanceId),
     WrongLayout(LayoutId),
@@ -82,10 +88,20 @@ impl Layout {
             counts: &IndexMap<FixtureDefinitionId, u32>,
         ) -> Result<u32, LayoutError> {
             match &fixture.kind {
-                LayoutFixtureKind::Fixture { definition, .. } => counts
-                    .get(definition)
-                    .copied()
-                    .ok_or_else(|| LayoutError::MissingDefinition(definition.clone())),
+                LayoutFixtureKind::Fixture { definition, .. } => match definition {
+                    FixtureSource::Inline(value) => {
+                        value
+                            .validate_geometry()
+                            .map_err(|error| LayoutError::InvalidFixture {
+                                fixture: fixture.id,
+                                error,
+                            })
+                    }
+                    FixtureSource::Reference(id) => counts
+                        .get(id)
+                        .copied()
+                        .ok_or_else(|| LayoutError::MissingDefinition(id.clone())),
+                },
                 LayoutFixtureKind::Group { children } => {
                     children.iter().try_fold(0u32, |total, child| {
                         total
@@ -126,8 +142,19 @@ impl Layout {
                         definition,
                         transform,
                     } => {
-                        if !definitions.contains_key(definition) {
-                            return Err(LayoutError::MissingDefinition(definition.clone()));
+                        match definition {
+                            FixtureSource::Inline(value) => {
+                                value.validate_geometry().map_err(|error| {
+                                    LayoutError::InvalidFixture {
+                                        fixture: fixture.id,
+                                        error,
+                                    }
+                                })?;
+                            }
+                            FixtureSource::Reference(id) if !definitions.contains_key(id) => {
+                                return Err(LayoutError::MissingDefinition(id.clone()));
+                            }
+                            FixtureSource::Reference(_) => {}
                         }
                         if !transform.is_valid() {
                             return Err(LayoutError::InvalidTransform(fixture.id));
@@ -154,5 +181,20 @@ impl Layout {
             })
         }
         find(&self.fixtures, id)
+    }
+}
+
+impl crate::ownership::Identified for Layout {
+    type Id = LayoutId;
+    fn id(&self) -> &Self::Id {
+        &self.id
+    }
+}
+
+pub type LayoutSource = crate::ownership::ValueSource<Box<Layout>, LayoutId>;
+
+impl AsRef<ObjectIdentity> for LayoutId {
+    fn as_ref(&self) -> &ObjectIdentity {
+        &self.0
     }
 }

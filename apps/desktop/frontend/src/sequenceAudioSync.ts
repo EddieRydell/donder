@@ -1,8 +1,11 @@
-import type { GuiDocumentRequest, SequenceAudio } from "./types";
+import type { GuiDocumentRequest, GuiObjectRef, SequenceAudio } from "./types";
 
-export function sequenceAudioKey(projectEpoch: number, path: string, objectKey: string | null, audio: SequenceAudio | null, durationSeconds: number): string {
-  if (audio === null) return JSON.stringify({ projectEpoch, path, objectKey, durationSeconds });
-  return JSON.stringify({ projectEpoch, path, objectKey, importPath: audio.import, resolvedPath: audio.resolvedPath, exists: audio.exists });
+import { guiObjectKey } from "./workspace/guiIdentity";
+
+export function sequenceAudioKey(projectEpoch: number, source: GuiObjectRef, audio: SequenceAudio | null, durationSeconds: number): string {
+  const identity = guiObjectKey(source);
+  if (audio === null) return JSON.stringify({ projectEpoch, identity, durationSeconds });
+  return JSON.stringify({ projectEpoch, identity, importPath: audio.import, resolvedPath: audio.resolvedPath, exists: audio.exists });
 }
 
 type AudioTarget = { key: string; request: GuiDocumentRequest };

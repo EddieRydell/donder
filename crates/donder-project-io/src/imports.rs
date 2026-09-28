@@ -1,3 +1,7 @@
+pub use ownership::{
+    available_reusable_sources, ensure_document_can_reference_object, link_reusable_source,
+};
+mod ownership;
 use crate::diagnostics::{
     source_range_for_field_value, source_range_for_scalar, source_range_for_value,
 };
@@ -13,6 +17,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::{DocumentId, SourceIdentity};
 use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
 use indexmap::IndexMap;
+pub(crate) use ownership::{inherit_relocated_reference_import, write_object_reference};
 use yaml_serde::{Mapping, Value};
 
 #[derive(Clone, Debug)]
@@ -153,7 +158,7 @@ fn ensure_document_imports_target(
             reference: reference.to_string(),
             message:
                 "dependency objects must be exposed through an explicitly declared export import"
-                    .to_string(),
+                    .into(),
         });
     }
     document.imports.push(ImportEdge {

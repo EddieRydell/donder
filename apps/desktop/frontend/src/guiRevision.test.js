@@ -27,7 +27,7 @@ const server = await createServer({
   optimizeDeps: { noDiscovery: true }
 });
 after(() => server.close());
-const { useAppStore, runGuiEditCommand } = await server.ssrLoadModule("/src/store.ts");
+const { useAppStore, runGuiEditCommand, selectGuiObject } = await server.ssrLoadModule("/src/store.ts");
 const initialState = useAppStore.getState();
 const document = { type: "sequence", path: "main.donder", objectKey: "main" };
 const snapshot = (stateRevision, projectRevision, overrides = {}) => ({
@@ -155,3 +155,33 @@ for (const [name, overrides] of [
     assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), document }), false);
   });
 }
+
+
+test("owned fixtures in one source object have distinct edit identities", () => {
+  const descriptor = { availableViews: ["text", "layout"], defaultObjectKeys: [{ view: "layout", objectKey: "main" }] };
+  useAppStore.getState().setSnapshot(snapshot(2, 1, { activeDocumentDescriptor: descriptor }));
+  useAppStore.getState().setGuiDocument({ type: "layout", document: { path: "main.donder" } });
+  selectGuiObject({ path: "main.donder", objectKey: "main", view: "fixture", ownedPath: [{ type: "fixture", id: 1 }] }, "modal");
+  const first = useAppStore.getState().guiRequest;
+  const firstDocument = { type: "fixture", document: { name: "First" } };
+  useAppStore.getState().setGuiDocument(firstDocument);
+  useAppStore.getState().setSnapshot(snapshot(3, 2, { activeDocumentDescriptor: descriptor }));
+  assert.deepEqual(useAppStore.getState().guiRequest.ownedPath, first.ownedPath);
+  assert.equal(useAppStore.getState().guiRequest.view, "fixture");
+  useAppStore.getState().setGuiDocument(firstDocument);
+  selectGuiObject({ path: "main.donder", objectKey: "main", view: "fixture", ownedPath: [{ type: "fixture", id: 2 }] });
+  assert.equal(useAppStore.getState().applyGuiEditResult(first, { snapshot: snapshot(3, 2, { activeDocumentDescriptor: descriptor }), document: firstDocument }), false);
+  assert.deepEqual(useAppStore.getState().guiRequest.ownedPath, [{ type: "fixture", id: 2 }]);
+});
+
+
+test("owned objects do not share selection or persisted viewport identities", async () => {
+  const { guiObjectKey, sameGuiObject, objectViewKey } = await server.ssrLoadModule("/src/workspace/guiIdentity.ts");
+  const first = { moduleId: "module", path: "show.donder", objectKey: "show", kind: "sequence", id: "show", ownedPath: [{ type: "sequence", id: 4 }] };
+  const second = { ...first, ownedPath: [{ type: "sequence", id: 8 }] };
+  assert.notEqual(guiObjectKey(first), guiObjectKey(second));
+  assert.notEqual(objectViewKey(first), objectViewKey(second));
+  assert.equal(sameGuiObject(first, second), false);
+  assert.equal(sameGuiObject(first, { ...first, ownedPath: [{ id: 4, type: "sequence" }] }), true);
+  assert.equal(objectViewKey(first), 'show.donder::["show",[{"type":"sequence","id":4}]]');
+});

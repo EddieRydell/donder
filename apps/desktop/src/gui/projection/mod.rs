@@ -8,8 +8,8 @@ pub(super) fn project_sequence(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let id = SequenceId(resolved.identity.clone());
-    let Some(sequence) = session.project.sequences.get(&id) else {
+    let id = SequenceId(resolved.object_identity());
+    let Some(sequence) = session.project.sequence(&id) else {
         return blocked(
             "Sequence is not available in the checked project model.",
             vec![gui_diagnostic(
@@ -127,8 +127,8 @@ pub(super) fn project_sequence(
                 .collect(),
             lanes,
             effect_definitions: effect_definitions(session),
-            curve_library: curve_library(session),
-            gradient_library: gradient_library(session),
+            curve_library: curve_library(session, resolved.identity.document_id()),
+            gradient_library: gradient_library(session, resolved.identity.document_id()),
             layers: sequence
                 .layers
                 .iter()
@@ -214,9 +214,8 @@ fn automation_target_to_gui(target: &AutomationTarget) -> SequenceAutomationTarg
 pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
     session
         .project
-        .setups
-        .get(&session.project.root.setup)
-        .and_then(|setup| session.project.layouts.get(&setup.layout))
+        .setup(session.project.root.setup.id())
+        .and_then(|setup| session.project.layout(setup.layout.id()))
 }
 
 fn sequence_audio(
@@ -253,8 +252,7 @@ fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {
 fn effect_target_label(session: &ProjectSession, target: &DomainFixtureTarget) -> String {
     session
         .project
-        .layouts
-        .get(&target.layout)
+        .layout(&target.layout)
         .and_then(|layout| layout.fixture(target.fixture))
         .map(|fixture| fixture.name.clone())
         .unwrap_or_else(|| format!("Missing fixture {}", target.fixture.0))

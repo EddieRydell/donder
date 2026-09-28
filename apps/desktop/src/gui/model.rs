@@ -4,8 +4,7 @@ pub(super) fn sequence_mut<'a>(
 ) -> Result<&'a mut donder_language::sequence::Sequence, GuiMutationError> {
     session
         .project
-        .sequences
-        .get_mut(id)
+        .sequence_mut(id)
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))
 }
 
@@ -390,7 +389,7 @@ fn library_identity(
         return Ok(None);
     };
     let id = source_identity_from_gui(&module_id, &path, &object_key)?;
-    ensure_document_can_reference_source(session, owner.document_id(), kind, &id)
+    donder_project_io::link_reusable_source(session, owner.document_id(), kind, &id)
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     Ok(Some(id))
 }
@@ -550,9 +549,7 @@ use donder_language::values::{
     Color, Curve, CurvePoint, Distance, Gradient, GradientStop, Point3,
     Rotation3 as DomainRotation3, Scale3 as DomainScale3,
 };
-use donder_project_io::{
-    ProjectSession, ReferencedAsset, SourceObjectKind, ensure_document_can_reference_source,
-};
+use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
 
 use super::GuiMutationError;
 use crate::dto::{
@@ -568,23 +565,7 @@ pub(super) fn create_object_document(
     directory: &str,
     suffix: &str,
 ) -> Result<donder_language::identity::SourceIdentity, GuiMutationError> {
-    let mut key = name
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    while key.contains("__") {
-        key = key.replace("__", "_");
-    }
-    key = key.trim_matches('_').to_string();
-    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
-        key = format!("item_{key}");
-    }
+    let key = object_key(name);
     for index in 1_u32.. {
         let stem = if index == 1 {
             key.clone()
@@ -609,4 +590,36 @@ pub(super) fn create_object_document(
     Err(GuiMutationError::Invalid(
         "No source document names remain.".into(),
     ))
+}
+
+pub(crate) fn object_identity_from_gui(
+    reference: &crate::dto::GuiObjectRef,
+) -> Result<donder_language::identity::ObjectIdentity, GuiMutationError> {
+    let root =
+        source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
+    Ok(reference.owned_path.iter().fold(
+        root.into(),
+        |address: donder_language::identity::ObjectIdentity, step| address.owned(step.into()),
+    ))
+}
+
+pub(super) fn object_key(name: &str) -> String {
+    let mut key = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    while key.contains("__") {
+        key = key.replace("__", "_");
+    }
+    key = key.trim_matches('_').to_string();
+    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        key = format!("item_{key}");
+    }
+    key
 }

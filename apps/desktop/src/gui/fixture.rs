@@ -9,14 +9,46 @@ use crate::dto::*;
 use donder_language::fixture::*;
 use donder_language::identity::SourceIdentity;
 use donder_language::values::DistanceSpan;
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_project_io::{ProjectSession, SourceObjectKind};
 
 pub(super) fn edit_fixture(
     session: &mut ProjectSession,
-    identity: &SourceIdentity,
+    resolved: &super::ResolvedGuiObject,
     edit: FixtureGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let fixture = fixture_definition_mut(session, identity)?;
+    let fixture = match resolved.owned_path.as_slice() {
+        [] => fixture_definition_mut(session, &resolved.identity)?,
+        [parent @ .., crate::dto::GuiOwnedStep::Fixture { id }] => {
+            let parent = parent.iter().fold(
+                donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
+                |address, step| address.owned(step.into()),
+            );
+            let layout = session
+                .project
+                .layout_mut(&donder_language::layout::LayoutId(parent))
+                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            let placement = super::layout::find_fixture_mut(
+                &mut layout.fixtures,
+                donder_language::layout::FixtureInstanceId(*id),
+            )
+            .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
+            let donder_language::layout::LayoutFixtureKind::Fixture {
+                definition: FixtureSource::Inline(value),
+                ..
+            } = &mut placement.kind
+            else {
+                return Err(GuiMutationError::Invalid(
+                    "Fixture is not owned inline.".into(),
+                ));
+            };
+            value
+        }
+        _ => {
+            return Err(GuiMutationError::Invalid(
+                "Unsupported owned fixture path.".into(),
+            ));
+        }
+    };
     match edit {
         FixtureGuiEdit::SetElements { elements } => {
             fixture.elements = elements
@@ -91,21 +123,33 @@ pub(super) fn edit_fixture(
             fixture.elements.splice(index..=index, pixels);
         }
     }
-    fixture
-        .validate(&FixtureDefinitionId(identity.clone()))
-        .map_err(|error| GuiMutationError::Invalid(format!("Invalid fixture: {error:?}")))?;
-    // Validate generated coordinates before accepting the candidate edit.
-    for element in &fixture.elements {
-        donder_elaboration::fixture::element_pixels(element).map_err(|error| {
-            GuiMutationError::Invalid(format!(
-                "Shape is outside the supported geometry: {error:?}"
-            ))
-        })?;
-    }
+    validate_geometry(fixture)?;
     Ok(())
 }
 
-fn domain_element(element: GuiFixtureElement) -> Result<FixtureElement, GuiMutationError> {
+pub(super) fn domain_geometry(
+    elements: Vec<GuiFixtureElement>,
+) -> Result<FixtureDefinition, GuiMutationError> {
+    let geometry = FixtureDefinition {
+        elements: elements
+            .into_iter()
+            .map(domain_element)
+            .collect::<Result<_, _>>()?,
+    };
+    validate_geometry(&geometry)?;
+    Ok(geometry)
+}
+
+fn validate_geometry(geometry: &FixtureDefinition) -> Result<(), GuiMutationError> {
+    donder_elaboration::fixture::prepare_geometry(geometry).map_err(|error| {
+        GuiMutationError::Invalid(format!("Invalid fixture geometry: {error:?}"))
+    })?;
+    Ok(())
+}
+
+pub(super) fn domain_element(
+    element: GuiFixtureElement,
+) -> Result<FixtureElement, GuiMutationError> {
     let shape = match element.shape {
         GuiFixtureShape::Pixel => FixtureShape::Pixel,
         GuiFixtureShape::Line { length, count } => FixtureShape::Line { length, count },
@@ -256,10 +300,6 @@ fn move_handle(
     position: Point3Meters,
 ) -> Result<(), GuiMutationError> {
     let position = checked_point(position)?;
-    if index == 0 && !matches!(element.shape, FixtureShape::Polyline { .. }) {
-        element.transform.position = position;
-        return Ok(());
-    }
     let to_vec = |point: donder_language::values::Point3| {
         glam::Vec3::new(
             point.x.as_meters_f32(),
@@ -267,17 +307,54 @@ fn move_handle(
             point.z.as_meters_f32(),
         )
     };
+    if let FixtureShape::Line { length, .. } = &mut element.shape {
+        if index > 1 {
+            return Err(GuiMutationError::Invalid(
+                "Control point was not found.".into(),
+            ));
+        }
+        let transform = donder_elaboration::fixture::fixture_transform(&element.transform);
+        let start = if index == 0 {
+            to_vec(position)
+        } else {
+            to_vec(element.transform.position)
+        };
+        let end = if index == 1 {
+            to_vec(position)
+        } else {
+            transform.transform_point3(glam::Vec3::X * *length)
+        };
+        let direction = end - start;
+        if direction.length_squared() == 0.0 {
+            return Err(GuiMutationError::Invalid(
+                "Line endpoints must be distinct.".into(),
+            ));
+        }
+        let rotation = glam::Quat::from_euler(
+            glam::EulerRot::XYZ,
+            element.transform.rotation.x.to_radians(),
+            element.transform.rotation.y.to_radians(),
+            element.transform.rotation.z.to_radians(),
+        );
+        let axis = direction.normalize() * element.transform.scale.x.signum();
+        let rotation = glam::Quat::from_rotation_arc(rotation * glam::Vec3::X, axis) * rotation;
+        let (x, y, z) = rotation.to_euler(glam::EulerRot::XYZ);
+        element.transform.rotation.x = x.to_degrees();
+        element.transform.rotation.y = y.to_degrees();
+        element.transform.rotation.z = z.to_degrees();
+        *length = direction.length() / element.transform.scale.x.abs();
+        if index == 0 {
+            element.transform.position = position;
+        }
+        return Ok(());
+    }
+    if index == 0 && !matches!(element.shape, FixtureShape::Polyline { .. }) {
+        element.transform.position = position;
+        return Ok(());
+    }
     let transform = donder_elaboration::fixture::fixture_transform(&element.transform);
     let local = transform.inverse().transform_point3(to_vec(position));
     match &mut element.shape {
-        FixtureShape::Line { length, .. } if index == 1 => {
-            let direction = glam::Vec2::new(
-                local.x,
-                local.y * element.transform.scale.y / element.transform.scale.x,
-            );
-            *length = direction.length();
-            element.transform.rotation.z += direction.y.atan2(direction.x).to_degrees();
-        }
         FixtureShape::Polyline { points, .. } => {
             *points.get_mut(index as usize).ok_or_else(|| {
                 GuiMutationError::Invalid("Control point was not found.".into())
@@ -324,7 +401,7 @@ pub(super) fn reference_definition(
     owner: &SourceIdentity,
     reference: GuiObjectRef,
 ) -> Result<FixtureDefinitionId, GuiMutationError> {
-    if !matches!(reference.kind, ObjectKind::Fixture) {
+    if !reference.owned_path.is_empty() || !matches!(reference.kind, ObjectKind::Fixture) {
         return Err(GuiMutationError::Invalid(
             "Choose a fixture definition.".into(),
         ));
@@ -343,7 +420,7 @@ pub(super) fn reference_definition(
             "Fixture definition was not found.".into(),
         ));
     }
-    ensure_document_can_reference_source(
+    donder_project_io::link_reusable_source(
         session,
         owner.document_id(),
         SourceObjectKind::FixtureDefinition,

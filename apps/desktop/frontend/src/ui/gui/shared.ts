@@ -1,4 +1,6 @@
+import { visibleGridStep, formatDistance } from "./composition/spatialSnapping";
 import type {
+  SpatialUnit,
   ActiveGuiDocument,
   AppSnapshot,
   GeometryRenderBounds,
@@ -87,7 +89,9 @@ export function drawSpatialCanvas(
   canvas: HTMLCanvasElement | null,
   bounds: RenderBounds,
   draw: (ctx: CanvasRenderingContext2D, project: (point: Point3) => { x: number; y: number }) => void,
-  viewport?: SpatialViewport
+  viewport?: SpatialViewport,
+  gridSpacingMeters?: number,
+  unit: SpatialUnit = "meters"
 ) {
   if (!canvas) return;
   const rect = canvas.getBoundingClientRect();
@@ -103,8 +107,9 @@ export function drawSpatialCanvas(
   ctx.font = THEME_TYPOGRAPHY.canvas;
   const view = viewport ?? fitViewport(bounds, rect.width, rect.height);
   const project = (point: Point3) => projectPoint(point, rect.width, rect.height, view);
-  drawGrid(ctx, rect.width, rect.height, view);
+  drawGrid(ctx, rect.width, rect.height, view, gridSpacingMeters, unit);
   draw(ctx, project);
+  if (gridSpacingMeters !== undefined) drawRulers(ctx, rect.width, rect.height, view, gridSpacingMeters, unit);
 }
 
 export type SpatialViewport = { scale: number; fitScale: number; offsetX: number; offsetY: number };
@@ -113,12 +118,16 @@ export function fitViewport(bounds: RenderBounds, width: number, height: number)
   const spanX = Math.max(1, bounds.maxX - bounds.minX);
   const spanY = Math.max(1, bounds.maxY - bounds.minY);
   const padding = THEME_METRICS.canvasPadding;
-  const scale = Math.min((width - padding * 2) / spanX, (height - padding * 2) / spanY);
-  return { scale, fitScale: scale, offsetX: padding - bounds.minX * scale, offsetY: height - padding + bounds.minY * scale };
+  const left = padding + THEME_METRICS.spatialRulerWidth;
+  const bottom = padding + THEME_METRICS.spatialRulerHeight;
+  const scale = Math.min(Math.max(1, width - left - padding) / spanX, Math.max(1, height - bottom - padding) / spanY);
+  return { scale, fitScale: scale, offsetX: left - bounds.minX * scale, offsetY: height - bottom + bounds.minY * scale };
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: SpatialViewport) {
-  const meters = view.scale > 180 ? 1 : view.scale > 70 ? 2 : view.scale > 25 ? 5 : view.scale > 8 ? 10 : 20;
+function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: SpatialViewport, spacing: number | undefined, unit: SpatialUnit) {
+  const adaptive = view.scale > 180 ? 1 : view.scale > 70 ? 2 : view.scale > 25 ? 5 : view.scale > 8 ? 10 : 20;
+  const meters = spacing === undefined ? adaptive : visibleGridStep(spacing, view.scale, THEME_METRICS.spatialGridMinimumPixels);
+  const label = (value: number) => formatDistance(value, unit);
   const left = -view.offsetX / view.scale;
   const right = (width - view.offsetX) / view.scale;
   const bottom = (view.offsetY - height) / view.scale;
@@ -128,7 +137,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
     const x = view.offsetX + value * view.scale;
     ctx.strokeStyle = Math.abs(value) < 1e-8 ? GUI_COLORS.axis : (Math.round(value / meters) % 5 === 0 ? GUI_COLORS.majorGrid : GUI_COLORS.canvasGrid);
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-    if (x > THEME_METRICS.canvasLabelLeftInset && x < width - THEME_METRICS.canvasLabelRightInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(`${value}m`, x + THEME_METRICS.canvasLabelLeftInset - 1, height - THEME_METRICS.canvasLabelBottomInset); }
+    if (x > THEME_METRICS.canvasLabelLeftInset && x < width - THEME_METRICS.canvasLabelRightInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(label(value), x + THEME_METRICS.canvasLabelLeftInset - 1, height - THEME_METRICS.canvasLabelBottomInset); }
   }
   for (let value = Math.floor(bottom / meters) * meters; value <= top; value += meters) {
     const y = view.offsetY - value * view.scale;
@@ -136,7 +145,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
     ctx.beginPath();
     ctx.moveTo(0, y); ctx.lineTo(width, y);
     ctx.stroke();
-    if (y > THEME_METRICS.canvasLabelTopInset && y < height - THEME_METRICS.canvasLabelLeftInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(`${value}m`, THEME_METRICS.canvasLabelXOffset, y - THEME_METRICS.canvasLabelYOffset); }
+    if (y > THEME_METRICS.canvasLabelTopInset && y < height - THEME_METRICS.canvasLabelLeftInset) { ctx.fillStyle = GUI_COLORS.label; ctx.fillText(label(value), THEME_METRICS.canvasLabelXOffset, y - THEME_METRICS.canvasLabelYOffset); }
   }
 }
 
@@ -185,4 +194,23 @@ export function formatSeconds(value: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function drawRulers(ctx: CanvasRenderingContext2D, width: number, height: number, view: SpatialViewport, spacing: number, unit: SpatialUnit) {
+  const rw = THEME_METRICS.spatialRulerWidth; const rh = THEME_METRICS.spatialRulerHeight; const tick = THEME_METRICS.spatialRulerTick;
+  const step = visibleGridStep(spacing, view.scale, THEME_METRICS.spatialGridMinimumPixels);
+  ctx.fillStyle = GUI_COLORS.canvasBackground;
+  ctx.fillRect(0, 0, rw, height); ctx.fillRect(0, height - rh, width, rh);
+  ctx.strokeStyle = GUI_COLORS.axis; ctx.fillStyle = GUI_COLORS.label; ctx.font = THEME_TYPOGRAPHY.canvasLabel;
+  ctx.beginPath(); ctx.moveTo(rw, 0); ctx.lineTo(rw, height - rh); ctx.lineTo(width, height - rh); ctx.stroke();
+  for (let value = Math.ceil((rw - view.offsetX) / view.scale / step) * step; value * view.scale + view.offsetX < width; value += step) {
+    const x = value * view.scale + view.offsetX;
+    ctx.beginPath(); ctx.moveTo(x, height - rh); ctx.lineTo(x, height - rh + tick); ctx.stroke();
+    ctx.fillText(formatDistance(value, unit), x + THEME_METRICS.canvasLabelXOffset, height - THEME_METRICS.canvasLabelBottomInset);
+  }
+  for (let value = Math.ceil((view.offsetY - height + rh) / view.scale / step) * step; view.offsetY - value * view.scale > 0; value += step) {
+    const y = view.offsetY - value * view.scale;
+    ctx.beginPath(); ctx.moveTo(rw - tick, y); ctx.lineTo(rw, y); ctx.stroke();
+    ctx.fillText(formatDistance(value, unit), THEME_METRICS.canvasLabelXOffset, y - THEME_METRICS.canvasLabelYOffset, rw - tick - THEME_METRICS.canvasLabelXOffset);
+  }
 }

@@ -1,11 +1,11 @@
 //! LED output routing. Pixel ranges describe physical wiring, not effect targets.
 
 use crate::controller::{ControllerId, ControllerPortId};
-use crate::identity::SourceIdentity;
+use crate::identity::ObjectIdentity;
 use crate::layout::FixtureTarget;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct PatchId(pub SourceIdentity);
+pub struct PatchId(pub ObjectIdentity);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct PixelRouteId(pub u32);
@@ -48,5 +48,20 @@ impl Patch {
             .ok_or("Output assignment was not found.")?;
         self.routes.remove(index);
         Ok(())
+    }
+}
+
+impl crate::ownership::Identified for Patch {
+    type Id = PatchId;
+    fn id(&self) -> &Self::Id {
+        &self.id
+    }
+}
+
+pub type PatchSource = crate::ownership::ValueSource<Box<Patch>, PatchId>;
+
+impl AsRef<ObjectIdentity> for PatchId {
+    fn as_ref(&self) -> &ObjectIdentity {
+        &self.0
     }
 }

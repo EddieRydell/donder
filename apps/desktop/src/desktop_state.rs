@@ -221,6 +221,13 @@ impl DesktopState {
     }
 
     fn update_app_settings_locked(&self, settings: AppSettings) -> AppSnapshot {
+        if !settings.spatial_snap.spacing_meters.is_finite()
+            || !(0.000001..=2000.0).contains(&settings.spatial_snap.spacing_meters)
+        {
+            return self.set_persistence_error(
+                "Snap distance must be between 0.000001 and 2000 meters.".into(),
+            );
+        }
         let settings = sanitize_app_settings(settings);
         let changed_autosave =
             self.snapshot().settings.autosave_project_edits != settings.autosave_project_edits;
@@ -273,9 +280,14 @@ impl DesktopState {
             let project = self.project_session().ok_or("No project is loaded.")?;
             let active = project
                 .project
-                .setups
-                .get(&project.project.root.setup)
-                .map(|setup| setup.controllers.clone());
+                .setup(project.project.root.setup.id())
+                .map(|setup| {
+                    setup
+                        .controllers
+                        .iter()
+                        .map(|source| source.id().clone())
+                        .collect::<Vec<_>>()
+                });
             let render_ready = lock_unpoisoned(&self.sequence_render)
                 .active_target()
                 .is_some();
@@ -289,7 +301,14 @@ impl DesktopState {
             if service.snapshot().state == crate::dto::LiveOutputState::Stopping {
                 return Err("Wait for output to finish stopping before starting it again.".into());
             }
-            service.enable(project.project.controllers.clone(), active)
+            service.enable(
+                project
+                    .project
+                    .controllers()
+                    .map(|controller| (controller.id.clone(), controller.clone()))
+                    .collect(),
+                active,
+            )
         } else {
             lock_unpoisoned(&self.live_output).disable()
         };

@@ -1,23 +1,187 @@
 main:
   type: layout
   fixtures:
-  - id: 1
-    name: Desk Left
-    type: fixture
-    definition: fixture_1
-    transform:
-      position:
-        x: 0.258134
-        y: 0.712581
-        z: 0.0
-      rotation:
-        x: 0.0
-        y: 0.0
-        z: 0.0
-      scale:
-        x: 1.0
-        y: 1.0
-        z: 1.0
+  - id: 4
+    name: Desk
+    type: group
+    children:
+    - id: 1
+      name: Desk Left
+      type: fixture
+      definition: fixture_1
+      transform:
+        position:
+          x: 0.0
+          y: 0.01
+          z: 0.0
+        rotation:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    - id: 3
+      name: Desk Front
+      type: fixture
+      definition:
+        type: fixture
+        elements:
+        - id: 1
+          name: Line 1
+          diameter: 0.01
+          transform:
+            position:
+              x: 0.000023
+              y: -0.003221
+              z: 0.0
+            rotation:
+              x: 0.0
+              y: 0.0
+              z: 0.2569359242916107
+            scale:
+              x: 1.0
+              y: 1.0
+              z: 1.0
+          reverse: false
+          shape:
+            type: line
+            length: 1.295917272567749
+            count: 40
+      transform:
+        position:
+          x: -0.001052
+          y: 0.007047
+          z: 0.0
+        rotation:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    - id: 2
+      name: Desk Right
+      type: fixture
+      definition:
+        type: fixture
+        elements:
+        - id: 1
+          name: Line 1
+          diameter: 0.01
+          transform:
+            position:
+              x: -0.001052
+              y: -0.002953
+              z: 0.0
+            rotation:
+              x: 0.0
+              y: 0.0
+              z: 90.0
+            scale:
+              x: 1.0
+              y: 1.0
+              z: 1.0
+          reverse: false
+          shape:
+            type: line
+            length: 1.0005906820297241
+            count: 30
+      transform:
+        position:
+          x: 1.3
+          y: 0.0
+          z: 0.0
+        rotation:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    - id: 5
+      name: Desk Leg Left
+      type: fixture
+      definition:
+        type: fixture
+        elements:
+        - id: 1
+          name: Line 1
+          diameter: 0.01
+          transform:
+            position:
+              x: 0.003137
+              y: 0.998588
+              z: 0.0
+            rotation:
+              x: 0.0
+              y: 0.0
+              z: -90.0
+            scale:
+              x: 1.0
+              y: 1.0
+              z: 1.0
+          reverse: false
+          shape:
+            type: line
+            length: 0.9987750053405762
+            count: 30
+      transform:
+        position:
+          x: 0.0
+          y: -1.02
+          z: 0.0
+        rotation:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
+    - id: 6
+      name: Desk Leg Right
+      type: fixture
+      definition:
+        type: fixture
+        elements:
+        - id: 1
+          name: Line 1
+          diameter: 0.01
+          transform:
+            position:
+              x: 0.003137
+              y: 0.998588
+              z: 0.0
+            rotation:
+              x: 0.0
+              y: 0.0
+              z: -90.0
+            scale:
+              x: 1.0
+              y: 1.0
+              z: 1.0
+          reverse: false
+          shape:
+            type: line
+            length: 0.9987750053405762
+            count: 30
+      transform:
+        position:
+          x: 1.3
+          y: -1.0
+          z: 0.0
+        rotation:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        scale:
+          x: 1.0
+          y: 1.0
+          z: 1.0
 fixture_1:
   type: fixture
   elements:
@@ -26,8 +190,8 @@ fixture_1:
     diameter: 0.01
     transform:
       position:
-        x: -0.001052
-        y: -0.002953
+        x: 0.0
+        y: 0.0
         z: 0.0
       rotation:
         x: 0.0
@@ -40,5 +204,5 @@ fixture_1:
     reverse: false
     shape:
       type: line
-      length: 1.0005906820297241
+      length: 1.0
       count: 30

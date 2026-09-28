@@ -49,7 +49,8 @@ pub struct SequenceValidationError {
 }
 
 pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
-    if !project.setups.contains_key(&project.root.setup) {
+    crate::ownership::validate_ownership(project)?;
+    if project.setup(project.root.setup.id()).is_none() {
         return Err(ProjectValidationError::MissingSetup);
     }
     let counts = project
@@ -57,23 +58,23 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
         .fixtures
         .pixel_counts()
         .map_err(ProjectValidationError::Fixture)?;
-    for controller in project.controllers.values() {
+    for controller in project.controllers() {
         controller
             .validate()
             .map_err(ProjectValidationError::Controller)?;
     }
-    for layout in project.layouts.values() {
+    for layout in project.layouts() {
         layout
             .validate(&project.definitions.fixtures.definitions)
             .map_err(ProjectValidationError::Layout)?;
     }
-    for patch in project.patches.values() {
+    for patch in project.patches() {
         validate_patch(project, patch, &counts)?;
     }
-    for setup in project.setups.values() {
+    for setup in project.setups() {
         validate_setup(project, setup)?;
     }
-    for sequence in project.sequences.values() {
+    for sequence in project.sequences() {
         validate_sequence(project, sequence).map_err(ProjectValidationError::Sequence)?;
     }
     Ok(())
@@ -103,8 +104,7 @@ fn validate_patch(
             ));
         }
         let layout = project
-            .layouts
-            .get(&route.target.layout)
+            .layout(&route.target.layout)
             .ok_or(ProjectValidationError::MissingLayout)?;
         let target_count = layout
             .target_pixel_count(&route.target, counts)
@@ -125,8 +125,7 @@ fn validate_patch(
             target_count
         };
         let controller = project
-            .controllers
-            .get(&route.controller)
+            .controller(&route.controller)
             .ok_or(ProjectValidationError::MissingController)?;
         let port = controller
             .ports
@@ -174,26 +173,25 @@ fn validate_setup(
     project: &DonderProject,
     setup: &crate::setup::Setup,
 ) -> Result<(), ProjectValidationError> {
-    if !project.layouts.contains_key(&setup.layout) {
+    if project.layout(setup.layout.id()).is_none() {
         return Err(ProjectValidationError::MissingLayout);
     }
     let patch = project
-        .patches
-        .get(&setup.patch)
+        .patch(setup.patch.id())
         .ok_or(ProjectValidationError::MissingPatch)?;
     let mut controllers = HashSet::new();
     for controller in &setup.controllers {
-        if !project.controllers.contains_key(controller) {
+        if project.controller(controller.id()).is_none() {
             return Err(ProjectValidationError::MissingController);
         }
-        if !controllers.insert(controller) {
+        if !controllers.insert(controller.id()) {
             return Err(ProjectValidationError::InvalidRelationship(
                 "Controller appears more than once in the setup.".into(),
             ));
         }
     }
     for route in &patch.routes {
-        if route.target.layout != setup.layout {
+        if &route.target.layout != setup.layout.id() {
             return Err(ProjectValidationError::InvalidRelationship(
                 "Output targets a different layout.".into(),
             ));
@@ -212,13 +210,14 @@ pub fn validate_sequence(
     sequence: &Sequence,
 ) -> Result<(), SequenceValidationError> {
     let setup = project
-        .setups
-        .get(&project.root.setup)
+        .setup(project.root.setup.id())
         .ok_or_else(|| sequence_error("active setup is missing"))?;
-    let layout = project
-        .layouts
-        .get(&setup.layout)
-        .ok_or_else(|| sequence_error("active layout is missing"))?;
+    let active_layout = setup.layout.id();
+    let active = project
+        .root
+        .sequences
+        .iter()
+        .any(|source| source.id() == &sequence.id);
 
     if sequence.frame_rate == 0 {
         return Err(sequence_error("frame rate must be greater than zero"));
@@ -287,7 +286,24 @@ pub fn validate_sequence(
             sequence.duration.0,
             "effect",
         )?;
-        if effect.target.layout != layout.id || layout.fixture(effect.target.fixture).is_none() {
+        if active && &effect.target.layout != active_layout {
+            return Err(sequence_error(
+                "Effect target is not present in the active layout.",
+            ));
+        }
+        if sequence
+            .effects
+            .first()
+            .is_some_and(|first| first.target.layout != effect.target.layout)
+        {
+            return Err(sequence_error(
+                "All effect targets in a sequence must use the same layout.",
+            ));
+        }
+        let layout = project
+            .layout(&effect.target.layout)
+            .ok_or_else(|| sequence_error("Effect target layout is missing."))?;
+        if layout.fixture(effect.target.fixture).is_none() {
             return Err(sequence_error(
                 "Effect target is not present in the active layout.",
             ));

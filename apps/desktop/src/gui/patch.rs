@@ -1,21 +1,17 @@
 use crate::dto::*;
-use crate::gui::model::source_identity_from_gui;
+use crate::gui::model::object_identity_from_gui;
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_language::controller::{ControllerId, ControllerPortId};
-use donder_language::identity::SourceIdentity;
+use donder_language::identity::ObjectIdentity;
 use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_language::patch::{PatchId, PixelEncoding, PixelRoute, PixelRouteId, PixelSpan};
-use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_object};
 
 pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let Some(patch) = session
-        .project
-        .patches
-        .get(&PatchId(resolved.identity.clone()))
-    else {
+    let Some(patch) = session.project.patch(&PatchId(resolved.object_identity())) else {
         return blocked("Patch was not found.", Vec::new());
     };
     let counts = match session.project.definitions.fixtures.pixel_counts() {
@@ -29,9 +25,9 @@ pub(super) fn project_document(
     };
     let layouts = session
         .project
-        .layouts
-        .iter()
-        .map(|(id, layout)| {
+        .layouts()
+        .map(|layout| {
+            let id = &layout.id;
             let fixtures = layout
                 .iter_fixtures()
                 .map(|fixture| {
@@ -71,9 +67,9 @@ pub(super) fn project_document(
             layouts,
             controllers: session
                 .project
-                .controllers
-                .iter()
-                .map(|(id, controller)| {
+                .controllers()
+                .map(|controller| {
+                    let id = &controller.id;
                     super::controller::project_controller(session, id, controller)
                 })
                 .collect(),
@@ -81,9 +77,10 @@ pub(super) fn project_document(
     }
 }
 
-pub(super) fn object_ref(identity: &SourceIdentity, kind: SourceObjectKind) -> GuiObjectRef {
+pub(super) fn object_ref(identity: &ObjectIdentity, kind: SourceObjectKind) -> GuiObjectRef {
     ResolvedGuiObject {
-        identity: identity.clone(),
+        owned_path: identity.owned_path().iter().map(Into::into).collect(),
+        identity: identity.root_source().clone(),
         kind,
     }
     .source_ref()
@@ -125,21 +122,10 @@ pub(super) fn replace(
                     "A pixel route needs a layout and a controller.".into(),
                 ));
             }
-            let layout = source_identity_from_gui(
-                &route.layout.module_id,
-                &route.layout.path,
-                &route.layout.object_key,
-            )?;
-            let controller = source_identity_from_gui(
-                &route.controller.module_id,
-                &route.controller.path,
-                &route.controller.object_key,
-            )?;
-            for (kind, identity) in [
-                (SourceObjectKind::Layout, &layout),
-                (SourceObjectKind::Controller, &controller),
-            ] {
-                ensure_document_can_reference_source(session, id.0.document_id(), kind, identity)
+            let layout = object_identity_from_gui(&route.layout)?;
+            let controller = object_identity_from_gui(&route.controller)?;
+            for identity in [&layout, &controller] {
+                ensure_document_can_reference_object(session, id.0.document_id(), identity)
                     .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
             }
             Ok(PixelRoute {
@@ -166,8 +152,7 @@ pub(super) fn replace(
         .collect::<Result<_, _>>()?;
     session
         .project
-        .patches
-        .get_mut(id)
+        .patch_mut(id)
         .ok_or_else(|| GuiMutationError::Invalid("Patch was not found.".into()))?
         .routes = routes;
     Ok(())

@@ -29,6 +29,7 @@ export const THEME_TYPOGRAPHY = {
 
 export const THEME_COLORS = {
   defaultProjectColor: cssColor("--donder-default-project-color"),
+  defaultSequenceColor: cssColor("--donder-default-sequence-color"),
   background: cssColor("--donder-bg"),
   page: cssColor("--donder-bg-page"),
   panel: cssColor("--donder-bg-panel"),
@@ -131,6 +132,7 @@ export const THEME_METRICS = {
   iconSizeExtraSmall: cssNumber("--donder-icon-size-xs"),
   iconSizeCompact: cssNumber("--donder-icon-size-compact"),
   menuOffset: cssNumber("--donder-menu-offset"),
+  layoutTreeDropEdge: cssNumber("--donder-layout-tree-drop-edge"),
   projectTreeIndent: cssNumber("--donder-project-tree-indent"),
   projectTreeRowHeight: cssNumber("--donder-project-tree-row-height"),
   activityIconSize: cssNumber("--donder-activity-icon-size"),
@@ -258,6 +260,11 @@ export const THEME_METRICS = {
   layoutLabelOffsetY: cssNumber("--donder-layout-label-offset-y"),
   layoutSelectionDash: cssNumber("--donder-layout-selection-dash"),
   layoutSelectionGap: cssNumber("--donder-layout-selection-gap"),
+  spatialRulerWidth: cssNumber("--donder-spatial-ruler-width"),
+  spatialRulerHeight: cssNumber("--donder-spatial-ruler-height"),
+  spatialRulerTick: cssNumber("--donder-spatial-ruler-tick"),
+  spatialSelectionDash: cssNumber("--donder-spatial-selection-dash"),
+  spatialGridMinimumPixels: cssNumber("--donder-spatial-grid-minimum-pixels"),
   spatialPointRadius: cssNumber("--donder-spatial-point-radius"),
   spatialHitRadius: cssNumber("--donder-spatial-hit-radius"),
   spatialPanThreshold: cssNumber("--donder-spatial-pan-threshold"),

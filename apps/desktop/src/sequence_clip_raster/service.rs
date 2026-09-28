@@ -236,7 +236,7 @@ impl SequenceClipRasterService {
             return empty_response(project_revision, request_id, true);
         };
 
-        let Some(sequence) = project.project.sequences.get(&sequence_id) else {
+        let Some(sequence) = project.project.sequence(&sequence_id) else {
             self.active = None;
             return empty_response(project_revision, request_id, true);
         };

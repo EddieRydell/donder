@@ -20,8 +20,9 @@ menu. Enter a pixel count before drawing; grids use columns times rows.
 
 Select a shape to edit its name, geometry, count, pixel diameter, and transform.
 Numeric changes commit on blur or Enter; Escape restores the previous value.
-Canvas handles edit control points and dimensions. The origin handle of a line,
-arc, or grid moves its origin; dragging a pixel in the shape moves the whole shape.
+Canvas handles edit control points and dimensions. Either endpoint of a line can
+move independently while the opposite endpoint stays fixed. The origin handle of
+an arc or grid moves its origin; dragging a pixel in the shape moves the whole shape.
 Alt-drag or middle-drag pans, the wheel zooms, and Home fits the drawing.
 
 Changing geometry preserves pixel count. A line or open arc includes both
@@ -40,23 +41,85 @@ Convert to individual pixels replaces a shape in place with its current ordered
 pixels. Those pixels can be edited separately; Undo restores the shape. Drawing,
 handle gestures, reordering, conversion, and numeric edits use ordinary history.
 
+## Precision and arrangement
+
+Both spatial editors share a saved Snap distance and display unit (meters,
+centimeters, millimeters, inches, or feet). Snap attracts drawing points and
+movement anchors to the grid, nearby existing points, and guides. Fixture drawing
+uses authored control points and individual pixels as targets; layout movement
+can snap a placement origin to another fixture's pixels. Ctrl/Cmd temporarily
+bypasses snapping. The grid coarsens at low zoom while preserving the chosen snap
+increment.
+
+Hold Shift while drawing or moving to constrain the direction to a multiple of
+45 degrees. Shift makes a new grid square. Constraints take precedence over
+absolute grid coordinates when the starting anchor is off-grid. Live readouts
+show length, angle, and X/Y displacement in the chosen unit. Rulers and selection
+width/height use the same unit. Backspace removes the last polyline vertex before
+Enter finishes it.
+
+Drag an empty part of the canvas to select all objects fully inside the box.
+Shift/Ctrl/Cmd-click a list row or canvas object to add or remove it from the
+selection; Ctrl/Cmd-A selects the canvas objects. A selected layout group moves
+its descendants together, without moving a separately selected descendant twice.
+Arrows nudge by the snap distance, Shift-arrows by ten steps. Delete removes the
+selection and Ctrl/Cmd-D duplicates it. Escape cancels an active gesture.
+
+The sidebar provides **Align and distribute** and **Repeat selection**. Alignment
+uses the outer bounds of the rendered pixels, including diameter. Distribution
+makes equal horizontal or vertical gaps and requires at least three objects.
+Repeat creates a row/column array: the counts include the original, horizontal
+and vertical steps are offsets between copies, and positive vertical steps go
+up. Each arrangement, group move, or repeat is one undoable edit. Repeated layout
+fixtures own independent geometry even when the originals reference reusable
+sources. Repeat is limited to 1,000 selected-object copies per operation.
+
+Under **Guides and shortcuts**, add horizontal or vertical guides and set their
+coordinates numerically. Guides are saved per fixture/layout view with workspace
+preferences, follow document path moves, and are not part of authored geometry
+or its undo history.
+
 ## Layout and shared fixtures
 
 The layout sidebar contains groups and fixture instances. Each instance has a
 name and position/rotation/scale. Effects target instances or whole layout groups.
 The list and canvas share Add fixture and Add group actions. New fixtures are
-stored in the layout file and opened for editing by default. Advanced settings,
-below Name, can instead create a uniquely named file in the fixtures folder.
-Existing fixtures can be added from the Add fixture submenu.
+owned directly by their placement and opened for editing by default. Advanced settings,
+below Name, can instead create a reusable source in this file or a uniquely named
+file in the fixtures folder. Existing reusable fixtures can be added from the
+Add fixture submenu. A selected fixture's source actions offer **Make reusable**
+for owned geometry and **Make independent** for a link. Making a link independent
+copies its geometry into that placement and leaves the reusable source unchanged.
 
-Right-click a fixture row to edit, rename, or remove it. Removing the last use of
-an inline fixture also removes its saved shape data; other layouts and nested
-groups count as uses. Separate fixture files remain available for reuse.
+Right-click a fixture row to edit, rename, or remove it. Removing
+an inline fixture removes its owned shape data. Copying an inline fixture creates
+independent geometry. Referenced fixture data remains available after removing
+its placements, whether its source is in the same file or another file.
 Editing a shared fixture
 changes all instances referencing it. Fixtures in the current document open in a
-modal; fixtures in another document open in their editor tab.
+modal; fixtures in another document open in their editor tab. The fixture modal's
+Save and close button saves through the normal project save path before closing;
+a failed save leaves the editor open.
 
 ## Authored format
+
+An owned fixture places its geometry directly inside the layout entry. It needs
+no extra named source object:
+
+```yaml
+main:
+  type: layout
+  fixtures:
+  - id: 1
+    name: Front Left
+    type: fixture
+    definition:
+      type: fixture
+      elements: []
+```
+
+A reference instead uses `definition: strip` (or an imported alias). The named
+source is reusable independently of where its document is stored:
 
 ```yaml
 strip:
@@ -95,3 +158,12 @@ target whole instances or groups.
 Copying a layout preserves shared fixtures and instance IDs, creates its own
 patch, and retargets affected sequences. Dependency fixtures remain read-only
 and must be exported/imported to stay referenced from the copied layout.
+
+
+The layout hierarchy supports dragging fixtures and groups. Drop onto the middle
+of a group row to move inside it; the group opens while hovering. Drop near the
+top or bottom of a row to reorder siblings, or onto the bottom drop area to move
+to the top level. Moves preserve fixture IDs, geometry ownership, and canvas
+positions, and use normal undo/redo. Groups cannot be moved into their descendants.
+Reordering changes layout traversal order, and changing group membership also
+changes which fixtures are included when an effect or patch targets that group.

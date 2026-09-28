@@ -47,45 +47,6 @@ pub struct SourceProject {
 }
 
 impl SourceProject {
-    /// Copy dependency export imports into a new project-owned document so it can
-    /// preserve references to dependency objects already visible to its owner.
-    pub fn inherit_dependency_imports(
-        &mut self,
-        from: &DocumentId,
-        to: &DocumentId,
-    ) -> Result<(), String> {
-        if !self.is_project_owned(to) {
-            return Err("Import inheritance requires a project-owned target document.".into());
-        }
-        let imports = self
-            .documents
-            .get(from)
-            .ok_or_else(|| "Import source document was not found.".to_string())?
-            .imports
-            .iter()
-            .filter(|edge| {
-                edge.targets
-                    .iter()
-                    .any(|target| target.module_id() != from.module_id())
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        let target = self
-            .documents
-            .get_mut(to)
-            .ok_or_else(|| "Import target document was not found.".to_string())?;
-        for edge in imports {
-            if !target
-                .imports
-                .iter()
-                .any(|existing| existing.declaration == edge.declaration)
-            {
-                target.imports.push(edge);
-            }
-        }
-        Ok(())
-    }
-
     /// Register a new project-owned YAML document and its typed object inventory.
     /// The caller inserts the corresponding typed values into the same candidate session.
     pub fn add_yaml_document(
@@ -156,7 +117,13 @@ impl SourceProject {
             return Err("This object requires a YAML source document.".to_string());
         }
         let key = (1_u32..)
-            .map(|index| format!("{prefix}_{index}"))
+            .map(|index| {
+                if index == 1 {
+                    prefix.to_owned()
+                } else {
+                    format!("{prefix}_{index}")
+                }
+            })
             .find(|key| source.objects.iter().all(|object| object.id() != key))
             .ok_or_else(|| "No source object identifiers remain.".to_string())?;
         source.objects.push(SourceObjectId::new(kind, key.clone())?);
@@ -483,4 +450,77 @@ pub fn source_file_list(session: &ProjectSession) -> BTreeMap<DocumentId, Vec<St
             )
         })
         .collect()
+}
+
+impl SourceObjectKind {
+    /// The kind of an owned child at this slot; source references do not add slots.
+    pub fn owned_child_kind(
+        &self,
+        slot: &donder_language::identity::OwnedObjectSlot,
+    ) -> Option<Self> {
+        use donder_language::identity::OwnedObjectSlot;
+        match (self, slot) {
+            (Self::Project, OwnedObjectSlot::Setup) => Some(Self::Setup),
+            (Self::Project, OwnedObjectSlot::Sequence(_)) => Some(Self::Sequence),
+            (Self::Setup, OwnedObjectSlot::Layout) => Some(Self::Layout),
+            (Self::Setup, OwnedObjectSlot::Patch) => Some(Self::Patch),
+            (Self::Setup, OwnedObjectSlot::Controller(_)) => Some(Self::Controller),
+            (Self::Layout, OwnedObjectSlot::Fixture(_)) => Some(Self::FixtureDefinition),
+            _ => None,
+        }
+    }
+}
+
+impl ProjectSession {
+    /// Check an owned address against the typed tree, never against source names.
+    pub fn owned_object_exists(
+        &self,
+        kind: &SourceObjectKind,
+        identity: &donder_language::identity::ObjectIdentity,
+    ) -> bool {
+        use donder_language::{
+            controller::ControllerId,
+            fixture::FixtureSource,
+            identity::OwnedObjectSlot,
+            layout::{FixtureInstanceId, LayoutFixtureKind, LayoutId},
+            patch::PatchId,
+            sequence::SequenceId,
+            setup::SetupId,
+        };
+        if identity.source().is_some() {
+            return false;
+        }
+        match kind {
+            SourceObjectKind::Setup => self.project.setup(&SetupId(identity.clone())).is_some(),
+            SourceObjectKind::Layout => self.project.layout(&LayoutId(identity.clone())).is_some(),
+            SourceObjectKind::Patch => self.project.patch(&PatchId(identity.clone())).is_some(),
+            SourceObjectKind::Controller => self
+                .project
+                .controller(&ControllerId(identity.clone()))
+                .is_some(),
+            SourceObjectKind::Sequence => self
+                .project
+                .sequence(&SequenceId(identity.clone()))
+                .is_some(),
+            SourceObjectKind::FixtureDefinition => {
+                let Some(OwnedObjectSlot::Fixture(id)) = identity.owned_path().last() else {
+                    return false;
+                };
+                identity
+                    .parent()
+                    .and_then(|parent| self.project.layout(&LayoutId(parent)))
+                    .and_then(|layout| layout.fixture(FixtureInstanceId(*id)))
+                    .is_some_and(|fixture| {
+                        matches!(
+                            fixture.kind,
+                            LayoutFixtureKind::Fixture {
+                                definition: FixtureSource::Inline(_),
+                                ..
+                            }
+                        )
+                    })
+            }
+            _ => false,
+        }
+    }
 }

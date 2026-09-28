@@ -16,6 +16,7 @@ pub struct PreviewAppearance {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FixtureGuiDocument {
+    pub name: String,
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
@@ -144,7 +145,7 @@ pub struct GuiLayoutFixture {
 )]
 pub enum GuiLayoutFixtureKind {
     Fixture {
-        definition: GuiObjectRef,
+        definition: GuiFixtureSource,
         transform: Transform,
     },
     Group {
@@ -159,6 +160,18 @@ pub enum GuiLayoutFixtureKind {
     rename_all_fields = "camelCase"
 )]
 pub enum LayoutGuiEdit {
+    ReparentFixture {
+        id: u32,
+        parent: Option<u32>,
+        before: Option<u32>,
+    },
+    DuplicateFixture {
+        id: u32,
+    },
+    RepeatFixtures {
+        ids: Vec<u32>,
+        offsets: Vec<Point3Meters>,
+    },
     AddDefinition {
         name: String,
         storage: FixtureStorage,
@@ -178,6 +191,7 @@ pub enum LayoutGuiEdit {
 #[serde(rename_all = "camelCase")]
 pub enum FixtureStorage {
     Inline,
+    SameFile,
     NewFile,
 }
 
@@ -218,4 +232,11 @@ pub struct SequenceCurvePoint {
 #[serde(rename_all = "camelCase")]
 pub struct FixtureTarget {
     pub fixture: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum GuiFixtureSource {
+    Inline { elements: Vec<GuiFixtureElement> },
+    Reference { source: GuiObjectRef },
 }

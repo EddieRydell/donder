@@ -1,5 +1,7 @@
+import { OwnershipActions, ownershipLabel } from "../OwnershipActions";
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { ControllerForm } from "../controller/ControllerForm";
-import { Cable, CircuitBoard, LayoutGrid, MoreHorizontal } from "lucide-react";
+import { Cable, CircuitBoard, LayoutGrid } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState, type ReactNode } from "react";
 
@@ -13,21 +15,17 @@ export function SetupEditor({ document }: { document: SetupDocument }) {
   return (
     <main className="project-overview">
       <header className="object-overview-header">
-        <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.objectKey}</h2></div>
+        <div><span className="object-overview-eyebrow">Display setup</span><h2>{document.sourceRef.ownedPath.length > 0 ? "Display setup" : document.objectKey}</h2></div>
         <span>{document.controllers.length} controllers</span>
       </header>
       <section className="object-overview-group">
         <h3>Composition</h3>
-        <SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={referenceLabel(document.layoutRef)} detail={document.layoutReadOnly ? "Read-only package source" : "Fixture instances and groups"} onOpen={() => void navigateToGuiObject(document.layoutRef)} />
-        <SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={referenceLabel(document.patchRef)} detail={document.patchReadOnly ? "Read-only package source" : "LED output routes"} onOpen={() => void navigateToGuiObject(document.patchRef)} />
-        {(document.layoutReadOnly || document.patchReadOnly) && <div>
-          <p className="param-source-description">Use local copies of the layout and patch in this setup. For the active setup, sequence targets follow the copied layout. Fixture definitions remain shared.</p>
-          <button className="object-overview-inline-action" type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "copyLayout" }))}>Copy layout and patch into project</button>
-        </div>}
+        <div className="object-overview-row-with-actions"><SetupRow icon={<LayoutGrid aria-hidden="true" />} title="Layout" reference={ownershipLabel(document.layoutRef)} detail="Fixture instances and groups" onOpen={() => void navigateToGuiObject(document.layoutRef)} /><OwnershipActions sources={document.availableSources} source={document.layoutRef} slot={{ type: "layout" }} label="Layout" /></div>
+        <div className="object-overview-row-with-actions"><SetupRow icon={<Cable aria-hidden="true" />} title="Patch" reference={ownershipLabel(document.patchRef)} detail="LED output routes" onOpen={() => void navigateToGuiObject(document.patchRef)} /><OwnershipActions sources={document.availableSources} source={document.patchRef} slot={{ type: "patch" }} label="Patch" /></div>
       </section>
       <section className="object-overview-group">
         <OverviewGroupHeader title="Controllers"><CreationDialog label="Add controller" title="New controller"><ControllerForm onSave={async (config, ports) => { await runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "addController", config, ports })); }} /><AvailableControllers document={document} /></CreationDialog></OverviewGroupHeader>
-        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller) => <div className="object-overview-row-with-actions" key={referenceLabel(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={referenceLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs${controller.readOnly ? " - Read-only package source" : ""}`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><details className="setup-controller-actions"><summary aria-label={`Setup actions for ${controller.label}`}><MoreHorizontal aria-hidden="true" /></summary><div><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></div></details></div>)}
+        {document.controllers.length === 0 ? <p className="object-overview-empty">No controllers attached.</p> : document.controllers.map((controller, index) => <div className="object-overview-row-with-actions" key={guiObjectKey(controller.sourceRef)}><SetupRow icon={<CircuitBoard aria-hidden="true" />} title={controller.label} reference={ownershipLabel(controller.sourceRef)} detail={`${controller.ports.length} outputs${controller.readOnly ? " - Read-only package source" : ""}`} onOpen={() => void navigateToGuiObject(controller.sourceRef)} /><OwnershipActions sources={document.availableSources} source={controller.sourceRef} slot={{ type: "controller", index }} label={controller.label}><SetupControllerActions controller={controller} patchReadOnly={document.patchReadOnly} /></OwnershipActions></div>)}
       </section>
     </main>
   );
@@ -46,4 +44,3 @@ function SetupRow({ icon, title, reference, detail, onOpen }: { icon: ReactNode;
   return <a href="#" className="object-overview-row" onClick={(event) => { event.preventDefault(); onOpen(); }}><span className="object-overview-icon">{icon}</span><span className="object-overview-label"><strong>{title}</strong><span>{reference}</span></span><span className="object-overview-detail">{detail}</span></a>;
 }
 
-function referenceLabel(reference: SetupDocument["layoutRef"]): string { return `${reference.path} · ${reference.objectKey}`; }

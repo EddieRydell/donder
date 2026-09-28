@@ -16,7 +16,7 @@ fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
     use donder_language::patch::{PixelEncoding, PixelRouteId, PixelSpan};
     use donder_language::validation::validate_project;
     let mut project = project().project;
-    let patch_id = project.setups[&project.root.setup].patch.clone();
+    let patch_id = project.setups[project.root.setup.id()].patch.id().clone();
     let patch = project.patches.get_mut(&patch_id).unwrap();
     patch.routes.truncate(1);
     patch.routes[0].pixels = Some(PixelSpan { start: 0, count: 1 });
@@ -54,10 +54,11 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
     let sequence = project
         .sequences
         .keys()
-        .find(|id| id.0.object() == "layer_test")
+        .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
-    let signal = elaborate_sequence(project, &project.root.setup, sequence).unwrap();
-    let output = PreparedSequenceOutput::prepare(project, &project.root.setup, sequence).unwrap();
+    let signal = elaborate_sequence(project, project.root.setup.id(), sequence).unwrap();
+    let output =
+        PreparedSequenceOutput::prepare(project, project.root.setup.id(), sequence).unwrap();
     for (frame, expected) in [
         (8398, 0x8bb5_7d05_87a6_9ae8),
         (8450, 0x5bee_7460_eba9_0468),
@@ -106,9 +107,9 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
     let sequence = project
         .sequences
         .keys()
-        .find(|id| id.0.object() == "layer_test")
+        .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
-    let full = PreparedSequenceOutput::prepare(project, &project.root.setup, sequence).unwrap();
+    let full = PreparedSequenceOutput::prepare(project, project.root.setup.id(), sequence).unwrap();
     let frame = full.render_frame(8450).unwrap();
     let ports: Vec<_> = [2, 17]
         .into_iter()
@@ -119,9 +120,13 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
             )
         })
         .collect();
-    let mut selected =
-        PreparedSequenceOutput::prepare_selected(project, &project.root.setup, sequence, &ports)
-            .unwrap();
+    let mut selected = PreparedSequenceOutput::prepare_selected(
+        project,
+        project.root.setup.id(),
+        sequence,
+        &ports,
+    )
+    .unwrap();
     let limits = LoadLimits {
         payload_bytes: 32 * 1024 * 1024,
         workspace_bytes: 32 * 1024 * 1024,

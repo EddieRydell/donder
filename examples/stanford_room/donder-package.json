@@ -1,1 +1,1 @@
-{"manifestVersion":2,"moduleId":"0c6c3dda-8f24-40e8-9fb1-0b0336525108","languageVersion":"0.1","project":{"entrypoint":"project.donder"},"publication":null,"exports":{"project":{"documents":["project.donder"]}},"dependencies":{},"assets":{}}
+{"manifestVersion":2,"moduleId":"0c6c3dda-8f24-40e8-9fb1-0b0336525108","languageVersion":"0.1","project":{"entrypoint":"project.donder"},"publication":null,"exports":{"project":{"documents":["project.donder"]}},"dependencies":{},"assets":{"audio/Babokon - All We Are.mp3":{"kind":"audio"}}}

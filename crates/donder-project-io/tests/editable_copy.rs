@@ -18,6 +18,7 @@ fn imported_show_exports_with_private_effects_nested_imports_and_audio() {
         .root
         .sequences
         .iter()
+        .map(|source| source.id())
         .find(|id| {
             let sequence = &starter.project.sequences[*id];
             !sequence.effects.is_empty()
@@ -97,7 +98,7 @@ fn imported_show_exports_with_private_effects_nested_imports_and_audio() {
         (
             "setup".into(),
             donder_package::ExportGroup {
-                documents: vec![starter.project.root.setup.0.document().to_string()],
+                documents: vec![starter.project.root.setup.id().0.document().to_string()],
             },
         ),
         (
@@ -108,7 +109,7 @@ fn imported_show_exports_with_private_effects_nested_imports_and_audio() {
         ),
     ]);
     rig_manifest.write(&rig).unwrap();
-    fs::write(root.join("project.donder"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", starter.project.root.setup.0.object(), sequence_id.0.object())).unwrap();
+    fs::write(root.join("project.donder"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", starter.project.root.setup.id().0.root_source().object(), sequence_id.0.root_source().object())).unwrap();
     common::write_project_package(&root);
     let mut manifest = donder_package::PackageManifest::read(&root).unwrap();
     manifest.assets.clear();
@@ -175,14 +176,14 @@ fn imported_show_exports_with_private_effects_nested_imports_and_audio() {
     }
     let output_before = donder_elaboration::PreparedSequenceOutput::prepare(
         &original.project,
-        &original.project.root.setup,
-        &original.project.root.sequences[0],
+        original.project.root.setup.id(),
+        original.project.root.sequences[0].id(),
     )
     .unwrap();
     let output_after = donder_elaboration::PreparedSequenceOutput::prepare(
         &copied.project,
-        &copied.project.root.setup,
-        &copied.project.root.sequences[0],
+        copied.project.root.setup.id(),
+        copied.project.root.sequences[0].id(),
     )
     .unwrap();
     for time in [0.0, 0.5, 2.0] {

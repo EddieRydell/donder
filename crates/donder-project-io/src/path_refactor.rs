@@ -51,6 +51,13 @@ pub struct PathChangePlan {
 }
 
 impl PathChangePlan {
+    pub fn remap_object_identity(
+        &self,
+        identity: &donder_language::identity::ObjectIdentity,
+    ) -> donder_language::identity::ObjectIdentity {
+        donder_language::source_remap::remap_object_identity(identity, &self.document_remaps)
+    }
+
     pub fn remap_identity(
         &self,
         identity: &donder_language::identity::SourceIdentity,

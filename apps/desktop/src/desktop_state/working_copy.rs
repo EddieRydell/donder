@@ -524,6 +524,7 @@ mod tests {
 
     fn gui_request(state: &DesktopState) -> GuiDocumentRequest {
         GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: SEQUENCE.into(),
             view: DocumentViewId::Sequence,
@@ -656,13 +657,28 @@ mod tests {
     #[test]
     fn new_gui_documents_remain_unsaved_and_are_available_to_text_analysis() {
         let (_temporary, root, state) = project();
-        let path = "sequences/unsaved.sequence.donder";
-        state.create_sequence(NewSequenceRequest {
-            file_path: path.into(),
-            object_key: "new_sequence".into(),
-            duration_seconds: 60.0,
-            frame_rate: 60,
-        });
+        let path = "sequences/new_sequence.sequence.donder";
+        state
+            .create_sequence(NewSequenceRequest {
+                storage: crate::dto::NewSequenceStorage::NewFile {
+                    name: "New Sequence".into(),
+                },
+                initial_color: state
+                    .project_session()
+                    .unwrap()
+                    .project
+                    .sequences
+                    .values()
+                    .next()
+                    .unwrap()
+                    .layers[0]
+                    .color
+                    .to_hex(),
+                duration_seconds: 60.0,
+                frame_rate: 60,
+            })
+            .unwrap();
+        state.open_file_path(path);
         state.working_copy.finish_pending();
         let snapshot = state.snapshot();
         assert_eq!(snapshot.project_health, ProjectHealth::Ready);
@@ -880,7 +896,7 @@ mod tests {
         let request = crate::state_tasks::RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: project.project.root.setup.clone(),
+            setup_id: project.project.root.setup.id().clone(),
             sequence_id,
             project,
         };

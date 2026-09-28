@@ -8,6 +8,9 @@ pub fn apply_edit(
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
     ensure_owned_gui_document(session, &resolved)?;
     match (request.view.clone(), edit) {
+        (_, GuiEditCommand::Ownership { slot, edit }) => {
+            super::ownership::edit(session, &resolved, slot, edit)?
+        }
         (DocumentViewId::Sequence, GuiEditCommand::Sequence { edit }) => {
             edit_sequence(session, &resolved, edit)?;
         }
@@ -19,7 +22,7 @@ pub fn apply_edit(
             edit_layout(session, &resolved, edit)?;
         }
         (DocumentViewId::Fixture, GuiEditCommand::Fixture { edit }) => {
-            edit_fixture(session, &resolved.identity, edit)?;
+            edit_fixture(session, &resolved, edit)?;
         }
         (DocumentViewId::Curve, GuiEditCommand::Curve { points }) => {
             super::library::edit_curve(session, &resolved, points)?;
@@ -34,7 +37,7 @@ pub fn apply_edit(
         (DocumentViewId::Patch, GuiEditCommand::Patch { routes }) => {
             super::patch::replace(
                 session,
-                &donder_language::patch::PatchId(resolved.identity.clone()),
+                &donder_language::patch::PatchId(resolved.object_identity()),
                 routes,
             )?;
         }
@@ -85,7 +88,7 @@ pub(crate) fn apply_sequence_selection_edit(
     }
     let resolved = resolve_request(session, request).map_err(GuiMutationError::Invalid)?;
     ensure_owned_gui_document(session, &resolved)?;
-    let sequence_id = SequenceId(resolved.identity.clone());
+    let sequence_id = SequenceId(resolved.object_identity());
     match edit {
         SequenceSelectionEdit::Copy { .. } => Err(GuiMutationError::Invalid(
             "Copy must use the read-only selection path.".to_string(),

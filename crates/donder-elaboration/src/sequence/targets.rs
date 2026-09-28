@@ -33,14 +33,12 @@ pub fn resolve_effect_target_pixel_addresses(
     scope: &EffectScope,
 ) -> Result<Vec<RenderedTargetPixelAddress>, RenderError> {
     let setup = project
-        .setups
-        .get(setup_id)
+        .setup(setup_id)
         .ok_or_else(|| RenderError::MissingSetup {
             setup_id: setup_id.clone(),
         })?;
     let layout = project
-        .layouts
-        .get(&setup.layout)
+        .layout(setup.layout.id())
         .ok_or(RenderError::MissingLayout)?;
     if target.layout != layout.id {
         return Err(RenderError::BadTarget);

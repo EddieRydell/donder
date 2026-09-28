@@ -23,6 +23,6 @@ pub(crate) fn choose_new_project_parent_directory() -> Option<String> {
 pub(crate) fn create_sequence(
     request: NewSequenceRequest,
     state: State<'_, DesktopState>,
-) -> AppSnapshot {
+) -> Result<crate::dto::NewSequenceResult, String> {
     state.create_sequence(request)
 }

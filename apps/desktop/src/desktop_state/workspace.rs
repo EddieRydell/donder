@@ -1,5 +1,4 @@
 use std::fs;
-use std::time::Duration;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
@@ -14,7 +13,7 @@ use crate::dto::{
 };
 use crate::persistence::{
     PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate,
-    PersistedSequenceViewportStateUpdate, ProjectRestoreState,
+    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
 };
 use crate::project::{new_project_files, write_new_project_files};
 
@@ -80,12 +79,26 @@ impl DesktopState {
         }
     }
 
+    pub fn save_spatial_view_state(&self, update: PersistedSpatialViewStateUpdate) -> AppSnapshot {
+        let snapshot = self.snapshot();
+        let Some(project_root) = snapshot.project_root.as_deref() else {
+            return snapshot;
+        };
+        match self.persistence.record_spatial_view(project_root, update) {
+            Ok(()) => snapshot,
+            Err(error) => {
+                self.set_persistence_error(format!("Spatial view state was not saved: {error}"))
+            }
+        }
+    }
+
     pub fn restored_view_state(&self) -> ProjectRestoreState {
         let snapshot = self.snapshot();
         let Some(project_root) = snapshot.project_root.as_deref() else {
             return ProjectRestoreState {
                 editor_states: Default::default(),
                 sequence_viewports: Default::default(),
+                spatial_views: Default::default(),
                 graph_views: Default::default(),
             };
         };
@@ -305,8 +318,8 @@ impl DesktopState {
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
             workspace.render_target = workspace.render_target.as_ref().map(|(setup, sequence)| {
                 (
-                    donder_language::setup::SetupId(plan.remap_identity(&setup.0)),
-                    donder_language::sequence::SequenceId(plan.remap_identity(&sequence.0)),
+                    donder_language::setup::SetupId(plan.remap_object_identity(&setup.0)),
+                    donder_language::sequence::SequenceId(plan.remap_object_identity(&sequence.0)),
                 )
             });
             workspace.view.project_revision += 1;
@@ -437,12 +450,13 @@ impl DesktopState {
         &self,
         parent_path: &str,
         directory_name: &str,
+        initial_color: &str,
     ) -> AppSnapshot {
         let root = match project_destination(parent_path, directory_name) {
             Ok(root) => root,
             Err(error) => return self.snapshot_with_error("project.create", parent_path, &error),
         };
-        let files = match new_project_files(directory_name) {
+        let files = match new_project_files(directory_name, initial_color) {
             Ok(files) => files,
             Err(error) => {
                 return self.snapshot_with_error("project.create", root.as_str(), &error);
@@ -524,51 +538,31 @@ impl DesktopState {
         self.update_app_settings_locked(settings)
     }
 
-    pub fn create_sequence(&self, request: NewSequenceRequest) -> AppSnapshot {
+    pub fn create_sequence(
+        &self,
+        request: NewSequenceRequest,
+    ) -> Result<crate::dto::NewSequenceResult, String> {
         let _authoring = self.settled_authoring();
-        let Some(project) = self.project_session() else {
-            return self.snapshot();
+        let project = self.project_session().ok_or("No project is loaded.")?;
+        let owner = &project.project.root.id.0;
+        let target = crate::dto::GuiDocumentRequest {
+            owned_path: Vec::new(),
+            project_revision: self.snapshot().project_revision,
+            path: owner.document().to_string(),
+            object_key: Some(owner.object().to_string()),
+            view: crate::dto::DocumentViewId::Project,
         };
-        let sequence_path = Utf8PathBuf::from(&request.file_path);
-        let Ok(duration) = Duration::try_from_secs_f32(request.duration_seconds) else {
-            return self.snapshot_with_error(
-                "sequence.create",
-                &request.file_path,
-                "Sequence duration is outside the supported range",
-            );
-        };
-        let mut edited = (*project).clone();
-        let result = donder_project_io::insert_sequence(
-            &mut edited,
-            sequence_path.clone(),
-            request.object_key.clone(),
-            donder_language::values::DonderDuration(duration),
-            request.frame_rate,
-        );
-        if let Err(error) = result {
-            return self.snapshot_with_error(
-                "sequence.create",
-                &request.file_path,
-                &error.to_string(),
-            );
-        }
-        let mut paths = std::collections::BTreeSet::from([request.file_path.clone()]);
-        if let Some(entrypoint) = &edited.source.entrypoint {
-            paths.insert(entrypoint.path().to_string());
-        }
-        let texts = match super::generated_source_texts(&edited, &paths) {
-            Ok(texts) => texts,
-            Err(error) => {
-                return self.snapshot_with_error("sequence.create", &request.file_path, &error);
-            }
-        };
-        if let Err(error) =
-            self.accept_gui_sources(std::sync::Arc::new(edited), texts, "Sequence created")
-        {
-            return self.snapshot_with_error("sequence.create", &request.file_path, &error);
-        }
-        lock_unpoisoned(&self.gui_history).clear();
-        self.open_file_path(&request.file_path)
+        let (result, source) = self
+            .mutate_gui_project_locked(&target, |session| {
+                let owner = crate::gui::resolve_request(session, &target)
+                    .map_err(crate::gui::GuiMutationError::Invalid)?;
+                crate::gui::create_sequence(session, &owner, request)
+            })
+            .map_err(|error| error.message().to_string())?;
+        Ok(crate::dto::NewSequenceResult {
+            snapshot: result.snapshot,
+            source,
+        })
     }
 
     pub fn delete_path(&self, path: &str) -> AppSnapshot {

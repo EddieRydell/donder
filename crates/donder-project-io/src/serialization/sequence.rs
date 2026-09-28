@@ -1,9 +1,11 @@
+use super::values::insert_owned_collection_id;
 pub(super) fn sequence_value(
     session: &ProjectSession,
     from_document: &DocumentId,
     sequence: &Sequence,
 ) -> Result<Value, ExportProjectError> {
     let mut value = typed_object("sequence");
+    insert_owned_collection_id(&mut value, &sequence.id.0);
     value.insert(
         string_value("duration"),
         Value::String(microseconds_string(sequence.duration.as_micros_rounded())),
@@ -27,10 +29,34 @@ pub(super) fn sequence_value(
                     reference: id.0.to_string(),
                     message: "sequence audio asset is missing from source metadata".to_string(),
                 })?;
-            value.insert(
-                string_value("audio"),
-                Value::String(asset.relative_path.to_string()),
-            );
+            let audio = if asset.module_id == from_document.module_id() {
+                Value::String(asset.relative_path.to_string())
+            } else {
+                let dependency = session
+                    .source
+                    .module(from_document.module_id())
+                    .and_then(|module| {
+                        module
+                            .dependencies
+                            .iter()
+                            .find(|(_, id)| **id == asset.module_id)
+                    })
+                    .map(|(name, _)| name)
+                    .ok_or_else(|| ExportProjectError::InvalidReference {
+                        path: from_document.path().to_owned(),
+                        reference: asset.relative_path.to_string(),
+                        message: "Audio source requires a declared dependency on its package."
+                            .into(),
+                    })?;
+                Value::Mapping(yaml_serde::Mapping::from_iter([
+                    (string_value("dependency"), string_value(dependency)),
+                    (
+                        string_value("path"),
+                        string_value(asset.relative_path.as_str()),
+                    ),
+                ]))
+            };
+            value.insert(string_value("audio"), audio);
         }
     }
     value.insert(

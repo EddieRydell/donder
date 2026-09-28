@@ -15,12 +15,11 @@ pub(super) fn project_controller(
     controller: &Controller,
 ) -> SetupController {
     SetupController {
-        label: super::setup::source_key(&id.0),
-        source_ref: ResolvedGuiObject {
-            identity: id.0.clone(),
-            kind: SourceObjectKind::Controller,
-        }
-        .source_ref(),
+        label: match &controller.protocol {
+            ControllerProtocol::E131(config) => config.source_name.clone(),
+            ControllerProtocol::ArtNet(config) => format!("Art-Net {}", config.destination),
+        },
+        source_ref: super::patch::object_ref(&id.0, SourceObjectKind::Controller),
         read_only: !session.source.is_project_owned(id.0.document_id()),
         config: (&controller.protocol).into(),
         ports: controller
@@ -42,8 +41,8 @@ pub(super) fn project_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> GuiDocument {
-    let id = ControllerId(resolved.identity.clone());
-    let Some(controller) = session.project.controllers.get(&id) else {
+    let id = ControllerId(resolved.object_identity());
+    let Some(controller) = session.project.controller(&id) else {
         return blocked("Controller was not found.", Vec::new());
     };
     GuiDocument::Controller {
@@ -61,17 +60,17 @@ pub(super) fn edit(
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<(), GuiMutationError> {
-    let controller = domain_controller(config, ports)?;
+    let controller = domain_controller(ControllerId(resolved.object_identity()), config, ports)?;
     let target = session
         .project
-        .controllers
-        .get_mut(&ControllerId(resolved.identity.clone()))
+        .controller_mut(&ControllerId(resolved.object_identity()))
         .ok_or_else(|| GuiMutationError::Invalid("Controller was not found.".into()))?;
     *target = controller;
     Ok(())
 }
 
 pub(super) fn domain_controller(
+    id: ControllerId,
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<Controller, GuiMutationError> {
@@ -124,7 +123,11 @@ pub(super) fn domain_controller(
             },
         })
         .collect();
-    let controller = Controller { protocol, ports };
+    let controller = Controller {
+        id,
+        protocol,
+        ports,
+    };
     controller.validate().map_err(|error| {
         GuiMutationError::Invalid(format!("Invalid controller configuration: {error:?}"))
     })?;

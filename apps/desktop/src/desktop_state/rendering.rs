@@ -23,7 +23,7 @@ impl DesktopState {
         let Some((setup_id, sequence_id)) = target else {
             return;
         };
-        if !project.project.sequences.contains_key(&sequence_id) {
+        if project.project.sequence(&sequence_id).is_none() {
             self.unload_render_session();
             return;
         }
@@ -44,8 +44,8 @@ impl DesktopState {
         sequence_id: donder_language::sequence::SequenceId,
     ) {
         lock_unpoisoned(&self.workspace).render_target =
-            Some((project.project.root.setup.clone(), sequence_id.clone()));
-        if !project.project.sequences.contains_key(&sequence_id) {
+            Some((project.project.root.setup.id().clone(), sequence_id.clone()));
+        if project.project.sequence(&sequence_id).is_none() {
             self.unload_render_session();
             return;
         }
@@ -53,7 +53,7 @@ impl DesktopState {
         let request = RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: project.project.root.setup.clone(),
+            setup_id: project.project.root.setup.id().clone(),
             project,
             sequence_id,
         };

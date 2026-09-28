@@ -5,7 +5,7 @@ import type { SyntheticEvent } from "react";
 import { commands } from "../api";
 import { useAppStore } from "../store";
 import { runWorkspaceTransition } from "../workspaceTransitions";
-import { THEME_METRICS } from "../theme";
+import { THEME_COLORS, THEME_METRICS } from "../theme";
 
 const NEW_PROJECT_EVENT = "donder:new-project";
 
@@ -62,7 +62,9 @@ export function NewProjectDialog() {
     setError(null);
     useAppStore.getState().setError(null);
     try {
-      const applied = await runWorkspaceTransition({ type: mode, parentPath, directoryName });
+      const applied = await runWorkspaceTransition(mode === "createProject"
+        ? { type: mode, parentPath, directoryName, initialColor: THEME_COLORS.defaultSequenceColor }
+        : { type: mode, parentPath, directoryName });
       if (!applied) {
         setError(useAppStore.getState().error);
         return;

@@ -1,3 +1,4 @@
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -45,7 +46,7 @@ export function useSequenceClipRasters(
   settings: AppSettings | null
 ): ClipRasterState {
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
-  const requestKey = `${document.path}:${document.objectKey}`;
+  const requestKey = guiObjectKey(document.sourceRef);
   const rasterSettings = settings?.effectRaster ?? null;
   const rasterSettingsKey = rasterSettings === null
     ? "unavailable"
@@ -149,7 +150,7 @@ export function useSequenceClipRasters(
             const image = await decodeClipRaster(raster);
             if (clipRasterRequestCancelled(abortController.signal)) return;
             if (!Object.is(nextProjectRevision, projectRevisionRef.current)) return;
-            const rasterKey = clipRasterKey(document.path, document.objectKey, raster.effectId, raster.signature, queued.keyContext);
+            const rasterKey = clipRasterKey(requestKey, raster.effectId, raster.signature, queued.keyContext);
             rasters.current.set(rasterKey, {
               signature: raster.signature,
               image,
@@ -202,6 +203,7 @@ export function useSequenceClipRasters(
 
     const pollResults = async (requestId: number, requestComplete: boolean, requestContexts: Map<number, ClipRasterKeyContext>): Promise<boolean> => {
       const batch = await commands.takeSequenceClipRasterResults({
+        ownedPath: document.sourceRef.ownedPath,
         projectRevision,
         path: document.path,
         view: "sequence",
@@ -241,6 +243,7 @@ export function useSequenceClipRasters(
       if (requestItems.length === 0) return true;
       const requestContexts = new Map<number, ClipRasterKeyContext>();
       const response = await commands.requestSequenceClipRasters({
+        ownedPath: document.sourceRef.ownedPath,
         projectRevision,
         path: document.path,
         view: "sequence",
@@ -270,7 +273,7 @@ export function useSequenceClipRasters(
       window.clearTimeout(requestTimeout);
       if (decodeFrame !== null) window.cancelAnimationFrame(decodeFrame);
     };
-  }, [document.objectKey, document.path, effectIds, effectIdsKey, laneHeight, projectRevision, rasterRequestKey, rasterSettings, rasterSettingsKey, visibleRequestItemsKey]);
+  }, [requestKey, document.sourceRef.ownedPath, document.objectKey, document.path, effectIds, effectIdsKey, laneHeight, projectRevision, rasterRequestKey, rasterSettings, rasterSettingsKey, visibleRequestItemsKey]);
 
   return state.requestKey === rasterRequestKey ? state : {
     requestKey: rasterRequestKey,
@@ -281,8 +284,8 @@ export function useSequenceClipRasters(
   };
 }
 
-function clipRasterKey(path: string, objectKey: string | null, effectId: number, signature: string, context: ClipRasterKeyContext): string {
-  return JSON.stringify([path, objectKey, context.rasterSettingsKey, effectId, context.requestedColumns, context.requestedRows, signature]);
+function clipRasterKey(objectIdentity: string, effectId: number, signature: string, context: ClipRasterKeyContext): string {
+  return JSON.stringify([objectIdentity, context.rasterSettingsKey, effectId, context.requestedColumns, context.requestedRows, signature]);
 }
 
 function clipRasterRequestCancelled(signal: AbortSignal): boolean {

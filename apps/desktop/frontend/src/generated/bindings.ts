@@ -17,10 +17,10 @@ export const commands = {
 	searchProject: (request: ProjectSearchRequest) => typedError<ProjectSearchResponse, string>(__TAURI_INVOKE("search_project", { request })),
 	planWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<WorkspacePathChangePlan, string>(__TAURI_INVOKE("plan_workspace_path_change", { request })),
 	applyWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_workspace_path_change", { request })),
-	getRestoredViewState: () => __TAURI_INVOKE<ProjectRestoreState>("get_restored_view_state").then((v) => (({...v,editorStates:Object.fromEntries(Object.entries(v.editorStates).map(([k,v])=>[k,v])),sequenceViewports:Object.fromEntries(Object.entries(v.sequenceViewports).map(([k,v])=>[k,({...v,rowHeights:Object.fromEntries(Object.entries(v.rowHeights).map(([k,v])=>[k,v]))})])),graphViews:Object.fromEntries(Object.entries(v.graphViews).map(([k,v])=>[k,({...v,viewport:v.viewport==null?v.viewport:v.viewport,nodeSizes:Object.fromEntries(Object.entries(v.nodeSizes).map(([k,v])=>[k,v]))})]))}) as typeof v)),
+	getRestoredViewState: () => __TAURI_INVOKE<ProjectRestoreState>("get_restored_view_state").then((v) => (({...v,editorStates:Object.fromEntries(Object.entries(v.editorStates).map(([k,v])=>[k,v])),sequenceViewports:Object.fromEntries(Object.entries(v.sequenceViewports).map(([k,v])=>[k,({...v,rowHeights:Object.fromEntries(Object.entries(v.rowHeights).map(([k,v])=>[k,v]))})])),spatialViews:Object.fromEntries(Object.entries(v.spatialViews).map(([k,v])=>[k,({...v,guides:v.guides.map(i=>i)})])),graphViews:Object.fromEntries(Object.entries(v.graphViews).map(([k,v])=>[k,({...v,viewport:v.viewport==null?v.viewport:v.viewport,nodeSizes:Object.fromEntries(Object.entries(v.nodeSizes).map(([k,v])=>[k,v]))})]))}) as typeof v)),
 	openProjectDialog: () => __TAURI_INVOKE<string | null>("open_project_dialog"),
 	chooseNewProjectParentDirectory: () => __TAURI_INVOKE<string | null>("choose_new_project_parent_directory"),
-	createSequence: (request: NewSequenceRequest) => __TAURI_INVOKE<AppSnapshot>("create_sequence", { request }),
+	createSequence: (request: NewSequenceRequest) => typedError<NewSequenceResult, string>(__TAURI_INVOKE("create_sequence", { request })),
 	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }),
 	resolveGuiSource: (moduleId: string, path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { moduleId, path, objectKey })),
 	setActiveFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("set_active_file", { path }),
@@ -34,6 +34,7 @@ export const commands = {
 	saveEditorViewState: (update: PersistedEditorViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_editor_view_state", { update }),
 	saveSequenceViewportState: (update: PersistedSequenceViewportStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_sequence_viewport_state", { update: ({...update,state:({...update.state,rowHeights:Object.fromEntries(Object.entries(update.state.rowHeights).map(([k,v])=>[k,v]))})}) }),
 	saveGraphViewState: (update: PersistedGraphViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_graph_view_state", { update: ({...update,state:({...update.state,viewport:update.state.viewport==null?update.state.viewport:update.state.viewport,nodeSizes:Object.fromEntries(Object.entries(update.state.nodeSizes).map(([k,v])=>[k,v]))})}) }),
+	saveSpatialViewState: (update: PersistedSpatialViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_spatial_view_state", { update: ({...update,state:({...update.state,guides:update.state.guides.map(i=>i)})}) }),
 	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit"),
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit"),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
@@ -82,6 +83,7 @@ export type AppSettings = {
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
 	effectRaster: EffectRasterSettings,
+	spatialSnap: SpatialSnapSettings,
 };
 
 export type AppSnapshot = {
@@ -242,6 +244,7 @@ export type EffectRasterSettings = {
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
 export type FixtureGuiDocument = {
+	name: string,
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
@@ -252,7 +255,7 @@ export type FixtureGuiDocument = {
 
 export type FixtureGuiEdit = { type: "setElements"; elements: GuiFixtureElement[] } | { type: "moveElement"; id: number; delta: Point3Meters } | { type: "moveHandle"; id: number; index: number; position: Point3Meters } | { type: "convertToPixels"; id: number };
 
-export type FixtureStorage = "inline" | "newFile";
+export type FixtureStorage = "inline" | "sameFile" | "newFile";
 
 export type FixtureTarget = {
 	fixture: number,
@@ -274,6 +277,7 @@ export type GradientGuiDocument = {
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
 export type GuiDocumentRequest = {
+	ownedPath: GuiOwnedStep[],
 	projectRevision: number,
 	path: string,
 	view: DocumentViewId,
@@ -286,7 +290,7 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] };
+export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] };
 
 export type GuiEditResult = {
 	snapshot: AppSnapshot,
@@ -310,6 +314,8 @@ export type GuiFixtureHandle = {
 
 export type GuiFixtureShape = { type: "pixel" } | { type: "line"; length: number; count: number } | { type: "polyline"; points: Point3Meters[]; count: number } | { type: "arc"; radius: number; startDegrees: number; sweepDegrees: number; count: number; closed: boolean } | { type: "grid"; columns: number; rows: number; width: number; height: number; axis: GuiGridAxis; corner: GuiGridCorner; serpentine: boolean };
 
+export type GuiFixtureSource = { type: "inline"; elements: GuiFixtureElement[] } | { type: "reference"; source: GuiObjectRef };
+
 export type GuiGridAxis = "rows" | "columns";
 
 export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight";
@@ -320,15 +326,22 @@ export type GuiLayoutFixture = {
 	kind: GuiLayoutFixtureKind,
 };
 
-export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiObjectRef; transform: Transform } | { type: "group"; children: GuiLayoutFixture[] };
+export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSource; transform: Transform } | { type: "group"; children: GuiLayoutFixture[] };
 
 export type GuiObjectRef = {
+	ownedPath: GuiOwnedStep[],
 	moduleId: string,
 	path: string,
 	objectKey: string,
 	kind: ObjectKind,
 	id: string,
 };
+
+export type GuiOwnedStep = { type: "setup" } | { type: "layout" } | { type: "patch" } | { type: "controller"; id: number } | { type: "sequence"; id: number } | { type: "fixture"; id: number };
+
+export type GuiOwnershipEdit = { type: "useExisting"; source: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
+
+export type GuiOwnershipSlot = { type: "setup" } | { type: "sequence"; index: number } | { type: "layout" } | { type: "patch" } | { type: "controller"; index: number } | { type: "fixture"; id: number };
 
 export type GuiPixelEncoding = { type: "rgb"; order: [number, number, number] } | { type: "rgbw"; order: [number, number, number, number] };
 
@@ -359,7 +372,7 @@ export type LayoutGuiDocument = {
 	renderPlan: SpatialRenderPlan,
 };
 
-export type LayoutGuiEdit = { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+export type LayoutGuiEdit = { type: "reparentFixture"; id: number; parent: number | null; before: number | null } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 export type LiveOutputControllerSnapshot = {
 	id: string,
@@ -381,11 +394,18 @@ export type LiveOutputSnapshot = {
 export type LiveOutputState = "disabled" | "preparing" | "holding" | "streaming" | "testing" | "stopping" | "error";
 
 export type NewSequenceRequest = {
-	filePath: string,
-	objectKey: string,
+	storage: NewSequenceStorage,
+	initialColor: string,
 	durationSeconds: number,
 	frameRate: number,
 };
+
+export type NewSequenceResult = {
+	snapshot: AppSnapshot,
+	source: GuiObjectRef,
+};
+
+export type NewSequenceStorage = { type: "inline" } | { type: "sameFile"; name: string } | { type: "newFile"; name: string };
 
 export type ObjectKind = "project" | "setup" | "controller" | "layout" | "fixture" | "patch" | "sequence" | "curve" | "gradient" | "effect" | "operator";
 
@@ -476,6 +496,7 @@ export type PersistedGraphViewState = {
 };
 
 export type PersistedGraphViewStateUpdate = {
+	ownedPath: GuiOwnedStep[],
 	path: string,
 	objectKey: string,
 	state: PersistedGraphViewState,
@@ -497,9 +518,21 @@ export type PersistedSequenceViewportState = {
 };
 
 export type PersistedSequenceViewportStateUpdate = {
+	ownedPath: GuiOwnedStep[],
 	path: string,
 	objectKey: string,
 	state: PersistedSequenceViewportState,
+};
+
+export type PersistedSpatialViewState = {
+	guides: SpatialGuide[],
+};
+
+export type PersistedSpatialViewStateUpdate = {
+	ownedPath: GuiOwnedStep[],
+	path: string,
+	objectKey: string,
+	state: PersistedSpatialViewState,
 };
 
 export type Point3Meters = {
@@ -530,6 +563,7 @@ export type ProjectDiagnostic = {
 };
 
 export type ProjectGuiDocument = {
+	availableSources: GuiObjectRef[],
 	path: string,
 	objectKey: string,
 	setup: GuiObjectRef,
@@ -541,6 +575,7 @@ export type ProjectHealth = "closed" | "ready" | "checking" | "invalid";
 export type ProjectRestoreState = {
 	editorStates: { [key in string]: PersistedEditorViewState },
 	sequenceViewports: { [key in string]: PersistedSequenceViewportState },
+	spatialViews: { [key in string]: PersistedSpatialViewState },
 	graphViews: { [key in string]: PersistedGraphViewState },
 };
 
@@ -578,6 +613,8 @@ export type RelatedDiagnosticLocation = {
 	range: TextRange | null,
 	message: string,
 };
+
+export type ReusableStorage = "sameFile" | "newFile";
 
 export type Rotation3Degrees = {
 	xDegrees: number,
@@ -915,6 +952,7 @@ export type SetupControllerPort = {
 };
 
 export type SetupGuiDocument = {
+	availableSources: GuiObjectRef[],
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
@@ -926,9 +964,16 @@ export type SetupGuiDocument = {
 	availableControllers: SetupController[],
 };
 
-export type SetupGuiEdit = { type: "copyLayout" } | { type: "copyController"; controller: GuiObjectRef } | { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
+export type SetupGuiEdit = { type: "addController"; config: SetupControllerConfig; ports: SetupControllerPort[] } | { type: "attachController"; controller: GuiObjectRef } | { type: "detachController"; controller: GuiObjectRef; removeOutputs: boolean };
 
 export type SidebarView = "explorer" | "search" | "packages" | "problems";
+
+export type SpatialGuide = {
+	axis: SpatialGuideAxis,
+	positionMeters: number,
+};
+
+export type SpatialGuideAxis = "x" | "y";
 
 export type SpatialRenderPixel = {
 	/**  Pixel ID in a fixture editor; instance ID in a layout editor. */
@@ -942,6 +987,14 @@ export type SpatialRenderPlan = {
 	pixels: SpatialRenderPixel[],
 	bounds: GeometryRenderBounds,
 };
+
+export type SpatialSnapSettings = {
+	enabled: boolean,
+	spacingMeters: number,
+	unit: SpatialUnit,
+};
+
+export type SpatialUnit = "meters" | "centimeters" | "millimeters" | "inches" | "feet";
 
 export type TextDocumentSyntax = "yaml" | "effectDsl";
 
@@ -1033,7 +1086,7 @@ export type WorkspacePathOwnership = "project" | { pathDependency: {
 	module_root: string,
 } };
 
-export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string } | { type: "copyProject"; parentPath: string; directoryName: string } | { type: "closeApplication" };
+export type WorkspaceTransition = { type: "closeFile"; path: string } | { type: "reloadFile"; path: string } | { type: "reloadProject" } | { type: "openProject"; path: string } | { type: "createProject"; parentPath: string; directoryName: string; initialColor: string } | { type: "copyProject"; parentPath: string; directoryName: string } | { type: "closeApplication" };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

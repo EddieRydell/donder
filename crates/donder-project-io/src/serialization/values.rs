@@ -1,3 +1,4 @@
+pub(super) use crate::imports::write_object_reference;
 pub(super) use crate::imports::write_source_reference;
 pub(super) fn curve_value(curve: &Curve) -> Result<Value, ExportProjectError> {
     let mut value = typed_object("curve");
@@ -91,12 +92,7 @@ pub(super) fn fixture_target_value(
     let mut value = Mapping::new();
     value.insert(
         string_value("layout"),
-        string_value(&write_source_reference(
-            session,
-            from,
-            SourceObjectKind::Layout,
-            &target.layout.0,
-        )?),
+        write_object_reference(session, from, SourceObjectKind::Layout, &target.layout.0)?,
     );
     value.insert(string_value("fixture"), serialized_value(target.fixture.0)?);
     Ok(Value::Mapping(value))
@@ -136,3 +132,39 @@ use yaml_serde::{Mapping, Value};
 use super::ProjectSession;
 use crate::ExportProjectError;
 use crate::source::SourceObjectKind;
+
+/// A reusable reference is a symbol; owned payloads are serialized at their owner.
+pub(super) fn source_value<T, I: AsRef<donder_language::identity::ObjectIdentity>>(
+    session: &ProjectSession,
+    from: &DocumentId,
+    kind: SourceObjectKind,
+    source: &donder_language::ownership::ValueSource<Box<T>, I>,
+    inline: impl FnOnce(&T) -> Result<Value, ExportProjectError>,
+) -> Result<Value, ExportProjectError> {
+    match source {
+        donder_language::ownership::ValueSource::Inline(value) => inline(value),
+        donder_language::ownership::ValueSource::Reference(id) => {
+            let identity = id.as_ref();
+            let symbol = identity
+                .source()
+                .ok_or_else(|| ExportProjectError::InvalidReference {
+                    path: from.path().to_owned(),
+                    reference: identity.root_source().object().into(),
+                    message: "An owned object must be made reusable before linking it.".into(),
+                })?;
+            write_source_reference(session, from, kind, symbol).map(Value::String)
+        }
+    }
+}
+
+pub(super) fn insert_owned_collection_id(
+    value: &mut Mapping,
+    identity: &donder_language::identity::ObjectIdentity,
+) {
+    use donder_language::identity::OwnedObjectSlot;
+    if let Some(OwnedObjectSlot::Controller(id) | OwnedObjectSlot::Sequence(id)) =
+        identity.owned_path().last()
+    {
+        value.insert(string_value("id"), Value::Number((*id).into()));
+    }
+}

@@ -51,6 +51,7 @@ pub struct PersistedGraphViewState {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedGraphViewStateUpdate {
+    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
     pub path: String,
     pub object_key: String,
     pub state: PersistedGraphViewState,
@@ -83,6 +84,7 @@ pub struct PersistedEditorViewStateUpdate {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSequenceViewportStateUpdate {
+    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
     pub path: String,
     pub object_key: String,
     pub state: PersistedSequenceViewportState,
@@ -93,6 +95,7 @@ pub struct PersistedSequenceViewportStateUpdate {
 pub struct ProjectRestoreState {
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
+    pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
 }
 
@@ -154,7 +157,7 @@ pub struct PersistedProjectSession {
     pub audio_home_seconds: f32,
     pub editor_states: BTreeMap<String, PersistedEditorViewState>,
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
-    #[serde(default)]
+    pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
     #[serde(default)]
     pub workspace_explorer: WorkspaceExplorerState,
@@ -169,6 +172,7 @@ impl PersistedProjectSession {
             audio_home_seconds: 0.0,
             editor_states: BTreeMap::new(),
             sequence_viewports: BTreeMap::new(),
+            spatial_views: BTreeMap::new(),
             graph_views: BTreeMap::new(),
             workspace_explorer: WorkspaceExplorerState::default(),
         }
@@ -182,4 +186,33 @@ impl PersistedProjectSession {
         self.workspace_explorer = snapshot.workspace_explorer.clone();
         self
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SpatialGuideAxis {
+    X,
+    Y,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SpatialGuide {
+    pub axis: SpatialGuideAxis,
+    pub position_meters: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSpatialViewState {
+    pub guides: Vec<SpatialGuide>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSpatialViewStateUpdate {
+    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub path: String,
+    pub object_key: String,
+    pub state: PersistedSpatialViewState,
 }

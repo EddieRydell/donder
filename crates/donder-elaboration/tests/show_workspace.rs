@@ -7,10 +7,16 @@ use donder_runtime::values::{SampleTime, sample_time_from_frame};
 fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let session = load_package(&root).unwrap().session;
-    for sequence in &session.project.root.sequences {
+    for sequence in session
+        .project
+        .root
+        .sequences
+        .iter()
+        .map(|source| source.id())
+    {
         let mut output = PreparedSequenceOutput::prepare(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             sequence,
         )
         .unwrap();

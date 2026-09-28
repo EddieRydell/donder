@@ -252,7 +252,7 @@ impl DesktopState {
         }
         let project = self.project_session()?;
         let resolved = crate::gui::resolve_request(&project, request).ok()?;
-        let id = donder_language::sequence::SequenceId(resolved.identity);
-        project.project.sequences.contains_key(&id).then_some(id)
+        let id = donder_language::sequence::SequenceId(resolved.object_identity());
+        project.project.sequence(&id).is_some().then_some(id)
     }
 }

@@ -155,6 +155,7 @@ impl WorkspaceState {
                         .find(|item| item.view == view)
                 })
                 .map(|item| GuiDocumentRequest {
+                    owned_path: Vec::new(),
                     project_revision: self.view.project_revision,
                     path: path.clone(),
                     view: item.view.clone(),

@@ -14,7 +14,8 @@ fn native_effects_match_reference_dsl_in_real_project_frames() {
         .root
         .sequences
         .iter()
-        .find(|id| id.0.object() == "layer_test")
+        .map(|source| source.id())
+        .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap()
         .clone();
     let sequence = native_project
@@ -61,8 +62,8 @@ fn native_effects_match_reference_dsl_in_real_project_frames() {
             ));
         }
     }
-    let setup = &session.project.root.setup;
-    let sequence = &session.project.root.sequences[0];
+    let setup = session.project.root.setup.id();
+    let sequence = session.project.root.sequences[0].id();
     let native = elaborate_sequence(&native_project, setup, sequence).unwrap();
     let reference = elaborate_sequence(&reference_project, setup, sequence).unwrap();
     for frame in [144, 2088, 5904, 9504, 11520, 19080, 7707] {
@@ -78,7 +79,7 @@ fn native_effects_match_reference_dsl_in_real_project_frames() {
         native.evaluate_frame(7150).unwrap(),
         reference.evaluate_frame(7150).unwrap()
     );
-    let sequence = &session.project.root.sequences[1];
+    let sequence = session.project.root.sequences[1].id();
     let native = elaborate_sequence(&native_project, setup, sequence).unwrap();
     let reference = elaborate_sequence(&reference_project, setup, sequence).unwrap();
     assert_eq!(

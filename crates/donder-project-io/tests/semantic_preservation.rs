@@ -23,6 +23,7 @@ fn typed_save_preserves_semantics_imports_ownership_assets_and_dsl_not_yaml_pres
         .root
         .sequences
         .iter()
+        .map(|source| source.id())
         .find(|id| !session.project.sequences[*id].effects.is_empty())
         .unwrap()
         .clone();
@@ -82,6 +83,7 @@ fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
         .root
         .sequences
         .iter()
+        .map(|source| source.id())
         .find(|id| !session.project.sequences[*id].effects.is_empty())
         .unwrap()
         .0
@@ -106,6 +108,7 @@ fn unknown_nested_parameter_metadata_is_rejected_without_changing_source() {
         .root
         .sequences
         .iter()
+        .map(|source| source.id())
         .find(|id| !session.project.sequences[*id].effects.is_empty())
         .unwrap();
     let path = root.join(id.0.document());
@@ -133,7 +136,7 @@ fn unknown_nested_parameter_metadata_is_rejected_without_changing_source() {
 #[test]
 fn removing_only_typed_object_rejects_save_before_any_write() {
     let (_temporary, root, mut session) = starter_copy();
-    let id = session.project.root.sequences[0].clone();
+    let id = session.project.root.sequences[0].id().clone();
     let before = donder_project_io::project_source_texts(&root).unwrap();
     session.project.sequences.shift_remove(&id).unwrap();
     // Deliberately bypass structural editing APIs and leave the source inventory intact.
@@ -153,7 +156,7 @@ fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
     };
     let (_temporary, root, session) = starter_copy();
     let before = donder_project_io::project_source_texts(&root).unwrap();
-    let original = &session.project.sequences[&session.project.root.sequences[0]];
+    let original = &session.project.sequences[session.project.root.sequences[0].id()];
     for document in [
         original.id.0.document_id().clone(),
         DocumentId::new(
@@ -163,10 +166,8 @@ fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
     ] {
         let mut candidate = session.clone();
         let mut added = original.clone();
-        added.id = SequenceId(SourceIdentity::from_document(
-            document,
-            "unregistered".into(),
-        ));
+        added.id =
+            SequenceId(SourceIdentity::from_document(document, "unregistered".into()).into());
         candidate.project.sequences.insert(added.id.clone(), added);
         assert!(save_project(&candidate).is_err());
         assert_eq!(
@@ -191,10 +192,17 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
         .project
         .sequences
         .keys()
-        .find(|id| id.0.object() == "unused")
+        .find(|id| id.0.root_source().object() == "unused")
         .unwrap()
         .clone();
-    assert!(!session.project.root.sequences.contains(&id));
+    assert!(
+        !session
+            .project
+            .root
+            .sequences
+            .iter()
+            .any(|source| source.id() == &id)
+    );
     session.project.sequences.get_mut(&id).unwrap().frame_rate = 60;
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project_package(&root).project);

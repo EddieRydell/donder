@@ -138,6 +138,15 @@ pub(crate) fn save_graph_view_state(
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn save_spatial_view_state(
+    update: PersistedSpatialViewStateUpdate,
+    state: State<'_, DesktopState>,
+) -> AppSnapshot {
+    state.save_spatial_view_state(update)
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn redo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
     state.redo_active_edit()
 }

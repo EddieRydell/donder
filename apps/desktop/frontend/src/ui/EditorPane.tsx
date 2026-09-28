@@ -44,6 +44,18 @@ export function EditorPane({
   const guiDocument = useAppStore((store) => store.guiDocument);
   const guiParents = useAppStore((store) => store.guiParents);
   const inlineEditorOpen = guiParents.length > 0;
+  const [savingInline, setSavingInline] = useState(false);
+  const saveAndCloseFixture = async () => {
+    const origin = useAppStore.getState();
+    setSavingInline(true);
+    try {
+      await runSnapshotCommand(commands.saveAll);
+      const current = useAppStore.getState();
+      if (current.snapshot?.projectEpoch === origin.snapshot?.projectEpoch && sameGuiDocument(current.guiRequest, origin.guiRequest)) closeInlineEditor();
+    }
+    catch (error) { useAppStore.getState().setError(String(error)); }
+    finally { setSavingInline(false); }
+  };
   const parentDocument = inlineEditorOpen ? guiParents[0]?.document ?? null : guiDocument;
   const guiResetRevision = useAppStore((store) => store.guiResetRevision);
   const localText = useAppStore((store) => store.localText);
@@ -83,7 +95,7 @@ export function EditorPane({
   const activeSequenceAudio = activeSequenceDocument?.audio ?? null;
   const activeSequenceAudioKey =
     nextGuiPath !== null && nextGuiView === "sequence" && activeSequenceDocument !== null
-      ? sequenceAudioKey(snapshot.projectEpoch, nextGuiPath, nextGuiObjectKey, activeSequenceAudio, activeSequenceDocument.durationSeconds)
+      ? sequenceAudioKey(snapshot.projectEpoch, activeSequenceDocument.sourceRef, activeSequenceAudio, activeSequenceDocument.durationSeconds)
       : null;
   const sequenceSelection =
     pathSelection.path === activePath && pathSelection.resetRevision === guiResetRevision
@@ -389,10 +401,10 @@ export function EditorPane({
             resetRevision={guiResetRevision}
           />
         </div>
-        <Dialog.Root open={inlineEditorOpen} onOpenChange={(open) => { if (!open) closeInlineEditor(); }}>
+        <Dialog.Root open={inlineEditorOpen} onOpenChange={(open) => { if (!open && !savingInline) closeInlineEditor(); }}>
           <Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="dialog-content resource-editor-dialog" aria-describedby={undefined}>
-            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title><Dialog.Close asChild><button type="button" disabled={guiEditPending}>Close</button></Dialog.Close></header>
-            <div className="gui-projection" inert={interactionPending} aria-busy={interactionPending}>
+            <header className="resource-editor-dialog-header"><Dialog.Title>{activeGuiRequest?.objectKey}</Dialog.Title><>{guiDocument?.type === "fixture" ? <button type="button" disabled={interactionPending || savingInline} onClick={() => { void saveAndCloseFixture(); }}>{savingInline ? "Saving..." : "Save and close"}</button> : <Dialog.Close asChild><button type="button" disabled={guiEditPending}>Close</button></Dialog.Close>}</></header>
+            <div className="gui-projection" inert={interactionPending || savingInline} aria-busy={interactionPending || savingInline}>
               <GuiEditor
                 guiDocument={guiDocument}
                 snapshot={snapshot}

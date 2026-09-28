@@ -46,7 +46,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   const editable = useSequenceEditable();
   const request = useAppStore((state) => state.guiRequest);
   const graph = document.compositionGraph;
-  const { initial, view, save, saveSize } = useGraphViewState(document.path, document.objectKey);
+  const { initial, view, save, saveSize } = useGraphViewState(document.sourceRef);
   const flow = useRef<ReactFlowInstance<GraphFlowNode> | null>(null);
   const connectionOrigin = useRef<GuiDocumentRequest | null>(null);
   const gesture = useRef<{ origin: GuiDocumentRequest | null; ids: Set<string>; committing: boolean } | null>(null);

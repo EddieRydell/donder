@@ -10,7 +10,13 @@ pub(crate) struct ProjectBoilerplateFile {
     text: String,
 }
 
-pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerplateFile>, String> {
+pub(crate) fn new_project_files(
+    project_name: &str,
+    initial_color: &str,
+) -> Result<Vec<ProjectBoilerplateFile>, String> {
+    let initial_color = donder_language::values::Color::from_hex(initial_color)
+        .ok_or("Invalid initial project color.")?
+        .to_hex();
     let project_id = object_key_from_name(project_name);
     let manifest = PackageManifest {
         manifest_version: donder_package::MANIFEST_VERSION,
@@ -51,24 +57,55 @@ pub(crate) fn new_project_files(project_name: &str) -> Result<Vec<ProjectBoilerp
         ProjectBoilerplateFile {
             path: "project.donder",
             text: format!(
-                "imports:\n- from:\n    documents:\n    - setups/main.setup.donder\n  as: setups\n- from:\n    documents:\n    - sequences/main.sequence.donder\n  as: sequences\n{project_id}:\n  type: project\n  setup: setups.main\n  sequences:\n  - sequences.main\n"
+                r#"{project_id}:
+  type: project
+  setup:
+    type: setup
+    layout:
+      type: layout
+      fixtures: []
+    patch:
+      type: patch
+      routes: []
+    controllers: []
+  sequences:
+  - id: 1
+    type: sequence
+    duration: 60s
+    frame_rate: 60
+    audio: null
+    mark_collections:
+    - key: marks
+      name: Marks
+      color: '{initial_color}'
+      marks: []
+    layers:
+    - id: 0
+      name: Default
+      color: '{initial_color}'
+      enabled: true
+    effects: []
+    composition_graph:
+      nodes:
+      - id: 1
+        position:
+          x: 80.0
+          y: 80.0
+        type: layer
+        layer_id: 0
+      - id: 2
+        position:
+          x: 420.0
+          y: 80.0
+        type: output
+      edges:
+      - from: 1
+        from_port: output
+        to: 2
+        to_port: input
+    automation_clips: []
+"#
             ),
-        },
-        ProjectBoilerplateFile {
-            path: "setups/main.setup.donder",
-            text: "imports:\n- from:\n    documents:\n    - layouts/main.layout.donder\n  as: layout\n- from:\n    documents:\n    - patches/main.patch.donder\n  as: patches\nmain:\n  type: setup\n  layout: layout.main\n  patch: patches.main\n  controllers: []\n".to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "layouts/main.layout.donder",
-            text: "main:\n  type: layout\n  fixtures: []\n".to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "patches/main.patch.donder",
-            text: "main:\n  type: patch\n  routes: []\n".to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "sequences/main.sequence.donder",
-            text: sequence_boilerplate("main", 60.0, 60),
         },
     ])
 }
@@ -94,21 +131,6 @@ pub(crate) fn write_new_project_files(
     result
 }
 
-fn sequence_boilerplate(object_key: &str, duration_seconds: f32, frame_rate: u32) -> String {
-    format!(
-        "{object_key}:\n  type: sequence\n  duration: {}s\n  frame_rate: {frame_rate}\n  audio: null\n  mark_collections:\n  - key: marks\n    name: Marks\n    color: '#38bdf8'\n    marks: []\n  layers:\n  - id: 0\n    name: Default\n    color: '#38bdf8'\n    enabled: true\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position:\n        x: 80.0\n        y: 80.0\n      type: layer\n      layer_id: 0\n    - id: 2\n      position:\n        x: 420.0\n        y: 80.0\n      type: output\n    edges:\n    - from: 1\n      from_port: output\n      to: 2\n      to_port: input\n  automation_clips: []\n",
-        seconds_literal(duration_seconds)
-    )
-}
-
-fn seconds_literal(seconds: f32) -> String {
-    if seconds.fract() == 0.0 {
-        format!("{seconds:.0}")
-    } else {
-        seconds.to_string()
-    }
-}
-
 fn object_key_from_name(name: &str) -> String {
     let mut key = String::new();
     for character in name.chars() {
@@ -124,6 +146,22 @@ fn object_key_from_name(name: &str) -> String {
     } else {
         key
     }
+}
+
+#[cfg(test)]
+pub(crate) fn new_test_project_files(
+    project_name: &str,
+) -> Result<Vec<ProjectBoilerplateFile>, String> {
+    let css = include_str!("../../frontend/src/styles.css");
+    let color = css
+        .split_once("--donder-default-sequence-color:")
+        .expect("Project color CSS token")
+        .1
+        .split_once(';')
+        .expect("CSS token terminator")
+        .0
+        .trim();
+    new_project_files(project_name, color)
 }
 
 #[cfg(test)]
@@ -144,23 +182,41 @@ mod tests {
             std::env::temp_dir().join(format!("donder-template-{nonce}")),
         )
         .unwrap();
-        let files = new_project_files("Template Test").unwrap();
-        assert!(
+        let files = new_test_project_files("Template Test").unwrap();
+        assert_eq!(
             files
                 .iter()
-                .any(|file| file.path == "layouts/main.layout.donder")
+                .filter(|file| file.path.ends_with(".donder"))
+                .count(),
+            1
         );
-        assert!(!files.iter().any(|file| file.path.contains("display")));
         write_new_project_files(&root, &files).unwrap();
         let session = donder_project_io::load_package(&root).unwrap().session;
         let setup = session
             .project
-            .setups
-            .get(&session.project.root.setup)
+            .setup(session.project.root.setup.id())
             .unwrap();
-        assert!(session.project.layouts.contains_key(&setup.layout));
-        assert!(session.project.layouts[&setup.layout].fixtures.is_empty());
-        assert!(session.project.patches[&setup.patch].routes.is_empty());
+        assert!(session.project.setups.is_empty());
+        assert!(session.project.layouts.is_empty());
+        assert!(session.project.patches.is_empty());
+        assert!(session.project.sequences.is_empty());
+        assert_eq!(session.project.root.sequences.len(), 1);
+        assert!(
+            session
+                .project
+                .layout(setup.layout.id())
+                .unwrap()
+                .fixtures
+                .is_empty()
+        );
+        assert!(
+            session
+                .project
+                .patch(setup.patch.id())
+                .unwrap()
+                .routes
+                .is_empty()
+        );
         assert!(setup.controllers.is_empty());
         assert!(session.project.definitions.fixtures.definitions.is_empty());
         fs::remove_dir_all(&root).unwrap();

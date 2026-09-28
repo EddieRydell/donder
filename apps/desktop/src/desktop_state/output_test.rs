@@ -22,11 +22,10 @@ impl DesktopState {
             .project_session()
             .ok_or("Open a valid project to test outputs.")?;
         let resolved = crate::gui::resolve_request(&session, request)?;
-        let id = ControllerId(resolved.identity);
+        let id = ControllerId(resolved.object_identity());
         let mut controller = session
             .project
-            .controllers
-            .get(&id)
+            .controller(&id)
             .ok_or("Controller is missing.")?
             .clone();
         let port = controller
@@ -65,7 +64,7 @@ mod tests {
         GuiDocument, GuiEditCommand, LiveOutputState, SetupControllerConfig, SetupControllerPort,
         SetupGuiEdit,
     };
-    use crate::project::{new_project_files, write_new_project_files};
+    use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
     use std::net::UdpSocket;
     use std::time::{Duration, Instant};
@@ -78,16 +77,24 @@ mod tests {
             .unwrap();
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
-        write_new_project_files(&root, &new_project_files("Output test").unwrap()).unwrap();
+        write_new_project_files(&root, &new_test_project_files("Output test").unwrap()).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
-        let setup = state.project_session().unwrap().project.root.setup.clone();
+        let setup = state
+            .project_session()
+            .unwrap()
+            .project
+            .root
+            .setup
+            .id()
+            .clone();
         state.open_file_path(setup.0.document().as_str());
         let setup_request = || GuiDocumentRequest {
+            owned_path: setup.0.owned_path().iter().map(Into::into).collect(),
             project_revision: state.snapshot().project_revision,
             path: setup.0.document().to_string(),
             view: DocumentViewId::Setup,
-            object_key: Some(setup.0.object().into()),
+            object_key: Some(setup.0.root_source().object().into()),
         };
         let added = state.apply_gui_edit(
             setup_request(),
@@ -122,16 +129,17 @@ mod tests {
             .project_session()
             .unwrap()
             .project
-            .setups
-            .get(&setup)
+            .setup(&setup)
             .unwrap()
             .controllers[0]
+            .id()
             .clone();
         let request = || GuiDocumentRequest {
+            owned_path: controller.0.owned_path().iter().map(Into::into).collect(),
             project_revision: state.snapshot().project_revision,
             path: controller.0.document().to_string(),
             view: DocumentViewId::Controller,
-            object_key: Some(controller.0.object().into()),
+            object_key: Some(controller.0.root_source().object().into()),
         };
         let original = state.project_session().unwrap();
         let test = ControllerOutputTest {

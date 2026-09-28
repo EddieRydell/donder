@@ -1,3 +1,4 @@
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ChevronRight, Plus } from "lucide-react";
 import { THEME_METRICS } from "../../../theme";
@@ -14,7 +15,7 @@ export function LayoutAddMenu({ availableFixtures, enabled, onAddFixture, onCrea
     <ContextMenu.Sub>
       <ContextMenu.SubTrigger className="menu-item" disabled={!enabled}><span>Add fixture</span><ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden /></ContextMenu.SubTrigger>
       <ContextMenu.Portal><ContextMenu.SubContent className="menu-content">
-        {availableFixtures.map((fixture) => <ContextMenu.Item key={fixture.id} className="menu-item" disabled={!enabled} onSelect={() => { onAddFixture(fixture); }}>
+        {availableFixtures.map((fixture) => <ContextMenu.Item key={guiObjectKey(fixture)} className="menu-item" disabled={!enabled} onSelect={() => { onAddFixture(fixture); }}>
           {fixture.objectKey} ({fixture.path})
         </ContextMenu.Item>)}
         {availableFixtures.length === 0 && <ContextMenu.Item className="menu-item" disabled>No existing fixtures available</ContextMenu.Item>}

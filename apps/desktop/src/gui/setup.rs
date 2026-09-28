@@ -1,34 +1,35 @@
-use super::model::create_object_document;
 use donder_language::controller::ControllerId;
 use donder_language::setup::SetupId;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
-use super::model::source_identity_from_gui;
+use super::model::object_identity_from_gui;
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
 use crate::dto::{GuiDocument, SetupGuiDocument, SetupGuiEdit};
 
-pub(crate) mod authoring;
-mod copies;
 use super::patch;
 
 pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    let Some(setup) = session
-        .project
-        .setups
-        .get(&SetupId(resolved.identity.clone()))
-    else {
+    let Some(setup) = session.project.setup(&SetupId(resolved.object_identity())) else {
         return blocked("The requested setup is missing.", Vec::new());
     };
+    let available_controllers = donder_project_io::available_reusable_sources(
+        session,
+        resolved.identity.document_id(),
+        &[SourceObjectKind::Controller],
+    )
+    .into_iter()
+    .map(|(_, id)| ControllerId(id.into()))
+    .collect::<std::collections::HashSet<_>>();
     let controllers = setup
         .controllers
         .iter()
-        .map(|id| {
+        .map(|source| {
+            let id = source.id();
             session
                 .project
-                .controllers
-                .get(id)
+                .controller(id)
                 .map(|controller| super::controller::project_controller(session, id, controller))
-                .ok_or_else(|| format!("Controller {} was not found.", id.0.object()))
+                .ok_or_else(|| "Controller was not found.".to_string())
         })
         .collect::<Result<_, _>>();
     let controllers = match controllers {
@@ -37,21 +38,35 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     };
     GuiDocument::Setup {
         document: SetupGuiDocument {
+            available_sources: super::ownership::available_sources(
+                session,
+                resolved.identity.document_id(),
+                &[
+                    SourceObjectKind::Layout,
+                    SourceObjectKind::Patch,
+                    SourceObjectKind::Controller,
+                ],
+            ),
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
-            layout_ref: patch::object_ref(&setup.layout.0, SourceObjectKind::Layout),
-            patch_ref: patch::object_ref(&setup.patch.0, SourceObjectKind::Patch),
+            layout_ref: patch::object_ref(&setup.layout.id().0, SourceObjectKind::Layout),
+            patch_ref: patch::object_ref(&setup.patch.id().0, SourceObjectKind::Patch),
             layout_read_only: !session
                 .source
-                .is_project_owned(setup.layout.0.document_id()),
-            patch_read_only: !session.source.is_project_owned(setup.patch.0.document_id()),
+                .is_project_owned(setup.layout.id().0.document_id()),
+            patch_read_only: !session
+                .source
+                .is_project_owned(setup.patch.id().0.document_id()),
             controllers,
             available_controllers: session
                 .project
                 .controllers
                 .iter()
-                .filter(|(id, _)| !setup.controllers.contains(id))
+                .filter(|(id, _)| {
+                    available_controllers.contains(*id)
+                        && !setup.controllers.iter().any(|source| source.id() == *id)
+                })
                 .map(|(id, controller)| {
                     super::controller::project_controller(session, id, controller)
                 })
@@ -67,46 +82,36 @@ pub(super) fn edit_setup(
 ) -> Result<(), GuiMutationError> {
     let setup = session
         .project
-        .setups
-        .get(&SetupId(resolved.identity.clone()))
+        .setup(&SetupId(resolved.object_identity()))
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("The requested setup is missing.".to_string()))?;
     match edit {
-        SetupGuiEdit::CopyLayout => copies::copy_layout(session, &setup)?,
-        SetupGuiEdit::CopyController { controller } => {
-            authoring::copy_controller(session, &setup, controller)?;
-        }
         SetupGuiEdit::AttachController { controller } => {
-            let identity = source_identity_from_gui(
-                &controller.module_id,
-                &controller.path,
-                &controller.object_key,
-            )?;
+            let identity = object_identity_from_gui(&controller)?;
             donder_language::setup::authoring::attach_controller(
                 &mut session.project,
                 &setup.id,
                 ControllerId(identity.clone()),
             )
             .map_err(GuiMutationError::Invalid)?;
-            donder_project_io::ensure_document_can_reference_source(
+            let source = identity
+                .source()
+                .ok_or_else(|| GuiMutationError::Invalid("Choose a reusable controller.".into()))?;
+            donder_project_io::link_reusable_source(
                 session,
                 setup.id.0.document_id(),
-                donder_project_io::SourceObjectKind::Controller,
-                &identity,
+                SourceObjectKind::Controller,
+                source,
             )
-            .map_err(|error| GuiMutationError::Invalid(format!("{error:?}")))?;
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         }
         SetupGuiEdit::DetachController {
             controller,
             remove_outputs,
         } => {
-            let identity = source_identity_from_gui(
-                &controller.module_id,
-                &controller.path,
-                &controller.object_key,
-            )?;
+            let identity = object_identity_from_gui(&controller)?;
             if remove_outputs {
-                ensure_owned_target(session, &setup.patch.0)?;
+                ensure_owned_target(session, &setup.patch.id().0)?;
             }
             donder_language::setup::authoring::detach_controller(
                 &mut session.project,
@@ -117,30 +122,28 @@ pub(super) fn edit_setup(
             .map_err(GuiMutationError::Invalid)?;
         }
         SetupGuiEdit::AddController { config, ports } => {
-            let controller = super::controller::domain_controller(config, ports)?;
-            let identity = create_object_document(
-                session,
-                donder_project_io::SourceObjectKind::Controller,
-                "controller",
-                "controllers",
-                "controller",
-            )?;
-            donder_project_io::ensure_document_can_reference_source(
-                session,
-                setup.id.0.document_id(),
-                donder_project_io::SourceObjectKind::Controller,
-                &identity,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            let id = ControllerId(identity);
-            session.project.controllers.insert(id.clone(), controller);
+            use donder_language::identity::OwnedObjectSlot;
+            let next = setup
+                .controllers
+                .iter()
+                .filter_map(|source| match source.id().0.owned_path().last() {
+                    Some(OwnedObjectSlot::Controller(id)) => Some(*id),
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0)
+                .checked_add(1)
+                .ok_or_else(|| GuiMutationError::Invalid("No controller IDs remain.".into()))?;
+            let id = ControllerId(setup.id.0.owned(OwnedObjectSlot::Controller(next)));
+            let controller = super::controller::domain_controller(id, config, ports)?;
             session
                 .project
-                .setups
-                .get_mut(&setup.id)
+                .setup_mut(&setup.id)
                 .ok_or_else(|| GuiMutationError::Invalid("Setup was not found.".into()))?
                 .controllers
-                .push(id);
+                .push(donder_language::ownership::ValueSource::Inline(Box::new(
+                    controller,
+                )));
         }
     }
     Ok(())
@@ -148,18 +151,14 @@ pub(super) fn edit_setup(
 
 pub(super) fn ensure_owned_target(
     session: &ProjectSession,
-    identity: &donder_language::identity::SourceIdentity,
+    identity: &donder_language::identity::ObjectIdentity,
 ) -> Result<(), GuiMutationError> {
     if session.source.is_project_owned(identity.document_id()) {
         Ok(())
     } else {
         Err(GuiMutationError::Blocked(format!(
             "{} is a read-only package source. Copy it into the project from its setup, or use File > Create Standalone Project Copy.",
-            identity.object()
+            identity.root_source().object()
         )))
     }
-}
-
-pub(super) fn source_key(id: &donder_language::identity::SourceIdentity) -> String {
-    format!("{}#{}", id.document(), id.object())
 }

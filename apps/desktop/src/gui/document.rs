@@ -79,7 +79,8 @@ pub fn affected_paths(
     ensure_owned_gui_document(session, &resolved)?;
     if matches!(
         request.view,
-        DocumentViewId::Setup
+        DocumentViewId::Project
+            | DocumentViewId::Setup
             | DocumentViewId::Patch
             | DocumentViewId::Controller
             | DocumentViewId::Fixture
@@ -97,13 +98,22 @@ pub fn affected_paths(
 }
 
 pub(crate) struct ResolvedGuiObject {
+    pub(crate) owned_path: Vec<crate::dto::GuiOwnedStep>,
     pub(crate) identity: SourceIdentity,
     pub(crate) kind: SourceObjectKind,
 }
 
 impl ResolvedGuiObject {
+    pub(crate) fn object_identity(&self) -> donder_language::identity::ObjectIdentity {
+        self.owned_path.iter().fold(
+            self.identity.clone().into(),
+            |address: donder_language::identity::ObjectIdentity, step| address.owned(step.into()),
+        )
+    }
+
     pub(crate) fn source_ref(&self) -> GuiObjectRef {
         GuiObjectRef {
+            owned_path: self.owned_path.clone(),
             module_id: self.identity.module_id().to_string(),
             path: self.identity.document().to_string(),
             object_key: self.identity.object().to_string(),
@@ -142,7 +152,8 @@ pub(crate) fn resolve_request(
         .objects()
         .iter()
         .filter(|object| {
-            ObjectKind::from(object.kind()).document_view().as_ref() == Some(&request.view)
+            !request.owned_path.is_empty()
+                || ObjectKind::from(object.kind()).document_view().as_ref() == Some(&request.view)
         })
         .filter(|object| requested_key.is_none_or(|key| object.id() == key));
     let Some(source_id) = matches.next() else {
@@ -151,10 +162,28 @@ pub(crate) fn resolve_request(
     if matches.next().is_some() && requested_key.is_none() {
         return Err("GUI request must include an object key for this document.".to_string());
     }
-    Ok(ResolvedGuiObject {
+    let mut resolved = ResolvedGuiObject {
+        owned_path: request.owned_path.clone(),
         identity: SourceIdentity::from_document(document_id.clone(), source_id.id().to_string()),
         kind: source_id.kind().clone(),
-    })
+    };
+    for step in &request.owned_path {
+        resolved.kind = resolved
+            .kind
+            .owned_child_kind(&step.into())
+            .ok_or("Invalid owned object path.")?;
+    }
+    if ObjectKind::from(&resolved.kind).document_view().as_ref() != Some(&request.view) {
+        return Err("Owned object path does not match the requested editor.".into());
+    }
+    if !request.owned_path.is_empty()
+        && !session.owned_object_exists(&resolved.kind, &resolved.object_identity())
+    {
+        return Err(
+            "Owned object was not found. Linked objects must be opened at their source.".into(),
+        );
+    }
+    Ok(resolved)
 }
 
 pub(crate) fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {

@@ -162,34 +162,57 @@ pub enum FixtureDefinitionError {
         element: FixtureElementId,
     },
 }
+pub type FixtureSource = crate::ownership::ValueSource<FixtureDefinition, FixtureDefinitionId>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FixtureGeometryError {
+    TooManyPixels,
+    DuplicateElement(FixtureElementId),
+    InvalidElement(FixtureElementId),
+}
+
 impl FixtureDefinition {
-    pub fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
+    pub fn validate_geometry(&self) -> Result<u32, FixtureGeometryError> {
         let mut seen = HashSet::new();
         let mut total = 0u32;
         for element in &self.elements {
             if !seen.insert(element.id) {
-                return Err(FixtureDefinitionError::DuplicateElement {
-                    definition: id.clone(),
-                    element: element.id,
-                });
+                return Err(FixtureGeometryError::DuplicateElement(element.id));
             }
             if !element.is_valid() {
-                return Err(FixtureDefinitionError::InvalidElement {
-                    definition: id.clone(),
-                    element: element.id,
-                });
+                return Err(FixtureGeometryError::InvalidElement(element.id));
             }
             total = total
                 .checked_add(
                     element
                         .shape
                         .pixel_count()
-                        .ok_or_else(|| FixtureDefinitionError::TooManyPixels(id.clone()))?,
+                        .ok_or(FixtureGeometryError::TooManyPixels)?,
                 )
                 .filter(|count| *count <= MAX_FIXTURE_PIXELS)
-                .ok_or_else(|| FixtureDefinitionError::TooManyPixels(id.clone()))?;
+                .ok_or(FixtureGeometryError::TooManyPixels)?;
         }
         Ok(total)
+    }
+
+    pub fn validate(&self, id: &FixtureDefinitionId) -> Result<u32, FixtureDefinitionError> {
+        self.validate_geometry().map_err(|error| match error {
+            FixtureGeometryError::TooManyPixels => {
+                FixtureDefinitionError::TooManyPixels(id.clone())
+            }
+            FixtureGeometryError::DuplicateElement(element) => {
+                FixtureDefinitionError::DuplicateElement {
+                    definition: id.clone(),
+                    element,
+                }
+            }
+            FixtureGeometryError::InvalidElement(element) => {
+                FixtureDefinitionError::InvalidElement {
+                    definition: id.clone(),
+                    element,
+                }
+            }
+        })
     }
 }
 

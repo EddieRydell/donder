@@ -1,6 +1,6 @@
 use std::net::{IpAddr, SocketAddr};
 
-use crate::identity::SourceIdentity;
+use crate::identity::ObjectIdentity;
 
 pub const DMX_SLOT_LIMIT: u16 = 512;
 pub const E131_UNIVERSE_MIN: u16 = 1;
@@ -8,13 +8,14 @@ pub const E131_UNIVERSE_MAX: u16 = 63_999;
 pub const ARTNET_PORT_ADDRESS_MAX: u16 = 32_767;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct ControllerId(pub SourceIdentity);
+pub struct ControllerId(pub ObjectIdentity);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ControllerPortId(pub u32);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Controller {
+    pub id: ControllerId,
     pub protocol: ControllerProtocol,
     pub ports: Vec<ControllerPort>,
 }
@@ -138,5 +139,20 @@ impl Controller {
             }
         }
         Ok(())
+    }
+}
+
+impl crate::ownership::Identified for Controller {
+    type Id = ControllerId;
+    fn id(&self) -> &Self::Id {
+        &self.id
+    }
+}
+
+pub type ControllerSource = crate::ownership::ValueSource<Box<Controller>, ControllerId>;
+
+impl AsRef<ObjectIdentity> for ControllerId {
+    fn as_ref(&self) -> &ObjectIdentity {
+        &self.0
     }
 }

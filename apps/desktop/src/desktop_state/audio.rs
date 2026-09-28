@@ -17,7 +17,7 @@ impl DesktopState {
             .and_then(|project| {
                 sequence_id
                     .as_ref()
-                    .and_then(|id| project.project.sequences.get(id))
+                    .and_then(|id| project.project.sequence(id))
             })
             .filter(|sequence| {
                 matches!(
@@ -159,7 +159,7 @@ impl DesktopState {
 mod tests {
     use super::*;
     use crate::dto::{AudioTransportState, DocumentViewId, GuiDocument};
-    use crate::project::{new_project_files, write_new_project_files};
+    use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
     use std::{collections::BTreeMap, fs};
 
@@ -168,11 +168,33 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
         let rig = root.join("rig");
-        write_new_project_files(&root, &new_project_files("Show").unwrap()).unwrap();
-        write_new_project_files(&rig, &new_project_files("Rig").unwrap()).unwrap();
-        let dependency = donder_project_io::load_package(&rig).unwrap().session;
-        let setup = dependency.project.root.setup.clone();
-        let sequence = dependency.project.root.sequences[0].clone();
+        write_new_project_files(&root, &new_test_project_files("Show").unwrap()).unwrap();
+        write_new_project_files(&rig, &new_test_project_files("Rig").unwrap()).unwrap();
+        let mut dependency = donder_project_io::load_package(&rig).unwrap().session;
+        for (site, kind, path) in [
+            (
+                donder_language::ownership::edit::OwnershipSite::ProjectSetup,
+                donder_project_io::SourceObjectKind::Setup,
+                "setups/main.setup.donder",
+            ),
+            (
+                donder_language::ownership::edit::OwnershipSite::ProjectSequence(0),
+                donder_project_io::SourceObjectKind::Sequence,
+                "sequences/main.sequence.donder",
+            ),
+        ] {
+            let source = dependency
+                .source
+                .add_yaml_document(path.into(), vec![(kind, "main".into())])
+                .unwrap()
+                .remove(0);
+            donder_language::ownership::edit::make_reusable(&mut dependency.project, &site, source)
+                .unwrap();
+        }
+        donder_project_io::maintain_ownership_sources(&mut dependency).unwrap();
+        donder_project_io::save_project(&dependency).unwrap();
+        let setup = dependency.project.root.setup.id().clone();
+        let sequence = dependency.project.root.sequences[0].id().clone();
         let mut manifest = donder_package::PackageManifest::read(&rig).unwrap();
         manifest.project = None;
         manifest.exports = BTreeMap::from([
@@ -190,7 +212,7 @@ mod tests {
             ),
         ]);
         manifest.write(&rig).unwrap();
-        fs::write(root.join("project.donder"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", setup.0.object(), sequence.0.object())).unwrap();
+        fs::write(root.join("project.donder"), format!("imports:\n- from: {{ dependency: rig, export: setup }}\n  as: setup\n- from: {{ dependency: rig, export: sequence }}\n  as: sequence\nshow:\n  type: project\n  setup: setup.{}\n  sequences: [sequence.{}]\n", setup.0.root_source().object(), sequence.0.root_source().object())).unwrap();
         let mut manifest = donder_package::PackageManifest::read(&root).unwrap();
         manifest.dependencies.insert(
             "rig".into(),
@@ -204,14 +226,14 @@ mod tests {
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let loaded = state.project_session().unwrap();
-        let imported = loaded.project.root.sequences[0].clone();
+        let imported = loaded.project.root.sequences[0].id().clone();
         assert_eq!(imported, sequence);
         assert!(!loaded.source.is_project_owned(imported.0.document_id()));
         let request = state
             .resolve_gui_source(
                 &imported.0.module_id().to_string(),
                 imported.0.document().as_str(),
-                imported.0.object(),
+                imported.0.root_source().object(),
             )
             .unwrap();
         let opened = state.open_file_path(&request.path);
@@ -255,7 +277,7 @@ mod tests {
         );
         state.open_project_path(copy.as_str());
         let loaded = state.project_session().unwrap();
-        let copied = loaded.project.root.sequences[0].clone();
+        let copied = loaded.project.root.sequences[0].id().clone();
         assert_ne!(copied, imported);
         let imported = copied;
         assert!(loaded.source.is_project_owned(imported.0.document_id()));
@@ -265,10 +287,11 @@ mod tests {
             .unwrap();
         state.open_file_path(path.as_str());
         let request = GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: path.to_string(),
             view: DocumentViewId::Sequence,
-            object_key: Some(imported.0.object().into()),
+            object_key: Some(imported.0.root_source().object().into()),
         };
         let projected = state.get_gui_document(request.clone()).document;
         assert!(
@@ -296,7 +319,7 @@ mod tests {
         let frame = state.render_current_sequence_frame().unwrap();
         assert_eq!(
             lock_unpoisoned(&state.sequence_render).active_target(),
-            Some((loaded.project.root.setup.clone(), imported.clone()))
+            Some((loaded.project.root.setup.id().clone(), imported.clone()))
         );
         assert_eq!(
             frame.frame.frame_rate,

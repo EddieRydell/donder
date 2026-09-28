@@ -28,6 +28,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     state.update_app_settings(settings);
     state.open_file_path(path);
     let request = || GuiDocumentRequest {
+        owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
         path: path.into(),
         view: DocumentViewId::Sequence,

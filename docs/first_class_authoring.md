@@ -31,22 +31,31 @@ preservation contract.
 
 ## Main authoring workflows
 
-Layout authoring creates pixel-only fixture definitions and places reusable
-instances in layout groups. Instance order and definition pixel order determine
-the logical pixel domain. Patch authoring routes instance pixel ranges directly
-to controller ports with explicit RGB/RGBW encoding and channel order. Sequence
-authoring targets layout instances or groups and edits typed effects, operators,
-parameters, automation, and timing.
+Layout authoring places fixtures and groups. Fixture geometry contains ordered
+pixels, lines, polylines, arcs, and grids. Each shape controls its pixel count
+and order. Patch authoring routes instance pixel ranges to controller ports with
+explicit RGB/RGBW encoding and channel order. Sequence authoring targets layout
+instances or groups and edits effects, operators, parameters, automation, and timing.
 
-Definitions shared by multiple instances remain one object. Imported dependency
-objects are explicitly marked read-only. Setup actions copy controllers or the
-layout and patch into the project and switch that setup to the copies. A
-standalone project copy instead creates and opens a separate project with local
-copies of its imported sources and referenced audio.
+Owned values live inside their parent. Reusable values have a named source in
+this file or another file. The same source actions apply to project setup and
+sequences, setup layout/patch/controllers, and layout fixture geometry:
+**Make reusable** moves an owned value to a named source and leaves a link;
+**Make independent** copies a linked value into its parent and keeps the source
+unchanged. The reusable-source dialog places its storage choice under Advanced
+settings below Name. Inline values do not acquire synthetic source keys.
+
+Routing follows independent layout/controller copies. A shared patch becomes
+owned before changing its routes; active sequences become owned before their
+layout targets change. Undo and redo include source registration and imports.
+Imported dependency sources remain read-only, but their owners can make linked
+values independent when retained references are available through package exports.
+A standalone project copy creates and opens a separate project with local copies
+of imported sources and referenced audio.
 
 Linked curves and gradients are references to shared definitions, not local
 parameter values. **Open source** navigates to the definition; changing a writable
-source affects parameters linked to it. **Unlink and customize** retains the
+source affects parameters linked to it. **Make independent** retains the
 current curve or gradient directly in this parameter, leaving the source
 unchanged and no longer following its changes. The dropdown, preview editing,
 and flip actions explain and confirm unlinking through the same dialog.

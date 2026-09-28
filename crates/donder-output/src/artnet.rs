@@ -136,10 +136,13 @@ mod tests {
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
         let destination = receiver.local_addr().unwrap();
-        let id = ControllerId(SourceIdentity::from_document(
-            DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
-            "artnet".to_string(),
-        ));
+        let id = ControllerId(
+            SourceIdentity::from_document(
+                DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
+                "artnet".to_string(),
+            )
+            .into(),
+        );
         let config = ArtNetConfig {
             bind_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             destination,

@@ -17,10 +17,10 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
 fn every_example_prepares_and_produces_exact_controller_widths() {
     for name in ["starter"] {
         let session = example(name);
-        let sequence_id = session.project.root.sequences.first().unwrap();
+        let sequence_id = session.project.root.sequences.first().unwrap().id();
         let renderer = PreparedSequenceOutput::prepare(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             sequence_id,
         )
         .unwrap_or_else(|error| panic!("failed to prepare {name}: {error:?}"));
@@ -30,12 +30,12 @@ fn every_example_prepares_and_produces_exact_controller_widths() {
         let setup = session
             .project
             .setups
-            .get(&session.project.root.setup)
+            .get(session.project.root.setup.id())
             .unwrap();
         let expected_ports = setup
             .controllers
             .iter()
-            .map(|id| session.project.controllers.get(id).unwrap().ports.len())
+            .map(|id| session.project.controller(id.id()).unwrap().ports.len())
             .sum::<usize>();
         assert_eq!(frame.controller_frames.len(), expected_ports);
         for port_frame in &frame.controller_frames {
@@ -57,10 +57,13 @@ fn every_example_prepares_and_produces_exact_controller_widths() {
 #[test]
 fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
     let session = example("starter");
-    let sequence_id = session.project.root.sequences.first().unwrap();
-    let renderer =
-        PreparedSequenceOutput::prepare(&session.project, &session.project.root.setup, sequence_id)
-            .unwrap();
+    let sequence_id = session.project.root.sequences.first().unwrap().id();
+    let renderer = PreparedSequenceOutput::prepare(
+        &session.project,
+        session.project.root.setup.id(),
+        sequence_id,
+    )
+    .unwrap();
     let first = renderer.render_frame(10).unwrap();
     let second = renderer.render_frame(10).unwrap();
     assert_eq!(first, second);
@@ -111,10 +114,13 @@ fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
 #[test]
 fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let session = example("starter");
-    let sequence_id = session.project.root.sequences.get(1).unwrap();
-    let renderer =
-        crate::elaborate_sequence(&session.project, &session.project.root.setup, sequence_id)
-            .unwrap();
+    let sequence_id = session.project.root.sequences.get(1).unwrap().id();
+    let renderer = crate::elaborate_sequence(
+        &session.project,
+        session.project.root.setup.id(),
+        sequence_id,
+    )
+    .unwrap();
     let rendered = renderer.evaluate_frame(3594).unwrap();
     assert_eq!(checksum_frame(&rendered), 0xaa28_e560_49eb_1e76);
 }
@@ -122,10 +128,13 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 #[test]
 fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
-    let sequence_id = session.project.root.sequences.first().unwrap();
-    let renderer =
-        PreparedSequenceOutput::prepare(&session.project, &session.project.root.setup, sequence_id)
-            .unwrap();
+    let sequence_id = session.project.root.sequences.first().unwrap().id();
+    let renderer = PreparedSequenceOutput::prepare(
+        &session.project,
+        session.project.root.setup.id(),
+        sequence_id,
+    )
+    .unwrap();
     let frame = renderer.render_seconds(1.0).unwrap();
     assert_eq!(
         frame

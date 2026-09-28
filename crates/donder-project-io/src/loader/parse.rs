@@ -4,12 +4,12 @@ use donder_language::layout::LayoutId;
 pub(crate) fn parse_project_fields(
     path: &Utf8Path,
     value: &Value,
-) -> Result<(String, Vec<String>), LoadProjectError> {
+) -> Result<(Value, Vec<Value>), LoadProjectError> {
     parse_mapping(path, value, "project", |fields| {
         fields.string("type")?;
         Ok((
-            fields.string("setup")?.to_owned(),
-            fields.strings("sequences")?,
+            fields.required("setup")?.clone(),
+            fields.sequence("sequences")?.clone(),
         ))
     })
 }
@@ -191,14 +191,14 @@ impl ResolvedObject {
     pub(crate) fn source_identity(&self) -> &SourceIdentity {
         match self {
             Self::Project(id) => &id.0,
-            Self::Setup(id) => &id.0,
-            Self::Controller(id) => &id.0,
-            Self::Layout(id) => &id.0,
-            Self::Patch(id) => &id.0,
+            Self::Setup(id) => id.0.root_source(),
+            Self::Controller(id) => id.0.root_source(),
+            Self::Layout(id) => id.0.root_source(),
+            Self::Patch(id) => id.0.root_source(),
             Self::FixtureDefinition(id) => &id.0,
             Self::Curve(id) => &id.0,
             Self::Gradient(id) => &id.0,
-            Self::Sequence(id) => &id.0,
+            Self::Sequence(id) => id.0.root_source(),
             Self::EffectDefinition(id) => &id.0,
             Self::OperatorDefinition(id) => &id.0,
         }
@@ -223,14 +223,14 @@ impl ResolvedObject {
     pub(crate) fn id_string(&self) -> String {
         match self {
             Self::Project(id) => id.0.object().to_string(),
-            Self::Setup(id) => id.0.object().to_string(),
-            Self::Controller(id) => id.0.object().to_string(),
-            Self::Layout(id) => id.0.object().to_string(),
-            Self::Patch(id) => id.0.object().to_string(),
+            Self::Setup(id) => id.0.root_source().object().to_string(),
+            Self::Controller(id) => id.0.root_source().object().to_string(),
+            Self::Layout(id) => id.0.root_source().object().to_string(),
+            Self::Patch(id) => id.0.root_source().object().to_string(),
             Self::FixtureDefinition(id) => id.0.object().to_string(),
             Self::Curve(id) => id.0.object().to_string(),
             Self::Gradient(id) => id.0.object().to_string(),
-            Self::Sequence(id) => id.0.object().to_string(),
+            Self::Sequence(id) => id.0.root_source().object().to_string(),
             Self::EffectDefinition(id) => id.0.object().to_string(),
             Self::OperatorDefinition(id) => id.0.object().to_string(),
         }

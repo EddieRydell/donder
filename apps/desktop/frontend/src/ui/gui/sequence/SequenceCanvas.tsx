@@ -1,3 +1,4 @@
+import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
@@ -6,7 +7,7 @@ import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
 import { commands } from "../../../api";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../types";
+import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../types";
 
 import { runGuiEditCommand, runSnapshotCommand, useAppStore } from "../../../store";
 
@@ -195,7 +196,7 @@ export function SequenceCanvas({
   const restoreState = useAppStore((store) => store.restoreState);
   const gestureRequest = useRef<GuiDocumentRequest | null>(null);
   const settings = useAppStore((store) => store.snapshot?.settings ?? null);
-  const restoreKey = `${document.path}::${document.objectKey}`;
+  const restoreKey = objectViewKey(document.sourceRef);
   const restoredViewport = restoreState?.sequenceViewports[restoreKey];
   const [viewport, setViewport] = useState<SequenceViewport>(() => sequenceViewportFromPersisted(restoredViewport, document, settings));
   const viewportInitialized = useRef(false);
@@ -309,7 +310,7 @@ export function SequenceCanvas({
       activeMarkCollectionKey,
       visibleMarkCollectionKeys: [...visibleMarkCollectionKeys]
     };
-    scheduleSequenceViewportStateSave(document.path, document.objectKey, state);
+    scheduleSequenceViewportStateSave(document.sourceRef, state);
   }, [activeMarkCollectionKey, automationRowHeight, automationRowsByLane, document, settings, viewport, visibleMarkCollectionKeys]);
 
   const visibleClips = useMemo(
@@ -1670,8 +1671,9 @@ function detachedAutomationTargetLabel(target: SequenceAutomationTarget) {
     : `Operator ${target.nodeId}: ${target.param}`;
 }
 
-function scheduleSequenceViewportStateSave(path: string, objectKey: string, state: PersistedSequenceViewportState) {
-  scheduleViewStateSave(JSON.stringify(["sequence", path, objectKey]), () => commands.saveSequenceViewportState({ path, objectKey, state }),
+function scheduleSequenceViewportStateSave(reference: GuiObjectRef, state: PersistedSequenceViewportState) {
+  const { path, objectKey, ownedPath } = reference;
+  scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveSequenceViewportState({ path, objectKey, ownedPath, state }),
     (error) => { useAppStore.getState().setError(String(error)); });
 }
 

@@ -10,14 +10,13 @@ use std::sync::Arc;
 fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
     let project = &session.project;
     let setup = project
-        .setups
-        .get(&project.root.setup)
+        .setup(project.root.setup.id())
         .ok_or("Project setup is missing.")?;
     let mut outputs = Vec::new();
-    for id in &setup.controllers {
+    for source in &setup.controllers {
+        let id = source.id();
         let controller = project
-            .controllers
-            .get(id)
+            .controller(id)
             .ok_or("Setup controller is missing.")?;
         outputs.extend(
             controller
@@ -47,8 +46,8 @@ impl DesktopState {
             .project_session()
             .ok_or("Open a valid project to export.")?;
         let resolved = crate::gui::resolve_request(&session, request)?;
-        let id = SequenceId(resolved.identity);
-        if !session.project.sequences.contains_key(&id) {
+        let id = SequenceId(resolved.object_identity());
+        if !session.project.sequence(&id).is_some() {
             return Err("Sequence is missing.".into());
         }
         Ok((session, id))
@@ -68,7 +67,7 @@ impl DesktopState {
                     label: format!(
                         "{}#{} / port {}",
                         controller.0.document(),
-                        controller.0.object(),
+                        controller.0.root_source().object(),
                         port.0
                     ),
                     channels,
@@ -100,7 +99,7 @@ impl DesktopState {
         }
         let prepared = donder_elaboration::PreparedSequenceOutput::prepare_selected(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             &id,
             &ports,
         )

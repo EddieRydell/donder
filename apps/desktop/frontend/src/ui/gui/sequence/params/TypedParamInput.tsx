@@ -619,8 +619,8 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   };
   const portalContainer = useContext(OverlayPortal);
   const unlinkDialogTitle = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
-    ? `Unlink and flip ${name}?`
-    : `Unlink ${name} from ${linkedLabel}?`;
+    ? `Make independent and flip ${name}?`
+    : `Make ${name} independent of ${linkedLabel}?`;
   const unlinkDialogDescription = pendingUnlinkAction === "flipHorizontal" || pendingUnlinkAction === "flipVertical"
     ? `Keep the current ${label} from ${linkedLabel} in this parameter, then apply the flip. The library source stays unchanged, and this parameter will no longer follow changes to it.`
     : `Keep the current ${label} from ${linkedLabel} in this parameter. Changes here will leave the library source unchanged, and this parameter will no longer follow changes to it.`;
@@ -643,7 +643,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
             void link(source);
           }}
         >
-          <option value="custom">{linked ? "Unlink and customize..." : `Custom ${label} - This parameter`}</option>
+          <option value="custom">{linked ? "Make independent..." : `Custom ${label} - This parameter`}</option>
           {linked && selectedSourceIndex === -1 && (
             <option value="library:-1">{linkedLabel}</option>
           )}
@@ -655,27 +655,27 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
         </select>
         {actions !== null && <div className="effect-param-actions">{actions}</div>}
       </div>
-      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Unlink to customize this parameter, or open the shared source.` : `Custom ${label} - Stored in this parameter.`}</p>
+      <p className="param-source-description">{linked ? `Linked to ${label}: ${linkedLabel}. Make independent to customize this parameter, or open the shared source.` : `Custom ${label} - Stored in this parameter.`}</p>
       {librarySource !== null && <p className="param-source-description">{sourcePackage === undefined ? "Project source" : `Read-only source from package: ${sourcePackage.identity}`} · {librarySource.path}</p>}
       {!disabled && (
         <div className="param-source-actions">
           {linked && (
             <a href="#" className="neutral-button" onClick={(event) => {
               event.preventDefault();
-              void navigateToGuiObject({ moduleId: librarySource.moduleId, path: librarySource.path, objectKey: librarySource.objectKey });
+              void navigateToGuiObject({ ownedPath: [], moduleId: librarySource.moduleId, path: librarySource.path, objectKey: librarySource.objectKey });
             }}>Open source</a>
           )}
           {linked && (
             <button type="button" className="neutral-button" onClick={() => { requestUnlink("edit"); }}>
               <Link2Off size={THEME_METRICS.iconSizeSmall} />
-              Unlink and customize
+              Make independent
             </button>
           )}
-          <button type="button" className="neutral-button icon-button" title={linked ? "Unlink and flip horizontal" : "Flip horizontal"} onClick={flipHorizontal}>
+          <button type="button" className="neutral-button icon-button" title={linked ? "Make independent and flip horizontal" : "Flip horizontal"} onClick={flipHorizontal}>
             <FlipHorizontal2 size={THEME_METRICS.iconSizeSmall} />
           </button>
           {flipVerticalPoints !== undefined && (
-            <button type="button" className="neutral-button icon-button" title={linked ? "Unlink and flip vertical" : "Flip vertical"} onClick={flipVertical}>
+            <button type="button" className="neutral-button icon-button" title={linked ? "Make independent and flip vertical" : "Flip vertical"} onClick={flipVertical}>
               <FlipVertical2 size={THEME_METRICS.iconSizeSmall} />
             </button>
           )}
@@ -696,7 +696,7 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
             <AlertDialog.Description>{unlinkDialogDescription}</AlertDialog.Description>
             <div className="dialog-actions">
               <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-              <AlertDialog.Action onClick={confirmPendingUnlinkAction}>{pendingUnlinkAction === "edit" ? "Unlink and customize" : "Unlink and flip"}</AlertDialog.Action>
+              <AlertDialog.Action onClick={confirmPendingUnlinkAction}>{pendingUnlinkAction === "edit" ? "Make independent" : "Make independent and flip"}</AlertDialog.Action>
             </div>
           </AlertDialog.Content>
         </AlertDialog.Portal>

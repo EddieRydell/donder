@@ -51,6 +51,7 @@ pub enum WorkspaceTransition {
     CreateProject {
         parent_path: String,
         directory_name: String,
+        initial_color: String,
     },
     CopyProject {
         parent_path: String,

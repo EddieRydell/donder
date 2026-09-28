@@ -7,10 +7,11 @@ use crate::effect::{
     GradientSource,
 };
 use crate::fixture::FixtureDefinitionId;
-use crate::identity::{DocumentId, SourceIdentity};
+use crate::identity::{DocumentId, ObjectIdentity, SourceIdentity};
 use crate::layout::{FixtureTarget, LayoutFixture, LayoutFixtureKind, LayoutId};
 use crate::model::{DonderProject, ProjectId};
 use crate::operator::{OperatorDefinitionId, OperatorRef};
+use crate::ownership::ValueSource;
 use crate::sequence::CompositionGraphNodeKind;
 use crate::setup::SetupId;
 
@@ -27,55 +28,63 @@ pub fn remap_document_paths(
     }
 
     project.root.id = ProjectId(remap_identity(&project.root.id.0, remaps));
-    project.root.setup = SetupId(remap_identity(&project.root.setup.0, remaps));
-    project.root.sequences = project
-        .root
-        .sequences
-        .iter()
-        .map(|id| crate::sequence::SequenceId(remap_identity(&id.0, remaps)))
-        .collect();
+    if let ValueSource::Reference(id) = &mut project.root.setup {
+        id.0 = remap_object_identity(&id.0, remaps);
+    }
+    for source in &mut project.root.sequences {
+        if let ValueSource::Reference(id) = source {
+            id.0 = remap_object_identity(&id.0, remaps);
+        }
+    }
 
-    project.setups = remap_index_map(&project.setups, |id| SetupId(remap_identity(&id.0, remaps)));
-    for setup in project.setups.values_mut() {
-        setup.id = SetupId(remap_identity(&setup.id.0, remaps));
-        setup.layout = LayoutId(remap_identity(&setup.layout.0, remaps));
-        setup.patch = crate::patch::PatchId(remap_identity(&setup.patch.0, remaps));
-        setup.controllers = setup
-            .controllers
-            .iter()
-            .map(|id| crate::controller::ControllerId(remap_identity(&id.0, remaps)))
-            .collect();
+    project.setups = remap_index_map(&project.setups, |id| {
+        SetupId(remap_object_identity(&id.0, remaps))
+    });
+    for setup in project.setups_mut() {
+        setup.id.0 = remap_object_identity(&setup.id.0, remaps);
+        if let ValueSource::Reference(id) = &mut setup.layout {
+            id.0 = remap_object_identity(&id.0, remaps);
+        }
+        if let ValueSource::Reference(id) = &mut setup.patch {
+            id.0 = remap_object_identity(&id.0, remaps);
+        }
+        for source in &mut setup.controllers {
+            if let ValueSource::Reference(id) = source {
+                id.0 = remap_object_identity(&id.0, remaps);
+            }
+        }
     }
 
     project.layouts = remap_index_map(&project.layouts, |id| {
-        LayoutId(remap_identity(&id.0, remaps))
+        LayoutId(remap_object_identity(&id.0, remaps))
     });
-    for layout in project.layouts.values_mut() {
-        layout.id = LayoutId(remap_identity(&layout.id.0, remaps));
+    for layout in project.layouts_mut() {
+        layout.id.0 = remap_object_identity(&layout.id.0, remaps);
         remap_layout_fixtures(&mut layout.fixtures, remaps);
     }
 
     project.patches = remap_index_map(&project.patches, |id| {
-        crate::patch::PatchId(remap_identity(&id.0, remaps))
+        crate::patch::PatchId(remap_object_identity(&id.0, remaps))
     });
-    for patch in project.patches.values_mut() {
-        patch.id = crate::patch::PatchId(remap_identity(&patch.id.0, remaps));
+    for patch in project.patches_mut() {
+        patch.id.0 = remap_object_identity(&patch.id.0, remaps);
         for route in &mut patch.routes {
             remap_target(&mut route.target, remaps);
-            route.controller =
-                crate::controller::ControllerId(remap_identity(&route.controller.0, remaps));
+            route.controller.0 = remap_object_identity(&route.controller.0, remaps);
         }
     }
 
     project.controllers = remap_index_map(&project.controllers, |id| {
-        crate::controller::ControllerId(remap_identity(&id.0, remaps))
+        crate::controller::ControllerId(remap_object_identity(&id.0, remaps))
     });
-
+    for controller in project.controllers_mut() {
+        controller.id.0 = remap_object_identity(&controller.id.0, remaps);
+    }
     project.sequences = remap_index_map(&project.sequences, |id| {
-        crate::sequence::SequenceId(remap_identity(&id.0, remaps))
+        crate::sequence::SequenceId(remap_object_identity(&id.0, remaps))
     });
-    for sequence in project.sequences.values_mut() {
-        sequence.id = crate::sequence::SequenceId(remap_identity(&sequence.id.0, remaps));
+    for sequence in project.sequences_mut() {
+        sequence.id.0 = remap_object_identity(&sequence.id.0, remaps);
         for effect in &mut sequence.effects {
             remap_target(&mut effect.target, remaps);
             remap_effect_ref(&mut effect.definition, remaps);
@@ -153,8 +162,15 @@ pub fn remap_identity(
     )
 }
 
+pub fn remap_object_identity(
+    identity: &ObjectIdentity,
+    remaps: &BTreeMap<DocumentId, DocumentId>,
+) -> ObjectIdentity {
+    identity.with_root_source(remap_identity(identity.root_source(), remaps))
+}
+
 fn remap_target(target: &mut FixtureTarget, remaps: &BTreeMap<DocumentId, DocumentId>) {
-    target.layout = LayoutId(remap_identity(&target.layout.0, remaps));
+    target.layout = LayoutId(remap_object_identity(&target.layout.0, remaps));
 }
 
 fn remap_layout_fixtures(
@@ -164,7 +180,9 @@ fn remap_layout_fixtures(
     for fixture in fixtures {
         match &mut fixture.kind {
             LayoutFixtureKind::Fixture { definition, .. } => {
-                *definition = FixtureDefinitionId(remap_identity(&definition.0, remaps))
+                if let crate::fixture::FixtureSource::Reference(id) = definition {
+                    *id = FixtureDefinitionId(remap_identity(&id.0, remaps));
+                }
             }
             LayoutFixtureKind::Group { children } => remap_layout_fixtures(children, remaps),
         }

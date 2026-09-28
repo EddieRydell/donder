@@ -15,9 +15,7 @@ export function AvailableControllers({ document }: { document: SetupDocument }) 
 
 export function SetupControllerActions({ controller, patchReadOnly }: { controller: SetupDocument["controllers"][number]; patchReadOnly: boolean }) {
   return <div className="setup-controller-membership">
-    <p>Copy this controller into the project and use it in this setup. The patch for this setup is also copied to keep its output assignments. Other setups keep using their existing definitions.</p>
-    <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "copyController", controller: controller.sourceRef }))}>Use controller copy in this setup</button>
-    <p>Removing a controller from this setup keeps its definition available for reuse.</p>
+    <p>{controller.sourceRef.ownedPath.length > 0 ? "Removing this controller deletes its owned contents." : "Removing this link keeps the reusable controller source."}</p>
     <button type="button" onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "detachController", controller: controller.sourceRef, removeOutputs: false }))}>Remove from setup</button>
     <button type="button" disabled={patchReadOnly} onClick={() => void runGuiEditCommand((request) => commands.applySetupGuiEdit(request, { type: "detachController", controller: controller.sourceRef, removeOutputs: true }))}>Remove controller and outputs</button>
   </div>;

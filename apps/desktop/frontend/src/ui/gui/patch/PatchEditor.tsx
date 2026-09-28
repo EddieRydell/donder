@@ -1,7 +1,8 @@
+import { sameGuiObject } from "../../../workspace/guiIdentity";
 import { useState } from "react";
 import { commands } from "../../../api";
 import { runGuiEditCommand, useAppStore } from "../../../store";
-import type { GuiDocumentRequest, GuiObjectRef, GuiPixelRoute, PatchGuiDocument } from "../../../types";
+import type { GuiDocumentRequest, GuiPixelRoute, PatchGuiDocument } from "../../../types";
 import { NumberField, ReferenceInput } from "../setup/PatchInputs";
 
 type Draft = { origin: GuiDocumentRequest; routes: GuiPixelRoute[] };
@@ -31,12 +32,12 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
     }] });
   };
   return <main className="setup-editor">
-    <header className="object-overview-header"><h2>LED output routes</h2><span>{document.objectKey}</span></header>
+    <header className="object-overview-header"><h2>LED output routes</h2><span>{document.path}</span></header>
     {draft === null ? <section className="setup-section">
       {document.routes.length === 0 && <p>No pixels are routed to controllers yet.</p>}
       {document.routes.map((route) => <p key={route.id}>
-        {document.layouts.find((layout) => sameReference(layout.sourceRef, route.layout))?.fixtures.find((fixture) => fixture.id === route.fixture)?.name}
-        {" → "}{route.controller.objectKey}, port {route.port}, channel {route.startSlot + 1}
+        {document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout))?.fixtures.find((fixture) => fixture.id === route.fixture)?.name}
+        {" → "}{document.controllers.find((controller) => sameGuiObject(controller.sourceRef, route.controller))?.label ?? "Missing controller"}, port {route.port}, channel {route.startSlot + 1}
         {" · "}{route.encoding.type.toUpperCase()}
       </p>)}
       <button type="button" disabled={pending || request === null || revision !== request.projectRevision}
@@ -61,18 +62,15 @@ export function PatchEditor({ document }: { document: PatchGuiDocument }) {
   </main>;
 }
 
-function sameReference(a: GuiObjectRef, b: GuiObjectRef) {
-  return a.moduleId === b.moduleId && a.path === b.path && a.objectKey === b.objectKey;
-}
 
 function RouteFields({ document, route, onChange }: { document: PatchGuiDocument; route: GuiPixelRoute; onChange: (route: GuiPixelRoute) => void }) {
-  const layout = document.layouts.find((layout) => sameReference(layout.sourceRef, route.layout));
+  const layout = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, route.layout));
   const target = layout?.fixtures.find((fixture) => fixture.id === route.fixture);
-  const controller = document.controllers.find((controller) => sameReference(controller.sourceRef, route.controller));
+  const controller = document.controllers.find((controller) => sameGuiObject(controller.sourceRef, route.controller));
   const span = route.pixels;
   return <div className="setup-patch-fields">
-    <ReferenceInput label="Layout" value={route.layout} choices={document.layouts.map((layout) => layout.sourceRef)} onChange={(reference) => {
-      const fixture = document.layouts.find((layout) => sameReference(layout.sourceRef, reference))?.fixtures[0];
+    <ReferenceInput label="Layout" value={route.layout} choices={document.layouts.map((layout, index) => ({ reference: layout.sourceRef, label: `${layout.sourceRef.ownedPath.length > 0 ? `Layout ${index + 1}` : layout.sourceRef.objectKey} (${layout.sourceRef.path})` }))} onChange={(reference) => {
+      const fixture = document.layouts.find((layout) => sameGuiObject(layout.sourceRef, reference))?.fixtures[0];
       if (fixture !== undefined) onChange({ ...route, layout: reference, fixture: fixture.id, pixels: null });
     }} />
     <label>Fixture instance or group<select value={route.fixture} onChange={(event) => { onChange({ ...route, fixture: Number(event.target.value), pixels: null }); }}>
@@ -83,8 +81,8 @@ function RouteFields({ document, route, onChange }: { document: PatchGuiDocument
       <NumberField label="First pixel" value={span.start + 1} min={1} onChange={(start) => { onChange({ ...route, pixels: { ...span, start: start - 1 } }); }} />
       <NumberField label="Pixel count" value={span.count} min={1} onChange={(count) => { onChange({ ...route, pixels: { ...span, count } }); }} />
     </>}
-    <ReferenceInput label="Controller" value={route.controller} choices={document.controllers.map((controller) => controller.sourceRef)} onChange={(reference) => {
-      const port = document.controllers.find((controller) => sameReference(controller.sourceRef, reference))?.ports[0];
+    <ReferenceInput label="Controller" value={route.controller} choices={document.controllers.map((controller) => ({ reference: controller.sourceRef, label: controller.label }))} onChange={(reference) => {
+      const port = document.controllers.find((controller) => sameGuiObject(controller.sourceRef, reference))?.ports[0];
       if (port !== undefined) onChange({ ...route, controller: reference, port: port.id });
     }} />
     <label>Output port<select value={route.port} onChange={(event) => { onChange({ ...route, port: Number(event.target.value) }); }}>

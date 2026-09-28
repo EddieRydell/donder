@@ -94,17 +94,8 @@ impl EffectParamValue {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum CurveSource {
-    Inline(Curve),
-    Reference(CurveId),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum GradientSource {
-    Inline(Gradient),
-    Reference(GradientId),
-}
+pub type CurveSource = crate::ownership::ValueSource<Curve, CurveId>;
+pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {

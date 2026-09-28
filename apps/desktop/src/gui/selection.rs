@@ -28,10 +28,10 @@ pub(crate) fn copy_sequence_selection(
 ) -> Result<(Option<SequenceClipboard>, u32, u32), GuiMutationError> {
     match selection {
         SequenceSelection::Effects { ids } => {
-            let sequence =
-                session.project.sequences.get(sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?;
+            let sequence = session
+                .project
+                .sequence(sequence_id)
+                .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
             let mut copied = Vec::new();
             let mut skipped = 0u32;
             for id in ids {
@@ -53,10 +53,10 @@ pub(crate) fn copy_sequence_selection(
             ))
         }
         SequenceSelection::Marks { marks } => {
-            let sequence =
-                session.project.sequences.get(sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?;
+            let sequence = session
+                .project
+                .sequence(sequence_id)
+                .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
             let mut copied = Vec::new();
             let mut skipped = 0u32;
             for mark in marks {
@@ -311,8 +311,7 @@ fn effect_selection_updates(
 ) -> Result<Vec<EffectUpdate>, GuiMutationError> {
     let sequence = session
         .project
-        .sequences
-        .get(sequence_id)
+        .sequence(sequence_id)
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
     Ok(sequence
         .effects

@@ -15,6 +15,8 @@ mod diagnostics;
 mod errors;
 mod imports;
 mod loader;
+mod ownership_edit;
+pub use ownership_edit::maintain_ownership_sources;
 mod package_artifact;
 mod package_loading;
 mod package_update;
@@ -31,7 +33,10 @@ pub use diagnostics::{
     TextPosition, TextRange,
 };
 pub use errors::{ExportProjectError, LoadProjectError};
-pub use imports::ensure_document_can_reference_source;
+pub use imports::{
+    available_reusable_sources, ensure_document_can_reference_object,
+    ensure_document_can_reference_source, link_reusable_source,
+};
 pub use package_artifact::{pack_package, validate_registry_package_artifact};
 pub use package_loading::{
     CompiledPackage, CompiledSourceGraph, LoadedPackageProject, PackageLoadError, SourceOverrides,
@@ -48,7 +53,7 @@ pub use path_refactor::{
     PathChangeImpact, PathChangeOwnership, PathChangePlan, PathChangeSourceKind, apply_path_change,
     plan_path_change,
 };
-pub use project_edit::{export_project, insert_sequence, save_project, source_document_text};
+pub use project_edit::{export_project, save_project, source_document_text};
 pub use serialization::{SourceTextWrite, write_source_texts};
 pub use source::{
     ExportReport, ImportEdge, ImportSource, ProjectSession, ReferencedAsset, SaveReport,

@@ -86,10 +86,10 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             name.into(),
         )
     };
-    let setup_id = SetupId(identity("setup"));
-    let layout_id = LayoutId(identity("layout"));
+    let setup_id = SetupId(identity("setup").into());
+    let layout_id = LayoutId(identity("layout").into());
     let fixture_id = FixtureDefinitionId(identity("fixture"));
-    let sequence_id = SequenceId(identity("sequence"));
+    let sequence_id = SequenceId(identity("sequence").into());
     let mut definitions = ProjectDefinitionStores::default();
     for compilation in compile_effects(&source).unwrap() {
         let id = EffectDefinitionId(identity(compilation.effect.name.as_str()));
@@ -322,15 +322,19 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     let project = DonderProject {
         root: ProjectRoot {
             id: ProjectId(identity("project")),
-            setup: setup_id.clone(),
-            sequences: vec![sequence_id.clone()],
+            setup: donder_language::ownership::ValueSource::Reference(setup_id.clone()),
+            sequences: vec![donder_language::ownership::ValueSource::Reference(
+                sequence_id.clone(),
+            )],
         },
         setups: [(
             setup_id.clone(),
             Setup {
                 id: setup_id.clone(),
-                layout: layout_id.clone(),
-                patch: donder_language::patch::PatchId(identity("patch")),
+                layout: donder_language::ownership::ValueSource::Reference(layout_id.clone()),
+                patch: donder_language::ownership::ValueSource::Reference(
+                    donder_language::patch::PatchId(identity("patch").into()),
+                ),
                 controllers: vec![],
             },
         )]
@@ -343,7 +347,9 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                     id: FixtureInstanceId(0),
                     name: "Pixels".into(),
                     kind: LayoutFixtureKind::Fixture {
-                        definition: fixture_id.clone(),
+                        definition: donder_language::fixture::FixtureSource::Reference(
+                            fixture_id.clone(),
+                        ),
                         transform: FixtureTransform::default(),
                     },
                 }],

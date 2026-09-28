@@ -194,10 +194,13 @@ mod tests {
         receiver
             .set_read_timeout(Some(Duration::from_secs(1)))
             .unwrap();
-        let id = ControllerId(SourceIdentity::from_document(
-            DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
-            "e131".to_string(),
-        ));
+        let id = ControllerId(
+            SourceIdentity::from_document(
+                DocumentId::new(Uuid::new_v4(), "controller.donder".into()),
+                "e131".to_string(),
+            )
+            .into(),
+        );
         let config = E131Config {
             source_name: "Donder test".to_string(),
             bind_address: IpAddr::V4(Ipv4Addr::LOCALHOST),

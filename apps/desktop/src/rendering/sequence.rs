@@ -82,7 +82,7 @@ impl SequenceRenderService {
         };
         let setup_id = session.setup_id.clone();
         let sequence_id = session.sequence_id.clone();
-        if !project.sequences.contains_key(&sequence_id) {
+        if project.sequence(&sequence_id).is_none() {
             self.unload();
             return Ok(());
         }

@@ -17,18 +17,24 @@ fn main() {
         .root
         .sequences
         .iter()
-        .find(|id| id.0.object() == "layer_test")
-        .unwrap_or(&project.root.sequences[0]);
-    let setup = &project.setups[&project.root.setup];
-    let controller = &setup.controllers[0];
-    let ports = project.controllers[controller]
+        .map(|source| source.id())
+        .find(|id| {
+            id.0.source()
+                .is_some_and(|source| source.object() == "layer_test")
+        })
+        .unwrap_or(project.root.sequences[0].id());
+    let setup = project.setup(project.root.setup.id()).unwrap();
+    let controller = setup.controllers[0].id();
+    let ports = project
+        .controller(controller)
+        .unwrap()
         .ports
         .iter()
         .take(4)
         .map(|port| (controller.clone(), port.id))
         .collect::<Vec<_>>();
     let prepared =
-        PreparedSequenceOutput::prepare_selected(&project, &project.root.setup, id, &ports)
+        PreparedSequenceOutput::prepare_selected(&project, project.root.setup.id(), id, &ports)
             .unwrap();
     let sequence = &prepared.sequence;
     let bytes = encode_sequence(sequence).unwrap();
@@ -65,7 +71,7 @@ fn main() {
     std::fs::write(format!("{}.checksums", args[1]), checksums).unwrap();
     println!(
         "sequence={} ports={} pixels={} effects={} payload_bytes={}",
-        id.0.object(),
+        id.0.root_source().object(),
         ports.len(),
         sequence.signals.pixel_count,
         sequence.signals.effects.len(),

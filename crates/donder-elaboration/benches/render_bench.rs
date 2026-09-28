@@ -76,15 +76,16 @@ fn bench_render(c: &mut Criterion) {
     let session = load_package(&project_path())
         .expect("benchmark project should load")
         .session;
-    let setup_id = &session.project.root.setup;
+    let setup_id = session.project.root.setup.id();
     let sequence_id = session
         .project
         .root
         .sequences
         .iter()
+        .map(|source| source.id())
         .find(|id| {
             id.0.document().as_str() == BENCHMARK_SEQUENCE_DOCUMENT
-                && id.0.object() == BENCHMARK_SEQUENCE_OBJECT
+                && id.0.root_source().object() == BENCHMARK_SEQUENCE_OBJECT
         })
         .expect("benchmark project should include the layer_test sequence");
     let renderer = elaborate_sequence(&session.project, setup_id, sequence_id)
@@ -183,7 +184,8 @@ fn bench_mark_playback(c: &mut Criterion) {
             .root
             .sequences
             .iter()
-            .find(|id| id.0.object() == "layer_test")
+            .map(|source| source.id())
+            .find(|id| id.0.root_source().object() == "layer_test")
             .unwrap()
             .clone();
         let source = project.sequences.get_mut(&id).unwrap();
@@ -248,7 +250,7 @@ fn bench_mark_playback(c: &mut Criterion) {
         );
         source.effects = vec![generator];
         source.automation_clips.clear();
-        let sequence = elaborate_sequence(&project, &project.root.setup, &id).unwrap();
+        let sequence = elaborate_sequence(&project, project.root.setup.id(), &id).unwrap();
         let effect = sequence.effects.iter().find(|effect| matches!(
             &effect.implementation,
             PreparedEffectImplementation::Native { sample, .. }

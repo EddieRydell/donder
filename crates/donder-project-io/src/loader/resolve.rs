@@ -1,8 +1,10 @@
 use super::mapping::{MappingReader, parse_mapping};
+use crate::source::SourceObjectKind;
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::fixture::*;
-use donder_language::identity::DocumentId;
+use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot};
 use donder_language::layout::*;
+use donder_language::ownership::ValueSource;
 use donder_language::patch::*;
 pub(super) struct DomainResolver<'a> {
     pub(super) loader: &'a mut Loader,
@@ -10,6 +12,137 @@ pub(super) struct DomainResolver<'a> {
 }
 
 impl DomainResolver<'_> {
+    pub(super) fn setup_source(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectIdentity,
+        value: &Value,
+    ) -> Result<donder_language::setup::SetupSource, LoadProjectError> {
+        if let Some(reference) = value.as_str() {
+            let ResolvedObject::Setup(id) = self.loader.resolve_reference(document, reference)?
+            else {
+                return Err(LoadProjectError::InvalidReference {
+                    path: document.path().to_owned(),
+                    range: source_range_for_scalar(document.path(), reference),
+                    reference: reference.to_owned(),
+                });
+            };
+            self.resolve_setup(&id)?;
+            Ok(ValueSource::Reference(id))
+        } else {
+            let id = SetupId(owner.owned(OwnedObjectSlot::Setup));
+            Ok(ValueSource::Inline(Box::new(
+                self.parse_setup(&id, document, value)?,
+            )))
+        }
+    }
+
+    pub(super) fn layout_source(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectIdentity,
+        value: &Value,
+    ) -> Result<donder_language::layout::LayoutSource, LoadProjectError> {
+        if let Some(reference) = value.as_str() {
+            let ResolvedObject::Layout(id) = self.loader.resolve_reference(document, reference)?
+            else {
+                return Err(LoadProjectError::InvalidReference {
+                    path: document.path().to_owned(),
+                    range: source_range_for_scalar(document.path(), reference),
+                    reference: reference.to_owned(),
+                });
+            };
+            self.resolve_layout(&id)?;
+            Ok(ValueSource::Reference(id))
+        } else {
+            let id = LayoutId(owner.owned(OwnedObjectSlot::Layout));
+            Ok(ValueSource::Inline(Box::new(
+                self.parse_layout(&id, document, value)?,
+            )))
+        }
+    }
+
+    pub(super) fn patch_source(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectIdentity,
+        value: &Value,
+    ) -> Result<donder_language::patch::PatchSource, LoadProjectError> {
+        if let Some(reference) = value.as_str() {
+            let ResolvedObject::Patch(id) = self.loader.resolve_reference(document, reference)?
+            else {
+                return Err(LoadProjectError::InvalidReference {
+                    path: document.path().to_owned(),
+                    range: source_range_for_scalar(document.path(), reference),
+                    reference: reference.to_owned(),
+                });
+            };
+            self.resolve_patch(&id)?;
+            Ok(ValueSource::Reference(id))
+        } else {
+            let id = PatchId(owner.owned(OwnedObjectSlot::Patch));
+            Ok(ValueSource::Inline(Box::new(
+                self.parse_patch(&id, document, value)?,
+            )))
+        }
+    }
+
+    pub(super) fn controller_source(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectIdentity,
+        value: &Value,
+    ) -> Result<donder_language::controller::ControllerSource, LoadProjectError> {
+        if let Some(reference) = value.as_str() {
+            let ResolvedObject::Controller(id) =
+                self.loader.resolve_reference(document, reference)?
+            else {
+                return Err(LoadProjectError::InvalidReference {
+                    path: document.path().to_owned(),
+                    range: source_range_for_scalar(document.path(), reference),
+                    reference: reference.to_owned(),
+                });
+            };
+            self.resolve_controller(&id)?;
+            Ok(ValueSource::Reference(id))
+        } else {
+            let id = ControllerId(owner.owned(OwnedObjectSlot::Controller(inline_local_id(
+                document, value,
+            )?)));
+            Ok(ValueSource::Inline(Box::new(
+                self.parse_controller(&id, document, value)?,
+            )))
+        }
+    }
+
+    pub(super) fn sequence_source(
+        &mut self,
+        document: &DocumentId,
+        owner: &ObjectIdentity,
+        value: &Value,
+    ) -> Result<donder_language::sequence::SequenceSource, LoadProjectError> {
+        if let Some(reference) = value.as_str() {
+            let ResolvedObject::Sequence(id) =
+                self.loader.resolve_reference(document, reference)?
+            else {
+                return Err(LoadProjectError::InvalidReference {
+                    path: document.path().to_owned(),
+                    range: source_range_for_scalar(document.path(), reference),
+                    reference: reference.to_owned(),
+                });
+            };
+            self.resolve_sequence(&id)?;
+            Ok(ValueSource::Reference(id))
+        } else {
+            let id = SequenceId(
+                owner.owned(OwnedObjectSlot::Sequence(inline_local_id(document, value)?)),
+            );
+            Ok(ValueSource::Inline(Box::new(
+                self.parse_sequence(&id, document, value)?,
+            )))
+        }
+    }
+
     pub(super) fn resolve_setup(&mut self, id: &SetupId) -> Result<(), LoadProjectError> {
         if self.project.setups.contains_key(id) {
             return Ok(());
@@ -17,55 +150,32 @@ impl DomainResolver<'_> {
         let (document_id, _, value) = self
             .loader
             .object_value(&ResolvedObject::Setup(id.clone()))?;
-        let document_path = document_id.path().to_path_buf();
+        let setup = self.parse_setup(id, &document_id, &value)?;
+        self.project.setups.insert(id.clone(), setup);
+        Ok(())
+    }
 
-        parse_mapping(&document_path, &value, "setup", |fields| {
-            fields.string("type")?;
-            let layout_ref = fields.string("layout")?;
-            let patch_ref = fields.string("patch")?;
-            let layout = match self.loader.resolve_reference(&document_id, layout_ref)? {
-                ResolvedObject::Layout(id) => id,
-                _ => return Err(invalid(&document_path, "Expected a layout reference.")),
-            };
-            let patch = match self.loader.resolve_reference(&document_id, patch_ref)? {
-                ResolvedObject::Patch(patch) => patch,
-                _ => {
-                    return Err(LoadProjectError::InvalidReference {
-                        path: document_path.clone(),
-                        range: source_range_for_scalar(&document_path, patch_ref),
-                        reference: patch_ref.to_string(),
-                    });
-                }
-            };
+    fn parse_setup(
+        &mut self,
+        id: &SetupId,
+        document: &DocumentId,
+        value: &Value,
+    ) -> Result<Setup, LoadProjectError> {
+        parse_mapping(document.path(), value, "setup", |fields| {
+            require_type(document, fields, "setup")?;
+            let layout = self.layout_source(document, &id.0, fields.required("layout")?)?;
+            let patch = self.patch_source(document, &id.0, fields.required("patch")?)?;
             let controllers = fields
-                .strings("controllers")?
+                .sequence("controllers")?
                 .iter()
-                .map(
-                    |reference| match self.loader.resolve_reference(&document_id, reference)? {
-                        ResolvedObject::Controller(controller) => Ok(controller),
-                        _ => Err(LoadProjectError::InvalidReference {
-                            path: document_path.clone(),
-                            range: source_range_for_scalar(&document_path, reference),
-                            reference: reference.clone(),
-                        }),
-                    },
-                )
-                .collect::<Result<Vec<_>, _>>()?;
-            self.project.setups.insert(
-                id.clone(),
-                Setup {
-                    id: id.clone(),
-                    layout: layout.clone(),
-                    patch: patch.clone(),
-                    controllers: controllers.clone(),
-                },
-            );
-            self.resolve_layout(&layout)?;
-            self.resolve_patch(&patch)?;
-            for controller in controllers {
-                self.resolve_controller(&controller)?;
-            }
-            Ok(())
+                .map(|value| self.controller_source(document, &id.0, value))
+                .collect::<Result<_, _>>()?;
+            Ok(Setup {
+                id: id.clone(),
+                layout,
+                patch,
+                controllers,
+            })
         })
     }
 
@@ -76,10 +186,24 @@ impl DomainResolver<'_> {
         let (document_id, _, value) = self
             .loader
             .object_value(&ResolvedObject::Controller(id.clone()))?;
+        let value = self.parse_controller(id, &document_id, &value)?;
+        self.project.controllers.insert(id.clone(), value);
+        Ok(())
+    }
+
+    fn parse_controller(
+        &mut self,
+        id: &ControllerId,
+        document_id: &DocumentId,
+        value: &Value,
+    ) -> Result<Controller, LoadProjectError> {
         let path = document_id.path().to_path_buf();
 
-        parse_mapping(&path, &value, "controller", |fields| {
-            fields.string("type")?;
+        parse_mapping(&path, value, "controller", |fields| {
+            require_type(document_id, fields, "controller")?;
+            if !id.0.owned_path().is_empty() {
+                fields.u32("id")?;
+            }
             let protocol_value = fields.required("protocol")?;
             let protocol = parse_mapping(
                 &path,
@@ -171,12 +295,15 @@ impl DomainResolver<'_> {
                     })
                 })
                 .collect::<Result<Vec<_>, LoadProjectError>>()?;
-            let controller = Controller { protocol, ports };
+            let controller = Controller {
+                id: id.clone(),
+                protocol,
+                ports,
+            };
             controller
                 .validate()
                 .map_err(|error| invalid(&path, &format!("invalid controller: {error:?}")))?;
-            self.project.controllers.insert(id.clone(), controller);
-            Ok(())
+            Ok(controller)
         })
     }
 
@@ -197,19 +324,31 @@ impl DomainResolver<'_> {
             .loader
             .object_value(&ResolvedObject::FixtureDefinition(id.clone()))?;
 
-        parse_mapping(document.path(), &value, "fixture definition", |fields| {
-            fields.string("type")?;
+        let definition = Self::parse_fixture_definition(&document, &value)?;
+        self.project
+            .definitions
+            .fixtures
+            .definitions
+            .insert(id.clone(), definition);
+        Ok(())
+    }
+
+    fn parse_fixture_definition(
+        document: &DocumentId,
+        value: &Value,
+    ) -> Result<FixtureDefinition, LoadProjectError> {
+        parse_mapping(document.path(), value, "fixture definition", |fields| {
+            require_type(document, fields, "fixture")?;
             let elements = fields
                 .sequence("elements")?
                 .iter()
-                .map(|value| Self::parse_fixture_element(&document, value))
+                .map(|value| Self::parse_fixture_element(document, value))
                 .collect::<Result<Vec<_>, _>>()?;
-            self.project
-                .definitions
-                .fixtures
-                .definitions
-                .insert(id.clone(), FixtureDefinition { elements });
-            Ok(())
+            let definition = FixtureDefinition { elements };
+            definition.validate_geometry().map_err(|error| {
+                invalid(document.path(), &format!("Invalid fixture: {error:?}"))
+            })?;
+            Ok(definition)
         })
     }
 
@@ -312,22 +451,28 @@ impl DomainResolver<'_> {
         let (document, _, value) = self
             .loader
             .object_value(&ResolvedObject::Layout(id.clone()))?;
+        let value = self.parse_layout(id, &document, &value)?;
+        self.project.layouts.insert(id.clone(), value);
+        Ok(())
+    }
 
-        parse_mapping(document.path(), &value, "layout", |fields| {
-            fields.string("type")?;
+    fn parse_layout(
+        &mut self,
+        id: &LayoutId,
+        document: &DocumentId,
+        value: &Value,
+    ) -> Result<Layout, LoadProjectError> {
+        parse_mapping(document.path(), value, "layout", |fields| {
+            require_type(document, fields, "layout")?;
             let fixtures = fields
                 .sequence("fixtures")?
                 .iter()
-                .map(|value| self.parse_layout_fixture(&document, value))
+                .map(|value| self.parse_layout_fixture(document, value))
                 .collect::<Result<_, _>>()?;
-            self.project.layouts.insert(
-                id.clone(),
-                Layout {
-                    id: id.clone(),
-                    fixtures,
-                },
-            );
-            Ok(())
+            Ok(Layout {
+                id: id.clone(),
+                fixtures,
+            })
         })
     }
 
@@ -341,7 +486,17 @@ impl DomainResolver<'_> {
         parse_mapping(path, value, "layout fixture", |fields| {
             let kind = match fields.string("type")? {
                 "fixture" => LayoutFixtureKind::Fixture {
-                    definition: self.fixture_reference(document, fields, "definition")?,
+                    definition: match fields.required("definition")? {
+                        Value::Mapping(_) => donder_language::fixture::FixtureSource::Inline(
+                            Self::parse_fixture_definition(
+                                document,
+                                fields.required("definition")?,
+                            )?,
+                        ),
+                        _ => donder_language::fixture::FixtureSource::Reference(
+                            self.fixture_reference(document, fields, "definition")?,
+                        ),
+                    },
                     transform: parse_fixture_transform(path, fields.optional("transform"))?,
                 },
                 "group" => LayoutFixtureKind::Group {
@@ -368,22 +523,28 @@ impl DomainResolver<'_> {
         let (document, _, value) = self
             .loader
             .object_value(&ResolvedObject::Patch(id.clone()))?;
+        let value = self.parse_patch(id, &document, &value)?;
+        self.project.patches.insert(id.clone(), value);
+        Ok(())
+    }
 
-        parse_mapping(document.path(), &value, "patch", |fields| {
-            fields.string("type")?;
+    fn parse_patch(
+        &mut self,
+        id: &PatchId,
+        document: &DocumentId,
+        value: &Value,
+    ) -> Result<Patch, LoadProjectError> {
+        parse_mapping(document.path(), value, "patch", |fields| {
+            require_type(document, fields, "patch")?;
             let routes = fields
                 .sequence("routes")?
                 .iter()
-                .map(|value| self.parse_pixel_route(&document, value))
+                .map(|value| self.parse_pixel_route(document, value))
                 .collect::<Result<_, _>>()?;
-            self.project.patches.insert(
-                id.clone(),
-                Patch {
-                    id: id.clone(),
-                    routes,
-                },
-            );
-            Ok(())
+            Ok(Patch {
+                id: id.clone(),
+                routes,
+            })
         })
     }
 
@@ -395,13 +556,11 @@ impl DomainResolver<'_> {
         let path = document.path();
 
         parse_mapping(path, value, "fixture target", |fields| {
-            let layout = match self
-                .loader
-                .resolve_reference(document, fields.string("layout")?)?
-            {
-                ResolvedObject::Layout(id) => id,
-                _ => return Err(invalid(path, "Expected a layout reference.")),
-            };
+            let layout = LayoutId(self.loader.resolve_object_reference(
+                document,
+                fields.required("layout")?,
+                SourceObjectKind::Layout,
+            )?);
             Ok(FixtureTarget {
                 layout,
                 fixture: FixtureInstanceId(fields.u32("fixture")?),
@@ -417,13 +576,11 @@ impl DomainResolver<'_> {
         let path = document.path();
 
         parse_mapping(path, value, "LED route", |fields| {
-            let controller = match self
-                .loader
-                .resolve_reference(document, fields.string("controller")?)?
-            {
-                ResolvedObject::Controller(id) => id,
-                _ => return Err(invalid(path, "Expected a controller reference.")),
-            };
+            let controller = ControllerId(self.loader.resolve_object_reference(
+                document,
+                fields.required("controller")?,
+                SourceObjectKind::Controller,
+            )?);
             let pixels = fields
                 .optional("pixels")
                 .map(|span| {
@@ -487,18 +644,32 @@ impl DomainResolver<'_> {
         let (document_id, _, value) = self
             .loader
             .object_value(&ResolvedObject::Sequence(id.clone()))?;
+        let value = self.parse_sequence(id, &document_id, &value)?;
+        self.project.sequences.insert(id.clone(), value);
+        Ok(())
+    }
+
+    fn parse_sequence(
+        &mut self,
+        id: &SequenceId,
+        document_id: &DocumentId,
+        value: &Value,
+    ) -> Result<Sequence, LoadProjectError> {
         let document_path = document_id.path().to_path_buf();
 
-        parse_mapping(&document_path, &value, "sequence", |fields| {
-            fields.string("type")?;
+        parse_mapping(&document_path, value, "sequence", |fields| {
+            require_type(document_id, fields, "sequence")?;
+            if !id.0.owned_path().is_empty() {
+                fields.u32("id")?;
+            }
             let duration = parse_duration(fields.string("duration")?).map_err(|error| {
                 with_yaml_location(
                     error,
                     &document_path,
-                    source_range_for_field_value(&document_path, &value, "duration"),
+                    source_range_for_field_value(&document_path, value, "duration"),
                 )
             })?;
-            let audio = self.parse_audio(&document_id, fields)?;
+            let audio = self.parse_audio(document_id, fields)?;
             let mark_collections = fields
                 .optional_sequence("mark_collections")?
                 .into_iter()
@@ -513,10 +684,10 @@ impl DomainResolver<'_> {
             let effects = fields
                 .sequence("effects")?
                 .iter()
-                .map(|effect| self.parse_sequence_effect(&document_id, effect))
+                .map(|effect| self.parse_sequence_effect(document_id, effect))
                 .collect::<Result<Vec<_>, _>>()?;
             let composition_graph =
-                self.parse_composition_graph(&document_id, fields.required("composition_graph")?)?;
+                self.parse_composition_graph(document_id, fields.required("composition_graph")?)?;
             let automation_clips = fields
                 .optional_sequence("automation_clips")?
                 .into_iter()
@@ -535,28 +706,24 @@ impl DomainResolver<'_> {
                         path: document_path.clone(),
                         range: source_range_for_field_value(
                             &document_path,
-                            &value,
+                            value,
                             "automation_clips",
                         ),
                         message: "sequence has duplicate automation targets".to_string(),
                     });
                 }
             }
-            self.project.sequences.insert(
-                id.clone(),
-                Sequence {
-                    id: id.clone(),
-                    duration,
-                    frame_rate: fields.u32("frame_rate")?,
-                    audio,
-                    mark_collections,
-                    layers,
-                    effects,
-                    composition_graph,
-                    automation_clips,
-                },
-            );
-            Ok(())
+            Ok(Sequence {
+                id: id.clone(),
+                duration,
+                frame_rate: fields.u32("frame_rate")?,
+                audio,
+                mark_collections,
+                layers,
+                effects,
+                composition_graph,
+                automation_clips,
+            })
         })
     }
 
@@ -573,19 +740,30 @@ impl DomainResolver<'_> {
         if matches!(audio, Value::Null) {
             return Ok(SequenceAudio::None);
         }
-        let Some(audio_path) = audio.as_str() else {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: "audio must be null or a path string".to_string(),
-            });
+        let (module_id, audio_path) = if let Some(path) = audio.as_str() {
+            (document_id.module_id(), path.to_owned())
+        } else {
+            parse_mapping(path, audio, "audio reference", |fields| {
+                let dependency = fields.string("dependency")?;
+                let module = self
+                    .loader
+                    .source_graph
+                    .dependency(document_id.module_id(), dependency)
+                    .map_err(|error| LoadProjectError::InvalidDocument {
+                        path: path.to_owned(),
+                        range: None,
+                        message: error.to_string(),
+                    })?;
+                Ok((module.manifest.module_id, fields.string("path")?.to_owned()))
+            })?
         };
+        let audio_path = audio_path.as_str();
         let module = self
             .loader
             .source_graph
-            .module(document_id.module_id())
+            .module(module_id)
             .map_err(|error| LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
+                path: path.to_owned(),
                 range: None,
                 message: error.to_string(),
             })?;
@@ -613,9 +791,12 @@ impl DomainResolver<'_> {
             });
         }
         let relative = Utf8PathBuf::from(audio_path);
-        if let Some(existing) = self.loader.referenced_assets.iter_mut().find(|asset| {
-            asset.module_id == document_id.module_id() && asset.relative_path == relative
-        }) {
+        if let Some(existing) = self
+            .loader
+            .referenced_assets
+            .iter_mut()
+            .find(|asset| asset.module_id == module_id && asset.relative_path == relative)
+        {
             existing.referenced_by.insert(document_id.clone());
             return Ok(SequenceAudio::Asset(existing.id.clone()));
         }
@@ -623,7 +804,7 @@ impl DomainResolver<'_> {
         self.loader.next_asset_id += 1;
         self.loader.referenced_assets.push(ReferencedAsset {
             id: id.clone(),
-            module_id: document_id.module_id(),
+            module_id,
             relative_path: relative,
             absolute_path: absolute,
             referenced_by: std::collections::BTreeSet::from([document_id.clone()]),
@@ -1124,4 +1305,31 @@ fn parse_fixture_transform(
                 .unwrap_or_default(),
         })
     })
+}
+
+fn require_type(
+    document: &DocumentId,
+    fields: &MappingReader<'_>,
+    expected: &str,
+) -> Result<(), LoadProjectError> {
+    if fields.string("type")? != expected {
+        return Err(invalid(
+            document.path(),
+            &format!("Expected type `{expected}`."),
+        ));
+    }
+    Ok(())
+}
+
+fn inline_local_id(document: &DocumentId, value: &Value) -> Result<u32, LoadProjectError> {
+    value
+        .get("id")
+        .and_then(Value::as_u64)
+        .and_then(|id| u32::try_from(id).ok())
+        .ok_or_else(|| {
+            invalid(
+                document.path(),
+                "Inline collection objects require a numeric id.",
+            )
+        })
 }

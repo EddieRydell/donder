@@ -1,5 +1,6 @@
+import { snapPoint, formatDistance, type SnapTarget, type Modifiers } from "./spatialSnapping";
 import { useState } from "react";
-import type { GuiFixtureHandle, Point3Meters, SpatialRenderPlan } from "../../../types";
+import type { SpatialGuide, GuiFixtureElement, GuiFixtureHandle, Point3Meters, SpatialRenderPlan, SpatialSnapSettings } from "../../../types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 import { normalizePoint, type Point3 } from "../shared";
 import type { FixtureTool } from "./FixtureContextMenu";
@@ -9,6 +10,7 @@ export type FixtureCanvasTools = {
   tool: FixtureTool | null;
   session: number;
   handles: GuiFixtureHandle[];
+  elements: GuiFixtureElement[];
   showOrder: boolean;
   onTool: (tool: FixtureTool) => void;
   onDuplicate: () => void;
@@ -18,7 +20,7 @@ export type FixtureCanvasTools = {
   onHandleStart: (id: number, index: number) => ((position: Point3Meters) => Promise<boolean>) | null;
 };
 type Draft = { tool: FixtureTool; session: number; points: Point3Meters[]; cursor: Point3Meters };
-type HandleDrag = { handle: GuiFixtureHandle; position: Point3Meters; pointerOrigin: Point3Meters; handles: GuiFixtureHandle[]; phase: "dragging" | "committing"; commit: (position: Point3Meters) => Promise<boolean> };
+type HandleDrag = { handle: GuiFixtureHandle; position: Point3Meters; pointerOrigin: Point3Meters; anchor: Point3Meters; handles: GuiFixtureHandle[]; phase: "dragging" | "committing"; commit: (position: Point3Meters) => Promise<boolean> };
 type Project = (point: Point3) => { x: number; y: number };
 const meters = (point: Point3): Point3Meters => ({ xMeters: point.x, yMeters: point.y, zMeters: point.z });
 const draggedHandlePosition = (drag: HandleDrag, world: Point3): Point3Meters => ({
@@ -27,30 +29,41 @@ const draggedHandlePosition = (drag: HandleDrag, world: Point3): Point3Meters =>
   zMeters: drag.handle.position.zMeters
 });
 
-export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, selected: number | null, scale: number, plan: SpatialRenderPlan) {
+export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, selected: number | null, scale: number, plan: SpatialRenderPlan, snapping: SpatialSnapSettings, targets: SnapTarget[], guides: SpatialGuide[]) {
   const [storedDraft, setDraft] = useState<Draft | null>(null);
   const [storedHandleDrag, setHandleDrag] = useState<HandleDrag | null>(null);
   const handleDrag = storedHandleDrag !== null && (storedHandleDrag.phase === "dragging" || storedHandleDrag.handles === tools?.handles) ? storedHandleDrag : null;
   const draft = storedDraft?.tool === tools?.tool && storedDraft?.session === tools?.session ? storedDraft : null;
   const handles = tools?.handles.filter((handle) => handle.element === selected) ?? [];
   const clear = () => { setDraft(null); setHandleDrag(null); };
+  const snap = (point: Point3Meters, modifiers: Modifiers, anchor?: Point3Meters, square = false, exclude?: number) => snapPoint(point, snapping, modifiers, exclude === undefined ? targets : targets.filter((target) => target.owner !== exclude), guides, THEME_METRICS.spatialHitRadius / scale, anchor, square);
+  const handlePosition = (drag: HandleDrag, world: Point3, modifiers: Modifiers) => Math.hypot(world.x - drag.pointerOrigin.xMeters, world.y - drag.pointerOrigin.yMeters) * scale < THEME_METRICS.spatialPanThreshold
+    ? drag.handle.position : snap(draggedHandlePosition(drag, world), modifiers, drag.anchor, false, drag.handle.element);
   const finish = () => {
     if (tools?.enabled === true && draft !== null && draft.points.length >= 2) { tools.onDraw(draft.tool, draft.points); clear(); }
   };
   return {
+    measurement: draft === null ? handleDrag === null ? null : measure(handleDrag.anchor, handleDrag.position, snapping) : measure(draft.points[draft.tool === "polyline" ? draft.points.length - 1 : 0], draft.cursor, snapping),
     active: draft !== null || handleDrag !== null,
     cancel: clear,
     key: (key: string) => {
       if (key === "Escape") { clear(); tools?.onCancel(); return true; }
+      if (key === "Backspace" && draft?.tool === "polyline") {
+        if (draft.points.length <= 1) clear(); else setDraft({ ...draft, points: draft.points.slice(0, -1) });
+        return true;
+      }
       if (key === "Enter" && draft?.tool === "polyline") { finish(); return true; }
       return false;
     },
-    down: (world: Point3) => {
+    down: (world: Point3, modifiers: Modifiers) => {
       if (tools === undefined || !tools.enabled) return false;
-      const point = meters(world);
+      const point = snap(meters(world), modifiers, draft?.tool === "polyline" ? draft.points[draft.points.length - 1] : undefined);
       if (tools.tool !== null) {
         if (tools.tool === "pixel") tools.onDraw("pixel", [point]);
-        else if (tools.tool === "polyline") setDraft({ tool: "polyline", session: tools.session, points: [...(draft?.points ?? []), point], cursor: point });
+        else if (tools.tool === "polyline") {
+          const last = draft?.points[draft.points.length - 1];
+          if (last?.xMeters !== point.xMeters || last.yMeters !== point.yMeters) setDraft({ tool: "polyline", session: tools.session, points: [...(draft?.points ?? []), point], cursor: point });
+        }
         else setDraft({ tool: tools.tool, session: tools.session, points: [point], cursor: point });
         return true;
       }
@@ -58,20 +71,24 @@ export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, sel
       if (hit === undefined) return false;
       const commit = tools.onHandleStart(hit.element, hit.index);
       if (commit === null) return false;
-      setHandleDrag({ handle: hit, position: hit.position, pointerOrigin: point, handles: tools.handles, phase: "dragging", commit }); return true;
+      const shape = tools.elements.find((element) => element.id === hit.element)?.shape;
+      const anchorIndex = (shape?.type === "polyline" || shape?.type === "line") ? (hit.index === 0 ? 1 : hit.index - 1) : 0;
+      const anchor = hit.index === 0 && shape?.type !== "polyline" && shape?.type !== "line" ? hit.position : tools.handles.find((handle) => handle.element === hit.element && handle.index === anchorIndex)?.position;
+      if (anchor === undefined) throw new Error("Fixture handle anchor was not found.");
+      setHandleDrag({ handle: hit, position: hit.position, pointerOrigin: meters(world), anchor, handles: tools.handles, phase: "dragging", commit }); return true;
     },
-    move: (world: Point3) => {
+    move: (world: Point3, modifiers: Modifiers) => {
       if (handleDrag !== null) {
-        if (handleDrag.phase === "dragging") setHandleDrag({ ...handleDrag, position: draggedHandlePosition(handleDrag, world) });
+        if (handleDrag.phase === "dragging") setHandleDrag({ ...handleDrag, position: handlePosition(handleDrag, world, modifiers) });
         return true;
       }
-      if (draft !== null) { setDraft({ ...draft, cursor: meters(world) }); return true; }
+      if (draft !== null) { setDraft({ ...draft, cursor: snap(meters(world), modifiers, draft.points[draft.tool === "polyline" ? draft.points.length - 1 : 0], draft.tool === "grid") }); return true; }
       return false;
     },
-    up: (world: Point3) => {
+    up: (world: Point3, modifiers: Modifiers) => {
       if (handleDrag !== null) {
         if (handleDrag.phase === "dragging") {
-          const position = draggedHandlePosition(handleDrag, world);
+          const position = handlePosition(handleDrag, world, modifiers);
           if (position.xMeters === handleDrag.handle.position.xMeters && position.yMeters === handleDrag.handle.position.yMeters) { clear(); return true; }
           const committing: HandleDrag = { ...handleDrag, position, phase: "committing" };
           setHandleDrag(committing);
@@ -79,7 +96,7 @@ export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, sel
         }
         return true;
       }
-      if (draft !== null && draft.tool !== "polyline") { if (tools?.enabled === true) tools.onDraw(draft.tool, [...draft.points, meters(world)]); clear(); return true; }
+      if (draft !== null && draft.tool !== "polyline") { if (tools?.enabled === true) tools.onDraw(draft.tool, [...draft.points, snap(meters(world), modifiers, draft.points[0], draft.tool === "grid")]); clear(); return true; }
       return draft !== null;
     },
     draw: (context: CanvasRenderingContext2D, project: Project) => {
@@ -124,7 +141,14 @@ export function useFixtureCanvasTools(tools: FixtureCanvasTools | undefined, sel
         else if (draft.tool === "arc" || draft.tool === "circle") { const angle = Math.atan2(last.y - first.y, last.x - first.x); context.arc(first.x, first.y, Math.hypot(last.x - first.x, last.y - first.y), angle, angle - (draft.tool === "circle" ? 2 * Math.PI : Math.PI), true); }
         else points.forEach((point, index) => { if (index === 0) context.moveTo(point.x, point.y); else context.lineTo(point.x, point.y); });
         context.stroke();
+        context.beginPath(); context.arc(last.x, last.y, THEME_METRICS.fixtureHandleRadius, 0, Math.PI * 2); context.stroke();
       }
     }
   };
+}
+
+function measure(start: Point3Meters | undefined, end: Point3Meters, settings: SpatialSnapSettings): string | null {
+  if (start === undefined) return null;
+  const x = end.xMeters - start.xMeters; const y = end.yMeters - start.yMeters;
+  return `Length ${formatDistance(Math.hypot(x, y), settings.unit)} | X ${formatDistance(x, settings.unit)} | Y ${formatDistance(y, settings.unit)} | ${Number((Math.atan2(y, x) * 180 / Math.PI).toFixed(1))}°`;
 }

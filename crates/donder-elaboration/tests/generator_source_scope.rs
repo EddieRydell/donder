@@ -88,7 +88,7 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
         let sequence_id = sequence.id.clone();
         let prepared = PreparedSequenceOutput::prepare(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             &sequence_id,
         )
         .unwrap();
@@ -156,7 +156,7 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     let sequence_id = sequence.id.clone();
     let prepared = PreparedSequenceOutput::prepare(
         &session.project,
-        &session.project.root.setup,
+        session.project.root.setup.id(),
         &sequence_id,
     )
     .unwrap();

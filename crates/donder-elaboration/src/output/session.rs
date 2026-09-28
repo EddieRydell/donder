@@ -62,17 +62,14 @@ impl PreparedSequenceOutput {
         validate_project(project)
             .map_err(|error| SequenceOutputPrepareError::ProjectValidation(format!("{error:?}")))?;
         let setup = project
-            .setups
-            .get(setup_id)
+            .setup(setup_id)
             .ok_or(SequenceOutputPrepareError::MissingSetup)?;
         let layout = project
-            .layouts
-            .get(&setup.layout)
+            .layout(setup.layout.id())
             .ok_or(SequenceOutputPrepareError::MissingLayout)?
             .clone();
         let sequence_definition = project
-            .sequences
-            .get(sequence_id)
+            .sequence(sequence_id)
             .ok_or(SequenceOutputPrepareError::MissingSequence)?;
         if sequence_definition
             .effects
@@ -83,12 +80,13 @@ impl PreparedSequenceOutput {
         }
         let sequence = prepare_validated_sequence(project, setup_id, sequence_definition)
             .map_err(SequenceOutputPrepareError::Render)?;
-        let patch = project.patches.get(&setup.patch).ok_or_else(|| {
+        let patch = project.patch(setup.patch.id()).ok_or_else(|| {
             SequenceOutputPrepareError::InvalidPatch("setup patch is missing".to_string())
         })?;
         let mut controller_ports = Vec::new();
-        for controller_id in &setup.controllers {
-            let controller = project.controllers.get(controller_id).ok_or_else(|| {
+        for controller_source in &setup.controllers {
+            let controller_id = controller_source.id();
+            let controller = project.controller(controller_id).ok_or_else(|| {
                 SequenceOutputPrepareError::InvalidPatch("setup controller is missing".to_string())
             })?;
             for port in &controller.ports {

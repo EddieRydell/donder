@@ -113,6 +113,63 @@ or per-scalar provenance merely to preserve presentation. Revisit this decision
 only when a concrete authoring requirement cannot be met by typed serialization
 plus document ownership/import metadata.
 
+### Owned values and reusable references
+
+Ownership is separate from file location. `ValueSource::Inline` contains a value
+owned by its parent; `ValueSource::Reference` links a separately named reusable
+object. A named object in the same file is still a reference. The shared pattern
+covers project setup and sequences, setup layout/patch/controllers, fixture
+geometry, curves, and gradients. Effect and operator code remains named DSL
+source; instance parameters and nested clips, layers, and groups stay owned.
+
+YAML writes an inline value as a typed mapping at the owner's field and a reusable
+reference as a local or imported symbol. Inline collection members (controllers
+and sequences) carry a numeric `id`, unique within their owner. These IDs survive
+reordering and are not source names. Singleton slots (setup/layout/patch) need no
+extra ID. Removing an owned value removes its contents; removing a reference
+leaves the reusable source object intact.
+
+`SourceIdentity` identifies a named symbol. `ObjectIdentity` adds a typed path to
+an owned descendant. Patch routes and effect targets can address an owned layout
+or controller without creating a source symbol:
+
+```yaml
+layout: {owner: show, path: [setup, layout]}
+controller: {owner: show, path: [setup, {type: controller, id: 3}]}
+```
+
+`owner` uses the normal import scope. Each step must be a valid ownership slot;
+references cannot be traversed as if they owned their targets. To share an owned
+value, first give it a reusable named source. Loading validates ownership,
+collection IDs, and target existence. Saving preserves nesting and list order.
+Document moves remap the named root while retaining owned paths. GUI addresses
+use the same paths, including when a fixture is nested inside an inline layout.
+
+Typed ownership edits promote an owned value to a named source or copy a linked
+value into its parent. Promotion rebases descendant identities and references to
+them. Making a layout or controller independent also makes its patch independent
+when routing must change. For the active setup, sequences targeting the copied
+layout become independent before their targets change. Reusable originals remain
+unchanged. Unused reusable sequences validate against their own target layouts;
+sequences included in the project must target the active layout.
+
+Ownership changes maintain imports from typed references, including fixture,
+effect, operator, curve, gradient, and route targets. A dependency reference moved
+to another document reuses a declared export import with an alias unique in that
+document. Private sources unavailable through an export cannot become direct
+links in a local copy. Audio retains its asset identity: local assets use a path
+string, while another package's asset uses `{dependency: package_alias, path:
+audio/song.wav}`. The package must be a declared direct dependency and the asset
+must appear in its manifest. Copying a sequence does not copy or modify audio bytes.
+
+New projects begin with a single `project.donder` document containing an owned
+setup, empty layout and patch, and an owned initial sequence. Source actions can
+promote those values to reusable objects when sharing is needed. **Use existing
+source** establishes an explicit link at any supported ownership slot. Replacing
+a layout/controller follows the affected routing; incompatible targets reject
+the entire edit. Source pickers offer named project objects and dependency objects
+exposed by declared export imports; inline children are never offered as symbols.
+
 ### Current limitations
 
 - Structural mutations must maintain typed state **and** the source object
@@ -317,8 +374,21 @@ or skip work.
 
 ## Authoring
 
-- Use `.sequence.donder` YAML for sequence data.
+- Store sequence data inline in a project or in a reusable `.sequence.donder` YAML source.
 - Use `.effect.donder` for custom effects and `.operator.donder` for custom graph
   operators; both receive DSL highlighting in the desktop editor.
 - Start from `examples/starter` for valid curve, effect, operator, and graph
   examples.
+
+New Sequence creates an owned sequence inside the project by default. Advanced
+settings can instead create a reusable source in the project file or a new
+sequence file; source names and paths are unnecessary for owned sequences.
+Creation uses the same undo/redo transaction as other GUI edits. The initial
+layer and mark colors come from the desktop theme and become editable project
+data when the sequence is created.
+
+Duplicating a layout fixture or group copies its geometry into independently
+owned values, including geometry that originally used reusable sources. Copies
+receive new placement IDs next to the originals in the same group. Existing
+routes and effect targets continue to address the originals; a copy is not
+patched to hardware automatically.

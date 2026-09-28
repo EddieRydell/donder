@@ -2,10 +2,11 @@
 //! flat pixel buffers per layout instance, never definition references or groups.
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use donder_language::fixture::{
-    FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions, FixtureElementId,
-    FixtureTransform,
+    FixtureDefinition, FixtureDefinitionError, FixtureDefinitionId, FixtureDefinitions,
+    FixtureElementId, FixtureGeometryError, FixtureSource, FixtureTransform,
 };
 use donder_language::layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
@@ -29,13 +30,13 @@ pub use shapes::{InvalidFixtureElement, element_handles, element_pixels};
 
 #[derive(Clone, Debug, Default)]
 pub struct PreparedFixtureDefinitions {
-    definitions: IndexMap<FixtureDefinitionId, Vec<PreparedPixel>>,
+    definitions: IndexMap<FixtureDefinitionId, Arc<[PreparedPixel]>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct PreparedFixtureInstance {
     pub id: FixtureInstanceId,
-    pub definition: FixtureDefinitionId,
+    pub pixels: Arc<[PreparedPixel]>,
     pub transform: Affine3A,
 }
 
@@ -55,23 +56,31 @@ impl PreparedFixtureDefinitions {
                 .definitions
                 .iter()
                 .map(|(id, definition)| {
-                    let mut pixels = Vec::new();
-                    for element in &definition.elements {
-                        pixels.extend(element_pixels(element).map_err(|error| {
+                    let pixels = prepare_geometry(definition).map_err(|error| match error {
+                        FixtureGeometryError::TooManyPixels => {
+                            FixtureDefinitionError::TooManyPixels(id.clone())
+                        }
+                        FixtureGeometryError::DuplicateElement(element) => {
+                            FixtureDefinitionError::DuplicateElement {
+                                definition: id.clone(),
+                                element,
+                            }
+                        }
+                        FixtureGeometryError::InvalidElement(element) => {
                             FixtureDefinitionError::InvalidElement {
                                 definition: id.clone(),
-                                element: error.0,
+                                element,
                             }
-                        })?);
-                    }
-                    Ok((id.clone(), pixels))
+                        }
+                    })?;
+                    Ok((id.clone(), pixels.into()))
                 })
                 .collect::<Result<_, FixtureDefinitionError>>()?,
         })
     }
 
     pub fn pixels(&self, id: &FixtureDefinitionId) -> Option<&[PreparedPixel]> {
-        self.definitions.get(id).map(Vec::as_slice)
+        self.definitions.get(id).map(AsRef::as_ref)
     }
 
     pub fn prepare_layout(&self, layout: &Layout) -> Result<PreparedLayout, LayoutError> {
@@ -81,11 +90,15 @@ impl PreparedFixtureDefinitions {
             instances: Vec::new(),
             targets: IndexMap::new(),
         };
-        Self::prepare_layout_fixtures(&layout.fixtures, &mut prepared);
+        self.prepare_layout_fixtures(&layout.fixtures, &mut prepared)?;
         Ok(prepared)
     }
 
-    fn prepare_layout_fixtures(fixtures: &[LayoutFixture], prepared: &mut PreparedLayout) {
+    fn prepare_layout_fixtures(
+        &self,
+        fixtures: &[LayoutFixture],
+        prepared: &mut PreparedLayout,
+    ) -> Result<(), LayoutError> {
         for fixture in fixtures {
             let start = prepared.instances.len();
             match &fixture.kind {
@@ -95,19 +108,46 @@ impl PreparedFixtureDefinitions {
                 } => {
                     prepared.instances.push(PreparedFixtureInstance {
                         id: fixture.id,
-                        definition: definition.clone(),
+                        pixels: match definition {
+                            FixtureSource::Inline(value) => prepare_geometry(value)
+                                .map_err(|error| LayoutError::InvalidFixture {
+                                    fixture: fixture.id,
+                                    error,
+                                })?
+                                .into(),
+                            FixtureSource::Reference(id) => self
+                                .definitions
+                                .get(id)
+                                .ok_or_else(|| LayoutError::MissingDefinition(id.clone()))?
+                                .clone(),
+                        },
                         transform: fixture_transform(transform),
                     });
                 }
                 LayoutFixtureKind::Group { children } => {
-                    Self::prepare_layout_fixtures(children, prepared);
+                    self.prepare_layout_fixtures(children, prepared)?;
                 }
             }
             prepared
                 .targets
                 .insert(fixture.id, start..prepared.instances.len());
         }
+        Ok(())
     }
+}
+
+pub fn prepare_geometry(
+    definition: &FixtureDefinition,
+) -> Result<Vec<PreparedPixel>, FixtureGeometryError> {
+    definition.validate_geometry()?;
+    let mut pixels = Vec::new();
+    for element in &definition.elements {
+        pixels.extend(
+            element_pixels(element)
+                .map_err(|error| FixtureGeometryError::InvalidElement(error.0))?,
+        );
+    }
+    Ok(pixels)
 }
 
 impl PreparedLayout {

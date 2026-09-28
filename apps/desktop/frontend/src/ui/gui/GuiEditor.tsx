@@ -1,3 +1,4 @@
+import { guiObjectKey, objectViewKey } from "../../workspace/guiIdentity";
 import { CompositionEditor } from "./composition/CompositionEditor";
 import { ReadOnlySourceNotice } from "../ReadOnlySourceNotice";
 import { useEffect, useState } from "react";
@@ -111,7 +112,7 @@ function GuiEditorInner({
   const restoreState = useAppStore((store) => store.restoreState);
   const sequenceRestore =
     gui.type === "sequence"
-      ? restoreState?.sequenceViewports[`${gui.document.path}::${gui.document.objectKey}`]
+      ? restoreState?.sequenceViewports[objectViewKey(gui.document.sourceRef)]
       : undefined;
   const [selected, setSelected] = useState<GuiFocus>(null);
   const compositionGraphOpen = useAppStore((store) => store.compositionGraphEditing);
@@ -226,5 +227,5 @@ function GuiEditorInner({
 }
 
 function guiEditorKey(activeFile: string | null, gui: ReadyGuiDocument) {
-  return `${activeFile ?? ""}:${gui.type}:${gui.document.path}:${gui.document.objectKey}`;
+  return JSON.stringify([activeFile, gui.type, "sourceRef" in gui.document ? guiObjectKey(gui.document.sourceRef) : gui.type === "controller" ? guiObjectKey(gui.document.controller.sourceRef) : [gui.document.path, gui.document.objectKey]]);
 }

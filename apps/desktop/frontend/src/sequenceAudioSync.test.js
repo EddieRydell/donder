@@ -11,11 +11,12 @@ const server = await createServer({
 });
 after(() => server.close());
 const { SequenceAudioSync, sequenceAudioKey } = await server.ssrLoadModule("/src/sequenceAudioSync.ts");
+const source = { moduleId: "module", path: "main.donder", objectKey: "main", ownedPath: [], kind: "sequence", id: "main" };
 const target = (key, revision = 1) => ({ key, request: { path: key, projectRevision: revision, view: "sequence", objectKey: "main" } });
 
 test("same-named silent sequences in different projects have separate transport identities", () => {
-  assert.notEqual(sequenceAudioKey(1, "main.donder", "main", null, 60), sequenceAudioKey(2, "main.donder", "main", null, 60));
-  assert.notEqual(sequenceAudioKey(1, "main.donder", "main", null, 60), sequenceAudioKey(1, "main.donder", "main", null, 90));
+  assert.notEqual(sequenceAudioKey(1, source, null, 60), sequenceAudioKey(2, source, null, 60));
+  assert.notEqual(sequenceAudioKey(1, source, null, 60), sequenceAudioKey(1, source, null, 90));
 });
 
 test("rapid navigation and cleanup leave the newest sequence loaded without overlapping commands", async () => {
@@ -69,4 +70,17 @@ test("rejected or stale loads remain eligible for the next request, and cleanup 
   assert.equal(nativeAudio, "A");
   await sync.synchronize(target("different-project/A", 3));
   assert.equal(nativeAudio, "different-project/A");
+});
+
+test("inline sequences sharing a file and audio still load distinct transport targets", async () => {
+  const first = { ...source, ownedPath: [{ type: "sequence", id: 1 }] };
+  const second = { ...source, ownedPath: [{ type: "sequence", id: 2 }] };
+  const audio = { import: "track.wav", resolvedPath: "audio/track.wav", exists: true };
+  const firstKey = sequenceAudioKey(1, first, audio, 60);
+  const secondKey = sequenceAudioKey(1, second, audio, 60);
+  const calls = [];
+  const sync = new SequenceAudioSync(async (request) => { calls.push(request.ownedPath); return true; });
+  await sync.synchronize({ key: firstKey, request: { path: first.path, objectKey: first.objectKey, ownedPath: first.ownedPath, view: "sequence", projectRevision: 1 } });
+  await sync.synchronize({ key: secondKey, request: { path: second.path, objectKey: second.objectKey, ownedPath: second.ownedPath, view: "sequence", projectRevision: 1 } });
+  assert.deepEqual(calls, [first.ownedPath, second.ownedPath]);
 });

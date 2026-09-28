@@ -35,16 +35,26 @@ pub(crate) fn prepare_fixtures(
         counts: &IndexMap<donder_language::fixture::FixtureDefinitionId, u32>,
         fixtures: &mut Vec<PreparedFixture>,
         groups: &mut IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
-    ) {
+    ) -> Result<(), donder_language::layout::LayoutError> {
         for fixture in nodes {
             match &fixture.kind {
                 LayoutFixtureKind::Fixture { definition, .. } => fixtures.push(PreparedFixture {
                     id: fixture.id,
-                    pixel_count: counts[definition] as usize,
+                    pixel_count: match definition {
+                        donder_language::fixture::FixtureSource::Reference(id) => counts[id],
+                        donder_language::fixture::FixtureSource::Inline(value) => {
+                            value.validate_geometry().map_err(|error| {
+                                donder_language::layout::LayoutError::InvalidFixture {
+                                    fixture: fixture.id,
+                                    error,
+                                }
+                            })?
+                        }
+                    } as usize,
                 }),
                 LayoutFixtureKind::Group { children } => {
                     let start = fixtures.len();
-                    visit(children, counts, fixtures, groups);
+                    visit(children, counts, fixtures, groups)?;
                     groups.insert(
                         fixture.id,
                         fixtures[start..].iter().map(|fixture| fixture.id).collect(),
@@ -52,9 +62,14 @@ pub(crate) fn prepare_fixtures(
                 }
             }
         }
+        Ok(())
     }
     let mut fixtures = Vec::new();
     let mut groups = IndexMap::new();
-    visit(&layout.fixtures, &counts, &mut fixtures, &mut groups);
+    visit(&layout.fixtures, &counts, &mut fixtures, &mut groups).map_err(|error| {
+        RenderError::BadGraph {
+            message: format!("Invalid layout: {error:?}"),
+        }
+    })?;
     Ok((fixtures, groups))
 }

@@ -1,3 +1,6 @@
+import { SpatialSelectionControls } from "./SpatialSelectionControls";
+import { fixtureItems, selectedItems, selectionClick, plus, type SpatialMove } from "./spatialSelection";
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -11,7 +14,9 @@ import { FixtureShapeFields } from "./FixtureShapeFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 
 export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selection, setSelection] = useState<number[]>([]);
+  const selected = selection.length === 1 ? selection[0] ?? null : null;
+  const setSelected = (id: number | null) => { setSelection(id === null ? [] : [id]); };
   const [tool, setTool] = useState<FixtureTool | null>(null);
   const [toolSession, setToolSession] = useState(0);
   const beginTool = (tool: FixtureTool) => { setToolSession((session) => session + 1); setTool(tool); };
@@ -27,6 +32,8 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
   const editable = request !== null && request.projectRevision === revision && !pending && !readOnly;
   const elements = document.elements;
+  const items = fixtureItems(elements, document.renderPlan);
+  const chosen = selectedItems(items, selection);
   const index = elements.findIndex((element) => element.id === selected);
   const element = elements[index];
   const report = (error: unknown) => { setError(String(error)); };
@@ -43,13 +50,19 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
     if (item !== undefined) { next.splice(to, 0, item); change(next); }
   };
   const nextId = () => elements.reduce((highest, element) => Math.max(highest, element.id), 0) + 1;
-  const remove = () => { change(elements.filter((item) => item.id !== selected)); setSelected(null); };
-  const duplicate = () => {
-    if (element === undefined) return;
-    const copy = { ...element, id: nextId(), name: `${element.name} copy` };
-    const next = [...elements]; next.splice(index + 1, 0, copy);
-    void edit({ type: "setElements", elements: next }).then(() => { setSelected(copy.id); }).catch(report);
+  const remove = () => { change(elements.filter((item) => !selection.includes(item.id))); setSelection([]); };
+  const moveSelection = async (moves: SpatialMove[]) => {
+    await edit({ type: "setElements", elements: elements.map((element) => {
+      const delta = moves.find((move) => move.id === element.id)?.delta;
+      return delta === undefined ? element : { ...element, transform: { ...element.transform, position: plus(element.transform.position, delta) } };
+    }) });
   };
+  const repeat = (offsets: Point3Meters[]) => {
+    let id = nextId();
+    const copies = offsets.flatMap((offset) => elements.filter((element) => selection.includes(element.id)).map((element) => ({ ...element, id: id++, name: `${element.name} copy`, transform: { ...element.transform, position: plus(element.transform.position, offset) } })));
+    void edit({ type: "setElements", elements: [...elements, ...copies] }).then(() => { setSelection(copies.map((copy) => copy.id)); }).catch(report);
+  };
+  const duplicate = () => { repeat([{ xMeters: 0, yMeters: 0, zMeters: 0 }]); };
   const draw = async (tool: FixtureTool, points: Point3Meters[]) => {
     const start = points[0]; const end = points[points.length - 1];
     if (start === undefined || end === undefined) return;
@@ -82,9 +95,10 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
   return <div className="layout-authoring">
     <ContextMenu.Root><ContextMenu.Trigger asChild><aside className="layout-hierarchy layout-tree-sidebar fixture-editor-sidebar" onContextMenuCapture={(event) => {
       const row = event.target instanceof Element ? event.target.closest("[data-shape-id]") : null;
-      setSelected(row === null ? null : Number(row.getAttribute("data-shape-id")));
+      const id = row === null ? null : Number(row.getAttribute("data-shape-id"));
+      if (id !== null && !selection.includes(id)) setSelected(id);
     }}>
-      <h2 className="composition-title">{document.objectKey}</h2>
+      <h2 className="composition-title">{document.name}</h2>
       <fieldset className="composition-controls" disabled={!editable}>
         <div className="fixture-drawing-tools" aria-label="Draw a shape">{fixtureTools.map((item) => <button type="button" key={item.type} aria-pressed={tool === item.type} onClick={() => { beginTool(item.type); }}>{item.label}</button>)}</div>
         {tool !== null && <div className="fixture-tool-options">
@@ -94,12 +108,13 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
         </div>}
         <div className="composition-tree" aria-label="Shapes in output order">
           {elements.length === 0 && <p className="composition-tree-empty">Choose a shape, then draw it on the canvas.</p>}
-          {elements.map((item, index) => <button type="button" className="fixture-shape-row" data-shape-id={item.id} key={item.id} aria-pressed={selected === item.id} draggable={editable} onDragStart={() => { setDragged(index); }} onDragEnd={() => { setDragged(null); }} onDragOver={(event) => { if (dragged !== null) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (dragged !== null) move(dragged, index); setDragged(null); }} onClick={() => { setSelected(item.id); }}>
+          {elements.map((item, index) => <button type="button" className="fixture-shape-row" data-shape-id={item.id} key={item.id} aria-pressed={selection.includes(item.id)} draggable={editable} onDragStart={() => { setDragged(index); }} onDragEnd={() => { setDragged(null); }} onDragOver={(event) => { if (dragged !== null) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (dragged !== null) move(dragged, index); setDragged(null); }} onClick={(event) => { setSelection(selectionClick(selection, item.id, event.shiftKey || event.ctrlKey || event.metaKey)); }}>
             <span>{item.name}</span><span className="composition-tree-meta">{ranges.get(item.id)?.count} pixels · {ranges.get(item.id)?.start}–{ranges.get(item.id)?.end}</span>
           </button>)}
         </div>
+        <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(report); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
         {element !== undefined && <>
-          <div className="fixture-shape-actions"><button type="button" onClick={duplicate}>Duplicate</button><button type="button" onClick={remove}>Delete</button><button type="button" aria-label="Move shape earlier" disabled={index <= 0} onClick={() => { move(index, index - 1); }}><ArrowUp size={THEME_METRICS.iconSizeSmall} /></button><button type="button" aria-label="Move shape later" disabled={index === elements.length - 1} onClick={() => { move(index, index + 1); }}><ArrowDown size={THEME_METRICS.iconSizeSmall} /></button></div>
+          <div className="fixture-shape-actions"><button type="button" aria-label="Move shape earlier" disabled={index <= 0} onClick={() => { move(index, index - 1); }}><ArrowUp size={THEME_METRICS.iconSizeSmall} /></button><button type="button" aria-label="Move shape later" disabled={index === elements.length - 1} onClick={() => { move(index, index + 1); }}><ArrowDown size={THEME_METRICS.iconSizeSmall} /></button></div>
           <div className="fixture-shape-fields" key={element.id}>
             <label>Name<input key={element.name} required defaultValue={element.name} onBlur={(event) => { const name = event.currentTarget.value.trim(); if (name !== "" && name !== element.name) update({ ...element, name }); else event.currentTarget.value = element.name; }} /></label>
             <FixtureShapeFields shape={element.shape} onChange={(shape) => { update({ ...element, shape }); }} />
@@ -113,11 +128,15 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
       <label className="fixture-checkbox"><input type="checkbox" checked={showOrder} onChange={(event) => { setShowOrder(event.target.checked); }} />Show pixel order</label>
       {error !== null && <p role="alert">{error}</p>}
     </aside></ContextMenu.Trigger><ContextMenu.Portal><ContextMenu.Content className="menu-content">
-      <FixtureContextMenu enabled={editable} onTool={beginTool} selected={element !== undefined} onDuplicate={duplicate} onDelete={remove} />
+      <FixtureContextMenu enabled={editable} onTool={beginTool} selected={selection.length > 0} onDuplicate={duplicate} onDelete={remove} />
     </ContextMenu.Content></ContextMenu.Portal></ContextMenu.Root>
-    <SpatialCanvas plan={document.renderPlan} documentKey={document.sourceRef.id} selected={selected} onSelect={setSelected}
-      onMoveStart={(id) => editable ? async (delta) => { try { await edit({ type: "moveElement", id, delta }); return true; } catch (error) { report(error); return false; } } : null}
-      fixtureTools={{ enabled: editable, tool, session: toolSession, handles: document.handles, showOrder, onTool: beginTool, onDuplicate: duplicate, onDelete: remove, onCancel: () => { setTool(null); }, onDraw: (tool, points) => { void draw(tool, points).catch(report); }, onHandleStart: (id, index) => editable ? async (position) => { try { await edit({ type: "moveHandle", id, index, position }); return true; } catch (error) { report(error); return false; } } : null }}
+    <SpatialCanvas reference={document.sourceRef} plan={document.renderPlan} documentKey={guiObjectKey(document.sourceRef)} selection={selection} items={items} onSelect={setSelection} onDelete={remove} onDuplicate={duplicate}
+      onMoveStart={(ids, anchor) => {
+        const chosen = selectedItems(items, ids);
+        const origin = items.find((item) => item.id === anchor)?.origin;
+        return editable && origin !== undefined ? { origin, owners: chosen.flatMap((item) => item.owners), commit: async (delta) => { try { await moveSelection(chosen.map((item) => ({ id: item.id, delta }))); return true; } catch (error) { report(error); return false; } } } : null;
+      }}
+      fixtureTools={{ enabled: editable, tool, session: toolSession, handles: document.handles, elements, showOrder, onTool: beginTool, onDuplicate: duplicate, onDelete: remove, onCancel: () => { setTool(null); }, onDraw: (tool, points) => { void draw(tool, points).catch(report); }, onHandleStart: (id, index) => editable ? async (position) => { try { await edit({ type: "moveHandle", id, index, position }); return true; } catch (error) { report(error); return false; } } : null }}
     />
   </div>;
 }

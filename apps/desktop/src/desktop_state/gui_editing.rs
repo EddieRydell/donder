@@ -43,6 +43,7 @@ impl DesktopState {
             None => path.to_string(),
         };
         Ok(GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: workspace.view.project_revision,
             path,
             object_key: Some(object_key.to_string()),
@@ -88,7 +89,7 @@ impl DesktopState {
             .flatten();
         let setup_id = project
             .as_ref()
-            .map(|project| project.project.root.setup.clone());
+            .map(|project| project.project.root.setup.id().clone());
         let sequence_id = self.resolve_sequence_id(&request.document);
         lock_unpoisoned(&self.sequence_clip_raster).request(
             project_revision,
@@ -139,7 +140,7 @@ impl DesktopState {
         self.mutate_gui_project_locked(request, mutate)
     }
 
-    fn mutate_gui_project_locked<T>(
+    pub(super) fn mutate_gui_project_locked<T>(
         &self,
         request: &GuiDocumentRequest,
         mutate: impl FnOnce(&mut ProjectSession) -> Result<T, GuiMutationError>,
@@ -168,7 +169,8 @@ impl DesktopState {
             Some(projection)
                 if projection.request.path == request.path
                     && projection.request.view == request.view
-                    && projection.request.object_key == request.object_key =>
+                    && projection.request.object_key == request.object_key
+                    && projection.request.owned_path == request.owned_path =>
             {
                 projection.document.clone()
             }
@@ -276,7 +278,7 @@ impl DesktopState {
         crate::gui::ensure_owned_gui_document(&project, &resolved)?;
         let (clipboard, copied_count, skipped_count) = crate::gui::copy_sequence_selection(
             &project,
-            &SequenceId(resolved.identity),
+            &SequenceId(resolved.object_identity()),
             &selection,
         )?;
         *lock_unpoisoned(&self.sequence_clipboard) = clipboard;
@@ -377,10 +379,11 @@ mod fixed_parameter_tests {
         let effect_id = sequence.effects[0].id.0;
         let module_id = sequence.id.0.module_id().to_string();
         let request = || GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: state.snapshot().project_revision,
             path: sequence_id.0.document().to_string(),
             view: DocumentViewId::Sequence,
-            object_key: Some(sequence_id.0.object().into()),
+            object_key: Some(sequence_id.0.root_source().object().into()),
         };
         let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
         let reference = |name: &str| SequenceEffectReference::Custom {

@@ -22,13 +22,11 @@ pub fn elaborate_sequence(
     setup_id: &SetupId,
     sequence_id: &SequenceId,
 ) -> Result<PreparedSignalGraph, RenderError> {
-    let sequence =
-        project
-            .sequences
-            .get(sequence_id)
-            .ok_or_else(|| RenderError::MissingSequence {
-                sequence_id: sequence_id.clone(),
-            })?;
+    let sequence = project
+        .sequence(sequence_id)
+        .ok_or_else(|| RenderError::MissingSequence {
+            sequence_id: sequence_id.clone(),
+        })?;
     validate_sequence(project, sequence).map_err(|error| RenderError::BadGraph {
         message: error.message,
     })?;
@@ -41,14 +39,12 @@ pub(crate) fn prepare_validated_sequence(
     sequence: &Sequence,
 ) -> Result<PreparedSignalGraph, RenderError> {
     let setup = project
-        .setups
-        .get(setup_id)
+        .setup(setup_id)
         .ok_or_else(|| RenderError::MissingSetup {
             setup_id: setup_id.clone(),
         })?;
     let layout = project
-        .layouts
-        .get(&setup.layout)
+        .layout(setup.layout.id())
         .ok_or(RenderError::MissingLayout)?;
     if sequence
         .effects

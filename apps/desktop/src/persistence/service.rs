@@ -11,8 +11,14 @@ use crate::dto::{AppSettings, AppSnapshot, WorkspaceLayoutState};
 const FILE_NAME: &str = "desktop-state-v2.json";
 const MAX_RECENT_PROJECTS: usize = 10;
 
-pub(crate) fn sequence_viewport_key(path: &str, object_key: &str) -> String {
-    format!("{path}::{object_key}")
+pub(crate) fn sequence_viewport_key(
+    path: &str,
+    object_key: &str,
+    owned_path: &[crate::dto::GuiOwnedStep],
+) -> Result<String, String> {
+    let address =
+        serde_json::to_string(&(object_key, owned_path)).map_err(|error| error.to_string())?;
+    Ok(format!("{path}::{address}"))
 }
 
 fn remap_object_views<T>(views: &mut BTreeMap<String, T>, source: &str, destination: &str) {
@@ -20,7 +26,10 @@ fn remap_object_views<T>(views: &mut BTreeMap<String, T>, source: &str, destinat
         .into_iter()
         .map(|(key, state)| {
             let remapped = key.split_once("::").map_or(key.clone(), |(path, object)| {
-                sequence_viewport_key(&remap_workspace_path(path, source, destination), object)
+                format!(
+                    "{}::{object}",
+                    remap_workspace_path(path, source, destination)
+                )
             });
             (remapped, state)
         })
@@ -134,7 +143,7 @@ impl PersistenceService {
             .entry(project_root.to_string())
             .or_insert_with(PersistedProjectSession::new);
         session.sequence_viewports.insert(
-            sequence_viewport_key(&update.path, &update.object_key),
+            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
             update.state,
         );
         inner.save_now()
@@ -165,7 +174,37 @@ impl PersistenceService {
             .entry(project_root.to_string())
             .or_insert_with(PersistedProjectSession::new);
         session.graph_views.insert(
-            sequence_viewport_key(&update.path, &update.object_key),
+            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
+            update.state,
+        );
+        inner.save_now()
+    }
+
+    pub fn record_spatial_view(
+        &self,
+        project_root: &str,
+        update: PersistedSpatialViewStateUpdate,
+    ) -> Result<(), String> {
+        if update.state.guides.len() > 1000
+            || update.state.guides.iter().any(|guide| {
+                !guide.position_meters.is_finite() || guide.position_meters.abs() > 2000.0
+            })
+        {
+            return Err(
+                "Use at most 1,000 guides with positions between -2,000 and 2,000 meters.".into(),
+            );
+        }
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Ok(());
+        }
+        let session = inner
+            .store
+            .projects
+            .entry(project_root.to_string())
+            .or_insert_with(PersistedProjectSession::new);
+        session.spatial_views.insert(
+            sequence_viewport_key(&update.path, &update.object_key, &update.owned_path)?,
             update.state,
         );
         inner.save_now()
@@ -196,6 +235,7 @@ impl PersistenceService {
             .collect();
         remap_object_views(&mut session.sequence_viewports, source, destination);
         remap_object_views(&mut session.graph_views, source, destination);
+        remap_object_views(&mut session.spatial_views, source, destination);
         session.workspace_explorer.expanded_paths = session
             .workspace_explorer
             .expanded_paths
@@ -236,12 +276,14 @@ impl PersistenceService {
             return ProjectRestoreState {
                 editor_states: BTreeMap::new(),
                 sequence_viewports: BTreeMap::new(),
+                spatial_views: BTreeMap::new(),
                 graph_views: BTreeMap::new(),
             };
         };
         ProjectRestoreState {
             editor_states: session.editor_states.clone(),
             sequence_viewports: session.sequence_viewports.clone(),
+            spatial_views: session.spatial_views.clone(),
             graph_views: session.graph_views.clone(),
         }
     }
@@ -352,6 +394,91 @@ fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owned_sequence_views_remain_distinct_after_document_move() {
+        use crate::dto::GuiOwnedStep;
+        let first =
+            sequence_viewport_key("show.donder", "show", &[GuiOwnedStep::Sequence { id: 4 }])
+                .unwrap();
+        let second =
+            sequence_viewport_key("show.donder", "show", &[GuiOwnedStep::Sequence { id: 8 }])
+                .unwrap();
+        assert_eq!(
+            first,
+            r#"show.donder::["show",[{"type":"sequence","id":4}]]"#
+        );
+        assert_ne!(first, second);
+        let mut views = BTreeMap::from([(first, 10), (second, 20)]);
+        remap_object_views(&mut views, "show.donder", "nested/show.donder");
+        assert_eq!(
+            views[&sequence_viewport_key(
+                "nested/show.donder",
+                "show",
+                &[GuiOwnedStep::Sequence { id: 4 }]
+            )
+            .unwrap()],
+            10
+        );
+        assert_eq!(
+            views[&sequence_viewport_key(
+                "nested/show.donder",
+                "show",
+                &[GuiOwnedStep::Sequence { id: 8 }]
+            )
+            .unwrap()],
+            20
+        );
+    }
+
+    #[test]
+    fn spatial_guides_persist_per_owned_object_and_remap_with_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(FILE_NAME);
+        let service = PersistenceService::new();
+        {
+            let mut inner = service.inner();
+            inner.path = Some(path.clone());
+            inner.write_allowed = true;
+        }
+        let update = |id, value| PersistedSpatialViewStateUpdate {
+            path: "show.donder".into(),
+            object_key: "show".into(),
+            owned_path: vec![crate::dto::GuiOwnedStep::Fixture { id }],
+            state: PersistedSpatialViewState {
+                guides: vec![SpatialGuide {
+                    axis: SpatialGuideAxis::X,
+                    position_meters: value,
+                }],
+            },
+        };
+        service
+            .record_spatial_view("project", update(1, 0.0254))
+            .unwrap();
+        service
+            .record_spatial_view("project", update(2, -2.0))
+            .unwrap();
+        assert!(
+            service
+                .record_spatial_view("project", update(1, f64::NAN))
+                .is_err()
+        );
+        service
+            .remap_project_paths("project", "show.donder", "folder/show.donder")
+            .unwrap();
+        let stored = decode_store(&fs::read_to_string(path).unwrap()).unwrap();
+        let views = &stored.projects["project"].spatial_views;
+        assert_eq!(views.len(), 2);
+        for (id, value) in [(1, 0.0254), (2, -2.0)] {
+            let key = sequence_viewport_key(
+                "folder/show.donder",
+                "show",
+                &[crate::dto::GuiOwnedStep::Fixture { id }],
+            )
+            .unwrap();
+            assert_eq!(views[&key].guides[0].position_meters, value);
+        }
+    }
 
     #[test]
     fn current_desktop_state_roundtrips_and_other_versions_are_rejected() {

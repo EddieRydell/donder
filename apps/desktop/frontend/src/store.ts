@@ -304,6 +304,9 @@ function guiRequestForSnapshot(
   const descriptor = snapshot.activeDocumentDescriptor;
   const activePath = snapshot.activeFile;
   if (descriptor === null || activePath === null || effectiveEditorViewMode(snapshot) !== "gui") return null;
+  if (preferred?.path === activePath && preferred.ownedPath.length > 0 && descriptor.defaultObjectKeys.some((item) => item.objectKey === preferred.objectKey)) {
+    return { ...preferred, projectRevision: snapshot.projectRevision };
+  }
   const preferredObject = preferred?.path === activePath
     ? descriptor.defaultObjectKeys.find(
         (item) => item.view === preferred.view && item.objectKey === preferred.objectKey
@@ -311,6 +314,7 @@ function guiRequestForSnapshot(
     : undefined;
   if (preferredObject !== undefined) {
     return {
+      ownedPath: [],
       path: activePath,
       view: preferredObject.view,
       objectKey: preferredObject.objectKey,
@@ -319,10 +323,10 @@ function guiRequestForSnapshot(
   }
   const defaultObject = descriptor.defaultObjectKeys[0];
   if (defaultObject === undefined) return null;
-  return { path: activePath, view: defaultObject.view, objectKey: defaultObject.objectKey, projectRevision: snapshot.projectRevision };
+  return { ownedPath: [], path: activePath, view: defaultObject.view, objectKey: defaultObject.objectKey, projectRevision: snapshot.projectRevision };
 }
 
-export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey">, presentation: "tab" | "modal" = "tab"): void {
+export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "objectKey" | "view" | "ownedPath">, presentation: "tab" | "modal" = "tab"): void {
   const current = useAppStore.getState();
   const snapshot = current.snapshot;
   if (snapshot === null || snapshot.activeFile !== request.path) {
@@ -332,7 +336,7 @@ export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "obje
     (item) => item.objectKey === request.objectKey
   );
   if (target === undefined) throw new Error("The requested GUI object is unavailable.");
-  if (current.guiRequest?.path === request.path && current.guiRequest.objectKey === request.objectKey) return;
+  if (current.guiRequest !== null && sameGuiDocument(current.guiRequest, { ...request, projectRevision: snapshot.projectRevision })) return;
   const parents = presentation === "modal" ? current.guiParents.slice() : [];
   if (presentation === "modal") {
     if (current.guiRequest === null || current.guiDocument === null || current.guiDocumentRevision !== current.guiRequest.projectRevision || current.guiEditPending) {
@@ -342,7 +346,7 @@ export function selectGuiObject(request: Pick<GuiDocumentRequest, "path" | "obje
   }
   useAppStore.setState({
     guiParents: parents,
-    guiRequest: { ...request, view: target.view, projectRevision: snapshot.projectRevision },
+    guiRequest: { ...request, projectRevision: snapshot.projectRevision },
     guiDocument: null,
     guiDocumentRevision: null
   });

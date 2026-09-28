@@ -1,7 +1,8 @@
 # Create your first LED show
 
 Create a project with **File > New Project**. Donder starts with an empty layout,
-patch, and sequence. Setup links to the native editors for each resource.
+patch, and sequence, stored inside `project.donder`. Open the setup and sequence
+from the project overview, then open Layout or Patch from the setup.
 
 ## Define and place pixels
 
@@ -9,7 +10,9 @@ Open Layout and right-click the inset tree. Choose **Add fixture > Create new fi
 and enter **Pixel A**. In the fixture editor, choose **Pixel** and click the canvas.
 Its default diameter is 0.01 meters; edit its position and diameter as needed.
 
-Close the fixture editor. Add the existing fixture through **Add fixture** and
+Close the fixture editor. Select Pixel A and use its source actions to **Make
+reusable**, choosing this file or a new file under Advanced settings. Add that
+reusable fixture through **Add fixture** and
 rename its new instance to **Pixel B**. Drag B on the layout canvas to place it.
 Both instances share their shapes while retaining independent effect targets.
 Right-click a fixture row and choose **Edit fixture** to edit its shapes later.
@@ -32,7 +35,7 @@ ranges can route sections of an instance to different ports.
 
 ## Add an effect
 
-Open sequences/main.sequence.donder. Right-click Pixel A's timeline row and add
+Open the sequence from the project overview. Right-click Pixel A's timeline row and add
 Pulse. Set its start to 0 and duration to 60 seconds. Open preview and play:
 A should light up while B stays dark. Playback does not require an audio file.
 
@@ -50,8 +53,8 @@ For supported ESP32 standalone playback, choose **Export compiled sequence**,
 select output ports, install the bundled firmware, provision Wi-Fi, and upload.
 See [controller setup](esp32_loading.md#install-from-donder).
 
-Dependency resources remain read-only. Setup can create an editable layout or
-controller copy; shared dependency definitions must be exported to remain
-referenced. To change a whole imported project independently, use **Create Standalone Project Copy**. This creates and opens a separate project with local copies of imported sources and referenced audio.
+Dependency resources remain read-only. Use a value's source actions to **Make
+independent** inside its owner. Layout/controller routing follows the copy;
+retained dependency references must be exposed through declared export imports. To change a whole imported project independently, use **Create Standalone Project Copy**. This creates and opens a separate project with local copies of imported sources and referenced audio.
 A rejected edit leaves the accepted project intact. A save failure reports the
 path and remains unsaved until corrected.

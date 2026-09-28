@@ -5,7 +5,7 @@ export function isNewerSnapshot(current: Pick<AppSnapshot, "stateRevision"> | nu
 }
 
 export function sameGuiDocument(left: GuiDocumentRequest | null, right: GuiDocumentRequest | null): boolean {
-  return left?.path === right?.path && left?.view === right?.view && left?.objectKey === right?.objectKey;
+  return left?.path === right?.path && left?.view === right?.view && left?.objectKey === right?.objectKey && JSON.stringify(left?.ownedPath) === JSON.stringify(right?.ownedPath);
 }
 
 /** Content revisions invalidate projections, not the editor's local view state. */

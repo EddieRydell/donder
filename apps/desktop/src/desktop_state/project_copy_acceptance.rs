@@ -1,6 +1,6 @@
 use super::DesktopState;
 use crate::dto::*;
-use crate::project::{new_project_files, write_new_project_files};
+use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
 
 #[test]
@@ -15,7 +15,7 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         let original_root = parent.join("original");
         write_new_project_files(
             &original_root,
-            &new_project_files("Copy transition").unwrap(),
+            &new_test_project_files("Copy transition").unwrap(),
         )
         .unwrap();
         let state = DesktopState::new(|_| {});
@@ -24,7 +24,7 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
         let original = state.project_session().unwrap();
-        let setup = original.project.root.setup.clone();
+        let setup = original.project.root.setup.id().clone();
         state.open_file_path(setup.0.document().as_str());
         let result = super::authoring_acceptance::edit_layout(
             &state,

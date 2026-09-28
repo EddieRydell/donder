@@ -16,7 +16,7 @@ use crate::dto::{
 };
 use crate::persistence::{
     PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate, PersistedPreviewWindowState,
-    PersistedSequenceViewportStateUpdate, ProjectRestoreState,
+    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
 };
 
 mod app;
@@ -71,6 +71,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         save_editor_view_state,
         save_sequence_viewport_state,
         save_graph_view_state,
+        save_spatial_view_state,
         undo_active_edit,
         redo_active_edit,
         get_gui_document,

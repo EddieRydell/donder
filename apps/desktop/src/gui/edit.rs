@@ -11,12 +11,11 @@ pub(super) fn edit_sequence(
         } => mark_param_names(session, effect_reference)?,
         _ => Vec::new(),
     };
-    let sequence_id = SequenceId(resolved.identity.clone());
+    let sequence_id = SequenceId(resolved.object_identity());
     let layout = session
         .project
-        .setups
-        .get(&session.project.root.setup)
-        .map(|setup| setup.layout.clone())
+        .setup(session.project.root.setup.id())
+        .map(|setup| setup.layout.id().clone())
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
         &edit,
@@ -27,10 +26,9 @@ pub(super) fn edit_sequence(
                 ..
             }
     ) {
-        ensure_document_can_reference_source(
+        donder_project_io::ensure_document_can_reference_object(
             session,
             resolved.identity.document_id(),
-            SourceObjectKind::Layout,
             &layout.0,
         )
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
@@ -517,7 +515,7 @@ pub(super) fn edit_sequence(
             let target = automation_target_from_gui(target)?;
             donder_language::validation::automation_target_type(
                 &session.project,
-                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?,
                 &target,
@@ -525,7 +523,7 @@ pub(super) fn edit_sequence(
             .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let mapping = automation_mapping_from_gui(mapping)?;
             let (start, duration, anchor_lane_index) = {
-                let sequence = session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                let sequence = session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?;
                 automation_target_timing(session, sequence, &target)?
@@ -582,7 +580,7 @@ pub(super) fn edit_sequence(
             let target = automation_target_from_gui(target)?;
             donder_language::validation::automation_target_type(
                 &session.project,
-                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?,
                 &target,
@@ -610,7 +608,7 @@ pub(super) fn edit_sequence(
             let target = automation_target_from_gui(target)?;
             donder_language::validation::automation_target_type(
                 &session.project,
-                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?,
                 &target,
@@ -683,7 +681,7 @@ pub(super) fn edit_sequence(
             let target = automation_target_from_gui(target)?;
             donder_language::validation::automation_target_type(
                 &session.project,
-                session.project.sequences.get(&sequence_id).ok_or_else(|| {
+                session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?,
                 &target,

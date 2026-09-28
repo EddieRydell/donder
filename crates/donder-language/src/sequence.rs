@@ -1,6 +1,6 @@
 use crate::dsl::types::Identifier;
 use crate::effect::{EffectInst, EffectInstId};
-use crate::identity::SourceIdentity;
+use crate::identity::ObjectIdentity;
 use crate::operator::GraphOperatorNode;
 use crate::values::{Color, Curve, DonderDuration, DonderTime};
 pub use donder_runtime::automation::{
@@ -10,7 +10,7 @@ pub use donder_runtime::automation::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct SequenceId(pub SourceIdentity);
+pub struct SequenceId(pub ObjectIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sequence {
@@ -256,3 +256,18 @@ pub enum SequenceAudio {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AssetId(pub u32);
+
+impl crate::ownership::Identified for Sequence {
+    type Id = SequenceId;
+    fn id(&self) -> &Self::Id {
+        &self.id
+    }
+}
+
+pub type SequenceSource = crate::ownership::ValueSource<Box<Sequence>, SequenceId>;
+
+impl AsRef<ObjectIdentity> for SequenceId {
+    fn as_ref(&self) -> &ObjectIdentity {
+        &self.0
+    }
+}

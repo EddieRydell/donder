@@ -56,6 +56,7 @@ pub(crate) mod tests {
                 .contains(&DocumentViewId::Project)
         );
         let request = GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: 0,
             path: "project.donder".to_string(),
             view: DocumentViewId::Project,
@@ -79,6 +80,7 @@ pub(crate) mod tests {
     fn setup_projection_identifies_its_composed_objects() {
         let session = starter();
         let request = GuiDocumentRequest {
+            owned_path: Vec::new(),
             project_revision: 0,
             path: "setups/main.setup.donder".to_string(),
             view: DocumentViewId::Setup,
@@ -104,6 +106,7 @@ pub(crate) mod tests {
             let projection = crate::gui::project_gui_document(
                 Some(&session),
                 &GuiDocumentRequest {
+                    owned_path: Vec::new(),
                     project_revision: 0,
                     path: reference.path.clone(),
                     view: view.clone(),
@@ -122,10 +125,10 @@ pub(crate) mod tests {
     #[test]
     fn sequence_render_service_returns_shared_sequence_frame() {
         let session = starter();
-        let sequence = session.project.root.sequences.first().unwrap();
+        let sequence = session.project.root.sequences.first().unwrap().id();
         let mut service = crate::rendering::SequenceRenderService::new();
         service
-            .prepare(&session.project, &session.project.root.setup, sequence)
+            .prepare(&session.project, session.project.root.setup.id(), sequence)
             .unwrap();
         let audio = crate::dto::AudioTransportSnapshot {
             state: crate::dto::AudioTransportState::Paused,

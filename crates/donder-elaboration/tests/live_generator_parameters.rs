@@ -120,7 +120,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequenceOutput {
         });
     }
     let id = sequence.id.clone();
-    PreparedSequenceOutput::prepare(&session.project, &session.project.root.setup, &id).unwrap()
+    PreparedSequenceOutput::prepare(&session.project, session.project.root.setup.id(), &id).unwrap()
 }
 
 #[test]

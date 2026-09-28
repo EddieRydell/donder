@@ -22,6 +22,7 @@ pub use imports::{
 pub mod layout;
 pub mod model;
 pub mod operator;
+pub mod ownership;
 pub mod patch;
 pub mod sampling;
 pub mod sequence;

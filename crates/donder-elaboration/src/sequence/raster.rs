@@ -257,19 +257,16 @@ impl<'a> EffectRasterPrepareBatch<'a> {
         sequence_id: &SequenceId,
     ) -> Result<Self, RenderError> {
         let setup = project
-            .setups
-            .get(setup_id)
+            .setup(setup_id)
             .ok_or_else(|| RenderError::MissingSetup {
                 setup_id: setup_id.clone(),
             })?;
         let layout = project
-            .layouts
-            .get(&setup.layout)
+            .layout(setup.layout.id())
             .ok_or(RenderError::MissingLayout)?;
         let sequence =
             project
-                .sequences
-                .get(sequence_id)
+                .sequence(sequence_id)
                 .ok_or_else(|| RenderError::MissingSequence {
                     sequence_id: sequence_id.clone(),
                 })?;

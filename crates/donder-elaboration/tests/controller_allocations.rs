@@ -57,10 +57,16 @@ fn prepared_controller_sampling_does_not_allocate() {
     let session = load_package(&project_path)
         .expect("starter project should load")
         .session;
-    for sequence_id in &session.project.root.sequences {
+    for sequence_id in session
+        .project
+        .root
+        .sequences
+        .iter()
+        .map(|source| source.id())
+    {
         let output = PreparedSequenceOutput::prepare(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             sequence_id,
         )
         .expect("starter output should prepare");
@@ -69,13 +75,17 @@ fn prepared_controller_sampling_does_not_allocate() {
             output.frame_count() / 2,
             output.frame_count().saturating_sub(1),
         ];
-        assert_prepared_sampling_does_not_allocate(&output, &frames, sequence_id.0.object());
-        let setup = &session.project.setups[&session.project.root.setup];
-        let controller = &setup.controllers[0];
+        assert_prepared_sampling_does_not_allocate(
+            &output,
+            &frames,
+            sequence_id.0.root_source().object(),
+        );
+        let setup = &session.project.setups[session.project.root.setup.id()];
+        let controller = setup.controllers[0].id();
         let port = session.project.controllers[controller].ports[0].id;
         let mut selected = PreparedSequenceOutput::prepare_selected(
             &session.project,
-            &session.project.root.setup,
+            session.project.root.setup.id(),
             sequence_id,
             &[(controller.clone(), port)],
         )
@@ -96,7 +106,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         assert!(selected_bytes < full_bytes);
         println!(
             "{} runtime workspace heap: {full_bytes} -> {selected_bytes} bytes",
-            sequence_id.0.object()
+            sequence_id.0.root_source().object()
         );
     }
 
@@ -105,7 +115,8 @@ fn prepared_controller_sampling_does_not_allocate() {
         .root
         .sequences
         .iter()
-        .find(|id| id.0.object() == "layer_test")
+        .map(|source| source.id())
+        .find(|id| id.0.root_source().object() == "layer_test")
         .expect("starter project should include layer_test")
         .clone();
     let sequence = project
@@ -116,7 +127,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         effect_id: sequence.effects[0].id.clone(),
         param: Identifier::new("pulse_overlap".to_string()).expect("static identifier is valid"),
     };
-    let output = PreparedSequenceOutput::prepare(&project, &project.root.setup, &sequence_id)
+    let output = PreparedSequenceOutput::prepare(&project, project.root.setup.id(), &sequence_id)
         .expect("automated native output should prepare");
     assert_prepared_sampling_does_not_allocate(
         &output,
@@ -140,7 +151,8 @@ fn prepared_controller_sampling_does_not_allocate() {
         definition.implementation =
             donder_language::operator::OperatorImplementation::Dsl(Box::new(compiled));
         let output =
-            PreparedSequenceOutput::prepare(&project, &project.root.setup, &sequence_id).unwrap();
+            PreparedSequenceOutput::prepare(&project, project.root.setup.id(), &sequence_id)
+                .unwrap();
         assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 7152, 0], query);
     }
 }

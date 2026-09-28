@@ -1,3 +1,5 @@
+import { OwnershipActions, ownershipLabel } from "../OwnershipActions";
+import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { Boxes, ListVideo } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -17,13 +19,13 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
 
       <section className="object-overview-group">
         <h3>Display setup</h3>
-        <ObjectRow
+        <div className="object-overview-row-with-actions"><ObjectRow
           icon={<Boxes aria-hidden="true" />}
-          title={document.setup.objectKey}
-          reference={`${document.setup.path} · setup`}
+          title="Display setup"
+          reference={ownershipLabel(document.setup)}
           detail="Layout, fixture instances and controls, patch, and controllers"
           onOpen={() => void navigateToGuiObject(document.setup)}
-        />
+        /><OwnershipActions sources={document.availableSources} source={document.setup} slot={{ type: "setup" }} label="Setup" /></div>
       </section>
 
       <section className="object-overview-group">
@@ -33,14 +35,13 @@ export function ProjectEditor({ document }: { document: ProjectGuiDocument }) {
         </div>
         {document.sequences.length === 0 ? (
           <p className="object-overview-empty">No sequences are included in this project.</p>
-        ) : document.sequences.map((sequence) => (
-          <ObjectRow
-            key={`${sequence.moduleId}:${sequence.path}:${sequence.objectKey}`}
+        ) : document.sequences.map((sequence, index) => (
+          <div className="object-overview-row-with-actions" key={guiObjectKey(sequence)}><ObjectRow
             icon={<ListVideo aria-hidden="true" />}
-            title={sequence.objectKey}
-            reference={`${sequence.path} · sequence`}
+            title={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey}
+            reference={ownershipLabel(sequence)}
             onOpen={() => void navigateToGuiObject(sequence)}
-          />
+          /><OwnershipActions sources={document.availableSources} source={sequence} slot={{ type: "sequence", index }} label={sequence.ownedPath.length > 0 ? `Sequence ${index + 1}` : sequence.objectKey} /></div>
         ))}
       </section>
     </main>

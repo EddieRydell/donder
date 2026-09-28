@@ -293,13 +293,22 @@ pub(in crate::gui) fn automation_mapping_to_gui(
     }
 }
 
-pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCurveLibraryItem> {
+pub(in crate::gui) fn curve_library(
+    session: &ProjectSession,
+    owner: &donder_language::identity::DocumentId,
+) -> Vec<SequenceCurveLibraryItem> {
+    let available = donder_project_io::available_reusable_sources(
+        session,
+        owner,
+        &[donder_project_io::SourceObjectKind::Curve],
+    );
     session
         .project
         .definitions
         .curves
         .definitions
         .iter()
+        .filter(|(id, _)| available.iter().any(|(_, source)| &id.0 == source))
         .map(|(id, definition)| SequenceCurveLibraryItem {
             module_id: id.0.module_id().to_string(),
             path: id.0.document().to_string(),
@@ -312,13 +321,20 @@ pub(in crate::gui) fn curve_library(session: &ProjectSession) -> Vec<SequenceCur
 
 pub(in crate::gui) fn gradient_library(
     session: &ProjectSession,
+    owner: &donder_language::identity::DocumentId,
 ) -> Vec<SequenceGradientLibraryItem> {
+    let available = donder_project_io::available_reusable_sources(
+        session,
+        owner,
+        &[donder_project_io::SourceObjectKind::Gradient],
+    );
     session
         .project
         .definitions
         .gradients
         .definitions
         .iter()
+        .filter(|(id, _)| available.iter().any(|(_, source)| &id.0 == source))
         .map(|(id, definition)| SequenceGradientLibraryItem {
             module_id: id.0.module_id().to_string(),
             path: id.0.document().to_string(),

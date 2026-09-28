@@ -19,21 +19,23 @@ pub(super) fn setup_value(
     let mut value = typed_object("setup");
     value.insert(
         string_value("layout"),
-        string_value(&write_source_reference(
+        source_value(
             session,
             from,
             SourceObjectKind::Layout,
-            &setup.layout.0,
-        )?),
+            &setup.layout,
+            |layout| layout_value(session, from, layout),
+        )?,
     );
     value.insert(
         string_value("patch"),
-        Value::String(write_source_reference(
+        source_value(
             session,
             from,
             SourceObjectKind::Patch,
-            &setup.patch.0,
-        )?),
+            &setup.patch,
+            |patch| patch_value(session, from, patch),
+        )?,
     );
     value.insert(
         string_value("controllers"),
@@ -41,11 +43,16 @@ pub(super) fn setup_value(
             setup
                 .controllers
                 .iter()
-                .map(|id| {
-                    write_source_reference(session, from, SourceObjectKind::Controller, &id.0)
-                        .map(Value::String)
+                .map(|source| {
+                    source_value(
+                        session,
+                        from,
+                        SourceObjectKind::Controller,
+                        source,
+                        controller_value,
+                    )
                 })
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<Result<_, _>>()?,
         ),
     );
     Ok(Value::Mapping(value))
@@ -53,6 +60,7 @@ pub(super) fn setup_value(
 
 pub(super) fn controller_value(controller: &Controller) -> Result<Value, ExportProjectError> {
     let mut value = typed_object("controller");
+    insert_owned_collection_id(&mut value, &controller.id.0);
     let mut protocol = Mapping::new();
     match &controller.protocol {
         ControllerProtocol::E131(config) => {
@@ -166,12 +174,19 @@ fn layout_fixture_value(
             value.insert(string_value("type"), string_value("fixture"));
             value.insert(
                 string_value("definition"),
-                string_value(&write_source_reference(
-                    session,
-                    from,
-                    SourceObjectKind::FixtureDefinition,
-                    &definition.0,
-                )?),
+                match definition {
+                    donder_language::fixture::FixtureSource::Inline(value) => {
+                        fixture_definition_value(value)?
+                    }
+                    donder_language::fixture::FixtureSource::Reference(id) => {
+                        string_value(&write_source_reference(
+                            session,
+                            from,
+                            SourceObjectKind::FixtureDefinition,
+                            &id.0,
+                        )?)
+                    }
+                },
             );
             value.insert(string_value("transform"), transform_value(transform)?);
         }
@@ -323,12 +338,12 @@ pub(super) fn patch_value(
                     }
                     value.insert(
                         string_value("controller"),
-                        string_value(&write_source_reference(
+                        write_object_reference(
                             session,
                             from,
                             SourceObjectKind::Controller,
                             &route.controller.0,
-                        )?),
+                        )?,
                     );
                     value.insert(string_value("port"), serialized_value(route.port.0)?);
                     value.insert(

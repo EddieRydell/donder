@@ -1,3 +1,4 @@
+use donder_language::ownership::ValueSource;
 pub(crate) mod inspection;
 use inspection::string_field;
 pub(crate) mod mapping;
@@ -164,7 +165,7 @@ impl Loader {
         DonderProject {
             root: ProjectRoot {
                 id: ProjectId(project_identity),
-                setup: SetupId(setup_identity),
+                setup: ValueSource::Reference(SetupId(setup_identity.into())),
                 sequences: Vec::new(),
             },
             setups: IndexMap::new(),
@@ -510,16 +511,16 @@ impl Loader {
                     ))
                 }
                 "setup" => ResolvedObject::Setup(SetupId(
-                    self.source_identity(document_id, key.to_string()),
+                    self.source_identity(document_id, key.to_string()).into(),
                 )),
                 "controller" => ResolvedObject::Controller(ControllerId(
-                    self.source_identity(document_id, key.to_string()),
+                    self.source_identity(document_id, key.to_string()).into(),
                 )),
                 "layout" => ResolvedObject::Layout(LayoutId(
-                    self.source_identity(document_id, key.to_string()),
+                    self.source_identity(document_id, key.to_string()).into(),
                 )),
                 "patch" => ResolvedObject::Patch(PatchId(
-                    self.source_identity(document_id, key.to_string()),
+                    self.source_identity(document_id, key.to_string()).into(),
                 )),
                 "fixture" => ResolvedObject::FixtureDefinition(FixtureDefinitionId(
                     self.source_identity(document_id, key.to_string()),
@@ -531,7 +532,7 @@ impl Loader {
                     self.source_identity(document_id, key.to_string()),
                 )),
                 "sequence" => ResolvedObject::Sequence(SequenceId(
-                    self.source_identity(document_id, key.to_string()),
+                    self.source_identity(document_id, key.to_string()).into(),
                 )),
                 other => {
                     return Err(LoadProjectError::InvalidDocument {
@@ -614,37 +615,22 @@ impl Loader {
         );
         let (setup_ref, sequence_refs) =
             parse_project_fields(entrypoint.path(), root_object.value)?;
-        let setup = self.reference_as_setup(entrypoint, &setup_ref)?;
+        let mut project = self.workspace_project(entrypoint.clone());
+        let owner = donder_language::identity::ObjectIdentity::from(root_id.0.clone());
+        let mut resolver = DomainResolver {
+            loader: self,
+            project: &mut project,
+        };
+        let setup = resolver.setup_source(entrypoint, &owner, &setup_ref)?;
         let sequences = sequence_refs
             .iter()
-            .map(|reference| self.reference_as_sequence(entrypoint, reference))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut project = DonderProject {
-            root: ProjectRoot {
-                id: root_id,
-                setup: setup.clone(),
-                sequences: sequences.clone(),
-            },
-            setups: IndexMap::new(),
-            layouts: IndexMap::new(),
-            patches: IndexMap::new(),
-            controllers: IndexMap::new(),
-            sequences: IndexMap::new(),
-            definitions: ProjectDefinitionStores::default(),
+            .map(|value| resolver.sequence_source(entrypoint, &owner, value))
+            .collect::<Result<_, _>>()?;
+        project.root = ProjectRoot {
+            id: root_id,
+            setup,
+            sequences,
         };
-        project.definitions = self.definitions.clone();
-
-        {
-            let mut resolver = DomainResolver {
-                loader: self,
-                project: &mut project,
-            };
-            resolver.resolve_setup(&setup)?;
-            for sequence in sequences {
-                resolver.resolve_sequence(&sequence)?;
-            }
-        }
         Ok(project)
     }
 
@@ -757,38 +743,6 @@ impl Loader {
             }),
         }
     }
-
-    pub(super) fn reference_as_setup(
-        &self,
-        document_id: &donder_language::identity::DocumentId,
-        reference: &str,
-    ) -> Result<SetupId, LoadProjectError> {
-        let path = document_id.path();
-        match self.resolve_reference(document_id, reference)? {
-            ResolvedObject::Setup(id) => Ok(id),
-            _ => Err(LoadProjectError::InvalidReference {
-                path: path.to_path_buf(),
-                range: source_range_for_scalar(path, reference),
-                reference: reference.to_string(),
-            }),
-        }
-    }
-
-    pub(super) fn reference_as_sequence(
-        &self,
-        document_id: &donder_language::identity::DocumentId,
-        reference: &str,
-    ) -> Result<SequenceId, LoadProjectError> {
-        let path = document_id.path();
-        match self.resolve_reference(document_id, reference)? {
-            ResolvedObject::Sequence(id) => Ok(id),
-            _ => Err(LoadProjectError::InvalidReference {
-                path: path.to_path_buf(),
-                range: source_range_for_scalar(path, reference),
-                reference: reference.to_string(),
-            }),
-        }
-    }
 }
 
 fn missing_exported_definition(
@@ -819,8 +773,7 @@ use indexmap::{IndexMap, IndexSet};
 use yaml_serde::Value;
 
 use crate::diagnostics::{
-    dsl_diagnostic, parse_yaml_value, source_range_for_field_value, source_range_for_scalar,
-    source_range_for_value,
+    dsl_diagnostic, parse_yaml_value, source_range_for_field_value, source_range_for_value,
 };
 use crate::source::{
     ProjectSession, ReferencedAsset, SourceDocument, SourceDocumentKind, SourceObjectId,

@@ -10,13 +10,13 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
         .unwrap()
         .session
         .project;
-    let setup = &project.setups[&project.root.setup];
-    let controller = &setup.controllers[0];
+    let setup = &project.setups[project.root.setup.id()];
+    let controller = setup.controllers[0].id();
     let port = project.controllers[controller].ports[0].id;
-    for id in &project.root.sequences {
+    for id in project.root.sequences.iter().map(|source| source.id()) {
         let prepared = PreparedSequenceOutput::prepare_selected(
             &project,
-            &project.root.setup,
+            project.root.setup.id(),
             id,
             &[(controller.clone(), port)],
         )
@@ -110,6 +110,10 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
             ),
             Err(LoadError::Limit)
         ));
-        println!("{} archive bytes={}", id.0.object(), bytes.len());
+        println!(
+            "{} archive bytes={}",
+            id.0.root_source().object(),
+            bytes.len()
+        );
     }
 }

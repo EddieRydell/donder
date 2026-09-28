@@ -3,10 +3,29 @@ use super::*;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NewSequenceRequest {
-    pub file_path: String,
-    pub object_key: String,
+    pub storage: NewSequenceStorage,
+    pub initial_color: String,
     pub duration_seconds: f32,
     pub frame_rate: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum NewSequenceStorage {
+    Inline,
+    SameFile { name: String },
+    NewFile { name: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSequenceResult {
+    pub snapshot: AppSnapshot,
+    pub source: GuiObjectRef,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
@@ -60,6 +79,7 @@ pub struct AppSettings {
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
     pub effect_raster: EffectRasterSettings,
+    pub spatial_snap: SpatialSnapSettings,
 }
 
 fn default_editor_view_mode() -> EditorViewMode {
@@ -77,6 +97,7 @@ impl Default for AppSettings {
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
             effect_raster: EffectRasterSettings::default(),
+            spatial_snap: SpatialSnapSettings::default(),
         }
     }
 }
@@ -115,7 +136,7 @@ pub enum EditorViewMode {
     Gui,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ObjectKind {
     Project,
@@ -463,4 +484,32 @@ pub struct WorkspaceEntry {
     pub ownership: WorkspaceEntryOwnership,
     pub operations: Vec<WorkspaceOperation>,
     pub operation_explanation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SpatialSnapSettings {
+    pub enabled: bool,
+    pub spacing_meters: f64,
+    pub unit: SpatialUnit,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SpatialUnit {
+    Meters,
+    Centimeters,
+    Millimeters,
+    Inches,
+    Feet,
+}
+
+impl Default for SpatialSnapSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            spacing_meters: 0.1,
+            unit: SpatialUnit::Meters,
+        }
+    }
 }

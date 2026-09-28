@@ -396,7 +396,7 @@ fn wrong_field_type_reports_bad_value_range() {
     let diagnostic = report
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.message == "field `setup` must be a string")
+        .find(|diagnostic| diagnostic.message == "setup must be a mapping")
         .unwrap();
 
     assert_range(diagnostic.range.as_ref().unwrap(), 2, 9, 2, 13);

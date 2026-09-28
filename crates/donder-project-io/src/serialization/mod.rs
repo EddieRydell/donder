@@ -6,7 +6,7 @@ mod values;
 
 use sequence::sequence_value;
 use setup::{controller_value, fixture_definition_value, layout_value, patch_value, setup_value};
-use values::{curve_value, gradient_value, string_value, typed_object, write_source_reference};
+use values::{curve_value, gradient_value, source_value, string_value, typed_object};
 
 pub(super) fn write_source_documents(
     session: &ProjectSession,
@@ -160,31 +160,31 @@ pub(super) fn validate_source_inventory(
             project
                 .setups
                 .keys()
-                .map(|id| (SourceObjectKind::Setup, &id.0)),
+                .map(|id| (SourceObjectKind::Setup, id.0.root_source())),
         )
         .chain(
             project
                 .controllers
                 .keys()
-                .map(|id| (SourceObjectKind::Controller, &id.0)),
+                .map(|id| (SourceObjectKind::Controller, id.0.root_source())),
         )
         .chain(
             project
                 .layouts
                 .keys()
-                .map(|id| (SourceObjectKind::Layout, &id.0)),
+                .map(|id| (SourceObjectKind::Layout, id.0.root_source())),
         )
         .chain(
             project
                 .patches
                 .keys()
-                .map(|id| (SourceObjectKind::Patch, &id.0)),
+                .map(|id| (SourceObjectKind::Patch, id.0.root_source())),
         )
         .chain(
             project
                 .sequences
                 .keys()
-                .map(|id| (SourceObjectKind::Sequence, &id.0)),
+                .map(|id| (SourceObjectKind::Sequence, id.0.root_source())),
         )
         .chain(
             project
@@ -280,7 +280,7 @@ pub(super) fn serialize_source_object(
             let setup = session
                 .project
                 .setups
-                .get(&SetupId(identity))
+                .get(&SetupId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             setup_value(session, from_document, setup)
         }
@@ -290,7 +290,7 @@ pub(super) fn serialize_source_object(
             let controller = session
                 .project
                 .controllers
-                .get(&ControllerId(identity))
+                .get(&ControllerId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             controller_value(controller)
         }
@@ -300,7 +300,7 @@ pub(super) fn serialize_source_object(
             let layout = session
                 .project
                 .layouts
-                .get(&LayoutId(identity))
+                .get(&LayoutId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             layout_value(session, from_document, layout)
         }
@@ -310,7 +310,7 @@ pub(super) fn serialize_source_object(
             let patch = session
                 .project
                 .patches
-                .get(&PatchId(identity))
+                .get(&PatchId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             patch_value(session, from_document, patch)
         }
@@ -356,7 +356,7 @@ pub(super) fn serialize_source_object(
             let sequence = session
                 .project
                 .sequences
-                .get(&SequenceId(identity))
+                .get(&SequenceId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             sequence_value(session, from_document, sequence)
         }
@@ -426,12 +426,13 @@ pub(super) fn project_root_value(
     let mut value = typed_object("project");
     value.insert(
         string_value("setup"),
-        Value::String(write_source_reference(
+        source_value(
             session,
             from_document,
             SourceObjectKind::Setup,
-            &session.project.root.setup.0,
-        )?),
+            &session.project.root.setup,
+            |setup| setup_value(session, from_document, setup),
+        )?,
     );
     value.insert(
         string_value("sequences"),
@@ -441,16 +442,16 @@ pub(super) fn project_root_value(
                 .root
                 .sequences
                 .iter()
-                .map(|sequence| {
-                    write_source_reference(
+                .map(|source| {
+                    source_value(
                         session,
                         from_document,
                         SourceObjectKind::Sequence,
-                        &sequence.0,
+                        source,
+                        |sequence| sequence_value(session, from_document, sequence),
                     )
-                    .map(Value::String)
                 })
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<Result<_, _>>()?,
         ),
     );
     Ok(Value::Mapping(value))
