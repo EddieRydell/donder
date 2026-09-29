@@ -17,7 +17,7 @@ import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, markIndexAfte
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { targetsEqual } from "./sequenceTargets";
-import { drawWaveformStrip, useSequenceWaveform } from "./sequenceWaveform";
+import { drawSpectrogramStrip, drawWaveformStrip, useSequenceWaveform } from "./sequenceWaveform";
 import { drawClipRaster, useSequenceClipRasters } from "./sequenceClipRasters";
 import { useSequenceTransport } from "./SequenceTransportControls";
 import {
@@ -50,8 +50,10 @@ import { buildSequenceClipLayout, constrainEffectLaneDelta, constrainEffectMoveD
 
 const SEQUENCE_CANVAS = {
   leftGutterPx: THEME_METRICS.sequenceLeftGutter,
-  topPx: THEME_METRICS.sequenceTop,
   audioStripTopPx: THEME_METRICS.sequenceAudioStripTop,
+  initialAudioStripHeightPx: THEME_METRICS.sequenceInitialAudioStripHeight,
+  minAudioStripHeightPx: THEME_METRICS.sequenceMinAudioStripHeight,
+  maxAudioStripHeightPx: THEME_METRICS.sequenceMaxAudioStripHeight,
   initialPxPerSecond: THEME_METRICS.sequenceInitialPixelsPerSecond,
   initialLaneHeightPx: THEME_METRICS.sequenceInitialLaneHeight,
   minPxPerSecond: THEME_METRICS.sequenceMinPixelsPerSecond,
@@ -59,6 +61,7 @@ const SEQUENCE_CANVAS = {
   maxZoomPxPerSecond: THEME_METRICS.sequenceMaxZoomPixelsPerSecond,
   minLaneHeightPx: THEME_METRICS.sequenceMinLaneHeight,
   maxLaneHeightPx: THEME_METRICS.sequenceMaxLaneHeight,
+  audioResizeHitHeightPx: THEME_METRICS.sequenceAudioResizeHitHeight,
   wheelZoomScale: THEME_METRICS.sequenceWheelZoomScale,
   scrubStepSeconds: THEME_METRICS.sequenceScrubStep,
   nudgeSeconds: THEME_METRICS.sequenceNudgeStep,
@@ -83,6 +86,8 @@ const SEQUENCE_COLORS = {
   clipHover: THEME_COLORS.clipHover,
   clipBorder: THEME_COLORS.clipBorder,
   automation: THEME_COLORS.automation,
+  spectrogram: THEME_COLORS.spectrogram,
+  spectrogramHighlight: THEME_COLORS.white,
   automationFill: THEME_COLORS.automationFill,
   automationGraph: THEME_COLORS.automationGraph,
   automationGraphGrid: THEME_COLORS.automationGraphGrid,
@@ -100,6 +105,7 @@ const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
 
 type SequenceDragState =
   | null
+  | { kind: "audioStripResize"; startY: number; initialHeight: number; active: boolean }
   | { kind: "rowResize"; laneIndex: number; rowIndex: number; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; anchorLaneIndex: number; laneIndex: number; resize: "none" | "left" | "right" }
@@ -151,6 +157,10 @@ function rowResizeHit(
   return null;
 }
 
+function audioStripResizeHit(y: number, top: number): boolean {
+  return Math.abs(y - top) <= SEQUENCE_CANVAS.audioResizeHitHeightPx;
+}
+
 
 export function SequenceCanvas({
   document,
@@ -188,6 +198,7 @@ export function SequenceCanvas({
   const [sequenceContextMenu, setSequenceContextMenu] = useState<SequenceContextMenu | null>(null);
   const [hover, setHover] = useState<SequenceHover>(null);
   const [rowResizeHover, setRowResizeHover] = useState<{ laneIndex: number; rowIndex: number } | null>(null);
+  const [audioResizeHover, setAudioResizeHover] = useState(false);
   const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
   const [selectedLaneIndex, setSelectedLaneIndex] = useState<number | null>(null);
   const [selectedTimeSeconds, setSelectedTimeSeconds] = useState<number | null>(null);
@@ -202,10 +213,10 @@ export function SequenceCanvas({
   const viewportInitialized = useRef(false);
   const restoredViewportKey = useRef<string | null>(restoredViewport === undefined ? null : restoreKey);
   const left = SEQUENCE_CANVAS.leftGutterPx;
-  const top = SEQUENCE_CANVAS.topPx;
   const audioStripTop = SEQUENCE_CANVAS.audioStripTopPx;
-  const audioStripHeight = top - audioStripTop;
-  const waveform = useSequenceWaveform(document.audio);
+  const audioStripHeight = viewport.audioStripHeight;
+  const top = audioStripTop + audioStripHeight;
+  const waveform = useSequenceWaveform(document.audio, settings);
   const [mode] = useMarkDisplayMode();
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
   const automationClipsForLayout = useMemo(
@@ -227,7 +238,7 @@ export function SequenceCanvas({
   const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
   const canvasCursor =
     dragCursor ??
-    (rowResizeHover !== null ? "ns-resize" :
+    (audioResizeHover || rowResizeHover !== null ? "ns-resize" :
     (automationClipChooser !== null && automationHover !== null
       ? "pointer"
       : automationHover !== null
@@ -255,6 +266,7 @@ export function SequenceCanvas({
         if (restoredViewport === undefined) {
           setViewport({
             pxPerSecond: initialSequencePxPerSecond(settings, timelineWidth, document.durationSeconds),
+            audioStripHeight: SEQUENCE_CANVAS.initialAudioStripHeightPx,
             rowHeights: automationRowsByLane.map((rowCount) => [initialSequenceLaneHeight(settings), ...Array.from({ length: rowCount }, () => automationRowHeight)]),
             scrollXSeconds: 0,
             scrollY: 0
@@ -304,6 +316,7 @@ export function SequenceCanvas({
   useEffect(() => {
     const state: PersistedSequenceViewportState = {
       pxPerSecond: viewport.pxPerSecond,
+      audioStripHeightPx: viewport.audioStripHeight,
       rowHeights: Object.fromEntries(document.lanes.flatMap((lane, laneIndex) => Array.from({ length: (automationRowsByLane[laneIndex] ?? 0) + 1 }, (_, rowIndex) => [rowKey(lane.target, rowIndex), rowHeightAt(viewport.rowHeights, laneIndex, rowIndex, rowIndex === 0 ? initialSequenceLaneHeight(settings) : automationRowHeight)]))),
       scrollXSeconds: viewport.scrollXSeconds,
       scrollY: viewport.scrollY,
@@ -429,18 +442,37 @@ export function SequenceCanvas({
     ctx.lineTo(rect.width, top + THEME_METRICS.visualHairlineOffset);
     ctx.stroke();
 
-    drawWaveformStrip(
-      ctx,
-      waveform.audio,
-      left,
-      audioStripTop,
-      timelineWidth,
-      audioStripHeight,
-      document.durationSeconds,
-      viewport.pxPerSecond,
-      scrollXSeconds,
-      SEQUENCE_COLORS
-    );
+    if (settings?.sequenceSpectrogramEnabled === true) {
+      drawSpectrogramStrip(
+        ctx,
+        waveform.audio,
+        left,
+        audioStripTop,
+        timelineWidth,
+        audioStripHeight,
+        document.durationSeconds,
+        viewport.pxPerSecond,
+        scrollXSeconds,
+        SEQUENCE_COLORS
+      );
+    } else {
+      drawWaveformStrip(
+        ctx,
+        waveform.audio,
+        left,
+        audioStripTop,
+        timelineWidth,
+        audioStripHeight,
+        document.durationSeconds,
+        viewport.pxPerSecond,
+        scrollXSeconds,
+        SEQUENCE_COLORS
+      );
+    }
+    if (audioResizeHover) {
+      ctx.fillStyle = SEQUENCE_COLORS.accent;
+      ctx.fillRect(0, top - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
+    }
     drawTimelineGrid(ctx, left, top, rect.width, rect.height, viewport.pxPerSecond, scrollXSeconds, document.frameRate);
     drawSequenceMarks(
       ctx,
@@ -541,7 +573,7 @@ export function SequenceCanvas({
     ctx.moveTo(left + THEME_METRICS.visualHairlineOffset, top);
     ctx.lineTo(left, rect.height);
     ctx.stroke();
-  }, [activeAutomationTargetEffectIds, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, waveform.audio, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, waveform.audio, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
@@ -865,6 +897,17 @@ export function SequenceCanvas({
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
         setMarkDrafts(new Map());
+        if (audioStripResizeHit(y, top)) {
+          event.preventDefault();
+          drag.current = {
+            kind: "audioStripResize",
+            startY: y,
+            initialHeight: audioStripHeight,
+            active: false
+          };
+          setAudioResizeHover(true);
+          return;
+        }
         if (automationClipChooser !== null) {
           const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
           if (automationHit !== null) {
@@ -1012,6 +1055,25 @@ export function SequenceCanvas({
       }}
       onMouseMove={(event) => {
         const current = drag.current;
+        if (current?.kind === "audioStripResize") {
+          if (!current.active) {
+            if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
+            current.active = true;
+            setDragCursor("grabbing");
+          }
+          const audioStripHeight = clamp(
+            current.initialHeight + event.nativeEvent.offsetY - current.startY,
+            SEQUENCE_CANVAS.minAudioStripHeightPx,
+            SEQUENCE_CANVAS.maxAudioStripHeightPx
+          );
+          setViewport((previous) => {
+            const nextTop = SEQUENCE_CANVAS.audioStripTopPx + audioStripHeight;
+            const visibleHeight = Math.max(1, canvasSize.height - nextTop);
+            const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(automationRowsByLane, previous.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight)) - visibleHeight);
+            return { ...previous, audioStripHeight, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
+          });
+          return;
+        }
         if (current?.kind === "rowResize") {
           if (!current.active) {
             if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
@@ -1098,6 +1160,14 @@ export function SequenceCanvas({
         if (!current) {
           const x = event.nativeEvent.offsetX;
           const y = event.nativeEvent.offsetY;
+          const audioResize = audioStripResizeHit(y, top);
+          setAudioResizeHover(audioResize);
+          if (audioResize) {
+            setRowResizeHover(null);
+            setHover(null);
+            setAutomationHover(null);
+            return;
+          }
           const resizeHit = x < left && y >= top
             ? rowResizeHit(y, top, viewport.scrollY, rows)
             : null;
@@ -1196,6 +1266,10 @@ export function SequenceCanvas({
         drag.current = null;
         setDragCursor(null);
         setMarquee(null);
+        if (current?.kind === "audioStripResize") {
+          setAudioResizeHover(false);
+          return;
+        }
         if (current?.kind === "rowResize") {
           setRowResizeHover(null);
           return;
@@ -1402,6 +1476,7 @@ export function SequenceCanvas({
           setHover(null);
           setAutomationHover(null);
           setRowResizeHover(null);
+          setAudioResizeHover(false);
         }
       }}
       onWheel={(event) => {
@@ -1468,7 +1543,7 @@ export function SequenceCanvas({
                     ) : (
                       document.effectDefinitions.map((definition) => (
                         <ContextMenu.Item
-                          key={definition.effect.type === "builtin" ? `builtin:${definition.effect.effect}` : `${definition.effect.path}:${definition.effect.effectName}`}
+                          key={`${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
                           className="menu-item"
                           onSelect={() => void addEffectFromContextMenu(definition, sequenceContextMenu)}
                         >
@@ -1686,6 +1761,7 @@ function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | u
   if (state === undefined) {
     return {
       pxPerSecond: settings?.sequenceInitialPxPerSecond ?? SEQUENCE_CANVAS.initialPxPerSecond,
+      audioStripHeight: SEQUENCE_CANVAS.initialAudioStripHeightPx,
       rowHeights: document.lanes.map((_lane, laneIndex) => {
         const rowCount = document.automationClips.filter((clip) => clip.anchorLaneIndex === laneIndex).reduce((count, clip) => Math.max(count, clip.laneIndex + 1), 0);
         return [defaultHeight, ...Array.from({ length: rowCount }, () => automationLaneRowHeight(defaultHeight))];
@@ -1696,6 +1772,7 @@ function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | u
   }
   return {
     pxPerSecond: clamp(state.pxPerSecond, SEQUENCE_CANVAS.minPxPerSecond, SEQUENCE_CANVAS.maxZoomPxPerSecond),
+    audioStripHeight: clamp(state.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, SEQUENCE_CANVAS.minAudioStripHeightPx, SEQUENCE_CANVAS.maxAudioStripHeightPx),
     rowHeights: document.lanes.map((lane, laneIndex) => {
       const rowCount = document.automationClips.filter((clip) => clip.anchorLaneIndex === laneIndex).reduce((count, clip) => Math.max(count, clip.laneIndex + 1), 0);
       return Array.from({ length: rowCount + 1 }, (_, rowIndex) => clamp(state.rowHeights[rowKey(lane.target, rowIndex)] ?? (rowIndex === 0 ? defaultHeight : automationLaneRowHeight(defaultHeight)), SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx));

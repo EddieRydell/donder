@@ -8,7 +8,7 @@ use donder_project_io::{
 };
 use std::fs;
 
-use common::{load_project as load_local_project, write_project_config};
+use common::{load_project as load_local_project, write_workspace_metadata};
 
 #[test]
 fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
@@ -36,7 +36,7 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
             .any(|sequence| sequence.frame_rate == 90)
     );
     for path in [
-        donder_project_io::PROJECT_CONFIG_FILE,
+        donder_project_io::PROJECT_ROOT_FILE,
         "effects/scan-sweep.effect.donder",
         "operators/gain.operator.donder",
         sequence.as_str(),
@@ -221,7 +221,7 @@ fn invalid_yaml_reports_parser_range() {
         "broken:\n  type: project\n  setup: [\n  sequences: []\n",
     )
     .unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -287,7 +287,7 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
         "main:\n  type: project\n  setup: missing.setup\n  sequences: []\n",
     )
     .unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -324,7 +324,7 @@ fn repeated_reference_text_reports_the_failing_occurrence() {
         "main:\n  type: patch\n  routes: []\n",
     )
     .unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -364,7 +364,7 @@ fn missing_required_field_reports_containing_object_range() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let entrypoint = root.join("project.donder");
     fs::write(&entrypoint, "main:\n  type: project\n  sequences: []\n").unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -389,7 +389,7 @@ fn wrong_field_type_reports_bad_value_range() {
         "main:\n  type: project\n  setup: [bad]\n  sequences: []\n",
     )
     .unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -407,7 +407,7 @@ fn unsupported_enum_string_reports_that_string_range() {
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let entrypoint = root.join("project.donder");
     fs::write(&entrypoint, "main:\n  type: nope\n").unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
@@ -514,7 +514,7 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
         "effect Bad {\n  color sample() {\n    return @;\n  }\n}\n",
     )
     .unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let effect_diagnostics = report
@@ -546,13 +546,13 @@ fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
 }
 
 #[test]
-fn missing_configuration_reports_no_range() {
+fn missing_root_document_reports_no_range() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let report = check_project(&root);
     let diagnostic = report.diagnostics.first().unwrap();
 
-    assert_eq!(diagnostic.code, IoDiagnosticCode::ProjectConfiguration);
+    assert_eq!(diagnostic.code, IoDiagnosticCode::IoRead);
     assert_eq!(diagnostic.range, None);
 }
 
@@ -592,7 +592,7 @@ fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
         format!("main:\n  type: sequence\n{sequence_body}"),
     )
     .unwrap();
-    write_project_config(root);
+    write_workspace_metadata(root);
 }
 
 fn minimal_sequence_body(extra: &str) -> String {

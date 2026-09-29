@@ -137,36 +137,6 @@ pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diag
             "effect declarations are not allowed in operator sources",
         )]);
     }
-    const RESERVED: &[&str] = &[
-        "Max",
-        "Add",
-        "Multiply",
-        "IntensityModulate",
-        "Dim",
-        "Invert",
-        "Colorize",
-        "Delay",
-        "Echo",
-        "max",
-        "add",
-        "multiply",
-        "intensity_modulate",
-        "dim",
-        "invert",
-        "colorize",
-        "delay",
-        "echo",
-    ];
-    if let Some(operator) = module
-        .operators
-        .iter()
-        .find(|operator| RESERVED.contains(&operator.name.as_str()))
-    {
-        return Err(vec![Diagnostic::new(
-            lexer::TextSpan { start: 0, end: 0 },
-            format!("operator name `{}` is reserved", operator.name.as_str()),
-        )]);
-    }
     let module = check_module(module)?;
     compile_checked_operators(module).map_err(|error| vec![error])
 }

@@ -6,7 +6,7 @@ use donder_project_io::{export_project, load_project, save_project};
 use std::fs;
 use std::time::Duration;
 
-use common::{load_project as load_local_project, write_project_config};
+use common::{load_project as load_local_project, write_workspace_metadata};
 
 #[test]
 fn exact_text_writer_preserves_formatting_and_checks_all_disk_preconditions() {
@@ -79,7 +79,7 @@ fn audio_reference_cannot_escape_its_module() {
         "main:\n  type: sequence\n  duration: 1s\n  frame_rate: 30\n  audio: ../external.wav\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  automation_clips: []\n",
     )
     .unwrap();
-    write_project_config(&project_root);
+    write_workspace_metadata(&project_root);
 
     assert!(load_project(&project_root).is_err());
 }
@@ -94,7 +94,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
 
     fs::create_dir_all(root.join("identity-a")).unwrap();
     fs::create_dir_all(root.join("identity-b")).unwrap();
@@ -112,10 +112,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     let project_text = fs::read_to_string(&entrypoint).unwrap();
     fs::write(
         &entrypoint,
-        format!(
-            "imports:\n- from:\n    documents:\n    - identity-a/shared.effect.donder\n  as: identity_a\n- from:\n    documents:\n    - identity-b/shared.effect.donder\n  as: identity_b\n{}",
-            project_text.strip_prefix("imports:\n").unwrap()
-        ),
+        project_text.replacen("imports:\n", "imports:\n- from:\n    documents:\n    - identity-a/shared.effect.donder\n  as: identity_a\n- from:\n    documents:\n    - identity-b/shared.effect.donder\n  as: identity_b\n", 1),
     )
     .unwrap();
 
@@ -153,7 +150,7 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
     let mut session = load_local_project(&root);
 
     let color = session.project.sequences.values().next().unwrap().layers[0].color;
@@ -210,7 +207,7 @@ fn local_document_import_cannot_escape_module() {
     let temp_root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     let root = temp_root.join("project");
     export_project(&starter, &root).unwrap();
-    write_project_config(&root);
+    write_workspace_metadata(&root);
     fs::write(
         temp_root.join("dependency.effect.donder"),
         "effect Dependency { color sample() { return #ffffff; } }",
@@ -220,10 +217,7 @@ fn local_document_import_cannot_escape_module() {
     let project_text = fs::read_to_string(&entrypoint).unwrap();
     fs::write(
         &entrypoint,
-        format!(
-            "imports:\n- from:\n    documents:\n    - ../dependency.effect.donder\n  as: dependency\n{}",
-            project_text.strip_prefix("imports:\n").unwrap()
-        ),
+        project_text.replacen("imports:\n", "imports:\n- from:\n    documents:\n    - ../dependency.effect.donder\n  as: dependency\n", 1),
     )
     .unwrap();
 

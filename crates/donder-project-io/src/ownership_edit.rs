@@ -54,18 +54,16 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
         let owner = sequence.id.0.document_id();
         for effect in &sequence.effects {
             add(owner, effect.target.layout.0.clone());
-            if let EffectRef::Custom(id) = &effect.definition {
-                add(owner, id.0.clone().into());
-            }
+            let EffectRef::Custom(id) = &effect.definition;
+            add(owner, id.0.clone().into());
             for value in effect.param_overrides.values() {
                 param_references(value, &mut |id| add(owner, id));
             }
         }
         for node in &sequence.composition_graph.nodes {
             if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
-                if let OperatorRef::Custom(id) = &operator.operator {
-                    add(owner, id.0.clone().into());
-                }
+                let OperatorRef::Custom(id) = &operator.operator;
+                add(owner, id.0.clone().into());
                 for value in operator.params.values() {
                     param_references(value, &mut |id| add(owner, id));
                 }

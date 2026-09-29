@@ -220,15 +220,14 @@ pub(super) fn edit_sequence(
                 ));
             };
             let params = effect_definition.params.clone();
-            if let EffectRef::Custom(definition) = &definition {
-                ensure_document_can_reference_source(
-                    session,
-                    resolved.identity.document_id(),
-                    SourceObjectKind::EffectDefinition,
-                    &definition.0,
-                )
-                .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            }
+            let EffectRef::Custom(definition_id) = &definition;
+            ensure_document_can_reference_source(
+                session,
+                resolved.identity.document_id(),
+                SourceObjectKind::EffectDefinition,
+                &definition_id.0,
+            )
+            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = sequence_mut(session, &sequence_id)?;
             let layer_id = sequence
                 .layers
@@ -347,15 +346,14 @@ pub(super) fn edit_sequence(
                 })?;
                 param_overrides.insert(param.name.clone(), value);
             }
-            if let EffectRef::Custom(definition) = &definition {
-                ensure_document_can_reference_source(
-                    session,
-                    resolved.identity.document_id(),
-                    SourceObjectKind::EffectDefinition,
-                    &definition.0,
-                )
-                .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            }
+            let EffectRef::Custom(definition_id) = &definition;
+            ensure_document_can_reference_source(
+                session,
+                resolved.identity.document_id(),
+                SourceObjectKind::EffectDefinition,
+                &definition_id.0,
+            )
+            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = sequence_mut(session, &sequence_id)?;
             let effect = effect_mut(sequence, id)?;
             effect.definition = definition;
@@ -383,15 +381,14 @@ pub(super) fn edit_sequence(
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Operator definition was not found.".to_string())
                 })?;
-            if let OperatorRef::Custom(id) = &operator {
-                ensure_document_can_reference_source(
-                    session,
-                    resolved.identity.document_id(),
-                    SourceObjectKind::OperatorDefinition,
-                    &id.0,
-                )
-                .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            }
+            let OperatorRef::Custom(id) = &operator;
+            ensure_document_can_reference_source(
+                session,
+                resolved.identity.document_id(),
+                SourceObjectKind::OperatorDefinition,
+                &id.0,
+            )
+            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
             let sequence = sequence_mut(session, &sequence_id)?;
             let mut params = IndexMap::new();
             for declaration in &definition.params {
@@ -811,13 +808,6 @@ fn effect_ref_from_gui(
     reference: SequenceEffectReference,
 ) -> Result<EffectRef, GuiMutationError> {
     Ok(match reference {
-        SequenceEffectReference::Builtin { effect } => EffectRef::Builtin(match effect {
-            SequenceBuiltinEffect::Pulse => BuiltinEffect::Pulse,
-            SequenceBuiltinEffect::Chase => BuiltinEffect::Chase,
-            SequenceBuiltinEffect::Spin => BuiltinEffect::Spin,
-            SequenceBuiltinEffect::MarkPulse => BuiltinEffect::MarkPulse,
-            SequenceBuiltinEffect::MarkChase => BuiltinEffect::MarkChase,
-        }),
         SequenceEffectReference::Custom {
             module_id,
             path,
@@ -835,7 +825,7 @@ fn effect_ref_from_gui(
 }
 
 use donder_language::effect::{
-    BuiltinEffect, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
+    EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
 };
 use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
 use donder_language::sequence::{
@@ -859,6 +849,4 @@ use super::selection::{
     effect_lane_index_resolved, mark_param_names, required_operator_param_value,
 };
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{
-    SequenceAutomationTarget, SequenceBuiltinEffect, SequenceEffectReference, SequenceGuiEdit,
-};
+use crate::dto::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};

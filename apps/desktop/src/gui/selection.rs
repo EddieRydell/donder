@@ -440,13 +440,6 @@ pub(super) fn mark_param_names(
     reference: &SequenceEffectReference,
 ) -> Result<Vec<String>, GuiMutationError> {
     let reference = match reference {
-        SequenceEffectReference::Builtin { effect } => EffectRef::Builtin(match effect {
-            SequenceBuiltinEffect::Pulse => BuiltinEffect::Pulse,
-            SequenceBuiltinEffect::Chase => BuiltinEffect::Chase,
-            SequenceBuiltinEffect::Spin => BuiltinEffect::Spin,
-            SequenceBuiltinEffect::MarkPulse => BuiltinEffect::MarkPulse,
-            SequenceBuiltinEffect::MarkChase => BuiltinEffect::MarkChase,
-        }),
         SequenceEffectReference::Custom {
             module_id,
             path,
@@ -477,9 +470,7 @@ pub(super) fn mark_param_names(
 use std::collections::BTreeMap;
 
 use donder_language::dsl::Type;
-use donder_language::effect::{
-    BuiltinEffect, EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef,
-};
+use donder_language::effect::{EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef};
 use donder_language::layout::FixtureTarget;
 use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use donder_language::values::{DonderDuration, DonderTime};
@@ -491,6 +482,6 @@ use super::{
     ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard, SequenceSelectionMutation,
 };
 use crate::dto::{
-    SequenceBuiltinEffect, SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor,
-    SequenceResizeEdge, SequenceSelection,
+    SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor, SequenceResizeEdge,
+    SequenceSelection,
 };

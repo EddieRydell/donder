@@ -1,35 +1,768 @@
+imports:
+- from:
+    documents:
+    - layouts/main.layout.donder
+  as: layouts
+- from:
+    documents:
+    - effects/standard.effect.donder
+  as: effects
+- from:
+    documents:
+    - operators/standard.operator.donder
+  as: operators
 main:
   type: sequence
-  duration: 60s
+  duration: 330.489624s
   frame_rate: 60
-  audio: null
+  audio: audio/[Hard Dance] - Pegboard Nerds - Hero (feat. Elizaveta) [Monstercat Release].mp3
   mark_collections:
   - key: marks
-    name: Marks
+    name: Melody
     color: '#38bdf8'
-    marks: []
+    marks:
+    - 55.244457s
+    - 68.289093s
+    - 68.386971s
+    - 68.568748s
+    - 68.668625s
+    - 68.86438s
+    - 69.06813s
+    - 69.261887s
+    - 69.875809s
+    - 69.962227s
+    - 70.06057s
+    - 70.16188s
+    - 70.260223s
+    - 70.46286s
+    - 70.662514s
+    - 70.862175s
+    - 71.492844s
+    - 71.590714s
+    - 71.772507s
+    - 71.872375s
+    - 72.06813s
+    - 72.271881s
+    - 72.465637s
+    - 73.079559s
+    - 73.16597s
+    - 73.264328s
+    - 73.365631s
+    - 73.463974s
+    - 73.666611s
+    - 73.866257s
+    - 74.065933s
+  - key: marks_2
+    name: Beats
+    color: '#f97316'
+    marks:
+    - 68.054581s
+    - 68.464462s
+    - 68.862152s
+    - 69.262276s
+    - 69.664848s
+    - 70.060089s
+    - 70.461143s
+    - 70.85865s
+    - 71.058403s
+    - 71.258331s
+    - 71.668213s
+    - 72.065903s
+    - 72.466019s
+    - 72.868607s
+    - 73.26384s
+    - 73.664902s
+    - 74.062393s
+    - 74.469894s
   layers:
   - id: 0
     name: Default
     color: '#38bdf8'
     enabled: true
-  effects: []
+  - id: 1
+    name: Layer 1
+    color: '#f45b69'
+    enabled: true
+  effects:
+  - id: 2
+    layer_id: 1
+    start: 68.019203s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 3
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 1.0
+            - position: 0.2070000022649765
+              value: 0.5289999842643738
+            - position: 0.4009999930858612
+              value: 0.2809999883174896
+            - position: 0.5789999961853027
+              value: 0.12600000202655792
+            - position: 0.777999997138977
+              value: 0.03700000047683716
+            - position: 1.0
+              value: 0.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 35.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 3
+    layer_id: 1
+    start: 67.82798s
+    duration: 6.847881s
+    target:
+      layout: layouts.main
+      fixture: 5
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.10000000149011612
+      section_width_pixels:
+        type: integer
+        value: 100
+    effect: effects.MarkPulse
+  - id: 4
+    layer_id: 1
+    start: 67.796455s
+    duration: 6.89256s
+    target:
+      layout: layouts.main
+      fixture: 5
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#9c00ff'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.4000000059604645
+      offset_seconds:
+        type: float
+        value: -0.07000000029802322
+    effect: effects.MarkChase
+  - id: 5
+    layer_id: 1
+    start: 68.003708s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 1
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 6
+    layer_id: 1
+    start: 68.02536s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 2
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 1.0
+            - position: 0.2070000022649765
+              value: 0.5289999842643738
+            - position: 0.4009999930858612
+              value: 0.2809999883174896
+            - position: 0.5789999961853027
+              value: 0.12600000202655792
+            - position: 0.777999997138977
+              value: 0.03700000047683716
+            - position: 1.0
+              value: 0.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 8
+    layer_id: 1
+    start: 67.850548s
+    duration: 6.847881s
+    target:
+      layout: layouts.main
+      fixture: 6
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.10000000149011612
+      section_width_pixels:
+        type: integer
+        value: 100
+    effect: effects.MarkPulse
+  - id: 9
+    layer_id: 1
+    start: 67.79187s
+    duration: 6.89256s
+    target:
+      layout: layouts.main
+      fixture: 6
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#9c00ff'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.4000000059604645
+      offset_seconds:
+        type: float
+        value: -0.07000000029802322
+    effect: effects.MarkChase
+  - id: 10
+    layer_id: 1
+    start: 71.356865s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 3
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 35.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 11
+    layer_id: 1
+    start: 71.341362s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 1
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 1.0
+            - position: 0.2070000022649765
+              value: 0.5289999842643738
+            - position: 0.4009999930858612
+              value: 0.2809999883174896
+            - position: 0.5789999961853027
+              value: 0.12600000202655792
+            - position: 0.777999997138977
+              value: 0.03700000047683716
+            - position: 1.0
+              value: 0.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 12
+    layer_id: 1
+    start: 71.363029s
+    duration: 3.319892s
+    target:
+      layout: layouts.main
+      fixture: 2
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
   composition_graph:
     nodes:
     - id: 1
       position:
-        x: 80.0
-        y: 80.0
+        x: -175.95498657226562
+        y: -41.818153381347656
       type: layer
       layer_id: 0
     - id: 2
       position:
-        x: 420.0
-        y: 80.0
+        x: 458.3247985839844
+        y: 51.25638961791992
       type: output
+    - id: 3
+      position:
+        x: -347.0478820800781
+        y: 268.43719482421875
+      type: layer
+      layer_id: 1
+    - id: 4
+      position:
+        x: 100.77094268798828
+        y: 234.96726989746094
+      type: operator
+      operator: operators.HueShift
     edges:
     - from: 1
       from_port: output
       to: 2
       to_port: input
-  automation_clips: []
+    - from: 3
+      from_port: output
+      to: 4
+      to_port: source
+    - from: 4
+      from_port: output
+      to: 2
+      to_port: input
+  automation_clips:
+  - id: 1
+    start: 0s
+    duration: 330.489624s
+    anchor_lane_index: 0
+    lane_index: 0
+    curve:
+      points:
+      - position: 0.0
+        value: 0.0
+      - position: 0.20571036636829376
+        value: 0.0
+      - position: 0.20675413310527802
+        value: 0.03400000184774399
+      - position: 0.20779788494110107
+        value: 0.0
+      - position: 0.20882156491279602
+        value: 0.03400000184774399
+      - position: 0.20936352014541626
+        value: 0.009999999776482582
+      - position: 0.21026676893234253
+        value: 0.0
+      - position: 0.21080870926380157
+        value: 0.49799999594688416
+      - position: 0.21279585361480713
+        value: 0.47699999809265137
+      - position: 0.2154654562473297
+        value: 0.5770000219345093
+      - position: 0.21557219326496124
+        value: 0.27799999713897705
+      - position: 0.21707704663276672
+        value: 0.28700000047683716
+      - position: 0.2190835177898407
+        value: 0.19099999964237213
+      - position: 0.2197255939245224
+        value: 0.22100000083446503
+      - position: 0.2206284999847412
+        value: 0.2029999941587448
+      - position: 0.22096960246562958
+        value: 0.9139999747276306
+      - position: 0.22261491417884827
+        value: 0.8659999966621399
+      - position: 0.224440798163414
+        value: 0.8899999856948853
+      - position: 1.0
+        value: 1.0
+    bindings:
+    - target:
+        type: composition_node_param
+        node_id: 4
+        param: shift
+      mapping:
+        type: float
+        min: 0.0
+        max: 1.0
+    detached_bindings: []

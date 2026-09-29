@@ -230,19 +230,8 @@ pub(crate) fn write_effect_reference(
     from_document: &DocumentId,
     reference: &donder_language::effect::EffectRef,
 ) -> Result<String, ExportProjectError> {
-    use donder_language::effect::{EffectRef, builtin_effect_definition};
+    use donder_language::effect::EffectRef;
     match reference {
-        EffectRef::Builtin(builtin) => Ok(SourceReference::Builtin(
-            donder_language::dsl::Identifier::new(
-                builtin_effect_definition(*builtin).source_name.clone(),
-            )
-            .map_err(|error| ExportProjectError::InvalidReference {
-                path: from_document.path().to_path_buf(),
-                reference: builtin_effect_definition(*builtin).source_name.clone(),
-                message: format!("invalid built-in source identifier: {error:?}"),
-            })?,
-        )
-        .to_string()),
         EffectRef::Custom(target) => write_source_reference(
             session,
             from_document,
@@ -576,14 +565,9 @@ pub(crate) fn lookup_effect_reference(
     document: &DocumentId,
     reference: &SourceReference,
 ) -> Option<donder_language::effect::EffectRef> {
-    use donder_language::effect::{EffectRef, builtin_effect_from_source_name};
-    match reference {
-        SourceReference::Builtin(name) => {
-            builtin_effect_from_source_name(name.as_str()).map(EffectRef::Builtin)
-        }
-        _ => match lookup_reference(scopes, document, reference)? {
-            ResolvedObject::EffectDefinition(target) => Some(EffectRef::Custom(target.clone())),
-            _ => None,
-        },
+    use donder_language::effect::EffectRef;
+    match lookup_reference(scopes, document, reference)? {
+        ResolvedObject::EffectDefinition(target) => Some(EffectRef::Custom(target.clone())),
+        _ => None,
     }
 }

@@ -1,15 +1,16 @@
 use super::GeneratedEffectSlot;
 use super::bytecode::{
-    ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorSlot, CompareOp, ContextRead,
-    FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction, IntArithmeticOp, IntSlot,
-    MarkOp, RefSlot, SignalPixel, SlotLayout, TargetItemsOp, ValueSlot,
+    ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
+    ContextRead, FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction,
+    IntArithmeticOp, IntSlot, MarkOp, RefSlot, SignalPixel, SlotLayout, TargetItemsOp, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
 use super::types::{TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue};
 use super::{CompiledEffect, CompiledOperator, EffectKind, ParamDecl};
 use crate::automation::{AutomationMapping, AutomationValue, automation_value_at_position};
 use crate::sampling::{
-    add_colors, color_intensity, invert_color, max_colors, mix_colors, multiply_colors, scale_color,
+    add_colors, color_hue, color_intensity, color_saturation, invert_color, max_colors, mix_colors,
+    multiply_colors, scale_color,
 };
 use crate::values::{
     Color, Curve, Gradient, Marks, SampleDuration, SampleTime, SampleTimeError,
@@ -461,19 +462,6 @@ impl BoundParams {
         }
     }
 
-    pub(crate) fn prepared_curve_crossings(
-        &self,
-        index: usize,
-    ) -> Result<CurveCrossings, RuntimeError> {
-        match self.values.get(index) {
-            Some(BoundParamValue::Curve(value)) => {
-                Ok(CurveCrossings::Prepared(Arc::clone(&value.crossings)))
-            }
-            Some(BoundParamValue::RawCurve(value)) => Ok(CurveCrossings::Raw(Arc::clone(value))),
-            _ => Err(RuntimeError::new("expected curve parameter")),
-        }
-    }
-
     pub fn gradient(&self, index: usize) -> Result<Arc<Gradient>, RuntimeError> {
         match self.values.get(index) {
             Some(BoundParamValue::Gradient(value)) => Ok(Arc::clone(value)),
@@ -666,21 +654,6 @@ pub(crate) enum PreparedCurveCrossings {
     Increasing(Vec<CrossingSegment>),
     Decreasing(Vec<CrossingSegment>),
     Mixed(Vec<CrossingSegment>),
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) enum CurveCrossings {
-    Prepared(Arc<PreparedCurveCrossings>),
-    Raw(Arc<Curve>),
-}
-
-impl CurveCrossings {
-    pub(crate) fn crossing(&self, value: f32, fallback: f32) -> Result<f32, RuntimeError> {
-        match self {
-            Self::Prepared(curve) => prepared_curve_crossing(curve, value, fallback),
-            Self::Raw(curve) => Ok(curve_crossing_raw(curve, value, fallback)),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -1720,9 +1693,14 @@ impl<'a> Vm<'a> {
                     let scale = self.float(*scale)?;
                     self.set_color(*dst, scale_color(color, scale))?;
                 }
-                Instruction::ColorIntensity { dst, color } => {
+                Instruction::ColorComponent { dst, op, color } => {
                     let color = self.color(*color)?;
-                    self.set_float(*dst, color_intensity(color))?;
+                    let value = match op {
+                        ColorComponent::Hue => color_hue(color),
+                        ColorComponent::Saturation => color_saturation(color),
+                        ColorComponent::Intensity => color_intensity(color),
+                    };
+                    self.set_float(*dst, value)?;
                 }
                 Instruction::ColorInvert { dst, color } => {
                     let color = self.color(*color)?;

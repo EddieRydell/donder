@@ -647,7 +647,7 @@ impl Checker {
                     Type::Float
                 }
             }
-            "intensity" => {
+            "hue" | "saturation" | "intensity" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Color, env);
                 Type::Float
@@ -888,7 +888,7 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         {
             Some(Type::Marks)
         }
-        "intensity" | "invert" => Some(Type::Color),
+        "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
         "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "min" | "clamp"
         | "smoothstep" | "section_position" => Some(Type::Float),
         "curve_crossing" if index == 0 => Some(Type::Curve),

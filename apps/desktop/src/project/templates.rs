@@ -17,10 +17,20 @@ pub(crate) fn new_project_files(
         .to_hex();
     let project_id = object_key_from_name(project_name);
     let config = ProjectMetadata::default();
-    Ok(vec![ProjectBoilerplateFile {
-        path: PROJECT_ROOT_FILE,
-        text: config.initialize_document(&format!(
-            r#"{project_id}:
+    Ok(vec![
+        ProjectBoilerplateFile {
+            path: PROJECT_ROOT_FILE,
+            text: config.initialize_document(&format!(
+                r#"imports:
+- from:
+    documents:
+    - effects/standard.effect.donder
+  as: effects
+- from:
+    documents:
+    - operators/standard.operator.donder
+  as: operators
+{project_id}:
   type: project
   setup:
     type: setup
@@ -68,8 +78,19 @@ pub(crate) fn new_project_files(
         to_port: input
     automation_clips: []
 "#
-        ))?,
-    }])
+            ))?,
+        },
+        ProjectBoilerplateFile {
+            path: "effects/standard.effect.donder",
+            text: include_str!("../../../../examples/starter/effects/standard.effect.donder")
+                .to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "operators/standard.operator.donder",
+            text: include_str!("../../../../examples/starter/operators/standard.operator.donder")
+                .to_string(),
+        },
+    ])
 }
 
 pub(crate) fn write_new_project_files(
@@ -153,7 +174,7 @@ mod tests {
                 .iter()
                 .filter(|file| file.path.ends_with(".donder"))
                 .count(),
-            1
+            3
         );
         write_new_project_files(&root, &files).unwrap();
         let session = donder_project_io::load_project(&root).unwrap();
@@ -184,6 +205,84 @@ mod tests {
         );
         assert!(setup.controllers.is_empty());
         assert!(session.project.definitions.fixtures.definitions.is_empty());
+        assert_eq!(session.project.definitions.operators.definitions.len(), 10);
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn initial_sequence_can_reference_every_bundled_operator() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temporary.path().join("project")).unwrap();
+        let files = new_test_project_files("Template Test").unwrap();
+        write_new_project_files(&root, &files).unwrap();
+        let template = &files
+            .iter()
+            .find(|file| file.path == PROJECT_ROOT_FILE)
+            .unwrap()
+            .text;
+        for (name, inputs) in [
+            ("Max", &["a", "b"][..]),
+            ("Add", &["a", "b"][..]),
+            ("Multiply", &["a", "b"][..]),
+            ("IntensityModulate", &["source", "mask"][..]),
+            ("Dim", &["input"][..]),
+            ("Invert", &["input"][..]),
+            ("Colorize", &["input"][..]),
+            ("Delay", &["input"][..]),
+            ("Echo", &["input"][..]),
+            ("HueShift", &["source"][..]),
+        ] {
+            let mut document: yaml_serde::Value = yaml_serde::from_str(template).unwrap();
+            let graph = &mut document["template_test"]["sequences"][0]["composition_graph"];
+            graph["nodes"].as_sequence_mut().unwrap().push(
+                yaml_serde::from_str(&format!(
+                    "id: 3\nposition: {{x: 240.0, y: 80.0}}\ntype: operator\noperator: operators.{name}\n"
+                )).unwrap(),
+            );
+            let edges = graph["edges"].as_sequence_mut().unwrap();
+            edges.clear();
+            for input in inputs {
+                edges.push(
+                    yaml_serde::from_str(&format!(
+                        "from: 1\nfrom_port: output\nto: 3\nto_port: {input}\n"
+                    ))
+                    .unwrap(),
+                );
+            }
+            edges.push(
+                yaml_serde::from_str("from: 3\nfrom_port: output\nto: 2\nto_port: input\n")
+                    .unwrap(),
+            );
+            fs::write(
+                root.join(PROJECT_ROOT_FILE),
+                yaml_serde::to_string(&document).unwrap(),
+            )
+            .unwrap();
+            let session = donder_project_io::load_project(&root)
+                .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            let definition = session
+                .project
+                .definitions
+                .operators
+                .definitions
+                .values()
+                .find(|definition| definition.declaration_name == name)
+                .unwrap();
+            if name == "HueShift" {
+                let shift = &definition.params[0];
+                assert_eq!(shift.name.as_str(), "shift");
+                assert_eq!(shift.ty, donder_language::dsl::Type::Float);
+                assert!(!shift.fixed);
+                assert_eq!(shift.default, Some(donder_language::dsl::Value::Float(0.0)));
+            }
+        }
+    }
+
+    #[test]
+    fn stanford_standard_operators_match_canonical_library() {
+        assert_eq!(
+            include_str!("../../../../examples/starter/operators/standard.operator.donder"),
+            include_str!("../../../../examples/stanford_room/operators/standard.operator.donder"),
+        );
     }
 }

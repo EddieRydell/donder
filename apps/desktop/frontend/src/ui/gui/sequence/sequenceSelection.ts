@@ -38,6 +38,7 @@ const SEQUENCE_HIT_RADII = {
 
 export type SequenceViewport = {
   pxPerSecond: number;
+  audioStripHeight: number;
   rowHeights: number[][];
   scrollXSeconds: number;
   scrollY: number;

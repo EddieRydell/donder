@@ -40,6 +40,7 @@
     "react-arborist": "catalog:",
     "react-colorful": "catalog:",
     "react-dom": "catalog:",
+    "wavesurfer.js": "catalog:",
     "use-resize-observer": "catalog:",
     "zustand": "catalog:"
   },

@@ -19,11 +19,17 @@ pub struct PersistedEditorViewState {
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSequenceViewportState {
     pub px_per_second: f32,
+    #[serde(default = "default_audio_strip_height_px")]
+    pub audio_strip_height_px: f32,
     pub row_heights: BTreeMap<String, f32>,
     pub scroll_x_seconds: f32,
     pub scroll_y: f32,
     pub active_mark_collection_key: Option<String>,
     pub visible_mark_collection_keys: Vec<String>,
+}
+
+fn default_audio_strip_height_px() -> f32 {
+    38.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

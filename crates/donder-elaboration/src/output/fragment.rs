@@ -3,8 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use donder_runtime::dsl::bytecode::{Instruction, SignalPixel};
 use donder_runtime::sequence::PreparedSequence;
 use donder_runtime::signal::{
-    BoundEffectImplementation, PreparedEffectImplementation, PreparedOperator, PreparedSignalKind,
-    PreparedTarget,
+    PreparedEffectImplementation, PreparedOperator, PreparedSignalKind, PreparedTarget,
 };
 
 use crate::RenderError;
@@ -52,12 +51,11 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
                 for &input in inputs {
                     reachable[input] = true;
                 }
-                if let PreparedOperator::Dsl(program) = operator.implementation {
-                    for instruction in &sequence.signals.programs[program as usize].instructions {
-                        if let Instruction::SignalSample { pixel, .. } = instruction {
-                            local |= matches!(pixel, SignalPixel::Local(_));
-                            global |= matches!(pixel, SignalPixel::Global(_));
-                        }
+                let PreparedOperator::Dsl(program) = operator.implementation;
+                for instruction in &sequence.signals.programs[program as usize].instructions {
+                    if let Instruction::SignalSample { pixel, .. } = instruction {
+                        local |= matches!(pixel, SignalPixel::Local(_));
+                        global |= matches!(pixel, SignalPixel::Global(_));
                     }
                 }
             }
@@ -259,19 +257,15 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         Ok(())
     };
     for effect in &mut effects {
-        if let PreparedEffectImplementation::Dsl { program, .. }
-        | PreparedEffectImplementation::Bound {
-            implementation: BoundEffectImplementation::Dsl(program),
-            ..
-        } = &mut effect.implementation
-        {
-            retain_program(program)?;
-        }
+        let program = match &mut effect.implementation {
+            PreparedEffectImplementation::Dsl { program, .. }
+            | PreparedEffectImplementation::Bound { program, .. } => program,
+        };
+        retain_program(program)?;
     }
     for node in &mut nodes {
-        if let PreparedSignalKind::Operator { operator, .. } = &mut node.kind
-            && let PreparedOperator::Dsl(program) = &mut operator.implementation
-        {
+        if let PreparedSignalKind::Operator { operator, .. } = &mut node.kind {
+            let PreparedOperator::Dsl(program) = &mut operator.implementation;
             retain_program(program)?;
         }
     }

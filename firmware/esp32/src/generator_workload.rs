@@ -55,7 +55,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                 "effect Parent {{ {params} void generate() {{ timeline.emit Inner {{ start: 0.0, duration: duration, target: target, value: level * 0.5 }}; }} }} effect Inner {{ param float value; void generate() {{ timeline.emit Leaf {{ start: 0.0, duration: duration, target: target, value: value + 0.125 }}; }} }} {leaf}"
             ),
             Case::Resources => format!(
-                "effect Parent {{ {params} {resources} void generate() {{ {selection} timeline.emit builtins.pulse {{ start: 0.0, duration: duration, target: target, gradient: ramps[selected], pulse_shape: shapes[selected] }}; }} }}"
+                "effect Parent {{ {params} {resources} void generate() {{ {selection} timeline.emit Pulse {{ start: 0.0, duration: duration, target: target, gradient: ramps[selected], pulse_shape: shapes[selected] }}; }} }}"
             ),
             Case::Overlap => format!(
                 "effect Parent {{ {params} fixed param int count = 4; void generate() {{ for (int i = 0; i < count; i = i + 1) {{ timeline.emit Leaf {{ start: 0.0, duration: duration, target: target, value: level * 0.5 + i * 0.05 }}; }} }} }} {leaf}"
@@ -91,6 +91,10 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
     let fixture_id = FixtureDefinitionId(identity("fixture"));
     let sequence_id = SequenceId(identity("sequence").into());
     let mut definitions = ProjectDefinitionStores::default();
+    let source = format!(
+        "{source}\n{}",
+        include_str!("../../../examples/starter/effects/standard.effect.donder")
+    );
     for compilation in compile_effects(&source).unwrap() {
         let id = EffectDefinitionId(identity(compilation.effect.name.as_str()));
         definitions
@@ -110,11 +114,11 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                         SourceReference::Local(name) => {
                             EffectRef::Custom(EffectDefinitionId(identity(name.as_str())))
                         }
-                        SourceReference::Builtin(name) => EffectRef::Builtin(
-                            builtin_effect_from_source_name(name.as_str()).unwrap(),
-                        ),
+                        SourceReference::Builtin(_) => {
+                            panic!("fixture children must use project effects")
+                        }
                         SourceReference::Qualified { .. } => {
-                            panic!("fixture children are local or built-in")
+                            panic!("fixture children are local")
                         }
                     };
                     validate_emission(

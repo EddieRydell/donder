@@ -9,7 +9,6 @@ pub use bytecode::SignalPixel;
 pub use types::{
     Identifier, TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue, Type, Value,
 };
-pub(crate) use vm::CurveCrossings;
 pub use vm::{
     BoundParams, DslBindCache, GeneratedEffect, GeneratorContext,
     MAX_VM_INSTRUCTIONS_PER_INVOCATION, OperatorRunContext, RunContext, RuntimeError,

@@ -37,10 +37,7 @@ type ParamAutomationControls = {
 };
 
 export function TypedParamInput(props: Parameters<typeof TypedParamValue>[0]) {
-  return <>
-    {props.param.fixed && <div className="effect-param-name">Fixed ? requires preparation</div>}
-    <TypedParamValue {...props} />
-  </>;
+  return <TypedParamValue {...props} />;
 }
 
 function TypedParamValue({

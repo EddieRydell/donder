@@ -22,6 +22,7 @@ fn main() {
     println!("cargo:rerun-if-changed=rwtext_hook.x");
     println!("cargo:rerun-if-changed=../../crates/donder-language/benches/fixtures/mod.rs");
     println!("cargo:rerun-if-changed=../../examples/starter/effects");
+    println!("cargo:rerun-if-changed=../../examples/starter/operators");
     println!("cargo:rerun-if-changed=src/workload.rs");
     println!("cargo:rerun-if-changed=src/mark_workload.rs");
     println!("cargo:rerun-if-changed=src/generator_workload.rs");
@@ -51,21 +52,80 @@ fn main() {
         .unwrap()
         .remove(0);
     let mut temporal_golden = Vec::new();
-    let mut native_golden = Vec::new();
+    let mut pulse_automation_golden = Vec::new();
     let mut empty_golden = Vec::new();
     let identity = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     let mut mixed_golden = Vec::new();
+    let invert = donder_language::dsl::compile_operators(include_str!(
+        "../../examples/starter/operators/standard.operator.donder"
+    ))
+    .unwrap()
+    .into_iter()
+    .find(|operator| operator.name().as_str() == "Invert")
+    .unwrap();
     let mut names = Vec::new();
+    let pulse_program = compile_effects(include_str!(
+        "../../examples/starter/effects/standard.effect.donder"
+    ))
+    .unwrap()
+    .remove(0)
+    .effect
+    .bytecode;
+    let pulse_params = indexmap::IndexMap::from([
+        (
+            donder_language::dsl::Identifier::new("gradient".into()).unwrap(),
+            Value::Gradient(
+                donder_language::values::Gradient {
+                    stops: vec![donder_language::values::GradientStop {
+                        position: 0.0,
+                        color: donder_language::values::Color {
+                            red: 255,
+                            green: 128,
+                            blue: 64,
+                        },
+                    }],
+                }
+                .into(),
+            ),
+        ),
+        (
+            donder_language::dsl::Identifier::new("pulse_shape".into()).unwrap(),
+            Value::Curve(
+                donder_language::values::Curve {
+                    points: vec![
+                        donder_language::values::CurvePoint {
+                            position: 0.0,
+                            value: 0.0,
+                        },
+                        donder_language::values::CurvePoint {
+                            position: 1.0,
+                            value: 1.0,
+                        },
+                    ],
+                }
+                .into(),
+            ),
+        ),
+    ]);
     for (case, (name, source, params)) in fixtures::cases()
         .into_iter()
         .chain(fixtures::layer_cases())
-        .chain([(
-            "ArrayLifetimes",
-            include_str!("../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"),
-            indexmap::IndexMap::new(),
-        )])
+        .chain([
+            (
+                "ArrayLifetimes",
+                include_str!(
+                    "../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"
+                ),
+                indexmap::IndexMap::new(),
+            ),
+            (
+                "Pulse",
+                include_str!("../../examples/starter/effects/standard.effect.donder"),
+                pulse_params,
+            ),
+        ])
         .enumerate()
     {
         names.push(name);
@@ -165,7 +225,7 @@ fn main() {
             if case == workload::GAMMA_CASE {
                 let mut mixed = workload::show(count, effect.bytecode.clone(), bound.clone());
                 workload::apply_operator(&mut mixed, identity.bytecode.clone(), true);
-                workload::insert_native_invert(&mut mixed);
+                workload::insert_invert(&mut mixed, invert.bytecode.clone());
                 let mut workspace = mixed.workspace();
                 let mut mixed_frames = Vec::new();
                 for frame in 0..workload::FRAMES {
@@ -212,18 +272,26 @@ fn main() {
                     depths.push(frames);
                 }
                 nested_golden.push(depths);
-                for (empty, golden) in [(false, &mut native_golden), (true, &mut empty_golden)] {
-                    let mut native = workload::show(count, effect.bytecode.clone(), bound.clone());
-                    workload::apply_native_automation(&mut native, empty);
-                    let mut workspace = native.workspace();
+                for (empty, golden) in [
+                    (false, &mut pulse_automation_golden),
+                    (true, &mut empty_golden),
+                ] {
+                    let mut automated =
+                        workload::show(count, effect.bytecode.clone(), bound.clone());
+                    workload::apply_pulse_automation(&mut automated, pulse_program.clone(), empty);
+                    let mut workspace = automated.workspace();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
-                        native
+                        automated
                             .evaluate(workload::time(frame), &mut buffers, &mut workspace)
                             .unwrap();
                         let checksum = workload::checksum(&buffers[0]);
-                        native
-                            .evaluate(workload::time(frame), &mut buffers, &mut native.workspace())
+                        automated
+                            .evaluate(
+                                workload::time(frame),
+                                &mut buffers,
+                                &mut automated.workspace(),
+                            )
                             .unwrap();
                         assert_eq!(checksum, workload::checksum(&buffers[0]));
                         frames.push(checksum);
@@ -297,6 +365,7 @@ fn main() {
     .unwrap();
     for (name, operator) in [
         ("identity_program", &identity),
+        ("invert_program", &invert),
         ("operator_program", &operator),
         ("grouped_program", &grouped),
         ("alternating_program", &alternating),
@@ -315,7 +384,7 @@ fn main() {
     .unwrap();
     writeln!(
         generated,
-        "pub const NATIVE_GOLDEN: [[u32; {}]; 4] = {native_golden:?};",
+        "pub const PULSE_AUTOMATION_GOLDEN: [[u32; {}]; 4] = {pulse_automation_golden:?};",
         workload::FRAMES
     )
     .unwrap();
@@ -358,20 +427,33 @@ fn main() {
         writeln!(generated, "{case} => case_{case}(),").unwrap();
     }
     writeln!(generated, "_ => panic!(\"invalid case\") }} }}").unwrap();
-    let (name, source, params) = fixtures::layer_cases().into_iter().nth(1).unwrap();
-    let (effect, _) = fixtures::prepared_effect(name, source, params);
     let chase_pulse_golden = workload::CHASE_PULSE_CASES.map(|(name, layers)| {
-        let show = workload::chase_pulse_show(200, layers, effect.bytecode.clone());
+        let show = workload::chase_pulse_show(200, layers);
         export_fixture(name, &show)
     });
     writeln!(
         generated,
-        "#[allow(dead_code)] pub const CHASE_PULSE_GOLDEN: [[u32; {}]; 3] = {chase_pulse_golden:?};",
-        workload::FRAMES
+        "#[allow(dead_code)] pub const CHASE_PULSE_GOLDEN: [[u32; {}]; {}] = {chase_pulse_golden:?};",
+        workload::FRAMES,
+        workload::CHASE_PULSE_CASES.len()
     )
     .unwrap();
-    let mark_golden = workload::MARK_CASES.map(|(name, pulse, fade)| {
-        let show = mark_workload::mark_show(200, pulse, fade, effect.bytecode.clone());
+    writeln!(
+        generated,
+        "#[allow(dead_code)] pub const CHASE_PULSE_SEQUENCES: [&[u8]; {}] = [",
+        workload::CHASE_PULSE_CASES.len()
+    )
+    .unwrap();
+    for (name, _) in workload::CHASE_PULSE_CASES {
+        writeln!(
+            generated,
+            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.donderseq\")),"
+        )
+        .unwrap();
+    }
+    writeln!(generated, "];").unwrap();
+    let mark_golden = workload::MARK_CASES.map(|(name, pulse)| {
+        let show = mark_workload::mark_show(200, pulse);
         export_fixture(name, &show)
     });
     writeln!(
@@ -383,10 +465,11 @@ fn main() {
     .unwrap();
     writeln!(
         generated,
-        "#[allow(dead_code)] pub const MARK_SEQUENCES: [&[u8]; 3] = ["
+        "#[allow(dead_code)] pub const MARK_SEQUENCES: [&[u8]; {}] = [",
+        workload::MARK_CASES.len()
     )
     .unwrap();
-    for (name, _, _) in workload::MARK_CASES {
+    for (name, _) in workload::MARK_CASES {
         writeln!(
             generated,
             "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.donderseq\")),"
@@ -545,6 +628,7 @@ fn instruction_source(instruction: &Instruction) -> String {
             Some("FloatBinary")
         }
         Instruction::ColorBinary { .. } => Some("ColorBinary"),
+        Instruction::ColorComponent { .. } => Some("ColorComponent"),
         Instruction::Mark { .. } => Some("MarkOp"),
         Instruction::TargetItems { .. } => Some("TargetItemsOp"),
         _ => None,

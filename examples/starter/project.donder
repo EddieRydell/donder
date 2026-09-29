@@ -4,6 +4,14 @@ workspace:
 imports:
 - from:
     documents:
+    - effects/standard.effect.donder
+  as: effects
+- from:
+    documents:
+    - operators/standard.operator.donder
+  as: operators
+- from:
+    documents:
     - setups/main.setup.donder
   as: setups
 - from:

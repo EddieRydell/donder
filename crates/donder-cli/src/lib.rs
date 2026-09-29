@@ -86,16 +86,20 @@ mod tests {
         }
     }
     #[test]
-    fn init_writes_only_local_configuration() {
+    fn init_adds_metadata_to_existing_root_and_rejects_reinitialization() {
         let temp = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temp.path()).unwrap();
         std::fs::write(root.join("project.donder"), "show: {}\n").unwrap();
-        init(root, "project.donder".into()).unwrap();
-        assert_eq!(
-            ProjectConfig::read(root).unwrap().entrypoint,
-            "project.donder"
+        init(root).unwrap();
+        let metadata = ProjectMetadata::read(root).unwrap();
+        assert!(!metadata.project_id.is_nil());
+        assert!(
+            std::fs::read_to_string(root.join(PROJECT_ROOT_FILE))
+                .unwrap()
+                .contains("show: {}")
         );
-        assert_eq!(std::fs::read_dir(root).unwrap().count(), 2);
-        assert!(init(root, "project.donder".into()).is_err());
+        assert_eq!(std::fs::read_dir(root).unwrap().count(), 1);
+        assert!(init(root).is_err());
+        assert_eq!(ProjectMetadata::read(root).unwrap(), metadata);
     }
 }

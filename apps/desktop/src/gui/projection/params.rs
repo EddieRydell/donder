@@ -224,19 +224,6 @@ fn graph_node_outputs(
 
 fn graph_operator_to_gui(operator: &OperatorRef) -> SequenceGraphOperator {
     match operator {
-        OperatorRef::Builtin(operator) => SequenceGraphOperator::Builtin {
-            operator: match operator {
-                BuiltinOperator::Max => SequenceBuiltinOperator::Max,
-                BuiltinOperator::Add => SequenceBuiltinOperator::Add,
-                BuiltinOperator::Multiply => SequenceBuiltinOperator::Multiply,
-                BuiltinOperator::IntensityModulate => SequenceBuiltinOperator::IntensityModulate,
-                BuiltinOperator::Dim => SequenceBuiltinOperator::Dim,
-                BuiltinOperator::Invert => SequenceBuiltinOperator::Invert,
-                BuiltinOperator::Colorize => SequenceBuiltinOperator::Colorize,
-                BuiltinOperator::Delay => SequenceBuiltinOperator::Delay,
-                BuiltinOperator::Echo => SequenceBuiltinOperator::Echo,
-            },
-        },
         OperatorRef::Custom(id) => SequenceGraphOperator::Custom {
             module_id: id.0.module_id().to_string(),
             path: id.0.document().to_string(),
@@ -577,8 +564,8 @@ fn array_param_from_sequence_values(
 use donder_language::dsl::{Type, Value as EffectValue};
 use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
 use donder_language::operator::{
-    BuiltinOperator, GraphOperatorNode, OperatorDefinition, OperatorPortCardinality,
-    OperatorPortDefinition, OperatorRef,
+    GraphOperatorNode, OperatorDefinition, OperatorPortCardinality, OperatorPortDefinition,
+    OperatorRef,
 };
 use donder_language::sequence::{
     AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
@@ -587,9 +574,9 @@ use donder_language::sequence::{
 use donder_project_io::ProjectSession;
 
 use crate::dto::{
-    SequenceAutomationMapping, SequenceBuiltinOperator, SequenceCurveLibraryItem,
-    SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind, SequenceEffectParamValue,
-    SequenceGradientLibraryItem, SequenceGradientValue, SequenceGraphNode, SequenceGraphNodeKind,
-    SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortCardinality,
-    SequenceGraphPortDefinition, SequenceLibrarySource, SequenceParamAutomation,
+    SequenceAutomationMapping, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
+    SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
+    SequenceGradientValue, SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperator,
+    SequenceGraphOperatorDefinition, SequenceGraphPortCardinality, SequenceGraphPortDefinition,
+    SequenceLibrarySource, SequenceParamAutomation,
 };

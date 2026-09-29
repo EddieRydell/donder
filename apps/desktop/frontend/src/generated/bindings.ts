@@ -76,6 +76,10 @@ export type AppSettings = {
 	sequenceInitialZoomMode: SequenceInitialZoomMode,
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
+	sequenceWaveformResolutionMs?: number,
+	sequenceSpectrogramEnabled?: boolean,
+	sequenceSpectrogramTimeResolutionMs?: number,
+	sequenceSpectrogramFftSize?: number,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
 };
@@ -457,6 +461,7 @@ export type PersistedGraphViewport = {
 
 export type PersistedSequenceViewportState = {
 	pxPerSecond: number,
+	audioStripHeightPx?: number,
 	rowHeights: { [key in string]: number },
 	scrollXSeconds: number,
 	scrollY: number,
@@ -604,10 +609,6 @@ export type SequenceAutomationMapping = { type: "float"; min: number; max: numbe
 
 export type SequenceAutomationTarget = { type: "effectParam"; effectId: number; param: string } | { type: "compositionNodeParam"; nodeId: string; param: string };
 
-export type SequenceBuiltinEffect = "pulse" | "chase" | "spin" | "markPulse" | "markChase";
-
-export type SequenceBuiltinOperator = "max" | "add" | "multiply" | "intensityModulate" | "dim" | "invert" | "colorize" | "delay" | "echo";
-
 export type SequenceClipRaster = {
 	requestId: number,
 	effectId: number,
@@ -736,7 +737,7 @@ export type SequenceEffectParamKind = "int" | "float" | "bool" | "color" | "enum
 
 export type SequenceEffectParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | { type: "enum"; value: string } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | { type: "marks"; key: string };
 
-export type SequenceEffectReference = { type: "builtin"; effect: SequenceBuiltinEffect } | { type: "custom"; moduleId: string; path: string; effectName: string };
+export type SequenceEffectReference = { type: "custom"; moduleId: string; path: string; effectName: string };
 
 export type SequenceEffectScope = "perFixture" | "wholeTarget";
 
@@ -788,7 +789,7 @@ export type SequenceGraphNodePosition = {
 	y: number,
 };
 
-export type SequenceGraphOperator = { type: "builtin"; operator: SequenceBuiltinOperator } | { type: "custom"; moduleId: string; path: string; objectKey: string };
+export type SequenceGraphOperator = { type: "custom"; moduleId: string; path: string; objectKey: string };
 
 export type SequenceGraphOperatorDefinition = {
 	operator: SequenceGraphOperator,

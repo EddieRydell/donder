@@ -1,23 +1,39 @@
-use donder_runtime::dsl::{BoundParams, bytecode::BytecodeProgram};
+//! Host-prepared mark fixtures using the same editable effects as projects.
+use donder_language::dsl::compile_effects;
+use donder_runtime::dsl::{
+    BoundParams, GeneratorContext, Identifier, TargetItemValue, TargetPixelValue, TargetValue,
+    Value, VmWorkspace,
+};
 use donder_runtime::sequence::PreparedSequence;
 use donder_runtime::signal::*;
-use donder_runtime::values::{SampleDuration, SampleTime};
-extern crate alloc;
-use alloc::vec;
+use donder_runtime::values::{
+    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
+};
 
-#[allow(dead_code)] // Shared native-generator fixture; construction is outside sampling.
-pub fn mark_show(
-    count: usize,
-    pulse: bool,
-    edge_fade: f32,
-    program: BytecodeProgram,
-) -> PreparedSequence {
-    use donder_runtime::dsl::{
-        GeneratorContext, Identifier, ParamDecl, TargetItemValue, TargetPixelValue, TargetValue,
-        Type, Value,
-    };
-    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
-    let mut show = super::workload::show(count, program, BoundParams::default());
+#[allow(dead_code)] // Shared device-profile and host benchmark fixture.
+pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
+    let definitions = compile_effects(include_str!(
+        "../../../examples/starter/effects/standard.effect.donder"
+    ))
+    .unwrap();
+    let generator_name = if pulse { "MarkPulse" } else { "MarkChase" };
+    let child_name = if pulse { "Pulse" } else { "Chase" };
+    let generator = definitions
+        .iter()
+        .find(|definition| definition.effect.name.as_str() == generator_name)
+        .unwrap();
+    let child = definitions
+        .iter()
+        .find(|definition| definition.effect.name.as_str() == child_name)
+        .unwrap();
+    assert!(generator.emitted_references.iter().all(|emission| {
+        emission.reference
+            == donder_language::imports::SourceReference::Local(
+                Identifier::new(child_name.into()).unwrap(),
+            )
+    }));
+    let mut show =
+        super::workload::show(count, child.effect.bytecode.clone(), BoundParams::default());
     let ramp = Value::Curve(
         Curve {
             points: vec![
@@ -28,6 +44,21 @@ pub fn mark_show(
                 CurvePoint {
                     position: 1.0,
                     value: 1.0,
+                },
+            ],
+        }
+        .into(),
+    );
+    let pulse_shape = Value::Curve(
+        Curve {
+            points: vec![
+                CurvePoint {
+                    position: 0.0,
+                    value: 1.0,
+                },
+                CurvePoint {
+                    position: 1.0,
+                    value: 0.0,
                 },
             ],
         }
@@ -46,80 +77,44 @@ pub fn mark_show(
         }
         .into(),
     );
-    let mut values = vec![
-        (
-            Type::Marks,
-            Value::Marks(
-                Marks {
-                    marks: (0..32)
-                        .map(|i| SampleDuration::from_ticks(2_000_000 + i * 50_000))
-                        .collect(),
-                }
-                .into(),
-            ),
+    let mut overrides = vec![(
+        Identifier::new("beats".into()).unwrap(),
+        Value::Marks(
+            Marks {
+                marks: (0..32)
+                    .map(|index| SampleDuration::from_ticks(2_000_000 + index * 50_000))
+                    .collect(),
+            }
+            .into(),
         ),
-        (
-            Type::Color,
-            Value::Color(Color {
-                red: 0,
-                green: 0,
-                blue: 0,
-            }),
-        ),
-    ];
+    )];
     if pulse {
-        values.extend([
-            (Type::Gradient, gradient),
-            (Type::Curve, ramp),
-            (Type::Float, Value::Float(0.35)),
-            (Type::Float, Value::Float(0.0)),
-            (Type::Float, Value::Float(1.2)),
-            (Type::Int, Value::Int(5)),
-            (Type::Float, Value::Float(edge_fade)),
-            (Type::Int, Value::Int(3)),
-            (Type::Float, Value::Float(0.0)),
+        overrides.extend([
+            (Identifier::new("accent".into()).unwrap(), gradient),
+            (Identifier::new("pulse_shape".into()).unwrap(), pulse_shape),
+            (
+                Identifier::new("decay_seconds".into()).unwrap(),
+                Value::Float(1.2),
+            ),
         ]);
     } else {
-        let mode = Identifier::new("per_pulse".into()).unwrap();
-        values.extend([
-            (Type::Enum(vec![mode.clone()]), Value::Enum(mode)),
+        overrides.extend([
             (
-                Type::Array(alloc::boxed::Box::new(Type::Gradient)),
+                Identifier::new("gradients".into()).unwrap(),
                 Value::Array(vec![gradient].into()),
             ),
-            (Type::Curve, ramp.clone()),
-            (Type::Float, Value::Float(0.35)),
-            (Type::Float, Value::Float(0.0)),
-            (Type::Float, Value::Float(1.2)),
-            (Type::Float, Value::Float(8.0)),
-            (Type::Int, Value::Int(5)),
             (
-                Type::Array(alloc::boxed::Box::new(Type::Curve)),
-                Value::Array(vec![ramp.clone()].into()),
+                Identifier::new("chase_positions".into()).unwrap(),
+                Value::Array(vec![ramp].into()),
             ),
-            (Type::Curve, ramp),
+            (Identifier::new("pulse_shape".into()).unwrap(), pulse_shape),
+            (
+                Identifier::new("chase_seconds".into()).unwrap(),
+                Value::Float(1.2),
+            ),
         ]);
     }
-    let declarations = values
-        .into_iter()
-        .enumerate()
-        .map(|(index, (ty, value))| ParamDecl {
-            fixed: false,
-            name: Identifier::new(alloc::format!("p{index}")).unwrap(),
-            ty,
-            default: Some(value),
-        })
-        .collect::<vec::Vec<_>>();
-    let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-    let generator = donder_elaboration::native_effect::bind_prepared(
-        if pulse {
-            donder_runtime::BuiltinEffect::MarkPulse
-        } else {
-            donder_runtime::BuiltinEffect::MarkChase
-        },
-        params,
-    )
-    .unwrap();
+    let params = generator.effect.bind_params_pairs(&overrides).unwrap();
     let context = GeneratorContext {
         start_time: SampleTime::from_ticks(0),
         duration: show.signals.duration,
@@ -130,14 +125,14 @@ pub fn mark_show(
                         .signals
                         .target_pixels
                         .iter()
-                        .map(|p| TargetPixelValue {
-                            fixture_index: p.fixture_index as i32,
-                            fixture_pixel_index: p.fixture_pixel_index as i32,
-                            pixel_index: p.pixel_index as i32,
-                            pixel_count: p.pixel_count as i32,
-                            pixel_fraction: p.pixel_fraction,
+                        .map(|pixel| TargetPixelValue {
+                            fixture_index: pixel.fixture_index as i32,
+                            fixture_pixel_index: pixel.fixture_pixel_index as i32,
+                            pixel_index: pixel.pixel_index as i32,
+                            pixel_count: pixel.pixel_count as i32,
+                            pixel_fraction: pixel.pixel_fraction,
                         })
-                        .collect::<vec::Vec<_>>()
+                        .collect::<Vec<_>>()
                         .into(),
                 }
                 .into(),
@@ -145,38 +140,42 @@ pub fn mark_show(
         }
         .into(),
     };
-    let generated = generator.generate(&context).unwrap();
+    let generated = generator
+        .effect
+        .generate_bound(&params, &context, &mut VmWorkspace::default())
+        .unwrap();
     assert!(generated.len() >= 32);
     let mut pixels = show.signals.target_pixels.to_vec();
     let mut targets = show.signals.targets.to_vec();
     show.signals.effects = generated
         .into_iter()
-        .map(|child| {
-            let target = if child.target == context.target.groups[0] {
+        .map(|emission| {
+            assert_eq!(emission.definition.0, 0);
+            let target = if emission.target == context.target.groups[0] {
                 0
             } else {
-                let target = targets.len() as u32;
+                let index = targets.len() as u32;
                 let start = pixels.len() as u32;
-                pixels.extend(child.target.pixels.iter().map(|p| PreparedPixel {
-                    fixture_index: p.fixture_index as u16,
-                    fixture_pixel_index: p.fixture_pixel_index as u16,
-                    pixel_index: p.pixel_index as u32,
-                    pixel_count: p.pixel_count as u32,
-                    pixel_fraction: p.pixel_fraction,
+                pixels.extend(emission.target.pixels.iter().map(|pixel| PreparedPixel {
+                    fixture_index: pixel.fixture_index as u16,
+                    fixture_pixel_index: pixel.fixture_pixel_index as u16,
+                    pixel_index: pixel.pixel_index as u32,
+                    pixel_count: pixel.pixel_count as u32,
+                    pixel_fraction: pixel.pixel_fraction,
                 }));
                 targets.push(PreparedTarget {
                     pixels: start..pixels.len() as u32,
                     sample_count: 0,
                 });
-                target
+                index
             };
             PreparedEffect {
-                start_time: child.start_time,
-                duration: child.duration,
+                start_time: emission.start_time,
+                duration: emission.duration,
                 target,
-                implementation: PreparedEffectImplementation::Native {
-                    sample: child.sample,
-                    params: None,
+                implementation: PreparedEffectImplementation::Dsl {
+                    program: 0,
+                    bound_params: child.effect.bind_params_pairs(&emission.params).unwrap(),
                 },
                 automation: None,
             }
@@ -184,7 +183,6 @@ pub fn mark_show(
         .collect();
     show.signals.targets = targets.into();
     show.signals.target_pixels = pixels.into();
-    show.signals.programs = vec![].into();
     show.signals.effects_by_layer = vec![(0..show.signals.effects.len()).collect()].into();
     show
 }

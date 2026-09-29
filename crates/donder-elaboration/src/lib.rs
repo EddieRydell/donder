@@ -34,6 +34,5 @@ pub use sequence::{elaborate_sequence, resolve_effect_target_pixel_addresses};
 pub(crate) use sequence::effects::parameters::EffectParamTiming;
 pub(crate) use sequence::fixtures::PreparedFixture;
 
-pub mod native_effect;
 #[cfg(test)]
 mod tests;

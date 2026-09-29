@@ -76,6 +76,7 @@ export function TitleBar() {
 
 function ViewMenu() {
   const checked = useAppStore((store) => (store.snapshot?.settings.editorViewMode ?? "gui") === "gui");
+  const spectrogramChecked = useAppStore((store) => store.snapshot?.settings.sequenceSpectrogramEnabled ?? false);
   const showSequenceItems = useAppStore((store) => store.guiDocument?.type === "sequence");
   const [markMode] = useMarkDisplayMode();
   return (
@@ -110,6 +111,16 @@ function ViewMenu() {
           })}
           {showSequenceItems && (
             <>
+              <DropdownMenu.CheckboxItem
+                checked={spectrogramChecked}
+                className="menu-item"
+                onCheckedChange={() => {
+                  void commandRegistry["view.toggleSpectrogram"].run();
+                }}
+              >
+                <span>{commandRegistry["view.toggleSpectrogram"].label}</span>
+                <span className="shortcut" />
+              </DropdownMenu.CheckboxItem>
               <DropdownMenu.Separator className="menu-separator" />
               <DropdownMenu.Item className="menu-item" onSelect={requestOpenLayerGraph}>
                 <span>Layer Graph</span>

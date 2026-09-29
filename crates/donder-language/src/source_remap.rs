@@ -109,9 +109,7 @@ pub fn remap_document_paths(
     for definition in project.definitions.effects.definitions.values_mut() {
         remap_effect_ref(&mut definition.id, remaps);
         for target in &mut definition.generated_effect_targets {
-            if let crate::effect::EffectRef::Custom(identity) = target {
-                *identity = EffectDefinitionId(remap_identity(&identity.0, remaps));
-            }
+            remap_effect_ref(target, remaps);
         }
     }
 
@@ -190,15 +188,13 @@ fn remap_layout_fixtures(
 }
 
 fn remap_effect_ref(reference: &mut EffectRef, remaps: &BTreeMap<DocumentId, DocumentId>) {
-    if let EffectRef::Custom(id) = reference {
-        *id = EffectDefinitionId(remap_identity(&id.0, remaps));
-    }
+    let EffectRef::Custom(id) = reference;
+    *id = EffectDefinitionId(remap_identity(&id.0, remaps));
 }
 
 fn remap_operator_ref(reference: &mut OperatorRef, remaps: &BTreeMap<DocumentId, DocumentId>) {
-    if let OperatorRef::Custom(id) = reference {
-        *id = OperatorDefinitionId(remap_identity(&id.0, remaps));
-    }
+    let OperatorRef::Custom(id) = reference;
+    *id = OperatorDefinitionId(remap_identity(&id.0, remaps));
 }
 
 fn remap_param(value: &mut EffectParamValue, remaps: &BTreeMap<DocumentId, DocumentId>) {

@@ -21,7 +21,7 @@ fn color_multiply_rounds_to_nearest_for_every_channel_pair() {
 }
 
 #[test]
-fn gradient_parameter_and_native_sampling_agree_at_steps_and_boundaries() {
+fn gradient_parameter_and_direct_sampling_agree_at_steps_and_boundaries() {
     let gradient = Gradient {
         stops: [
             (

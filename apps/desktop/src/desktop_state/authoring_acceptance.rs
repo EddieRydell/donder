@@ -122,7 +122,10 @@ fn same_file_references_share_geometry_and_survive_placement_removal() {
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_test_project_files("Composition").unwrap()).unwrap();
     std::fs::create_dir_all(root.join("layouts")).unwrap();
-    std::fs::write(root.join("project.donder"), "imports:\n- from: { documents: [layouts/main.layout.donder] }\n  as: layout\nshow:\n  type: project\n  setup:\n    type: setup\n    layout: layout.main\n    patch: { type: patch, routes: [] }\n    controllers: []\n  sequences: []\n").unwrap();
+    write_root_content(
+        &root,
+        "imports:\n- from: { documents: [layouts/main.layout.donder] }\n  as: layout\nshow:\n  type: project\n  setup:\n    type: setup\n    layout: layout.main\n    patch: { type: patch, routes: [] }\n    controllers: []\n  sequences: []\n",
+    );
     std::fs::write(
         root.join("layouts/main.layout.donder"),
         r#"
@@ -397,8 +400,10 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
         GuiEditCommand::Sequence {
             edit: SequenceGuiEdit::AddEffect {
                 initial_color,
-                effect: SequenceEffectReference::Builtin {
-                    effect: SequenceBuiltinEffect::Pulse,
+                effect: SequenceEffectReference::Custom {
+                    module_id: initial.source.project_module_id().to_string(),
+                    path: "effects/standard.effect.donder".into(),
+                    effect_name: "Pulse".into(),
                 },
                 target: FixtureTarget { fixture: 1 },
                 scope: SequenceEffectScope::PerFixture,
@@ -565,7 +570,10 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
         std::fs::write(library.join(path), &bytes).unwrap();
     }
     std::fs::create_dir_all(root.join("setups")).unwrap();
-    std::fs::write(root.join("project.donder"), "imports:\n- from: { documents: [setups/main.setup.donder] }\n  as: setups\nshow:\n  type: project\n  setup: setups.main\n  sequences: []\n").unwrap();
+    write_root_content(
+        &root,
+        "imports:\n- from: { documents: [setups/main.setup.donder] }\n  as: setups\nshow:\n  type: project\n  setup: setups.main\n  sequences: []\n",
+    );
     std::fs::write(root.join("setups/main.setup.donder"), "imports:\n- from: { documents: [rig/layouts/outputs.layout.donder] }\n  as: layout\n- from: { documents: [rig/patches/outputs.patch.donder] }\n  as: patch\n- from: { documents: [rig/setups/main.setup.donder] }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
@@ -1053,7 +1061,10 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_test_project_files("Inline show").unwrap()).unwrap();
-    std::fs::write(root.join("project.donder"), "show:\n  type: project\n  setup:\n    type: setup\n    layout: {type: layout, fixtures: []}\n    patch: {type: patch, routes: []}\n    controllers: []\n  sequences: []\n").unwrap();
+    write_root_content(
+        &root,
+        "show:\n  type: project\n  setup:\n    type: setup\n    layout: {type: layout, fixtures: []}\n    patch: {type: patch, routes: []}\n    controllers: []\n  sequences: []\n",
+    );
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let layout = layout_document(
@@ -1110,7 +1121,10 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
         write_new_project_files(&root, &new_test_project_files("Owned show").unwrap()).unwrap();
-        std::fs::write(root.join("project.donder"), "show:\n  type: project\n  setup:\n    type: setup\n    layout:\n      type: layout\n      fixtures:\n      - id: 1\n        name: My Strip\n        type: fixture\n        definition: {type: fixture, elements: []}\n    patch: {type: patch, routes: []}\n    controllers:\n    - id: 1\n      type: controller\n      protocol: {type: e131, source_name: Test, bind_address: 0.0.0.0, priority: 100, mode: multicast}\n      ports: [{id: 1, slot_count: 512, universe: 1}]\n  sequences:\n  - id: 1\n    type: sequence\n    duration: 1s\n    frame_rate: 30\n    audio: null\n    layers: []\n    effects: []\n    composition_graph:\n      nodes: [{id: 1, position: {x: 0, y: 0}, type: output}]\n      edges: []\n").unwrap();
+        write_root_content(
+            &root,
+            "show:\n  type: project\n  setup:\n    type: setup\n    layout:\n      type: layout\n      fixtures:\n      - id: 1\n        name: My Strip\n        type: fixture\n        definition: {type: fixture, elements: []}\n    patch: {type: patch, routes: []}\n    controllers:\n    - id: 1\n      type: controller\n      protocol: {type: e131, source_name: Test, bind_address: 0.0.0.0, priority: 100, mode: multicast}\n      ports: [{id: 1, slot_count: 512, universe: 1}]\n  sequences:\n  - id: 1\n    type: sequence\n    duration: 1s\n    frame_rate: 30\n    audio: null\n    layers: []\n    effects: []\n    composition_graph:\n      nodes: [{id: 1, position: {x: 0, y: 0}, type: output}]\n      edges: []\n",
+        );
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let mut settings = state.snapshot().settings;
@@ -1221,6 +1235,180 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         assert_eq!(session.project.patches.len(), 1);
         assert_eq!(session.project.sequences.len(), 1);
         assert_eq!(session.project.setups.len(), 1);
+    }
+}
+
+#[test]
+fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
+    write_new_project_files(&root, &new_test_project_files("Operators").unwrap()).unwrap();
+    let state = DesktopState::new(|_| {});
+    state.open_project_path(root.as_str());
+    let mut settings = state.snapshot().settings;
+    settings.autosave_project_edits = false;
+    state.update_app_settings(settings);
+    let initial = state.project_session().unwrap();
+    let initial_id = initial.project.root.sequences[0].id().clone();
+    let color = initial.project.sequence(&initial_id).unwrap().layers[0]
+        .color
+        .to_hex();
+    state
+        .create_sequence(NewSequenceRequest {
+            storage: NewSequenceStorage::NewFile {
+                name: "Imported operators".into(),
+            },
+            initial_color: color.clone(),
+            duration_seconds: 30.0,
+            frame_rate: 60,
+        })
+        .unwrap();
+    let new_id = state
+        .project_session()
+        .unwrap()
+        .project
+        .root
+        .sequences
+        .last()
+        .unwrap()
+        .id()
+        .clone();
+    for id in [initial_id, new_id] {
+        state.open_file_path(id.0.document().as_str());
+        let request = || GuiDocumentRequest {
+            owned_path: id.0.owned_path().iter().map(Into::into).collect(),
+            project_revision: state.snapshot().project_revision,
+            path: id.0.document().to_string(),
+            view: DocumentViewId::Sequence,
+            object_key: Some(id.0.root_source().object().to_string()),
+        };
+        let GuiDocument::Sequence { document } = state.get_gui_document(request()).document else {
+            panic!("sequence projection missing");
+        };
+        let hue_shift = document.composition_graph.operator_catalog.iter().find(|entry| {
+            matches!(&entry.operator, SequenceGraphOperator::Custom { object_key, .. } if object_key == "HueShift")
+        }).expect("new project catalog includes HueShift");
+        let SequenceGraphOperator::Custom {
+            module_id, path, ..
+        } = &hue_shift.operator;
+        assert_eq!(module_id, &id.0.module_id().to_string());
+        assert_eq!(path, "operators/standard.operator.donder");
+        let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
+        let connection = document.composition_graph.edges[0].clone();
+        let inserted = edit(SequenceGuiEdit::AddGraphOperatorNode {
+            operator: hue_shift.operator.clone(),
+            initial_color: color.clone(),
+            x: 240.0,
+            y: 80.0,
+        })
+        .document;
+        let GuiDocument::Sequence { document } = inserted else {
+            panic!("HueShift insertion rejected: {inserted:?}");
+        };
+        let node = document
+            .composition_graph
+            .nodes
+            .iter()
+            .find(|node| matches!(node.kind, SequenceGraphNodeKind::Operator { .. }))
+            .unwrap();
+        let SequenceGraphNodeKind::Operator { params, .. } = &node.kind else {
+            unreachable!()
+        };
+        let shift = params.iter().find(|param| param.name == "shift").unwrap();
+        assert!(shift.editable);
+        assert!(!shift.fixed);
+        assert!(shift.supports_automation);
+        let disconnected = state.project_session().unwrap();
+        state.save_all().unwrap();
+        assert_eq!(
+            donder_project_io::load_project(&root).unwrap().project,
+            disconnected.project
+        );
+        state.undo_active_edit();
+        assert!(
+            state
+                .project_session()
+                .unwrap()
+                .project
+                .sequence(&id)
+                .unwrap()
+                .composition_graph
+                .nodes
+                .iter()
+                .all(|candidate| !matches!(
+                    candidate.kind,
+                    donder_language::sequence::CompositionGraphNodeKind::Operator(_)
+                ))
+        );
+        state.redo_active_edit();
+        assert_eq!(
+            state.project_session().unwrap().project,
+            disconnected.project
+        );
+        let premature = edit(SequenceGuiEdit::ConnectGraphNodes {
+            from_node: node.id.clone(),
+            from_port: "output".into(),
+            to_node: connection.to_node.clone(),
+            to_port: connection.to_port.clone(),
+        });
+        assert!(matches!(premature.document, GuiDocument::Blocked { .. }));
+        assert_eq!(
+            state.project_session().unwrap().project,
+            disconnected.project
+        );
+        let GuiDocument::Sequence { document } = edit(SequenceGuiEdit::UpdateGraphOperatorParam {
+            node_id: node.id.clone(),
+            name: "shift".into(),
+            value: SequenceEffectParamValue::Float { value: 0.25 },
+        })
+        .document
+        else {
+            panic!("HueShift parameter edit rejected");
+        };
+        let edited = document
+            .composition_graph
+            .nodes
+            .iter()
+            .find(|candidate| candidate.id == node.id)
+            .unwrap();
+        let SequenceGraphNodeKind::Operator { params, .. } = &edited.kind else {
+            unreachable!()
+        };
+        assert!(
+            matches!(params.iter().find(|param| param.name == "shift").unwrap().value, SequenceEffectParamValue::Float { value } if value == 0.25)
+        );
+        let accepted = state.project_session().unwrap();
+        state.save_all().unwrap();
+        assert_eq!(
+            donder_project_io::load_project(&root).unwrap().project,
+            accepted.project
+        );
+        let authored = std::fs::read_to_string(root.join(id.0.document())).unwrap();
+        assert!(authored.contains("operators/standard.operator.donder"));
+        assert!(authored.contains("operators.HueShift"));
+        assert!(matches!(
+            edit(SequenceGuiEdit::ConnectGraphNodes {
+                from_node: connection.from_node.clone(),
+                from_port: connection.from_port.clone(),
+                to_node: node.id.clone(),
+                to_port: "source".into(),
+            })
+            .document,
+            GuiDocument::Sequence { .. }
+        ));
+        assert!(matches!(
+            edit(SequenceGuiEdit::ReconnectGraphEdge {
+                previous: connection.clone(),
+                connection: SequenceGraphEdge {
+                    from_node: node.id.clone(),
+                    from_port: "output".into(),
+                    to_node: connection.to_node,
+                    to_port: connection.to_port,
+                },
+            })
+            .document,
+            GuiDocument::Sequence { .. }
+        ));
     }
 }
 
@@ -1830,4 +2018,10 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
         donder_project_io::load_project(&root).unwrap().project,
         state.project_session().unwrap().project
     );
+}
+
+fn write_root_content(root: &camino::Utf8Path, content: &str) {
+    let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
+    let text = metadata.initialize_document(content).unwrap();
+    std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
 }

@@ -10,10 +10,12 @@ imports:
     - effects/scan-sweep.effect.donder
     - effects/shimmer-field.effect.donder
     - effects/sparkle-comet.effect.donder
+    - effects/standard.effect.donder
   as: effects
 - from:
     documents:
     - operators/gain.operator.donder
+    - operators/standard.operator.donder
     - operators/time-warp.operator.donder
   as: operators
 - from:
@@ -83,7 +85,7 @@ layer_test:
       extend_to_end:
         type: bool
         value: false
-    effect: builtins.spin
+    effect: effects.Spin
   - id: 4
     layer_id: 0
     start: 58.971401s
@@ -105,7 +107,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 5
     layer_id: 1
     start: 59.202995s
@@ -145,7 +147,7 @@ layer_test:
       extend_to_end:
         type: bool
         value: false
-    effect: builtins.spin
+    effect: effects.Spin
   - id: 6
     layer_id: 1
     start: 64.321722s
@@ -191,7 +193,7 @@ layer_test:
       section_width_pixels:
         type: integer
         value: 0
-    effect: builtins.spin
+    effect: effects.Spin
   - id: 7
     layer_id: 0
     start: 64.2733s
@@ -219,7 +221,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 8
     layer_id: 0
     start: 66.949971s
@@ -247,7 +249,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 9
     layer_id: 0
     start: 58.316901s
@@ -269,7 +271,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 10
     layer_id: 0
     start: 58.645841s
@@ -291,7 +293,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 11
     layer_id: 0
     start: 58.316901s
@@ -313,7 +315,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 12
     layer_id: 0
     start: 58.645841s
@@ -335,7 +337,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 13
     layer_id: 0
     start: 58.316901s
@@ -357,7 +359,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 14
     layer_id: 0
     start: 58.645841s
@@ -379,7 +381,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 15
     layer_id: 0
     start: 58.316901s
@@ -401,7 +403,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 16
     layer_id: 0
     start: 58.645841s
@@ -423,7 +425,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 17
     layer_id: 0
     start: 58.316901s
@@ -445,7 +447,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 18
     layer_id: 0
     start: 58.645841s
@@ -467,7 +469,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 19
     layer_id: 0
     start: 58.316901s
@@ -489,7 +491,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 20
     layer_id: 0
     start: 58.645841s
@@ -511,7 +513,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 21
     layer_id: 0
     start: 58.316901s
@@ -533,7 +535,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 22
     layer_id: 0
     start: 58.645841s
@@ -555,7 +557,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 23
     layer_id: 0
     start: 58.316901s
@@ -577,7 +579,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 24
     layer_id: 0
     start: 58.645841s
@@ -599,7 +601,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 27
     layer_id: 0
     start: 58.316901s
@@ -621,7 +623,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 28
     layer_id: 0
     start: 58.645841s
@@ -643,7 +645,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 31
     layer_id: 0
     start: 58.316998s
@@ -665,7 +667,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 32
     layer_id: 0
     start: 58.645938s
@@ -687,7 +689,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 33
     layer_id: 0
     start: 58.316998s
@@ -709,7 +711,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 34
     layer_id: 0
     start: 58.645938s
@@ -731,7 +733,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 35
     layer_id: 0
     start: 58.316998s
@@ -753,7 +755,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 36
     layer_id: 0
     start: 58.645938s
@@ -775,7 +777,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 37
     layer_id: 0
     start: 58.316998s
@@ -797,7 +799,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 38
     layer_id: 0
     start: 58.645938s
@@ -819,7 +821,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 39
     layer_id: 0
     start: 58.316998s
@@ -841,7 +843,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 40
     layer_id: 0
     start: 58.645938s
@@ -863,7 +865,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 41
     layer_id: 0
     start: 58.316998s
@@ -885,7 +887,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   - id: 42
     layer_id: 0
     start: 58.645938s
@@ -907,7 +909,7 @@ layer_test:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: builtins.pulse
+    effect: effects.Pulse
   composition_graph:
     nodes:
     - id: 1

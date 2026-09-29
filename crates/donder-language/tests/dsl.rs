@@ -389,9 +389,9 @@ fn generator_emitted_arrays_and_enums_outlive_vm_registers() {
 }
 
 #[test]
-fn builtin_operator_names_are_reserved() {
-    assert!(compile_operators("operator Delay { input Signal source; color sample() { return source.at(seconds()); } }").is_err());
-    assert!(compile_operators("operator intensity_modulate { input Signal source; color sample() { return source.at(seconds()); } }").is_err());
+fn standard_operator_names_are_project_owned() {
+    assert!(compile_operators("operator Delay { input Signal source; color sample() { return source.at(seconds()); } }").is_ok());
+    assert!(compile_operators("operator intensity_modulate { input Signal source; color sample() { return source.at(seconds()); } }").is_ok());
 }
 
 #[test]
@@ -454,11 +454,11 @@ fn generator_emit_events_carry_only_ordered_numeric_slots() {
     let effect = compile_effects(
         "effect EmitAll {
           void generate() {
-            timeline.emit builtins.pulse { start: 0.0, duration: 1.0, target: target };
-            timeline.emit builtins.chase { start: 0.0, duration: 1.0, target: target };
-            timeline.emit builtins.spin { start: 0.0, duration: 1.0, target: target };
-            timeline.emit builtins.mark_pulse { start: 0.0, duration: 1.0, target: target };
-            timeline.emit builtins.mark_chase { start: 0.0, duration: 1.0, target: target };
+            timeline.emit Pulse { start: 0.0, duration: 1.0, target: target };
+            timeline.emit Chase { start: 0.0, duration: 1.0, target: target };
+            timeline.emit Spin { start: 0.0, duration: 1.0, target: target };
+            timeline.emit MarkPulse { start: 0.0, duration: 1.0, target: target };
+            timeline.emit MarkChase { start: 0.0, duration: 1.0, target: target };
             timeline.emit LocalChild { start: 0.0, duration: 1.0, target: target };
           }
         }",
@@ -547,7 +547,7 @@ fn invalid_generated_effect_slot_is_rejected_by_the_vm() {
 
 #[test]
 fn qualified_generator_emit_references_report_specific_diagnostics() {
-    for reference in ["builtins.pulse.extra", "fx.Child.extra"] {
+    for reference in ["builtins.invert.extra", "fx.Child.extra"] {
         let expected = "generated effect reference must contain exactly two segments";
         let source = format!(
             "effect Bad {{ void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 1.0, target: target }}; }} }}"

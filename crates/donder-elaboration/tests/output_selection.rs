@@ -310,13 +310,21 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
 
 #[test]
 fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
-    use donder_language::operator::{GraphOperatorNode, OperatorRef};
+    use donder_language::operator::GraphOperatorNode;
     use donder_language::sequence::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
         GraphNodePosition, GraphPortId,
     };
-    use donder_runtime::BuiltinOperator;
     let mut project = starter();
+    let invert = project
+        .definitions
+        .operators
+        .definitions
+        .values()
+        .find(|definition| definition.declaration_name == "Invert")
+        .unwrap()
+        .id
+        .clone();
     let ports = ports(&project);
     let id = project
         .root
@@ -371,13 +379,13 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
         id: CompositionGraphNodeId(10000),
         position: GraphNodePosition { x: 0.0, y: 0.0 },
         kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
-            operator: OperatorRef::Builtin(BuiltinOperator::Invert),
+            operator: invert,
             params: Default::default(),
         }),
     });
     let fragment = compare(&project, &id, &ports[0..1]);
     assert!(fragment.signals.effects.is_empty());
-    assert!(fragment.signals.programs.is_empty());
+    assert_eq!(fragment.signals.programs.len(), 1);
     assert!(fragment.signals.plan.nodes.iter().any(|node| matches!(
         node.kind,
         donder_runtime::signal::PreparedSignalKind::Operator { .. }

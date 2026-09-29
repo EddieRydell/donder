@@ -43,18 +43,13 @@ function selectedEffectDefinitionValue(effect: SequenceEffect, definitions: Sequ
 }
 
 function effectReferencesEqual(left: SequenceEffectDefinition["effect"], right: SequenceEffectDefinition["effect"]) {
-  if (left.type !== right.type) return false;
-  return left.type === "builtin"
-    ? left.effect === (right.type === "builtin" ? right.effect : undefined)
-    : left.moduleId === (right.type === "custom" ? right.moduleId : undefined)
-      && left.path === (right.type === "custom" ? right.path : undefined)
-      && left.effectName === (right.type === "custom" ? right.effectName : undefined);
+  return left.moduleId === right.moduleId
+    && left.path === right.path
+    && left.effectName === right.effectName;
 }
 
 function effectReferenceKey(reference: SequenceEffectDefinition["effect"]) {
-  return reference.type === "builtin"
-    ? `builtin:${reference.effect}`
-    : `${reference.moduleId}:${reference.path}:${reference.effectName}`;
+  return `${reference.moduleId}:${reference.path}:${reference.effectName}`;
 }
 
 function supportsAutomation(document: SequenceEditorDocument, target: SequenceAutomationTarget) {

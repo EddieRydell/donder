@@ -17,7 +17,9 @@ impl DeviceStorage {
         let mut bytes = [0; PARTITION_TABLE_MAX_LEN];
         let table =
             read_partition_table(&mut flash, &mut bytes).map_err(|_| "Invalid partition table")?;
-        let mut matches = table.iter().filter(|entry| entry.label_as_str() == "donder");
+        let mut matches = table
+            .iter()
+            .filter(|entry| entry.label_as_str() == "donder");
         let entry = matches
             .next()
             .ok_or("Install the controller image with its Donder data partition")?;

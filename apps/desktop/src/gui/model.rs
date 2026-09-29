@@ -219,17 +219,6 @@ pub(super) fn graph_operator_from_gui(
     operator: &SequenceGraphOperator,
 ) -> Result<OperatorRef, GuiMutationError> {
     Ok(match operator {
-        SequenceGraphOperator::Builtin { operator } => OperatorRef::Builtin(match operator {
-            SequenceBuiltinOperator::Max => BuiltinOperator::Max,
-            SequenceBuiltinOperator::Add => BuiltinOperator::Add,
-            SequenceBuiltinOperator::Multiply => BuiltinOperator::Multiply,
-            SequenceBuiltinOperator::IntensityModulate => BuiltinOperator::IntensityModulate,
-            SequenceBuiltinOperator::Dim => BuiltinOperator::Dim,
-            SequenceBuiltinOperator::Invert => BuiltinOperator::Invert,
-            SequenceBuiltinOperator::Colorize => BuiltinOperator::Colorize,
-            SequenceBuiltinOperator::Delay => BuiltinOperator::Delay,
-            SequenceBuiltinOperator::Echo => BuiltinOperator::Echo,
-        }),
         SequenceGraphOperator::Custom {
             module_id,
             path,
@@ -538,9 +527,7 @@ use donder_language::effect::{
 use donder_language::fixture::FixtureDefinitionId;
 use donder_language::identity::SourceIdentity;
 use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_language::operator::{
-    BuiltinOperator, OperatorDefinitionId, OperatorPortCardinality, OperatorRef,
-};
+use donder_language::operator::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
 use donder_language::sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationMapping, AutomationValue,
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
@@ -556,8 +543,8 @@ use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
 use super::GuiMutationError;
 use crate::dto::{
     FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceAutomationMapping,
-    SequenceBuiltinOperator, SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope,
-    SequenceGradientStop, SequenceGraphOperator, SequenceLibrarySource,
+    SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope, SequenceGradientStop,
+    SequenceGraphOperator, SequenceLibrarySource,
 };
 
 pub(super) fn create_object_document(

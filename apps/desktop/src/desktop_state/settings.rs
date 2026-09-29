@@ -24,6 +24,12 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
     if !settings.sequence_initial_lane_height_px.is_finite() {
         settings.sequence_initial_lane_height_px = 42.0;
     }
+    if !settings.sequence_waveform_resolution_ms.is_finite() {
+        settings.sequence_waveform_resolution_ms = 5.0;
+    }
+    if !settings.sequence_spectrogram_time_resolution_ms.is_finite() {
+        settings.sequence_spectrogram_time_resolution_ms = 10.0;
+    }
     if !settings.effect_raster.render_scale.is_finite() {
         settings.effect_raster.render_scale = 1.0;
     }
@@ -31,9 +37,26 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
         settings.sequence_initial_px_per_second.clamp(20.0, 12000.0);
     settings.sequence_initial_lane_height_px =
         settings.sequence_initial_lane_height_px.clamp(24.0, 120.0);
+    settings.sequence_waveform_resolution_ms =
+        settings.sequence_waveform_resolution_ms.clamp(1.0, 100.0);
+    settings.sequence_spectrogram_time_resolution_ms = settings
+        .sequence_spectrogram_time_resolution_ms
+        .clamp(0.5, 100.0);
+    settings.sequence_spectrogram_fft_size =
+        nearest_power_of_two(settings.sequence_spectrogram_fft_size.clamp(512, 16384));
     settings.effect_raster.render_scale = settings.effect_raster.render_scale.clamp(0.25, 2.0);
     settings.effect_raster.max_columns = settings.effect_raster.max_columns.clamp(16, 1024);
     settings.effect_raster.max_rows = settings.effect_raster.max_rows.clamp(1, 200);
     settings.effect_raster.min_frame_stride = settings.effect_raster.min_frame_stride.clamp(1, 16);
     settings
+}
+
+fn nearest_power_of_two(value: u32) -> u32 {
+    let lower = 1u32 << (31 - value.leading_zeros());
+    let upper = lower.saturating_mul(2);
+    if value - lower < upper.saturating_sub(value) {
+        lower
+    } else {
+        upper.min(16384)
+    }
 }

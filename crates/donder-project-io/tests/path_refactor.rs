@@ -43,12 +43,11 @@ fn move_path(
 }
 
 #[test]
-fn moves_entrypoint_setup_sequence_effect_and_operator_and_reloads() {
+fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
     let (_temporary, root) = starter_copy();
     fs::create_dir(root.join("moved")).expect("directory");
     let mut session = load_project(&root).expect("load");
     for (source, destination) in [
-        ("project.donder", "moved/project.donder"),
         ("setups/main.setup.donder", "moved/main.setup.donder"),
         (
             "sequences/layer_test.sequence.donder",
@@ -65,12 +64,6 @@ fn moves_entrypoint_setup_sequence_effect_and_operator_and_reloads() {
     ] {
         session = move_path(&session, source, destination);
     }
-    assert_eq!(
-        donder_project_io::ProjectConfig::read(&root)
-            .unwrap()
-            .entrypoint,
-        "moved/project.donder"
-    );
     let reloaded = load_project(&root).expect("reload");
     assert_eq!(reloaded.project, session.project);
     assert_eq!(reloaded.source.entrypoint, session.source.entrypoint);

@@ -126,11 +126,11 @@ fn prepared_controller_sampling_does_not_allocate() {
         param: Identifier::new("pulse_overlap".to_string()).expect("static identifier is valid"),
     };
     let output = PreparedSequenceOutput::prepare(&project, project.root.setup.id(), &sequence_id)
-        .expect("automated native output should prepare");
+        .expect("automated DSL output should prepare");
     assert_prepared_sampling_does_not_allocate(
         &output,
         &[7150, 7151, 7152],
-        "automated native effect",
+        "automated DSL effect",
     );
     for query in [
         "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
@@ -153,6 +153,44 @@ fn prepared_controller_sampling_does_not_allocate() {
                 .unwrap();
         assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 7152, 0], query);
     }
+
+    // Exercise the project-owned bounded Echo loop through the same prepared
+    // controller path, including temporal queries and backward seeks.
+    let echo = donder_language::dsl::compile_operators(include_str!(
+        "../../../examples/starter/operators/standard.operator.donder"
+    ))
+    .unwrap()
+    .into_iter()
+    .find(|operator| operator.name().as_str() == "Echo")
+    .unwrap();
+    let mut output = output;
+    let signal = &mut output.sequence.signals;
+    let program = signal.programs.len() as u32;
+    let params = donder_runtime::dsl::BoundParams::bind_pairs(echo.params(), &[]).unwrap();
+    let mut programs = signal.programs.to_vec();
+    programs.push(echo.bytecode);
+    signal.programs = programs.into();
+    let mut nodes = signal.plan.nodes.to_vec();
+    nodes.push(donder_runtime::signal::PreparedSignalNode {
+        kind: donder_runtime::signal::PreparedSignalKind::Operator {
+            operator: donder_runtime::signal::PreparedOperatorNode {
+                implementation: donder_runtime::signal::PreparedOperator::Dsl(program),
+                params,
+                automation_slot: 0,
+            },
+            inputs: vec![signal.plan.output_index].into(),
+            automation: Box::new([]),
+            vm_slot: signal.plan.vm_workspace_count as u16,
+        },
+    });
+    signal.plan.output_index = nodes.len() - 1;
+    signal.plan.frame_slots = vec![u16::MAX; nodes.len()].into();
+    signal.plan.frame_slots[signal.plan.output_index] = 0;
+    signal.plan.frame_nodes = vec![signal.plan.output_index].into();
+    signal.plan.frame_buffer_count = 1;
+    signal.plan.vm_workspace_count += 1;
+    signal.plan.nodes = nodes.into();
+    assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 0], "DSL Echo");
 }
 
 fn assert_prepared_sampling_does_not_allocate(

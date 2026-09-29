@@ -73,6 +73,7 @@
   --donder-sequence-lane-selected: rgb(174 180 188 / 12%);
   --donder-sequence-grid: #24272c;
   --donder-sequence-grid-faint: #2c3036;
+  --donder-spectrogram: var(--donder-graph-blue);
   --donder-timeline-major: #343941;
   --donder-timeline-minor: #1f2227;
   --donder-text-faint: #696b70;
@@ -365,12 +366,15 @@
   --donder-interaction-drag-threshold: 2px;
   --donder-workspace-layout-save-delay: 250ms;
   --donder-sequence-left-gutter: 128px;
-  --donder-sequence-top: 66px;
   --donder-sequence-audio-strip-top: 28px;
+  --donder-sequence-initial-audio-strip-height: 38px;
+  --donder-sequence-min-audio-strip-height: 24px;
+  --donder-sequence-max-audio-strip-height: 320px;
   --donder-sequence-initial-pixels-per-second: 80px;
   --donder-sequence-initial-lane-height: 42px;
   --donder-sequence-lane-resize-indicator-height: 2px;
   --donder-sequence-lane-resize-hit-height: 8px;
+  --donder-sequence-audio-resize-hit-height: 8px;
   --donder-sequence-min-pixels-per-second: 0.01;
   --donder-sequence-max-pixels-per-second: 600px;
   --donder-sequence-max-zoom-pixels-per-second: 12000px;
@@ -444,6 +448,10 @@
   --donder-automation-clip-label-min-width: 40px;
   --donder-automation-detached-stripe-width: 3px;
   --donder-waveform-amplitude-inset: 4px;
+  --donder-waveform-raw-sample-threshold: 2;
+  --donder-spectrogram-min-cell-size: 0.25px;
+  --donder-spectrogram-highlight-threshold: 0.68;
+  --donder-spectrogram-highlight-power: 1.25;
   --donder-timeline-label-x: 5px;
   --donder-timeline-label-y: 18px;
   --donder-timeline-min-label-width: 110px;
@@ -1333,6 +1341,14 @@ button:focus-visible,
   position: relative;
   min-width: 0;
   min-height: 0;
+}
+
+.sequence-waveform-decoder {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  visibility: hidden;
 }
 
 .sequence-transport-marker {

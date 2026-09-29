@@ -12,7 +12,6 @@ use donder_runtime::bindings::{
     ParameterSource, PreparedParameterBinding, PreparedParameterCalculation,
     PreparedParameterEnvironment,
 };
-use donder_runtime::signal::BoundEffectImplementation;
 
 #[derive(Clone)]
 pub(crate) enum ParameterInput {
@@ -160,63 +159,6 @@ pub(crate) fn expand(
                 param.name.as_str()
             )));
         }
-    }
-    if let EffectImplementation::Native(builtin) = definition.implementation {
-        let params = constant_params(&definition.params, inputs, context)?;
-        let bound = crate::native_effect::bind_prepared(builtin, params.clone())?;
-        let live = inputs
-            .iter()
-            .any(|input| matches!(input, ParameterInput::Source(_)));
-        let environment = if live {
-            Some(environment(
-                context,
-                definition
-                    .params
-                    .iter()
-                    .map(|param| param.ty.clone())
-                    .collect(),
-                inputs,
-                &expansion,
-                None,
-            )?)
-        } else {
-            None
-        };
-        for child in bound.generate_structure(&GeneratorContext {
-            start_time: expansion.start_time,
-            duration: expansion.duration,
-            target: generator_context_target(context.target_cache, &expansion.target),
-        })? {
-            if *context.generated_child_count >= crate::MAX_GENERATED_EFFECTS {
-                return Err(error("generated child limit exceeded"));
-            }
-            *context.generated_child_count += 1;
-            let target = prepared_pixels_from_generated_target_cached(
-                context.target_cache,
-                context.fixtures,
-                child.target,
-            )?;
-            let implementation = match environment {
-                Some(environment) => PreparedEffectImplementation::Bound {
-                    environment,
-                    implementation: BoundEffectImplementation::Native(child.sample),
-                },
-                None => PreparedEffectImplementation::Native {
-                    sample: child.sample.resolve(&params)?,
-                    params: None,
-                },
-            };
-            context.effects.push(PreparedEffect {
-                start_time: child.start_time,
-                duration: child.duration,
-                target: context
-                    .target_cache
-                    .sample_target(sorted_sample_target(&target))?,
-                implementation,
-                automation: None,
-            });
-        }
-        return Ok(());
     }
     let program = definition
         .generator
@@ -369,14 +311,12 @@ fn prepare_child(
     };
     let implementation = match &definition.implementation {
         EffectImplementation::Dsl(compiled) => {
-            let EffectRef::Custom(id) = reference else {
-                unreachable!("DSL child is custom")
-            };
+            let EffectRef::Custom(id) = reference;
             let program = prepare_sample_program(context.sample_programs, id, &compiled.bytecode)?;
             match environment {
                 Some(environment) => PreparedEffectImplementation::Bound {
                     environment,
-                    implementation: BoundEffectImplementation::Dsl(program),
+                    program,
                 },
                 None => PreparedEffectImplementation::Dsl {
                     program,
@@ -384,21 +324,6 @@ fn prepare_child(
                 },
             }
         }
-        EffectImplementation::Native(builtin) => match environment {
-            Some(environment) => PreparedEffectImplementation::Bound {
-                environment,
-                implementation: BoundEffectImplementation::Native(
-                    crate::native_effect::NativeParameterSample::Sample(*builtin),
-                ),
-            },
-            None => {
-                let params = constant_params(&definition.params, inputs, context)?;
-                PreparedEffectImplementation::Native {
-                    sample: crate::native_effect::prepare_sample(*builtin, &params)?,
-                    params: None,
-                }
-            }
-        },
     };
     context.effects.push(PreparedEffect {
         start_time: expansion.start_time,

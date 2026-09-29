@@ -1,9 +1,9 @@
 use super::ast::{BinaryOp, UnaryOp};
 use super::bytecode::{
-    ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorSlot, CompareOp, ContextRead,
-    FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction, IntArithmeticOp, IntSlot,
-    LocalId, MarkOp, ParamId, PoolSpan, RefSlot, SlotLayout, Target, TargetItemsOp, TargetMember,
-    ValueSlot,
+    ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
+    ContextRead, FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction,
+    IntArithmeticOp, IntSlot, LocalId, MarkOp, ParamId, PoolSpan, RefSlot, SlotLayout, Target,
+    TargetItemsOp, TargetMember, ValueSlot,
 };
 use super::checked::{
     CheckedBlock, CheckedEffectDecl, CheckedExpr, CheckedExprKind, CheckedModule,
@@ -869,11 +869,18 @@ impl FunctionCompiler {
                     });
                 }
             }
-            "intensity" => {
+            "hue" | "saturation" | "intensity" => {
                 let args = self.compile_args(args);
                 let dst = self.float_slot(dst);
-                self.emit(Instruction::ColorIntensity {
+                let op = match name.as_str() {
+                    "hue" => ColorComponent::Hue,
+                    "saturation" => ColorComponent::Saturation,
+                    "intensity" => ColorComponent::Intensity,
+                    _ => unreachable!(),
+                };
+                self.emit(Instruction::ColorComponent {
                     dst,
+                    op,
                     color: self.color_slot(args[0]),
                 });
             }

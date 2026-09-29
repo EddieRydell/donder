@@ -22,7 +22,7 @@ export function GraphNodeControls({ node, document, automationClipChooser, setAu
     </div>;
   }
   if (node.kind.type !== "operator") return null;
-  return <fieldset className="graph-node-parameters" disabled={!editable} aria-label={`${node.kind.operator.type === "builtin" ? "Built-in" : "Project"} operator parameters`}>
+  return <fieldset className="graph-node-parameters" disabled={!editable} aria-label="Project operator parameters">
     {node.kind.params.map((param, index) => <div key={param.name} className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}>
       <TypedParamInput param={param} commitParam={(name, value) =>
         runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {

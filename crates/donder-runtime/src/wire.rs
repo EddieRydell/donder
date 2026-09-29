@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 7;
+pub const FORMAT_VERSION: u32 = 9;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -307,25 +307,13 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                     return Err(bad);
                 }
             }
-            PreparedEffectImplementation::Native { params, .. } => {
-                if params
-                    .as_ref()
-                    .is_some_and(|(_, params)| !params.is_frozen())
-                {
-                    return Err(bad);
-                }
-            }
             PreparedEffectImplementation::Bound {
                 environment,
-                implementation,
+                program,
             } => {
                 if *environment as usize >= signal.parameter_environments.len()
                     || effect.automation.is_some()
-                {
-                    return Err(bad);
-                }
-                if let crate::signal::BoundEffectImplementation::Dsl(program) = implementation
-                    && *program as usize >= signal.programs.len()
+                    || *program as usize >= signal.programs.len()
                 {
                     return Err(bad);
                 }
@@ -334,11 +322,7 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         if let Some(automation) = &effect.automation {
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
             match &effect.implementation {
-                PreparedEffectImplementation::Dsl { bound_params, .. }
-                | PreparedEffectImplementation::Native {
-                    params: Some((_, bound_params)),
-                    ..
-                } => {
+                PreparedEffectImplementation::Dsl { bound_params, .. } => {
                     reserve(
                         1,
                         bound_params
@@ -380,14 +364,11 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                 automation,
                 vm_slot,
             } => {
-                if matches!(operator.implementation, PreparedOperator::Dsl(_))
-                    && *vm_slot as usize >= plan.vm_workspace_count
-                {
+                if *vm_slot as usize >= plan.vm_workspace_count {
                     return Err(bad);
                 }
-                if let PreparedOperator::Dsl(program) = operator.implementation
-                    && program as usize >= signal.programs.len()
-                {
+                let PreparedOperator::Dsl(program) = operator.implementation;
+                if program as usize >= signal.programs.len() {
                     return Err(bad);
                 }
                 if !operator.params.is_frozen() {
@@ -406,13 +387,6 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                         return Err(bad);
                     }
                     automation_slot += 1;
-                }
-                let required = match operator.implementation {
-                    PreparedOperator::Native(operator) => operator.input_count(),
-                    PreparedOperator::Dsl(_) => inputs.len(),
-                };
-                if inputs.len() != required {
-                    return Err(bad);
                 }
                 &inputs[..]
             }

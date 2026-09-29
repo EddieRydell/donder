@@ -75,9 +75,8 @@ impl PreparedEffectRasterRenderer {
     pub fn workspace(&self) -> EffectRasterWorkspace {
         let mut effect_vm = VmWorkspace::default();
         for effect in &self.effects {
-            if let Some(program) = effect.implementation.dsl_program() {
-                effect_vm.reserve(&self.programs[program as usize]);
-            }
+            let program = effect.implementation.dsl_program();
+            effect_vm.reserve(&self.programs[program as usize]);
         }
         EffectRasterWorkspace {
             parameters: donder_runtime::bindings::ParameterWorkspace::new(

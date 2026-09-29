@@ -15,20 +15,36 @@ pub const OPERATOR_DEPTHS: [usize; 3] = [2, 4, 8];
 pub const CHASE_PULSE_CASES: [(&str, usize); 3] =
     [("ChasePulse1", 1), ("ChasePulse4", 4), ("ChasePulse16", 16)];
 #[allow(dead_code)]
-pub const MARK_CASES: [(&str, bool, f32); 3] = [
-    ("MarkPulse200", true, 0.0),
-    ("MarkChase200", false, 0.0),
-    ("MarkPulseEdge200", true, 1.0),
-];
+pub const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("MarkChase200", false)];
 
-// Profiling fixture only: varied, overlapping native chases and pulses. This
-// contains no evaluator shortcuts; desktop and device use the same setup.
+// Profiling fixture: varied, overlapping chases and pulses compiled from the
+// same editable effect document included in new projects.
+#[cfg(not(target_arch = "xtensa"))]
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
-pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -> PreparedSequence {
-    use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
+pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
+    use donder_language::dsl::compile_effects;
+    use donder_runtime::dsl::{Identifier, Value};
     use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    let mut show = layered_show(count, program, BoundParams::default(), layers);
-    show.signals.programs = vec![].into();
+    let definitions = compile_effects(include_str!(
+        "../../../examples/starter/effects/standard.effect.donder"
+    ))
+    .unwrap();
+    let chase = definitions
+        .iter()
+        .find(|definition| definition.effect.name.as_str() == "Chase")
+        .unwrap();
+    let pulse = definitions
+        .iter()
+        .find(|definition| definition.effect.name.as_str() == "Pulse")
+        .unwrap();
+    let mut show = layered_show(
+        count,
+        pulse.effect.bytecode.clone(),
+        BoundParams::default(),
+        layers,
+    );
+    show.signals.programs =
+        vec![chase.effect.bytecode.clone(), pulse.effect.bytecode.clone()].into();
     let shape: Value = Value::Curve(
         Curve {
             points: vec![
@@ -77,43 +93,41 @@ pub fn chase_pulse_show(count: usize, layers: usize, program: BytecodeProgram) -
             }
             .into(),
         );
-        let builtin = if index % 2 == 0 {
-            donder_runtime::BuiltinEffect::Chase
-        } else {
-            donder_runtime::BuiltinEffect::Pulse
-        };
-        let values = if builtin == donder_runtime::BuiltinEffect::Chase {
+        let chasing = index % 2 == 0;
+        let values = if chasing {
             vec![
-                (Type::Gradient, gradient),
+                ("gradient", gradient),
                 (
-                    Type::Enum(vec![Identifier::new("across_items".into()).unwrap()]),
+                    "gradient_mode",
                     Value::Enum(Identifier::new("across_items".into()).unwrap()),
                 ),
-                (Type::Float, Value::Float(12.0 + index as f32)),
-                (Type::Int, Value::Int(3 + index as i32 % 4)),
-                (Type::Curve, position.clone()),
-                (Type::Bool, Value::Bool(index % 4 == 0)),
-                (Type::Bool, Value::Bool(true)),
-                (Type::Bool, Value::Bool(true)),
-                (Type::Curve, shape.clone()),
+                ("pulse_overlap", Value::Float(12.0 + index as f32)),
+                ("section_width_pixels", Value::Int(3 + index as i32 % 4)),
+                ("chase_position", position.clone()),
+                ("reverse", Value::Bool(index % 4 == 0)),
+                ("extend_to_start", Value::Bool(true)),
+                ("extend_to_end", Value::Bool(true)),
+                ("pulse_shape", shape.clone()),
             ]
         } else {
-            vec![(Type::Gradient, gradient), (Type::Curve, shape.clone())]
+            vec![("gradient", gradient), ("pulse_shape", shape.clone())]
         };
-        let declarations = values
+        let overrides = values
             .into_iter()
-            .enumerate()
-            .map(|(slot, (ty, value))| ParamDecl {
-                fixed: false,
-                name: Identifier::new(alloc::format!("p{slot}")).unwrap(),
-                ty,
-                default: Some(value),
-            })
+            .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value))
             .collect::<vec::Vec<_>>();
-        let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-        effect.implementation = PreparedEffectImplementation::Native {
-            sample: donder_runtime::native_effect::prepare_sample(builtin, &params).unwrap(),
-            params: None,
+        let params = BoundParams::bind_pairs(
+            if chasing {
+                &chase.effect.params
+            } else {
+                &pulse.effect.params
+            },
+            &overrides,
+        )
+        .unwrap();
+        effect.implementation = PreparedEffectImplementation::Dsl {
+            program: if chasing { 0 } else { 1 },
+            bound_params: params,
         };
         effect.start_time = SampleTime::from_ticks(index as u32 * 43_000);
         effect.duration = SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000);
@@ -150,9 +164,15 @@ pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
 pub const IDENTITY_SOURCE: &str =
     "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }";
 
-pub fn insert_native_invert(show: &mut PreparedSequence) {
+pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
     nest_operator(show, 2);
+    let program_index = show.signals.programs.len() as u32;
+    let mut programs = core::mem::take(&mut show.signals.programs).into_vec();
+    programs.push(program);
+    show.signals.programs = programs.into();
     let graph = &mut show.signals.plan;
+    let vm_slot = graph.vm_workspace_count as u16;
+    graph.vm_workspace_count += 1;
     let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
     nodes.insert(
         2,
@@ -160,14 +180,12 @@ pub fn insert_native_invert(show: &mut PreparedSequence) {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
                     automation_slot: 0,
-                    implementation: PreparedOperator::Native(
-                        donder_runtime::BuiltinOperator::Invert,
-                    ),
+                    implementation: PreparedOperator::Dsl(program_index),
                     params: Default::default(),
                 },
                 inputs: vec![1].into(),
                 automation: vec![].into(),
-                vm_slot: 0,
+                vm_slot,
             },
         },
     );
@@ -196,7 +214,7 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
     return max(max(a, b), max(c, d));
 } }";
 
-pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
+pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProgram, empty: bool) {
     use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
     use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let mut curve = Curve {
@@ -220,7 +238,7 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
     }
     let values = [
         (
-            "ramp",
+            "gradient",
             Type::Gradient,
             Value::Gradient(
                 Gradient {
@@ -236,7 +254,11 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
                 .into(),
             ),
         ),
-        ("shape", Type::Curve, Value::Curve(curve.clone().into())),
+        (
+            "pulse_shape",
+            Type::Curve,
+            Value::Curve(curve.clone().into()),
+        ),
     ];
     let declarations = values.map(|(name, ty, value)| ParamDecl {
         fixed: false,
@@ -245,13 +267,10 @@ pub fn apply_native_automation(show: &mut PreparedSequence, empty: bool) {
         default: Some(value),
     });
     let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-    show.signals.effects[0].implementation = PreparedEffectImplementation::Native {
-        sample: donder_runtime::native_effect::prepare_sample(
-            donder_runtime::BuiltinEffect::Pulse,
-            &params,
-        )
-        .unwrap(),
-        params: Some((donder_runtime::BuiltinEffect::Pulse, params)),
+    show.signals.programs[0] = program;
+    show.signals.effects[0].implementation = PreparedEffectImplementation::Dsl {
+        program: 0,
+        bound_params: params,
     };
     show.signals.effects[0].automation = Some(alloc::boxed::Box::new(PreparedEffectAutomation {
         workspace_slot: 0,

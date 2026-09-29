@@ -1,7 +1,7 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_project_io::{
-    PROJECT_CONFIG_FILE, ProjectConfig, apply_path_change, check_project, export_editable_project,
-    load_project, plan_path_change,
+    PROJECT_ROOT_FILE, ProjectMetadata, check_project, export_editable_project, load_project,
+    plan_path_change,
 };
 use std::fs;
 
@@ -21,9 +21,7 @@ fn copy_sources(source: &Utf8Path, destination: &Utf8Path) {
         let target = destination.join(path.file_name().unwrap());
         if path.is_dir() {
             copy_sources(&path, &target);
-        } else if path.extension() == Some("donder")
-            || path.file_name() == Some(PROJECT_CONFIG_FILE)
-        {
+        } else if path.extension() == Some("donder") {
             fs::copy(path, target).unwrap();
         }
     }
@@ -41,7 +39,7 @@ fn starter_loads_offline_without_lock_or_audio_downloads() {
 #[test]
 fn local_audio_needs_no_inventory_or_configuration_update() {
     let (_temp, root) = starter();
-    let config = fs::read(root.join(PROJECT_CONFIG_FILE)).unwrap();
+    let config = fs::read(root.join(PROJECT_ROOT_FILE)).unwrap();
     let sequence = root.join("sequences/layer_test.sequence.donder");
     let text = fs::read_to_string(&sequence)
         .unwrap()
@@ -58,7 +56,7 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
     .unwrap();
     let session = load_project(&root).unwrap();
     assert_eq!(session.source.referenced_assets.len(), 1);
-    assert_eq!(fs::read(root.join(PROJECT_CONFIG_FILE)).unwrap(), config);
+    assert_eq!(fs::read(root.join(PROJECT_ROOT_FILE)).unwrap(), config);
 }
 
 #[test]
@@ -80,23 +78,22 @@ fn unused_broken_download_does_not_invalidate_the_show() {
 }
 
 #[test]
-fn moving_entrypoint_and_copying_project_require_only_local_files() {
+fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     let (_temp, root) = starter();
     let session = load_project(&root).unwrap();
-    let plan = plan_path_change(
+    let metadata = ProjectMetadata::read(&root).unwrap();
+    let error = plan_path_change(
         &session,
         Utf8Path::new("project.donder"),
         Utf8Path::new("show.donder"),
     )
-    .unwrap();
-    let moved = apply_path_change(&session, &plan).unwrap();
-    assert_eq!(
-        ProjectConfig::read(&root).unwrap().entrypoint,
-        "show.donder"
-    );
-    assert_eq!(load_project(&root).unwrap().project, moved.project);
+    .unwrap_err();
+    assert!(error.contains("must remain at the project root"));
+    assert_eq!(load_project(&root).unwrap().project, session.project);
     let destination = root.parent().unwrap().join("copy");
-    export_editable_project(&moved, &destination).unwrap();
-    assert_eq!(load_project(&destination).unwrap().project, moved.project);
+    export_editable_project(&session, &destination).unwrap();
+    assert_eq!(load_project(&destination).unwrap().project, session.project);
+    assert_eq!(ProjectMetadata::read(&destination).unwrap(), metadata);
+    assert!(!destination.join("donder.json").exists());
     assert!(!destination.join("donder.lock").exists());
 }

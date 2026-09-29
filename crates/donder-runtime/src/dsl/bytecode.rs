@@ -471,8 +471,9 @@ pub enum Instruction {
         color: ColorSlot,
         scale: FloatSlot,
     },
-    ColorIntensity {
+    ColorComponent {
         dst: FloatSlot,
+        op: ColorComponent,
         color: ColorSlot,
     },
     ColorInvert {
@@ -616,6 +617,15 @@ pub enum ColorBinary {
     Add,
     Multiply,
     Max,
+}
+
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+pub enum ColorComponent {
+    Hue,
+    Saturation,
+    Intensity,
 }
 
 #[derive(

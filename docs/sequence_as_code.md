@@ -35,11 +35,14 @@ ordinary frames, temporal/spatial queries, and backward seeks. Parameter and
 resource workspaces are reserved during preparation, with exact-time caches
 shared across pixels. Resource references are forwarded without rebuilding them.
 
-Native MarkPulse fixes beats, offset, decay duration, section width, sections per
-mark, and seed. MarkChase fixes beats, offset, and chase duration. Their other
-rendering inputs use the same retained bindings. Resource validity checks still
-apply, including nonempty MarkChase collections. MarkImpactBurst's gradient
-collection is fixed because its emptiness determines whether a child is emitted.
+The editable `effects/standard.effect.donder` document defines Pulse, Chase,
+Spin, MarkPulse, and MarkChase. MarkPulse emits Pulse children for selected
+sections, and MarkChase emits Chase children for each mark. Neither mark effect
+adds hue shifting or a separate sampler. Their structural parameters are fixed;
+the emitted children's rendering parameters use ordinary retained bindings.
+Resource validity checks still apply, including nonempty MarkChase collections.
+MarkImpactBurst's gradient collection is fixed because its emptiness determines
+whether a child is emitted.
 
 Declaration metadata governs automation even when an instance has no active
 automation. Fixed child arguments and assignments cannot receive live values;
@@ -49,6 +52,64 @@ type, required-argument, and fixed/live checks before expansion. Authored active
 automation targeting a fixed parameter is an error. Definition replacement keeps
 the explicit detached-binding workflow; detached bindings cannot activate against
 a fixed parameter.
+
+## Project-local standard operators
+
+Disconnected operators and partially wired branches can remain in the authored
+composition graph while being edited and saved. Only nodes with a path to the
+output are prepared for playback; operators on that path must have every input
+connected. Definitions, parameter types, edge ports, connection cardinality,
+and acyclicity are validated even for disconnected branches.
+
+`operators/standard.operator.donder` is editable DSL source, bundled alongside
+`effects/standard.effect.donder` in new projects. The canonical copy lives in
+`examples/starter/operators/standard.operator.donder`; `examples/stanford_room`
+contains the same library. Each consuming YAML document explicitly imports it:
+
+```yaml
+imports:
+- from:
+    documents:
+    - operators/standard.operator.donder
+  as: operators
+```
+
+Composition nodes reference declarations such as `operators.Dim` and
+`operators.HueShift`. New projects import both libraries in `project.donder`,
+so the initial owned sequence has both in its document scope. Separate sequence
+documents need their own imports; imports are not transitive.
+
+| Operator | Inputs | Behavior and parameter defaults |
+| --- | --- | --- |
+| Max | `a`, `b` | Component-wise maximum. |
+| Add | `a`, `b` | Saturating RGB addition. |
+| Multiply | `a`, `b` | Component-wise RGB multiplication. |
+| IntensityModulate | `source`, `mask` | Scale source by the mask's maximum RGB channel. |
+| Dim | `input` | Scale by `amount = 0.5`, clamped to `[0, 1]`. |
+| Invert | `input` | Complement each RGB channel. |
+| Colorize | `input` | Scale `tint = #ffffff` by the input's maximum RGB channel. |
+| HueShift | `source` | Add `shift = 0.0` turns to HSV hue, preserving saturation and value. Integral shifts return the sampled color unchanged. |
+| Delay | `input` | Sample `seconds = 0.1` earlier; negative delay is clamped to zero. |
+| Echo | `input` | Component-wise maximum of the current input and `repeats = 3` delayed copies, spaced by `seconds = 0.1` and scaled by successive powers of `decay = 0.5`. |
+
+Echo clamps repeats to `[1, 32]`, decay to `[0, 1]`, and delay to nonnegative
+seconds. Samples before the sequence are black. Its decay uses exponentiation
+by squaring; copies are combined with maximum rather than addition. Parameters
+are ordinary DSL parameters with their type's automation eligibility; hue shift
+is an automatable float. Hue is measured in turns and wraps through `hsv`.
+
+## HSV color intrinsics
+
+`hue(color)`, `saturation(color)`, and `intensity(color)` each take one color
+and return a normalized float. Hue is in `[0, 1)` turns; saturation and intensity
+are in `[0, 1]`. Intensity is the maximum RGB channel divided by 255, which is
+HSV value. Grayscale (including black) has hue zero and saturation zero.
+
+`hsv(hue(c) + shift, saturation(c), intensity(c))` shifts hue while preserving
+saturation and value. The existing `hsv` wraps hue in both directions, including
+negative shifts. Colors have 8-bit RGB channels: extraction uses those quantized
+channels, and `hsv` rounds its result to the nearest channel value. The standard
+HueShift returns its input directly for integral shifts.
 
 ## Operator signal coordinates
 
@@ -330,7 +391,7 @@ they do not change the authored sequence or create project undo entries.
 
 Curves are normalized, piecewise-linear values. They must contain at least one
 point; each point’s position and value must be finite; positions are in
-`[0, 1]` and strictly increasing. All sequence automation, native effects, and
+`[0, 1]` and strictly increasing. Sequence automation and
 DSL curve reads use `donder_language::sampling::sample_curve`.
 
 ## Source diagnostics

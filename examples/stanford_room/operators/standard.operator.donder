@@ -1,0 +1,112 @@
+// Editable project-local composition operators.
+operator Max {
+  input Signal a;
+  input Signal b;
+
+  color sample() {
+    return max(a.at(seconds()), b.at(seconds()));
+  }
+}
+
+operator Add {
+  input Signal a;
+  input Signal b;
+
+  color sample() {
+    return a.at(seconds()) + b.at(seconds());
+  }
+}
+
+operator Multiply {
+  input Signal a;
+  input Signal b;
+
+  color sample() {
+    return a.at(seconds()) * b.at(seconds());
+  }
+}
+
+operator IntensityModulate {
+  input Signal source;
+  input Signal mask;
+
+  color sample() {
+    return source.at(seconds()) * intensity(mask.at(seconds()));
+  }
+}
+
+operator Dim {
+  input Signal input;
+  param float amount = 0.5;
+
+  color sample() {
+    return input.at(seconds()) * clamp(amount, 0.0, 1.0);
+  }
+}
+
+operator Invert {
+  input Signal input;
+
+  color sample() {
+    return invert(input.at(seconds()));
+  }
+}
+
+operator Colorize {
+  input Signal input;
+  param color tint = #ffffff;
+
+  color sample() {
+    return tint * intensity(input.at(seconds()));
+  }
+}
+
+operator HueShift {
+  input Signal source;
+  param float shift = 0.0;
+
+  color sample() {
+    color value = source.at(seconds());
+    if (shift == floor(shift)) { return value; }
+    return hsv(hue(value) + shift, saturation(value), intensity(value));
+  }
+}
+
+operator Delay {
+  input Signal input;
+  param float seconds = 0.1;
+
+  color sample() {
+    return input.at(seconds() - max(0.0, seconds));
+  }
+}
+
+operator Echo {
+  input Signal input;
+  param float seconds = 0.1;
+  param int repeats = 3;
+  param float decay = 0.5;
+
+  color sample() {
+    float delay = max(0.0, seconds);
+    int count = repeats;
+    if (count < 1) { count = 1; }
+    if (count > 32) { count = 32; }
+    float fade = clamp(decay, 0.0, 1.0);
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int repeat = 0; repeat <= count; repeat = repeat + 1) {
+      float time = seconds() - delay * repeat;
+      if (time >= 0.0) {
+        // Exponentiation by squaring preserves the decay multiplication order.
+        float amount = 1.0;
+        float base = fade;
+        for (int bit = 1; bit <= repeat; bit = bit * 2) {
+          if (repeat % (bit * 2) >= bit) { amount = amount * base; }
+          base = base * base;
+        }
+        result = max(result, input.at(time) * amount);
+      }
+    }
+    return result;
+  }
+}

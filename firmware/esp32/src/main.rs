@@ -154,7 +154,7 @@ fn main() -> ! {
                 Uniform(bool),
             }
             use OperatorCase::{Alternating, Full, Grouped, Mixed, Nested, Reuse, Uniform};
-            for (stage, layers, gamma, operator, native) in [
+            for (stage, layers, gamma, operator, automation_case) in [
                 ("show", 1, None, None, None),
                 ("layers4", 4, None, None, None),
                 ("layers16", 16, None, None, None),
@@ -163,9 +163,9 @@ fn main() -> ! {
                 ("operator_reuse", 1, None, Some(Reuse), None),
                 ("temporal_grouped", 1, None, Some(Grouped), None),
                 ("temporal_alternating", 1, None, Some(Alternating), None),
-                ("native_automation", 1, None, None, Some(false)),
+                ("dsl_pulse_automation", 1, None, None, Some(false)),
                 ("empty_automation", 1, None, None, Some(true)),
-                ("mixed_native", 1, None, Some(Mixed), None),
+                ("mixed_operators", 1, None, Some(Mixed), None),
                 ("nested2", 1, None, Some(Nested(0, true)), None),
                 ("nested4", 1, None, Some(Nested(1, true)), None),
                 ("nested8", 1, None, Some(Nested(2, true)), None),
@@ -178,7 +178,7 @@ fn main() -> ! {
                     if case != 4 {
                         continue;
                     }
-                } else if (gamma.is_some() || operator.is_some() || native.is_some())
+                } else if (gamma.is_some() || operator.is_some() || automation_case.is_some())
                     && case != workload::GAMMA_CASE
                 {
                     continue;
@@ -216,17 +216,18 @@ fn main() -> ! {
                     if let Nested(index, _) = kind {
                         workload::nest_operator(&mut show, workload::OPERATOR_DEPTHS[index]);
                     } else if matches!(kind, Mixed) {
-                        workload::insert_native_invert(&mut show);
+                        workload::insert_invert(&mut show, fixtures::invert_program());
                     }
                 }
-                if let Some(empty) = native {
-                    workload::apply_native_automation(&mut show, empty);
+                if let Some(empty) = automation_case {
+                    let (pulse_program, _) = fixtures::case(fixtures::NAMES.len() - 1);
+                    workload::apply_pulse_automation(&mut show, pulse_program, empty);
                 }
-                let golden = if let Some(empty) = native {
+                let golden = if let Some(empty) = automation_case {
                     if empty {
                         &fixtures::EMPTY_GOLDEN[count_index]
                     } else {
-                        &fixtures::NATIVE_GOLDEN[count_index]
+                        &fixtures::PULSE_AUTOMATION_GOLDEN[count_index]
                     }
                 } else if let Some(kind) = operator {
                     match kind {

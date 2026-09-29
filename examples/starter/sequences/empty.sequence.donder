@@ -1,3 +1,12 @@
+imports:
+- from:
+    documents:
+    - effects/standard.effect.donder
+  as: effects
+- from:
+    documents:
+    - operators/standard.operator.donder
+  as: operators
 empty:
   type: sequence
   duration: 200s

@@ -1,20 +1,15 @@
-use crate::dsl::{CompiledOperator, Identifier, OperatorInputDecl, ParamDecl, Type, Value};
+use crate::dsl::{CompiledOperator, Identifier, OperatorInputDecl, ParamDecl, Type};
 use crate::effect::EffectParamValue;
 use crate::identity::SourceIdentity;
 use crate::sequence::{CompositionGraphNodeKind, EffectGraphEdge, SequenceCompositionGraph};
-use crate::values::Color;
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
-
-pub use donder_runtime::BuiltinOperator;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct OperatorDefinitionId(pub SourceIdentity);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum OperatorRef {
-    Builtin(BuiltinOperator),
     Custom(OperatorDefinitionId),
 }
 
@@ -39,7 +34,6 @@ pub struct OperatorPortDefinition {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OperatorImplementation {
-    Native(BuiltinOperator),
     Dsl(Box<CompiledOperator>),
 }
 
@@ -75,26 +69,8 @@ impl OperatorDefinitionStore {
 
     pub fn resolve(&self, reference: &OperatorRef) -> Option<&OperatorDefinition> {
         match reference {
-            OperatorRef::Builtin(builtin) => Some(builtin_operator_definition(*builtin)),
             OperatorRef::Custom(id) => self.get(id),
         }
-    }
-}
-
-pub fn builtin_operator_definition(operator: BuiltinOperator) -> &'static OperatorDefinition {
-    &BUILTIN_DEFINITIONS[operator.index()]
-}
-
-fn identifier(name: &str) -> Identifier {
-    Identifier::new(name.to_string()).unwrap_or_else(|_| unreachable!("static identifier is valid"))
-}
-
-fn param(name: &str, ty: Type, default: Value) -> ParamDecl {
-    ParamDecl {
-        fixed: false,
-        name: identifier(name),
-        ty,
-        default: Some(default),
     }
 }
 
@@ -109,131 +85,6 @@ fn port(
         cardinality,
     }
 }
-
-fn definition(
-    builtin: BuiltinOperator,
-    source_name: &str,
-    declaration_name: &str,
-    display_name: &str,
-    inputs: &[(&str, &str)],
-    params: Vec<ParamDecl>,
-    implementation: OperatorImplementation,
-) -> OperatorDefinition {
-    OperatorDefinition {
-        id: OperatorRef::Builtin(builtin),
-        source_name: source_name.to_string(),
-        declaration_name: declaration_name.to_string(),
-        display_name: display_name.to_string(),
-        inputs: inputs
-            .iter()
-            .map(|(name, display)| port(name, display, OperatorPortCardinality::One))
-            .collect(),
-        output: port("output", "Output", OperatorPortCardinality::Many),
-        params,
-        implementation: match implementation {
-            OperatorImplementation::Native(_) => OperatorImplementation::Native(builtin),
-            dsl => dsl,
-        },
-    }
-}
-
-static BUILTIN_DEFINITIONS: LazyLock<[OperatorDefinition; 9]> = LazyLock::new(|| {
-    [
-        definition(
-            BuiltinOperator::Max,
-            "max",
-            "Max",
-            "Max",
-            &[("a", "A"), ("b", "B")],
-            vec![],
-            OperatorImplementation::Native(BuiltinOperator::Max),
-        ),
-        definition(
-            BuiltinOperator::Add,
-            "add",
-            "Add",
-            "Add",
-            &[("a", "A"), ("b", "B")],
-            vec![],
-            OperatorImplementation::Native(BuiltinOperator::Add),
-        ),
-        definition(
-            BuiltinOperator::Multiply,
-            "multiply",
-            "Multiply",
-            "Multiply",
-            &[("a", "A"), ("b", "B")],
-            vec![],
-            OperatorImplementation::Native(BuiltinOperator::Multiply),
-        ),
-        definition(
-            BuiltinOperator::IntensityModulate,
-            "intensity_modulate",
-            "IntensityModulate",
-            "Intensity Modulate",
-            &[("source", "Source"), ("mask", "Mask")],
-            vec![],
-            OperatorImplementation::Native(BuiltinOperator::IntensityModulate),
-        ),
-        definition(
-            BuiltinOperator::Dim,
-            "dim",
-            "Dim",
-            "Dim",
-            &[("input", "Source")],
-            vec![param("amount", Type::Float, Value::Float(0.5))],
-            OperatorImplementation::Native(BuiltinOperator::Dim),
-        ),
-        definition(
-            BuiltinOperator::Invert,
-            "invert",
-            "Invert",
-            "Invert",
-            &[("input", "Source")],
-            vec![],
-            OperatorImplementation::Native(BuiltinOperator::Invert),
-        ),
-        definition(
-            BuiltinOperator::Colorize,
-            "colorize",
-            "Colorize",
-            "Colorize",
-            &[("input", "Source")],
-            vec![param(
-                "color",
-                Type::Color,
-                Value::Color(Color {
-                    red: 255,
-                    green: 255,
-                    blue: 255,
-                }),
-            )],
-            OperatorImplementation::Native(BuiltinOperator::Colorize),
-        ),
-        definition(
-            BuiltinOperator::Delay,
-            "delay",
-            "Delay",
-            "Delay",
-            &[("input", "Source")],
-            vec![param("seconds", Type::Float, Value::Float(0.1))],
-            OperatorImplementation::Native(BuiltinOperator::Delay),
-        ),
-        definition(
-            BuiltinOperator::Echo,
-            "echo",
-            "Echo",
-            "Echo",
-            &[("input", "Source")],
-            vec![
-                param("seconds", Type::Float, Value::Float(0.1)),
-                param("repeats", Type::Int, Value::Int(3)),
-                param("decay", Type::Float, Value::Float(0.5)),
-            ],
-            OperatorImplementation::Native(BuiltinOperator::Echo),
-        ),
-    ]
-});
 
 pub fn custom_operator_definition(
     id: OperatorDefinitionId,
@@ -303,8 +154,11 @@ pub fn validate_composition_graph(
     for edge in &graph.edges {
         validate_edge(edge, &nodes, definitions, &mut edges, &mut occupied_inputs)?;
     }
+    let output_dependencies = composition_graph_output_dependencies(graph);
     for node in &graph.nodes {
-        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
+        if output_dependencies.contains(&node.id)
+            && let CompositionGraphNodeKind::Operator(operator) = &node.kind
+        {
             let definition =
                 definitions
                     .resolve(&operator.operator)
@@ -325,6 +179,33 @@ pub fn validate_composition_graph(
         }
     }
     validate_acyclic(graph)
+}
+
+/// Nodes that can contribute to the output. Disconnected authoring branches
+/// retain their definitions and edges, but need not have all inputs wired yet.
+pub fn composition_graph_output_dependencies(
+    graph: &SequenceCompositionGraph,
+) -> HashSet<crate::sequence::CompositionGraphNodeId> {
+    let mut incoming = HashMap::<_, Vec<_>>::new();
+    for edge in &graph.edges {
+        incoming.entry(&edge.to).or_default().push(&edge.from);
+    }
+    let mut pending = graph
+        .nodes
+        .iter()
+        .filter_map(|node| {
+            matches!(node.kind, CompositionGraphNodeKind::Output).then_some(&node.id)
+        })
+        .collect::<Vec<_>>();
+    let mut required = HashSet::new();
+    while let Some(id) = pending.pop() {
+        if required.insert(id.clone())
+            && let Some(inputs) = incoming.get(id)
+        {
+            pending.extend(inputs.iter().copied());
+        }
+    }
+    required
 }
 
 fn validate_edge<'a>(
@@ -525,7 +406,6 @@ pub fn effect_param_matches_type(value: &EffectParamValue, ty: &Type) -> bool {
 
 pub fn operator_reference_name(reference: &OperatorRef) -> &str {
     match reference {
-        OperatorRef::Builtin(builtin) => builtin_operator_definition(*builtin).source_name.as_str(),
         OperatorRef::Custom(id) => id.0.object(),
     }
 }

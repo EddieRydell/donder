@@ -77,12 +77,32 @@ pub struct AppSettings {
     pub sequence_initial_zoom_mode: SequenceInitialZoomMode,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
+    #[serde(default = "default_sequence_waveform_resolution_ms")]
+    pub sequence_waveform_resolution_ms: f32,
+    #[serde(default)]
+    pub sequence_spectrogram_enabled: bool,
+    #[serde(default = "default_sequence_spectrogram_time_resolution_ms")]
+    pub sequence_spectrogram_time_resolution_ms: f32,
+    #[serde(default = "default_sequence_spectrogram_fft_size")]
+    pub sequence_spectrogram_fft_size: u32,
     pub effect_raster: EffectRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
 }
 
 fn default_editor_view_mode() -> EditorViewMode {
     EditorViewMode::Gui
+}
+
+fn default_sequence_waveform_resolution_ms() -> f32 {
+    5.0
+}
+
+fn default_sequence_spectrogram_time_resolution_ms() -> f32 {
+    10.0
+}
+
+fn default_sequence_spectrogram_fft_size() -> u32 {
+    2048
 }
 
 impl Default for AppSettings {
@@ -95,6 +115,11 @@ impl Default for AppSettings {
             sequence_initial_zoom_mode: SequenceInitialZoomMode::FitToWidth,
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
+            sequence_waveform_resolution_ms: default_sequence_waveform_resolution_ms(),
+            sequence_spectrogram_enabled: false,
+            sequence_spectrogram_time_resolution_ms:
+                default_sequence_spectrogram_time_resolution_ms(),
+            sequence_spectrogram_fft_size: default_sequence_spectrogram_fft_size(),
             effect_raster: EffectRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
         }
@@ -406,24 +431,11 @@ impl From<donder_project_io::SourceDocumentFormat> for TextDocumentSyntax {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceEffectReference {
-    Builtin {
-        effect: SequenceBuiltinEffect,
-    },
     Custom {
         module_id: String,
         path: String,
         effect_name: String,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceBuiltinEffect {
-    Pulse,
-    Chase,
-    Spin,
-    MarkPulse,
-    MarkChase,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

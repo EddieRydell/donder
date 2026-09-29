@@ -49,7 +49,7 @@ pub(super) fn hoist_uniform(
                 | Instruction::MixColor { .. }
                 | Instruction::ColorBinary { .. }
                 | Instruction::ColorScale { .. }
-                | Instruction::ColorIntensity { .. }
+                | Instruction::ColorComponent { .. }
                 | Instruction::ColorInvert { .. }
                 | Instruction::Rgb { .. }
                 | Instruction::Hsv { .. }
@@ -519,7 +519,7 @@ fn slots(
             typed!(false, Float, scale);
             typed!(true, Color, dst);
         }
-        Instruction::ColorIntensity { dst, color } => {
+        Instruction::ColorComponent { dst, color, .. } => {
             typed!(false, Color, color);
             typed!(true, Float, dst);
         }

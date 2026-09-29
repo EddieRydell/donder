@@ -780,7 +780,7 @@ mod tests {
             state.snapshot().active_buffer.unwrap().text
         );
         edit(&state, text.clone());
-        state.open_file_path(donder_project_io::PROJECT_CONFIG_FILE);
+        state.open_file_path(donder_project_io::PROJECT_ROOT_FILE);
         state.set_active_file_path(SEQUENCE);
         assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
         let snapshot = state.save_all().unwrap();

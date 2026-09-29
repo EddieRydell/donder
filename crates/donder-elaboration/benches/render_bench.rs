@@ -168,10 +168,9 @@ fn bench_render(c: &mut Criterion) {
 
 fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::dsl::Identifier;
-    use donder_language::effect::{BuiltinEffect, CurveSource, EffectParamValue, EffectRef};
+    use donder_language::effect::{CurveSource, EffectParamValue, EffectRef};
     use donder_language::sequence::{MarkCollection, MarkCollectionKey};
     use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
-    use donder_runtime::native_effect::NativeSample;
     use donder_runtime::signal::PreparedEffectImplementation;
     use donder_runtime::values::SampleTime;
     pin_benchmark_thread();
@@ -200,11 +199,17 @@ fn bench_mark_playback(c: &mut Criterion) {
                 .map(|i| DonderTime(Duration::from_millis(2000 + i * 50)))
                 .collect(),
         }];
-        generator.definition = EffectRef::Builtin(if pulse {
-            BuiltinEffect::MarkPulse
-        } else {
-            BuiltinEffect::MarkChase
-        });
+        let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };
+        let definition_id = project
+            .definitions
+            .effects
+            .definitions
+            .iter()
+            .find(|(_, definition)| definition.source_name == effect_name)
+            .expect("standard mark effect must be imported")
+            .0
+            .clone();
+        generator.definition = EffectRef::Custom(definition_id);
         generator.start = DonderTime(Duration::ZERO);
         generator.duration = DonderDuration(Duration::from_secs(8));
         generator.layer_id = source.layers[0].id.clone();
@@ -221,13 +226,23 @@ fn bench_mark_playback(c: &mut Criterion) {
                 },
             ],
         }));
-        let mut values = vec![
-            ("beats", EffectParamValue::Marks(mark_key)),
-            ("hue", ramp.clone()),
-        ];
+        let mut values = vec![("beats", EffectParamValue::Marks(mark_key))];
+        let falloff = EffectParamValue::Curve(CurveSource::Inline(Curve {
+            points: vec![
+                CurvePoint {
+                    position: 0.0,
+                    value: 1.0,
+                },
+                CurvePoint {
+                    position: 1.0,
+                    value: 0.0,
+                },
+            ],
+        }));
         if pulse {
             values.extend([
                 ("accent", gradient),
+                ("pulse_shape", falloff),
                 ("decay_seconds", EffectParamValue::Float(1.2)),
             ]);
         } else {
@@ -237,7 +252,7 @@ fn bench_mark_playback(c: &mut Criterion) {
                     "chase_positions",
                     EffectParamValue::Array(vec![ramp.clone()]),
                 ),
-                ("pulse_shape", ramp),
+                ("pulse_shape", falloff),
                 ("chase_seconds", EffectParamValue::Float(1.2)),
             ]);
         }
@@ -249,11 +264,17 @@ fn bench_mark_playback(c: &mut Criterion) {
         source.effects = vec![generator];
         source.automation_clips.clear();
         let sequence = elaborate_sequence(&project, project.root.setup.id(), &id).unwrap();
-        let effect = sequence.effects.iter().find(|effect| matches!(
-            &effect.implementation,
-            PreparedEffectImplementation::Native { sample, .. }
-                if matches!((sample, pulse), (NativeSample::MarkPulseChild(_), true) | (NativeSample::MarkChaseChild(_), false))
-        )).expect("constructed fixture must contain the intended generated mark children");
+        let effect = sequence
+            .effects
+            .iter()
+            .find(|effect| {
+                matches!(
+                    &effect.implementation,
+                    PreparedEffectImplementation::Dsl { .. }
+                        | PreparedEffectImplementation::Bound { .. }
+                )
+            })
+            .expect("constructed fixture must contain DSL mark children");
         assert!(effect.duration.as_ticks() > 0);
         assert!(
             sequence.effects.len() >= 32,
@@ -295,28 +316,22 @@ fn bench_mark_playback(c: &mut Criterion) {
 
 fn bench_chase_pulse(c: &mut Criterion) {
     pin_benchmark_thread();
-    let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
-    let (effect, _) = effect_fixtures::prepared_effect(name, source, params);
     let cases = [1, 4, 16]
         .into_iter()
         .map(|layers| {
             (
                 format!("prepared_chase_pulse/{layers}"),
-                workload::chase_pulse_show(200, layers, effect.bytecode.clone()),
+                workload::chase_pulse_show(200, layers),
             )
         })
         .chain([
             (
                 "prepared_device_marks/pulse".into(),
-                mark_workload::mark_show(200, true, 0.0, effect.bytecode.clone()),
+                mark_workload::mark_show(200, true),
             ),
             (
                 "prepared_device_marks/chase".into(),
-                mark_workload::mark_show(200, false, 0.0, effect.bytecode.clone()),
-            ),
-            (
-                "prepared_device_marks/pulse_edge".into(),
-                mark_workload::mark_show(200, true, 1.0, effect.bytecode.clone()),
+                mark_workload::mark_show(200, false),
             ),
         ]);
     for (name, show) in cases {
@@ -472,6 +487,70 @@ fn bench_operators(c: &mut Criterion) {
                     })
                 });
             }
+        }
+    }
+
+    let standard = donder_language::dsl::compile_operators(include_str!(
+        "../../../examples/starter/operators/standard.operator.donder"
+    ))
+    .unwrap();
+    let echo = standard
+        .iter()
+        .find(|operator| operator.name().as_str() == "Echo")
+        .unwrap();
+    let invert = standard
+        .iter()
+        .find(|operator| operator.name().as_str() == "Invert")
+        .unwrap();
+    for count in workload::COUNTS {
+        for (name, nested) in [
+            ("standard_echo", false),
+            ("standard_echo_nested_invert", true),
+        ] {
+            let mut show = workload::chase_pulse_show(count, 4);
+            workload::apply_operator(&mut show, echo.bytecode.clone(), true);
+            let donder_runtime::signal::PreparedSignalKind::Operator { operator, .. } =
+                &mut show.signals.plan.nodes[1].kind
+            else {
+                unreachable!();
+            };
+            operator.params =
+                donder_runtime::dsl::BoundParams::bind_pairs(echo.params(), &[]).unwrap();
+            if nested {
+                // Layer -> Echo -> Invert -> Echo mixes scalar temporal requests
+                // with a uniform upstream query that must not promote back to frames.
+                workload::insert_invert(&mut show, invert.bytecode.clone());
+            }
+            let mut workspace = show.workspace();
+            let mut output = [vec![0; count * 3]];
+            let mut fresh_output = [vec![0; count * 3]];
+            let mut any_lit = false;
+            for frame in (0..workload::FRAMES).chain([12, 0, workload::FRAMES - 1]) {
+                let time = workload::time(frame);
+                show.evaluate(time, &mut output, &mut workspace).unwrap();
+                show.evaluate(time, &mut fresh_output, &mut show.workspace())
+                    .unwrap();
+                assert_eq!(
+                    workload::checksum(&output[0]),
+                    workload::checksum(&fresh_output[0]),
+                    "{name}/{count} frame {frame}: reused workspace differs from fresh"
+                );
+                any_lit |= output[0].iter().any(|&byte| byte != 0);
+            }
+            assert!(any_lit, "{name}/{count} produced only black frames");
+            let mut frame = 0;
+            c.bench_function(&format!("prepared_temporal/{name}/{count}"), |b| {
+                b.iter(|| {
+                    frame = (frame + 1) % workload::FRAMES;
+                    show.evaluate(
+                        black_box(workload::time(frame)),
+                        &mut output,
+                        &mut workspace,
+                    )
+                    .unwrap();
+                    black_box(&output);
+                })
+            });
         }
     }
 }

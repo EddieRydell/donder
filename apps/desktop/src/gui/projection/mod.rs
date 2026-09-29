@@ -62,28 +62,16 @@ pub(super) fn project_sequence(
         .collect();
     let composition_graph = SequenceCompositionGraph {
         id: 0,
-        operator_catalog: BuiltinOperator::ALL
+        operator_catalog: session
+            .project
+            .definitions
+            .operators
+            .definitions
             .iter()
-            .map(|builtin| {
-                graph_operator_definition_to_gui(
-                    OperatorRef::Builtin(*builtin),
-                    donder_language::operator::builtin_operator_definition(*builtin),
-                )
+            .filter(|(id, _)| session.source.is_project_owned(id.0.document_id()))
+            .map(|(id, definition)| {
+                graph_operator_definition_to_gui(OperatorRef::Custom(id.clone()), definition)
             })
-            .chain(
-                session
-                    .project
-                    .definitions
-                    .operators
-                    .definitions
-                    .iter()
-                    .map(|(id, definition)| {
-                        graph_operator_definition_to_gui(
-                            OperatorRef::Custom(id.clone()),
-                            definition,
-                        )
-                    }),
-            )
             .collect(),
         nodes: sequence
             .composition_graph
@@ -260,9 +248,6 @@ fn effect_target_label(session: &ProjectSession, target: &DomainFixtureTarget) -
 
 fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
     match reference {
-        EffectRef::Builtin(effect) => SequenceEffectReference::Builtin {
-            effect: builtin_effect_to_gui(*effect),
-        },
         EffectRef::Custom(id) => SequenceEffectReference::Custom {
             module_id: id.0.module_id().to_string(),
             path: id.0.document().to_string(),
@@ -271,29 +256,23 @@ fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
     }
 }
 
-fn builtin_effect_to_gui(effect: BuiltinEffect) -> SequenceBuiltinEffect {
-    match effect {
-        BuiltinEffect::Pulse => SequenceBuiltinEffect::Pulse,
-        BuiltinEffect::Chase => SequenceBuiltinEffect::Chase,
-        BuiltinEffect::Spin => SequenceBuiltinEffect::Spin,
-        BuiltinEffect::MarkPulse => SequenceBuiltinEffect::MarkPulse,
-        BuiltinEffect::MarkChase => SequenceBuiltinEffect::MarkChase,
-    }
-}
-
 fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
-    BuiltinEffect::ALL
-        .into_iter()
-        .map(|builtin| {
-            let definition = donder_language::effect::builtin_effect_definition(builtin);
+    session
+        .project
+        .definitions
+        .effects
+        .definitions
+        .iter()
+        .map(|(id, definition)| {
+            let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
             SequenceEffectDefinition {
                 name: definition.display_name.clone(),
                 kind: match definition.kind {
                     EffectKind::Sample => SequenceEffectDefinitionKind::Sample,
                     EffectKind::Generator => SequenceEffectDefinitionKind::Generator,
                 },
-                effect: effect_ref_to_gui(&EffectRef::Builtin(builtin)),
-                import_path: None,
+                effect: source,
+                import_path: Some(id.0.document().to_string()),
                 params: definition
                     .params
                     .iter()
@@ -308,44 +287,12 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
                     .collect(),
             }
         })
-        .chain(
-            session
-                .project
-                .definitions
-                .effects
-                .definitions
-                .iter()
-                .map(|(id, definition)| {
-                    let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
-                    SequenceEffectDefinition {
-                        name: definition.display_name.clone(),
-                        kind: match definition.kind {
-                            EffectKind::Sample => SequenceEffectDefinitionKind::Sample,
-                            EffectKind::Generator => SequenceEffectDefinitionKind::Generator,
-                        },
-                        effect: source,
-                        import_path: Some(id.0.document().to_string()),
-                        params: definition
-                            .params
-                            .iter()
-                            .filter_map(|param| {
-                                Some(SequenceEffectDefinitionParam {
-                                    fixed: param.fixed,
-                                    supports_automation: param.supports_automation(),
-                                    name: param.name.as_str().to_string(),
-                                    kind: param_kind(&param.ty)?,
-                                })
-                            })
-                            .collect(),
-                    }
-                }),
-        )
         .collect()
 }
 use donder_language::dsl::EffectKind;
-use donder_language::effect::{BuiltinEffect, EffectRef, EffectScope};
+use donder_language::effect::{EffectRef, EffectScope};
 use donder_language::layout::{FixtureTarget as DomainFixtureTarget, Layout};
-use donder_language::operator::{BuiltinOperator, OperatorRef};
+use donder_language::operator::OperatorRef;
 use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
 use donder_project_io::ProjectSession;
 
@@ -353,11 +300,10 @@ mod spatial;
 use super::{ResolvedGuiObject, blocked, gui_diagnostic};
 use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
-    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceBuiltinEffect,
-    SequenceCompositionGraph, SequenceCurvePoint, SequenceDetachedAutomationBinding,
-    SequenceEffect, SequenceEffectDefinition, SequenceEffectDefinitionKind,
-    SequenceEffectDefinitionParam, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
-    SequenceGuiDocument, SequenceLane, SequenceLayer, SequenceMarkCollection,
-    SequenceTimelineClipKind,
+    SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
+    SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
+    SequenceEffectDefinition, SequenceEffectDefinitionKind, SequenceEffectDefinitionParam,
+    SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument,
+    SequenceLane, SequenceLayer, SequenceMarkCollection, SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

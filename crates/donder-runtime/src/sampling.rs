@@ -149,6 +149,40 @@ pub fn color_intensity(color: Color) -> f32 {
     f32::from(color.red.max(color.green).max(color.blue)) / 255.0
 }
 
+/// HSV hue in turns, in [0, 1). Achromatic colors have hue zero.
+#[inline]
+pub fn color_hue(color: Color) -> f32 {
+    let r = f32::from(color.red);
+    let g = f32::from(color.green);
+    let b = f32::from(color.blue);
+    let max = r.max(g).max(b);
+    let chroma = max - r.min(g).min(b);
+    if chroma == 0.0 {
+        return 0.0;
+    }
+    let sector = if max == r {
+        (g - b) / chroma
+    } else if max == g {
+        (b - r) / chroma + 2.0
+    } else {
+        (r - g) / chroma + 4.0
+    };
+    let hue = sector / 6.0;
+    if hue < 0.0 { hue + 1.0 } else { hue }
+}
+
+/// HSV saturation in [0, 1]. Black and grayscale have saturation zero.
+#[inline]
+pub fn color_saturation(color: Color) -> f32 {
+    let max = color.red.max(color.green).max(color.blue);
+    let min = color.red.min(color.green).min(color.blue);
+    if max == 0 {
+        0.0
+    } else {
+        f32::from(max - min) / f32::from(max)
+    }
+}
+
 #[inline]
 pub fn hsv(h: f32, s: f32, v: f32) -> Color {
     let h = h - libm::floorf(h);

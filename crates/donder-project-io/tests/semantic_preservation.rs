@@ -10,7 +10,7 @@ fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf, ProjectSession) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     export_project(&starter, &root).unwrap();
-    common::write_project_config(&root);
+    common::write_workspace_metadata(&root);
     let session = common::load_project(&root);
     (temporary, root, session)
 }
@@ -185,11 +185,13 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
     let (_temporary, root, _) = starter_copy();
     let path = root.join("sequences/empty.sequence.donder");
     let original = fs::read_to_string(&path).unwrap();
-    fs::write(
-        &path,
-        format!("{original}\n{}", original.replacen("empty:", "unused:", 1)),
-    )
-    .unwrap();
+    let mut document: yaml_serde::Value = yaml_serde::from_str(&original).unwrap();
+    let unused = document["empty"].clone();
+    document
+        .as_mapping_mut()
+        .unwrap()
+        .insert(yaml_serde::Value::String("unused".into()), unused);
+    fs::write(&path, yaml_serde::to_string(&document).unwrap()).unwrap();
     let mut session = common::load_project(&root);
     let id = session
         .project

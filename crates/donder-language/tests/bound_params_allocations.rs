@@ -491,7 +491,7 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
 }
 
 #[test]
-fn native_curve_automation_releases_previous_sample_before_update() {
+fn dsl_curve_automation_releases_previous_sample_before_update() {
     let effect = donder_language::dsl::compile_effects(
         "effect Reference { color sample() { return rgb(0.0, 0.0, 0.0); } }",
     )
@@ -500,24 +500,13 @@ fn native_curve_automation_releases_previous_sample_before_update() {
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let mut show = workload::show(2, effect.bytecode, params);
-    workload::apply_native_automation(&mut show, false);
-    let reference = donder_language::dsl::compile_effects(
-        "effect Reference { param gradient ramp; param curve shape; color sample() { return ramp[progress()] * shape[progress()]; } }",
-    ).unwrap().remove(0).effect;
-    let donder_runtime::signal::PreparedEffectImplementation::Native {
-        params: Some((_, params)),
-        ..
-    } = &show.signals.effects[0].implementation
-    else {
-        panic!("expected native parameters")
-    };
-    let mut reference_show = workload::show(2, reference.bytecode, params.clone());
-    workload::apply_native_automation(&mut reference_show, false);
-    reference_show.signals.effects[0].implementation =
-        donder_runtime::signal::PreparedEffectImplementation::Dsl {
-            program: 0,
-            bound_params: params.clone(),
-        };
+    let pulse = donder_language::dsl::compile_effects(include_str!(
+        "../../../examples/starter/effects/standard.effect.donder"
+    ))
+    .unwrap()
+    .remove(0)
+    .effect;
+    workload::apply_pulse_automation(&mut show, pulse.bytecode, false);
     let mut workspace = show.workspace();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
@@ -532,20 +521,12 @@ fn native_curve_automation_releases_previous_sample_before_update() {
         show.evaluate(workload::time(frame), &mut expected, &mut show.workspace())
             .unwrap();
         assert_eq!(actual, expected);
-        reference_show
-            .evaluate(
-                workload::time(frame),
-                &mut expected,
-                &mut reference_show.workspace(),
-            )
-            .unwrap();
-        assert_eq!(actual, expected, "native pulse differs from DSL");
     }
     assert_eq!(counts, [0; 4]);
 }
 
 #[test]
-fn native_signal_nodes_do_not_displace_upstream_vm_storage() {
+fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
     let effect = donder_language::dsl::compile_effects(
         "effect Ramp { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
     )
@@ -559,7 +540,14 @@ fn native_signal_nodes_do_not_displace_upstream_vm_storage() {
         .unwrap()
         .remove(0);
     workload::apply_operator(&mut show, operator.bytecode, true);
-    workload::insert_native_invert(&mut show);
+    let invert = donder_language::dsl::compile_operators(include_str!(
+        "../../../examples/starter/operators/standard.operator.donder"
+    ))
+    .unwrap()
+    .into_iter()
+    .find(|operator| operator.name().as_str() == "Invert")
+    .unwrap();
+    workload::insert_invert(&mut show, invert.bytecode);
     let mut workspace = show.workspace();
     let mut reference_workspace = reference.workspace();
     let mut actual = [vec![0; 6]];
@@ -581,7 +569,7 @@ fn native_signal_nodes_do_not_displace_upstream_vm_storage() {
         COUNTING.set(false);
         result.unwrap();
         assert_eq!(actual, expected);
-        assert_eq!(ALLOCATIONS.get(), 0, "native node displaced VM storage");
+        assert_eq!(ALLOCATIONS.get(), 0, "nested operator displaced VM storage");
     }
 }
 

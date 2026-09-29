@@ -64,7 +64,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     assert!(session.project.setups.is_empty());
     assert!(session.project.layouts.is_empty());
@@ -97,7 +97,9 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     assert_eq!(session.project, reloaded.project);
     let text = std::fs::read_to_string(root.join("project.donder")).unwrap();
     let document: yaml_serde::Value = yaml_serde::from_str(&text).unwrap();
-    assert_eq!(document.as_mapping().unwrap().len(), 1);
+    assert_eq!(document.as_mapping().unwrap().len(), 2);
+    assert!(document.as_mapping().unwrap().contains_key("workspace"));
+    assert!(document.as_mapping().unwrap().contains_key("show"));
 }
 
 #[test]
@@ -127,7 +129,7 @@ fn ownership_rejects_duplicate_ids_malformed_types_and_dangling_addresses() {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temporary.path()).unwrap();
         std::fs::write(root.join("project.donder"), text).unwrap();
-        common::write_project_config(root);
+        common::write_workspace_metadata(root);
         let error = load_project(root)
             .expect_err("invalid ownership must fail")
             .to_string();
@@ -144,7 +146,7 @@ fn document_moves_keep_owned_targets_attached_to_their_owner() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     let before = session.project.root.id.0.document_id().clone();
     let after = DocumentId::new(before.module_id(), "renamed/project.donder".into());
@@ -201,7 +203,7 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
             yaml_serde::to_string(&document).unwrap(),
         )
         .unwrap();
-        common::write_project_config(root);
+        common::write_workspace_metadata(root);
         let mut session = common::load_project(root);
         assert_eq!(session.project.controllers.len(), 1);
         let ValueSource::Inline(setup) = &mut session.project.root.setup else {
@@ -223,7 +225,8 @@ fn saving_a_dangling_owned_target_fails_before_writing() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
+    let before = std::fs::read_to_string(root.join("project.donder")).unwrap();
     let mut session = common::load_project(root);
     let setup = session.project.root.setup.inline_mut().unwrap();
     let controller = setup.controllers[1].id().clone();
@@ -232,7 +235,7 @@ fn saving_a_dangling_owned_target_fails_before_writing() {
     assert!(save_project(&session).is_err());
     assert_eq!(
         std::fs::read_to_string(root.join("project.donder")).unwrap(),
-        INLINE_PROJECT
+        before
     );
 }
 #[test]
@@ -243,7 +246,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     let document = session.project.root.id.0.document_id().clone();
     let setup = session.project.root.setup.id().clone();
@@ -344,7 +347,7 @@ fn independent_setup_retargets_a_linked_patch_to_its_copied_owned_children() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     let document = session.project.root.id.0.document_id().clone();
     let setup = session.project.root.setup.id().clone();
@@ -426,7 +429,7 @@ fn promoting_an_owned_setup_to_another_file_preserves_nested_identity_and_routin
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     let document = session.project.root.id.0.document_id().clone();
     let destination = session
@@ -507,7 +510,7 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
         yaml_serde::to_string(&source).unwrap()
     );
     std::fs::write(root.join("project.donder"), project_doc).unwrap();
-    common::write_project_config(root);
+    common::write_workspace_metadata(root);
     let mut session = common::load_project(root);
     let shared = session
         .project

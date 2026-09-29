@@ -20,6 +20,7 @@ export type CommandId =
   | "edit.undo"
   | "edit.redo"
   | "view.toggleGuiMode"
+  | "view.toggleSpectrogram"
   | "view.toggleProjectTree"
   | "view.focusExplorer"
   | "view.focusSearch"
@@ -83,6 +84,14 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
       await navigateToText(snapshot.activeFile, diagnostic?.range ?? null);
       focusSidebar("problems")();
     }
+  }, hasProject),
+  "view.toggleSpectrogram": command("Show Spectrogram", "View", ["audio", "waveform", "frequency"], async () => {
+    const settings = useAppStore.getState().snapshot?.settings;
+    if (settings === undefined) return;
+    await runSnapshotCommand(() => commands.updateAppSettings({
+      ...settings,
+      sequenceSpectrogramEnabled: !(settings.sequenceSpectrogramEnabled ?? false)
+    }));
   }, hasProject),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);

@@ -54,13 +54,13 @@ fn unused_imported_emissions_validate_types_and_fixed_parameters() {
 }
 
 fn generator(reference: &str) -> String {
-    let curve_field = if reference == "builtins.pulse" {
+    let curve_field = if reference == "standard.Pulse" {
         "pulse_shape"
     } else {
         "intensity"
     };
     format!(
-        "effect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target, gradient: ramp, {curve_field}: shape }}; }} }}"
+        "effect Local {{ param gradient gradient; param curve intensity; color sample() {{ return gradient[progress()] * intensity[progress()]; }} }} effect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target, gradient: ramp, {curve_field}: shape }}; }} }}"
     )
 }
 
@@ -86,7 +86,7 @@ fn yaml_and_dsl_grouped_declarations_have_identical_ordered_targets() {
         let project = sources
             .get_mut(&Utf8PathBuf::from("project.donder"))
             .unwrap();
-        *project = project.replacen(
+        *project = project.replace("\r\n", "\n").replacen(
             "imports:\n",
             &format!("imports:\n- from: {{ documents: [{CHILD}, {EXTRA}] }}\n  as: {alias}\n"),
             1,
@@ -138,10 +138,7 @@ fn alias_policy_is_shared_without_package_name_restrictions() {
         let mut sources = project_source_texts(&root()).unwrap();
         sources.insert(
             GENERATOR.into(),
-            format!(
-                "import {alias} from [\"{CHILD}\"];\n{}",
-                generator("builtins.pulse")
-            ),
+            format!("import {alias} from [\"{CHILD}\"];\n{}", generator("Local")),
         );
         assert!(
             check_project_with_overrides(&root(), &sources)
@@ -149,11 +146,11 @@ fn alias_policy_is_shared_without_package_name_restrictions() {
                 .is_none(),
             "DSL {alias}"
         );
-        sources.insert(GENERATOR.into(), generator("builtins.pulse"));
+        sources.insert(GENERATOR.into(), generator("Local"));
         let project = sources
             .get_mut(&Utf8PathBuf::from("project.donder"))
             .unwrap();
-        *project = project.replacen(
+        *project = project.replace("\r\n", "\n").replacen(
             "imports:\n",
             &format!("imports:\n- from: {{ documents: [{CHILD}] }}\n  as: '{alias}'\n"),
             1,
@@ -196,7 +193,11 @@ fn grouped_collisions_report_both_source_occurrences_in_both_formats() {
                     text += &format!("- from: {{ documents: [{path}] }}\n  as: {alias}\n");
                 }
                 let original = sources[&Utf8PathBuf::from(path)].clone();
-                original.replacen("imports:\n", &format!("imports:\n{text}"), 1)
+                original.replace("\r\n", "\n").replacen(
+                    "imports:\n",
+                    &format!("imports:\n{text}"),
+                    1,
+                )
             } else {
                 let paths = documents
                     .split(", ")
@@ -316,7 +317,7 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
                 let project = sources
                     .get_mut(&Utf8PathBuf::from("project.donder"))
                     .unwrap();
-                *project = project.replacen(
+                *project = project.replace("\r\n", "\n").replacen(
                     "imports:\n",
                     &format!("imports:\n- from: {{ documents: ['{path}'] }}\n  as: fx\n"),
                     1,
@@ -324,10 +325,7 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
             } else {
                 sources.insert(
                     GENERATOR.into(),
-                    format!(
-                        "import fx from [\"{path}\"];\n{}",
-                        generator("builtins.pulse")
-                    ),
+                    format!("import fx from [\"{path}\"];\n{}", generator("Local")),
                 );
             }
             let report = check_project_with_overrides(&root(), &sources);
@@ -348,19 +346,19 @@ fn local_imports_and_package_exports_share_safe_path_policy() {
 }
 
 #[test]
-fn linked_target_slots_include_local_imported_and_builtin_children_in_source_order() {
+fn linked_target_slots_include_local_and_imported_children_in_source_order() {
     let mut sources = project_source_texts(&root()).unwrap();
-    let emits = ["Local", "fx.ImpactBurst", "builtins.pulse", "Local"]
+    let emits = ["Local", "fx.ImpactBurst", "standard.Pulse", "Local"]
         .map(|reference| {
             let arguments = match reference {
                 "fx.ImpactBurst" => ", gradient: ramp, intensity: shape",
-                "builtins.pulse" => ", gradient: ramp, pulse_shape: shape",
+                "standard.Pulse" => ", gradient: ramp, pulse_shape: shape",
                 _ => "",
             };
             format!("timeline.emit {reference} {{ start: 0.0, duration: 0.1, target: target{arguments} }};")
         })
         .join("\n");
-    sources.insert(GENERATOR.into(), format!("import fx from [\"{CHILD}\"];\neffect Local {{ color sample() {{ return hsv(0.0, 1.0, 1.0); }} }}\neffect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ {emits} }} }}"));
+    sources.insert(GENERATOR.into(), format!("import fx from [\"{CHILD}\"];\nimport standard from [\"effects/standard.effect.donder\"];\neffect Local {{ color sample() {{ return hsv(0.0, 1.0, 1.0); }} }}\neffect MarkImpactBurst {{ param gradient ramp; param curve shape; void generate() {{ {emits} }} }}"));
     // Reach the mutual pair in either order.
     let child = sources[&Utf8PathBuf::from(CHILD)].clone();
     sources.insert(
@@ -372,7 +370,7 @@ fn linked_target_slots_include_local_imported_and_builtin_children_in_source_ord
         let project = reordered
             .get_mut(&Utf8PathBuf::from("project.donder"))
             .unwrap();
-        *project = project.replacen(
+        *project = project.replace("\r\n", "\n").replacen(
             "imports:\n",
             &format!("imports:\n- from: {{ documents: [{first}] }}\n  as: first\n"),
             1,
@@ -394,7 +392,9 @@ fn linked_target_slots_include_local_imported_and_builtin_children_in_source_ord
             matches!(&targets[0], EffectRef::Custom(id) if id.0.document() == GENERATOR && id.0.object() == "Local")
         );
         assert!(matches!(&targets[1], EffectRef::Custom(id) if id.0.document() == CHILD));
-        assert!(matches!(targets[2], EffectRef::Builtin(_)));
+        assert!(
+            matches!(&targets[2], EffectRef::Custom(id) if id.0.document().as_str() == "effects/standard.effect.donder" && id.0.object() == "Pulse")
+        );
         assert_eq!(targets[0], targets[3]);
     }
 }
@@ -455,7 +455,11 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
         .effects
         .definitions
         .keys()
-        .find(|id| id.0 != own && id.0 != other && id.0.document().as_str() != CHILD)
+        .find(|id| {
+            id.0.document_id() != own.document_id()
+                && id.0.document_id() != other.document_id()
+                && id.0.document().as_str() != CHILD
+        })
         .unwrap()
         .0
         .clone();

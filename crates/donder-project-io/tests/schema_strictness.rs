@@ -71,6 +71,44 @@ fn mapping_paths(
 }
 
 #[test]
+fn operator_names_require_project_definitions_and_explicit_imports() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("examples/starter");
+    let original = project_source_texts(&root).unwrap();
+    let path = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
+    let source = &original[&path];
+    assert!(source.contains("operator: operators.TimeWarp"));
+    for name in [
+        "max",
+        "add",
+        "multiply",
+        "intensity_modulate",
+        "dim",
+        "invert",
+        "colorize",
+        "delay",
+        "echo",
+    ] {
+        let mut overrides = original.clone();
+        overrides.insert(
+            path.clone(),
+            source.replace("operator: operators.TimeWarp", &format!("operator: {name}")),
+        );
+        let report = check_project_with_overrides(&root, &overrides);
+        assert!(
+            report.session.is_none(),
+            "unimported operator {name} resolved"
+        );
+        assert!(!report.diagnostics.is_empty());
+    }
+    assert_eq!(original, project_source_texts(&root).unwrap());
+}
+
+#[test]
 fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -185,7 +223,7 @@ show:
     )
     .unwrap();
     std::fs::write(root.join("effect.effect.donder"), "effect Defaults { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
-    common::write_project_config(&root);
+    common::write_workspace_metadata(&root);
     common::load_project(&root);
     (temporary, root)
 }

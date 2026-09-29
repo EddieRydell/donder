@@ -1,5 +1,7 @@
 use donder_language::dsl::{BoundParams, BytecodeProgram, ParamDecl};
-use donder_language::operator::{OperatorImplementation, validate_composition_graph};
+use donder_language::operator::{
+    OperatorImplementation, composition_graph_output_dependencies, validate_composition_graph,
+};
 use donder_language::sequence::{
     AutomationTarget, CompositionGraphNodeId, CompositionGraphNodeKind, GraphPortId, Sequence,
     SequenceCompositionGraph,
@@ -71,6 +73,7 @@ pub(crate) fn prepare_signal_graph(
         .map(|(index, node_id)| (node_id, index))
         .collect::<IndexMap<_, _>>();
     let node_order = topological_composition_graph_order(&node_ids, &node_indexes, graph)?;
+    let output_dependencies = composition_graph_output_dependencies(graph);
     let mut incoming = vec![Vec::<(GraphPortId, usize)>::new(); node_ids.len()];
     for edge in &graph.edges {
         let from = node_index(&node_indexes, &edge.from)?;
@@ -84,6 +87,9 @@ pub(crate) fn prepare_signal_graph(
     let mut prepared_index_by_node = vec![usize::MAX; node_ids.len()];
     for node_index in &node_order {
         let node_id = &node_ids[*node_index];
+        if !output_dependencies.contains(node_id) {
+            continue;
+        }
         let node = graph_node(graph, node_id)?;
         let prepared = match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } => {
@@ -182,7 +188,6 @@ pub(crate) fn prepare_signal_graph(
                         };
                         PreparedOperator::Dsl(program)
                     }
-                    OperatorImplementation::Native(builtin) => PreparedOperator::Native(*builtin),
                 };
                 let operator = PreparedOperatorNode {
                     automation_slot: u32::try_from(automation_count).map_err(|_| {
@@ -261,22 +266,15 @@ pub(crate) fn finish_signal_plan(
     let mut vm_depths = Vec::with_capacity(prepared_nodes.len());
     let mut vm_workspace_count = 0;
     for node in &mut prepared_nodes {
-        let (inputs, is_dsl, vm_slot) = match &mut node.kind {
+        let (inputs, vm_slot) = match &mut node.kind {
             PreparedSignalKind::Layer { .. } => {
                 vm_depths.push(0);
                 continue;
             }
             PreparedSignalKind::Operator {
-                operator,
-                inputs,
-                vm_slot,
-                ..
-            } => (
-                &inputs[..],
-                matches!(operator.implementation, PreparedOperator::Dsl(_)),
-                Some(vm_slot),
-            ),
-            PreparedSignalKind::Output { inputs } => (&inputs[..], false, None),
+                inputs, vm_slot, ..
+            } => (&inputs[..], Some(vm_slot)),
+            PreparedSignalKind::Output { inputs } => (&inputs[..], None),
         };
         let input_depth = inputs
             .iter()
@@ -284,15 +282,10 @@ pub(crate) fn finish_signal_plan(
             .copied()
             .max()
             .unwrap_or(0);
-        if is_dsl {
+        if let Some(vm_slot) = vm_slot {
             let slot = u16::try_from(input_depth).map_err(|_| RenderError::BadGraph {
                 message: "composition graph DSL nesting exceeds the runtime range".to_string(),
             })?;
-            let Some(vm_slot) = vm_slot else {
-                return Err(RenderError::BadGraph {
-                    message: "DSL operator is missing its VM workspace slot".to_string(),
-                });
-            };
             *vm_slot = slot;
             let depth = input_depth + 1;
             vm_workspace_count = vm_workspace_count.max(depth);
@@ -399,13 +392,7 @@ fn mark_frame_nodes(nodes: &[PreparedSignalNode], index: usize, required: &mut [
 fn frame_inputs(node: &PreparedSignalNode) -> &[usize] {
     match &node.kind {
         PreparedSignalKind::Layer { .. } => &[],
-        PreparedSignalKind::Operator {
-            operator, inputs, ..
-        } => match operator.implementation {
-            PreparedOperator::Native(builtin) if builtin.resamples_time() => &[],
-            PreparedOperator::Dsl(_) => &[],
-            PreparedOperator::Native(_) => inputs,
-        },
+        PreparedSignalKind::Operator { .. } => &[],
         PreparedSignalKind::Output { inputs } => inputs,
     }
 }

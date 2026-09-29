@@ -92,6 +92,40 @@ export function SettingsDialog() {
                 value={draft.sequenceInitialLaneHeightPx}
                 onChange={(sequenceInitialLaneHeightPx) => void update({ ...draft, sequenceInitialLaneHeightPx })}
               />
+              <NumberInput
+                label="Waveform resolution (ms)"
+                min={1}
+                max={100}
+                step={1}
+                value={draft.sequenceWaveformResolutionMs ?? 5}
+                onChange={(sequenceWaveformResolutionMs) => void update({ ...draft, sequenceWaveformResolutionMs })}
+              />
+              <Checkbox
+                label="Show spectrogram"
+                checked={draft.sequenceSpectrogramEnabled ?? false}
+                onChange={(sequenceSpectrogramEnabled) => void update({ ...draft, sequenceSpectrogramEnabled })}
+              />
+              <NumberInput
+                label="Spectrogram time resolution (ms)"
+                min={0.5}
+                max={100}
+                step={0.5}
+                value={draft.sequenceSpectrogramTimeResolutionMs ?? 10}
+                onChange={(sequenceSpectrogramTimeResolutionMs) => void update({ ...draft, sequenceSpectrogramTimeResolutionMs })}
+              />
+              <Select
+                label="Spectrogram frequency resolution"
+                value={String(draft.sequenceSpectrogramFftSize ?? 2048)}
+                options={[
+                  ["512", "512-point FFT"],
+                  ["1024", "1024-point FFT"],
+                  ["2048", "2048-point FFT"],
+                  ["4096", "4096-point FFT"],
+                  ["8192", "8192-point FFT"],
+                  ["16384", "16384-point FFT"]
+                ]}
+                onChange={(sequenceSpectrogramFftSize) => void update({ ...draft, sequenceSpectrogramFftSize: Number(sequenceSpectrogramFftSize) })}
+              />
             </section>
 
             <section>

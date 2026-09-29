@@ -912,9 +912,8 @@ impl DomainResolver<'_> {
                 range: source_range_for_field_value(path, value, "effect"),
                 reference: effect_ref.to_string(),
             })?;
-        if let EffectRef::Custom(definition) = &reference {
-            self.resolve_effect_definition(definition)?;
-        }
+        let EffectRef::Custom(definition) = &reference;
+        self.resolve_effect_definition(definition)?;
         Ok(reference)
     }
 
@@ -948,9 +947,6 @@ impl DomainResolver<'_> {
     ) -> Result<OperatorRef, LoadProjectError> {
         let path = document_id.path();
         let name = fields.string("operator")?;
-        if let Some(builtin) = BuiltinOperator::from_source_name(name) {
-            return Ok(OperatorRef::Builtin(builtin));
-        }
         match self.loader.resolve_reference(document_id, name)? {
             ResolvedObject::OperatorDefinition(id) => Ok(OperatorRef::Custom(id)),
             _ => Err(LoadProjectError::InvalidReference {
@@ -1233,9 +1229,7 @@ use donder_language::effect::{
     EffectRef, GradientSource,
 };
 use donder_language::model::DonderProject;
-use donder_language::operator::{
-    BuiltinOperator, GraphOperatorNode, OperatorRef, validate_composition_graph,
-};
+use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
 use donder_language::sequence::{
     AssetId, AutomationClip, AutomationClipId, CompositionGraphNode, CompositionGraphNodeId,
     CompositionGraphNodeKind, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,

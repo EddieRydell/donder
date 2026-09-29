@@ -20,7 +20,21 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     .unwrap();
     let path = "sequences/empty.sequence.donder";
     let original = fs::read_to_string(root.join(path)).unwrap();
-    fs::write(root.join(path), format!("imports:\n- from: {{ documents: [effects/array-values.effect.donder] }}\n  as: effects\n{original}")).unwrap();
+    let mut authored: yaml_serde::Value = yaml_serde::from_str(&original).unwrap();
+    let effects = authored["imports"]
+        .as_sequence_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|import| import["as"].as_str() == Some("effects"))
+        .unwrap();
+    effects["from"]["documents"]
+        .as_sequence_mut()
+        .unwrap()
+        .push(yaml_serde::Value::String(
+            "effects/array-values.effect.donder".into(),
+        ));
+    fs::write(root.join(path), yaml_serde::to_string(&authored).unwrap()).unwrap();
+    load_project(&root).expect("array parameter fixture loads");
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;

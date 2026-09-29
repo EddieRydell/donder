@@ -1,5 +1,4 @@
 use crate::RenderError;
-use crate::native_effect::{self, BoundNativeEffect};
 use crate::sequence::effects::generators::{GeneratorExpansion, GeneratorPrepareContext};
 use crate::sequence::effects::parameters::{EffectParamTiming, prepare_params};
 use crate::sequence::fixtures::PreparedFixture;
@@ -83,29 +82,12 @@ pub(crate) fn prepare_effect_inst(
         EffectKind::Sample => {
             let implementation = match &definition.implementation {
                 EffectImplementation::Dsl(compiled) => {
-                    let EffectRef::Custom(id) = &effect.definition else {
-                        unreachable!("DSL effects are custom")
-                    };
+                    let EffectRef::Custom(id) = &effect.definition;
                     let program =
                         prepare_sample_program(context.sample_programs, id, &compiled.bytecode)?;
                     PreparedEffectImplementation::Dsl {
                         bound_params: compiled.bind_params_cached(&params, context.bind_cache)?,
                         program,
-                    }
-                }
-                EffectImplementation::Native(builtin) => {
-                    match native_effect::bind_cached(*builtin, &params, context.bind_cache)? {
-                        BoundNativeEffect::Sample { sample, params } => {
-                            PreparedEffectImplementation::Native {
-                                sample,
-                                params: (!automation.is_empty()).then_some((*builtin, params)),
-                            }
-                        }
-                        _ => {
-                            return Err(RenderError::GeneratorPrepare {
-                                message: "native sample effect bound as generator".to_string(),
-                            });
-                        }
                     }
                 }
             };

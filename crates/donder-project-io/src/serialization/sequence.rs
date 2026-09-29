@@ -296,11 +296,6 @@ pub(super) fn graph_operator_name(
     operator: &OperatorRef,
 ) -> Result<String, ExportProjectError> {
     match operator {
-        OperatorRef::Builtin(operator) => Ok(
-            donder_language::operator::builtin_operator_definition(*operator)
-                .source_name
-                .clone(),
-        ),
         OperatorRef::Custom(id) => write_source_reference(
             session,
             from_document,

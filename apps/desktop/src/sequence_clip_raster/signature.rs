@@ -386,12 +386,8 @@ pub(super) fn hash_effect_definition<H: Hasher>(definition: &EffectDefinition, s
     for target in &definition.generated_effect_targets {
         target.hash(state);
     }
-    match &definition.implementation {
-        donder_language::effect::EffectImplementation::Native(builtin) => builtin.hash(state),
-        donder_language::effect::EffectImplementation::Dsl(compiled) => {
-            hash_compiled_effect(compiled, state)
-        }
-    }
+    let donder_language::effect::EffectImplementation::Dsl(compiled) = &definition.implementation;
+    hash_compiled_effect(compiled, state);
 }
 
 pub(super) fn hash_optional_curve_definition<H: Hasher>(

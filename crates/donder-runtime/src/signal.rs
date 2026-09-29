@@ -1,11 +1,9 @@
 use crate::automation::AutomationMapping;
 use crate::dsl::bytecode::BytecodeProgram;
 use crate::dsl::{BoundParams, RuntimeError, VmWorkspace};
-use crate::native_effect::NativeSample;
 use crate::values::{
     Color, Curve, SampleDuration, SampleTime, SampleTimeError, sample_time_from_frame,
 };
-use crate::{BuiltinEffect, BuiltinOperator};
 use alloc::boxed::Box;
 #[cfg(not(feature = "atomic"))]
 use alloc::rc::Rc as Arc;
@@ -112,33 +110,18 @@ impl PreparedEffect {
 pub enum PreparedEffectImplementation {
     Bound {
         environment: u32,
-        implementation: BoundEffectImplementation,
+        program: u32,
     },
     Dsl {
         program: u32,
         bound_params: BoundParams,
     },
-    Native {
-        sample: NativeSample,
-        params: Option<(BuiltinEffect, BoundParams)>,
-    },
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum BoundEffectImplementation {
-    Dsl(u32),
-    Native(crate::native_effect::NativeParameterSample),
 }
 
 impl PreparedEffectImplementation {
-    pub fn dsl_program(&self) -> Option<u32> {
+    pub fn dsl_program(&self) -> u32 {
         match self {
-            Self::Dsl { program, .. }
-            | Self::Bound {
-                implementation: BoundEffectImplementation::Dsl(program),
-                ..
-            } => Some(*program),
-            _ => None,
+            Self::Dsl { program, .. } | Self::Bound { program, .. } => *program,
         }
     }
 }
@@ -214,7 +197,6 @@ pub enum PreparedSignalKind {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PreparedOperator {
-    Native(BuiltinOperator),
     Dsl(u32),
 }
 
@@ -350,18 +332,16 @@ impl PreparedSignalGraph {
                                 .count()
                         })
                     }
-                    PreparedOperator::Native(builtin) => usize::from(builtin.resamples_time()),
                 });
             }
         }
         slots
     }
     /// Maximum number of temporary frames held by nested whole-frame sampling.
-    /// DSL frame caches own their storage separately, but may sample native inputs.
+    /// DSL frame caches own their storage separately, but may sample operators.
     pub(crate) fn frame_scratch_count(&self) -> usize {
         let samples_frames = |node: &PreparedSignalNode| match &node.kind {
             PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
-                PreparedOperator::Native(builtin) => builtin.resamples_time(),
                 PreparedOperator::Dsl(program) => {
                     self.programs[program as usize].frame_cache_count() != 0
                 }
@@ -376,15 +356,7 @@ impl PreparedSignalGraph {
         for node in &self.plan.nodes {
             let (inputs, extra) = match &node.kind {
                 PreparedSignalKind::Layer { .. } => (&[][..], 0),
-                PreparedSignalKind::Operator {
-                    inputs, operator, ..
-                } => (
-                    &inputs[..],
-                    match operator.implementation {
-                        PreparedOperator::Native(builtin) => builtin.scratch_frames(),
-                        PreparedOperator::Dsl(_) => 0,
-                    },
-                ),
+                PreparedSignalKind::Operator { inputs, .. } => (&inputs[..], 0),
                 PreparedSignalKind::Output { inputs } => {
                     (&inputs[..], usize::from(inputs.len() > 1))
                 }
@@ -475,15 +447,10 @@ impl PreparedSignalGraph {
             signal_cache: vec![
                 None;
                 if self.plan.frame_nodes.iter().any(|&index| {
-                    match &self.plan.nodes[index].kind {
-                        PreparedSignalKind::Operator { operator, .. } => {
-                            match operator.implementation {
-                                PreparedOperator::Dsl(_) => true,
-                                PreparedOperator::Native(builtin) => builtin.resamples_time(),
-                            }
-                        }
-                        _ => false,
-                    }
+                    matches!(
+                        &self.plan.nodes[index].kind,
+                        PreparedSignalKind::Operator { .. }
+                    )
                 }) {
                     self.plan.nodes.len()
                 } else {
@@ -538,11 +505,10 @@ impl PreparedSignalGraph {
             workspace_key: Some(self.workspace_key),
         };
         for effect in self.effects.iter() {
-            if let Some(program) = effect.implementation.dsl_program() {
-                workspace
-                    .effect_vm
-                    .reserve(&self.programs[program as usize]);
-            }
+            let program = effect.implementation.dsl_program();
+            workspace
+                .effect_vm
+                .reserve(&self.programs[program as usize]);
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {

@@ -104,18 +104,21 @@ fn main() -> ! {
             )
         } else if case < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() {
             let index = case - fixtures::NAMES.len();
-            let (name, layers) = workload::CHASE_PULSE_CASES[index];
-            let (program, _) = fixtures::case(workload::GAMMA_CASE);
+            let (name, _) = workload::CHASE_PULSE_CASES[index];
             (
                 name,
-                workload::chase_pulse_show(200, layers, program),
+                donder_runtime::wire::decode_sequence(
+                    fixtures::CHASE_PULSE_SEQUENCES[index],
+                    Default::default(),
+                )
+                .unwrap(),
                 &fixtures::CHASE_PULSE_GOLDEN[index],
             )
         } else if case
             < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() + workload::MARK_CASES.len()
         {
             let index = case - fixtures::NAMES.len() - workload::CHASE_PULSE_CASES.len();
-            let (name, _, _) = workload::MARK_CASES[index];
+            let (name, _) = workload::MARK_CASES[index];
             (
                 name,
                 donder_runtime::wire::decode_sequence(

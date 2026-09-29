@@ -16,7 +16,5 @@ export function graphOperatorDefinition(
 }
 
 export function graphOperatorKey(operator: SequenceGraphOperator) {
-  return operator.type === "builtin"
-    ? `builtin:${operator.operator}`
-    : `custom:${operator.moduleId}:${operator.path}:${operator.objectKey}`;
+  return `custom:${operator.moduleId}:${operator.path}:${operator.objectKey}`;
 }

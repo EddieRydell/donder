@@ -273,28 +273,11 @@ pub struct SequenceGraphEdge {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceGraphOperator {
-    Builtin {
-        operator: SequenceBuiltinOperator,
-    },
     Custom {
         module_id: String,
         path: String,
         object_key: String,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceBuiltinOperator {
-    Max,
-    Add,
-    Multiply,
-    IntensityModulate,
-    Dim,
-    Invert,
-    Colorize,
-    Delay,
-    Echo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
