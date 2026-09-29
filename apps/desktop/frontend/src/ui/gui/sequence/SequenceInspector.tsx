@@ -154,6 +154,35 @@ function EffectInspectorPanel({
   automationClipChooser: AutomationClipChooser;
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
+  if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
+    if (sequenceSelection.type !== "clips") {
+      return (
+        <>
+          <h2>Effect Parameters</h2>
+          <p>Select an effect on the timeline.</p>
+        </>
+      );
+    }
+    return (
+      <>
+        <h2>Clips</h2>
+        <div className="inspector-readout-grid">
+          <Readout label="Selected" value={String(selectionCount(sequenceSelection))} />
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "delete", selection: sequenceSelection })).then(() => {
+              setSelected(null);
+            })
+          }
+        >
+          Delete
+        </button>
+      </>
+    );
+  }
+
   const automationClip = selected?.type === "automationClip"
     ? document.automationClips.find((clip) => clip.id === selected.id) ?? null
     : null;
@@ -215,34 +244,6 @@ function EffectInspectorPanel({
   const id = selectedEffectId(selected);
   const effect = document.effects.find((candidate) => candidate.id === id);
 
-  if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
-    if (sequenceSelection.type !== "effects") {
-      return (
-        <>
-          <h2>Effect Parameters</h2>
-          <p>Select an effect on the timeline.</p>
-        </>
-      );
-    }
-    return (
-      <>
-        <h2>Effects</h2>
-        <div className="inspector-readout-grid">
-          <Readout label="Selected" value={String(selectionCount(sequenceSelection))} />
-        </div>
-        <button
-          type="button"
-          onClick={() =>
-            void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, { type: "delete", selection: sequenceSelection })).then(() => {
-              setSelected(null);
-            })
-          }
-        >
-          Delete
-        </button>
-      </>
-    );
-  }
 
   if (effect === undefined) {
     return (

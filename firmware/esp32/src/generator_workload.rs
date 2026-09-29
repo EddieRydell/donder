@@ -268,8 +268,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             id: AutomationClipId(0),
             start: DonderTime(Duration::ZERO),
             duration: DonderDuration(Duration::from_secs(8)),
-            anchor_lane_index: 0,
-            lane_index: 0,
+            row_target: sequence.effects[0].target.clone(),
             curve: Curve {
                 points: vec![
                     CurvePoint {

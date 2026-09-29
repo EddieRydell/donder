@@ -692,7 +692,7 @@ impl DomainResolver<'_> {
                 .optional_sequence("automation_clips")?
                 .into_iter()
                 .flatten()
-                .map(|clip| self.parse_automation_clip(&document_path, clip))
+                .map(|clip| self.parse_automation_clip(document_id, clip))
                 .collect::<Result<Vec<_>, _>>()?;
             let mut automation_targets = IndexSet::new();
             for target in automation_clips.iter().flat_map(|clip| {
@@ -1155,9 +1155,10 @@ impl DomainResolver<'_> {
 
     pub(super) fn parse_automation_clip(
         &mut self,
-        path: &Utf8Path,
+        document: &DocumentId,
         value: &Value,
     ) -> Result<AutomationClip, LoadProjectError> {
+        let path = document.path();
         parse_mapping(path, value, "automation clip", |fields| {
             let bindings = fields
                 .sequence("bindings")?
@@ -1201,8 +1202,7 @@ impl DomainResolver<'_> {
                         source_range_for_field_value(path, value, "duration"),
                     )
                 })?,
-                anchor_lane_index: fields.u32("anchor_lane_index")?,
-                lane_index: fields.u32("lane_index")?,
+                row_target: self.parse_fixture_target(document, fields.required("row_target")?)?,
                 curve: parse_automation_curve(path, fields.required("curve")?)?,
                 bindings,
                 detached_bindings,

@@ -515,30 +515,8 @@ impl TimelineItemSchema {
         }
     }
 
-    fn lane(self) -> TimelineLaneField {
-        match self {
-            Self::Effect => TimelineLaneField::Layer,
-            Self::AutomationClip => TimelineLaneField::Lane,
-        }
-    }
-
     fn required(self) -> bool {
         matches!(self, Self::Effect)
-    }
-}
-
-#[derive(Clone, Copy)]
-enum TimelineLaneField {
-    Layer,
-    Lane,
-}
-
-impl TimelineLaneField {
-    fn field(self) -> &'static str {
-        match self {
-            Self::Layer => "layer_id",
-            Self::Lane => "lane_index",
-        }
     }
 }
 
@@ -561,14 +539,14 @@ fn analyze_timeline_items(
         }
     };
     for value in values {
-        push_item_shape_errors(path, value, schema.lane(), diagnostics);
+        push_item_shape_errors(path, value, schema, diagnostics);
     }
 }
 
 fn push_item_shape_errors(
     path: &Utf8Path,
     value: &Value,
-    lane: TimelineLaneField,
+    schema: TimelineItemSchema,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) {
     let checks = [
@@ -579,7 +557,12 @@ fn push_item_shape_errors(
         string_field(path, value, "duration")
             .and_then(parse_duration)
             .map(|_| ()),
-        u32_field(path, value, lane.field()).map(|_| ()),
+        match schema {
+            TimelineItemSchema::Effect => u32_field(path, value, "layer_id").map(|_| ()),
+            TimelineItemSchema::AutomationClip => required_field(path, value, "row_target")
+                .and_then(|target| u32_field(path, target, "fixture"))
+                .map(|_| ()),
+        },
     ];
     for error in checks.into_iter().filter_map(Result::err) {
         push_load_error(diagnostics, error, IoDiagnosticCode::SequenceItem);

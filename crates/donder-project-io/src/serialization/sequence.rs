@@ -73,7 +73,7 @@ pub(super) fn sequence_value(
             sequence
                 .automation_clips
                 .iter()
-                .map(automation_clip_value)
+                .map(|clip| automation_clip_value(session, from_document, clip))
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     );
@@ -305,7 +305,11 @@ pub(super) fn graph_operator_name(
     }
 }
 
-pub(super) fn automation_clip_value(clip: &AutomationClip) -> Result<Value, ExportProjectError> {
+pub(super) fn automation_clip_value(
+    session: &ProjectSession,
+    from_document: &DocumentId,
+    clip: &AutomationClip,
+) -> Result<Value, ExportProjectError> {
     let mut value = Mapping::new();
     value.insert(string_value("id"), serialized_value(clip.id.0)?);
     value.insert(
@@ -317,12 +321,8 @@ pub(super) fn automation_clip_value(clip: &AutomationClip) -> Result<Value, Expo
         Value::String(microseconds_string(clip.duration.as_micros_rounded())),
     );
     value.insert(
-        string_value("anchor_lane_index"),
-        serialized_value(clip.anchor_lane_index)?,
-    );
-    value.insert(
-        string_value("lane_index"),
-        serialized_value(clip.lane_index)?,
+        string_value("row_target"),
+        fixture_target_value(session, from_document, &clip.row_target)?,
     );
     value.insert(string_value("curve"), automation_curve_value(&clip.curve)?);
     value.insert(

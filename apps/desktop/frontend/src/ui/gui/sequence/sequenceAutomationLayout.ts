@@ -1,4 +1,4 @@
-import type { SequenceAutomationClip } from "../../../types";
+import type { FixtureTarget, SequenceLane, SequenceAutomationClip, PersistedSequenceViewportState } from "../../../types";
 
 import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
@@ -8,8 +8,7 @@ export type AutomationDraft = {
   id: number;
   startSeconds: number;
   durationSeconds: number;
-  anchorLaneIndex: number;
-  laneIndex: number;
+  rowTarget: FixtureTarget;
 };
 
 export type AutomationHover = { kind: "automation"; clipId: number; resize: "left" | "right" | "none" };
@@ -33,9 +32,13 @@ export type AutomationClipVisualState = {
   activePointIndex: number | null;
 };
 
+export type SequenceRowKind = "effects" | "automation";
+export type SequenceRowHeightMap = Record<number, Record<SequenceRowKind, number>>;
+
 export type SequenceRowLayout = {
   laneIndex: number;
-  rowIndex: number;
+  target: FixtureTarget;
+  kind: SequenceRowKind;
   top: number;
   height: number;
   bottom: number;
@@ -49,27 +52,36 @@ export function automationLaneRowHeight(laneHeight: number): number {
   );
 }
 
-export function rowHeightAt(rowHeights: number[][], laneIndex: number, rowIndex: number, defaultHeight: number): number {
-  return rowHeights[laneIndex]?.[rowIndex] ?? defaultHeight;
+// The persisted suffix denotes row kind, never a visible row index.
+function persistedRowHeightKey(fixture: number, kind: SequenceRowKind): string {
+  return `${fixture}:row:${kind === "effects" ? 0 : 1}`;
 }
 
-export function automationRowCounts(clips: SequenceAutomationClip[], laneCount: number): number[] {
-  const rows = Array.from({ length: laneCount }, () => 0);
-  for (const clip of clips) {
-    if (clip.anchorLaneIndex < 0 || clip.anchorLaneIndex >= laneCount) continue;
-    rows[clip.anchorLaneIndex] = Math.max(rows[clip.anchorLaneIndex] ?? 0, clip.laneIndex + 1);
-  }
-  return rows;
+export function persistRowHeights(heights: SequenceRowHeightMap): PersistedSequenceViewportState["rowHeights"] {
+  return Object.fromEntries(Object.entries(heights).flatMap(([fixture, sizes]) =>
+    (["effects", "automation"] as const).map((kind) => [persistedRowHeightKey(Number(fixture), kind), sizes[kind]])));
 }
 
-export function sequenceRowLayout(rowsByLane: number[], rowHeights: number[][], defaultMainRowHeight: number, defaultAutomationRowHeight: number): SequenceRowLayout[] {
+export function restoreRowHeights(lanes: SequenceLane[], persisted: PersistedSequenceViewportState["rowHeights"] | undefined, defaultHeight: number): SequenceRowHeightMap {
+  return Object.fromEntries(lanes.map((lane) => [lane.target.fixture, {
+    effects: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "effects")] ?? defaultHeight, THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight),
+    automation: clamp(persisted?.[persistedRowHeightKey(lane.target.fixture, "automation")] ?? automationLaneRowHeight(defaultHeight), THEME_METRICS.sequenceMinLaneHeight, THEME_METRICS.sequenceMaxLaneHeight)
+  }]));
+}
+
+export function rowHeightAt(rowHeights: SequenceRowHeightMap, target: FixtureTarget, kind: SequenceRowKind, defaultHeight: number): number {
+  return rowHeights[target.fixture]?.[kind] ?? defaultHeight;
+}
+
+export function sequenceRowLayout(lanes: SequenceLane[], clips: SequenceAutomationClip[], rowHeights: SequenceRowHeightMap, defaultMainRowHeight: number, defaultAutomationRowHeight: number, revealAutomation: boolean): SequenceRowLayout[] {
+  const occupied = new Set(clips.map((clip) => clip.rowTarget.fixture));
   const rows: SequenceRowLayout[] = [];
   let top = 0;
-  for (let laneIndex = 0; laneIndex < rowsByLane.length; laneIndex += 1) {
-    const rowCount = rowsByLane[laneIndex] ?? 0;
-    for (let rowIndex = 0; rowIndex <= rowCount; rowIndex += 1) {
-      const height = rowHeightAt(rowHeights, laneIndex, rowIndex, rowIndex === 0 ? defaultMainRowHeight : defaultAutomationRowHeight);
-      rows.push({ laneIndex, rowIndex, top, height, bottom: top + height });
+  for (const [laneIndex, lane] of lanes.entries()) {
+    for (const kind of ["effects", "automation"] as const) {
+      const visible = kind === "effects" || revealAutomation || occupied.has(lane.target.fixture);
+      const height = visible ? rowHeightAt(rowHeights, lane.target, kind, kind === "effects" ? defaultMainRowHeight : defaultAutomationRowHeight) : 0;
+      rows.push({ laneIndex, target: lane.target, kind, top, height, bottom: top + height });
       top += height;
     }
   }
@@ -92,10 +104,10 @@ export function laneIndexFromCanvasY(y: number, top: number, scrollY: number, la
 export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows: SequenceRowLayout[], viewport: SequenceViewport, left: number, top: number, bounds: { width: number; height: number }): AutomationClipLayout[] {
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
-  const byAutomationLane = new Map<string, SequenceAutomationClip[]>();
+  const byAutomationLane = new Map<number, SequenceAutomationClip[]>();
   for (const clip of clips) {
     if (clip.startSeconds + clip.durationSeconds < visibleStartSeconds || clip.startSeconds > visibleEndSeconds) continue;
-    const key = `${clip.anchorLaneIndex}:${clip.laneIndex}`;
+    const key = clip.rowTarget.fixture;
     const laneClips = byAutomationLane.get(key) ?? [];
     laneClips.push(clip);
     byAutomationLane.set(key, laneClips);
@@ -105,7 +117,7 @@ export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows:
   for (const laneClips of byAutomationLane.values()) {
     const first = laneClips[0];
     if (first === undefined) continue;
-    const row = rows.find((row) => row.laneIndex === first.anchorLaneIndex && row.rowIndex === first.laneIndex + 1);
+    const row = rows.find((row) => row.target.fixture === first.rowTarget.fixture && row.kind === "automation");
     if (row === undefined) throw new Error("Automation clip has no timeline row.");
     for (const group of groupOverlappingClips(laneClips)) {
       const assigned = assignOverlapSlots(group);
@@ -128,14 +140,12 @@ export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows:
   return layouts;
 }
 
-export function automationClipsWithDrafts(clips: SequenceAutomationClip[], draft: AutomationDraft | null, curveDraft: AutomationCurveDraft | null): SequenceAutomationClip[] {
-  return clips.map((clip) =>
-    clip.id === draft?.id
-      ? { ...clip, startSeconds: draft.startSeconds, durationSeconds: draft.durationSeconds, anchorLaneIndex: draft.anchorLaneIndex, laneIndex: draft.laneIndex, curve: curveDraft?.id === clip.id ? curveDraft.curve : clip.curve }
-      : curveDraft?.id === clip.id
-        ? { ...clip, curve: curveDraft.curve }
-        : clip
-  );
+export function automationClipsWithDrafts(clips: SequenceAutomationClip[], drafts: AutomationDraft[], curveDraft: AutomationCurveDraft | null): SequenceAutomationClip[] {
+  const byId = new Map(drafts.map((draft) => [draft.id, draft]));
+  return clips.map((clip) => {
+    const draft = byId.get(clip.id);
+    return { ...clip, ...draft, curve: curveDraft?.id === clip.id ? curveDraft.curve : clip.curve };
+  });
 }
 
 export function automationHoverEqual(left: AutomationHover | null, right: AutomationHover | null) {

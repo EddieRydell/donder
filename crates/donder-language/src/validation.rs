@@ -370,7 +370,34 @@ pub fn validate_sequence(
     }
 
     let mut automation_targets = HashSet::new();
+    let sequence_layout = sequence
+        .effects
+        .first()
+        .map(|effect| &effect.target.layout)
+        .or_else(|| {
+            sequence
+                .automation_clips
+                .first()
+                .map(|clip| &clip.row_target.layout)
+        });
     for clip in &sequence.automation_clips {
+        if sequence_layout.is_some_and(|layout| layout != &clip.row_target.layout) {
+            return Err(sequence_error(
+                "All timeline row targets in a sequence must use the same layout.",
+            ));
+        }
+        if active && &clip.row_target.layout != active_layout {
+            return Err(sequence_error(
+                "Automation row target is not in the active layout.",
+            ));
+        }
+        if project
+            .layout(&clip.row_target.layout)
+            .and_then(|layout| layout.fixture(clip.row_target.fixture))
+            .is_none()
+        {
+            return Err(sequence_error("Automation row target is missing."));
+        }
         validate_timed_region(
             clip.start.0,
             clip.duration.0,

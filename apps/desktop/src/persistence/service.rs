@@ -133,6 +133,25 @@ impl PersistenceService {
         project_root: &str,
         update: PersistedSequenceViewportStateUpdate,
     ) -> Result<(), String> {
+        if !update.state.px_per_second.is_finite()
+            || update.state.px_per_second <= 0.0
+            || !update.state.audio_strip_height_px.is_finite()
+            || update.state.audio_strip_height_px <= 0.0
+            || !update.state.scroll_x_seconds.is_finite()
+            || update.state.scroll_x_seconds < 0.0
+            || !update.state.scroll_y.is_finite()
+            || update.state.scroll_y < 0.0
+            || update
+                .state
+                .row_heights
+                .values()
+                .any(|height| !height.is_finite() || *height <= 0.0)
+        {
+            return Err(
+                "Sequence viewport geometry must be finite with positive row heights and zoom."
+                    .into(),
+            );
+        }
         let mut inner = self.inner();
         if !inner.write_allowed {
             return Ok(());
@@ -395,6 +414,62 @@ fn remap_workspace_path(path: &str, source: &str, destination: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paired_sequence_row_heights_reach_disk_and_reopen_without_index_reassignment() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(FILE_NAME);
+        let service = PersistenceService::new();
+        {
+            let mut inner = service.inner();
+            inner.path = Some(path.clone());
+            inner.write_allowed = true;
+        }
+        let settings = AppSettings::default();
+        let height = settings.sequence_initial_lane_height_px;
+        let mut state = PersistedSequenceViewportState {
+            px_per_second: settings.sequence_initial_px_per_second,
+            audio_strip_height_px: height,
+            row_heights: BTreeMap::from([
+                ("1001:row:0".into(), height),
+                ("1001:row:1".into(), height * 2.0),
+                ("1:row:0".into(), height * 2.0),
+                ("1:row:1".into(), height),
+            ]),
+            scroll_x_seconds: 0.0,
+            scroll_y: 0.0,
+            active_mark_collection_key: None,
+            visible_mark_collection_keys: Vec::new(),
+        };
+        let update = |state| PersistedSequenceViewportStateUpdate {
+            path: "show.sequence.donder".into(),
+            object_key: "show".into(),
+            owned_path: Vec::new(),
+            state,
+        };
+        service
+            .record_sequence_viewport("project", update(state.clone()))
+            .unwrap();
+        // Resizing one row preserves the other kind, including an empty hidden row.
+        state.row_heights.insert("1001:row:0".into(), height * 2.0);
+        service
+            .record_sequence_viewport("project", update(state.clone()))
+            .unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        let reopened = decode_store(&saved).unwrap();
+        let key = sequence_viewport_key("show.sequence.donder", "show", &[]).unwrap();
+        assert_eq!(
+            reopened.projects["project"].sequence_viewports[&key].row_heights,
+            state.row_heights
+        );
+        state.row_heights.insert("1001:row:1".into(), f32::NAN);
+        assert!(
+            service
+                .record_sequence_viewport("project", update(state))
+                .is_err()
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    }
 
     #[test]
     fn owned_sequence_views_remain_distinct_after_document_move() {

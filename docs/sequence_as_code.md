@@ -5,6 +5,31 @@ effect instances, a composition graph, and parameter automation clips. It
 is loaded into the typed `donder_language::sequence::Sequence`; YAML is never an
 editable runtime model after load.
 
+## Timeline rows and clipboard
+
+Each fixture or group in the active layout has one effect row and one automation
+row. Row identity is the target identity plus row kind; flattened display indices
+are temporary geometry only. Effects use `target`; automation clips use
+`row_target` with the same `{ layout, fixture }` reference syntax. Automation
+placement is independent of its parameter bindings. Moving a clip between rows
+does not retarget its bindings.
+
+Empty automation rows are hidden and become available during clip dragging.
+Multiple automation clips share a row; overlapping clips use visual slots within
+that row. Both row heights are retained by fixture identity in the sequence's
+viewport preferences, including while a row is hidden. Row heights are view
+preferences, outside project undo history.
+
+Timeline selection can include effects and automation together. Copy/paste keeps
+relative timing and target offsets, allocates new clip IDs, and remaps automation
+bindings to effects included in the copied selection. Bindings to objects outside
+a copied selection are not copied; copying an automation clip alone produces an
+unbound envelope. Cutting and pasting within the same sequence retains external
+bindings that remain available. A paste that cannot fit within the target list or
+sequence duration is rejected atomically. Moving, resizing, cutting, and pasting
+mixed selections each create one history entry. Undo/redo clears transient clip
+selection and drag state while restoring the authored snapshot.
+
 ## Fixed parameter declarations
 
 Effects and operators can declare editable preparation values using

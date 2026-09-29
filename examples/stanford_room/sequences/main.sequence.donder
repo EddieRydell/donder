@@ -483,7 +483,7 @@ main:
   - id: 10
     layer_id: 1
     start: 71.356865s
-    duration: 3.319892s
+    duration: 3.094254s
     target:
       layout: layouts.main
       fixture: 3
@@ -547,7 +547,7 @@ main:
   - id: 11
     layer_id: 1
     start: 71.341362s
-    duration: 3.319892s
+    duration: 3.094254s
     target:
       layout: layouts.main
       fixture: 1
@@ -611,7 +611,7 @@ main:
   - id: 12
     layer_id: 1
     start: 71.363029s
-    duration: 3.319892s
+    duration: 3.094254s
     target:
       layout: layouts.main
       fixture: 2
@@ -672,6 +672,160 @@ main:
         type: float
         value: -0.10000000149011612
     effect: effects.MarkChase
+  - id: 13
+    layer_id: 1
+    start: 67.866844s
+    duration: 0.404527s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: per_fixture
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.15000000596046448
+      section_width_pixels:
+        type: integer
+        value: 100
+    effect: effects.MarkPulse
+  - id: 14
+    layer_id: 1
+    start: 73.926605s
+    duration: 0.504466s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: per_fixture
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.20000000298023224
+      section_width_pixels:
+        type: integer
+        value: 1000
+    effect: effects.MarkPulse
+  - id: 15
+    layer_id: 1
+    start: 70.753166s
+    duration: 0.398952s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: per_fixture
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.11999999731779099
+      section_width_pixels:
+        type: integer
+        value: 1000
+    effect: effects.MarkPulse
+  - id: 16
+    layer_id: 1
+    start: 71.174309s
+    duration: 0.398952s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: per_fixture
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.367000013589859
+            value: 0.21899999678134918
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.30000001192092896
+      section_width_pixels:
+        type: integer
+        value: 1000
+    effect: effects.MarkPulse
   composition_graph:
     nodes:
     - id: 1
@@ -714,8 +868,9 @@ main:
   - id: 1
     start: 0s
     duration: 330.489624s
-    anchor_lane_index: 0
-    lane_index: 0
+    row_target:
+      layout: layouts.main
+      fixture: 4
     curve:
       points:
       - position: 0.0

@@ -952,8 +952,9 @@ layer_test:
   - id: 1
     start: 0s
     duration: 249.753832s
-    anchor_lane_index: 0
-    lane_index: 0
+    row_target:
+      layout: elements.outputs_layout
+      fixture: 1001
     curve:
       points:
       - position: 0.0

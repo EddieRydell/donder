@@ -71,7 +71,7 @@
   --donder-sequence-panel: #17181b;
   --donder-sequence-lane-alternate: #15171a;
   --donder-sequence-lane-selected: rgb(174 180 188 / 12%);
-  --donder-sequence-grid: #24272c;
+  --donder-sequence-grid: #484e58;
   --donder-sequence-grid-faint: #2c3036;
   --donder-spectrogram: var(--donder-graph-blue);
   --donder-timeline-major: #343941;

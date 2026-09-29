@@ -52,6 +52,9 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     }
     for sequence in project.sequences() {
         let owner = sequence.id.0.document_id();
+        for clip in &sequence.automation_clips {
+            add(owner, clip.row_target.layout.0.clone());
+        }
         for effect in &sequence.effects {
             add(owner, effect.target.layout.0.clone());
             let EffectRef::Custom(id) = &effect.definition;

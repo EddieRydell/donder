@@ -95,8 +95,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequenceOutput {
             id: AutomationClipId(900),
             start: effect.start.clone(),
             duration: effect.duration.clone(),
-            anchor_lane_index: 0,
-            lane_index: 0,
+            row_target: effect.target.clone(),
             curve: Curve {
                 points: vec![
                     CurvePoint {

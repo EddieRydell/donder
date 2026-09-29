@@ -124,8 +124,19 @@ fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
         id: AutomationClipId(1),
         start: DonderTime::from_micros(0),
         duration: DonderDuration::from_micros(1_000_000),
-        anchor_lane_index: 0,
-        lane_index: 0,
+        row_target: donder_language::layout::FixtureTarget {
+            layout: donder_language::layout::LayoutId(
+                donder_language::identity::SourceIdentity::from_document(
+                    donder_language::identity::DocumentId::new(
+                        uuid::Uuid::nil(),
+                        "allocation.layout.donder".into(),
+                    ),
+                    "layout".into(),
+                )
+                .into(),
+            ),
+            fixture: donder_language::layout::FixtureInstanceId(1),
+        },
         curve: Curve {
             points: vec![
                 CurvePoint {

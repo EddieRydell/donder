@@ -20,6 +20,9 @@ pub(super) fn edit_sequence(
     if matches!(
         &edit,
         SequenceGuiEdit::AddEffect { .. }
+            | SequenceGuiEdit::AddAutomationClip { .. }
+            | SequenceGuiEdit::MoveAutomationClip { .. }
+            | SequenceGuiEdit::CreateAndBindAutomationClip { .. }
             | SequenceGuiEdit::RetargetEffect { .. }
             | SequenceGuiEdit::MoveEffect {
                 target: Some(_),
@@ -486,8 +489,7 @@ pub(super) fn edit_sequence(
         SequenceGuiEdit::AddAutomationClip {
             start_seconds,
             duration_seconds,
-            anchor_lane_index,
-            lane_index,
+            row_target,
         } => {
             let sequence = sequence_mut(session, &sequence_id)?;
             let next_id = sequence
@@ -501,8 +503,7 @@ pub(super) fn edit_sequence(
                 id: AutomationClipId(next_id),
                 start: DonderTime::from_seconds_f32(start_seconds.max(0.0)),
                 duration: DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001)),
-                anchor_lane_index,
-                lane_index,
+                row_target: layout_target_to_effect_target(&layout, row_target),
                 curve: default_automation_curve(),
                 bindings: Vec::new(),
                 detached_bindings: Vec::new(),
@@ -519,7 +520,7 @@ pub(super) fn edit_sequence(
             )
             .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let mapping = automation_mapping_from_gui(mapping)?;
-            let (start, duration, anchor_lane_index) = {
+            let (start, duration, row_target) = {
                 let sequence = session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
                 })?;
@@ -538,8 +539,7 @@ pub(super) fn edit_sequence(
                 id: AutomationClipId(next_id),
                 start,
                 duration,
-                anchor_lane_index,
-                lane_index: 0,
+                row_target,
                 curve: default_automation_curve(),
                 bindings: vec![AutomationBinding { target, mapping }],
                 detached_bindings: Vec::new(),
@@ -548,13 +548,11 @@ pub(super) fn edit_sequence(
         SequenceGuiEdit::MoveAutomationClip {
             id,
             start_seconds,
-            anchor_lane_index,
-            lane_index,
+            row_target,
         } => {
             let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
             clip.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
-            clip.anchor_lane_index = anchor_lane_index;
-            clip.lane_index = lane_index;
+            clip.row_target = layout_target_to_effect_target(&layout, row_target);
         }
         SequenceGuiEdit::ResizeAutomationClip {
             id,
@@ -735,7 +733,14 @@ fn automation_target_timing(
     session: &ProjectSession,
     sequence: &donder_language::sequence::Sequence,
     target: &AutomationTarget,
-) -> Result<(DonderTime, DonderDuration, u32), GuiMutationError> {
+) -> Result<
+    (
+        DonderTime,
+        DonderDuration,
+        donder_language::layout::FixtureTarget,
+    ),
+    GuiMutationError,
+> {
     match target {
         AutomationTarget::EffectParam { effect_id, .. } => {
             let effect = sequence
@@ -743,14 +748,10 @@ fn automation_target_timing(
                 .iter()
                 .find(|effect| &effect.id == effect_id)
                 .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
-            let anchor_lane_index = effect_lane_index_resolved(session, &effect.target)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Effect lane was not found.".to_string())
-                })?;
             Ok((
                 effect.start.clone(),
                 effect.duration.clone(),
-                anchor_lane_index as u32,
+                effect.target.clone(),
             ))
         }
         AutomationTarget::CompositionNodeParam { node_id, .. } => {
@@ -775,7 +776,9 @@ fn automation_target_timing(
             Ok((
                 DonderTime::from_seconds_f32(0.0),
                 sequence.duration.clone(),
-                0,
+                super::selection::target_for_lane(session, 0).ok_or_else(|| {
+                    GuiMutationError::Invalid("Sequence has no target for automation.".into())
+                })?,
             ))
         }
     }
@@ -845,8 +848,6 @@ use super::model::{
     layout_target_to_effect_target, mark_collection_mut, next_composition_node_id, parse_color,
     parse_graph_node_id, register_sequence_audio_asset, sequence_mut, source_identity_from_gui,
 };
-use super::selection::{
-    effect_lane_index_resolved, mark_param_names, required_operator_param_value,
-};
+use super::selection::{mark_param_names, required_operator_param_value};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};

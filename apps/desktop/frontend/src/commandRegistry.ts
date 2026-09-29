@@ -5,6 +5,8 @@ import { navigateToText } from "./workspace/navigation";
 import { runSnapshotCommand, useAppStore } from "./store";
 import type { SidebarView } from "./types";
 
+export const GUI_HISTORY_CHANGED_EVENT = "donder:gui-history-changed";
+
 export const OPEN_COMMAND_PALETTE_EVENT = "donder:open-command-palette";
 export const OPEN_QUICK_OPEN_EVENT = "donder:open-quick-open";
 export const FOCUS_SIDEBAR_EVENT = "donder:focus-sidebar";
@@ -71,10 +73,12 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "edit.undo": command("Undo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.undoActiveEdit);
+    window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
   }, hasProject, "Ctrl+Z"),
   "edit.redo": command("Redo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.redoActiveEdit);
+    window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
   }, hasProject, "Ctrl+Shift+Z / Ctrl+Y"),
   "view.toggleGuiMode": command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
     const mode = (useAppStore.getState().snapshot?.settings.editorViewMode ?? "gui") === "gui" ? "text" : "gui";

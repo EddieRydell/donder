@@ -101,8 +101,8 @@ pub struct AutomationClip {
     pub id: AutomationClipId,
     pub start: DonderTime,
     pub duration: DonderDuration,
-    pub anchor_lane_index: u32,
-    pub lane_index: u32,
+    /// Visual placement, independent of parameter bindings.
+    pub row_target: crate::layout::FixtureTarget,
     pub curve: Curve,
     pub bindings: Vec<AutomationBinding>,
     pub detached_bindings: Vec<DetachedAutomationBinding>,

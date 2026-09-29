@@ -27,7 +27,10 @@ pub(crate) fn copy_sequence_selection(
     selection: &SequenceSelection,
 ) -> Result<(Option<SequenceClipboard>, u32, u32), GuiMutationError> {
     match selection {
-        SequenceSelection::Effects { ids } => {
+        SequenceSelection::Clips {
+            effect_ids: ids,
+            automation_ids,
+        } => {
             let sequence = session
                 .project
                 .sequence(sequence_id)
@@ -42,12 +45,36 @@ pub(crate) fn copy_sequence_selection(
                 copied.push(ClipboardEffect {
                     effect: effect.clone(),
                     start_seconds: effect.start.as_seconds_f32(),
-                    lane_index: effect_lane_index(session, &effect.target),
+                    lane_index: target_lane_index(session, &effect.target).ok_or_else(|| {
+                        GuiMutationError::Invalid("Effect row is missing.".into())
+                    })?,
                 });
             }
-            let copied_count = copied.len() as u32;
+            let mut automation = Vec::new();
+            for id in automation_ids {
+                let clip = sequence
+                    .automation_clips
+                    .iter()
+                    .find(|clip| clip.id.0 == *id)
+                    .ok_or_else(|| {
+                        GuiMutationError::Invalid("Selected automation clip is missing.".into())
+                    })?;
+                let lane_index = target_lane_index(session, &clip.row_target).ok_or_else(|| {
+                    GuiMutationError::Invalid("Automation row is missing.".into())
+                })?;
+                automation.push(ClipboardAutomation {
+                    clip: clip.clone(),
+                    lane_index,
+                });
+            }
+            let copied_count = (copied.len() + automation.len()) as u32;
             Ok((
-                (!copied.is_empty()).then_some(SequenceClipboard::Effects(copied)),
+                (copied_count > 0).then_some(SequenceClipboard::Clips {
+                    effects: copied,
+                    automation,
+                    source: sequence_id.clone(),
+                    cut: false,
+                }),
                 copied_count,
                 skipped,
             ))
@@ -86,10 +113,16 @@ pub(super) fn delete_sequence_selection(
 ) -> Result<(), GuiMutationError> {
     let sequence = sequence_mut(session, sequence_id)?;
     match selection {
-        SequenceSelection::Effects { ids } => {
+        SequenceSelection::Clips {
+            effect_ids: ids,
+            automation_ids,
+        } => {
             sequence
                 .effects
                 .retain(|effect| !ids.contains(&effect.id.0));
+            sequence
+                .automation_clips
+                .retain(|clip| !automation_ids.contains(&clip.id.0));
             for clip in &mut sequence.automation_clips {
                 clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if ids.contains(&effect_id.0))
@@ -116,59 +149,151 @@ pub(super) fn paste_sequence_clipboard(
     anchor: SequencePasteAnchor,
     clipboard: Option<&SequenceClipboard>,
 ) -> Result<SequenceSelectionMutation, GuiMutationError> {
-    let Some(clipboard) = clipboard else {
-        return Ok(SequenceSelectionMutation {
-            selection: None,
-            copied_count: 0,
-            skipped_count: 0,
-        });
-    };
-    let lane_count = sequence_lane_count(session);
-    let lane_targets = (0..lane_count)
-        .map(|lane| target_for_lane(session, lane))
-        .collect::<Vec<_>>();
+    let clipboard = clipboard
+        .ok_or_else(|| GuiMutationError::Invalid("Copy clips or marks before pasting.".into()))?;
+    if !anchor.time_seconds.is_finite() || anchor.time_seconds < 0.0 {
+        return Err(GuiMutationError::Invalid(
+            "Paste time must be finite and nonnegative.".into(),
+        ));
+    }
     match clipboard {
-        SequenceClipboard::Effects(effects) => {
+        SequenceClipboard::Clips {
+            effects,
+            automation,
+            source,
+            cut,
+        } => {
+            let layout = active_layout(session)
+                .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
+            let targets = layout
+                .iter_fixtures()
+                .map(|fixture| FixtureTarget {
+                    layout: layout.id.clone(),
+                    fixture: fixture.id,
+                })
+                .collect::<Vec<_>>();
+            let anchor_target = anchor.target.as_ref().ok_or_else(|| {
+                GuiMutationError::Invalid("Select a target row before pasting clips.".into())
+            })?;
+            let anchor_lane = targets
+                .iter()
+                .position(|target| target.fixture.0 == anchor_target.fixture)
+                .ok_or_else(|| GuiMutationError::Invalid("Paste target is missing.".into()))?;
             let min_start = effects
                 .iter()
                 .map(|effect| effect.start_seconds)
+                .chain(
+                    automation
+                        .iter()
+                        .map(|entry| entry.clip.start.as_seconds_f32()),
+                )
                 .fold(f32::INFINITY, f32::min);
             let min_lane = effects
                 .iter()
                 .map(|effect| effect.lane_index)
+                .chain(automation.iter().map(|entry| entry.lane_index))
                 .min()
-                .unwrap_or_default();
+                .ok_or_else(|| GuiMutationError::Invalid("Clipboard is empty.".into()))?;
+            let destination = |lane: usize| {
+                targets
+                    .get(anchor_lane + lane - min_lane)
+                    .cloned()
+                    .ok_or_else(|| {
+                        GuiMutationError::Invalid(
+                            "The copied clips do not fit below this target.".into(),
+                        )
+                    })
+            };
+            // Resolve every destination before mutation; never collapse distinct rows at the boundary.
+            let effect_targets = effects
+                .iter()
+                .map(|entry| destination(entry.lane_index))
+                .collect::<Result<Vec<_>, _>>()?;
+            let automation_targets = automation
+                .iter()
+                .map(|entry| destination(entry.lane_index))
+                .collect::<Result<Vec<_>, _>>()?;
+            donder_project_io::ensure_document_can_reference_object(
+                session,
+                sequence_id.0.document_id(),
+                &targets[anchor_lane].layout.0,
+            )
+            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
             let sequence = sequence_mut(session, sequence_id)?;
             let mut next_id = sequence
                 .effects
                 .iter()
                 .map(|effect| effect.id.0)
                 .max()
-                .unwrap_or(0)
-                .saturating_add(1);
-            let mut pasted_ids = Vec::with_capacity(effects.len());
-            for effect in effects {
-                let mut value = effect.effect.clone();
-                let target_lane = anchored_lane(
-                    anchor.lane_index as usize,
-                    effect.lane_index,
-                    min_lane,
-                    lane_count,
+                .unwrap_or(0);
+            let mut effect_ids = Vec::new();
+            let mut id_map = BTreeMap::new();
+            for (entry, target) in effects.iter().zip(effect_targets) {
+                next_id = next_id
+                    .checked_add(1)
+                    .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
+                let mut effect = entry.effect.clone();
+                id_map.insert(effect.id.0, next_id);
+                effect.id = EffectInstId(next_id);
+                effect.start = DonderTime::from_seconds_f32(
+                    anchor.time_seconds + entry.start_seconds - min_start,
                 );
-                value.id = EffectInstId(next_id);
-                value.start = DonderTime::from_seconds_f32(
-                    (anchor.time_seconds + effect.start_seconds - min_start).max(0.0),
-                );
-                if let Some(Some(target)) = lane_targets.get(target_lane) {
-                    value.target = target.clone();
-                }
-                sequence.effects.push(value);
-                pasted_ids.push(next_id);
-                next_id = next_id.saturating_add(1);
+                effect.target = target;
+                sequence.effects.push(effect);
+                effect_ids.push(next_id);
             }
+            let mut next_id = sequence
+                .automation_clips
+                .iter()
+                .map(|clip| clip.id.0)
+                .max()
+                .unwrap_or(0);
+            let mut automation_ids = Vec::new();
+            for (entry, target) in automation.iter().zip(automation_targets) {
+                next_id = next_id
+                    .checked_add(1)
+                    .ok_or_else(|| GuiMutationError::Invalid("Automation IDs exhausted.".into()))?;
+                let mut clip = entry.clip.clone();
+                clip.id = donder_language::sequence::AutomationClipId(next_id);
+                clip.row_target = target;
+                clip.start = DonderTime::from_seconds_f32(
+                    anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
+                );
+                // Copy bindings only within the copied selection. Cut may retain existing bindings
+                // in the same sequence when no other clip has claimed them since the cut.
+                let remap = |target: &mut AutomationTarget| {
+                    if let AutomationTarget::EffectParam { effect_id, .. } = target
+                        && let Some(id) = id_map.get(&effect_id.0)
+                    {
+                        effect_id.0 = *id;
+                        return true;
+                    }
+                    *cut && source == sequence_id
+                        && !sequence.automation_clips.iter().any(|clip| {
+                            clip.bindings
+                                .iter()
+                                .any(|binding| &binding.target == target)
+                                || clip
+                                    .detached_bindings
+                                    .iter()
+                                    .any(|binding| &binding.target == target)
+                        })
+                };
+                clip.bindings
+                    .retain_mut(|binding| remap(&mut binding.target));
+                clip.detached_bindings
+                    .retain_mut(|binding| remap(&mut binding.target));
+                sequence.automation_clips.push(clip);
+                automation_ids.push(next_id);
+            }
+            donder_project_io::maintain_ownership_sources(session)
+                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
             Ok(SequenceSelectionMutation {
-                selection: Some(SequenceSelection::Effects { ids: pasted_ids }),
-                copied_count: effects.len() as u32,
+                selection: Some(SequenceSelection::Clips {
+                    effect_ids,
+                    automation_ids,
+                }),
+                copied_count: (effects.len() + automation.len()) as u32,
                 skipped_count: 0,
             })
         }
@@ -212,51 +337,104 @@ pub(super) fn paste_sequence_clipboard(
     }
 }
 
-pub(super) fn move_effect_selection(
+pub(super) fn move_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
-    ids: &[u32],
+    effect_ids: &[u32],
+    automation_ids: &[u32],
     time_delta_seconds: f32,
     lane_delta: i32,
-) -> Result<Vec<u32>, GuiMutationError> {
-    let effect_updates = effect_selection_updates(session, sequence_id, ids, |session, effect| {
-        let lane = shifted_lane(
-            effect_lane_index(session, &effect.target),
-            lane_delta,
-            sequence_lane_count(session),
-        );
-        (
-            effect.start.as_seconds_f32() + time_delta_seconds,
-            effect.duration.as_seconds_f32(),
-            lane,
-        )
-    })?;
-    apply_effect_updates(session, sequence_id, effect_updates)
+) -> Result<(), GuiMutationError> {
+    let layout = active_layout(session)
+        .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
+    let targets = layout
+        .iter_fixtures()
+        .map(|fixture| FixtureTarget {
+            layout: layout.id.clone(),
+            fixture: fixture.id,
+        })
+        .collect::<Vec<_>>();
+    let destination = |target: &FixtureTarget| -> Result<FixtureTarget, GuiMutationError> {
+        let index = targets
+            .iter()
+            .position(|candidate| candidate == target)
+            .ok_or_else(|| GuiMutationError::Invalid("Clip row target is missing.".into()))?;
+        let destination = index as i64 + i64::from(lane_delta);
+        usize::try_from(destination)
+            .ok()
+            .and_then(|index| targets.get(index))
+            .cloned()
+            .ok_or_else(|| {
+                GuiMutationError::Invalid("The selected clips do not fit at this target.".into())
+            })
+    };
+    let sequence = sequence_mut(session, sequence_id)?;
+    for id in effect_ids {
+        let effect = effect_mut(sequence, *id)?;
+        effect.target = destination(&effect.target)?;
+        effect.start = shifted_start(&effect.start, time_delta_seconds)?;
+    }
+    for id in automation_ids {
+        let clip = sequence
+            .automation_clips
+            .iter_mut()
+            .find(|clip| clip.id.0 == *id)
+            .ok_or_else(|| GuiMutationError::Invalid("Automation clip is missing.".into()))?;
+        clip.row_target = destination(&clip.row_target)?;
+        clip.start = shifted_start(&clip.start, time_delta_seconds)?;
+    }
+    Ok(())
 }
 
-pub(super) fn resize_effect_selection(
+fn shifted_start(start: &DonderTime, delta: f32) -> Result<DonderTime, GuiMutationError> {
+    let seconds = start.as_seconds_f32() + delta;
+    if !seconds.is_finite() || seconds < 0.0 {
+        return Err(GuiMutationError::Invalid(
+            "Clip start must be finite and nonnegative.".into(),
+        ));
+    }
+    Ok(DonderTime::from_seconds_f32(seconds))
+}
+
+pub(super) fn resize_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
-    ids: &[u32],
+    effect_ids: &[u32],
+    automation_ids: &[u32],
     edge: SequenceResizeEdge,
     time_delta_seconds: f32,
 ) -> Result<(), GuiMutationError> {
-    let effect_updates = effect_selection_updates(session, sequence_id, ids, |session, effect| {
-        let start_seconds = effect.start.as_seconds_f32();
-        let duration_seconds = effect.duration.as_seconds_f32();
-        let lane = effect_lane_index(session, &effect.target);
-        match edge {
-            SequenceResizeEdge::Left => (
-                start_seconds + time_delta_seconds,
-                duration_seconds - time_delta_seconds,
-                lane,
-            ),
-            SequenceResizeEdge::Right => {
-                (start_seconds, duration_seconds + time_delta_seconds, lane)
+    let resize =
+        |start: &mut DonderTime, duration: &mut DonderDuration| -> Result<(), GuiMutationError> {
+            let seconds = duration.as_seconds_f32()
+                + match edge {
+                    SequenceResizeEdge::Left => -time_delta_seconds,
+                    SequenceResizeEdge::Right => time_delta_seconds,
+                };
+            if !seconds.is_finite() || seconds <= 0.0 {
+                return Err(GuiMutationError::Invalid(
+                    "Clip duration must be positive and finite.".into(),
+                ));
             }
-        }
-    })?;
-    apply_effect_updates(session, sequence_id, effect_updates)?;
+            if matches!(edge, SequenceResizeEdge::Left) {
+                *start = shifted_start(start, time_delta_seconds)?;
+            }
+            *duration = DonderDuration::from_seconds_f32(seconds);
+            Ok(())
+        };
+    let sequence = sequence_mut(session, sequence_id)?;
+    for id in effect_ids {
+        let effect = effect_mut(sequence, *id)?;
+        resize(&mut effect.start, &mut effect.duration)?;
+    }
+    for id in automation_ids {
+        let clip = sequence
+            .automation_clips
+            .iter_mut()
+            .find(|clip| clip.id.0 == *id)
+            .ok_or_else(|| GuiMutationError::Invalid("Automation clip is missing.".into()))?;
+        resize(&mut clip.start, &mut clip.duration)?;
+    }
     Ok(())
 }
 
@@ -296,63 +474,6 @@ pub(super) fn move_mark_selection(
     Ok(moved)
 }
 
-pub(super) struct EffectUpdate {
-    id: u32,
-    start_seconds: f32,
-    duration_seconds: f32,
-    lane_index: usize,
-}
-
-fn effect_selection_updates(
-    session: &ProjectSession,
-    sequence_id: &SequenceId,
-    ids: &[u32],
-    update: impl Fn(&ProjectSession, &donder_language::effect::EffectInst) -> (f32, f32, usize),
-) -> Result<Vec<EffectUpdate>, GuiMutationError> {
-    let sequence = session
-        .project
-        .sequence(sequence_id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    Ok(sequence
-        .effects
-        .iter()
-        .filter(|effect| ids.contains(&effect.id.0))
-        .map(|effect| {
-            let (start_seconds, duration_seconds, lane_index) = update(session, effect);
-            EffectUpdate {
-                id: effect.id.0,
-                start_seconds,
-                duration_seconds,
-                lane_index,
-            }
-        })
-        .collect())
-}
-
-fn apply_effect_updates(
-    session: &mut ProjectSession,
-    sequence_id: &SequenceId,
-    updates: Vec<EffectUpdate>,
-) -> Result<Vec<u32>, GuiMutationError> {
-    let targets = updates
-        .iter()
-        .map(|update| (update.id, target_for_lane(session, update.lane_index)))
-        .collect::<Vec<_>>();
-    let sequence = sequence_mut(session, sequence_id)?;
-    let mut moved = Vec::new();
-    for update in updates {
-        let effect = effect_mut(sequence, update.id)?;
-        effect.start = DonderTime::from_seconds_f32(update.start_seconds.max(0.0));
-        effect.duration =
-            DonderDuration::from_seconds_f32(update.duration_seconds.max(0.000000001));
-        if let Some((_, Some(target))) = targets.iter().find(|(id, _)| *id == update.id) {
-            effect.target = target.clone();
-        }
-        moved.push(update.id);
-    }
-    Ok(moved)
-}
-
 fn mark_time_seconds(
     sequence: &donder_language::sequence::Sequence,
     mark: &SequenceMarkRef,
@@ -381,14 +502,7 @@ fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec
     grouped
 }
 
-fn effect_lane_index(session: &ProjectSession, target: &FixtureTarget) -> usize {
-    effect_lane_index_resolved(session, target).unwrap_or_default()
-}
-
-pub(super) fn effect_lane_index_resolved(
-    session: &ProjectSession,
-    target: &FixtureTarget,
-) -> Option<usize> {
+fn target_lane_index(session: &ProjectSession, target: &FixtureTarget) -> Option<usize> {
     let layout = active_layout(session)?;
     if layout.id != target.layout {
         return None;
@@ -396,12 +510,6 @@ pub(super) fn effect_lane_index_resolved(
     layout
         .iter_fixtures()
         .position(|fixture| fixture.id == target.fixture)
-}
-
-fn sequence_lane_count(session: &ProjectSession) -> usize {
-    active_layout(session)
-        .map(|layout| layout.iter_fixtures().count())
-        .unwrap_or_default()
 }
 
 pub(super) fn target_for_lane(
@@ -414,25 +522,6 @@ pub(super) fn target_for_lane(
         layout: layout.id.clone(),
         fixture,
     })
-}
-
-fn shifted_lane(lane_index: usize, lane_delta: i32, lane_count: usize) -> usize {
-    if lane_count == 0 {
-        return 0;
-    }
-    (lane_index as i32 + lane_delta).clamp(0, lane_count.saturating_sub(1) as i32) as usize
-}
-
-fn anchored_lane(
-    anchor_lane: usize,
-    lane_index: usize,
-    min_lane: usize,
-    lane_count: usize,
-) -> usize {
-    if lane_count == 0 {
-        return lane_index;
-    }
-    (anchor_lane + lane_index.saturating_sub(min_lane)).min(lane_count.saturating_sub(1))
 }
 
 pub(super) fn mark_param_names(
@@ -479,7 +568,8 @@ use donder_project_io::ProjectSession;
 use super::model::{effect_mut, mark_collection_mut, sequence_mut, source_identity_from_gui};
 use super::projection::active_layout;
 use super::{
-    ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard, SequenceSelectionMutation,
+    ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard,
+    SequenceSelectionMutation,
 };
 use crate::dto::{
     SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor, SequenceResizeEdge,

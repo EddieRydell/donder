@@ -427,3 +427,6 @@ mod project_copy_acceptance;
 
 #[cfg(test)]
 mod library_array_acceptance;
+
+#[cfg(test)]
+mod sequence_rows_acceptance;

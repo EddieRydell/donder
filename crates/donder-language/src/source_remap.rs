@@ -85,6 +85,9 @@ pub fn remap_document_paths(
     });
     for sequence in project.sequences_mut() {
         sequence.id.0 = remap_object_identity(&sequence.id.0, remaps);
+        for clip in &mut sequence.automation_clips {
+            remap_target(&mut clip.row_target, remaps);
+        }
         for effect in &mut sequence.effects {
             remap_target(&mut effect.target, remaps);
             remap_effect_ref(&mut effect.definition, remaps);

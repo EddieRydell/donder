@@ -57,6 +57,9 @@ impl Rebase for Patch {
 impl Rebase for Sequence {
     fn rebase(&mut self, from: &ObjectIdentity, to: &ObjectIdentity) {
         self.id.0.rebase(from, to);
+        for clip in &mut self.automation_clips {
+            clip.row_target.layout.0.rebase(from, to);
+        }
         for effect in &mut self.effects {
             effect.target.layout.0.rebase(from, to);
         }
@@ -123,6 +126,9 @@ fn retarget(project: &mut DonderProject, from: &ObjectIdentity, to: &ObjectIdent
         }
     }
     for sequence in project.sequences_mut() {
+        for clip in &mut sequence.automation_clips {
+            clip.row_target.layout.0.rebase(from, to);
+        }
         for effect in &mut sequence.effects {
             effect.target.layout.0.rebase(from, to);
         }
@@ -440,12 +446,15 @@ fn retarget_active_sequences(
 ) -> Result<(), String> {
     for index in 0..project.root.sequences.len() {
         let id = project.root.sequences[index].id();
-        if !project
-            .sequence(id)
-            .ok_or("Sequence was not found.")?
+        let sequence = project.sequence(id).ok_or("Sequence was not found.")?;
+        if !sequence
             .effects
             .iter()
             .any(|effect| &effect.target.layout == from)
+            && !sequence
+                .automation_clips
+                .iter()
+                .any(|clip| &clip.row_target.layout == from)
         {
             continue;
         }
@@ -455,6 +464,11 @@ fn retarget_active_sequences(
         let value = project.root.sequences[index]
             .inline_mut()
             .ok_or("Independent sequence was not found.")?;
+        for clip in &mut value.automation_clips {
+            if &clip.row_target.layout == from {
+                clip.row_target.layout = to.clone();
+            }
+        }
         for effect in &mut value.effects {
             if &effect.target.layout == from {
                 effect.target.layout = to.clone();

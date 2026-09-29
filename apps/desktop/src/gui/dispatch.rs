@@ -52,7 +52,12 @@ pub fn apply_edit(
 
 #[derive(Clone)]
 pub(crate) enum SequenceClipboard {
-    Effects(Vec<ClipboardEffect>),
+    Clips {
+        effects: Vec<ClipboardEffect>,
+        automation: Vec<ClipboardAutomation>,
+        source: SequenceId,
+        cut: bool,
+    },
     Marks(Vec<ClipboardMark>),
 }
 
@@ -60,6 +65,12 @@ pub(crate) enum SequenceClipboard {
 pub(crate) struct ClipboardEffect {
     pub(crate) effect: EffectInst,
     pub(crate) start_seconds: f32,
+    pub(crate) lane_index: usize,
+}
+
+#[derive(Clone)]
+pub(crate) struct ClipboardAutomation {
+    pub(crate) clip: donder_language::sequence::AutomationClip,
     pub(crate) lane_index: usize,
 }
 
@@ -97,6 +108,9 @@ pub(crate) fn apply_sequence_selection_edit(
             let (next_clipboard, copied_count, skipped_count) =
                 copy_sequence_selection(session, &sequence_id, &selection)?;
             *clipboard = next_clipboard;
+            if let Some(SequenceClipboard::Clips { cut, .. }) = clipboard {
+                *cut = true;
+            }
             delete_sequence_selection(session, &sequence_id, &selection)?;
             Ok(SequenceSelectionMutation {
                 selection: None,
@@ -115,27 +129,48 @@ pub(crate) fn apply_sequence_selection_edit(
         SequenceSelectionEdit::Paste { anchor } => {
             paste_sequence_clipboard(session, &sequence_id, anchor, clipboard.as_ref())
         }
-        SequenceSelectionEdit::MoveEffects {
-            ids,
+        SequenceSelectionEdit::MoveClips {
+            effect_ids,
+            automation_ids,
             time_delta_seconds,
             lane_delta,
         } => {
-            let moved =
-                move_effect_selection(session, &sequence_id, &ids, time_delta_seconds, lane_delta)?;
+            move_clip_selection(
+                session,
+                &sequence_id,
+                &effect_ids,
+                &automation_ids,
+                time_delta_seconds,
+                lane_delta,
+            )?;
             Ok(SequenceSelectionMutation {
-                selection: Some(SequenceSelection::Effects { ids: moved }),
+                selection: Some(SequenceSelection::Clips {
+                    effect_ids,
+                    automation_ids,
+                }),
                 copied_count: 0,
                 skipped_count: 0,
             })
         }
-        SequenceSelectionEdit::ResizeEffects {
-            ids,
+        SequenceSelectionEdit::ResizeClips {
+            effect_ids,
+            automation_ids,
             edge,
             time_delta_seconds,
         } => {
-            resize_effect_selection(session, &sequence_id, &ids, edge, time_delta_seconds)?;
+            resize_clip_selection(
+                session,
+                &sequence_id,
+                &effect_ids,
+                &automation_ids,
+                edge,
+                time_delta_seconds,
+            )?;
             Ok(SequenceSelectionMutation {
-                selection: Some(SequenceSelection::Effects { ids }),
+                selection: Some(SequenceSelection::Clips {
+                    effect_ids,
+                    automation_ids,
+                }),
                 copied_count: 0,
                 skipped_count: 0,
             })

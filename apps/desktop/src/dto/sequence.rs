@@ -66,8 +66,7 @@ pub struct SequenceAutomationClip {
     pub id: u32,
     pub start_seconds: f32,
     pub duration_seconds: f32,
-    pub anchor_lane_index: u32,
-    pub lane_index: u32,
+    pub row_target: FixtureTarget,
     pub curve: Vec<SequenceCurvePoint>,
     pub bindings: Vec<SequenceAutomationBinding>,
     pub detached_bindings: Vec<SequenceDetachedAutomationBinding>,
@@ -511,8 +510,7 @@ pub enum SequenceGuiEdit {
     AddAutomationClip {
         start_seconds: f32,
         duration_seconds: f32,
-        anchor_lane_index: u32,
-        lane_index: u32,
+        row_target: FixtureTarget,
     },
     CreateAndBindAutomationClip {
         target: SequenceAutomationTarget,
@@ -521,8 +519,7 @@ pub enum SequenceGuiEdit {
     MoveAutomationClip {
         id: u32,
         start_seconds: f32,
-        anchor_lane_index: u32,
-        lane_index: u32,
+        row_target: FixtureTarget,
     },
     ResizeAutomationClip {
         id: u32,
@@ -622,7 +619,7 @@ pub struct SequenceMarkRef {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencePasteAnchor {
-    pub lane_index: u32,
+    pub target: Option<FixtureTarget>,
     pub time_seconds: f32,
 }
 
@@ -633,8 +630,13 @@ pub struct SequencePasteAnchor {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceSelection {
-    Effects { ids: Vec<u32> },
-    Marks { marks: Vec<SequenceMarkRef> },
+    Clips {
+        effect_ids: Vec<u32>,
+        automation_ids: Vec<u32>,
+    },
+    Marks {
+        marks: Vec<SequenceMarkRef>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -656,13 +658,15 @@ pub enum SequenceSelectionEdit {
     Paste {
         anchor: SequencePasteAnchor,
     },
-    MoveEffects {
-        ids: Vec<u32>,
+    MoveClips {
+        effect_ids: Vec<u32>,
+        automation_ids: Vec<u32>,
         time_delta_seconds: f32,
         lane_delta: i32,
     },
-    ResizeEffects {
-        ids: Vec<u32>,
+    ResizeClips {
+        effect_ids: Vec<u32>,
+        automation_ids: Vec<u32>,
         edge: SequenceResizeEdge,
         time_delta_seconds: f32,
     },

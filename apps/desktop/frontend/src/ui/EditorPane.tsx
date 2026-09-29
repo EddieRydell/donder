@@ -18,6 +18,7 @@ import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnaps
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
 import { ReadOnlySourceNotice } from "./ReadOnlySourceNotice";
+import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
 import { THEME_METRICS } from "../theme";
 import { scheduleViewStateSave } from "../viewStatePersistence";
@@ -97,10 +98,8 @@ export function EditorPane({
     nextGuiPath !== null && nextGuiView === "sequence" && activeSequenceDocument !== null
       ? sequenceAudioKey(snapshot.projectEpoch, activeSequenceDocument.sourceRef, activeSequenceAudio, activeSequenceDocument.durationSeconds)
       : null;
-  const sequenceSelection =
-    pathSelection.path === activePath && pathSelection.resetRevision === guiResetRevision
-      ? pathSelection.selection
-      : null;
+  const sequenceSelection = reconcileSequenceSelection(activeSequenceDocument,
+    pathSelection.path === activePath && pathSelection.resetRevision === guiResetRevision ? pathSelection.selection : null);
   const setSequenceSelection = useCallback(
     (selection: SequenceSelection | null) => {
       setPathSelection({ path: activePath, resetRevision: guiResetRevision, selection });

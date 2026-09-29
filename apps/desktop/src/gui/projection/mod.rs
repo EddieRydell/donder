@@ -143,8 +143,7 @@ fn automation_clips(sequence: &donder_language::sequence::Sequence) -> Vec<Seque
             id: clip.id.0,
             start_seconds: clip.start.as_seconds_f32(),
             duration_seconds: clip.duration.as_seconds_f32(),
-            anchor_lane_index: clip.anchor_lane_index,
-            lane_index: clip.lane_index,
+            row_target: effect_target(&clip.row_target),
             curve: clip
                 .curve
                 .points
