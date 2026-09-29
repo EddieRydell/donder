@@ -173,6 +173,7 @@ export const THEME_METRICS = {
   curveEditorHeight: cssNumber("--donder-curve-editor-height"),
   canvasPointHitRadius: cssNumber("--donder-canvas-point-hit-radius"),
   scrollbarThumbMinHeight: cssNumber("--donder-scrollbar-thumb-min-height"),
+  scrollbarWidth: cssNumber("--donder-scrollbar-width"),
   graphEdgeInteractionWidth: cssNumber("--donder-graph-edge-interaction-width"),
   graphNodeMinHeight: cssNumber("--donder-graph-node-min-height"),
   graphNodeMinWidth: cssNumber("--donder-graph-node-min-width"),

@@ -1,6 +1,6 @@
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 
 import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
 
@@ -211,6 +211,7 @@ export function SequenceCanvas({
   const [selectedTimeSeconds, setSelectedTimeSeconds] = useState<number | null>(null);
   const [marquee, setMarquee] = useState<SequenceMarquee | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const sequenceScrollbar = useRef<{ pointerId: number; startX: number; startScroll: number } | null>(null);
   const restoreState = useAppStore((store) => store.restoreState);
   const gestureRequest = useRef<GuiDocumentRequest | null>(null);
   const settings = useAppStore((store) => store.snapshot?.settings ?? null);
@@ -220,6 +221,15 @@ export function SequenceCanvas({
   const viewportInitialized = useRef(false);
   const restoredViewportKey = useRef<string | null>(restoredViewport === undefined ? null : restoreKey);
   const left = SEQUENCE_CANVAS.leftGutterPx;
+  const scrollbarHeight = THEME_METRICS.scrollbarWidth;
+  const timelineWidth = Math.max(1, canvasSize.width - left);
+  const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / viewport.pxPerSecond);
+  const scrollbarThumbWidth = maxScrollXSeconds === 0
+    ? timelineWidth
+    : Math.min(timelineWidth, Math.max(THEME_METRICS.scrollbarThumbMinHeight, timelineWidth * (timelineWidth / (document.durationSeconds * viewport.pxPerSecond))));
+  const scrollbarThumbLeft = maxScrollXSeconds === 0
+    ? 0
+    : (timelineWidth - scrollbarThumbWidth) * viewport.scrollXSeconds / maxScrollXSeconds;
   const audioStripTop = SEQUENCE_CANVAS.audioStripTopPx;
   const audioStripHeight = viewport.audioStripHeight;
   const top = audioStripTop + audioStripHeight;
@@ -252,13 +262,34 @@ export function SequenceCanvas({
     setSequenceSelection(selection);
   }, [setSequenceSelection]);
 
+  const handleScrollbarPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (maxScrollXSeconds === 0) return;
+    const rail = event.currentTarget;
+    const rect = rail.getBoundingClientRect();
+    const thumbLeft = scrollbarThumbLeft;
+    if (event.target === rail) {
+      const nextLeft = clamp(event.clientX - rect.left - scrollbarThumbWidth / 2, 0, rect.width - scrollbarThumbWidth);
+      setViewport((current) => ({ ...current, scrollXSeconds: maxScrollXSeconds * nextLeft / Math.max(1, rect.width - scrollbarThumbWidth) }));
+      return;
+    }
+    sequenceScrollbar.current = { pointerId: event.pointerId, startX: event.clientX, startScroll: viewport.scrollXSeconds };
+    rail.setPointerCapture(event.pointerId);
+  };
+  const handleScrollbarPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = sequenceScrollbar.current;
+    if (drag === null || drag.pointerId !== event.pointerId) return;
+    const rail = event.currentTarget;
+    const travel = Math.max(1, rail.clientWidth - scrollbarThumbWidth);
+    setViewport((current) => ({ ...current, scrollXSeconds: clamp(drag.startScroll + (event.clientX - drag.startX) / travel * maxScrollXSeconds, 0, maxScrollXSeconds) }));
+  };
+
   const handleWheel = useCallback((event: WheelEvent) => {
     const target = canvas.current;
     if (target === null) return;
     const rect = target.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const timelineWidth = Math.max(1, rect.width - left);
-    const visibleHeight = Math.max(1, rect.height - top);
+    const visibleHeight = Math.max(1, rect.height - scrollbarHeight - top);
     const zoomDelta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
     const horizontalDelta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
 
@@ -301,7 +332,7 @@ export function SequenceCanvas({
         scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
       };
     });
-  }, [automationRowHeight, document, left, revealAutomation, settings, setViewport, top]);
+  }, [automationRowHeight, document, left, revealAutomation, scrollbarHeight, settings, setViewport, top]);
 
   useEffect(() => {
     const target = canvas.current;
@@ -339,7 +370,8 @@ export function SequenceCanvas({
     if (!target) return;
     const updateSize = () => {
       const rect = target.getBoundingClientRect();
-      setCanvasSize({ width: rect.width, height: rect.height });
+      const visibleHeight = Math.max(0, rect.height - scrollbarHeight);
+      setCanvasSize({ width: rect.width, height: visibleHeight });
       const timelineWidth = Math.max(1, rect.width - left);
       if (rect.width > 0 && !viewportInitialized.current) {
         viewportInitialized.current = true;
@@ -359,7 +391,7 @@ export function SequenceCanvas({
         const scrollXSeconds = clamp(current.scrollXSeconds, 0, Math.max(0, document.durationSeconds - timelineWidth / pxPerSecond));
         const rowHeights = completeRowHeights(current.rowHeights, document, settings);
         const rowsChanged = rowHeights !== current.rowHeights;
-        const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - Math.max(1, rect.height - top));
+        const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - Math.max(1, visibleHeight - top));
         const scrollY = clamp(current.scrollY, 0, maxScrollY);
         if (!rowsChanged && pxPerSecond === current.pxPerSecond && scrollXSeconds === current.scrollXSeconds && scrollY === current.scrollY) return current;
         return {
@@ -378,7 +410,7 @@ export function SequenceCanvas({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [automationRowHeight, revealAutomation, document, left, restoredViewport, settings, top]);
+  }, [automationRowHeight, revealAutomation, document, left, restoredViewport, scrollbarHeight, settings, top]);
 
   useEffect(() => {
     if (restoredViewport === undefined || restoredViewportKey.current === restoreKey) return;
@@ -458,7 +490,8 @@ export function SequenceCanvas({
     const timelineWidth = Math.max(1, rect.width - left);
     const totalLaneHeight = expandedTimelineHeight(rows);
     const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / viewport.pxPerSecond);
-    const maxScrollY = Math.max(0, totalLaneHeight - Math.max(1, rect.height - top));
+    const timelineHeight = Math.max(0, rect.height - scrollbarHeight);
+    const maxScrollY = Math.max(0, totalLaneHeight - Math.max(1, timelineHeight - top));
     const scrollXSeconds = clamp(viewport.scrollXSeconds, 0, maxScrollXSeconds);
     const scrollY = clamp(viewport.scrollY, 0, maxScrollY);
 
@@ -781,7 +814,10 @@ export function SequenceCanvas({
           <canvas
             ref={canvas}
             className="gui-canvas"
-            style={canvasCursor === undefined ? undefined : { cursor: canvasCursor }}
+            style={{
+              ...(canvasCursor === undefined ? {} : { cursor: canvasCursor }),
+              clipPath: `polygon(0 0, 100% 0, 100% calc(100% - var(--donder-scrollbar-width)), ${left}px calc(100% - var(--donder-scrollbar-width)), ${left}px 100%, 0 100%)`
+            }}
             tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === "Escape" && automationClipChooser !== null) {
@@ -1509,6 +1545,10 @@ export function SequenceCanvas({
           </ContextMenu.Portal>
         )}
       </ContextMenu.Root>
+      <div className="sequence-gutter-scrollbar-divider" style={{ left }} aria-hidden="true" />
+      <div className="sequence-horizontal-scrollbar" style={{ left, width: timelineWidth }} onPointerDown={handleScrollbarPointerDown} onPointerMove={handleScrollbarPointerMove} onPointerUp={() => { sequenceScrollbar.current = null; }} onPointerCancel={() => { sequenceScrollbar.current = null; }} aria-label="Sequence horizontal scrollbar" role="scrollbar" aria-orientation="horizontal" aria-valuemin={0} aria-valuemax={Math.round(maxScrollXSeconds * 1000)} aria-valuenow={Math.round(viewport.scrollXSeconds * 1000)}>
+        <div className={`sequence-horizontal-scrollbar-thumb ${maxScrollXSeconds === 0 ? "disabled" : ""}`} style={{ left: scrollbarThumbLeft, width: scrollbarThumbWidth }} />
+      </div>
       <SequenceWaveform
         audio={document.audio}
         settings={settings}

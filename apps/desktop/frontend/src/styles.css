@@ -335,6 +335,7 @@
   --donder-z-resize: 4;
   --donder-z-scrollbar-thumb: 2;
   --donder-z-scrollbar-marker: 3;
+  --donder-z-sequence-gutter: 3;
   --donder-z-local-tooltip: 5;
   --donder-z-color-picker: 240;
   --donder-z-dialog-content: 31;
@@ -1343,8 +1344,52 @@ button:focus-visible,
 }
 
 .sequence-canvas-shell > .gui-canvas {
+  height: 100%;
   position: relative;
-  z-index: var(--donder-z-sequence-waveform-canvas);
+  z-index: var(--donder-z-sequence-gutter);
+}
+
+.sequence-horizontal-scrollbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--donder-z-scrollbar-thumb);
+  height: var(--donder-scrollbar-width);
+  min-width: 0;
+  border-top: var(--donder-border-width) solid var(--donder-surface-collapsed);
+  background: var(--donder-bg-rail);
+  cursor: default;
+  touch-action: none;
+}
+
+.sequence-gutter-scrollbar-divider {
+  position: absolute;
+  bottom: 0;
+  z-index: var(--donder-z-sequence-gutter);
+  height: var(--donder-scrollbar-width);
+  border-left: var(--donder-border-width) solid var(--donder-border);
+  pointer-events: none;
+}
+
+.sequence-horizontal-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: var(--donder-scrollbar-thumb-min-height);
+  background: var(--donder-scrollbar-thumb);
+  cursor: grab;
+}
+
+.sequence-horizontal-scrollbar-thumb:hover,
+.sequence-horizontal-scrollbar-thumb:active {
+  background: var(--donder-scrollbar-thumb-hover);
+}
+
+.sequence-horizontal-scrollbar-thumb:active { cursor: grabbing; }
+.sequence-horizontal-scrollbar-thumb.disabled {
+  background: var(--donder-surface-collapsed);
+  cursor: default;
 }
 
 .sequence-audio-visualization {
