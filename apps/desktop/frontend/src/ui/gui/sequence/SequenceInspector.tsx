@@ -10,7 +10,8 @@ import type {
   SequenceMarkCollection,
   SequenceMarkRef,
   SequenceEffectScope,
-  SequenceEffectDefinition
+  SequenceEffectDefinition,
+  SequenceEffectCommonEdit
 } from "../../../types";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
@@ -139,6 +140,146 @@ export function SequenceInspector({
   );
 }
 
+function SelectedEffectsInspector({
+  document,
+  effectIds,
+  onDelete
+}: {
+  document: SequenceEditorDocument;
+  effectIds: number[];
+  onDelete: () => void;
+}) {
+  const effects = effectIds
+    .map((id) => document.effects.find((effect) => effect.id === id))
+    .filter((effect): effect is SequenceEffect => effect !== undefined);
+  if (effects.length === 0) {
+    return <><h2>Effects</h2><p>Select an effect on the timeline.</p></>;
+  }
+
+  const selectedEffectIds = effects.map((effect) => effect.id);
+  const layerId = commonEffectValue(effects, (effect) => effect.layerId);
+  const scope = commonEffectValue(effects, (effect) => effect.scope);
+  const startSeconds = commonEffectValue(effects, (effect) => effect.startSeconds);
+  const durationSeconds = commonEffectValue(effects, (effect) => effect.durationSeconds);
+  const applyEdit = (edit: SequenceEffectCommonEdit) =>
+    runGuiEditCommand((request) =>
+      commands.applySequenceSelectionEdit(request, {
+        type: "editEffects",
+        effectIds: selectedEffectIds,
+        edit
+      })
+    );
+
+  return (
+    <>
+      <h2>Effects</h2>
+      <div className="inspector-readout-grid">
+        <Readout label="Selected" value={String(effects.length)} />
+      </div>
+      <div className="effect-inspector-fields">
+        <label>
+          Layer
+          <select
+            value={layerId === null ? "" : String(layerId)}
+            onChange={(event) => {
+              const nextLayerId = Number(event.currentTarget.value);
+              if (!Number.isInteger(nextLayerId)) return;
+              void applyEdit({ type: "layer", layerId: nextLayerId });
+            }}
+          >
+            {layerId === null && <option value="" disabled>Multiple</option>}
+            {document.layers.map((layer) => (
+              <option key={layer.id} value={String(layer.id)}>
+                {layer.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Scope
+          <select
+            value={scope ?? ""}
+            onChange={(event) => {
+              const nextScope = event.currentTarget.value;
+              if (nextScope !== "perFixture" && nextScope !== "wholeTarget") return;
+              void applyEdit({ type: "scope", scope: nextScope });
+            }}
+          >
+            {scope === null && <option value="" disabled>Multiple</option>}
+            <option value="perFixture">Per fixture</option>
+            <option value="wholeTarget">Whole target</option>
+          </select>
+        </label>
+        <div className="inspector-inline-row">
+          <MultiEffectNumberField
+            effectIds={selectedEffectIds}
+            field="start"
+            label="Start"
+            min={0}
+            value={startSeconds}
+            onCommit={(value) => void applyEdit({ type: "start", startSeconds: value })}
+          />
+          <MultiEffectNumberField
+            effectIds={selectedEffectIds}
+            field="duration"
+            label="Duration"
+            min={0.000000001}
+            value={durationSeconds}
+            onCommit={(value) => void applyEdit({ type: "duration", durationSeconds: value })}
+          />
+        </div>
+      </div>
+      <button type="button" onClick={onDelete}>Delete</button>
+    </>
+  );
+}
+
+function MultiEffectNumberField({
+  effectIds,
+  field,
+  label,
+  min,
+  value,
+  onCommit
+}: {
+  effectIds: number[];
+  field: "start" | "duration";
+  label: string;
+  min: number;
+  value: number | null;
+  onCommit: (value: number) => void;
+}) {
+  return (
+    <label>
+      {label}
+      <input
+        key={`${effectIds.join(",")}:${field}:${value ?? "multiple"}`}
+        type="number"
+        min={min}
+        step="any"
+        placeholder={value === null ? "Multiple" : undefined}
+        defaultValue={value ?? ""}
+        onBlur={(event) => {
+          const rawValue = event.currentTarget.value;
+          if (rawValue === "") return;
+          const nextValue = Number(rawValue);
+          if (!Number.isFinite(nextValue)) return;
+          const normalizedValue = roundToNanosecond(Math.max(min, nextValue));
+          if (value === normalizedValue) return;
+          onCommit(normalizedValue);
+        }}
+      />
+    </label>
+  );
+}
+
+function commonEffectValue<T>(effects: SequenceEffect[], read: (effect: SequenceEffect) => T): T | null {
+  const first = effects[0];
+  if (first === undefined) return null;
+  const value = read(first);
+  return effects.every((effect) => Object.is(read(effect), value)) ? value : null;
+}
+
 function EffectInspectorPanel({
   document,
   selected,
@@ -161,6 +302,21 @@ function EffectInspectorPanel({
           <h2>Effect Parameters</h2>
           <p>Select an effect on the timeline.</p>
         </>
+      );
+    }
+    if (sequenceSelection.automationIds.length === 0) {
+      return (
+        <SelectedEffectsInspector
+          document={document}
+          effectIds={sequenceSelection.effectIds}
+          onDelete={() => {
+            void runGuiEditCommand((request) =>
+              commands.applySequenceSelectionEdit(request, { type: "delete", selection: sequenceSelection })
+            ).then(() => {
+              setSelected(null);
+            });
+          }}
+        />
       );
     }
     return (

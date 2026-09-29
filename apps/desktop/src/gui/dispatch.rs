@@ -175,6 +175,17 @@ pub(crate) fn apply_sequence_selection_edit(
                 skipped_count: 0,
             })
         }
+        SequenceSelectionEdit::EditEffects { effect_ids, edit } => {
+            edit_effect_selection(session, &sequence_id, &effect_ids, edit)?;
+            Ok(SequenceSelectionMutation {
+                selection: Some(SequenceSelection::Clips {
+                    effect_ids,
+                    automation_ids: Vec::new(),
+                }),
+                copied_count: 0,
+                skipped_count: 0,
+            })
+        }
         SequenceSelectionEdit::MoveMarks {
             marks,
             time_delta_seconds,

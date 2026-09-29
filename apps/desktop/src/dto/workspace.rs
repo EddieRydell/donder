@@ -77,8 +77,6 @@ pub struct AppSettings {
     pub sequence_initial_zoom_mode: SequenceInitialZoomMode,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
-    #[serde(default = "default_sequence_waveform_resolution_ms")]
-    pub sequence_waveform_resolution_ms: f32,
     #[serde(default)]
     pub sequence_spectrogram_enabled: bool,
     #[serde(default = "default_sequence_spectrogram_time_resolution_ms")]
@@ -91,10 +89,6 @@ pub struct AppSettings {
 
 fn default_editor_view_mode() -> EditorViewMode {
     EditorViewMode::Gui
-}
-
-fn default_sequence_waveform_resolution_ms() -> f32 {
-    5.0
 }
 
 fn default_sequence_spectrogram_time_resolution_ms() -> f32 {
@@ -115,7 +109,6 @@ impl Default for AppSettings {
             sequence_initial_zoom_mode: SequenceInitialZoomMode::FitToWidth,
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
-            sequence_waveform_resolution_ms: default_sequence_waveform_resolution_ms(),
             sequence_spectrogram_enabled: false,
             sequence_spectrogram_time_resolution_ms:
                 default_sequence_spectrogram_time_resolution_ms(),

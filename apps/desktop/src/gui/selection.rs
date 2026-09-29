@@ -337,6 +337,60 @@ pub(super) fn paste_sequence_clipboard(
     }
 }
 
+pub(super) fn edit_effect_selection(
+    session: &mut ProjectSession,
+    sequence_id: &SequenceId,
+    effect_ids: &[u32],
+    edit: SequenceEffectCommonEdit,
+) -> Result<(), GuiMutationError> {
+    if effect_ids.is_empty() {
+        return Err(GuiMutationError::Invalid(
+            "At least one effect must be selected.".into(),
+        ));
+    }
+
+    let sequence = sequence_mut(session, sequence_id)?;
+    match edit {
+        SequenceEffectCommonEdit::Layer { layer_id } => {
+            if !sequence.layers.iter().any(|layer| layer.id.0 == layer_id) {
+                return Err(GuiMutationError::Invalid("Layer was not found.".into()));
+            }
+            for id in effect_ids {
+                effect_mut(sequence, *id)?.layer_id = SequenceLayerId(layer_id);
+            }
+        }
+        SequenceEffectCommonEdit::Scope { scope } => {
+            let scope = effect_scope(scope);
+            for id in effect_ids {
+                effect_mut(sequence, *id)?.scope = scope.clone();
+            }
+        }
+        SequenceEffectCommonEdit::Start { start_seconds } => {
+            if !start_seconds.is_finite() {
+                return Err(GuiMutationError::Invalid(
+                    "Effect start must be finite.".into(),
+                ));
+            }
+            let start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            for id in effect_ids {
+                effect_mut(sequence, *id)?.start = start.clone();
+            }
+        }
+        SequenceEffectCommonEdit::Duration { duration_seconds } => {
+            if !duration_seconds.is_finite() {
+                return Err(GuiMutationError::Invalid(
+                    "Effect duration must be finite.".into(),
+                ));
+            }
+            let duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            for id in effect_ids {
+                effect_mut(sequence, *id)?.duration = duration.clone();
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn move_clip_selection(
     session: &mut ProjectSession,
     sequence_id: &SequenceId,
@@ -561,17 +615,21 @@ use std::collections::BTreeMap;
 use donder_language::dsl::Type;
 use donder_language::effect::{EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef};
 use donder_language::layout::FixtureTarget;
-use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
+use donder_language::sequence::{
+    AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId,
+};
 use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::ProjectSession;
 
-use super::model::{effect_mut, mark_collection_mut, sequence_mut, source_identity_from_gui};
+use super::model::{
+    effect_mut, effect_scope, mark_collection_mut, sequence_mut, source_identity_from_gui,
+};
 use super::projection::active_layout;
 use super::{
     ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard,
     SequenceSelectionMutation,
 };
 use crate::dto::{
-    SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor, SequenceResizeEdge,
-    SequenceSelection,
+    SequenceEffectCommonEdit, SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor,
+    SequenceResizeEdge, SequenceSelection,
 };

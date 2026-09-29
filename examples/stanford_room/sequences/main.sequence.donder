@@ -29,7 +29,7 @@ main:
     - 68.86438s
     - 69.06813s
     - 69.261887s
-    - 69.875809s
+    - 69.857613s
     - 69.962227s
     - 70.06057s
     - 70.16188s
@@ -52,6 +52,22 @@ main:
     - 73.666611s
     - 73.866257s
     - 74.065933s
+    - 74.685081s
+    - 74.800941s
+    - 75.002701s
+    - 75.102577s
+    - 75.273613s
+    - 75.491356s
+    - 75.7071s
+    - 76.250443s
+    - 76.356316s
+    - 76.450211s
+    - 76.556084s
+    - 76.667946s
+    - 76.85006s
+    - 77.052254s
+    - 77.254448s
+    - 77.456818s
   - key: marks_2
     name: Beats
     color: '#f97316'
@@ -73,7 +89,23 @@ main:
     - 73.26384s
     - 73.664902s
     - 74.062393s
-    - 74.469894s
+    - 74.440613s
+    - 74.898926s
+    - 75.273788s
+    - 75.701653s
+    - 76.045677s
+    - 76.453133s
+    - 76.858154s
+    - 77.258293s
+    - 77.468124s
+    - 77.660873s
+    - 78.064659s
+    - 78.46505s
+    - 78.865433s
+    - 79.269463s
+    - 79.669846s
+    - 80.077515s
+    - 80.485176s
   layers:
   - id: 0
     name: Default
@@ -151,7 +183,7 @@ main:
   - id: 3
     layer_id: 1
     start: 67.82798s
-    duration: 6.847881s
+    duration: 12.887004s
     target:
       layout: layouts.main
       fixture: 5
@@ -189,7 +221,7 @@ main:
   - id: 4
     layer_id: 1
     start: 67.796455s
-    duration: 6.89256s
+    duration: 12.931684s
     target:
       layout: layouts.main
       fixture: 5
@@ -381,7 +413,7 @@ main:
   - id: 8
     layer_id: 1
     start: 67.850548s
-    duration: 6.847881s
+    duration: 12.887004s
     target:
       layout: layouts.main
       fixture: 6
@@ -419,7 +451,7 @@ main:
   - id: 9
     layer_id: 1
     start: 67.79187s
-    duration: 6.89256s
+    duration: 12.931684s
     target:
       layout: layouts.main
       fixture: 6
@@ -826,6 +858,236 @@ main:
         type: integer
         value: 1000
     effect: effects.MarkPulse
+  - id: 17
+    layer_id: 1
+    start: 74.526802s
+    duration: 3.094254s
+    target:
+      layout: layouts.main
+      fixture: 3
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 1.0
+            - position: 0.2070000022649765
+              value: 0.5289999842643738
+            - position: 0.4009999930858612
+              value: 0.2809999883174896
+            - position: 0.5789999961853027
+              value: 0.12600000202655792
+            - position: 0.777999997138977
+              value: 0.03700000047683716
+            - position: 1.0
+              value: 0.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 35.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 18
+    layer_id: 1
+    start: 74.511299s
+    duration: 3.094254s
+    target:
+      layout: layouts.main
+      fixture: 1
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 0.0
+            - position: 0.2070000022649765
+              value: 0.47099998593330383
+            - position: 0.4009999930858612
+              value: 0.718999981880188
+            - position: 0.5789999961853027
+              value: 0.8740000128746033
+            - position: 0.777999997138977
+              value: 0.9629999995231628
+            - position: 1.0
+              value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 19
+    layer_id: 1
+    start: 74.532967s
+    duration: 3.094254s
+    target:
+      layout: layouts.main
+      fixture: 2
+    scope: whole_target
+    params:
+      beats:
+        type: marks
+        key: marks
+      gradients:
+        type: array
+        values:
+        - gradient:
+            type: gradient
+            stops:
+            - position: 0.0
+              color: '#ffffff'
+            - position: 0.11999999731779099
+              color: '#ff0000'
+      chase_positions:
+        type: array
+        values:
+        - curve:
+            type: curve
+            points:
+            - position: 0.0
+              value: 1.0
+            - position: 0.2070000022649765
+              value: 0.5289999842643738
+            - position: 0.4009999930858612
+              value: 0.2809999883174896
+            - position: 0.5789999961853027
+              value: 0.12600000202655792
+            - position: 0.777999997138977
+              value: 0.03700000047683716
+            - position: 1.0
+              value: 0.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.38100001215934753
+            value: 0.15600000321865082
+          - position: 1.0
+            value: 0.0
+      section_width_pixels:
+        type: integer
+        value: 1
+      pulse_overlap:
+        type: float
+        value: 25.0
+      chase_seconds:
+        type: float
+        value: 0.5
+      offset_seconds:
+        type: float
+        value: -0.10000000149011612
+    effect: effects.MarkChase
+  - id: 20
+    layer_id: 1
+    start: 77.093742s
+    duration: 0.504466s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: per_fixture
+    params:
+      beats:
+        type: marks
+        key: marks_2
+      accent:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+      offset_seconds:
+        type: float
+        value: -0.07999999821186066
+      decay_seconds:
+        type: float
+        value: 0.10000000149011612
+      section_width_pixels:
+        type: integer
+        value: 1000
+    effect: effects.MarkPulse
   composition_graph:
     nodes:
     - id: 1
@@ -885,7 +1147,7 @@ main:
         value: 0.03400000184774399
       - position: 0.20936352014541626
         value: 0.009999999776482582
-      - position: 0.21026676893234253
+      - position: 0.21077413856983185
         value: 0.0
       - position: 0.21080870926380157
         value: 0.49799999594688416
@@ -909,6 +1171,18 @@ main:
         value: 0.8659999966621399
       - position: 0.224440798163414
         value: 0.8899999856948853
+      - position: 0.22505322098731995
+        value: 0.859000027179718
+      - position: 0.22535434365272522
+        value: 0.4620000123977661
+      - position: 0.22971151769161224
+        value: 0.4359999895095825
+      - position: 0.2301151603460312
+        value: 0.47099998593330383
+      - position: 0.23034389317035675
+        value: 0.12600000202655792
+      - position: 0.23471668362617493
+        value: 0.24699999392032623
       - position: 1.0
         value: 1.0
     bindings:

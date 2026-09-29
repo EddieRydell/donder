@@ -92,14 +92,6 @@ export function SettingsDialog() {
                 value={draft.sequenceInitialLaneHeightPx}
                 onChange={(sequenceInitialLaneHeightPx) => void update({ ...draft, sequenceInitialLaneHeightPx })}
               />
-              <NumberInput
-                label="Waveform resolution (ms)"
-                min={1}
-                max={100}
-                step={1}
-                value={draft.sequenceWaveformResolutionMs ?? 5}
-                onChange={(sequenceWaveformResolutionMs) => void update({ ...draft, sequenceWaveformResolutionMs })}
-              />
               <Checkbox
                 label="Show spectrogram"
                 checked={draft.sequenceSpectrogramEnabled ?? false}

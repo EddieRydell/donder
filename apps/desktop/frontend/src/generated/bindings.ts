@@ -76,7 +76,6 @@ export type AppSettings = {
 	sequenceInitialZoomMode: SequenceInitialZoomMode,
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
-	sequenceWaveformResolutionMs?: number,
 	sequenceSpectrogramEnabled?: boolean,
 	sequenceSpectrogramTimeResolutionMs?: number,
 	sequenceSpectrogramFftSize?: number,
@@ -704,6 +703,8 @@ export type SequenceEffect = {
 	kind: SequenceTimelineClipKind,
 };
 
+export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceEffectScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number };
+
 export type SequenceEffectDefinition = {
 	name: string,
 	kind: SequenceEffectDefinitionKind,
@@ -870,7 +871,7 @@ export type SequenceResizeEdge = "left" | "right";
 
 export type SequenceSelection = { type: "clips"; effectIds: number[]; automationIds: number[] } | { type: "marks"; marks: SequenceMarkRef[] };
 
-export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection } | { type: "cut"; selection: SequenceSelection } | { type: "delete"; selection: SequenceSelection } | { type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; effectIds: number[]; automationIds: number[]; timeDeltaSeconds: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; timeDeltaSeconds: number } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
+export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection } | { type: "cut"; selection: SequenceSelection } | { type: "delete"; selection: SequenceSelection } | { type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; effectIds: number[]; automationIds: number[]; timeDeltaSeconds: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
 export type SequenceSelectionEditResult = {
 	snapshot: AppSnapshot,

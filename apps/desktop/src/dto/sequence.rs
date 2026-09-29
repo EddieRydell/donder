@@ -645,6 +645,19 @@ pub enum SequenceSelection {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
+pub enum SequenceEffectCommonEdit {
+    Layer { layer_id: u32 },
+    Scope { scope: SequenceEffectScope },
+    Start { start_seconds: f32 },
+    Duration { duration_seconds: f32 },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum SequenceSelectionEdit {
     Copy {
         selection: SequenceSelection,
@@ -669,6 +682,10 @@ pub enum SequenceSelectionEdit {
         automation_ids: Vec<u32>,
         edge: SequenceResizeEdge,
         time_delta_seconds: f32,
+    },
+    EditEffects {
+        effect_ids: Vec<u32>,
+        edit: SequenceEffectCommonEdit,
     },
     MoveMarks {
         marks: Vec<SequenceMarkRef>,

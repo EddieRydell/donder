@@ -340,6 +340,8 @@
   --donder-z-dialog-content: 31;
   --donder-z-graph-handle: 3;
   --donder-z-graph-resize: 2;
+  --donder-z-sequence-waveform: 0;
+  --donder-z-sequence-waveform-canvas: 1;
   --donder-z-sequence-transport: 1;
 
   /* motion and opacity */
@@ -447,9 +449,6 @@
   --donder-automation-clip-label-baseline: 13px;
   --donder-automation-clip-label-min-width: 40px;
   --donder-automation-detached-stripe-width: 3px;
-  --donder-waveform-amplitude-inset: 4px;
-  --donder-waveform-raw-sample-threshold: 2;
-  --donder-spectrogram-min-cell-size: 0.25px;
   --donder-spectrogram-highlight-threshold: 0.68;
   --donder-spectrogram-highlight-power: 1.25;
   --donder-timeline-label-x: 5px;
@@ -1343,12 +1342,27 @@ button:focus-visible,
   min-height: 0;
 }
 
-.sequence-waveform-decoder {
+.sequence-canvas-shell > .gui-canvas {
+  position: relative;
+  z-index: var(--donder-z-sequence-waveform-canvas);
+}
+
+.sequence-audio-visualization {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  z-index: var(--donder-z-sequence-waveform);
   overflow: hidden;
+  background: var(--donder-page);
+  pointer-events: none;
+}
+
+.sequence-audio-visualization > div::part(cursor) {
+  display: none;
+}
+
+.sequence-audio-visualization.is-spectrogram > div::part(canvases) {
   visibility: hidden;
+  height: 0 !important;
+  min-height: 0 !important;
 }
 
 .sequence-transport-marker {

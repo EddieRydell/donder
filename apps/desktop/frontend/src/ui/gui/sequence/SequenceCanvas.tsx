@@ -19,7 +19,7 @@ import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, markIndexAfte
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { targetAtLane, targetsEqual } from "./sequenceTargets";
-import { drawSpectrogramStrip, drawWaveformStrip, useSequenceWaveform } from "./sequenceWaveform";
+import { SequenceWaveform } from "./sequenceWaveform";
 import { drawClipRaster, useSequenceClipRasters } from "./sequenceClipRasters";
 import { useSequenceTransport } from "./SequenceTransportControls";
 import {
@@ -223,7 +223,6 @@ export function SequenceCanvas({
   const audioStripTop = SEQUENCE_CANVAS.audioStripTopPx;
   const audioStripHeight = viewport.audioStripHeight;
   const top = audioStripTop + audioStripHeight;
-  const waveform = useSequenceWaveform(document.audio, settings);
   const [mode] = useMarkDisplayMode();
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
   const automationClipsForLayout = useMemo(
@@ -451,41 +450,23 @@ export function SequenceCanvas({
 
     ctx.fillStyle = SEQUENCE_COLORS.panel;
     ctx.fillRect(0, 0, rect.width, top);
-    ctx.fillStyle = SEQUENCE_COLORS.page;
-    ctx.fillRect(left, audioStripTop, timelineWidth, audioStripHeight);
+    if (document.audio?.exists === true) {
+      ctx.clearRect(left, audioStripTop, timelineWidth, audioStripHeight);
+    } else {
+      ctx.fillStyle = SEQUENCE_COLORS.page;
+      ctx.fillRect(left, audioStripTop, timelineWidth, audioStripHeight);
+    }
+    ctx.strokeStyle = SEQUENCE_COLORS.grid;
+    ctx.beginPath();
+    ctx.moveTo(left, audioStripTop + audioStripHeight / 2 + THEME_METRICS.visualHairlineOffset);
+    ctx.lineTo(left + timelineWidth, audioStripTop + audioStripHeight / 2 + THEME_METRICS.visualHairlineOffset);
+    ctx.stroke();
     ctx.strokeStyle = SEQUENCE_COLORS.gridFaint;
     ctx.beginPath();
     ctx.moveTo(0, top + THEME_METRICS.visualHairlineOffset);
     ctx.lineTo(rect.width, top + THEME_METRICS.visualHairlineOffset);
     ctx.stroke();
 
-    if (settings?.sequenceSpectrogramEnabled === true) {
-      drawSpectrogramStrip(
-        ctx,
-        waveform.audio,
-        left,
-        audioStripTop,
-        timelineWidth,
-        audioStripHeight,
-        document.durationSeconds,
-        viewport.pxPerSecond,
-        scrollXSeconds,
-        SEQUENCE_COLORS
-      );
-    } else {
-      drawWaveformStrip(
-        ctx,
-        waveform.audio,
-        left,
-        audioStripTop,
-        timelineWidth,
-        audioStripHeight,
-        document.durationSeconds,
-        viewport.pxPerSecond,
-        scrollXSeconds,
-        SEQUENCE_COLORS
-      );
-    }
     if (audioResizeHover) {
       ctx.fillStyle = SEQUENCE_COLORS.accent;
       ctx.fillRect(0, top - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
@@ -584,7 +565,7 @@ export function SequenceCanvas({
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
 
-  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, waveform.audio, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
@@ -1516,6 +1497,16 @@ export function SequenceCanvas({
           </ContextMenu.Portal>
         )}
       </ContextMenu.Root>
+      <SequenceWaveform
+        audio={document.audio}
+        settings={settings}
+        left={left}
+        top={audioStripTop}
+        width={Math.max(0, canvasSize.width - left)}
+        height={audioStripHeight}
+        pxPerSecond={viewport.pxPerSecond}
+        scrollXSeconds={viewport.scrollXSeconds}
+      />
       <SequenceTransportOverlay
         document={document}
         viewport={viewport}

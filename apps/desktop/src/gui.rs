@@ -35,8 +35,8 @@ use project::project_root;
 use projection::{project_fixture, project_layout, project_sequence};
 pub(crate) use selection::copy_sequence_selection;
 use selection::{
-    delete_sequence_selection, move_clip_selection, move_mark_selection, paste_sequence_clipboard,
-    resize_clip_selection,
+    delete_sequence_selection, edit_effect_selection, move_clip_selection, move_mark_selection,
+    paste_sequence_clipboard, resize_clip_selection,
 };
 use setup::{edit_setup, project_setup};
 

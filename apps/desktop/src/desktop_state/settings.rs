@@ -24,9 +24,6 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
     if !settings.sequence_initial_lane_height_px.is_finite() {
         settings.sequence_initial_lane_height_px = 42.0;
     }
-    if !settings.sequence_waveform_resolution_ms.is_finite() {
-        settings.sequence_waveform_resolution_ms = 5.0;
-    }
     if !settings.sequence_spectrogram_time_resolution_ms.is_finite() {
         settings.sequence_spectrogram_time_resolution_ms = 10.0;
     }
@@ -37,8 +34,6 @@ pub(crate) fn sanitize_app_settings(mut settings: AppSettings) -> AppSettings {
         settings.sequence_initial_px_per_second.clamp(20.0, 12000.0);
     settings.sequence_initial_lane_height_px =
         settings.sequence_initial_lane_height_px.clamp(24.0, 120.0);
-    settings.sequence_waveform_resolution_ms =
-        settings.sequence_waveform_resolution_ms.clamp(1.0, 100.0);
     settings.sequence_spectrogram_time_resolution_ms = settings
         .sequence_spectrogram_time_resolution_ms
         .clamp(0.5, 100.0);
