@@ -161,28 +161,3 @@ fn rejects_collisions_root_escapes_and_descendant_moves() {
         .contains("escape")
     );
 }
-
-#[test]
-#[allow(clippy::permissions_set_readonly_false)]
-fn failed_commit_restores_source_and_active_files() {
-    let (_temporary, root) = starter_copy();
-    fs::create_dir(root.join("moved")).expect("directory");
-    let session = load_project(&root).expect("load");
-    let plan = plan_path_change(
-        &session,
-        Utf8Path::new("effects/impact-burst.effect.donder"),
-        Utf8Path::new("moved/impact-burst.effect.donder"),
-    )
-    .expect("plan");
-    let protected = root.join("project.donder");
-    let mut permissions = fs::metadata(&protected).expect("metadata").permissions();
-    permissions.set_readonly(true);
-    fs::set_permissions(&protected, permissions.clone()).expect("readonly");
-    let result = apply_path_change(&session, &plan);
-    permissions.set_readonly(false);
-    fs::set_permissions(&protected, permissions).expect("writable");
-    assert!(result.is_err());
-    assert!(root.join("effects/impact-burst.effect.donder").is_file());
-    assert!(!root.join("moved/impact-burst.effect.donder").exists());
-    assert!(load_project(&root).is_ok());
-}

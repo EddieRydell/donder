@@ -703,7 +703,7 @@ export type SequenceEffect = {
 	kind: SequenceTimelineClipKind,
 };
 
-export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceEffectScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number };
+export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { type: "scope"; scope: SequenceEffectScope } | { type: "start"; startSeconds: number } | { type: "duration"; durationSeconds: number } | { type: "param"; name: string; value: SequenceEffectParamValue };
 
 export type SequenceEffectDefinition = {
 	name: string,

@@ -176,7 +176,7 @@ pub(crate) fn apply_sequence_selection_edit(
             })
         }
         SequenceSelectionEdit::EditEffects { effect_ids, edit } => {
-            edit_effect_selection(session, &sequence_id, &effect_ids, edit)?;
+            edit_effect_selection(session, &resolved.identity, &sequence_id, &effect_ids, edit)?;
             Ok(SequenceSelectionMutation {
                 selection: Some(SequenceSelection::Clips {
                     effect_ids,

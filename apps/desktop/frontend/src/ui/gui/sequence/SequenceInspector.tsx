@@ -7,6 +7,7 @@ import type {
   SequenceEditorDocument,
   SequenceAutomationTarget,
   SequenceEffect,
+  SequenceEffectParam,
   SequenceMarkCollection,
   SequenceMarkRef,
   SequenceEffectScope,
@@ -161,6 +162,7 @@ function SelectedEffectsInspector({
   const scope = commonEffectValue(effects, (effect) => effect.scope);
   const startSeconds = commonEffectValue(effects, (effect) => effect.startSeconds);
   const durationSeconds = commonEffectValue(effects, (effect) => effect.durationSeconds);
+  const commonParams = commonEditableEffectParams(effects);
   const applyEdit = (edit: SequenceEffectCommonEdit) =>
     runGuiEditCommand((request) =>
       commands.applySequenceSelectionEdit(request, {
@@ -229,7 +231,86 @@ function SelectedEffectsInspector({
           />
         </div>
       </div>
+      {commonParams.length > 0 && (
+        <div className="effect-param-section">
+          <h3>Shared parameters</h3>
+          {commonParams.map(({ param, mixed }, index) => (
+            <div
+              key={`${selectedEffectIds.join(",")}:${param.name}`}
+              className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}
+            >
+              <SharedEffectParamInput
+                param={param}
+                mixed={mixed}
+                commitParam={(name, value) => applyEdit({ type: "param", name, value }).then(() => undefined)}
+                document={document}
+              />
+            </div>
+          ))}
+        </div>
+      )}
       <button type="button" onClick={onDelete}>Delete</button>
+    </>
+  );
+}
+
+function commonEditableEffectParams(effects: SequenceEffect[]): { param: SequenceEffectParam; mixed: boolean }[] {
+  const first = effects[0];
+  if (first === undefined) return [];
+  return first.params.flatMap((param) => {
+    if (!param.editable) return [];
+    const matches = effects.slice(1).map((effect) => effect.params.find((candidate) =>
+      candidate.name === param.name && candidate.kind === param.kind && candidate.editable
+    ));
+    if (matches.some((match) => match === undefined)) return [];
+    const options = param.kind === "enum"
+      ? param.options.filter((option) => matches.every((match) => match !== undefined && match.options.includes(option)))
+      : param.options;
+    if (param.kind === "enum" && options.length === 0) return [];
+    const mixed = matches.some((match) => JSON.stringify(match?.value) !== JSON.stringify(param.value));
+    const displayParam = param.value.type === "enum" && !options.includes(param.value.value)
+      ? { ...param, options, value: { type: "enum" as const, value: options[0] ?? param.value.value } }
+      : { ...param, options };
+    return [{ param: displayParam, mixed }];
+  });
+}
+
+function SharedEffectParamInput({
+  param,
+  mixed,
+  commitParam,
+  document
+}: {
+  param: SequenceEffectParam;
+  mixed: boolean;
+  commitParam: (name: string, value: SequenceEffectParam["value"]) => Promise<void>;
+  document: SequenceEditorDocument;
+}) {
+  const [editingMixed, setEditingMixed] = useState(false);
+  if (mixed && !editingMixed) {
+    return (
+      <div className="effect-param-group">
+        <div className="effect-param-name">{param.name}</div>
+        <button type="button" className="neutral-button" onClick={() => { setEditingMixed(true); }}>
+          Multiple values · Edit all
+        </button>
+      </div>
+    );
+  }
+  return (
+    <>
+      <TypedParamInput
+        param={param}
+        commitParam={commitParam}
+        curveLibrary={document.curveLibrary}
+        gradientLibrary={document.gradientLibrary}
+        markCollections={document.markCollections}
+      />
+      {mixed && (
+        <button type="button" className="neutral-button" onClick={() => { void commitParam(param.name, param.value); }}>
+          Apply shown value to all
+        </button>
+      )}
     </>
   );
 }

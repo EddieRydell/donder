@@ -646,10 +646,22 @@ pub enum SequenceSelection {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceEffectCommonEdit {
-    Layer { layer_id: u32 },
-    Scope { scope: SequenceEffectScope },
-    Start { start_seconds: f32 },
-    Duration { duration_seconds: f32 },
+    Layer {
+        layer_id: u32,
+    },
+    Scope {
+        scope: SequenceEffectScope,
+    },
+    Start {
+        start_seconds: f32,
+    },
+    Duration {
+        duration_seconds: f32,
+    },
+    Param {
+        name: String,
+        value: SequenceEffectParamValue,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

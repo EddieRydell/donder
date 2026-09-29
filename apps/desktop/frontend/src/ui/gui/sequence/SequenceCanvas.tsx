@@ -252,6 +252,64 @@ export function SequenceCanvas({
     setSequenceSelection(selection);
   }, [setSequenceSelection]);
 
+  const handleWheel = useCallback((event: WheelEvent) => {
+    const target = canvas.current;
+    if (target === null) return;
+    const rect = target.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const timelineWidth = Math.max(1, rect.width - left);
+    const visibleHeight = Math.max(1, rect.height - top);
+    const zoomDelta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+    const horizontalDelta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
+
+    event.preventDefault();
+    setViewport((current) => {
+      const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
+      const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, current.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight);
+      if (event.ctrlKey && event.shiftKey) {
+        const scale = Math.exp(-zoomDelta * SEQUENCE_CANVAS.wheelZoomScale);
+        const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
+        return {
+          ...current,
+          rowHeights,
+          scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight))
+        };
+      }
+      if (event.ctrlKey) {
+        const anchorX = clamp(offsetX - left, 0, timelineWidth);
+        const anchorTime = current.scrollXSeconds + anchorX / current.pxPerSecond;
+        const nextPxPerSecond = clamp(
+          current.pxPerSecond * Math.exp(-zoomDelta * SEQUENCE_CANVAS.wheelZoomScale),
+          minSequencePxPerSecond(timelineWidth, document.durationSeconds),
+          SEQUENCE_CANVAS.maxZoomPxPerSecond
+        );
+        const nextScrollXSeconds = anchorTime - anchorX / nextPxPerSecond;
+        return {
+          ...current,
+          pxPerSecond: nextPxPerSecond,
+          scrollXSeconds: clamp(nextScrollXSeconds, 0, Math.max(0, document.durationSeconds - timelineWidth / nextPxPerSecond))
+        };
+      }
+      if (event.shiftKey) {
+        return {
+          ...current,
+          scrollXSeconds: clamp(current.scrollXSeconds + horizontalDelta / current.pxPerSecond, 0, maxScrollXSeconds)
+        };
+      }
+      return {
+        ...current,
+        scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
+      };
+    });
+  }, [automationRowHeight, document, left, revealAutomation, settings, setViewport, top]);
+
+  useEffect(() => {
+    const target = canvas.current;
+    if (target === null) return;
+    target.addEventListener("wheel", handleWheel, { passive: false });
+    return () => target.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+
   useEffect(() => {
     sequenceSelectionRef.current = sequenceSelection;
   }, [sequenceSelection]);
@@ -1340,52 +1398,6 @@ export function SequenceCanvas({
           setRowResizeHover(null);
           setAudioResizeHover(false);
         }
-      }}
-      onWheel={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const offsetX = event.clientX - rect.left;
-        const timelineWidth = Math.max(1, rect.width - left);
-        const visibleHeight = Math.max(1, rect.height - top);
-
-        event.preventDefault();
-        setViewport((current) => {
-          const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
-          const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, current.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight);
-          if (event.ctrlKey && event.shiftKey) {
-            const scale = Math.exp(-event.deltaY * SEQUENCE_CANVAS.wheelZoomScale);
-            const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
-            return {
-              ...current,
-              rowHeights,
-              scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight))
-            };
-          }
-          if (event.ctrlKey) {
-            const anchorX = clamp(offsetX - left, 0, timelineWidth);
-            const anchorTime = current.scrollXSeconds + anchorX / current.pxPerSecond;
-            const nextPxPerSecond = clamp(
-              current.pxPerSecond * Math.exp(-event.deltaY * SEQUENCE_CANVAS.wheelZoomScale),
-              minSequencePxPerSecond(timelineWidth, document.durationSeconds),
-              SEQUENCE_CANVAS.maxZoomPxPerSecond
-            );
-            const nextScrollXSeconds = anchorTime - anchorX / nextPxPerSecond;
-            return {
-              ...current,
-              pxPerSecond: nextPxPerSecond,
-              scrollXSeconds: clamp(nextScrollXSeconds, 0, Math.max(0, document.durationSeconds - timelineWidth / nextPxPerSecond))
-            };
-          }
-          if (event.shiftKey) {
-            return {
-              ...current,
-              scrollXSeconds: clamp(current.scrollXSeconds + event.deltaY / current.pxPerSecond, 0, maxScrollXSeconds)
-            };
-          }
-          return {
-            ...current,
-            scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
-          };
-        });
       }}
           />
         </ContextMenu.Trigger>

@@ -136,7 +136,32 @@ impl Checker {
         let mut env = IndexMap::new();
         for param in &effect.params {
             self.check_param(param);
-            env.insert(param.name.clone(), param.ty.clone());
+            if matches!(
+                param.name.as_str(),
+                "id" | "layer"
+                    | "layer_id"
+                    | "start"
+                    | "duration"
+                    | "target"
+                    | "scope"
+                    | "effect"
+                    | "params"
+                    | "timeline"
+            ) {
+                self.error(
+                    TextSpan { start: 0, end: 0 },
+                    format!(
+                        "`{}` is reserved and cannot be an effect parameter",
+                        param.name.as_str()
+                    ),
+                );
+            }
+            if env.insert(param.name.clone(), param.ty.clone()).is_some() {
+                self.error(
+                    TextSpan { start: 0, end: 0 },
+                    format!("duplicate effect parameter `{}`", param.name.as_str()),
+                );
+            }
         }
         if is_generator {
             env.insert(static_identifier("timeline"), Type::Timeline);

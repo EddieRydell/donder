@@ -81,7 +81,7 @@ fn run_desktop() -> Result<(), tauri::Error> {
                 }
                 Err(error) => {
                     state.set_persistence_error(format!(
-                        "Desktop state was not restored: {error}. Persistence is disabled until restart."
+                        "Desktop state could not be initialized: {error}. Saving will be retried on changes."
                     ));
                 }
             }

@@ -339,6 +339,7 @@ pub(super) fn paste_sequence_clipboard(
 
 pub(super) fn edit_effect_selection(
     session: &mut ProjectSession,
+    owner: &donder_language::identity::SourceIdentity,
     sequence_id: &SequenceId,
     effect_ids: &[u32],
     edit: SequenceEffectCommonEdit,
@@ -348,6 +349,83 @@ pub(super) fn edit_effect_selection(
             "At least one effect must be selected.".into(),
         ));
     }
+
+    let param_edit = if let SequenceEffectCommonEdit::Param { name, value } = &edit {
+        let name = identifier(name)?;
+        let sequence = session
+            .project
+            .sequence(sequence_id)
+            .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+        for id in effect_ids {
+            let effect = sequence
+                .effects
+                .iter()
+                .find(|effect| effect.id.0 == *id)
+                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+            let definition = session
+                .project
+                .definitions
+                .effects
+                .resolve(&effect.definition)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Effect definition was not found.".into())
+                })?;
+            if !definition.params.iter().any(|param| param.name == name) {
+                return Err(GuiMutationError::Invalid(format!(
+                    "Effect {id} does not declare parameter `{}`.",
+                    name.as_str()
+                )));
+            }
+            if sequence.automation_clips.iter().any(|clip| {
+                clip.bindings.iter().any(|binding| {
+                    binding
+                        .effect_param()
+                        .is_some_and(|(effect_id, param)| effect_id.0 == *id && param == &name)
+                })
+            }) {
+                return Err(GuiMutationError::Invalid(format!(
+                    "Effect {id} parameter `{}` is automated.",
+                    name.as_str()
+                )));
+            }
+        }
+        let value = effect_param_value_from_gui(session, owner, value.clone())?;
+        let sequence = session
+            .project
+            .sequence(sequence_id)
+            .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+        for id in effect_ids {
+            let effect = sequence
+                .effects
+                .iter()
+                .find(|effect| effect.id.0 == *id)
+                .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+            let definition = session
+                .project
+                .definitions
+                .effects
+                .resolve(&effect.definition)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Effect definition was not found.".into())
+                })?;
+            let declaration = definition
+                .params
+                .iter()
+                .find(|param| param.name == name)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Effect parameter was not found.".into())
+                })?;
+            if !donder_language::operator::effect_param_matches_type(&value, &declaration.ty) {
+                return Err(GuiMutationError::Invalid(format!(
+                    "Effect {id} parameter `{}` cannot accept this value.",
+                    name.as_str()
+                )));
+            }
+        }
+        Some((name, value))
+    } else {
+        None
+    };
 
     let sequence = sequence_mut(session, sequence_id)?;
     match edit {
@@ -385,6 +463,15 @@ pub(super) fn edit_effect_selection(
             let duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
             for id in effect_ids {
                 effect_mut(sequence, *id)?.duration = duration.clone();
+            }
+        }
+        SequenceEffectCommonEdit::Param { .. } => {
+            let (name, value) = param_edit
+                .ok_or_else(|| GuiMutationError::Invalid("Parameter edit is missing.".into()))?;
+            for id in effect_ids {
+                effect_mut(sequence, *id)?
+                    .param_overrides
+                    .insert(name.clone(), value.clone());
             }
         }
     }
@@ -622,7 +709,8 @@ use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::ProjectSession;
 
 use super::model::{
-    effect_mut, effect_scope, mark_collection_mut, sequence_mut, source_identity_from_gui,
+    effect_mut, effect_param_value_from_gui, effect_scope, identifier, mark_collection_mut,
+    sequence_mut, source_identity_from_gui,
 };
 use super::projection::active_layout;
 use super::{

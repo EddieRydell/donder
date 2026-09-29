@@ -14,8 +14,7 @@ imports:
 main:
   type: sequence
   duration: 330.489624s
-  frame_rate: 60
-  audio: audio/[Hard Dance] - Pegboard Nerds - Hero (feat. Elizaveta) [Monstercat Release].mp3
+  frame_rate: 120
   mark_collections:
   - key: marks
     name: Melody

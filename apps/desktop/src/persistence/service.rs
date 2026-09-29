@@ -52,15 +52,27 @@ impl PersistenceService {
         let path = persistence_path(app)?;
         let mut inner = self.inner();
         inner.path = Some(path.clone());
+        inner.write_allowed = true;
         if !path.exists() {
-            inner.write_allowed = true;
+            inner.save_now()?;
             return Ok(None);
         }
         let text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-        let store = decode_store(&text)?;
+        let store = match decode_store(&text) {
+            Ok(store) => store,
+            Err(error) => {
+                eprintln!(
+                    "Resetting invalid desktop state at {}: {error}",
+                    path.display()
+                );
+                inner.store = PersistedStore::default();
+                inner.last_saved_text = None;
+                inner.save_now()?;
+                return Ok(None);
+            }
+        };
         let last_project = store.last_project.clone();
         inner.store = store;
-        inner.write_allowed = true;
         Ok(last_project)
     }
 
