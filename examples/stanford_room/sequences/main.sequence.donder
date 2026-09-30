@@ -1757,6 +1757,14 @@ main:
           points:
           - position: 0.0
             value: 0.0
+          - position: 0.16699999570846558
+            value: 0.5849999785423279
+          - position: 0.24799999594688416
+            value: 0.7689999938011169
+          - position: 0.4490000009536743
+            value: 0.875
+          - position: 0.6150000095367432
+            value: 0.9259999990463257
           - position: 1.0
             value: 1.0
       pulse_shape:
@@ -1775,6 +1783,43 @@ main:
         type: float
         value: 80.0
     effect: effects.Spin
+  - id: 42
+    layer_id: 0
+    start: 113.921364s
+    duration: 8.391655s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: whole_target
+    params:
+      gradient:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ffffff'
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.5040000081062317
+            value: 0.0
+          - position: 1.0
+            value: 1.0
+      pulse_shape:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 1.0
+            value: 0.0
+    effect: effects.Chase
   composition_graph:
     nodes:
     - id: 1
@@ -1820,14 +1865,17 @@ main:
       layer_id: 3
     - id: 8
       position:
-        x: 75.8406753540039
-        y: 795.0989379882812
+        x: 55.09440612792969
+        y: 787.8377685546875
       type: operator
       operator: operators.FreezeFrame
       params:
         fade_seconds:
           type: float
           value: 0.5
+        interval_seconds:
+          type: float
+          value: 0.10000000149011612
     edges:
     - from: 1
       from_port: output

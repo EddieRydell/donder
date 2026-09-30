@@ -123,36 +123,25 @@ effect Spin {
     float position = item_index / max(1.0, item_count - 1.0);
     int revolution_count = revolutions;
     if (revolution_count < 1) { revolution_count = 1; }
-    float virtual_item_count = item_count * revolution_count;
-    float pulse_duration = max(0.000000001, max(1.0, pulse_overlap) / virtual_item_count);
+    if (reverse) { position = 1.0 - position; }
+    float pulse_width = max(0.000000001, max(1.0, pulse_overlap) / item_count);
     float travel_start = 0.0;
-    float travel_end = max(0.0, 1.0 - pulse_duration);
-    if (extend_to_start) { travel_start = -pulse_duration; }
-    if (extend_to_end) { travel_end = 1.0; }
-    // A monotonic chase curve locates the latest active revolution from this time window.
-    float travel_span = max(0.000000001, travel_end - travel_start);
-    float window_start = clamp((progress() - pulse_duration - travel_start) / travel_span, 0.0, 1.0);
-    float window_end = clamp((progress() - travel_start) / travel_span, 0.0, 1.0);
-    float first_position = curve_clamped(chase_position, window_start, 0.0, 1.0);
-    float last_position = curve_clamped(chase_position, window_end, 0.0, 1.0);
-    float latest_position = max(first_position, last_position);
-    if (reverse) { latest_position = 1.0 - min(first_position, last_position); }
-    float revolution = min(revolution_count - 1.0, floor(latest_position * revolution_count - position));
-    if (travel_end == travel_start) { revolution = revolution_count - 1.0; }
+    float travel_end = revolution_count + pulse_width;
+    if (extend_to_start) { travel_start = pulse_width; }
+    if (extend_to_end) { travel_end = revolution_count; }
+    float virtual_position = mix(travel_start, travel_end, curve_clamped(chase_position, progress(), 0.0, 1.0));
+    float virtual_pixel = virtual_position - position;
+    float phase = ((virtual_pixel % 1.0) + 1.0) % 1.0;
+    if (virtual_pixel < 0.0) { phase = virtual_pixel; }
+    if (virtual_pixel >= revolution_count) { phase = virtual_pixel - (revolution_count - 1.0); }
+    float pulse_progress = phase / pulse_width;
     float level = 0.0;
-    float gradient_position = 0.0;
-    if (revolution >= 0.0) {
-      float virtual_position = (revolution + position) / revolution_count;
-      if (reverse) { virtual_position = 1.0 - virtual_position; }
-      float hit = mix(travel_start, travel_end, clamp(curve_crossing(chase_position, virtual_position, virtual_position), 0.0, 1.0));
-      float pulse_progress = (progress() - hit) / pulse_duration;
-      if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
-        level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
-        gradient_position = pulse_progress;
-        if (gradient_mode == through_effect) { gradient_position = progress(); }
-        if (gradient_mode == across_items) { gradient_position = position; }
-      }
+    if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
+      level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
     }
+    float gradient_position = pulse_progress;
+    if (gradient_mode == through_effect) { gradient_position = progress(); }
+    if (gradient_mode == across_items) { gradient_position = item_index / max(1.0, item_count - 1.0); }
     return gradient_color_scaled(gradient, clamp(gradient_position, 0.0, 1.0), level);
   }
 }

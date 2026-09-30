@@ -66,10 +66,10 @@ sections, and MarkChase emits Chase children for each mark. Neither mark effect
 adds hue shifting or a separate sampler. Their structural parameters are fixed;
 the emitted children's rendering parameters use ordinary retained bindings.
 Resource validity checks still apply, including nonempty MarkChase collections.
-Spin selects the latest active revolution, even when pulses overlap. Its direct
-revolution lookup expects `chase_position` to move monotonically across the
-full 0–1 range; the maintained Spin examples use increasing or decreasing
-curves. Other curve shapes are not guaranteed to select every active revolution.
+Spin samples `chase_position` as a position on a strand extended by
+`revolutions`, then wraps that position onto the real strand with modulo. Its
+pulse shape is sampled by spatial distance behind the head; evaluation does not
+loop over revolutions or require a monotonic chase curve.
 Wipe projects layout-space pixel positions onto `direction_angle` in degrees:
 0 travels toward +X, 90 toward +Y, and 180 toward -X. It traverses the projected
 XY bounding rectangle of the selected scope, independent of pixel ordering.
