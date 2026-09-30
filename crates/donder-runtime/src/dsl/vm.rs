@@ -3060,23 +3060,6 @@ fn mark_at_from(marks: &Marks, index: i32, fallback: f32) -> Result<f32, Runtime
         .unwrap_or(fallback))
 }
 
-#[cfg(test)]
-mod mark_totality_tests {
-    use super::mark_at_from;
-    use crate::values::{Marks, SampleDuration};
-    use alloc::vec;
-
-    #[test]
-    fn mark_at_uses_fallback_for_negative_and_out_of_range_indices() {
-        let marks = Marks {
-            marks: vec![SampleDuration::from_ticks(1_000_000)],
-        };
-        assert_eq!(mark_at_from(&marks, -1, 2.5).unwrap(), 2.5);
-        assert_eq!(mark_at_from(&marks, 1, 2.5).unwrap(), 2.5);
-        assert_eq!(mark_at_from(&marks, 0, 2.5).unwrap(), 1.0);
-    }
-}
-
 fn prev_index(marks: &Marks, seconds: f32) -> Result<i32, RuntimeError> {
     let mut previous = -1;
     for (index, mark) in marks.marks.iter().enumerate() {
@@ -3120,4 +3103,21 @@ fn phase(marks: &Marks, seconds: f32, duration: f32) -> Result<f32, RuntimeError
         duration
     };
     Ok(((seconds - start) / (end - start).max(0.000000001)).clamp(0.0, 1.0))
+}
+
+#[cfg(test)]
+mod mark_totality_tests {
+    use super::mark_at_from;
+    use crate::values::{Marks, SampleDuration};
+    use alloc::vec;
+
+    #[test]
+    fn mark_at_uses_fallback_for_negative_and_out_of_range_indices() {
+        let marks = Marks {
+            marks: vec![SampleDuration::from_ticks(1_000_000)],
+        };
+        assert_eq!(mark_at_from(&marks, -1, 2.5).unwrap(), 2.5);
+        assert_eq!(mark_at_from(&marks, 1, 2.5).unwrap(), 2.5);
+        assert_eq!(mark_at_from(&marks, 0, 2.5).unwrap(), 1.0);
+    }
 }
