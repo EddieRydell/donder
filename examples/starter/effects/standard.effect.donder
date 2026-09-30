@@ -43,6 +43,48 @@ effect Chase {
   }
 }
 
+effect Wipe {
+  param gradient gradient;
+  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
+  param float pulse_width = 0.15;
+  fixed param float direction_angle = 0.0;
+  param curve wipe_position;
+  param bool reverse = false;
+  param bool extend_to_start = false;
+  param bool extend_to_end = false;
+  param curve pulse_shape;
+
+  color sample() {
+    float radians = direction_angle * 0.017453292519943295;
+    float dx = cos(radians);
+    float dy = sin(radians);
+    if (abs(dx) < 0.000001) { dx = 0.0; }
+    if (abs(dy) < 0.000001) { dy = 0.0; }
+    float projection = pixel_x() * dx + pixel_y() * dy;
+    float projection_min = min(target_min_x() * dx, target_max_x() * dx) + min(target_min_y() * dy, target_max_y() * dy);
+    float span = (target_max_x() - target_min_x()) * abs(dx) + (target_max_y() - target_min_y()) * abs(dy);
+    float position = 0.0;
+    if (span > 0.000000001) { position = clamp((projection - projection_min) / span, 0.0, 1.0); }
+    float chase_value = position;
+    if (reverse) { chase_value = 1.0 - chase_value; }
+    float pulse_duration = max(0.000000001, pulse_width);
+    float travel_start = 0.0;
+    float travel_end = max(0.0, 1.0 - pulse_duration);
+    if (extend_to_start) { travel_start = -pulse_duration; }
+    if (extend_to_end) { travel_end = 1.0; }
+    float hit = mix(travel_start, travel_end, clamp(curve_crossing(wipe_position, chase_value, chase_value), 0.0, 1.0));
+    float pulse_progress = (progress() - hit) / pulse_duration;
+    float level = 0.0;
+    if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
+      level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
+    }
+    float gradient_position = pulse_progress;
+    if (gradient_mode == through_effect) { gradient_position = progress(); }
+    if (gradient_mode == across_items) { gradient_position = position; }
+    return gradient_color_scaled(gradient, clamp(gradient_position, 0.0, 1.0), level);
+  }
+}
+
 effect Spin {
   param gradient gradient;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
@@ -68,21 +110,28 @@ effect Spin {
     float travel_end = max(0.0, 1.0 - pulse_duration);
     if (extend_to_start) { travel_start = -pulse_duration; }
     if (extend_to_end) { travel_end = 1.0; }
+    // A monotonic chase curve locates the latest active revolution from this time window.
+    float travel_span = max(0.000000001, travel_end - travel_start);
+    float window_start = clamp((progress() - pulse_duration - travel_start) / travel_span, 0.0, 1.0);
+    float window_end = clamp((progress() - travel_start) / travel_span, 0.0, 1.0);
+    float first_position = curve_clamped(chase_position, window_start, 0.0, 1.0);
+    float last_position = curve_clamped(chase_position, window_end, 0.0, 1.0);
+    float latest_position = max(first_position, last_position);
+    if (reverse) { latest_position = 1.0 - min(first_position, last_position); }
+    float revolution = min(revolution_count - 1.0, floor(latest_position * revolution_count - position));
+    if (travel_end == travel_start) { revolution = revolution_count - 1.0; }
     float level = 0.0;
     float gradient_position = 0.0;
-    for (int revolution = 0; revolution < revolution_count; revolution = revolution + 1) {
+    if (revolution >= 0.0) {
       float virtual_position = (revolution + position) / revolution_count;
       if (reverse) { virtual_position = 1.0 - virtual_position; }
       float hit = mix(travel_start, travel_end, clamp(curve_crossing(chase_position, virtual_position, virtual_position), 0.0, 1.0));
       float pulse_progress = (progress() - hit) / pulse_duration;
       if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
-        float candidate = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
-        if (candidate > level) {
-          level = candidate;
-          gradient_position = pulse_progress;
-          if (gradient_mode == through_effect) { gradient_position = progress(); }
-          if (gradient_mode == across_items) { gradient_position = position; }
-        }
+        level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
+        gradient_position = pulse_progress;
+        if (gradient_mode == through_effect) { gradient_position = progress(); }
+        if (gradient_mode == across_items) { gradient_position = position; }
       }
     }
     return gradient_color_scaled(gradient, clamp(gradient_position, 0.0, 1.0), level);
@@ -146,6 +195,40 @@ effect MarkChase {
           pulse_overlap: pulse_overlap,
           section_width_pixels: section_width_pixels,
           chase_position: chase_positions[mark % position_count],
+          pulse_shape: pulse_shape
+        };
+      }
+    }
+  }
+}
+
+effect MarkWipe {
+  fixed param marks beats;
+  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
+  fixed param array<gradient> gradients;
+  fixed param float offset_seconds = 0.0;
+  fixed param float wipe_seconds = 0.5;
+  param float pulse_width = 0.15;
+  // Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
+  fixed param curve direction_angle;
+  fixed param array<curve> wipe_positions;
+  param curve pulse_shape;
+
+  void generate() {
+    int gradient_count = len(gradients);
+    int position_count = len(wipe_positions);
+    if (gradient_count > 0 && position_count > 0) {
+      for (int mark = 0; mark < mark_count(beats); mark = mark + 1) {
+        float hit_time = mark_at(beats, mark, -999.0);
+        timeline.emit Wipe {
+          start: hit_time + offset_seconds,
+          duration: max(0.000000001, wipe_seconds),
+          target: target,
+          gradient: gradients[mark % gradient_count],
+          gradient_mode: gradient_mode,
+          pulse_width: pulse_width,
+          direction_angle: 360.0 * direction_angle[clamp(hit_time / duration, 0.0, 1.0)],
+          wipe_position: wipe_positions[mark % position_count],
           pulse_shape: pulse_shape
         };
       }

@@ -12,6 +12,7 @@ pub(crate) struct PreparedSampleContext {
     pub(crate) pixel_index: usize,
     pub(crate) pixel_count: usize,
     pub(crate) pixel_fraction: f32,
+    pub(crate) spatial: donder_runtime::dsl::SpatialContext,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -19,6 +20,7 @@ struct PreparedSampleContextKey {
     pixel_index: usize,
     pixel_count: usize,
     pixel_fraction_bits: u32,
+    spatial_bits: [u32; 6],
 }
 
 impl From<PreparedSampleContext> for PreparedSampleContextKey {
@@ -27,6 +29,15 @@ impl From<PreparedSampleContext> for PreparedSampleContextKey {
             pixel_index: context.pixel_index,
             pixel_count: context.pixel_count,
             pixel_fraction_bits: context.pixel_fraction.to_bits(),
+            spatial_bits: [
+                context.spatial.position[0],
+                context.spatial.position[1],
+                context.spatial.min[0],
+                context.spatial.min[1],
+                context.spatial.max[0],
+                context.spatial.max[1],
+            ]
+            .map(f32::to_bits),
         }
     }
 }
@@ -40,6 +51,7 @@ pub(crate) struct PreparedSampledEffectPixels {
 #[derive(Clone, Debug)]
 pub(crate) struct PreparedSampledEffectPixel {
     pub(crate) pixel: PreparedTargetPixel,
+    pub(crate) spatial: donder_runtime::dsl::SpatialContext,
     pub(crate) rows: Vec<usize>,
 }
 
@@ -75,10 +87,11 @@ pub(crate) fn render_sampled_effect_target_colors(
             parameters.1,
             |sampler| {
                 render_sampled_effect_pixels(effect_pixels, rendered, |context| {
-                    sampler.sample(
+                    sampler.sample_spatial_context(
                         context.pixel_index,
                         context.pixel_count,
                         context.pixel_fraction,
+                        Some(&context.spatial),
                         workspace,
                     )
                 })
@@ -110,6 +123,7 @@ fn render_sampled_effect_pixels(
             pixel_index: pixel.pixel_index(),
             pixel_count: pixel.pixel_count(),
             pixel_fraction: pixel.pixel_fraction,
+            spatial: sampled.spatial,
         })?;
         for row in &sampled.rows {
             if let Some(target) = rendered.get_mut(*row) {
@@ -132,6 +146,7 @@ pub(crate) fn prepare_sampled_effect_pixel_groups(
             pixel_index: sampled.pixel.pixel_index(),
             pixel_count: sampled.pixel.pixel_count(),
             pixel_fraction: sampled.pixel.pixel_fraction,
+            spatial: sampled.spatial,
         };
         let key = PreparedSampleContextKey::from(context);
         if let Some(group_index) = group_indexes.get(&key) {

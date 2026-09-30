@@ -147,6 +147,10 @@ pub(crate) fn prepare_validated_sequence(
         &sequence.composition_graph,
     )?;
     let mut target_pixels = Vec::new();
+    let mut spatial_contexts = Vec::new();
+    let needs_spatial = programs
+        .iter()
+        .any(|program| program.uses_spatial_context());
     let targets = target_cache
         .sample_targets
         .into_iter()
@@ -155,6 +159,9 @@ pub(crate) fn prepare_validated_sequence(
             let len = u32::try_from(pixels.len()).map_err(|_| RenderError::BadTarget)?;
             let end = start.checked_add(len).ok_or(RenderError::BadTarget)?;
             target_pixels.extend_from_slice(&pixels);
+            if needs_spatial {
+                spatial_contexts.extend(super::targets::spatial_contexts(&pixels, &fixtures));
+            }
             let count = pixels
                 .iter()
                 .map(|pixel| pixel.pixel_count)
@@ -188,6 +195,7 @@ pub(crate) fn prepare_validated_sequence(
         programs: programs.into_boxed_slice(),
         targets,
         target_pixels: target_pixels.into_boxed_slice(),
+        spatial_contexts: spatial_contexts.into_boxed_slice(),
         effects_by_layer: effects_by_layer
             .into_iter()
             .map(Vec::into_boxed_slice)

@@ -120,6 +120,7 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
     let mut target_map = vec![None; signal.targets.len()];
     let mut targets = Vec::new();
     let mut pixels = Vec::new();
+    let mut spatial_contexts = Vec::new();
     let mut retain_target = |old: u32| -> Result<u32, RenderError> {
         if let Some(mapped) = target_map[old as usize] {
             return Ok(mapped);
@@ -127,7 +128,7 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
         let mapped = index32(targets.len())?;
         let start = index32(pixels.len())?;
         let mut max_count = 0;
-        for pixel in signal.target(old) {
+        for (local_index, pixel) in signal.target(old).iter().enumerate() {
             let old_fixture = pixel.fixture_index as usize;
             let Some(fixture_index) = signal_fixture_map[old_fixture] else {
                 continue;
@@ -143,6 +144,12 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
             pixel.fixture_pixel_index = u16::try_from(cell).map_err(|_| RenderError::BadTarget)?;
             max_count = max_count.max(pixel.pixel_count);
             pixels.push(pixel);
+            if !signal.spatial_contexts.is_empty() {
+                spatial_contexts.push(
+                    signal.spatial_contexts
+                        [signal.targets[old as usize].pixels.start as usize + local_index],
+                );
+            }
         }
         let end = index32(pixels.len())?;
         targets.push(PreparedTarget {
@@ -283,6 +290,7 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
     signal.programs = programs.into_boxed_slice();
     signal.targets = targets.into_boxed_slice();
     signal.target_pixels = pixels.into_boxed_slice();
+    signal.spatial_contexts = spatial_contexts.into_boxed_slice();
     Ok(())
 }
 

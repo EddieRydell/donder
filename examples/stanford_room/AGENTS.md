@@ -31,6 +31,9 @@ it. YAML uses `from: { documents: [...] }` with an alias; DSL uses
 child definitions. Downloaded resources are ordinary editable local files;
 there is no dependency installation or automatic import resolution.
 
+When writing an effect or operator, always consider performance. Loops especially
+cause big issues and effects can often be written more efficiently without them. 
+
 ## CLI and validation
 
 From the project directory:
@@ -50,3 +53,5 @@ to an independent project. `donder --path . init` adds workspace metadata to an
 existing `project.donder`; it does not scaffold a show. If working from the Donder
 source checkout, the CLI can be run there with
 `cargo run -p donder-cli -- --path <project-directory> check`.
+
+The CLI is currently not working, so omit any calls to it for the time being.

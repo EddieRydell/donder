@@ -37,6 +37,14 @@ pub struct RunContext {
     pub pixel_fraction: f32,
 }
 
+/// Layout-space position and the bounds of this sampling scope, in meters.
+#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub struct SpatialContext {
+    pub position: [f32; 2],
+    pub min: [f32; 2],
+    pub max: [f32; 2],
+}
+
 pub type OperatorRunContext = RunContext;
 
 /// Samples an immutable signal. Identical input/time/pixel
@@ -970,6 +978,17 @@ pub(super) fn run_sample_program(
     workspace: &mut VmWorkspace,
     entry: usize,
 ) -> Result<Color, RuntimeError> {
+    run_spatial_sample_program(bytecode, params, context, workspace, entry, None)
+}
+
+pub(super) fn run_spatial_sample_program(
+    bytecode: &BytecodeProgram,
+    params: &BoundParams,
+    context: &RunContext,
+    workspace: &mut VmWorkspace,
+    entry: usize,
+    spatial: Option<&SpatialContext>,
+) -> Result<Color, RuntimeError> {
     let mut vm = Vm::new(
         bytecode,
         params,
@@ -979,6 +998,7 @@ pub(super) fn run_sample_program(
         None,
         entry,
     );
+    vm.spatial = spatial;
     vm.run_color()
 }
 
@@ -1040,9 +1060,18 @@ pub(crate) fn run_operator(
     sampler: &mut dyn SignalSampler,
     workspace: &mut VmWorkspace,
 ) -> Result<Color, RuntimeError> {
-    run_operator_program(&operator.bytecode, params, context, sampler, workspace, 0)
+    run_operator_program(
+        &operator.bytecode,
+        params,
+        context,
+        sampler,
+        workspace,
+        0,
+        None,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_operator_program(
     bytecode: &BytecodeProgram,
     params: &BoundParams,
@@ -1050,6 +1079,7 @@ pub(super) fn run_operator_program(
     sampler: &mut dyn SignalSampler,
     workspace: &mut VmWorkspace,
     entry: usize,
+    spatial: Option<&SpatialContext>,
 ) -> Result<Color, RuntimeError> {
     let mut vm = Vm::new(
         bytecode,
@@ -1060,6 +1090,7 @@ pub(super) fn run_operator_program(
         None,
         entry,
     );
+    vm.spatial = spatial;
     vm.run_color()
 }
 
@@ -1220,6 +1251,7 @@ struct Vm<'a> {
     bytecode: &'a BytecodeProgram,
     params: &'a BoundParams,
     context: VmContext<'a>,
+    spatial: Option<&'a SpatialContext>,
     workspace: &'a mut VmWorkspace,
     ip: usize,
     loop_iterations: usize,
@@ -1270,6 +1302,7 @@ impl<'a> Vm<'a> {
             bytecode,
             params,
             context,
+            spatial: None,
             workspace,
             ip: entry,
             loop_iterations: 0,
@@ -2285,6 +2318,42 @@ impl<'a> Vm<'a> {
 
     fn context_read(&mut self, dst: ValueSlot, read: ContextRead) -> Result<(), RuntimeError> {
         match read {
+            ContextRead::PixelX => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.position[0])
+            }
+            ContextRead::PixelY => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.position[1])
+            }
+            ContextRead::TargetMinX => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.min[0])
+            }
+            ContextRead::TargetMinY => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.min[1])
+            }
+            ContextRead::TargetMaxX => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.max[0])
+            }
+            ContextRead::TargetMaxY => {
+                let spatial = self
+                    .spatial
+                    .ok_or_else(|| RuntimeError::new("spatial sampling context is unavailable"))?;
+                self.set_context_float(dst, spatial.max[1])
+            }
             ContextRead::Progress => {
                 self.set_context_float(dst, sample_context(self.context)?.progress)
             }

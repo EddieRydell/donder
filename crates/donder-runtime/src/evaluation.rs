@@ -27,6 +27,7 @@ pub struct EffectSampler<'a> {
     params: &'a BoundParams,
     context: RunContext,
     reuse_uniform: bool,
+    spatial: bool,
 }
 
 impl PreparedEffect {
@@ -72,6 +73,7 @@ impl PreparedEffect {
                 pixel_fraction: 0.0,
             },
             reuse_uniform: false,
+            spatial: program.uses_spatial_context(),
         };
         run(&mut sampler).map_err(EvaluationError::from)
     }
@@ -92,6 +94,43 @@ impl PreparedEffect {
 }
 
 impl EffectSampler<'_> {
+    pub fn sample_spatial(
+        &mut self,
+        pixel: &crate::signal::PreparedPixel,
+        spatial: Option<&crate::dsl::SpatialContext>,
+        workspace: &mut VmWorkspace,
+    ) -> Result<Color, RuntimeError> {
+        self.sample_spatial_context(
+            pixel.pixel_index(),
+            pixel.pixel_count(),
+            pixel.pixel_fraction,
+            spatial,
+            workspace,
+        )
+    }
+
+    pub fn sample_spatial_context(
+        &mut self,
+        pixel_index: usize,
+        pixel_count: usize,
+        pixel_fraction: f32,
+        spatial: Option<&crate::dsl::SpatialContext>,
+        workspace: &mut VmWorkspace,
+    ) -> Result<Color, RuntimeError> {
+        self.context.pixel_index = pixel_index as i32;
+        self.context.pixel_count = pixel_count as i32;
+        self.context.pixel_fraction = pixel_fraction;
+        let result = self.program.sample_spatial_effect(
+            self.params,
+            &self.context,
+            spatial,
+            workspace,
+            self.reuse_uniform,
+        );
+        self.reuse_uniform = result.is_ok();
+        result
+    }
+
     fn uniform(&self) -> bool {
         !self.program.uses_pixel_context
     }
@@ -311,18 +350,20 @@ fn sample_layer_frame(
             // This traversal keeps one program, parameter set and sample time.
             // Scalar registers survive VM cleanup; restart initialization for
             // every effect/time, including backward seeks and automation edits.
-            for pixel in target {
+            for (target_index, pixel) in target.iter().enumerate() {
                 // Pixel indices are already dense. The count distinguishes
                 // fixtures of different sizes sharing the same index.
-                let cached =
-                    (sample_count != 0).then(|| &mut workspace.effect_samples[pixel.pixel_index()]);
+                let cached = (sample_count != 0 && !sampler.spatial)
+                    .then(|| &mut workspace.effect_samples[pixel.pixel_index()]);
                 let color = match cached {
                     Some(sample) if sample.pixel_count == pixel.pixel_count => sample.color,
                     cached => {
-                        let color = sampler.sample(
-                            pixel.pixel_index(),
-                            pixel.pixel_count(),
-                            pixel.pixel_fraction,
+                        let color = sampler.sample_spatial(
+                            pixel,
+                            renderer.spatial_contexts.get(
+                                renderer.targets[effect.target as usize].pixels.start as usize
+                                    + target_index,
+                            ),
                             &mut workspace.effect_vm,
                         )?;
                         if let Some(sample) = cached {
@@ -395,6 +436,10 @@ fn sample_operator_frame(
             &mut sampler,
             vm_workspace,
             reuse_uniform,
+            renderer.spatial_contexts.get(
+                renderer.targets[renderer.plan.target as usize].pixels.start as usize
+                    + flat_pixel_index,
+            ),
         ) {
             Ok(color) => {
                 output[flat_pixel_index] = color;
@@ -571,7 +616,7 @@ fn sample_layer_pixel(
         }
         let effect_pixel = if effect.target == renderer.plan.target {
             // Elaboration interns exact pixel contexts, not just addresses.
-            Some(pixel)
+            Some((flat_pixel_index, pixel))
         } else {
             let target = renderer.target(effect.target);
             target
@@ -585,9 +630,9 @@ fn sample_layer_pixel(
                     },
                 )
                 .ok()
-                .map(|index| &target[index])
+                .map(|index| (index, &target[index]))
         };
-        if let Some(effect_pixel) = effect_pixel {
+        if let Some((target_index, effect_pixel)) = effect_pixel {
             let cached = workspace
                 .effect_vm_sample
                 .filter(|(sample, ..)| sample.index == *effect_index && sample.time == sample_time);
@@ -623,10 +668,12 @@ fn sample_layer_pixel(
                     sampler.context.progress = progress;
                     sampler.context.time = local_time;
                     sampler.reuse_uniform = reuse_uniform;
-                    sampler.sample(
-                        effect_pixel.pixel_index(),
-                        effect_pixel.pixel_count(),
-                        effect_pixel.pixel_fraction,
+                    sampler.sample_spatial(
+                        effect_pixel,
+                        renderer.spatial_contexts.get(
+                            renderer.targets[effect.target as usize].pixels.start as usize
+                                + target_index,
+                        ),
                         &mut workspace.effect_vm,
                     )
                 })?;
@@ -690,6 +737,10 @@ fn sample_operator_pixel(
         &mut sampler,
         vm_workspace,
         reuse_uniform,
+        renderer.spatial_contexts.get(
+            renderer.targets[renderer.plan.target as usize].pixels.start as usize
+                + flat_pixel_index,
+        ),
     )?)
 }
 

@@ -47,6 +47,7 @@ pub struct PreparedSignalGraph {
     pub programs: Box<[BytecodeProgram]>,
     pub targets: Box<[PreparedTarget]>,
     pub target_pixels: Box<[PreparedPixel]>,
+    pub spatial_contexts: Box<[crate::dsl::SpatialContext]>,
     pub effects_by_layer: Box<[Box<[usize]>]>,
     pub layers: Box<[PreparedLayer]>,
     pub plan: SignalPlan,

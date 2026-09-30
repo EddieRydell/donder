@@ -19,6 +19,10 @@ pub(crate) fn new_project_files(
     let config = ProjectMetadata::default();
     Ok(vec![
         ProjectBoilerplateFile {
+            path: "AGENTS.md",
+            text: include_str!("../../../../examples/starter/AGENTS.md").to_string(),
+        },
+        ProjectBoilerplateFile {
             path: PROJECT_ROOT_FILE,
             text: config.initialize_document(&format!(
                 r#"imports:

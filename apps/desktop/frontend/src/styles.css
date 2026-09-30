@@ -343,7 +343,7 @@
   --donder-z-graph-resize: 2;
   --donder-z-sequence-waveform: 0;
   --donder-z-sequence-waveform-canvas: 1;
-  --donder-z-sequence-transport: 1;
+  --donder-z-sequence-transport: 4;
 
   /* motion and opacity */
   --donder-ease-standard: ease;

@@ -400,6 +400,13 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
                 sample_count: 0,
             }]
             .into_boxed_slice(),
+            spatial_contexts: (0..count)
+                .map(|pixel| donder_runtime::dsl::SpatialContext {
+                    position: [pixel as f32, 0.0],
+                    min: [0.0, 0.0],
+                    max: [count.saturating_sub(1) as f32, 0.0],
+                })
+                .collect(),
             target_pixels: (0..count)
                 .map(|pixel| PreparedPixel {
                     fixture_index: 0,

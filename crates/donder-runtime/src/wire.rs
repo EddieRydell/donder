@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 9;
+pub const FORMAT_VERSION: u32 = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -143,6 +143,26 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         || plan.frame_slots.len() != plan.nodes.len()
     {
         return Err(bad);
+    }
+    if signal
+        .programs
+        .iter()
+        .any(|program| program.uses_spatial_context())
+        && signal.spatial_contexts.len() != signal.target_pixels.len()
+    {
+        return Err(bad);
+    }
+    for spatial in &signal.spatial_contexts {
+        for axis in 0..2 {
+            if !spatial.position[axis].is_finite()
+                || !spatial.min[axis].is_finite()
+                || !spatial.max[axis].is_finite()
+                || spatial.position[axis] < spatial.min[axis]
+                || spatial.position[axis] > spatial.max[axis]
+            {
+                return Err(bad);
+            }
+        }
     }
     let mut workspace = 0usize;
     let mut reserve = |count: usize, width: usize| -> Result<(), LoadError> {

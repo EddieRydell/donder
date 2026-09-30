@@ -61,11 +61,38 @@ resource workspaces are reserved during preparation, with exact-time caches
 shared across pixels. Resource references are forwarded without rebuilding them.
 
 The editable `effects/standard.effect.donder` document defines Pulse, Chase,
-Spin, MarkPulse, and MarkChase. MarkPulse emits Pulse children for selected
+Spin, Wipe, MarkPulse, MarkChase, and MarkWipe. MarkPulse emits Pulse children for selected
 sections, and MarkChase emits Chase children for each mark. Neither mark effect
 adds hue shifting or a separate sampler. Their structural parameters are fixed;
 the emitted children's rendering parameters use ordinary retained bindings.
 Resource validity checks still apply, including nonempty MarkChase collections.
+Spin selects the latest active revolution, even when pulses overlap. Its direct
+revolution lookup expects `chase_position` to move monotonically across the
+full 0–1 range; the maintained Spin examples use increasing or decreasing
+curves. Other curve shapes are not guaranteed to select every active revolution.
+Wipe projects layout-space pixel positions onto `direction_angle` in degrees:
+0 travels toward +X, 90 toward +Y, and 180 toward -X. It traverses the projected
+XY bounding rectangle of the selected scope, independent of pixel ordering.
+`pulse_width` is the fraction of effect duration occupied by each pixel's pulse;
+`wipe_position`, pulse shape, gradient modes, reverse, and extension controls
+follow Chase's timing semantics. A scope with no extent along the direction
+pulses simultaneously. The angle is fixed for the lifetime of a Wipe.
+
+MarkWipe emits Wipe children, cycling `gradients` and `wipe_positions` like
+MarkChase. Its fixed `direction_angle` curve uses turns: 0 is 0 degrees,
+0.25 is 90 degrees, and 1 is 360 degrees. It is sampled at each mark's local
+time divided by the generator duration, then converted to degrees before
+applying `offset_seconds`. Each child's angle is captured during preparation, so overlapping
+wipes keep their individual directions. The curve remains editable but cannot
+receive live automation.
+
+The sample DSL exposes `pixel_x()`, `pixel_y()`, `target_min_x()`,
+`target_min_y()`, `target_max_x()`, and `target_max_y()` in layout meters.
+Elaboration uses the shared fixture geometry expansion and transforms; runtime
+and clip rasters consume the same spatial contexts. Device fragments preserve
+the original scope bounds. Projects without spatial programs omit spatial data
+from their prepared runtime payload.
+
 MarkImpactBurst's gradient collection is fixed because its emptiness determines
 whether a child is emitted.
 

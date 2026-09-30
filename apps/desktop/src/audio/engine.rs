@@ -2,7 +2,7 @@ use crate::dto::{AudioTransportSnapshot, AudioTransportState, SequenceAudio};
 use std::time::Instant;
 
 use super::backend::{
-    AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource,
+    AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource, audio_debug,
     canonical_audio_path,
 };
 
@@ -24,6 +24,7 @@ pub(crate) struct AudioEngine {
     generation: u32,
     last_error: Option<String>,
     can_resume_handle: bool,
+    last_debug_report: Instant,
 }
 
 impl AudioEngine {
@@ -49,6 +50,7 @@ impl AudioEngine {
             generation: 0,
             last_error: error,
             can_resume_handle: false,
+            last_debug_report: Instant::now(),
         }
     }
 
@@ -175,6 +177,7 @@ impl AudioEngine {
     }
 
     pub fn play(&mut self) -> AudioTransportSnapshot {
+        self.debug_transport("play requested");
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
@@ -209,6 +212,7 @@ impl AudioEngine {
     }
 
     pub fn pause(&mut self) -> AudioTransportSnapshot {
+        self.debug_transport("pause requested");
         self.observe_backend();
         if !matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
@@ -224,6 +228,7 @@ impl AudioEngine {
     }
 
     pub fn stop(&mut self) -> AudioTransportSnapshot {
+        self.debug_transport("stop requested");
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
@@ -253,6 +258,9 @@ impl AudioEngine {
         position_seconds: f32,
         final_state: AudioTransportState,
     ) -> AudioTransportSnapshot {
+        audio_debug(format_args!(
+            "seek requested position={position_seconds} final_state={final_state:?}"
+        ));
         self.observe_backend();
         if self.source.is_none() {
             return self.current_snapshot();
@@ -300,6 +308,17 @@ impl AudioEngine {
     }
 
     fn observe_backend(&mut self) {
+        let debug_report_due = cfg!(debug_assertions)
+            && self.last_debug_report.elapsed() >= std::time::Duration::from_secs(1);
+        if cfg!(debug_assertions) {
+            if let Some(driver) = &mut self.driver {
+                driver.debug_observe();
+            }
+            if debug_report_due {
+                self.debug_transport("transport observation");
+                self.last_debug_report = Instant::now();
+            }
+        }
         if let Some(TransportSource::Silent {
             duration_seconds,
             anchor,
@@ -321,6 +340,12 @@ impl AudioEngine {
             return;
         };
         let observation = handle.observe();
+        if debug_report_due {
+            audio_debug(format_args!(
+                "sound state={:?} position={} error={:?}",
+                observation.state, observation.position_seconds, observation.error
+            ));
+        }
         if let Some(error) = observation.error {
             self.state = AudioTransportState::Error;
             self.last_error = Some(error);
@@ -401,6 +426,21 @@ impl AudioEngine {
 
     fn bump_generation(&mut self) {
         self.generation = self.generation.saturating_add(1);
+        self.debug_transport("transport changed");
+    }
+
+    fn debug_transport(&self, event: &str) {
+        audio_debug(format_args!(
+            "{event}: state={:?} position={} home={} generation={} source={} handle={} can_resume={} error={:?}",
+            self.state,
+            self.position_seconds,
+            self.home_seconds,
+            self.generation,
+            self.source.is_some(),
+            self.handle.is_some(),
+            self.can_resume_handle,
+            self.last_error
+        ));
     }
 }
 

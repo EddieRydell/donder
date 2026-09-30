@@ -36,6 +36,14 @@ layer_test:
     name: Marks
     color: '#45b7ff'
     marks: []
+  - key: wipe_marks
+    name: Wipe directions
+    color: '#45b7ff'
+    marks:
+    - 4s
+    - 5s
+    - 6s
+    - 7s
   layers:
   - id: 0
     name: Default
@@ -910,6 +918,64 @@ layer_test:
           - position: 1.0
             value: 0.0
     effect: effects.Pulse
+  - id: 43
+    layer_id: 0
+    start: 0s
+    duration: 3s
+    target:
+      layout: elements.outputs_layout
+      fixture: 1001
+    scope: whole_target
+    effect: effects.Wipe
+    params:
+      gradient:
+        type: gradient
+        gradient: gradients.ember_core_gradient
+      wipe_position:
+        type: curve
+        curve: curves.ease_up
+      pulse_shape:
+        type: curve
+        curve: curves.ease_down
+      direction_angle:
+        type: float
+        value: 45.0
+  - id: 44
+    layer_id: 0
+    start: 4s
+    duration: 4s
+    target:
+      layout: elements.outputs_layout
+      fixture: 1001
+    scope: whole_target
+    effect: effects.MarkWipe
+    params:
+      beats:
+        type: marks
+        key: wipe_marks
+      gradients:
+        type: array
+        values:
+        - gradient: gradients.ember_core_gradient
+      wipe_positions:
+        type: array
+        values:
+        - curve: curves.ease_up
+      pulse_shape:
+        type: curve
+        curve: curves.ease_down
+      wipe_seconds:
+        type: float
+        value: 0.8
+      direction_angle:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 1.0
+            value: 1.0
   composition_graph:
     nodes:
     - id: 1

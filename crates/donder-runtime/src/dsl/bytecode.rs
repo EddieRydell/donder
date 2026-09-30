@@ -91,6 +91,23 @@ impl BytecodeProgram {
         self.value_operands.get(span.range())
     }
 
+    pub fn uses_spatial_context(&self) -> bool {
+        self.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::ContextRead {
+                    read: ContextRead::PixelX
+                        | ContextRead::PixelY
+                        | ContextRead::TargetMinX
+                        | ContextRead::TargetMinY
+                        | ContextRead::TargetMaxX
+                        | ContextRead::TargetMaxY,
+                    ..
+                }
+            )
+        })
+    }
+
     pub fn sample_effect(
         &self,
         params: &super::BoundParams,
@@ -120,6 +137,28 @@ impl BytecodeProgram {
         )
     }
 
+    pub fn sample_spatial_effect(
+        &self,
+        params: &super::BoundParams,
+        context: &super::RunContext,
+        spatial: Option<&super::SpatialContext>,
+        workspace: &mut super::VmWorkspace,
+        reuse_uniform: bool,
+    ) -> Result<crate::values::Color, super::RuntimeError> {
+        super::vm::run_spatial_sample_program(
+            self,
+            params,
+            context,
+            workspace,
+            if reuse_uniform {
+                self.pixel_entry as usize
+            } else {
+                0
+            },
+            spatial,
+        )
+    }
+
     pub fn sample_operator(
         &self,
         params: &super::BoundParams,
@@ -127,9 +166,10 @@ impl BytecodeProgram {
         sampler: &mut dyn super::SignalSampler,
         workspace: &mut super::VmWorkspace,
     ) -> Result<crate::values::Color, super::RuntimeError> {
-        self.sample_operator_from(params, context, sampler, workspace, false)
+        self.sample_operator_from(params, context, sampler, workspace, false, None)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn sample_operator_from(
         &self,
         params: &super::BoundParams,
@@ -137,6 +177,7 @@ impl BytecodeProgram {
         sampler: &mut dyn super::SignalSampler,
         workspace: &mut super::VmWorkspace,
         reuse_uniform: bool,
+        spatial: Option<&super::SpatialContext>,
     ) -> Result<crate::values::Color, super::RuntimeError> {
         super::vm::run_operator_program(
             self,
@@ -149,6 +190,7 @@ impl BytecodeProgram {
             } else {
                 0
             },
+            spatial,
         )
     }
 }
@@ -592,6 +634,13 @@ mod representation_tests {
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 pub enum ContextRead {
+    PixelX,
+    PixelY,
+    TargetMinX,
+    TargetMinY,
+    TargetMaxX,
+    TargetMaxY,
+
     Progress,
     Seconds,
     Duration,

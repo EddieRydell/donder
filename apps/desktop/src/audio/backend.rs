@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
@@ -22,6 +22,16 @@ pub(super) struct SourceMetadata {
 pub(super) trait AudioDriver: Send {
     fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String>;
     fn play(&mut self, path: &str, position_seconds: f32) -> Result<Box<dyn AudioHandle>, String>;
+    fn debug_observe(&mut self) {}
+}
+
+pub(super) fn audio_debug(message: std::fmt::Arguments<'_>) {
+    if cfg!(debug_assertions) {
+        eprintln!(
+            "[audio {:?}] {message}",
+            SystemTime::now().duration_since(UNIX_EPOCH)
+        );
+    }
 }
 
 pub(super) trait AudioHandle: Send {
@@ -38,7 +48,7 @@ pub(super) struct BackendObservation {
     pub(super) error: Option<String>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum BackendPlaybackState {
     Advancing,
     Paused,
@@ -47,18 +57,48 @@ pub(super) enum BackendPlaybackState {
 
 pub(super) struct KiraAudioDriver {
     manager: KiraManager,
+    last_debug_report: Instant,
 }
 
 impl KiraAudioDriver {
     pub(super) fn new() -> Result<Self, String> {
+        audio_debug(format_args!("creating audio manager"));
         AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())
-            .map(|manager| Self { manager })
+            .inspect(|_| audio_debug(format_args!("audio manager created")))
+            .inspect_err(|error| audio_debug(format_args!("audio manager failed: {error:?}")))
+            .map(|manager| Self {
+                manager,
+                last_debug_report: Instant::now(),
+            })
             .map_err(|error| error.to_string())
     }
 }
 
 impl AudioDriver for KiraAudioDriver {
+    fn debug_observe(&mut self) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        let backend = self.manager.backend_mut();
+        while let Some(error) = backend.pop_error() {
+            audio_debug(format_args!("output stream error: {error:?}"));
+        }
+        if self.last_debug_report.elapsed() >= Duration::from_secs(1) {
+            let elapsed = self.last_debug_report.elapsed();
+            self.last_debug_report = Instant::now();
+            let mut reports = 0;
+            while backend.pop_cpu_usage().is_some() {
+                reports += 1;
+            }
+            audio_debug(format_args!(
+                "output processing reports={reports} since_last_report={elapsed:?} discarded_stream_errors={:?}",
+                backend.num_stream_errors_discarded()
+            ));
+        }
+    }
+
     fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String> {
+        audio_debug(format_args!("load metadata path={path:?}"));
         StreamingSoundData::from_file(path)
             .map(|sound| SourceMetadata {
                 duration_seconds: sound.duration().as_secs_f32(),
@@ -67,11 +107,17 @@ impl AudioDriver for KiraAudioDriver {
     }
 
     fn play(&mut self, path: &str, position_seconds: f32) -> Result<Box<dyn AudioHandle>, String> {
+        audio_debug(format_args!(
+            "create sound path={path:?} position={position_seconds}"
+        ));
         let sound = StreamingSoundData::from_file(path)
+            .inspect_err(|error| audio_debug(format_args!("open sound failed: {error:?}")))
             .map_err(|error| error.to_string())?
             .start_position(f64::from(position_seconds));
         self.manager
             .play(sound)
+            .inspect(|_| audio_debug(format_args!("sound handle created")))
+            .inspect_err(|error| audio_debug(format_args!("play sound failed: {error:?}")))
             .map(|handle| Box::new(KiraAudioHandle { handle }) as Box<dyn AudioHandle>)
             .map_err(|error| error.to_string())
     }

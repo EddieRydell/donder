@@ -636,7 +636,8 @@ impl Checker {
         span: TextSpan,
     ) -> Type {
         match name {
-            "progress" | "seconds" | "duration" | "pixel_fraction" => {
+            "progress" | "seconds" | "duration" | "pixel_fraction" | "pixel_x" | "pixel_y"
+            | "target_min_x" | "target_min_y" | "target_max_x" | "target_max_y" => {
                 self.require_arg_count(name, args.len(), 0, span);
                 Type::Float
             }
@@ -898,9 +899,9 @@ impl Checker {
 
 fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
     match name {
-        "progress" | "seconds" | "duration" | "pixel_index" | "pixel_count" | "pixel_fraction" => {
-            None
-        }
+        "progress" | "seconds" | "duration" | "pixel_index" | "pixel_count" | "pixel_fraction"
+        | "pixel_x" | "pixel_y" | "target_min_x" | "target_min_y" | "target_max_x"
+        | "target_max_y" => None,
         "fixtures" | "pixels" if index == 0 => Some(Type::Target),
         "sections" if index == 0 => Some(Type::Target),
         "sections" if index == 1 => Some(Type::Float),

@@ -187,6 +187,13 @@ fn context_read(name: &Identifier) -> Option<ContextRead> {
         "pixel_index" => Some(ContextRead::PixelIndex),
         "pixel_count" => Some(ContextRead::PixelCount),
         "pixel_fraction" => Some(ContextRead::PixelFraction),
+        "pixel_x" => Some(ContextRead::PixelX),
+        "pixel_y" => Some(ContextRead::PixelY),
+        "target_min_x" => Some(ContextRead::TargetMinX),
+        "target_min_y" => Some(ContextRead::TargetMinY),
+        "target_max_x" => Some(ContextRead::TargetMaxX),
+        "target_max_y" => Some(ContextRead::TargetMaxY),
+
         _ => None,
     }
 }
@@ -349,7 +356,13 @@ impl FunctionCompiler {
                     Instruction::ContextRead {
                         read: ContextRead::PixelIndex
                             | ContextRead::PixelCount
-                            | ContextRead::PixelFraction,
+                            | ContextRead::PixelFraction
+                            | ContextRead::PixelX
+                            | ContextRead::PixelY
+                            | ContextRead::TargetMinX
+                            | ContextRead::TargetMinY
+                            | ContextRead::TargetMaxX
+                            | ContextRead::TargetMaxY,
                         ..
                     } | Instruction::SectionPosition { .. }
                         | Instruction::SignalSample { .. }

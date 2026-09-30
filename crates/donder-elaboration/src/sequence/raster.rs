@@ -41,6 +41,7 @@ pub struct PreparedEffectRasterRenderer {
     duration: SampleDuration,
     target: Arc<[PreparedTargetPixel]>,
     targets: Box<[Arc<[PreparedTargetPixel]>]>,
+    spatial_contexts: Box<[Vec<donder_runtime::dsl::SpatialContext>]>,
     effects: Box<[PreparedEffect]>,
     programs: Box<[Arc<BytecodeProgram>]>,
 }
@@ -167,7 +168,8 @@ impl PreparedEffectRasterRenderer {
             .map(|effect| {
                 let pixels = self.targets[effect.target as usize]
                     .iter()
-                    .filter_map(|pixel| {
+                    .enumerate()
+                    .filter_map(|(index, pixel)| {
                         sample_lookup
                             .get(&TargetColorAddress {
                                 fixture_index: pixel.fixture_index(),
@@ -175,6 +177,7 @@ impl PreparedEffectRasterRenderer {
                             })
                             .map(|rows| PreparedSampledEffectPixel {
                                 pixel: pixel.clone(),
+                                spatial: self.spatial_contexts[effect.target as usize][index],
                                 rows: rows.clone(),
                             })
                     })
@@ -351,6 +354,12 @@ impl<'a> EffectRasterPrepareBatch<'a> {
             effects: effects.into_boxed_slice(),
             programs: self.sample_programs.values().cloned().collect(),
             targets: self.target_cache.sample_targets.clone().into_boxed_slice(),
+            spatial_contexts: self
+                .target_cache
+                .sample_targets
+                .iter()
+                .map(|pixels| super::targets::spatial_contexts(pixels, &self.fixtures))
+                .collect(),
         })
     }
 }

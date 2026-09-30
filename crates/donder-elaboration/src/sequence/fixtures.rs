@@ -7,6 +7,7 @@ use indexmap::IndexMap;
 pub(crate) struct PreparedFixture {
     pub(crate) id: FixtureInstanceId,
     pub(crate) pixel_count: usize,
+    pub(crate) positions: Vec<[f32; 2]>,
 }
 
 pub(crate) type PreparedFixtures = (
@@ -40,6 +41,7 @@ pub(crate) fn prepare_fixtures(
             match &fixture.kind {
                 LayoutFixtureKind::Fixture { definition, .. } => fixtures.push(PreparedFixture {
                     id: fixture.id,
+                    positions: Vec::new(),
                     pixel_count: match definition {
                         donder_language::fixture::FixtureSource::Reference(id) => counts[id],
                         donder_language::fixture::FixtureSource::Inline(value) => {
@@ -71,5 +73,24 @@ pub(crate) fn prepare_fixtures(
             message: format!("Invalid layout: {error:?}"),
         }
     })?;
+    let geometry =
+        crate::fixture::PreparedFixtureDefinitions::prepare(&project.definitions.fixtures)
+            .map_err(|error| RenderError::BadGraph {
+                message: format!("Invalid fixture geometry: {error:?}"),
+            })?
+            .prepare_layout(layout)
+            .map_err(|error| RenderError::BadGraph {
+                message: format!("Invalid layout geometry: {error:?}"),
+            })?;
+    for (fixture, instance) in fixtures.iter_mut().zip(&geometry.instances) {
+        fixture.positions = instance
+            .pixels
+            .iter()
+            .map(|pixel| {
+                let point = instance.transform.transform_point3(pixel.position);
+                [point.x, point.y]
+            })
+            .collect();
+    }
     Ok((fixtures, groups))
 }

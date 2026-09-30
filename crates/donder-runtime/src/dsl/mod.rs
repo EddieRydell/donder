@@ -175,3 +175,5 @@ impl CompiledEffect {
         vm::run_generator_effect(self, params, context, workspace)
     }
 }
+
+pub use vm::SpatialContext;

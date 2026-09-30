@@ -418,3 +418,34 @@ mod representation_tests {
         assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 16);
     }
 }
+
+/// Preserve the effect's original spatial scope before output fragmentation or raster sampling.
+pub(crate) fn spatial_contexts(
+    pixels: &[PreparedTargetPixel],
+    fixtures: &[PreparedFixture],
+) -> Vec<donder_runtime::dsl::SpatialContext> {
+    let whole_target = pixels
+        .iter()
+        .all(|pixel| pixel.pixel_count() == pixels.len());
+    let mut bounds = HashMap::<Option<usize>, ([f32; 2], [f32; 2])>::new();
+    for pixel in pixels {
+        let position = fixtures[pixel.fixture_index()].positions[pixel.fixture_pixel_index()];
+        let key = (!whole_target).then_some(pixel.fixture_index());
+        let (min, max) = bounds.entry(key).or_insert((position, position));
+        for axis in 0..2 {
+            min[axis] = min[axis].min(position[axis]);
+            max[axis] = max[axis].max(position[axis]);
+        }
+    }
+    pixels
+        .iter()
+        .map(|pixel| {
+            let (min, max) = bounds[&(!whole_target).then_some(pixel.fixture_index())];
+            donder_runtime::dsl::SpatialContext {
+                position: fixtures[pixel.fixture_index()].positions[pixel.fixture_pixel_index()],
+                min,
+                max,
+            }
+        })
+        .collect()
+}

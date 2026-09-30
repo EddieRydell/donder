@@ -90,7 +90,9 @@ impl Checker {
                 let mut dependency = match &callee.kind {
                     CheckedExprKind::Variable(name) => match name.as_str() {
                         "seconds" | "progress" => Some(name.clone()),
-                        "pixel_index" | "pixel_count" | "pixel_fraction" | "section_position" => {
+                        "pixel_index" | "pixel_count" | "pixel_fraction" | "pixel_x"
+                        | "pixel_y" | "target_min_x" | "target_min_y" | "target_max_x"
+                        | "target_max_y" | "section_position" => {
                             if self.generator {
                                 let diagnostic = Diagnostic::new(
                                     expr.span,

@@ -1563,7 +1563,7 @@ export function SequenceCanvas({
         document={document}
         viewport={viewport}
         left={left}
-        top={top}
+        audioStripTop={audioStripTop}
         canvasSize={canvasSize}
       />
     </div>
@@ -1574,13 +1574,13 @@ function SequenceTransportOverlay({
   document,
   viewport,
   left,
-  top,
+  audioStripTop,
   canvasSize
 }: {
   document: SequenceEditorDocument;
   viewport: SequenceViewport;
   left: number;
-  top: number;
+  audioStripTop: number;
   canvasSize: { width: number; height: number };
 }) {
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
@@ -1591,7 +1591,7 @@ function SequenceTransportOverlay({
       transport={transport}
       viewport={viewport}
       left={left}
-      top={top}
+      audioStripTop={audioStripTop}
       canvasSize={canvasSize}
     />
   );
@@ -1602,18 +1602,18 @@ function SequenceTransportMarkers({
   transport,
   viewport,
   left,
-  top,
+  audioStripTop,
   canvasSize
 }: {
   document: SequenceEditorDocument;
   transport: AudioTransportViewSnapshot;
   viewport: SequenceViewport;
   left: number;
-  top: number;
+  audioStripTop: number;
   canvasSize: { width: number; height: number };
 }) {
   const liveTransport = useSequenceTransport(transport);
-  const markerHeight = Math.max(0, canvasSize.height - top);
+  const markerHeight = Math.max(0, canvasSize.height - audioStripTop - THEME_METRICS.scrollbarWidth);
   const markerLeft = (seconds: number) =>
     left + (clamp(seconds, 0, document.durationSeconds) - viewport.scrollXSeconds) * viewport.pxPerSecond;
   const playheadLeft = markerLeft(liveTransport.positionSeconds);
@@ -1625,13 +1625,13 @@ function SequenceTransportMarkers({
       {visible(homeLeft) && (
         <div
           className="sequence-transport-marker home"
-          style={{ left: homeLeft, top, height: markerHeight }}
+          style={{ left: homeLeft, top: audioStripTop, height: markerHeight }}
         />
       )}
       {visible(playheadLeft) && (
         <div
           className="sequence-transport-marker playhead"
-          style={{ left: playheadLeft, top, height: markerHeight }}
+          style={{ left: playheadLeft, top: audioStripTop, height: markerHeight }}
         />
       )}
     </>
