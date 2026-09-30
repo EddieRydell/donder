@@ -285,6 +285,13 @@ pub(super) fn cleanup(
     let mut registers = HashMap::new();
     *layout = SlotLayout::default();
     for op in code {
+        if let Instruction::Index { default, .. } | Instruction::Select { default, .. } = op {
+            *default = *constant_ids.entry(*default as usize).or_insert_with(|| {
+                let index = constants.len();
+                constants.push(old_constants[*default as usize].clone());
+                index
+            }) as u32;
+        }
         match op {
             Instruction::LoadConst { constant, .. }
             | Instruction::EnumParamEqualConst { constant, .. } => {
@@ -371,12 +378,16 @@ fn slots(
             }
             typed!(true, Ref, dst);
         }
-        Instruction::Index { dst, target, index } => {
+        Instruction::Index {
+            dst, target, index, ..
+        } => {
             typed!(false, Ref, target);
             *index = visit(*index, false);
             *dst = visit(*dst, true);
         }
-        Instruction::Select { dst, items, index } => {
+        Instruction::Select {
+            dst, items, index, ..
+        } => {
             for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
                 *slot = visit(*slot, false);
             }

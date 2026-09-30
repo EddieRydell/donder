@@ -7,10 +7,13 @@ pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
 
 #[inline(always)]
 pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
+    if position.is_nan() {
+        return 0.0;
+    }
     let Some(first) = points.first() else {
         return 0.0;
     };
-    if position < first.position || position.is_nan() {
+    if position < first.position {
         return first.value;
     }
     let last = &points[points.len() - 1];
@@ -48,30 +51,35 @@ pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
 }
 
 #[inline]
-pub fn sample_gradient(gradient: &Gradient, position: f32) -> Option<Color> {
+pub fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
     sample_gradient_stops(&gradient.stops, position)
 }
 
 /// Equal-position stops form a step: the last stop wins at the exact position.
 #[inline]
-pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Option<Color> {
-    let first = stops.first()?;
-    if position < first.position || position.is_nan() {
-        return Some(first.color);
+pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Color {
+    if position.is_nan() {
+        return Color::BLACK;
+    }
+    let Some(first) = stops.first() else {
+        return Color::BLACK;
+    };
+    if position < first.position {
+        return first.color;
     }
     let last = &stops[stops.len() - 1];
     if position >= last.position {
-        return Some(last.color);
+        return last.color;
     }
     let index = 1 + stops[1..stops.len() - 1].partition_point(|stop| stop.position <= position);
     let previous = &stops[index - 1];
     let stop = &stops[index];
     let span = (stop.position - previous.position).max(1e-9);
-    Some(mix_colors(
+    mix_colors(
         previous.color,
         stop.color,
         unit_span_fraction(position - previous.position, span).clamp(0.0, 1.0),
-    ))
+    )
 }
 
 #[inline(always)]

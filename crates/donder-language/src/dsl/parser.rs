@@ -802,6 +802,9 @@ impl<'source> Parser<'source> {
             }
         }
         self.expect(TokenKind::RightBrace, "expected `}` after enum options");
+        if options.is_empty() {
+            self.error_here("enum must declare an option");
+        }
         Some(Type::Enum(options))
     }
 

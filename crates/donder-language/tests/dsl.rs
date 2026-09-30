@@ -251,18 +251,16 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
             ),
             (Identifier::new("fail".into()).unwrap(), Value::Bool(true)),
         ]);
-        let failing = effect.bind_params(&values).unwrap();
-        let error = effect
-            .sample_bound(&failing, &context, &mut workspace)
-            .unwrap_err();
-        assert!(
-            error
-                .message
-                .contains("integer arithmetic overflow or division by zero")
+        let with_zero_remainder = effect.bind_params(&values).unwrap();
+        assert_eq!(
+            effect
+                .sample_bound(&with_zero_remainder, &context, &mut workspace)
+                .unwrap(),
+            expected
         );
         values.insert(Identifier::new("fail".into()).unwrap(), Value::Bool(false));
         let params = effect.bind_params(&values).unwrap();
-        // Reuse after an error, then after a program with a different register layout.
+        // Reuse after a different branch, then after a program with a different register layout.
         assert_eq!(
             effect
                 .sample_bound(&params, &context, &mut workspace)
@@ -625,7 +623,7 @@ fn source_numeric_overflow_and_integer_division_report_diagnostics() {
 }
 
 #[test]
-fn required_parameters_and_integer_remainder_fail_without_panicking() {
+fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
     let effect = compile_effects(
         "effect Required { param float amount; color sample() { int value = 1 % 0; return #000000; } }",
     )
@@ -649,7 +647,7 @@ fn required_parameters_and_integer_remainder_fail_without_panicking() {
     let bound = effect
         .bind_params(&params)
         .expect("required parameter binds");
-    let error = effect
+    let color = effect
         .sample_bound(
             &bound,
             &donder_language::dsl::RunContext {
@@ -662,15 +660,114 @@ fn required_parameters_and_integer_remainder_fail_without_panicking() {
             },
             &mut VmWorkspace::default(),
         )
-        .expect_err("integer remainder by zero must become a runtime error");
-    assert!(
-        error
-            .message
-            .contains("integer arithmetic overflow or division by zero")
-    );
+        .expect("integer remainder by zero returns zero");
+    assert_eq!(color, Color::BLACK);
+}
+
+#[test]
+fn integer_arithmetic_wraps_and_remainder_is_total() {
+    for (expression, left, right, expected) in [
+        ("-a", i32::MIN, 0, "-2147483647 - 1"),
+        ("a + b", i32::MAX, 1, "-2147483647 - 1"),
+        ("a - b", i32::MIN, 1, "2147483647"),
+        ("a * b", i32::MAX, 2, "-2"),
+        ("a % b", 1, 0, "0"),
+        ("a % b", i32::MIN, -1, "0"),
+    ] {
+        let source = format!(
+            "effect Arithmetic {{
+                param int a;
+                param int b;
+                color sample() {{
+                    if (({expression}) == ({expected})) {{ return #ffffff; }}
+                    return #000000;
+                }}
+            }}"
+        );
+        let effect = compile_effects(&source).unwrap().remove(0).effect;
+        let params = effect
+            .bind_params(&IndexMap::from([
+                (Identifier::new("a".into()).unwrap(), Value::Int(left)),
+                (Identifier::new("b".into()).unwrap(), Value::Int(right)),
+            ]))
+            .unwrap();
+        let color = effect
+            .sample_bound(
+                &params,
+                &donder_language::dsl::RunContext {
+                    progress: 0.0,
+                    time: SampleDuration::from_ticks(0),
+                    duration: SampleDuration::from_ticks(1_000_000),
+                    pixel_index: 0,
+                    pixel_count: 1,
+                    pixel_fraction: 0.0,
+                },
+                &mut VmWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            color,
+            Color {
+                red: 255,
+                green: 255,
+                blue: 255
+            },
+            "{expression}"
+        );
+    }
 }
 
 struct ConstantSignal(Color);
+
+#[test]
+fn signal_sampling_outside_the_portable_clock_returns_black() {
+    let operator = compile_operators(
+        "operator Query {
+            input Signal source;
+            param float query_seconds;
+            color sample() { return source.at(query_seconds); }
+        }",
+    )
+    .unwrap()
+    .remove(0);
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    let source_color = Color {
+        red: 17,
+        green: 34,
+        blue: 51,
+    };
+    for (seconds, expected) in [
+        (0.0, source_color),
+        (-1.0, Color::BLACK),
+        (f32::NAN, Color::BLACK),
+        (f32::INFINITY, Color::BLACK),
+        (f32::NEG_INFINITY, Color::BLACK),
+        (f32::MAX, Color::BLACK),
+    ] {
+        let params = operator
+            .bind_params(&IndexMap::from([(
+                Identifier::new("query_seconds".into()).unwrap(),
+                Value::Float(seconds),
+            )]))
+            .unwrap();
+        let color = operator
+            .sample_bound(
+                &params,
+                &context,
+                &mut ConstantSignal(source_color),
+                &mut VmWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(color, expected, "{seconds}");
+    }
+}
 
 #[test]
 fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {

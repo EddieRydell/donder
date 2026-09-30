@@ -1,6 +1,6 @@
 use donder_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};
-use donder_runtime::sampling::{multiply_colors, sample_gradient};
-use donder_runtime::values::{Color, Gradient, GradientStop};
+use donder_runtime::sampling::{multiply_colors, sample_curve, sample_gradient};
+use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
 
 #[test]
 fn color_multiply_rounds_to_nearest_for_every_channel_pair() {
@@ -74,11 +74,31 @@ fn gradient_parameter_and_direct_sampling_agree_at_steps_and_boundaries() {
     for position in [-1.0, 0.0, 0.25, 0.499, 0.5, 0.501, 0.75, 1.0, 2.0] {
         assert_eq!(
             params.sample_gradient(0, position).unwrap(),
-            sample_gradient(&gradient, position).unwrap()
+            sample_gradient(&gradient, position)
         );
     }
+    assert_eq!(sample_gradient(&gradient, 0.5), gradient.stops[2].color);
+    assert_eq!(sample_gradient(&gradient, f32::NAN), Color::BLACK);
     assert_eq!(
-        sample_gradient(&gradient, 0.5),
-        Some(gradient.stops[2].color)
+        sample_gradient(&Gradient { stops: vec![] }, 0.5),
+        Color::BLACK
+    );
+    assert_eq!(
+        sample_curve(
+            &Curve {
+                points: vec![
+                    CurvePoint {
+                        position: 0.0,
+                        value: 1.0
+                    },
+                    CurvePoint {
+                        position: 1.0,
+                        value: 2.0
+                    },
+                ],
+            },
+            f32::NAN,
+        ),
+        0.0
     );
 }

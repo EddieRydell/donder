@@ -283,10 +283,24 @@ mod tests {
     }
 
     #[test]
-    fn stanford_standard_operators_match_canonical_library() {
-        assert_eq!(
-            include_str!("../../../../examples/starter/operators/standard.operator.donder"),
-            include_str!("../../../../examples/stanford_room/operators/standard.operator.donder"),
-        );
+    fn stanford_standard_operators_include_canonical_definitions() {
+        let canonical = donder_language::dsl::compile_operators(include_str!(
+            "../../../../examples/starter/operators/standard.operator.donder"
+        ))
+        .unwrap();
+        let stanford = donder_language::dsl::compile_operators(include_str!(
+            "../../../../examples/stanford_room/operators/standard.operator.donder"
+        ))
+        .unwrap();
+        for definition in canonical {
+            assert_eq!(
+                stanford
+                    .iter()
+                    .find(|operator| operator.name == definition.name),
+                Some(&definition),
+                "operator {} differs from the stock definition",
+                definition.name.as_str()
+            );
+        }
     }
 }

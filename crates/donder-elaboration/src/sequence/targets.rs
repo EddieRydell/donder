@@ -409,16 +409,6 @@ impl PreparedTargetCache {
     }
 }
 
-#[cfg(test)]
-mod representation_tests {
-    use super::PreparedTargetPixel;
-
-    #[test]
-    fn prepared_target_pixel_stays_32_bit_compact() {
-        assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 16);
-    }
-}
-
 /// Preserve the effect's original spatial scope before output fragmentation or raster sampling.
 pub(crate) fn spatial_contexts(
     pixels: &[PreparedTargetPixel],
@@ -448,4 +438,14 @@ pub(crate) fn spatial_contexts(
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod representation_tests {
+    use super::PreparedTargetPixel;
+
+    #[test]
+    fn prepared_target_pixel_stays_32_bit_compact() {
+        assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 16);
+    }
 }

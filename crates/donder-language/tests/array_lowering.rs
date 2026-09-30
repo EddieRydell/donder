@@ -42,7 +42,7 @@ fn fixed_array_syntax_compiles_to_the_same_program_as_scalar_syntax() {
 }
 
 #[test]
-fn removing_unused_arrays_does_not_remove_errors_in_their_items() {
+fn unused_arrays_with_total_items_need_no_storage() {
     let effect = compile_effects(
         "effect Error { color sample() {
         array<int> unused = [pixel_index(), 1 % 0];
@@ -55,12 +55,7 @@ fn removing_unused_arrays_does_not_remove_errors_in_their_items() {
     assert_eq!(effect.bytecode.array_capacity, 0);
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let result = effect.sample_bound(&params, &context(0.25), &mut VmWorkspace::default());
-    assert!(
-        result
-            .unwrap_err()
-            .message
-            .contains("integer arithmetic overflow or division by zero")
-    );
+    assert_eq!(result.unwrap(), Color::BLACK);
 }
 
 #[test]
@@ -175,8 +170,8 @@ fn mutable_values_branches_and_backedges_preserve_array_snapshots() {
 }
 
 #[test]
-fn dynamic_indices_need_no_array_storage_and_preserve_index_errors() {
-    for index in ["pixel_index()", "-1", "2"] {
+fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
+    for (index, expected_red) in [("pixel_index()", 64), ("-1", 64), ("2", 191)] {
         let effect = compile_effects(&format!(
             "effect Dynamic {{ color sample() {{
             array<float> values = [progress(), 0.75];
@@ -196,13 +191,52 @@ fn dynamic_indices_need_no_array_storage_and_preserve_index_errors() {
         );
         let params = effect.bind_params(&IndexMap::new()).unwrap();
         let mut vm = VmWorkspace::default();
-        let result = effect.sample_bound(&params, &context(0.25), &mut vm);
-        if index == "pixel_index()" {
-            assert_eq!(result.unwrap().red, 64);
-        } else {
-            assert!(result.is_err());
-        }
+        assert_eq!(
+            effect
+                .sample_bound(&params, &context(0.25), &mut vm)
+                .unwrap()
+                .red,
+            expected_red
+        );
     }
+
+    let effect = compile_effects(
+        "effect Empty { color sample() {
+            array<float> values = [progress()];
+            values = [];
+            return rgb(values[pixel_index()], 0.0, 0.0);
+        } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let mut vm = VmWorkspace::default();
+    assert_eq!(
+        effect
+            .sample_bound(&params, &context(0.25), &mut vm)
+            .unwrap()
+            .red,
+        0
+    );
+
+    let effect = compile_effects(
+        "effect EmptyParameter {
+            param array<float> values = [];
+            color sample() { return rgb(values[pixel_index()], 0.0, 0.0); }
+        }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    assert_eq!(
+        effect
+            .sample_bound(&params, &context(0.25), &mut vm)
+            .unwrap()
+            .red,
+        0
+    );
 }
 
 #[test]

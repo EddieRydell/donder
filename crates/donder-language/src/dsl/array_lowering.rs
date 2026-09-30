@@ -68,7 +68,12 @@ pub(super) fn lower_arrays(
                     arrays.insert(*dst, values);
                 }
             }
-            Instruction::Index { dst, target, index } => {
+            Instruction::Index {
+                dst,
+                target,
+                index,
+                default,
+            } => {
                 if let Some(value) = integers
                     .get(index)
                     .and_then(|index| usize::try_from(*index).ok())
@@ -95,6 +100,7 @@ pub(super) fn lower_arrays(
                         dst: *dst,
                         items,
                         index: *index,
+                        default: *default,
                     };
                 }
             }

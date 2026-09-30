@@ -13,8 +13,8 @@ use crate::sampling::{
     multiply_colors, scale_color,
 };
 use crate::values::{
-    Color, Curve, Gradient, Marks, SampleDuration, SampleTime, SampleTimeError,
-    sample_duration_from_seconds_f32, sample_duration_seconds_f32, sample_time_with_seconds_offset,
+    Color, Curve, Gradient, Marks, SampleDuration, SampleTime, sample_duration_from_seconds_f32,
+    sample_duration_seconds_f32, sample_time_with_seconds_offset,
 };
 #[cfg(not(feature = "atomic"))]
 use alloc::rc::Rc as Arc;
@@ -554,7 +554,7 @@ impl BoundParams {
 
     pub fn sample_gradient(&self, index: usize, position: f32) -> Result<Color, RuntimeError> {
         match self.values.get(index) {
-            Some(BoundParamValue::Gradient(value)) => sample_gradient(value, position),
+            Some(BoundParamValue::Gradient(value)) => Ok(sample_gradient(value, position)),
             _ => Err(RuntimeError::new("expected gradient parameter")),
         }
     }
@@ -1205,6 +1205,10 @@ fn parameter_array_value(value: &RuntimeValue) -> RuntimeValue {
     }
 }
 
+fn clamp_array_index(index: i32, nonempty_length: usize) -> usize {
+    (index.max(0) as usize).min(nonempty_length - 1)
+}
+
 fn array_length(
     value: &RuntimeValue,
     arrays: Option<&ArrayStorage>,
@@ -1388,24 +1392,40 @@ impl<'a> Vm<'a> {
                         .release(RuntimeValue::ArraySlot(index));
                     result?;
                 }
-                Instruction::Index { dst, target, index } => {
+                Instruction::Index {
+                    dst,
+                    target,
+                    index,
+                    default,
+                } => {
                     let target = self.ref_value(*target)?;
                     let index = self.value(*index)?;
-                    let value = self.index_value(target, &index)?;
+                    let value = self.index_value(target, &index, *default)?;
                     self.set_value(*dst, value)?;
                 }
-                Instruction::Select { dst, items, index } => {
+                Instruction::Select {
+                    dst,
+                    items,
+                    index,
+                    default,
+                } => {
                     let index = self.value(*index)?;
-                    let index = usize::try_from(to_int_runtime(&index, self.params)?)
-                        .map_err(|_| RuntimeError::new("array index cannot be negative"))?;
-                    let source = self
+                    let index = to_int_runtime(&index, self.params)?;
+                    let sources = self
                         .bytecode
                         .value_operands(*items)
-                        .ok_or_else(|| RuntimeError::new("invalid value operand span"))?
-                        .get(index)
-                        .copied()
-                        .ok_or_else(|| RuntimeError::new("array index out of bounds"))?;
-                    self.copy_slot(*dst, source)?;
+                        .ok_or_else(|| RuntimeError::new("invalid value operand span"))?;
+                    if sources.is_empty() {
+                        let default = self
+                            .bytecode
+                            .constants
+                            .get(*default as usize)
+                            .ok_or_else(|| RuntimeError::new("invalid array default"))?;
+                        self.set_const_value(*dst, default)?;
+                    } else {
+                        let source = sources[clamp_array_index(index, sources.len())];
+                        self.copy_slot(*dst, source)?;
+                    }
                 }
                 Instruction::CurveParamSample {
                     dst,
@@ -1421,7 +1441,7 @@ impl<'a> Vm<'a> {
                     position,
                 } => {
                     let position = self.float(*position)?;
-                    let color = sample_gradient(self.prepared_gradient_param(*param)?, position)?;
+                    let color = sample_gradient(self.prepared_gradient_param(*param)?, position);
                     self.set_color(*dst, color)?;
                 }
                 Instruction::SignalSample {
@@ -1448,10 +1468,7 @@ impl<'a> Vm<'a> {
                                 pixel,
                                 (*frame_cache != u32::MAX).then_some(*frame_cache as usize),
                             )?,
-                        Err(SampleTimeError::Negative) => black(),
-                        Err(_) => {
-                            return Err(RuntimeError::new("Signal sample time is out of range"));
-                        }
+                        Err(_) => black(),
                     };
                     self.set_color(*dst, color)?;
                 }
@@ -1468,10 +1485,7 @@ impl<'a> Vm<'a> {
                 }
                 Instruction::Not { dst, src } => self.set_bool(*dst, !self.bool(*src)?)?,
                 Instruction::NegInt { dst, src } => {
-                    let value = self
-                        .int(*src)?
-                        .checked_neg()
-                        .ok_or_else(|| RuntimeError::new("integer negation overflow"))?;
+                    let value = self.int(*src)?.wrapping_neg();
                     self.set_int(*dst, value)?;
                 }
                 Instruction::NegFloat { dst, src } => {
@@ -1526,14 +1540,11 @@ impl<'a> Vm<'a> {
                     let left = self.int(*left)?;
                     let right = self.int(*right)?;
                     let value = match op {
-                        IntArithmeticOp::Add => left.checked_add(right),
-                        IntArithmeticOp::Subtract => left.checked_sub(right),
-                        IntArithmeticOp::Multiply => left.checked_mul(right),
-                        IntArithmeticOp::Remainder => left.checked_rem(right),
+                        IntArithmeticOp::Add => left.wrapping_add(right),
+                        IntArithmeticOp::Subtract => left.wrapping_sub(right),
+                        IntArithmeticOp::Multiply => left.wrapping_mul(right),
+                        IntArithmeticOp::Remainder => left.checked_rem(right).unwrap_or(0),
                     };
-                    let value = value.ok_or_else(|| {
-                        RuntimeError::new("integer arithmetic overflow or division by zero")
-                    })?;
                     self.set_int(*dst, value)?;
                 }
                 Instruction::FloatCompare {
@@ -1658,7 +1669,7 @@ impl<'a> Vm<'a> {
                     let value = self.float(*value)?;
                     let min = self.float(*min)?;
                     let max = self.float(*max)?;
-                    self.set_float(*dst, value.clamp(min, max))?;
+                    self.set_float(*dst, clamp_float(value, min, max))?;
                 }
                 Instruction::ClampConst {
                     dst,
@@ -1669,7 +1680,7 @@ impl<'a> Vm<'a> {
                     let value = self.float(*value)?;
                     self.set_float(
                         *dst,
-                        value.clamp(f32::from_bits(*min_bits), f32::from_bits(*max_bits)),
+                        clamp_float(value, f32::from_bits(*min_bits), f32::from_bits(*max_bits)),
                     )?;
                 }
                 Instruction::Smoothstep {
@@ -1788,7 +1799,7 @@ impl<'a> Vm<'a> {
                     let position = self.float(*position)?;
                     let min = self.float(*min)?;
                     let max = self.float(*max)?;
-                    self.set_float(*dst, sample_curve(curve, position).clamp(min, max))?;
+                    self.set_float(*dst, clamp_float(sample_curve(curve, position), min, max))?;
                 }
                 Instruction::CurveParamFloatClamped {
                     dst,
@@ -1800,7 +1811,7 @@ impl<'a> Vm<'a> {
                     let position = self.float(*position)?;
                     let min = self.float(*min)?;
                     let max = self.float(*max)?;
-                    let value = self.params.sample_curve(*param, position)?.clamp(min, max);
+                    let value = clamp_float(self.params.sample_curve(*param, position)?, min, max);
                     self.set_float(*dst, value)?;
                 }
                 Instruction::GradientColorScaled {
@@ -1816,7 +1827,7 @@ impl<'a> Vm<'a> {
                         let gradient =
                             to_gradient_runtime(self.ref_value(*gradient)?, self.params)?;
                         let position = self.float(*position)?;
-                        let color = sample_gradient(gradient, position)?;
+                        let color = sample_gradient(gradient, position);
                         self.set_color(*dst, scale_color(color, scale))?;
                     }
                 }
@@ -1832,7 +1843,7 @@ impl<'a> Vm<'a> {
                     } else {
                         let position = self.float(*position)?;
                         let gradient = self.prepared_gradient_param(*param)?;
-                        let color = sample_gradient(gradient, position)?;
+                        let color = sample_gradient(gradient, position);
                         self.set_color(*dst, scale_color(color, scale))?;
                     }
                 }
@@ -2399,16 +2410,29 @@ impl<'a> Vm<'a> {
         &self,
         target: &RuntimeValue,
         index: &RuntimeValue,
+        default: u32,
     ) -> Result<RuntimeValue, RuntimeError> {
         match target {
             RuntimeValue::ArraySlot(_)
             | RuntimeValue::ParameterArray(_)
             | RuntimeValue::Array(_) => {
-                let index = usize::try_from(to_int_runtime(index, self.params)?)
-                    .map_err(|_| RuntimeError::new("array index cannot be negative"))?;
+                let index = to_int_runtime(index, self.params)?;
+                let length = array_length(
+                    target,
+                    self.workspace.arrays.as_deref(),
+                    self.params.arrays.as_deref(),
+                )?;
+                if length == 0 {
+                    return self
+                        .bytecode
+                        .constants
+                        .get(default as usize)
+                        .map(RuntimeValue::from_value)
+                        .ok_or_else(|| RuntimeError::new("invalid array default"));
+                }
                 array_item(
                     target,
-                    index,
+                    clamp_array_index(index, length),
                     self.workspace.arrays.as_deref(),
                     self.params.arrays.as_deref(),
                 )
@@ -2433,7 +2457,7 @@ impl<'a> Vm<'a> {
             }
             RuntimeValue::Gradient(gradient) => {
                 let position = to_float_runtime(index, self.params)?;
-                Ok(RuntimeValue::Color(sample_gradient(gradient, position)?))
+                Ok(RuntimeValue::Color(sample_gradient(gradient, position)))
             }
             _ => Err(RuntimeError::new(
                 "index target is not an array, curve, or gradient",
@@ -3008,9 +3032,16 @@ fn sample_curve(curve: &Curve, position: f32) -> f32 {
     crate::sampling::sample_curve(curve, position)
 }
 
-fn sample_gradient(gradient: &Gradient, position: f32) -> Result<Color, RuntimeError> {
+fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
     crate::sampling::sample_gradient(gradient, position)
-        .ok_or_else(|| RuntimeError::new("cannot sample empty gradient"))
+}
+
+fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
+    if min.is_nan() || max.is_nan() || min > max {
+        f32::NAN
+    } else {
+        value.clamp(min, max)
+    }
 }
 
 fn channel(value: f32) -> u8 {
@@ -3022,13 +3053,28 @@ fn channel_byte(value: f32) -> u8 {
 }
 
 fn mark_at_from(marks: &Marks, index: i32, fallback: f32) -> Result<f32, RuntimeError> {
-    let index =
-        usize::try_from(index).map_err(|_| RuntimeError::new("mark index cannot be negative"))?;
-    Ok(marks
-        .marks
-        .get(index)
+    Ok(usize::try_from(index)
+        .ok()
+        .and_then(|index| marks.marks.get(index))
         .map(|mark| sample_duration_seconds_f32(*mark))
         .unwrap_or(fallback))
+}
+
+#[cfg(test)]
+mod mark_totality_tests {
+    use super::mark_at_from;
+    use crate::values::{Marks, SampleDuration};
+    use alloc::vec;
+
+    #[test]
+    fn mark_at_uses_fallback_for_negative_and_out_of_range_indices() {
+        let marks = Marks {
+            marks: vec![SampleDuration::from_ticks(1_000_000)],
+        };
+        assert_eq!(mark_at_from(&marks, -1, 2.5).unwrap(), 2.5);
+        assert_eq!(mark_at_from(&marks, 1, 2.5).unwrap(), 2.5);
+        assert_eq!(mark_at_from(&marks, 0, 2.5).unwrap(), 1.0);
+    }
 }
 
 fn prev_index(marks: &Marks, seconds: f32) -> Result<i32, RuntimeError> {

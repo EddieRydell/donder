@@ -693,10 +693,15 @@ impl Checker {
             "mix" => {
                 self.require_arg_count(name, args.len(), 3, span);
                 let first = self.require_arg_any(args, 0, env);
-                let second = self.require_arg_any(args, 1, env);
-                self.require_assignable(&first, &second, span);
                 self.require_arg(args, 2, &Type::Float, env);
-                first
+                if first == Type::Color {
+                    self.require_arg(args, 1, &Type::Color, env);
+                    Type::Color
+                } else {
+                    self.require_assignable(&Type::Float, &first, span);
+                    self.require_arg(args, 1, &Type::Float, env);
+                    Type::Float
+                }
             }
             "rgb" | "hsv" => {
                 self.require_arg_count(name, args.len(), 3, span);
@@ -744,7 +749,13 @@ impl Checker {
             }
             "len" => {
                 self.require_arg_count(name, args.len(), 1, span);
-                let _ = self.require_arg_any(args, 0, env);
+                let argument = self.require_arg_any(args, 0, env);
+                if !matches!(argument, Type::Array(_) | Type::Marks | Type::Void) {
+                    self.error(
+                        args.first().map_or(span, |arg| arg.span),
+                        "`len` requires an array or marks",
+                    );
+                }
                 Type::Int
             }
             "mark_count" | "mark_prev_index" | "mark_next_index" => {
@@ -791,19 +802,34 @@ impl Checker {
         env: &mut IndexMap<Identifier, Type>,
         span: TextSpan,
     ) {
-        if args.is_empty() {
+        let (minimum, maximum) = match name {
+            "mark_count" => (1, 1),
+            "mark_at" => (2, 3),
+            "mark_prev" => (1, 3),
+            "mark_prev_index" | "mark_next_index" | "mark_elapsed" | "mark_phase" => (1, 2),
+            _ => {
+                self.error(span, format!("unknown mark function `{name}`"));
+                return;
+            }
+        };
+        if minimum == maximum {
+            self.require_arg_count(name, args.len(), minimum, span);
+        } else if !(minimum..=maximum).contains(&args.len()) {
             self.error(
                 span,
-                format!("`{name}` requires marks as the first argument"),
+                format!(
+                    "`{name}` expects {minimum} to {maximum} arguments, got {}",
+                    args.len()
+                ),
             );
-            return;
-        }
-        if matches!(name, "mark_count") {
-            self.require_arg_count(name, args.len(), 1, span);
-            self.require_arg(args, 0, &Type::Marks, env);
-            return;
         }
         self.require_arg(args, 0, &Type::Marks, env);
+        if args.len() > 1 {
+            self.require_arg(args, 1, &Type::Float, env);
+        }
+        if matches!(name, "mark_at" | "mark_prev") && args.len() > 2 {
+            self.require_arg(args, 2, &Type::Float, env);
+        }
     }
 
     fn check_binary(&mut self, op: BinaryOp, left: &Type, right: &Type, span: TextSpan) -> Type {
@@ -913,6 +939,13 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
             if index == 0 =>
         {
             Some(Type::Marks)
+        }
+        "mark_at" if index == 1 => Some(Type::Float),
+        "mark_at" | "mark_prev" if index == 2 => Some(Type::Float),
+        "mark_prev" | "mark_prev_index" | "mark_next_index" | "mark_elapsed" | "mark_phase"
+            if index == 1 =>
+        {
+            Some(Type::Float)
         }
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
         "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "min" | "clamp"

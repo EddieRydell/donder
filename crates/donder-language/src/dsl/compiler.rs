@@ -310,6 +310,12 @@ impl FunctionCompiler {
             self.scopes[0].insert(name, Binding::Local(slot));
         }
         self.compile_block(block);
+        if self.constants.len() > u32::MAX as usize {
+            return Err(super::Diagnostic::new(
+                super::lexer::TextSpan { start: 0, end: 0 },
+                "constant pool exceeds 32-bit addressable capacity",
+            ));
+        }
         if self.kind == EffectKind::Generator {
             let void = self.allocate_slot(&Type::Void);
             let constant = self.add_constant(Value::Void);
@@ -602,7 +608,13 @@ impl FunctionCompiler {
                     let target = self.ref_slot(target);
                     let index = self.compile_expr(*index);
                     let dst = self.allocate_slot(&result_ty);
-                    self.emit(Instruction::Index { dst, target, index });
+                    let default = self.add_constant(result_ty.default_value()) as u32;
+                    self.emit(Instruction::Index {
+                        dst,
+                        target,
+                        index,
+                        default,
+                    });
                     dst
                 }
             }

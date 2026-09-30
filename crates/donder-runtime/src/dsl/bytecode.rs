@@ -349,12 +349,14 @@ pub enum Instruction {
         dst: ValueSlot,
         target: RefSlot,
         index: ValueSlot,
+        default: u32,
     },
     /// Index an immutable array snapshot lowered to existing value slots.
     Select {
         dst: ValueSlot,
         items: PoolSpan,
         index: ValueSlot,
+        default: u32,
     },
     CurveParamSample {
         dst: FloatSlot,

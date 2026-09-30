@@ -106,18 +106,18 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
 }
 
 #[test]
-fn resource_hoisting_preserves_branches_and_earlier_errors() {
+fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
     use donder_language::dsl::{Identifier, Value};
     use donder_runtime::dsl::bytecode::Instruction;
     use donder_runtime::values::Gradient;
-    for (source, succeeds) in [
+    for (source, returns_black) in [
         (
             "effect Guarded { param gradient colors; color sample() { if (pixel_index() < 0) { return colors[progress()]; } return rgb(pixel_fraction(), progress(), 0.25); } }",
-            true,
+            false,
         ),
         (
             "effect Guarded { param gradient colors; color sample() { array<float> values = []; float value = values[pixel_index()]; return colors[progress()] * value; } }",
-            false,
+            true,
         ),
     ] {
         let effect = compile_effects(source).unwrap().remove(0).effect;
@@ -141,10 +141,10 @@ fn resource_hoisting_preserves_branches_and_earlier_errors() {
             &workload::context(200, 0, 0),
             &mut VmWorkspace::default(),
         );
-        if succeeds {
-            result.unwrap();
+        if returns_black {
+            assert_eq!(result.unwrap(), donder_runtime::values::Color::BLACK);
         } else {
-            assert!(result.unwrap_err().message.contains("index"));
+            result.unwrap();
         }
     }
 }
@@ -561,7 +561,7 @@ fn uniform_frames_match_individual_samples_when_seeking() {
 }
 
 #[test]
-fn uniform_empty_target_skips_sampling_but_nonempty_target_reports_errors() {
+fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     use donder_language::dsl::{Identifier, Value};
     use donder_runtime::values::Gradient;
     let effect = compile_effects(
@@ -579,10 +579,9 @@ fn uniform_empty_target_skips_sampling_but_nonempty_target_reports_errors() {
         .unwrap();
     let mut show = workload::show(200, effect.bytecode, params);
     let mut output = [vec![0; 600]];
-    assert!(
-        show.evaluate(workload::time(0), &mut output, &mut show.workspace())
-            .is_err()
-    );
+    show.evaluate(workload::time(0), &mut output, &mut show.workspace())
+        .unwrap();
+    assert!(output[0].iter().all(|&byte| byte == 0));
     show.signals.targets[0].pixels = 0..0;
     output[0].fill(255);
     show.evaluate(workload::time(0), &mut output, &mut show.workspace())

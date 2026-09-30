@@ -248,6 +248,8 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         let decoded = donder_runtime::wire::decode_sequence(
             &encoded,
             donder_runtime::wire::LoadLimits {
+                // This tests fragment round-tripping, not the device upload size limit.
+                payload_bytes: encoded.len() - donder_runtime::wire::HEADER_BYTES,
                 workspace_bytes: 4 * 1024 * 1024,
                 ..Default::default()
             },

@@ -462,14 +462,30 @@ Duration parsing is fallible and never invokes panicking duration
 constructors.
 
 The effect and operator DSL reports parse/type errors rather than changing a
-bad literal to zero. Integer division produces a float; integer overflow and
-remainder by zero are VM errors. Required DSL parameters cannot receive an
+bad literal to zero. Integer division produces a float. Integer negation,
+addition, subtraction, and multiplication wrap at 32 bits; remainder by zero and
+`i32::MIN % -1` return zero. Required DSL parameters cannot receive an
 implicit type default.
+Array indexing clamps negative and out-of-range indices to the first or last
+element. Indexing an empty array returns the element type's default value;
+`len()` still returns zero. This also applies after assigning a different
+array to a local variable. `mark_at` uses its fallback for either a negative or
+an out-of-range index.
+Sampling a curve at NaN returns zero. Sampling a gradient at NaN or sampling
+an empty gradient returns black; these rules apply to direct and parameter
+sampling alike.
+A `Signal.at` query at a negative, non-finite, or unrepresentable time returns
+black without invoking its input signal.
+
+`clamp(value, min, max)` and `curve_clamped(curve, position, min, max)` return
+NaN when either bound is NaN or `min > max`; otherwise they clamp normally.
+This applies to both literal and computed bounds, so these DSL operations do
+not inherit Rust's panicking `f32::clamp` behavior for invalid bounds.
 
 ## Runtime budgets
 
 The renderer limits a prepared sequence to 250,000 frames, generated effects
-to 100,000 per preparation, and custom-operator Signal sampling to 4,096 unique
+to 4,096 per preparation, and custom-operator Signal sampling to 4,096 unique
 times per operator render. The DSL VM limits each invocation to 10,000 loop
 iterations. Exceeding a budget returns an error; Donder does not silently clamp
 or skip work.

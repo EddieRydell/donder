@@ -266,7 +266,6 @@ export function SequenceCanvas({
     if (maxScrollXSeconds === 0) return;
     const rail = event.currentTarget;
     const rect = rail.getBoundingClientRect();
-    const thumbLeft = scrollbarThumbLeft;
     if (event.target === rail) {
       const nextLeft = clamp(event.clientX - rect.left - scrollbarThumbWidth / 2, 0, rect.width - scrollbarThumbWidth);
       setViewport((current) => ({ ...current, scrollXSeconds: maxScrollXSeconds * nextLeft / Math.max(1, rect.width - scrollbarThumbWidth) }));
@@ -338,7 +337,9 @@ export function SequenceCanvas({
     const target = canvas.current;
     if (target === null) return;
     target.addEventListener("wheel", handleWheel, { passive: false });
-    return () => target.removeEventListener("wheel", handleWheel);
+    return () => {
+      target.removeEventListener("wheel", handleWheel);
+    };
   }, [handleWheel]);
 
   useEffect(() => {
@@ -656,7 +657,7 @@ export function SequenceCanvas({
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
 
-  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
