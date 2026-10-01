@@ -130,7 +130,7 @@ impl GeneratorProgram {
             result: SpecializedGenerator::default(),
             workspace: VmWorkspace::default(),
             max_children,
-            remaining_iterations: donder_runtime::dsl::MAX_VM_INSTRUCTIONS_PER_INVOCATION,
+            remaining_iterations: donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS,
         };
         specializer.block(&self.body, &mut env)?;
         Ok(specializer.result)
@@ -159,7 +159,6 @@ impl Specializer<'_> {
                 pixel_fraction: 0.0,
             },
             &mut self.workspace,
-            &mut self.remaining_iterations,
         )
     }
 
@@ -190,7 +189,7 @@ impl Specializer<'_> {
                 fixed: false,
             })
             .collect::<Vec<_>>();
-        let program = super::compiler::compile_value(&params, statements, result)
+        let program = super::compiler::compile_value(&params, statements, result, &output_types)
             .map_err(|diagnostic| error(diagnostic.message))?;
         let uses_time = program.instructions.iter().any(|instruction| {
             matches!(
@@ -373,22 +372,87 @@ impl Specializer<'_> {
                         .ok_or_else(|| error("generator loop lost an outer binding"))?;
                 }
             }
-            CheckedStmt::Emit { effect, fields } => {
-                if self.result.children.len() >= self.max_children {
-                    return Err(error("generated child limit exceeded"));
+            CheckedStmt::ForMarks { index, marks, body } => {
+                if !super::staging::contains_emit(body) {
+                    return self.pure_control(statement, env);
                 }
+                let GeneratorBinding::Constant(Value::Marks(marks)) =
+                    self.expression(marks, env)?
+                else {
+                    return Err(error("marks controlling child emission must be fixed"));
+                };
+                let mut loop_env = env.clone();
+                for mark in 0..marks.marks.len() {
+                    self.remaining_iterations = self
+                        .remaining_iterations
+                        .checked_sub(1)
+                        .ok_or_else(|| error("loop iteration limit exceeded"))?;
+                    let mark =
+                        i32::try_from(mark).map_err(|_| error("mark count exceeds int range"))?;
+                    loop_env.insert(
+                        index.clone(),
+                        Symbol {
+                            ty: Type::Int,
+                            binding: GeneratorBinding::Constant(Value::Int(mark)),
+                        },
+                    );
+                    self.block(body, &mut loop_env)?;
+                }
+                for (name, value) in env.iter_mut() {
+                    *value = loop_env
+                        .get(name)
+                        .cloned()
+                        .ok_or_else(|| error("marks loop lost an outer binding"))?;
+                }
+            }
+            CheckedStmt::ForRange {
+                index,
+                count,
+                cap,
+                body,
+            } => {
+                if !super::staging::contains_emit(body) {
+                    return self.pure_control(statement, env);
+                }
+                let GeneratorBinding::Constant(Value::Int(count)) = self.expression(count, env)?
+                else {
+                    return Err(error("range controlling child emission must be fixed"));
+                };
+                let GeneratorBinding::Constant(Value::Int(cap)) = self.expression(cap, env)? else {
+                    return Err(error("range cap must be fixed"));
+                };
+                let mut loop_env = env.clone();
+                for value in 0..count.max(0).min(cap) {
+                    self.remaining_iterations = self
+                        .remaining_iterations
+                        .checked_sub(1)
+                        .ok_or_else(|| error("loop iteration limit exceeded"))?;
+                    loop_env.insert(
+                        index.clone(),
+                        Symbol {
+                            ty: Type::Int,
+                            binding: GeneratorBinding::Constant(Value::Int(value)),
+                        },
+                    );
+                    self.block(body, &mut loop_env)?;
+                }
+                for (name, value) in env.iter_mut() {
+                    *value = loop_env
+                        .get(name)
+                        .cloned()
+                        .ok_or_else(|| error("range loop lost an outer binding"))?;
+                }
+            }
+            CheckedStmt::Emit { effect, fields } => {
                 let mut structural = Vec::new();
-                let mut params = Vec::new();
                 for (name, expr) in fields {
-                    let binding = self.expression(expr, env)?;
-                    if matches!(name.as_str(), "start" | "duration" | "target") {
-                        let GeneratorBinding::Constant(value) = binding else {
-                            return Err(error("emitted structure requires fixed values"));
-                        };
-                        structural.push((name.clone(), literal(value, expr.ty.clone(), expr.span)));
-                    } else {
-                        params.push((name.clone(), binding));
+                    if !matches!(name.as_str(), "start" | "duration" | "target") {
+                        continue;
                     }
+                    let GeneratorBinding::Constant(value) = self.expression(expr, env)? else {
+                        return Err(error("emitted structure requires fixed values"));
+                    };
+                    structural.push((name.clone(), literal(value, expr.ty.clone(), expr.span)));
                 }
                 let compiled = super::compiler::compile_emission(effect.clone(), structural)
                     .map_err(|diagnostic| error(diagnostic.message))?;
@@ -397,9 +461,19 @@ impl Specializer<'_> {
                     self.context,
                     &mut self.workspace,
                 )?;
-                let child = generated
-                    .pop()
-                    .ok_or_else(|| error("fixed emission produced no child"))?;
+                let Some(child) = generated.pop() else {
+                    // A child with invalid fixed timing was intentionally
+                    // omitted by the generator VM.
+                    return Ok(());
+                };
+                if self.result.children.len() >= self.max_children {
+                    return Err(error("generated child limit exceeded"));
+                }
+                let params = fields
+                    .iter()
+                    .filter(|(name, _)| !matches!(name.as_str(), "start" | "duration" | "target"))
+                    .map(|(name, expr)| Ok((name.clone(), self.expression(expr, env)?)))
+                    .collect::<Result<Vec<_>, RuntimeError>>()?;
                 let slot = self
                     .source
                     .emissions
@@ -645,6 +719,35 @@ impl Lowering {
                     body: self.block(body, &loop_env)?,
                 }
             }
+            CheckedStmt::ForMarks { index, marks, body } => {
+                let marks = self.expr(marks, env)?;
+                let mut loop_env = env.clone();
+                let local = self.local();
+                loop_env.insert(index.clone(), LexicalValue::Local(local.clone()));
+                CheckedStmt::ForMarks {
+                    index: local,
+                    marks,
+                    body: self.block(body, &loop_env)?,
+                }
+            }
+            CheckedStmt::ForRange {
+                index,
+                count,
+                cap,
+                body,
+            } => {
+                let count = self.expr(count, env)?;
+                let cap = self.expr(cap, env)?;
+                let mut loop_env = env.clone();
+                let local = self.local();
+                loop_env.insert(index.clone(), LexicalValue::Local(local.clone()));
+                CheckedStmt::ForRange {
+                    index: local,
+                    count,
+                    cap,
+                    body: self.block(body, &loop_env)?,
+                }
+            }
             CheckedStmt::Emit { .. } => {
                 return Err(error("retained parameter code cannot emit children"));
             }
@@ -695,6 +798,13 @@ fn collect_assignments(
                 collect_assignments(statement, &mut body_scope, env, assigned);
             }
             collect_assignments(update, &mut scoped, env, assigned);
+        }
+        CheckedStmt::ForMarks { index, body, .. } | CheckedStmt::ForRange { index, body, .. } => {
+            let mut scoped = locals.clone();
+            scoped.insert(index.clone());
+            for statement in &body.statements {
+                collect_assignments(statement, &mut scoped, env, assigned);
+            }
         }
         _ => {}
     }

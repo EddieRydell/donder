@@ -4,7 +4,7 @@ This standalone Cargo workspace owns the Xtensa target, ESP SDK dependencies,
 device persistence, profiling harnesses, and the Wi-Fi/I2S loader. Keeping it
 separate prevents embedded-only build scripts and target configuration from
 breaking the host workspace. Its local `crates/donder-device-storage` crate owns
-LittleFS credential and archive storage.
+LittleFS credential storage and two contiguous flash slots for prepared archives.
 
 The firmware consumes `donder-runtime` prepared sequences. Source parsing,
 imports, generator expansion, target resolution, and controller selection remain

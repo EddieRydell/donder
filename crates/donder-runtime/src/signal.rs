@@ -219,7 +219,7 @@ pub struct PreparedTarget {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedPixel {
     pub fixture_index: u16,
-    pub fixture_pixel_index: u16,
+    pub fixture_pixel_index: u32,
     pub pixel_index: u32,
     pub pixel_count: u32,
     pub pixel_fraction: f32,
@@ -235,7 +235,7 @@ impl PreparedPixel {
     ) -> Option<Self> {
         Some(Self {
             fixture_index: u16::try_from(fixture_index).ok()?,
-            fixture_pixel_index: u16::try_from(fixture_pixel_index).ok()?,
+            fixture_pixel_index: u32::try_from(fixture_pixel_index).ok()?,
             pixel_index: u32::try_from(pixel_index).ok()?,
             pixel_count: u32::try_from(pixel_count).ok()?,
             pixel_fraction,

@@ -136,7 +136,7 @@ main:
             shape:
               type: line
               length: 0.9987750053405762
-              count: 30
+              count: 25
         transform:
           position:
             x: 0.0
@@ -176,7 +176,7 @@ main:
             shape:
               type: line
               length: 0.9987750053405762
-              count: 30
+              count: 25
         transform:
           position:
             x: 1.3

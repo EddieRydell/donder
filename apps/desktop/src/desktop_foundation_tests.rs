@@ -133,6 +133,7 @@ pub(crate) mod tests {
             source: None,
             generation: 4,
             position_seconds: 0.0,
+            start_delay_seconds: 0.0,
             home_seconds: 0.0,
             duration_seconds: 60.0,
             last_error: None,

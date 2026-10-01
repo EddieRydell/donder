@@ -158,7 +158,7 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
                 let start = pixels.len() as u32;
                 pixels.extend(emission.target.pixels.iter().map(|pixel| PreparedPixel {
                     fixture_index: pixel.fixture_index as u16,
-                    fixture_pixel_index: pixel.fixture_pixel_index as u16,
+                    fixture_pixel_index: pixel.fixture_pixel_index as u32,
                     pixel_index: pixel.pixel_index as u32,
                     pixel_count: pixel.pixel_count as u32,
                     pixel_fraction: pixel.pixel_fraction,

@@ -5,6 +5,7 @@ mod checked;
 mod compiler;
 mod diagnostic;
 mod emission;
+mod loop_bounds;
 mod optimize;
 mod parser;
 mod specialization;

@@ -169,6 +169,19 @@ main:
     - 84.895149s
     - 85.702675s
     - 86.491806s
+    - 87.318764s
+    - 88.080101s
+    - 88.858109s
+    - 89.691689s
+    - 90.108475s
+    - 90.553055s
+    - 91.2789s
+    - 92.072906s
+    - 92.689056s
+    - 92.795799s
+    - 92.83886s
+    - 92.881195s
+    - 92.981842s
   layers:
   - id: 0
     name: Default
@@ -641,7 +654,7 @@ main:
         value: 1
       pulse_overlap:
         type: float
-        value: 60.0
+        value: 50.0
       chase_seconds:
         type: float
         value: 0.5
@@ -707,7 +720,7 @@ main:
         value: 1
       pulse_overlap:
         type: float
-        value: 60.0
+        value: 50.0
       chase_seconds:
         type: float
         value: 0.5
@@ -773,7 +786,7 @@ main:
         value: 1
       pulse_overlap:
         type: float
-        value: 60.0
+        value: 50.0
       chase_seconds:
         type: float
         value: 0.5
@@ -1072,7 +1085,7 @@ main:
   - id: 30
     layer_id: 1
     start: 80.674782s
-    duration: 9.811603s
+    duration: 10.348273s
     target:
       layout: layouts.main
       fixture: 5
@@ -1136,7 +1149,7 @@ main:
   - id: 31
     layer_id: 1
     start: 80.706306s
-    duration: 9.960629s
+    duration: 10.497299s
     target:
       layout: layouts.main
       fixture: 5
@@ -1174,7 +1187,7 @@ main:
   - id: 32
     layer_id: 1
     start: 80.637878s
-    duration: 9.811603s
+    duration: 10.348273s
     target:
       layout: layouts.main
       fixture: 6
@@ -1238,7 +1251,7 @@ main:
   - id: 33
     layer_id: 1
     start: 80.669403s
-    duration: 9.960629s
+    duration: 10.497299s
     target:
       layout: layouts.main
       fixture: 6
@@ -1314,7 +1327,7 @@ main:
   - id: 35
     layer_id: 2
     start: 67.132805s
-    duration: 29.759907s
+    duration: 7.250016s
     target:
       layout: layouts.main
       fixture: 4
@@ -1734,55 +1747,6 @@ main:
         type: float
         value: 0.4000000059604645
     effect: effects.MarkWipe
-  - id: 41
-    layer_id: 3
-    start: 100.113075s
-    duration: 12.825977s
-    target:
-      layout: layouts.main
-      fixture: 4
-    scope: whole_target
-    params:
-      gradient:
-        type: gradient
-        gradient:
-          type: gradient
-          stops:
-          - position: 0.0
-            color: '#ffffff'
-      chase_position:
-        type: curve
-        curve:
-          type: curve
-          points:
-          - position: 0.0
-            value: 0.0
-          - position: 0.16699999570846558
-            value: 0.5849999785423279
-          - position: 0.24799999594688416
-            value: 0.7689999938011169
-          - position: 0.4490000009536743
-            value: 0.875
-          - position: 0.6150000095367432
-            value: 0.9259999990463257
-          - position: 1.0
-            value: 1.0
-      pulse_shape:
-        type: curve
-        curve:
-          type: curve
-          points:
-          - position: 0.0
-            value: 1.0
-          - position: 1.0
-            value: 0.0
-      revolutions:
-        type: integer
-        value: 50
-      pulse_overlap:
-        type: float
-        value: 80.0
-    effect: effects.Spin
   - id: 42
     layer_id: 0
     start: 113.921364s
@@ -1820,6 +1784,25 @@ main:
           - position: 1.0
             value: 0.0
     effect: effects.Chase
+  - id: 43
+    layer_id: 2
+    start: 74.380547s
+    duration: 7.250016s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: whole_target
+    params:
+      gradient:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ff00d6'
+          - position: 1.0
+            color: '#6aff00'
+    effect: effects.Gradient
   composition_graph:
     nodes:
     - id: 1

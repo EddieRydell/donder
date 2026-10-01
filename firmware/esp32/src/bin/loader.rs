@@ -1,13 +1,18 @@
 #![no_std]
 #![no_main]
 #![feature(impl_trait_in_assoc_type)]
+#![cfg_attr(feature = "i2s-output", feature(asm_experimental_arch))]
 
 extern crate alloc;
 use tinyrlibc as _;
 
+#[cfg(feature = "dig-quad")]
+#[path = "../dig_quad.rs"]
+mod dig_quad;
+
 #[path = "../storage.rs"]
 mod storage;
-use donder_device_storage::{Record, credentials::Credentials};
+use donder_device_storage::{credentials::Credentials, show_slots};
 type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 
 #[cfg(feature = "i2s-output")]
@@ -22,7 +27,7 @@ use core::{
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
 #[cfg(feature = "i2s-output")]
-use donder_runtime::values::{MICROS_PER_SECOND, sample_time_from_frame};
+use donder_runtime::values::sample_time_from_frame;
 use donder_runtime::{
     sequence::{PreparedSequence, SequenceWorkspace},
     values::SampleTime,
@@ -37,7 +42,7 @@ use esp_hal::{
     Async,
     dma::DmaTxBuf,
     gpio::NoPin,
-    i2s::parallel::{I2sParallel, TxEightBits},
+    i2s::parallel::I2sParallel,
     system::{Cpu, Stack},
     time::Rate,
 };
@@ -48,7 +53,20 @@ use esp_hal::{
     timer::timg::TimerGroup,
     uart::{Config, Uart},
 };
-use esp_println::println;
+static SERIAL_DIAGNOSTICS: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(true);
+
+// Dig-Quad LED2/LED3 share UART0 pins. No application diagnostics may write
+// UART0 after those pins have been handed to the LED peripheral.
+macro_rules! println {
+    ($($arg:tt)*) => {
+        if SERIAL_DIAGNOSTICS.load(Relaxed) {
+            esp_println::println!($($arg)*);
+        }
+    };
+}
+#[cfg(all(feature = "i2s-output", not(feature = "dig-quad")))]
+use esp_hal::i2s::parallel::TxEightBits;
 use esp_radio::wifi::{self, AuthenticationMethodConfig, PowerSaveMode, sta::StationConfig};
 use picoserve::{
     AppBuilder, AppRouter,
@@ -66,13 +84,30 @@ static EVALUATION_ALLOCATIONS: AtomicU32 = AtomicU32::new(0);
 #[cfg(feature = "i2s-output")]
 static OUTPUT_READY: AtomicBool = AtomicBool::new(false);
 #[cfg(feature = "i2s-output")]
-static APP_CORE_STACK: StaticCell<Stack<4096>> = StaticCell::new();
+// Dense authored effects need VM call frames plus the RTOS interrupt context.
+static APP_CORE_STACK: StaticCell<Stack<6144>> = StaticCell::new();
 #[cfg(feature = "i2s-output")]
 static APP_CORE_EXECUTOR: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
 #[cfg(feature = "i2s-output")]
 #[path = "../transport.rs"]
 mod transport;
+
+#[cfg(feature = "i2s-output")]
+#[path = "../control_protocol.rs"]
+mod control_protocol;
+
+#[cfg(feature = "i2s-output")]
+#[path = "../loader_control.rs"]
+mod loader_control;
+
+#[cfg(feature = "i2s-output")]
+type SharedClock = Mutex<CriticalSectionRawMutex, transport::Clock>;
+
+#[cfg(feature = "i2s-output")]
+fn local_micros() -> u64 {
+    Instant::now().duration_since_epoch().as_micros()
+}
 
 struct Playback {
     sequence: PreparedSequence,
@@ -81,23 +116,35 @@ struct Playback {
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
     #[cfg(feature = "i2s-output")]
-    frame_count: u32,
+    archive_crc: u32,
+    #[cfg(feature = "i2s-output")]
+    archive_bytes: u32,
 }
 
 #[cfg(feature = "i2s-output")]
 impl Playback {
-    fn render(&mut self) {
-        if self.transport.mode == transport::Mode::Stopped {
+    fn render(&mut self, display_time: u64) {
+        let (mode, position) = self
+            .transport
+            .sample(display_time, self.sequence.signals.duration.as_ticks());
+        if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             for buffer in &mut self.buffers {
                 buffer.fill(0);
             }
             return;
         }
-        let frame = self.transport.advance(self.frame_count);
+        let frame = (u64::from(position) * u64::from(OUTPUT_FRAME_RATE) / 1_000_000) as u32;
         let time = sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap();
         self.sequence
             .evaluate(time, &mut self.buffers, &mut self.workspace)
             .unwrap();
+        #[cfg(feature = "dig-quad")]
+        for buffer in &mut self.buffers {
+            for channel in buffer {
+                *channel = (u16::from(*channel) * u16::from(dig_quad::MAX_CHANNEL_VALUE)
+                    / u16::from(u8::MAX)) as u8;
+            }
+        }
     }
 }
 type SharedPlayback = Mutex<CriticalSectionRawMutex, Option<Playback>>;
@@ -119,12 +166,18 @@ const RESET_SAMPLES: usize = I2S_SAMPLE_RATE as usize * 300 / 1_000_000;
 const DMA_BYTES: usize = DATA_SAMPLES + RESET_SAMPLES;
 #[cfg(feature = "i2s-output")]
 const OUTPUT_FRAME_RATE: u32 = 120;
+#[cfg(feature = "dig-quad")]
+const OUTPUT_DESCRIPTION: &str = dig_quad::OUTPUT_DESCRIPTION;
+#[cfg(all(feature = "i2s-output", not(feature = "dig-quad")))]
+const OUTPUT_DESCRIPTION: &str = "gpio13,18,21,25";
+#[cfg(not(feature = "i2s-output"))]
+const OUTPUT_DESCRIPTION: &str = "off";
 
 #[cfg(feature = "i2s-output")]
 type ParallelOutput = I2sParallel<'static, Async>;
 
 const LIMITS: LoadLimits = LoadLimits {
-    payload_bytes: 32 * 1024,
+    payload_bytes: show_slots::MAX_PAYLOAD_BYTES,
     pixels: 1600,
     graph_nodes: 128,
     workspace_bytes: 96 * 1024,
@@ -169,22 +222,18 @@ async fn uart_reply(
 
 #[inline(never)]
 fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
-    let archive_headroom = if cfg!(feature = "i2s-output") {
-        Some(0)
-    } else {
-        bytes.len().checked_mul(8)
-    }
-    .ok_or(LoadError::Limit)?;
-    let workspace_bytes = esp_alloc::HEAP
-        .free()
-        .saturating_sub(16 * 1024)
-        .checked_sub(archive_headroom)
-        .ok_or(LoadError::Limit)?;
+    println!(
+        "LOAD archive_bytes={} heap_free={}",
+        bytes.len(),
+        esp_alloc::HEAP.free()
+    );
+    let workspace_bytes = esp_alloc::HEAP.free().saturating_sub(16 * 1024);
     let limits = LoadLimits {
         workspace_bytes: LIMITS.workspace_bytes.min(workspace_bytes),
         ..LIMITS
     };
     let sequence = decode_sequence(bytes, limits)?;
+    println!("LOAD decoded heap_free={}", esp_alloc::HEAP.free());
     #[cfg(feature = "i2s-output")]
     if sequence.output_widths.is_empty()
         || sequence.output_widths.len() > OUTPUT_LANES
@@ -196,6 +245,7 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         return Err(LoadError::Limit);
     }
     let workspace = sequence.workspace();
+    println!("LOAD workspace heap_free={}", esp_alloc::HEAP.free());
     let buffers = sequence
         .output_widths
         .iter()
@@ -203,10 +253,9 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         .collect();
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
-        frame_count: ((u64::from(sequence.signals.duration.as_ticks())
-            * u64::from(OUTPUT_FRAME_RATE))
-        .div_ceil(u64::from(MICROS_PER_SECOND)) as u32)
-            .max(1),
+        archive_crc: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
+        #[cfg(feature = "i2s-output")]
+        archive_bytes: bytes.len() as u32,
         sequence,
         workspace,
         buffers,
@@ -221,6 +270,10 @@ struct LoaderState {
     upload: &'static UploadGate,
     storage: &'static SharedStorage,
     token: [u8; 32],
+    #[cfg(feature = "i2s-output")]
+    clock: &'static SharedClock,
+    #[cfg(feature = "i2s-output")]
+    boot_id: u32,
 }
 
 fn authorized(state: &LoaderState, request: &picoserve::request::RequestParts<'_>) -> bool {
@@ -261,6 +314,7 @@ enum OutputCapabilities {
         channels_per_lane: usize,
         channel_multiple: usize,
         frame_rate: u32,
+        clock_udp_port: u16,
     },
     #[cfg(not(feature = "i2s-output"))]
     EvaluationOnly,
@@ -305,6 +359,7 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
                 channels_per_lane: OUTPUT_PIXELS * 3,
                 channel_multiple: 3,
                 frame_rate: OUTPUT_FRAME_RATE,
+                clock_udp_port: HTTP_PORT,
             },
             #[cfg(not(feature = "i2s-output"))]
             output: OutputCapabilities::EvaluationOnly,
@@ -356,55 +411,111 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                 .await;
         }
 
-        let mut bytes = Vec::new();
-        if bytes.try_reserve_exact(length).is_err() {
+        let Ok(_output_suspension) = storage::suspend_output().await else {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "Insufficient upload memory\n",
+                "Rendering core did not release flash access\n",
             )
                 .write_to(request.body_connection.finalize().await?, response_writer)
                 .await;
-        }
-        bytes.resize(length, 0);
-
-        let offset = {
+        };
+        // Replacement stops playback immediately. Release the decoded show and
+        // workspace before staging or validating the candidate; the previous
+        // committed flash slot survives until the new show is admitted.
+        state.playback.lock().await.take();
+        let mut storage = state.storage.lock().await;
+        #[cfg(not(feature = "dig-quad"))]
+        println!(
+            "UPLOAD begin bytes={} heap_free={}",
+            length,
+            esp_alloc::HEAP.free()
+        );
+        let slot = match show_slots::begin(&mut storage.shows(), length) {
+            Ok(slot) => slot,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Cannot stage sequence in flash\n",
+                )
+                    .write_to(request.body_connection.finalize().await?, response_writer)
+                    .await;
+            }
+        };
+        #[cfg(not(feature = "dig-quad"))]
+        println!("UPLOAD erased slot={}", slot.index);
+        let mut offset = 0;
+        let mut scratch = vec![0xff; 1024];
+        {
             let mut reader = request
                 .body_connection
                 .body()
                 .reader()
                 .with_different_timeout(Duration::from_secs(15));
-            let mut offset = 0;
-            while offset < bytes.len() {
-                let read = reader.read(&mut bytes[offset..]).await?;
-                if read == 0 {
+            while offset < length {
+                let count = scratch.len().min(length - offset);
+                scratch.fill(0xff);
+                let mut filled = 0;
+                while filled < count {
+                    let read = reader.read(&mut scratch[filled..count]).await?;
+                    if read == 0 {
+                        break;
+                    }
+                    filled += read;
+                }
+                if filled != count {
                     break;
                 }
-                offset += read;
+                if show_slots::append(
+                    &mut storage.shows(),
+                    slot,
+                    offset,
+                    &scratch[..count.next_multiple_of(4)],
+                )
+                .is_err()
+                {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Cannot write staged sequence\n",
+                    )
+                        .write_to(request.body_connection.finalize().await?, response_writer)
+                        .await;
+                }
+                offset += count;
+                #[cfg(not(feature = "dig-quad"))]
+                if offset.is_multiple_of(16384) || offset == length {
+                    println!("UPLOAD written bytes={}", offset);
+                }
             }
-            offset
-        };
+        }
         let connection = request.body_connection.finalize().await?;
-        if offset != bytes.len() {
+        drop(scratch);
+        if offset != length {
             return (StatusCode::BAD_REQUEST, "Incomplete sequence body\n")
                 .write_to(connection, response_writer)
                 .await;
         }
-
+        let bytes = match storage.mapped_show(slot) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Cannot read staged sequence\n",
+                )
+                    .write_to(connection, response_writer)
+                    .await;
+            }
+        };
+        #[cfg(not(feature = "dig-quad"))]
+        println!("UPLOAD loading bytes={}", length);
         let free = esp_alloc::HEAP.free();
         let start = Instant::now();
-        match load(&bytes) {
+        match load(bytes) {
             Ok(playback) => {
                 let pixels = playback.sequence.signals.pixel_count;
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
-                if donder_device_storage::write(
-                    &mut *state.storage.lock().await,
-                    Record::Sequence,
-                    &bytes,
-                )
-                .is_err()
-                {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, "Could not save sequence to flash; running playback retained. Check device before retrying.\n")
+                if show_slots::commit(&mut storage.shows(), slot).is_err() {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, "Cannot commit sequence; playback stopped and previous saved show retained\n")
                         .write_to(connection, response_writer).await;
                 }
                 *state.playback.lock().await = Some(playback);
@@ -412,10 +523,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                     StatusCode::OK,
                     format_args!(
                         "LOADED bytes={} pixels={} heap={} us={}\n",
-                        bytes.len(),
-                        pixels,
-                        heap,
-                        elapsed
+                        length, pixels, heap, elapsed
                     ),
                 )
                     .write_to(connection, response_writer)
@@ -424,7 +532,10 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
             Err(error) => {
                 (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format_args!("REJECT {:?}\n", error),
+                    format_args!(
+                        "REJECT {:?}; playback stopped and previous saved show retained\n",
+                        error
+                    ),
                 )
                     .write_to(connection, response_writer)
                     .await
@@ -540,6 +651,22 @@ struct PlaybackStatus {
     mode: transport::Mode,
     position_micros: u32,
     duration_micros: u32,
+    archive_crc: u32,
+    archive_bytes: u32,
+    pending_command: Option<u32>,
+    command_id: u32,
+}
+
+#[cfg(feature = "i2s-output")]
+impl serde::Serialize for transport::Mode {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(match self {
+            Self::Playing => "playing",
+            Self::Paused => "paused",
+            Self::Stopped => "stopped",
+            Self::Ended => "ended",
+        })
+    }
 }
 
 #[cfg(feature = "i2s-output")]
@@ -577,6 +704,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
                 .await;
         }
         let connection = request.body_connection.finalize().await?;
+        let now = state.clock.lock().await.master_at(local_micros());
         let mut active = state.playback.lock().await;
         if let Some(mode) = self.0 {
             let Some(playback) = active.as_mut() else {
@@ -585,18 +713,31 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
                     .write_to(connection, response_writer)
                     .await;
             };
-            playback.transport.set_mode(mode);
+            let position = if mode == transport::Mode::Stopped {
+                0
+            } else {
+                playback
+                    .transport
+                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .1
+            };
+            playback.transport.apply(mode, position, now, true);
         }
         let status = TransportStatus {
             playback: active.as_ref().map(|playback| PlaybackStatus {
-                mode: playback.transport.mode,
-                position_micros: sample_time_from_frame(
-                    playback.transport.frame(),
-                    OUTPUT_FRAME_RATE,
-                )
-                .unwrap()
-                .as_ticks(),
+                mode: playback
+                    .transport
+                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .0,
+                position_micros: playback
+                    .transport
+                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .1,
                 duration_micros: playback.sequence.signals.duration.as_ticks(),
+                archive_crc: playback.archive_crc,
+                archive_bytes: playback.archive_bytes,
+                pending_command: playback.transport.pending.map(|command| command.id),
+                command_id: playback.transport.command_id,
             }),
         };
         drop(active);
@@ -622,6 +763,14 @@ impl AppBuilder for WebApp {
             .route("/frame", post_service(EvaluateFrame));
         #[cfg(feature = "i2s-output")]
         let router = router
+            .route(
+                "/clock",
+                get_service(loader_control::Control(loader_control::Endpoint::Clock)),
+            )
+            .route(
+                "/control",
+                post_service(loader_control::Control(loader_control::Endpoint::Command)),
+            )
             .route("/transport", get_service(DeviceTransport(None)))
             .route(
                 "/transport/play",
@@ -675,13 +824,27 @@ async fn web_server(
     stack: embassy_net::Stack<'static>,
     app: &'static AppRouter<WebApp>,
 ) -> ! {
-    let mut tcp_rx = [0; 4096];
+    let mut tcp_rx = [0; 2048];
     let mut tcp_tx = [0; 1024];
     let mut http = [0; 2048];
-    picoserve::Server::new(app, &SERVER_CONFIG, &mut http)
-        .listen_and_serve(task_id, stack, HTTP_PORT, &mut tcp_rx, &mut tcp_tx)
-        .await
-        .into_never()
+    loop {
+        let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut tcp_rx, &mut tcp_tx);
+        // Small clock/control responses must not wait for a delayed TCP ACK
+        // between the response headers and body.
+        socket.set_nagle_enabled(false);
+        socket.set_keep_alive(Some(Duration::from_secs(30)));
+        socket.set_timeout(Some(Duration::from_secs(45)));
+        if let Err(error) = socket.accept(HTTP_PORT).await {
+            println!("HTTP {} accept failed: {:?}", task_id, error);
+            continue;
+        }
+        if let Err(error) = picoserve::Server::new(app, &SERVER_CONFIG, &mut http)
+            .serve(socket)
+            .await
+        {
+            println!("HTTP {} request failed: {:?}", task_id, error);
+        }
+    }
 }
 
 fn token_ascii(token: [u8; 16]) -> [u8; 32] {
@@ -696,28 +859,53 @@ fn token_ascii(token: [u8; 16]) -> [u8; 32] {
 
 #[cfg(feature = "i2s-output")]
 #[embassy_executor::task]
+async fn clock_server(stack: embassy_net::Stack<'static>, token: [u8; 32], boot_id: u32) -> ! {
+    use embassy_net::udp::{PacketMetadata, UdpSocket};
+    let mut rx_meta = [PacketMetadata::EMPTY; 4];
+    let mut tx_meta = [PacketMetadata::EMPTY; 4];
+    let mut rx = [0; 176];
+    let mut tx = [0; 128];
+    let mut socket = UdpSocket::new(stack, &mut rx_meta, &mut rx, &mut tx_meta, &mut tx);
+    socket.bind(HTTP_PORT).unwrap();
+    let mut request = [0; 44];
+    loop {
+        let Ok((length, remote)) = socket.recv_from(&mut request).await else {
+            continue;
+        };
+        let received = local_micros();
+        if length != request.len()
+            || &request[..4] != b"DCLK"
+            || request[4..36]
+                .iter()
+                .zip(token)
+                .fold(0, |different, (&a, b)| different | (a ^ b))
+                != 0
+        {
+            continue;
+        }
+        let mut reply = [0; 32];
+        reply[..4].copy_from_slice(b"DCLK");
+        reply[4..12].copy_from_slice(&request[36..44]);
+        reply[12..16].copy_from_slice(&boot_id.to_le_bytes());
+        reply[16..24].copy_from_slice(&received.to_le_bytes());
+        reply[24..32].copy_from_slice(&local_micros().to_le_bytes());
+        if let Err(error) = socket.send_to(&reply, remote).await {
+            println!("Clock reply failed: {:?}", error);
+        }
+    }
+}
+
+#[cfg(feature = "i2s-output")]
+#[embassy_executor::task]
 async fn render_outputs(
     playback: &'static SharedPlayback,
+    clock: &'static SharedClock,
     mut output: ParallelOutput,
     mut ready_buffer: DmaTxBuf,
     mut spare_buffer: DmaTxBuf,
 ) -> ! {
-    loop {
-        let mut active = playback.lock().await;
-        let Some(playback) = active.as_mut() else {
-            drop(active);
-            Timer::after_millis(10).await;
-            continue;
-        };
-        playback.render();
-        ws281x_parallel::encode(
-            &playback.buffers,
-            OUTPUT_PIXELS,
-            ready_buffer.as_mut_slice(),
-        );
-        break;
-    }
-
+    let black = core::array::from_fn::<_, OUTPUT_LANES, _>(|_| Vec::new());
+    ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
     let mut frames = 0;
     let mut missed = 0;
     let mut evaluation_sum = 0;
@@ -728,33 +916,92 @@ async fn render_outputs(
     let mut wait_max = 0;
     let mut total_sum = 0;
     let mut total_max = 0;
+    let data_micros = (DATA_SAMPLES as u64 * 1_000_000).div_ceil(u64::from(I2S_SAMPLE_RATE));
+    let mut next_transmit = local_micros();
+    let mut ready_frame = 0;
+    let mut render_budget = 1_000;
+    let mut previous_clock = 0;
+    let mut ready_signature = None;
+    let mut ready_display_time = 0;
     loop {
+        if storage::flash_requested() {
+            ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+            let mut transfer = match output.send(ready_buffer) {
+                Ok(transfer) => transfer,
+                Err((error, _, _)) => panic!("I2S DMA start failed: {error:?}"),
+            };
+            transfer.wait_for_done().await.unwrap();
+            (output, ready_buffer) = transfer.wait();
+            storage::flash_checkpoint();
+            ready_signature = None;
+        }
+        if let Some(wait) = next_transmit.checked_sub(local_micros()) {
+            Timer::after_micros(wait).await;
+        }
         let frame_start = Instant::now();
+        let mut current = playback.lock().await;
+        let signature = current
+            .as_ref()
+            .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
+        if signature != ready_signature {
+            if let Some(p) = current.as_mut() {
+                p.render(ready_display_time);
+                ws281x_parallel::encode(&p.buffers, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+            } else {
+                ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+            }
+        }
         let mut transfer = match output.send(ready_buffer) {
             Ok(transfer) => transfer,
             Err((error, _, _)) => panic!("I2S DMA start failed: {error:?}"),
         };
+        drop(current);
 
+        let model = *clock.lock().await;
+        let master_now = model.master_at(local_micros());
+        if model.id != previous_clock {
+            ready_frame = master_now * u64::from(OUTPUT_FRAME_RATE) / 1_000_000;
+            previous_clock = model.id;
+        }
+        let next_frame = (ready_frame + 1).max(
+            ((master_now + data_micros + render_budget) * u64::from(OUTPUT_FRAME_RATE))
+                .div_ceil(1_000_000),
+        );
+        let next_latch = (next_frame * 1_000_000).div_ceil(u64::from(OUTPUT_FRAME_RATE));
+        next_transmit = model.local_at(next_latch.saturating_sub(data_micros));
+        ready_frame = next_frame;
         let mut active = playback.lock().await;
-        let playback = active.as_mut().unwrap();
-
         let evaluation_start = Instant::now();
         EVALUATION_TASK.store(
             esp_radio_rtos_driver::current_task().as_ptr() as u32,
             Relaxed,
         );
-        playback.render();
+        if let Some(playback) = active.as_mut() {
+            playback
+                .transport
+                .refresh(master_now, playback.sequence.signals.duration.as_ticks());
+            playback.render(next_latch);
+        }
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_us = u32::try_from(evaluation_start.elapsed().as_micros()).unwrap();
 
         let encoding_start = Instant::now();
-        ws281x_parallel::encode(
-            &playback.buffers,
-            OUTPUT_PIXELS,
-            spare_buffer.as_mut_slice(),
-        );
+        if let Some(playback) = active.as_ref() {
+            ws281x_parallel::encode(
+                &playback.buffers,
+                OUTPUT_PIXELS,
+                spare_buffer.as_mut_slice(),
+            );
+        } else {
+            ws281x_parallel::encode(&black, OUTPUT_PIXELS, spare_buffer.as_mut_slice());
+        }
+        ready_signature = active
+            .as_ref()
+            .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
+        ready_display_time = next_latch;
         drop(active);
         let encoding_us = u32::try_from(encoding_start.elapsed().as_micros()).unwrap();
+        render_budget = u64::from(evaluation_us + encoding_us) + 500;
 
         let wait_start = Instant::now();
         transfer.wait_for_done().await.unwrap();
@@ -778,8 +1025,6 @@ async fn render_outputs(
         let frame_period_us = 1_000_000 / OUTPUT_FRAME_RATE;
         if total_us >= frame_period_us {
             missed += 1;
-        } else {
-            Timer::after_micros(u64::from(frame_period_us - total_us)).await;
         }
 
         if frames == OUTPUT_FRAME_RATE {
@@ -827,7 +1072,9 @@ async fn erase_storage(
     uart: &mut Uart<'_, esp_hal::Async>,
     storage: &mut storage::DeviceStorage,
 ) -> ! {
-    if donder_device_storage::erase_all(storage).is_err() {
+    if donder_device_storage::erase_all(&mut storage.shows()).is_err()
+        || donder_device_storage::erase_all(storage).is_err()
+    {
         storage_error(
             uart,
             "Storage erase failed; reset the controller and retry erasing saved data",
@@ -867,9 +1114,9 @@ async fn recover_storage(
 
 #[esp_rtos::main]
 async fn main(spawner: embassy_executor::Spawner) -> ! {
-    let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
+    let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
-    esp_alloc::heap_allocator!(size: 96 * 1024);
+    esp_alloc::heap_allocator!(size: 92 * 1024);
     let timer = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timer.timer0, p.FROM_CPU_INTR0);
 
@@ -883,10 +1130,10 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
 
     // USB serial is provisioning and diagnostics only. The host initiates the
     // handshake, so a damaged boot log cannot be mistaken for a failed boot.
-    let mut uart = Uart::new(p.UART0, Config::default())
+    let mut uart = Uart::new(p.UART0.reborrow(), Config::default())
         .unwrap()
-        .with_rx(p.GPIO3)
-        .with_tx(p.GPIO1)
+        .with_rx(p.GPIO3.reborrow())
+        .with_tx(p.GPIO1.reborrow())
         .into_async();
     let mut storage = match storage::DeviceStorage::new(p.FLASH) {
         Ok(storage) => storage,
@@ -994,7 +1241,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     uart.write_all(&token).await.unwrap();
     uart.write_all(b"\n").await.unwrap();
 
-    let resources = Box::leak(Box::new(StackResources::<3>::new()));
+    let resources = Box::leak(Box::new(StackResources::<4>::new()));
     let (stack, runner) = embassy_net::new(
         interface,
         embassy_net::Config::dhcpv4(Default::default()),
@@ -1003,14 +1250,14 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     );
     spawner.spawn(network(runner).unwrap());
     spawner.spawn(reconnect(controller).unwrap());
-    let restored = match donder_device_storage::read(
-        &mut storage,
-        Record::Sequence,
-        HEADER_BYTES + LIMITS.payload_bytes,
-    ) {
-        Ok(Some(bytes)) => match load(&bytes) {
-            Ok(playback) => Some(playback),
-            Err(_) => {
+    let restored = match show_slots::latest(&mut storage.shows()) {
+        Ok(Some(slot)) => match storage
+            .mapped_show(slot)
+            .ok()
+            .and_then(|bytes| load(bytes).ok())
+        {
+            Some(playback) => Some(playback),
+            None => {
                 storage_error(
                     &mut uart,
                     "Saved sequence is invalid for this firmware; data was not erased",
@@ -1019,13 +1266,18 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
             }
         },
         Ok(None) => None,
-        Err(_) => storage_error(&mut uart, "Cannot read saved sequence; data was not erased").await,
+        Err(_) => storage_error(&mut uart, "Cannot read saved show; data was not erased").await,
     };
     let storage: &'static SharedStorage =
         picoserve::make_static!(SharedStorage, Mutex::new(storage));
     let playback: &'static SharedPlayback =
         picoserve::make_static!(SharedPlayback, Mutex::new(restored));
     let upload = picoserve::make_static!(UploadGate, Mutex::new(()));
+    #[cfg(feature = "i2s-output")]
+    let boot_id = rng.random();
+    #[cfg(feature = "i2s-output")]
+    let clock: &'static SharedClock =
+        picoserve::make_static!(SharedClock, Mutex::new(transport::Clock::new()));
     let app = picoserve::make_static!(
         AppRouter<WebApp>,
         WebApp {
@@ -1033,14 +1285,56 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 playback,
                 upload,
                 storage,
-                token
+                token,
+                #[cfg(feature = "i2s-output")]
+                clock,
+                #[cfg(feature = "i2s-output")]
+                boot_id,
             }
         }
         .build_app()
     );
+    // Requests may arrive during the UART handoff. Require the output task's
+    // checkpoint before permitting flash access even while core 1 is starting.
+    #[cfg(feature = "i2s-output")]
+    storage::output_started();
     for task_id in 0..HTTP_WORKERS {
         spawner.spawn(web_server(task_id, stack, app).unwrap());
     }
+    #[cfg(feature = "i2s-output")]
+    spawner.spawn(clock_server(stack, token, boot_id).unwrap());
+
+    // Provisioning completes on UART before the shared Dig-Quad pins switch
+    // to LEDs. A configured Dig-Quad boots black without waiting for Wi-Fi.
+    if provision || !cfg!(feature = "dig-quad") {
+        stack.wait_config_up().await;
+        if provision && credentials.save(&mut *storage.lock().await).is_err() {
+            storage_error(
+                &mut uart,
+                "Wi-Fi connected but credentials could not be saved; retry provisioning",
+            )
+            .await;
+        }
+        uart_reply(
+            &mut uart,
+            format_args!(
+                "WIFI READY {} {} i2s={} heap_free={}",
+                stack.config_v4().unwrap().address.address(),
+                HTTP_PORT,
+                OUTPUT_DESCRIPTION,
+                esp_alloc::HEAP.free()
+            ),
+        )
+        .await
+        .unwrap();
+    }
+    drop(credentials);
+    embedded_io_async::Write::flush(&mut uart).await.unwrap();
+    #[cfg(feature = "dig-quad")]
+    SERIAL_DIAGNOSTICS.store(false, Relaxed);
+    // Disable the async UART interrupt before the LED peripheral takes its pins,
+    // while retaining UART0's clock for ROM routines that use its transmitter.
+    core::mem::forget(uart.into_blocking());
 
     #[cfg(feature = "i2s-output")]
     esp_rtos::start_second_core(
@@ -1048,6 +1342,9 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         p.FROM_CPU_INTR1,
         APP_CORE_STACK.init(Stack::new()),
         move || {
+            #[cfg(feature = "dig-quad")]
+            let pins = dig_quad::output_pins(p.GPIO16, p.GPIO3, p.GPIO1, p.GPIO4);
+            #[cfg(not(feature = "dig-quad"))]
             let pins = TxEightBits::new(
                 p.GPIO13, p.GPIO18, p.GPIO21, p.GPIO25, NoPin, NoPin, NoPin, NoPin,
             );
@@ -1070,7 +1367,8 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
                 .init(esp_rtos::embassy::Executor::new())
                 .run(|spawner| {
                     spawner.spawn(
-                        render_outputs(playback, output, ready_buffer, spare_buffer).unwrap(),
+                        render_outputs(playback, clock, output, ready_buffer, spare_buffer)
+                            .unwrap(),
                     );
                 });
         },
@@ -1080,33 +1378,6 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     while !OUTPUT_READY.load(Relaxed) {
         Timer::after_millis(1).await;
     }
-
-    stack.wait_config_up().await;
-    if provision && credentials.save(&mut *storage.lock().await).is_err() {
-        storage_error(
-            &mut uart,
-            "Wi-Fi connected but credentials could not be saved; retry provisioning",
-        )
-        .await;
-    }
-    drop(credentials);
-
-    uart_reply(
-        &mut uart,
-        format_args!(
-            "WIFI READY {} {} i2s={} heap_free={}",
-            stack.config_v4().unwrap().address.address(),
-            HTTP_PORT,
-            if cfg!(feature = "i2s-output") {
-                "gpio13,18,21,25"
-            } else {
-                "off"
-            },
-            esp_alloc::HEAP.free()
-        ),
-    )
-    .await
-    .unwrap();
 
     loop {
         Timer::after_secs(60).await;

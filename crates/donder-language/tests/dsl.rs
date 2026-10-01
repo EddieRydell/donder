@@ -1,8 +1,9 @@
 use donder_language::dsl::{
     Color, GeneratedEffectSlot, GeneratorContext, Identifier, OperatorRunContext, RuntimeError,
-    SignalSampler, TargetValue, Value, VmWorkspace, compile_effects, compile_operators,
+    SignalSampler, TargetItemValue, TargetPixelValue, TargetValue, Value, VmWorkspace,
+    compile_effects, compile_operators,
 };
-use donder_language::values::{SampleDuration, SampleTime};
+use donder_language::values::{Marks, SampleDuration, SampleTime};
 use donder_runtime::dsl::bytecode::{Instruction, SignalPixel};
 use indexmap::IndexMap;
 
@@ -70,6 +71,337 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
             }
         );
     }
+}
+
+#[test]
+fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
+    let effect = compile_effects(
+        "effect Iterate {
+            fixed param marks beats;
+            color sample() {
+                float total = 0.0;
+                for (int mark in beats) { total = total + mark_at(beats, mark); }
+                return rgb(total / 10.0, 0.0, 0.0);
+            }
+        }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(10_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    let mut params = IndexMap::new();
+    params.insert(
+        Identifier::new("beats".to_string()).unwrap(),
+        Value::Marks(Arc::new(Marks {
+            marks: vec![
+                SampleDuration::from_ticks(1_000_000),
+                SampleDuration::from_ticks(2_000_000),
+            ],
+        })),
+    );
+    let bound = effect.bind_params(&params).unwrap();
+    assert_eq!(
+        effect
+            .sample_bound(&bound, &context, &mut VmWorkspace::default())
+            .unwrap()
+            .red,
+        77
+    );
+    params.insert(
+        Identifier::new("beats".to_string()).unwrap(),
+        Value::Marks(Arc::new(Marks { marks: Vec::new() })),
+    );
+    let bound = effect.bind_params(&params).unwrap();
+    assert_eq!(
+        effect
+            .sample_bound(&bound, &context, &mut VmWorkspace::default())
+            .unwrap(),
+        Color::BLACK
+    );
+    assert!(
+        compile_effects(
+            "effect Invalid { fixed param marks beats; color sample() {
+            for (int mark in beats) { mark = mark + 1; }
+            return #000000;
+        } }"
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
+    let effect = compile_effects(
+        "effect CountMarks {
+            fixed param marks beats;
+            color sample() {
+                int count = 0;
+                for (int mark in beats) { count = count + 1; }
+                return rgb(count / 10001.0, 0.0, 0.0);
+            }
+        }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let params = effect
+        .bind_params(&IndexMap::from([(
+            Identifier::new("beats".to_string()).unwrap(),
+            Value::Marks(Arc::new(Marks {
+                marks: (0..10_001).map(SampleDuration::from_ticks).collect(),
+            })),
+        )]))
+        .unwrap();
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(10_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    assert_eq!(
+        effect
+            .sample_bound(&params, &context, &mut VmWorkspace::default())
+            .unwrap()
+            .red,
+        255
+    );
+}
+
+#[test]
+fn generator_target_selection_is_total_for_empty_and_outside_indices() {
+    let effect = compile_effects(
+        "effect Select { void generate() {
+            TargetItems items = pixels(target);
+            timeline.emit Child { start: 0.0, duration: 1.0, target: pick(items, -1.0) };
+            timeline.emit Child { start: 0.0, duration: 1.0, target: pick(items, 99.0) };
+        } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let target = Arc::new(TargetValue {
+        groups: vec![Arc::new(TargetItemValue {
+            pixels: Arc::from([
+                TargetPixelValue {
+                    fixture_index: 0,
+                    fixture_pixel_index: 0,
+                    pixel_index: 0,
+                    pixel_count: 2,
+                    pixel_fraction: 0.0,
+                },
+                TargetPixelValue {
+                    fixture_index: 0,
+                    fixture_pixel_index: 1,
+                    pixel_index: 1,
+                    pixel_count: 2,
+                    pixel_fraction: 1.0,
+                },
+            ]),
+        })],
+    });
+    let generated = effect
+        .generate_bound(
+            &params,
+            &GeneratorContext {
+                start_time: SampleTime::from_ticks(0),
+                duration: SampleDuration::from_ticks(1_000_000),
+                target,
+            },
+            &mut VmWorkspace::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        generated
+            .iter()
+            .map(|child| child.target.pixels[0].pixel_index)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
+    );
+
+    let generated = effect
+        .generate_bound(
+            &params,
+            &GeneratorContext {
+                start_time: SampleTime::from_ticks(0),
+                duration: SampleDuration::from_ticks(1_000_000),
+                target: Arc::new(TargetValue { groups: Vec::new() }),
+            },
+            &mut VmWorkspace::default(),
+        )
+        .unwrap();
+    assert_eq!(generated.len(), 2);
+    assert!(generated.iter().all(|child| child.target.pixels.is_empty()));
+}
+
+#[test]
+fn integer_comparisons_do_not_round_through_float() {
+    let effect = compile_effects(
+        "effect Exact {
+            param int left = 16777217;
+            param int right = 16777216;
+            color sample() {
+                if (left > 16777216 && left > right && right < left) {
+                    return #ffffff;
+                }
+                return #000000;
+            }
+        }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    assert_eq!(
+        effect
+            .sample_bound(&params, &context, &mut VmWorkspace::default())
+            .unwrap(),
+        Color {
+            red: 255,
+            green: 255,
+            blue: 255
+        }
+    );
+}
+
+#[test]
+fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
+    compile_effects(
+        "effect Fixed { color sample() {
+            int total = 0;
+            for (int i = 0; i < 3; i = i + 1) { total = total + i; }
+            return rgb(total / 10.0, 0.0, 0.0);
+        } }",
+    )
+    .unwrap()
+    .remove(0);
+
+    let dynamic = compile_effects(
+        "effect Dynamic { param int count = 3; color sample() {
+            int total = 0;
+            for (int i = 0; i < count; i = i + 1) { total = total + i; }
+            return rgb(total / 10.0, 0.0, 0.0);
+        } }",
+    )
+    .unwrap_err();
+    assert!(dynamic.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("compile-time-proven trip count")
+    }));
+
+    let capped = compile_effects(
+        "effect Capped { param int count = 3; color sample() {
+            int total = 0;
+            for (int i in range(count, 4)) { total = total + i; }
+            return rgb(total / 10.0, 0.0, 0.0);
+        } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    let sample = |count| {
+        let mut values = IndexMap::new();
+        values.insert(
+            Identifier::new("count".to_string()).unwrap(),
+            Value::Int(count),
+        );
+        let params = capped.bind_params(&values).unwrap();
+        capped
+            .sample_bound(&params, &context, &mut VmWorkspace::default())
+            .unwrap()
+            .red
+    };
+    assert_eq!(sample(-3), 0);
+    assert!(sample(3) < sample(4));
+    assert_eq!(sample(4), sample(i32::MAX));
+
+    let mutated = compile_effects(
+        "effect Mutated { color sample() {
+            int total = 0;
+            for (int i = 0; i < 3; i = i + 1) { i = 0; total = total + 1; }
+            return rgb(total, 0.0, 0.0);
+        } }",
+    )
+    .unwrap_err();
+    assert!(mutated.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("compile-time-proven trip count")
+    }));
+
+    for cap in ["0", "10001", "count"] {
+        let source = format!(
+            "effect Bad {{ param int count = 3; color sample() {{ for (int i in range(count, {cap})) {{ }} return rgb(0.0, 0.0, 0.0); }} }}"
+        );
+        assert!(
+            compile_effects(&source)
+                .unwrap_err()
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("range cap"))
+        );
+    }
+}
+
+#[test]
+fn nested_counted_loops_reset_their_private_iteration_state() {
+    let effect = compile_effects(
+        "effect Nested { param int count = 2; color sample() {
+            int total = 0;
+            for (int outer = 0; outer < 2; outer = outer + 1) {
+                for (int inner in range(count, 3)) { total = total + 1; }
+            }
+            if (total == 4) { return #ffffff; }
+            return #000000;
+        } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let context = OperatorRunContext {
+        progress: 0.0,
+        time: SampleDuration::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        pixel_index: 0,
+        pixel_count: 1,
+        pixel_fraction: 0.0,
+    };
+    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    assert_eq!(
+        effect
+            .sample_bound(&params, &context, &mut VmWorkspace::default())
+            .unwrap(),
+        Color {
+            red: 255,
+            green: 255,
+            blue: 255
+        }
+    );
 }
 
 #[test]

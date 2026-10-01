@@ -246,6 +246,54 @@ impl Checker {
                         });
                 }
             }
+            CheckedStmt::ForMarks {
+                index,
+                marks: collection,
+                body,
+            }
+            | CheckedStmt::ForRange {
+                index,
+                count: collection,
+                body,
+                ..
+            } => {
+                let dependency = self.expr(collection, env).or_else(|| control.clone());
+                if self.generator && contains_emit(body) {
+                    self.require_fixed(
+                        collection,
+                        &dependency,
+                        "collection controlling child emission",
+                    );
+                }
+                let mut loop_env = env.clone();
+                loop_env.insert(
+                    index.clone(),
+                    Binding {
+                        dependency: dependency.clone(),
+                        fixed: false,
+                    },
+                );
+                loop {
+                    let before = loop_env.clone();
+                    self.block(body, &mut loop_env, &dependency);
+                    for (name, value) in loop_env.iter_mut() {
+                        value.dependency = before
+                            .get(name)
+                            .and_then(|value| value.dependency.clone())
+                            .or_else(|| value.dependency.clone());
+                    }
+                    if loop_env == before {
+                        break;
+                    }
+                }
+                for (name, value) in env.iter_mut() {
+                    value.dependency = value.dependency.clone().or_else(|| {
+                        loop_env
+                            .get(name)
+                            .and_then(|value| value.dependency.clone())
+                    });
+                }
+            }
             CheckedStmt::Emit { fields, .. } => {
                 for (name, expr) in fields {
                     let dependency = self.expr(expr, env).or_else(|| control.clone());
@@ -271,7 +319,9 @@ pub(super) fn contains_emit(block: &CheckedBlock) -> bool {
             else_block,
             ..
         } => contains_emit(then_block) || else_block.as_ref().is_some_and(contains_emit),
-        CheckedStmt::For { body, .. } => contains_emit(body),
+        CheckedStmt::For { body, .. }
+        | CheckedStmt::ForMarks { body, .. }
+        | CheckedStmt::ForRange { body, .. } => contains_emit(body),
         _ => false,
     })
 }
@@ -303,7 +353,9 @@ fn annotate(block: &mut CheckedBlock, emitted: &IndexMap<(usize, usize), Depende
                     annotate(block, emitted);
                 }
             }
-            CheckedStmt::For { body, .. } => annotate(body, emitted),
+            CheckedStmt::For { body, .. }
+            | CheckedStmt::ForMarks { body, .. }
+            | CheckedStmt::ForRange { body, .. } => annotate(body, emitted),
             _ => {}
         }
     }

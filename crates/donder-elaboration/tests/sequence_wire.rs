@@ -1,5 +1,6 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::PreparedSequenceOutput;
+use donder_runtime::dsl::bytecode::{ColorSlot, Instruction, ValueSlot};
 use donder_runtime::values::sample_time_from_frame;
 use donder_runtime::wire::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence};
 
@@ -10,6 +11,7 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
     let setup = &project.setups[project.root.setup.id()];
     let controller = setup.controllers[0].id();
     let port = project.controllers[controller].ports[0].id;
+    let mut tested_invalid_bytecode = false;
     for id in project.root.sequences.iter().map(|source| source.id()) {
         let prepared = PreparedSequenceOutput::prepare_selected(
             &project,
@@ -21,6 +23,37 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
         let original = prepared.sequence;
         let bytes = encode_sequence(&original).unwrap();
         let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
+        let mut invalid_bytecode = decode_sequence(&bytes, LoadLimits::default()).unwrap();
+        if let Some(first_program) = invalid_bytecode.signals.programs.first_mut() {
+            first_program.instructions[0] = Instruction::ReturnColor(ColorSlot(u32::MAX));
+            assert!(matches!(
+                decode_sequence(
+                    &encode_sequence(&invalid_bytecode).unwrap(),
+                    LoadLimits::default()
+                ),
+                Err(LoadError::InvalidSequence)
+            ));
+            tested_invalid_bytecode = true;
+        }
+        let mut wrong_return = decode_sequence(&bytes, LoadLimits::default()).unwrap();
+        if let Some(first_program) = wrong_return.signals.programs.first_mut() {
+            let instruction = first_program
+                .instructions
+                .iter_mut()
+                .find(|instruction| matches!(instruction, Instruction::ReturnColor(_)))
+                .expect("sample program returns color");
+            let Instruction::ReturnColor(slot) = instruction else {
+                unreachable!()
+            };
+            *instruction = Instruction::Return(ValueSlot::Color(*slot));
+            assert!(matches!(
+                decode_sequence(
+                    &encode_sequence(&wrong_return).unwrap(),
+                    LoadLimits::default()
+                ),
+                Err(LoadError::InvalidSequence)
+            ));
+        }
         assert_eq!(
             encode_sequence(&decoded).unwrap(),
             bytes,
@@ -113,4 +146,8 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
             bytes.len()
         );
     }
+    assert!(
+        tested_invalid_bytecode,
+        "starter must exercise bytecode validation"
+    );
 }

@@ -43,6 +43,7 @@ pub(super) fn hoist_uniform(
                 | Instruction::FloatBinary { .. }
                 | Instruction::FloatBinaryConst { .. }
                 | Instruction::FloatCompare { .. }
+                | Instruction::IntCompare { .. }
                 | Instruction::FloatCompareConst { .. }
                 | Instruction::FloatUnary { .. }
                 | Instruction::MixFloat { .. }
@@ -140,7 +141,10 @@ pub(super) fn hoist_uniform(
         match &mut op {
             Instruction::Jump(target)
             | Instruction::JumpIfFalse { target, .. }
-            | Instruction::JumpIfTrue { target, .. } => *target = offsets[*target],
+            | Instruction::JumpIfTrue { target, .. }
+            | Instruction::LoopRangeStart { end: target, .. }
+            | Instruction::LoopMarksStart { end: target, .. }
+            | Instruction::LoopEnd { start: target, .. } => *target = offsets[*target],
             _ => {}
         }
         prefix.push(op);
@@ -155,6 +159,7 @@ pub(super) fn cleanup(
     operands: &mut Vec<ValueSlot>,
     fields: &mut Vec<(Identifier, ValueSlot)>,
     layout: &mut SlotLayout,
+    ref_types: &mut Vec<Type>,
 ) {
     let targets = code.iter().filter_map(jump_target).collect::<HashSet<_>>();
     let mut copies = HashMap::<ValueSlot, ValueSlot>::new();
@@ -272,7 +277,10 @@ pub(super) fn cleanup(
         match op {
             Instruction::Jump(target)
             | Instruction::JumpIfFalse { target, .. }
-            | Instruction::JumpIfTrue { target, .. } => *target = offsets[*target],
+            | Instruction::JumpIfTrue { target, .. }
+            | Instruction::LoopRangeStart { end: target, .. }
+            | Instruction::LoopMarksStart { end: target, .. }
+            | Instruction::LoopEnd { start: target, .. } => *target = offsets[*target],
             _ => {}
         }
     }
@@ -281,6 +289,7 @@ pub(super) fn cleanup(
     let old_constants = core::mem::take(constants);
     let old_operands = core::mem::take(operands);
     let old_fields = core::mem::take(fields);
+    let old_ref_types = core::mem::take(ref_types);
     let mut constant_ids = HashMap::new();
     let mut registers = HashMap::new();
     *layout = SlotLayout::default();
@@ -319,7 +328,7 @@ pub(super) fn cleanup(
         }
         slots(op, operands, fields, |slot, _| {
             *registers.entry(slot).or_insert_with(|| {
-                ValueSlot::for_type(
+                let mapped = ValueSlot::for_type(
                     &match slot {
                         ValueSlot::Int(_) => Type::Int,
                         ValueSlot::Float(_) => Type::Float,
@@ -328,7 +337,11 @@ pub(super) fn cleanup(
                         ValueSlot::Ref(_) => Type::Void,
                     },
                     layout,
-                )
+                );
+                if let (ValueSlot::Ref(old), ValueSlot::Ref(_)) = (slot, mapped) {
+                    ref_types.push(old_ref_types[old.0 as usize].clone());
+                }
+                mapped
             })
         });
     }
@@ -338,7 +351,10 @@ fn jump_target(op: &Instruction) -> Option<usize> {
     match op {
         Instruction::Jump(target)
         | Instruction::JumpIfFalse { target, .. }
-        | Instruction::JumpIfTrue { target, .. } => Some(*target),
+        | Instruction::JumpIfTrue { target, .. }
+        | Instruction::LoopRangeStart { end: target, .. }
+        | Instruction::LoopMarksStart { end: target, .. }
+        | Instruction::LoopEnd { start: target, .. } => Some(*target),
         _ => None,
     }
 }
@@ -457,6 +473,12 @@ fn slots(
             typed!(false, Float, left, right);
             typed!(true, Bool, dst);
         }
+        Instruction::IntCompare {
+            dst, left, right, ..
+        } => {
+            typed!(false, Int, left, right);
+            typed!(true, Bool, dst);
+        }
         Instruction::FloatCompareConst { dst, value, .. } => {
             typed!(false, Float, value);
             typed!(true, Bool, dst);
@@ -471,6 +493,8 @@ fn slots(
         Instruction::JumpIfFalse { condition, .. } | Instruction::JumpIfTrue { condition, .. } => {
             typed!(false, Bool, condition)
         }
+        Instruction::LoopRangeStart { count, .. } => typed!(false, Int, count),
+        Instruction::LoopMarksStart { marks, .. } => typed!(false, Ref, marks),
         Instruction::SectionPosition { dst, width } => {
             typed!(false, Float, width);
             typed!(true, Float, dst);
@@ -644,6 +668,6 @@ fn slots(
         }
         Instruction::Return(value) => *value = visit(*value, false),
         Instruction::ReturnColor(value) => typed!(false, Color, value),
-        Instruction::Jump(_) | Instruction::CheckLoopLimit => {}
+        Instruction::Jump(_) | Instruction::LoopEnd { .. } => {}
     }
 }

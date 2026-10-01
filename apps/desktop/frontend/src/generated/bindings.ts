@@ -35,13 +35,16 @@ export const commands = {
 	sequenceExportPorts: (request: GuiDocumentRequest) => typedError<SequenceExportPort[], string>(__TAURI_INVOKE("sequence_export_ports", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
 	deviceCapabilities: (address: string, token: string) => typedError<DeviceCapabilities, string>(__TAURI_INVOKE("device_capabilities", { address, token })),
-	deviceTransport: (address: string, token: string, mode: "playing" | "paused" | "stopped" | null) => typedError<DeviceTransportStatus, string>(__TAURI_INVOKE("device_transport", { address, token, mode })),
+	deviceTransport: (address: string, token: string, mode: "playing" | "paused" | "stopped" | "ended" | null) => typedError<DeviceTransportStatus, string>(__TAURI_INVOKE("device_transport", { address, token, mode })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
 	deviceFirmwareInfo: () => typedError<DeviceFirmwareInfo, string>(__TAURI_INVOKE("device_firmware_info")),
 	installDeviceFirmware: (port: string, progress: Channel<DeviceInstallProgress>) => typedError<null, string>(__TAURI_INVOKE("install_device_firmware", { port, progress })),
 	provisionDevice: (port: string, ssid: string, password: string) => typedError<ProvisionedDevice, string>(__TAURI_INVOKE("provision_device", { port, ssid, password })),
 	eraseDeviceSavedData: (port: string) => typedError<null, string>(__TAURI_INVOKE("erase_device_saved_data", { port })),
 	uploadSequenceDevice: (request: GuiDocumentRequest, outputs: number[], address: string, token: string) => typedError<string, string>(__TAURI_INVOKE("upload_sequence_device", { request, outputs, address, token })),
+	connectSequenceDevice: (request: GuiDocumentRequest, outputs: number[], address: string, token: string) => typedError<SequenceDeviceStatus[], string>(__TAURI_INVOKE("connect_sequence_device", { request, outputs, address, token })),
+	disconnectSequenceDevice: (address: string) => typedError<SequenceDeviceStatus[], string>(__TAURI_INVOKE("disconnect_sequence_device", { address })),
+	sequenceDevices: () => typedError<SequenceDeviceStatus[], string>(__TAURI_INVOKE("sequence_devices")),
 	requestSequenceClipRasters: (request: SequenceClipRasterRequest) => __TAURI_INVOKE<SequenceClipRasterResponse>("request_sequence_clip_rasters", { request }),
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, requestId: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, requestId }).then((v) => (({...v,ready:v.ready.map(i=>i)}) as typeof v)),
 	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditResult>("apply_gui_edit", { request, edit }),
@@ -56,11 +59,11 @@ export const commands = {
 	toggleProjectTree: () => __TAURI_INVOKE<AppSnapshot>("toggle_project_tree"),
 	loadSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<AppSnapshot>("load_sequence_audio", { request }),
 	unloadAudio: () => __TAURI_INVOKE<AppSnapshot>("unload_audio"),
-	audioPlay: () => __TAURI_INVOKE<AppSnapshot>("audio_play"),
-	audioPause: () => __TAURI_INVOKE<AppSnapshot>("audio_pause"),
-	audioStop: () => __TAURI_INVOKE<AppSnapshot>("audio_stop"),
-	audioRewindToZero: () => __TAURI_INVOKE<AppSnapshot>("audio_rewind_to_zero"),
-	audioSeek: (positionSeconds: number) => __TAURI_INVOKE<AppSnapshot>("audio_seek", { positionSeconds }),
+	audioPlay: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_play")),
+	audioPause: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_pause")),
+	audioStop: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_stop")),
+	audioRewindToZero: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_rewind_to_zero")),
+	audioSeek: (positionSeconds: number) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_seek", { positionSeconds })),
 	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })),
 	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })),
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })),
@@ -113,6 +116,7 @@ export type AudioTransportSnapshot = {
 	source: SequenceAudio | null,
 	generation: number,
 	positionSeconds: number,
+	startDelaySeconds: number,
 	homeSeconds: number,
 	durationSeconds: number,
 	lastError: string | null,
@@ -159,14 +163,18 @@ export type DeviceFirmwareInfo = {
 
 export type DeviceInstallProgress = { stage: "connecting" } | { stage: "writing"; completed: number; total: number } | { stage: "verifying" } | { stage: "restarting" };
 
-export type DeviceOutputCapabilities = { type: "ws281x"; lanes: number; channelsPerLane: number; channelMultiple: number; frameRate: number } | { type: "evaluationOnly" };
+export type DeviceOutputCapabilities = { type: "ws281x"; lanes: number; channelsPerLane: number; channelMultiple: number; frameRate: number; clockUdpPort: number } | { type: "evaluationOnly" };
 
-export type DevicePlaybackMode = "playing" | "paused" | "stopped";
+export type DevicePlaybackMode = "playing" | "paused" | "stopped" | "ended";
 
 export type DevicePlaybackStatus = {
 	mode: DevicePlaybackMode,
 	positionMicros: number,
 	durationMicros: number,
+	archiveCrc: number,
+	archiveBytes: number,
+	pendingCommand: number | null,
+	commandId: number,
 };
 
 export type DeviceSequenceStorage = "persistent";
@@ -686,6 +694,13 @@ export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
 	mapping: SequenceAutomationMapping,
 	reason: SequenceAutomationDetachmentReason,
+};
+
+export type SequenceDeviceStatus = {
+	address: string,
+	outputCount: number,
+	clockUncertaintyMicros: number | null,
+	lastError: string | null,
 };
 
 export type SequenceEffect = {

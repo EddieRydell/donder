@@ -14,6 +14,18 @@ enum TransportSource {
     },
 }
 
+struct ScheduledTimeline {
+    start: Instant,
+    position: f32,
+    duration: f32,
+}
+struct ScheduledHold {
+    at: Instant,
+    state: AudioTransportState,
+    position: f32,
+    set_home: bool,
+}
+
 pub(crate) struct AudioEngine {
     driver: Option<Box<dyn AudioDriver>>,
     handle: Option<Box<dyn AudioHandle>>,
@@ -25,6 +37,9 @@ pub(crate) struct AudioEngine {
     last_error: Option<String>,
     can_resume_handle: bool,
     last_debug_report: Instant,
+    scheduled_timeline: Option<ScheduledTimeline>,
+    scheduled_hold: Option<ScheduledHold>,
+    sequence_duration: Option<f32>,
 }
 
 impl AudioEngine {
@@ -51,6 +66,9 @@ impl AudioEngine {
             last_error: error,
             can_resume_handle: false,
             last_debug_report: Instant::now(),
+            scheduled_timeline: None,
+            scheduled_hold: None,
+            sequence_duration: None,
         }
     }
 
@@ -61,6 +79,7 @@ impl AudioEngine {
             generation: 0,
             position_seconds: 0.0,
             home_seconds: 0.0,
+            start_delay_seconds: 0.0,
             duration_seconds: 0.0,
             last_error: None,
         }
@@ -211,15 +230,91 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
+    pub(crate) fn play_at(
+        &mut self,
+        deadline: Instant,
+        position: f32,
+        duration: f32,
+    ) -> Result<AudioTransportSnapshot, String> {
+        if self.source.is_none()
+            || !position.is_finite()
+            || position < 0.0
+            || !duration.is_finite()
+            || duration <= 0.0
+            || position > duration
+        {
+            return Err("No valid sequence transport is loaded".into());
+        }
+        self.lifecycle_stop_handle();
+        self.state = AudioTransportState::Stopped;
+        self.sequence_duration = Some(duration);
+        if let Some(TransportSource::Audio(source)) = &self.source {
+            let result = self
+                .driver
+                .as_mut()
+                .ok_or_else(|| "Audio manager is not available".to_string())
+                .and_then(|driver| {
+                    driver.play(&source.audio.resolved_path, position, Some(deadline))
+                });
+            match result {
+                Ok(handle) => self.handle = Some(handle),
+                Err(error) => {
+                    self.state = AudioTransportState::Error;
+                    self.last_error = Some(error.clone());
+                    self.bump_generation();
+                    return Err(error);
+                }
+            }
+        }
+        if deadline <= Instant::now() {
+            self.lifecycle_stop_handle();
+            return Err("Shared start deadline passed while preparing audio".into());
+        }
+        self.position_seconds = position;
+        self.scheduled_timeline = Some(ScheduledTimeline {
+            start: deadline,
+            position,
+            duration,
+        });
+        self.state = AudioTransportState::Playing;
+        self.last_error = None;
+        self.can_resume_handle = false;
+        self.bump_generation();
+        Ok(self.current_snapshot())
+    }
+
+    pub(crate) fn hold_at(
+        &mut self,
+        deadline: Instant,
+        state: AudioTransportState,
+        position: f32,
+        set_home: bool,
+    ) -> AudioTransportSnapshot {
+        if let Some(handle) = &mut self.handle {
+            handle.pause(Some(deadline));
+        }
+        self.scheduled_hold = Some(ScheduledHold {
+            at: deadline,
+            state,
+            position,
+            set_home,
+        });
+        self.bump_generation();
+        self.current_snapshot()
+    }
+
     pub fn pause(&mut self) -> AudioTransportSnapshot {
         self.debug_transport("pause requested");
         self.observe_backend();
         if !matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
         }
-        self.sample_handle_position();
+        if self.scheduled_timeline.take().is_none() {
+            self.sample_handle_position();
+        }
+        self.scheduled_hold = None;
         if let Some(handle) = self.handle.as_mut() {
-            handle.pause();
+            handle.pause(None);
         }
         self.state = AudioTransportState::Paused;
         self.can_resume_handle = true;
@@ -234,8 +329,10 @@ impl AudioEngine {
             return self.current_snapshot();
         }
         self.position_seconds = self.home_seconds;
+        self.scheduled_timeline = None;
+        self.scheduled_hold = None;
         if let Some(mut handle) = self.handle.take() {
-            handle.pause();
+            handle.pause(None);
             handle.seek_to(self.position_seconds);
         }
         self.state = AudioTransportState::Stopped;
@@ -268,8 +365,10 @@ impl AudioEngine {
         let position_seconds = self.clamp_position(position_seconds);
         self.home_seconds = position_seconds;
         self.position_seconds = position_seconds;
+        self.scheduled_timeline = None;
+        self.scheduled_hold = None;
         if let Some(handle) = self.handle.as_mut() {
-            handle.pause();
+            handle.pause(None);
             handle.seek_to(position_seconds);
         }
         self.state = final_state;
@@ -289,7 +388,7 @@ impl AudioEngine {
         let Some(TransportSource::Audio(source)) = self.source.as_ref() else {
             return;
         };
-        match driver.play(&source.audio.resolved_path, self.position_seconds) {
+        match driver.play(&source.audio.resolved_path, self.position_seconds, None) {
             Ok(handle) => {
                 self.handle = Some(handle);
                 self.state = AudioTransportState::Playing;
@@ -308,6 +407,46 @@ impl AudioEngine {
     }
 
     fn observe_backend(&mut self) {
+        self.observe_backend_at(Instant::now());
+    }
+
+    fn observe_backend_at(&mut self, now: Instant) {
+        if let Some(hold) = self.scheduled_hold.take_if(|hold| now >= hold.at) {
+            self.scheduled_timeline = None;
+            self.position_seconds = hold.position;
+            self.state = hold.state;
+            if hold.set_home {
+                self.home_seconds = hold.position;
+            }
+            if let Some(handle) = &mut self.handle {
+                handle.seek_to(hold.position);
+            }
+            self.can_resume_handle = false;
+            self.bump_generation();
+        }
+        if let Some(timeline) = &self.scheduled_timeline {
+            self.position_seconds = (timeline.position
+                + now.saturating_duration_since(timeline.start).as_secs_f32())
+            .min(timeline.duration);
+            if let Some(handle) = &mut self.handle
+                && let Some(error) = handle.observe().error
+            {
+                self.last_error = Some(error);
+                self.state = AudioTransportState::Error;
+                self.scheduled_timeline = None;
+                self.bump_generation();
+                return;
+            }
+            if self.position_seconds >= timeline.duration {
+                if let Some(handle) = &mut self.handle {
+                    handle.pause(None);
+                }
+                self.state = AudioTransportState::Ended;
+                self.scheduled_timeline = None;
+                self.bump_generation();
+            }
+            return;
+        }
         let debug_report_due = cfg!(debug_assertions)
             && self.last_debug_report.elapsed() >= std::time::Duration::from_secs(1);
         if cfg!(debug_assertions) {
@@ -379,6 +518,7 @@ impl AudioEngine {
     }
 
     fn reset_loaded_source(&mut self) {
+        self.sequence_duration = None;
         self.lifecycle_stop_handle();
         self.source = None;
         self.home_seconds = 0.0;
@@ -387,6 +527,8 @@ impl AudioEngine {
     }
 
     fn lifecycle_stop_handle(&mut self) {
+        self.scheduled_timeline = None;
+        self.scheduled_hold = None;
         if let Some(mut handle) = self.handle.take() {
             handle.stop();
         }
@@ -401,6 +543,12 @@ impl AudioEngine {
             },
             generation: self.generation,
             position_seconds: self.position_seconds,
+            start_delay_seconds: self.scheduled_timeline.as_ref().map_or(0.0, |timeline| {
+                timeline
+                    .start
+                    .saturating_duration_since(Instant::now())
+                    .as_secs_f32()
+            }),
             home_seconds: self.home_seconds,
             duration_seconds: self.duration_seconds(),
             last_error: self.last_error.clone(),
@@ -415,6 +563,9 @@ impl AudioEngine {
     }
 
     fn duration_seconds(&self) -> f32 {
+        if let Some(duration) = self.sequence_duration {
+            return duration;
+        }
         match &self.source {
             Some(TransportSource::Audio(source)) => source.duration_seconds,
             Some(TransportSource::Silent {
@@ -464,6 +615,53 @@ mod tests {
     #[test]
     fn transport_commands_use_instant_tween() {
         assert_eq!(instant_tween().duration, Duration::ZERO);
+    }
+
+    #[test]
+    fn local_controls_release_the_shared_timeline_after_devices_disconnect() {
+        let fixture = AudioFixture::new(12.0);
+        let mut engine = loaded_engine(&fixture);
+        let start = Instant::now() + Duration::from_secs(1);
+        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine.pause();
+        engine.observe_backend_at(start + Duration::from_secs(2));
+        assert_eq!(engine.current_snapshot().position_seconds, 2.0);
+        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine.stop();
+        engine.observe_backend_at(start + Duration::from_secs(2));
+        assert_eq!(engine.current_snapshot().position_seconds, 0.0);
+        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine.seek(4.0);
+        engine.observe_backend_at(start + Duration::from_secs(2));
+        assert_eq!(engine.current_snapshot().position_seconds, 4.0);
+        assert_eq!(engine.current_snapshot().state, AudioTransportState::Paused);
+    }
+
+    #[test]
+    fn shared_timeline_waits_for_start_skips_elapsed_frames_and_holds_at_seek() {
+        let fixture = AudioFixture::new(12.0);
+        let mut engine = loaded_engine(&fixture);
+        let start = Instant::now() + Duration::from_secs(1);
+        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine.observe_backend_at(start - Duration::from_millis(1));
+        assert_eq!(engine.current_snapshot().position_seconds, 2.0);
+        engine.observe_backend_at(start + Duration::from_millis(350));
+        assert_eq!(engine.current_snapshot().position_seconds, 2.35);
+        let hold = start + Duration::from_secs(1);
+        engine.hold_at(hold, AudioTransportState::Paused, 4.0, true);
+        engine.observe_backend_at(hold - Duration::from_millis(1));
+        assert_eq!(
+            engine.current_snapshot().state,
+            AudioTransportState::Playing
+        );
+        engine.observe_backend_at(hold);
+        let snapshot = engine.current_snapshot();
+        assert_eq!(snapshot.state, AudioTransportState::Paused);
+        assert_eq!(snapshot.position_seconds, 4.0);
+        assert_eq!(snapshot.home_seconds, 4.0);
+        assert_eq!(snapshot.duration_seconds, 8.0);
+        engine.observe_backend_at(hold + Duration::from_secs(10));
+        assert_eq!(engine.current_snapshot().position_seconds, 4.0);
     }
 
     #[test]
@@ -800,6 +998,7 @@ mod tests {
             &mut self,
             _path: &str,
             position_seconds: f32,
+            _deadline: Option<Instant>,
         ) -> Result<Box<dyn AudioHandle>, String> {
             let mut shared = self.shared.lock().expect("fake shared");
             shared
@@ -827,7 +1026,7 @@ mod tests {
             }
         }
 
-        fn pause(&mut self) {
+        fn pause(&mut self, _deadline: Option<Instant>) {
             let mut shared = self.shared.lock().expect("fake shared");
             shared.handle_actions.push(HandleAction::Pause);
             shared.handle_state = BackendPlaybackState::Paused;

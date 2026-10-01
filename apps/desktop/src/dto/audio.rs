@@ -18,6 +18,7 @@ pub struct AudioTransportSnapshot {
     pub source: Option<SequenceAudio>,
     pub generation: u32,
     pub position_seconds: f32,
+    pub start_delay_seconds: f32,
     pub home_seconds: f32,
     pub duration_seconds: f32,
     pub last_error: Option<String>,

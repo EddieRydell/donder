@@ -29,13 +29,16 @@ fn validate_image(image: &[u8], expected_hash: &str) -> Result<(), String> {
     let data = table
         .find("donder")
         .ok_or("Controller image has no Donder data partition.")?;
+    let shows = table
+        .find("shows")
+        .ok_or("Controller image has no show partition.")?;
     let app = table
         .find("factory")
         .ok_or("Controller image has no application partition.")?;
     if image.get(0x8000..0x8000 + encoded.len()) != Some(encoded.as_slice())
         || image.get(0x1000) != Some(&0xe9)
         || image.get(app.offset() as usize) != Some(&0xe9)
-        || image.len().div_ceil(4096) * 4096 > data.offset() as usize
+        || image.len().div_ceil(4096) * 4096 > shows.offset().min(data.offset()) as usize
         || data.offset().checked_add(data.size()) != Some(FlashSize::_4Mb.size())
     {
         return Err("Bundled controller image does not match the current flash layout. Rebuild the controller image.".into());

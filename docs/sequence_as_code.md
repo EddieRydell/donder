@@ -52,6 +52,20 @@ compute rendering parameters. The existing VM execution and array limits apply.
 Unchanged projects without automation or time dependencies keep constant bindings
 and the static playback path.
 
+`for (int mark in beats) { ... }` visits the zero-based indices of a `marks`
+value in order. The iterable is captured once on entry, and the iteration index
+cannot be assigned in the body. An empty marks value executes the body zero
+times. Generator specialization expands this form during preparation.
+
+`for (int i in range(count, cap)) { ... }` evaluates the integer `count` once
+and runs `max(0, min(count, cap))` iterations with indices starting at zero.
+The cap must be a positive integer literal at most 10,000, and the index cannot
+be assigned in the body. This form allows GUI-controlled counts without a
+playback iteration-limit error. C-style `for` loops are accepted only when the
+compiler proves a constant trip count from a literal integer start and bound,
+a wrapping integer update, and no body assignment to the index. Dynamic
+C-style loops are rejected during compilation.
+
 Retained expressions use their declaring generator's `seconds()` and `progress()`
 at the exact requested time. Nested forwarding preserves that clock; each child's
 `sample()` uses its own clock. Bindings remain available when children outlive
@@ -465,15 +479,23 @@ The effect and operator DSL reports parse/type errors rather than changing a
 bad literal to zero. Integer division produces a float. Integer negation,
 addition, subtraction, and multiplication wrap at 32 bits; remainder by zero and
 `i32::MIN % -1` return zero. Required DSL parameters cannot receive an
-implicit type default.
+implicit type default. Integer-to-integer ordering comparisons stay in `i32`
+and do not round through `float`.
 Array indexing clamps negative and out-of-range indices to the first or last
 element. Indexing an empty array returns the element type's default value;
 `len()` still returns zero. This also applies after assigning a different
 array to a local variable. `mark_at` uses its fallback for either a negative or
 an out-of-range index.
+`pick(items, index)` clamps to the first or last target item when the collection
+is nonempty. An empty collection yields an empty `TargetItem`, whose integer
+members read as zero and `pixel_fraction` reads as `0.0`. Collection counts
+above the DSL integer range report `i32::MAX`.
 Sampling a curve at NaN returns zero. Sampling a gradient at NaN or sampling
 an empty gradient returns black; these rules apply to direct and parameter
 sampling alike.
+`curve_crossing` at a NaN query returns its fallback argument for both direct
+and parameter curves. If no fallback is supplied, the query itself is the
+fallback and remains NaN.
 A `Signal.at` query at a negative, non-finite, or unrepresentable time returns
 black without invoking its input signal.
 
@@ -486,9 +508,17 @@ not inherit Rust's panicking `f32::clamp` behavior for invalid bounds.
 
 The renderer limits a prepared sequence to 250,000 frames, generated effects
 to 4,096 per preparation, and custom-operator Signal sampling to 4,096 unique
-times per operator render. The DSL VM limits each invocation to 10,000 loop
-iterations. Exceeding a budget returns an error; Donder does not silently clamp
-or skip work.
+times per operator render. C-style loops are admitted only when proven to
+finish within 10,000 iterations; dynamic `range` loops clamp their count to
+the authored cap. Generator expansion has a separate 10,000-iteration
+preparation budget. Other resource budgets still return errors when exceeded;
+the total-preparation proof is not complete yet.
+Portable bytecode encodes loops as paired counted operations with private
+iteration state. Ordinary jumps must go forward, and malformed loop pairs or
+unguarded backward jumps are rejected before playback.
+Portable loading also checks prepared automation curves, mapping domains,
+and parameter types before playback; an empty enum mapping cannot become a
+frame-time error.
 
 ## Authoring
 

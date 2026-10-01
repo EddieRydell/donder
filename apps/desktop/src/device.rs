@@ -1,4 +1,5 @@
 pub(crate) mod firmware;
+pub(crate) mod playback;
 pub(crate) mod provisioning;
 
 use crate::dto::{
@@ -13,6 +14,7 @@ use std::{io::Read, net::SocketAddr, time::Duration};
 pub(crate) struct DeviceClient {
     client: Client,
     address: SocketAddr,
+    token: [u8; 32],
 }
 
 impl DeviceClient {
@@ -35,7 +37,15 @@ impl DeviceClient {
             .timeout(Duration::from_secs(20))
             .build()
             .map_err(|error| format!("Could not initialize device connection: {error}"))?;
-        Ok(Self { client, address })
+        let token = token
+            .as_bytes()
+            .try_into()
+            .map_err(|_| "Invalid device token size")?;
+        Ok(Self {
+            client,
+            address,
+            token,
+        })
     }
 
     fn response(&self, response: reqwest::blocking::Response) -> Result<String, String> {
@@ -79,6 +89,9 @@ impl DeviceClient {
                     DevicePlaybackMode::Playing => "play",
                     DevicePlaybackMode::Paused => "pause",
                     DevicePlaybackMode::Stopped => "stop",
+                    DevicePlaybackMode::Ended => {
+                        return Err("Ended is a playback status, not a transport command.".into());
+                    }
                 };
                 self.client
                     .post(format!("http://{}/transport/{action}", self.address))
@@ -121,7 +134,7 @@ impl DeviceClient {
         if !response.starts_with("LOADED ") {
             return Err("Device did not acknowledge loading the sequence.".into());
         }
-        Ok("Sequence uploaded and playback started. It is saved on the device and will play from the beginning after a restart.".into())
+        Ok("Sequence uploaded and saved on the device. Press Play to start; uploads and restarts leave playback stopped.".into())
     }
 }
 
@@ -144,17 +157,17 @@ mod tests {
                 (
                     "POST",
                     "/transport/play",
-                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000}}"#,
+                    r#"{"playback":{"mode":"playing","positionMicros":0,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/pause",
-                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000}}"#,
+                    r#"{"playback":{"mode":"paused","positionMicros":500000,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
                 (
                     "POST",
                     "/transport/stop",
-                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000}}"#,
+                    r#"{"playback":{"mode":"stopped","positionMicros":0,"durationMicros":1000000,"archiveCrc":0,"archiveBytes":0,"pendingCommand":null,"commandId":0}}"#,
                 ),
             ] {
                 let (mut stream, _) = listener.accept().unwrap();
@@ -254,7 +267,7 @@ mod tests {
                     let mut body = vec![0; length];
                     reader.read_exact(&mut body).unwrap();
                     let response = if path == "/capabilities" {
-                        r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"frameRate":120},"sequenceStorage":"persistent"}"#
+                        r#"{"sequenceFormat":6,"maxPayloadBytes":32768,"maxPixels":1600,"maxGraphNodes":128,"maxWorkspaceBytes":98304,"output":{"type":"ws281x","lanes":4,"channelsPerLane":600,"channelMultiple":3,"frameRate":120,"clockUdpPort":80},"sequenceStorage":"persistent"}"#
                     } else {
                         assert_eq!(&body[..4], b"DOND");
                         "LOADED sequence"

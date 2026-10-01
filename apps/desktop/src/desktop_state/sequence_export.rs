@@ -7,7 +7,9 @@ use donder_language::{
 use donder_project_io::ProjectSession;
 use std::sync::Arc;
 
-fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
+pub(super) fn outputs(
+    session: &ProjectSession,
+) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
     let project = &session.project;
     let setup = project
         .setup(project.root.setup.id())
@@ -29,7 +31,7 @@ fn outputs(session: &ProjectSession) -> Result<Vec<(ControllerId, ControllerPort
 }
 
 impl DesktopState {
-    fn sequence_export_session(
+    pub(super) fn sequence_export_session(
         &self,
         request: &GuiDocumentRequest,
     ) -> Result<(Arc<ProjectSession>, SequenceId), String> {

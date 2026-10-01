@@ -58,7 +58,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                 "effect Parent {{ {params} {resources} void generate() {{ {selection} timeline.emit Pulse {{ start: 0.0, duration: duration, target: target, gradient: ramps[selected], pulse_shape: shapes[selected] }}; }} }}"
             ),
             Case::Overlap => format!(
-                "effect Parent {{ {params} fixed param int count = 4; void generate() {{ for (int i = 0; i < count; i = i + 1) {{ timeline.emit Leaf {{ start: 0.0, duration: duration, target: target, value: level * 0.5 + i * 0.05 }}; }} }} }} {leaf}"
+                "effect Parent {{ {params} fixed param int count = 4; void generate() {{ for (int i in range(count, 10000)) {{ timeline.emit Leaf {{ start: 0.0, duration: duration, target: target, value: level * 0.5 + i * 0.05 }}; }} }} }} {leaf}"
             ),
         }
     } else {

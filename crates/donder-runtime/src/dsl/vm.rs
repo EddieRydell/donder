@@ -2,7 +2,8 @@ use super::GeneratedEffectSlot;
 use super::bytecode::{
     ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
     ContextRead, FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction,
-    IntArithmeticOp, IntSlot, MarkOp, RefSlot, SignalPixel, SlotLayout, TargetItemsOp, ValueSlot,
+    IntArithmeticOp, IntSlot, MarkOp, ParameterKind, RefSlot, SignalPixel, SlotLayout,
+    TargetItemsOp, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
 use super::types::{TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue};
@@ -25,7 +26,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use alloc::{boxed::Box, format};
 
-pub const MAX_VM_INSTRUCTIONS_PER_INVOCATION: usize = 10_000;
+pub const MAX_DSL_LOOP_ITERATIONS: usize = 10_000;
 
 #[derive(Clone, Debug)]
 pub struct RunContext {
@@ -98,6 +99,60 @@ pub struct BoundParams {
 }
 
 impl BoundParams {
+    pub(crate) fn parameter_accepts_type(&self, index: usize, ty: &Type) -> bool {
+        self.value(index)
+            .is_ok_and(|value| ty.accepts_value(&value))
+    }
+
+    pub(crate) fn parameter_kind(&self, index: usize) -> Option<ParameterKind> {
+        self.values.get(index).map(|value| match value {
+            BoundParamValue::Void => ParameterKind::Void,
+            BoundParamValue::Int(_) => ParameterKind::Int,
+            BoundParamValue::Float(_) => ParameterKind::Float,
+            BoundParamValue::Bool(_) => ParameterKind::Bool,
+            BoundParamValue::Color(_) => ParameterKind::Color,
+            BoundParamValue::Curve(_) | BoundParamValue::RawCurve(_) => ParameterKind::Curve,
+            BoundParamValue::Gradient(_) => ParameterKind::Gradient,
+            BoundParamValue::Enum(_) => ParameterKind::Enum,
+            BoundParamValue::Marks(_)
+            | BoundParamValue::Target(_)
+            | BoundParamValue::TargetItems(_)
+            | BoundParamValue::TargetItem(_)
+            | BoundParamValue::Array(_)
+            | BoundParamValue::CalculatedArray(_) => ParameterKind::Reference,
+        })
+    }
+
+    pub(crate) fn has_valid_automation(
+        &self,
+        bindings: &[crate::signal::PreparedAutomation],
+    ) -> bool {
+        bindings.iter().all(|binding| {
+            binding.duration.as_ticks() != 0
+                && binding.curve.validate().is_ok()
+                && binding.mapping.is_well_formed()
+                && matches!(
+                    (
+                        self.values.get(usize::from(binding.param_index)),
+                        &binding.mapping
+                    ),
+                    (
+                        Some(BoundParamValue::Float(_)),
+                        AutomationMapping::Float { .. }
+                    ) | (Some(BoundParamValue::Int(_)), AutomationMapping::Int { .. })
+                        | (Some(BoundParamValue::Bool(_)), AutomationMapping::Bool)
+                        | (
+                            Some(BoundParamValue::Enum(_)),
+                            AutomationMapping::Enum { .. }
+                        )
+                        | (
+                            Some(BoundParamValue::Curve(_)),
+                            AutomationMapping::Curve { .. }
+                        )
+                )
+        })
+    }
+
     pub(crate) fn result_storage_estimate(
         count: usize,
         capacity: u32,
@@ -187,11 +242,11 @@ impl BoundParams {
                 .iter()
                 .zip(values)
                 .map(|(ty, value)| {
-                    value.as_ref().map_or(BoundParamValue::Void, |value| {
+                    value.as_ref().map_or(Ok(BoundParamValue::Void), |value| {
                         bind_param_value(ty, value.clone(), cache)
                     })
                 })
-                .collect(),
+                .collect::<Result<_, _>>()?,
             arrays: None,
         })
     }
@@ -530,7 +585,7 @@ impl BoundParams {
 
     pub fn sample_curve(&self, index: usize, position: f32) -> Result<f32, RuntimeError> {
         match self.values.get(index) {
-            Some(BoundParamValue::Curve(value)) => sample_prepared_curve(value, position),
+            Some(BoundParamValue::Curve(value)) => Ok(sample_prepared_curve(value, position)),
             Some(BoundParamValue::RawCurve(value)) => Ok(sample_curve(value, position)),
             _ => Err(RuntimeError::new("expected curve parameter")),
         }
@@ -549,7 +604,7 @@ impl BoundParams {
             }
             _ => return Err(RuntimeError::new("expected curve parameter")),
         };
-        prepared_curve_crossing(&curve.crossings, value, fallback)
+        Ok(prepared_curve_crossing(&curve.crossings, value, fallback))
     }
 
     pub fn sample_gradient(&self, index: usize, position: f32) -> Result<Color, RuntimeError> {
@@ -722,6 +777,7 @@ impl PreparedCurve {
 pub struct VmWorkspace {
     registers: VmRegisters,
     arrays: Option<Box<ArrayStorage>>,
+    loop_remaining: Vec<i32>,
 }
 
 impl VmWorkspace {
@@ -735,6 +791,7 @@ impl VmWorkspace {
         registers: [usize; 5],
         capacity: usize,
         width: usize,
+        loop_count: usize,
     ) -> Option<usize> {
         let sizes = [
             size_of::<i32>(),
@@ -747,6 +804,7 @@ impl VmWorkspace {
         for (count, size) in registers.into_iter().zip(sizes) {
             bytes = bytes.checked_add(count.checked_mul(size)?)?;
         }
+        bytes = bytes.checked_add(loop_count.checked_mul(size_of::<i32>())?)?;
         if capacity != 0 {
             bytes = bytes
                 .checked_add(size_of::<ArrayStorage>())?
@@ -763,6 +821,10 @@ impl VmWorkspace {
     pub fn reserve(&mut self, bytecode: &BytecodeProgram) {
         self.registers.reserve(bytecode.layout);
         self.reserve_arrays(bytecode);
+        self.loop_remaining.resize(
+            self.loop_remaining.len().max(bytecode.loop_count as usize),
+            0,
+        );
     }
 
     fn reserve_arrays(&mut self, bytecode: &BytecodeProgram) {
@@ -954,7 +1016,7 @@ fn bind_values(
     for param in declarations {
         bound
             .values
-            .push(bind_param_value(&param.ty, resolve(param)?, cache));
+            .push(bind_param_value(&param.ty, resolve(param)?, cache)?);
     }
     Ok(())
 }
@@ -1031,7 +1093,6 @@ pub(super) fn evaluate_value(
     params: &BoundParams,
     context: &RunContext,
     workspace: &mut VmWorkspace,
-    remaining_iterations: &mut usize,
 ) -> Result<Value, RuntimeError> {
     let mut vm = Vm::new(
         program,
@@ -1043,9 +1104,6 @@ pub(super) fn evaluate_value(
         0,
     );
     let result = vm.run()?;
-    *remaining_iterations = remaining_iterations
-        .checked_sub(vm.loop_iterations)
-        .ok_or_else(|| RuntimeError::new("loop iteration limit exceeded"))?;
     Ok(runtime_to_value(
         result,
         vm.workspace.arrays.as_deref(),
@@ -1209,6 +1267,10 @@ fn clamp_array_index(index: i32, nonempty_length: usize) -> usize {
     (index.max(0) as usize).min(nonempty_length - 1)
 }
 
+fn int_len(length: usize) -> i32 {
+    i32::try_from(length).unwrap_or(i32::MAX)
+}
+
 fn array_length(
     value: &RuntimeValue,
     arrays: Option<&ArrayStorage>,
@@ -1258,7 +1320,6 @@ struct Vm<'a> {
     spatial: Option<&'a SpatialContext>,
     workspace: &'a mut VmWorkspace,
     ip: usize,
-    loop_iterations: usize,
     signal_sampler: Option<&'a mut (dyn SignalSampler + 'a)>,
     generated: Option<(&'a CompiledEffect, &'a mut Vec<GeneratedEffect>)>,
 }
@@ -1301,6 +1362,14 @@ impl<'a> Vm<'a> {
             if bytecode.array_capacity != 0 {
                 workspace.reserve_arrays(bytecode);
             }
+            workspace.loop_remaining.resize(
+                workspace
+                    .loop_remaining
+                    .len()
+                    .max(bytecode.loop_count as usize),
+                0,
+            );
+            workspace.loop_remaining[..bytecode.loop_count as usize].fill(0);
         }
         Self {
             bytecode,
@@ -1309,7 +1378,6 @@ impl<'a> Vm<'a> {
             spatial: None,
             workspace,
             ip: entry,
-            loop_iterations: 0,
             signal_sampler,
             generated,
         }
@@ -1563,6 +1631,22 @@ impl<'a> Vm<'a> {
                     };
                     self.set_bool(*dst, value)?;
                 }
+                Instruction::IntCompare {
+                    dst,
+                    op,
+                    left,
+                    right,
+                } => {
+                    let left = self.int(*left)?;
+                    let right = self.int(*right)?;
+                    let value = match op {
+                        CompareOp::Less => left < right,
+                        CompareOp::LessEqual => left <= right,
+                        CompareOp::Greater => left > right,
+                        CompareOp::GreaterEqual => left >= right,
+                    };
+                    self.set_bool(*dst, value)?;
+                }
                 Instruction::FloatCompareConst {
                     dst,
                     op,
@@ -1612,6 +1696,51 @@ impl<'a> Vm<'a> {
                 Instruction::JumpIfTrue { condition, target } => {
                     if self.bool(*condition)? {
                         self.ip = *target;
+                    }
+                }
+                Instruction::LoopRangeStart {
+                    id,
+                    count,
+                    cap,
+                    end,
+                } => {
+                    let count = self.int(*count)?.max(0).min(*cap);
+                    let remaining = self
+                        .workspace
+                        .loop_remaining
+                        .get_mut(*id as usize)
+                        .ok_or_else(|| RuntimeError::new("invalid loop slot"))?;
+                    *remaining = count;
+                    if count == 0 {
+                        self.ip = end + 1;
+                    }
+                }
+                Instruction::LoopMarksStart { id, marks, end } => {
+                    let count = match self.ref_value(*marks)? {
+                        RuntimeValue::Marks(marks) => int_len(marks.marks.len()),
+                        _ => return Err(RuntimeError::new("marks loop requires Marks")),
+                    };
+                    let remaining = self
+                        .workspace
+                        .loop_remaining
+                        .get_mut(*id as usize)
+                        .ok_or_else(|| RuntimeError::new("invalid loop slot"))?;
+                    *remaining = count;
+                    if count == 0 {
+                        self.ip = end + 1;
+                    }
+                }
+                Instruction::LoopEnd { id, start } => {
+                    let remaining = self
+                        .workspace
+                        .loop_remaining
+                        .get_mut(*id as usize)
+                        .ok_or_else(|| RuntimeError::new("invalid loop slot"))?;
+                    if *remaining > 1 {
+                        *remaining -= 1;
+                        self.ip = *start;
+                    } else {
+                        *remaining = 0;
                     }
                 }
                 Instruction::ContextRead { dst, read } => {
@@ -1878,14 +2007,12 @@ impl<'a> Vm<'a> {
                     let value = match self.ref_value(*value)? {
                         value @ (RuntimeValue::Array(_)
                         | RuntimeValue::ArraySlot(_)
-                        | RuntimeValue::ParameterArray(_)) => i32::try_from(array_length(
+                        | RuntimeValue::ParameterArray(_)) => int_len(array_length(
                             value,
                             self.workspace.arrays.as_deref(),
                             self.params.arrays.as_deref(),
-                        )?)
-                        .map_err(|_| RuntimeError::new("array length exceeds int range"))?,
-                        RuntimeValue::Marks(marks) => i32::try_from(marks.marks.len())
-                            .map_err(|_| RuntimeError::new("mark count exceeds int range"))?,
+                        )?),
+                        RuntimeValue::Marks(marks) => int_len(marks.marks.len()),
                         _ => return Err(RuntimeError::new("len requires array or marks")),
                     };
                     self.set_int(*dst, value)?;
@@ -1898,15 +2025,14 @@ impl<'a> Vm<'a> {
                     match op {
                         MarkOp::Count => {
                             let marks = self.mark_arg(args, 0)?;
-                            let value = i32::try_from(marks.marks.len())
-                                .map_err(|_| RuntimeError::new("mark count exceeds int range"))?;
+                            let value = int_len(marks.marks.len());
                             self.set_int(self.int_slot_value(*dst)?, value)?;
                         }
                         MarkOp::At => {
                             let marks = self.mark_arg(args, 0)?;
                             let index = self.int_arg(args, 1)?;
                             let fallback = self.optional_float_arg(args, 2)?.unwrap_or(0.0);
-                            let value = mark_at_from(marks, index, fallback)?;
+                            let value = mark_at_from(marks, index, fallback);
                             self.set_float(self.float_slot_value(*dst)?, value)?;
                         }
                         MarkOp::Prev => {
@@ -1917,11 +2043,11 @@ impl<'a> Vm<'a> {
                                     .unwrap_or(0.0),
                             );
                             let fallback = self.optional_float_arg(args, 2)?.unwrap_or(0.0);
-                            let index = prev_index(marks, seconds)?;
+                            let index = prev_index(marks, seconds);
                             let value = if index < 0 {
                                 fallback
                             } else {
-                                mark_at_from(marks, index, fallback)?
+                                mark_at_from(marks, index, fallback)
                             };
                             self.set_float(self.float_slot_value(*dst)?, value)?;
                         }
@@ -1932,7 +2058,7 @@ impl<'a> Vm<'a> {
                                     .map(|context| sample_duration_seconds_f32(context.time))
                                     .unwrap_or(0.0),
                             );
-                            let value = prev_index(marks, seconds)?;
+                            let value = prev_index(marks, seconds);
                             self.set_int(self.int_slot_value(*dst)?, value)?;
                         }
                         MarkOp::NextIndex => {
@@ -1942,7 +2068,7 @@ impl<'a> Vm<'a> {
                                     .map(|context| sample_duration_seconds_f32(context.time))
                                     .unwrap_or(0.0),
                             );
-                            let value = next_index(marks, seconds)?;
+                            let value = next_index(marks, seconds);
                             self.set_int(self.int_slot_value(*dst)?, value)?;
                         }
                         MarkOp::Elapsed => {
@@ -1952,7 +2078,7 @@ impl<'a> Vm<'a> {
                                     .map(|context| sample_duration_seconds_f32(context.time))
                                     .unwrap_or(0.0),
                             );
-                            let value = elapsed(marks, seconds)?;
+                            let value = elapsed(marks, seconds);
                             self.set_float(self.float_slot_value(*dst)?, value)?;
                         }
                         MarkOp::Phase => {
@@ -1970,7 +2096,7 @@ impl<'a> Vm<'a> {
                                     sample_duration_seconds_f32(context.duration)
                                 }
                             };
-                            let value = phase(marks, seconds, duration)?;
+                            let value = phase(marks, seconds, duration);
                             self.set_float(self.float_slot_value(*dst)?, value)?;
                         }
                     }
@@ -2007,30 +2133,18 @@ impl<'a> Vm<'a> {
                             let target = self.ref_arg(args, 0)?;
                             self.set_value(
                                 *dst,
-                                RuntimeValue::Int(target_items(target)?.groups.len() as i32),
+                                RuntimeValue::Int(int_len(target_items(target)?.groups.len())),
                             )?
                         }
                         TargetItemsOp::Pick => {
                             let target = self.ref_arg(args, 0)?;
                             let items = target_items(target)?;
-                            let index = usize::try_from(self.int_arg(args, 1)?).map_err(|_| {
-                                RuntimeError::new("target item index cannot be negative")
-                            })?;
+                            let index = self.int_arg(args, 1)?;
                             self.set_value(
                                 *dst,
-                                RuntimeValue::TargetItem(
-                                    items.groups.get(index).cloned().ok_or_else(|| {
-                                        RuntimeError::new("target item index out of bounds")
-                                    })?,
-                                ),
+                                RuntimeValue::TargetItem(select_target_item(items, index)),
                             )?;
                         }
-                    }
-                }
-                Instruction::CheckLoopLimit => {
-                    self.loop_iterations += 1;
-                    if self.loop_iterations > MAX_VM_INSTRUCTIONS_PER_INVOCATION {
-                        return Err(RuntimeError::new("loop iteration limit exceeded"));
                     }
                 }
                 Instruction::Emit { effect, fields } => {
@@ -2438,14 +2552,8 @@ impl<'a> Vm<'a> {
                 )
             }
             RuntimeValue::TargetItems(items) => {
-                let index = usize::try_from(to_int_runtime(index, self.params)?)
-                    .map_err(|_| RuntimeError::new("target item index cannot be negative"))?;
-                let value = items
-                    .groups
-                    .get(index)
-                    .cloned()
-                    .ok_or_else(|| RuntimeError::new("target item index out of bounds"))?;
-                Ok(RuntimeValue::TargetItem(value))
+                let index = to_int_runtime(index, self.params)?;
+                Ok(RuntimeValue::TargetItem(select_target_item(items, index)))
             }
             RuntimeValue::Curve(curve) => {
                 let position = to_float_runtime(index, self.params)?;
@@ -2453,7 +2561,7 @@ impl<'a> Vm<'a> {
             }
             RuntimeValue::PreparedCurve(curve) => {
                 let position = to_float_runtime(index, self.params)?;
-                Ok(RuntimeValue::Float(sample_prepared_curve(curve, position)?))
+                Ok(RuntimeValue::Float(sample_prepared_curve(curve, position)))
             }
             RuntimeValue::Gradient(gradient) => {
                 let position = to_float_runtime(index, self.params)?;
@@ -2547,25 +2655,29 @@ impl<'a> Vm<'a> {
         let start_seconds = start_seconds.ok_or_else(|| RuntimeError::new("emit missing start"))?;
         let duration_seconds =
             duration_seconds.ok_or_else(|| RuntimeError::new("emit missing duration"))?;
+        let target = target.ok_or_else(|| RuntimeError::new("emit missing target"))?;
         let context = generator_context(self.context)?;
-        let start_time = sample_time_with_seconds_offset(context.start_time, start_seconds)
-            .map_err(|_| RuntimeError::new("emitted effect start is out of range"))?;
-        let duration = sample_duration_from_seconds_f32(duration_seconds)
-            .map_err(|_| RuntimeError::new("emitted effect duration is out of range"))?;
-        if duration.as_ticks() == 0 {
-            return Err(RuntimeError::new(
-                "emitted effect duration must be positive",
-            ));
-        }
         let (_, generated) = self
             .generated
             .as_mut()
             .ok_or_else(|| RuntimeError::new("emit is only valid in a generator"))?;
+        // Timing is authored from fixed GUI values. A non-representable or
+        // zero-length child contributes nothing; it must not fail preparation.
+        let Ok(start_time) = sample_time_with_seconds_offset(context.start_time, start_seconds)
+        else {
+            return Ok(());
+        };
+        let Ok(duration) = sample_duration_from_seconds_f32(duration_seconds) else {
+            return Ok(());
+        };
+        if duration.as_ticks() == 0 {
+            return Ok(());
+        }
         generated.push(GeneratedEffect {
             definition: effect,
             start_time,
             duration,
-            target: target.ok_or_else(|| RuntimeError::new("emit missing target"))?,
+            target,
             params,
         });
         Ok(())
@@ -2588,11 +2700,20 @@ where
     )))
 }
 
-fn bind_param_value(ty: &Type, value: Value, cache: &mut DslBindCache) -> BoundParamValue {
-    match (ty, value) {
+fn bind_param_value(
+    ty: &Type,
+    value: Value,
+    cache: &mut DslBindCache,
+) -> Result<BoundParamValue, RuntimeError> {
+    if !ty.accepts_value(&value) {
+        return Err(RuntimeError::new(
+            "parameter value does not match its declared type",
+        ));
+    }
+    Ok(match (ty, value) {
         (Type::Float, Value::Int(value)) => BoundParamValue::Float(value as f32),
         (ty, value) => BoundParamValue::from_value(ty, value, cache),
-    }
+    })
 }
 
 fn runtime_to_value(
@@ -2647,7 +2768,10 @@ fn member_value(
         return Err(RuntimeError::new("member access requires TargetItem"));
     };
     let Some(pixel) = item.pixels.first() else {
-        return Err(RuntimeError::new("empty TargetItem has no fields"));
+        return Ok(match member {
+            super::bytecode::TargetMember::PixelFraction => RuntimeValue::Float(0.0),
+            _ => RuntimeValue::Int(0),
+        });
     };
     Ok(match member {
         super::bytecode::TargetMember::FixtureIndex => RuntimeValue::Int(pixel.fixture_index),
@@ -2671,6 +2795,15 @@ fn target_item_from_groups(groups: &[Arc<TargetItemValue>]) -> Arc<TargetItemVal
     Arc::new(TargetItemValue {
         pixels: Arc::from(pixels),
     })
+}
+
+fn select_target_item(items: &TargetItemsValue, index: i32) -> Arc<TargetItemValue> {
+    if items.groups.is_empty() {
+        return Arc::new(TargetItemValue {
+            pixels: Arc::from([]),
+        });
+    }
+    Arc::clone(&items.groups[clamp_array_index(index, items.groups.len())])
 }
 
 fn black() -> Color {
@@ -2914,21 +3047,21 @@ fn prepare_curve_crossings_into(curve: &Curve, output: &mut PreparedCurveCrossin
     };
 }
 
-fn sample_prepared_curve(curve: &PreparedCurve, position: f32) -> Result<f32, RuntimeError> {
-    Ok(sample_curve(&curve.raw, position))
+fn sample_prepared_curve(curve: &PreparedCurve, position: f32) -> f32 {
+    sample_curve(&curve.raw, position)
 }
 
 pub(crate) fn prepared_curve_crossing(
     crossings: &PreparedCurveCrossings,
     value: f32,
     fallback: f32,
-) -> Result<f32, RuntimeError> {
+) -> f32 {
     match crossings.segments() {
-        [] => return Ok(fallback),
-        [segment] => return Ok(crossing_at(segment, value).unwrap_or(fallback)),
+        [] => return fallback,
+        [segment] => return crossing_at(segment, value).unwrap_or(fallback),
         _ => {}
     }
-    Ok(match crossings {
+    match crossings {
         PreparedCurveCrossings::Increasing(segments) => {
             let index = segments.partition_point(|segment| segment.max_value < value);
             segments
@@ -2947,7 +3080,7 @@ pub(crate) fn prepared_curve_crossing(
             .iter()
             .find_map(|segment| crossing_at(segment, value))
             .unwrap_or(fallback),
-    })
+    }
 }
 
 fn curve_crossing_raw(curve: &Curve, value: f32, fallback: f32) -> f32 {
@@ -2956,7 +3089,7 @@ fn curve_crossing_raw(curve: &Curve, value: f32, fallback: f32) -> f32 {
 
 #[inline(always)]
 fn crossing_at(segment: &CrossingSegment, value: f32) -> Option<f32> {
-    if value < segment.min_value || value > segment.max_value {
+    if !(value >= segment.min_value && value <= segment.max_value) {
         return None;
     }
     Some(segment.position_bias + value * segment.position_scale)
@@ -3003,9 +3136,21 @@ mod curve_crossing_tests {
                     .collect(),
             };
             let prepared = prepared(&points);
-            for value in [-0.1, 0.0, 0.1, 0.2, 0.5, 0.8, 1.0, 1.1] {
+            for value in [
+                f32::NEG_INFINITY,
+                -0.1,
+                0.0,
+                0.1,
+                0.2,
+                0.5,
+                0.8,
+                1.0,
+                1.1,
+                f32::INFINITY,
+                f32::NAN,
+            ] {
                 let expected = curve_crossing(&curve, value, -7.0);
-                let actual = prepared_curve_crossing(&prepared.crossings, value, -7.0).unwrap();
+                let actual = prepared_curve_crossing(&prepared.crossings, value, -7.0);
                 assert!(
                     (actual - expected).abs() <= 0.000001,
                     "{points:?} at {value}"
@@ -3017,14 +3162,8 @@ mod curve_crossing_tests {
     #[test]
     fn prepared_crossing_preserves_single_point_behavior() {
         let curve = prepared(&[(0.25, 0.75)]);
-        assert_eq!(
-            prepared_curve_crossing(&curve.crossings, 0.75, -1.0),
-            Ok(0.25)
-        );
-        assert_eq!(
-            prepared_curve_crossing(&curve.crossings, 0.5, -1.0),
-            Ok(-1.0)
-        );
+        assert_eq!(prepared_curve_crossing(&curve.crossings, 0.75, -1.0), 0.25);
+        assert_eq!(prepared_curve_crossing(&curve.crossings, 0.5, -1.0), -1.0);
     }
 }
 
@@ -3052,62 +3191,106 @@ fn channel_byte(value: f32) -> u8 {
     (value.clamp(0.0, 255.0) + 0.5) as u8
 }
 
-fn mark_at_from(marks: &Marks, index: i32, fallback: f32) -> Result<f32, RuntimeError> {
-    Ok(usize::try_from(index)
+fn mark_at_from(marks: &Marks, index: i32, fallback: f32) -> f32 {
+    usize::try_from(index)
         .ok()
         .and_then(|index| marks.marks.get(index))
         .map(|mark| sample_duration_seconds_f32(*mark))
-        .unwrap_or(fallback))
+        .unwrap_or(fallback)
 }
 
-fn prev_index(marks: &Marks, seconds: f32) -> Result<i32, RuntimeError> {
-    let mut previous = -1;
-    for (index, mark) in marks.marks.iter().enumerate() {
-        if sample_duration_seconds_f32(*mark) <= seconds {
-            previous = i32::try_from(index)
-                .map_err(|_| RuntimeError::new("mark index exceeds int range"))?;
-        }
+fn previous_mark(marks: &Marks, seconds: f32) -> Option<(usize, SampleDuration)> {
+    marks
+        .marks
+        .iter()
+        .copied()
+        .enumerate()
+        .rfind(|(_, mark)| sample_duration_seconds_f32(*mark) <= seconds)
+}
+
+fn next_mark(marks: &Marks, seconds: f32) -> Option<(usize, SampleDuration)> {
+    marks
+        .marks
+        .iter()
+        .copied()
+        .enumerate()
+        .find(|(_, mark)| sample_duration_seconds_f32(*mark) > seconds)
+}
+
+fn prev_index(marks: &Marks, seconds: f32) -> i32 {
+    previous_mark(marks, seconds)
+        .map(|(index, _)| int_len(index))
+        .unwrap_or(-1)
+}
+
+fn next_index(marks: &Marks, seconds: f32) -> i32 {
+    next_mark(marks, seconds)
+        .map(|(index, _)| int_len(index))
+        .unwrap_or(-1)
+}
+
+fn elapsed(marks: &Marks, seconds: f32) -> f32 {
+    seconds
+        - previous_mark(marks, seconds)
+            .map(|(_, mark)| sample_duration_seconds_f32(mark))
+            .unwrap_or(0.0)
+}
+
+fn phase(marks: &Marks, seconds: f32, duration: f32) -> f32 {
+    let start = previous_mark(marks, seconds)
+        .map(|(_, mark)| sample_duration_seconds_f32(mark))
+        .unwrap_or(0.0);
+    let end = next_mark(marks, seconds)
+        .map(|(_, mark)| sample_duration_seconds_f32(mark))
+        .unwrap_or(duration);
+    ((seconds - start) / (end - start).max(0.000000001)).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod binding_totality_tests {
+    use super::{BoundParams, DslBindCache};
+    use crate::dsl::{Identifier, ParamDecl, Type, Value};
+    use alloc::{sync::Arc, vec};
+
+    #[test]
+    fn binding_checks_supplied_values_before_playback() {
+        let mut cache = DslBindCache::default();
+        let float = BoundParams::bind_slots(&[Type::Float], &[Some(Value::Int(3))], &mut cache)
+            .expect("integer values may bind to float parameters");
+        assert!(matches!(float.value(0), Ok(Value::Float(3.0))));
+        assert!(BoundParams::bind_slots(&[Type::Float], &[None], &mut cache).is_ok());
+
+        assert!(
+            BoundParams::bind_slots(&[Type::Float], &[Some(Value::Bool(true))], &mut cache)
+                .is_err()
+        );
+        assert!(
+            BoundParams::bind_slots(
+                &[Type::array(Type::Int)],
+                &[Some(Value::Array(Arc::from(vec![Value::Bool(true)])))],
+                &mut cache,
+            )
+            .is_err()
+        );
+
+        let name = Identifier::new("amount".into()).unwrap();
+        let declaration = [ParamDecl {
+            name: name.clone(),
+            ty: Type::Float,
+            fixed: false,
+            default: None,
+        }];
+        assert!(
+            BoundParams::bind_pairs(&declaration, &[(name.clone(), Value::Bool(true))]).is_err()
+        );
+        let named = BoundParams::bind_pairs(&declaration, &[(name, Value::Int(3))]).unwrap();
+        assert!(matches!(named.value(0), Ok(Value::Float(3.0))));
     }
-    Ok(previous)
-}
-
-fn next_index(marks: &Marks, seconds: f32) -> Result<i32, RuntimeError> {
-    for (index, mark) in marks.marks.iter().enumerate() {
-        if sample_duration_seconds_f32(*mark) > seconds {
-            return i32::try_from(index)
-                .map_err(|_| RuntimeError::new("mark index exceeds int range"));
-        }
-    }
-    Ok(-1)
-}
-
-fn elapsed(marks: &Marks, seconds: f32) -> Result<f32, RuntimeError> {
-    let previous = prev_index(marks, seconds)?;
-    if previous < 0 {
-        return Ok(seconds);
-    }
-    Ok(seconds - mark_at_from(marks, previous, 0.0)?)
-}
-
-fn phase(marks: &Marks, seconds: f32, duration: f32) -> Result<f32, RuntimeError> {
-    let previous = prev_index(marks, seconds)?;
-    let next = next_index(marks, seconds)?;
-    let start = if previous >= 0 {
-        mark_at_from(marks, previous, 0.0)?
-    } else {
-        0.0
-    };
-    let end = if next >= 0 {
-        mark_at_from(marks, next, duration)?
-    } else {
-        duration
-    };
-    Ok(((seconds - start) / (end - start).max(0.000000001)).clamp(0.0, 1.0))
 }
 
 #[cfg(test)]
 mod mark_totality_tests {
-    use super::mark_at_from;
+    use super::{elapsed, int_len, mark_at_from, next_index, phase, prev_index};
     use crate::values::{Marks, SampleDuration};
     use alloc::vec;
 
@@ -3116,8 +3299,72 @@ mod mark_totality_tests {
         let marks = Marks {
             marks: vec![SampleDuration::from_ticks(1_000_000)],
         };
-        assert_eq!(mark_at_from(&marks, -1, 2.5).unwrap(), 2.5);
-        assert_eq!(mark_at_from(&marks, 1, 2.5).unwrap(), 2.5);
-        assert_eq!(mark_at_from(&marks, 0, 2.5).unwrap(), 1.0);
+        assert_eq!(mark_at_from(&marks, -1, 2.5), 2.5);
+        assert_eq!(mark_at_from(&marks, 1, 2.5), 2.5);
+        assert_eq!(mark_at_from(&marks, 0, 2.5), 1.0);
+    }
+
+    #[test]
+    fn mark_queries_have_defined_indices_and_times() {
+        let marks = Marks {
+            marks: vec![
+                SampleDuration::from_ticks(500_000),
+                SampleDuration::from_ticks(1_000_000),
+                SampleDuration::from_ticks(1_500_000),
+            ],
+        };
+        assert_eq!(prev_index(&marks, 1.2), 1);
+        assert_eq!(next_index(&marks, 1.2), 2);
+        assert!((elapsed(&marks, 1.2) - 0.2).abs() < 1e-6);
+        assert!((phase(&marks, 1.2, 2.0) - 0.4).abs() < 1e-6);
+        assert_eq!(prev_index(&marks, f32::NAN), -1);
+        assert_eq!(next_index(&marks, f32::NAN), -1);
+        assert_eq!(int_len(usize::MAX), i32::MAX);
+    }
+}
+
+#[cfg(test)]
+mod target_item_totality_tests {
+    use super::{Arc, RuntimeValue, member_value, select_target_item};
+    use crate::dsl::bytecode::TargetMember;
+    use crate::dsl::types::{TargetItemValue, TargetItemsValue, TargetPixelValue};
+    use alloc::vec;
+
+    #[test]
+    fn selection_clamps_and_empty_members_use_type_defaults() {
+        let first = Arc::new(TargetItemValue {
+            pixels: Arc::from([TargetPixelValue {
+                fixture_index: 1,
+                fixture_pixel_index: 0,
+                pixel_index: 0,
+                pixel_count: 2,
+                pixel_fraction: 0.0,
+            }]),
+        });
+        let last = Arc::new(TargetItemValue {
+            pixels: Arc::from([TargetPixelValue {
+                fixture_index: 1,
+                fixture_pixel_index: 1,
+                pixel_index: 1,
+                pixel_count: 2,
+                pixel_fraction: 1.0,
+            }]),
+        });
+        let items = TargetItemsValue {
+            groups: vec![Arc::clone(&first), Arc::clone(&last)],
+        };
+        assert!(Arc::ptr_eq(&select_target_item(&items, -1), &first));
+        assert!(Arc::ptr_eq(&select_target_item(&items, 100), &last));
+
+        let empty =
+            RuntimeValue::TargetItem(select_target_item(&TargetItemsValue { groups: vec![] }, 0));
+        assert!(matches!(
+            member_value(&empty, &TargetMember::PixelIndex).unwrap(),
+            RuntimeValue::Int(0)
+        ));
+        assert!(matches!(
+            member_value(&empty, &TargetMember::PixelFraction).unwrap(),
+            RuntimeValue::Float(0.0)
+        ));
     }
 }

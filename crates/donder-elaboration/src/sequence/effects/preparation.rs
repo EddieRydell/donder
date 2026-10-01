@@ -107,6 +107,12 @@ pub(crate) fn prepare_effect_inst(
             });
         }
         EffectKind::Generator => {
+            let sequence_duration = donder_language::values::sample_duration_from_donder_duration(
+                &context.sequence.duration,
+            )
+            .map_err(|_| RenderError::InvalidTiming {
+                reason: "sequence duration exceeds the runtime clock range".to_string(),
+            })?;
             let params = BoundParams::bind_cached(&definition.params, &params, context.bind_cache)?;
             let mut inputs = (0..definition.params.len())
                 .map(|index| {
@@ -151,6 +157,7 @@ pub(crate) fn prepare_effect_inst(
             let mut generator_context = GeneratorPrepareContext {
                 environments: context.environments,
                 project: context.project,
+                sequence_duration,
                 fixtures: context.fixtures,
                 effects: context.effects,
                 generated_child_count: context.generated_child_count,

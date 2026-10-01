@@ -6,9 +6,7 @@ use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
 use crate::layout::LayoutError;
 use crate::model::DonderProject;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
-use crate::sequence::{
-    AutomationMapping, AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
-};
+use crate::sequence::{AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence};
 use indexmap::IndexMap;
 
 pub const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
@@ -421,7 +419,7 @@ pub fn validate_sequence(
         }
         for binding in &clip.bindings {
             let ty = automation_target_type(project, sequence, &binding.target)?;
-            if !automation_mapping_matches_type(&binding.mapping, ty) {
+            if !binding.mapping.accepts_type(ty) {
                 return Err(sequence_error(
                     "automation mapping does not match its target parameter",
                 ));
@@ -565,21 +563,6 @@ pub fn automation_target_type<'a>(
                     }
                 })
         }
-    }
-}
-
-fn automation_mapping_matches_type(mapping: &AutomationMapping, ty: &Type) -> bool {
-    match (mapping, ty) {
-        (AutomationMapping::Float { min, max }, Type::Float)
-        | (AutomationMapping::Curve { min, max }, Type::Curve) => {
-            min.is_finite() && max.is_finite() && min <= max
-        }
-        (AutomationMapping::Int { min, max }, Type::Int) => min <= max,
-        (AutomationMapping::Bool, Type::Bool) => true,
-        (AutomationMapping::Enum { values }, Type::Enum(options)) => {
-            !values.is_empty() && values.iter().all(|value| options.contains(value))
-        }
-        _ => false,
     }
 }
 

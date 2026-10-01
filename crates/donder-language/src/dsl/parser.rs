@@ -20,11 +20,14 @@ pub(crate) fn parse_module(source: &str) -> Result<Module, Vec<Diagnostic>> {
     }
 }
 
+const MAX_SYNTAX_NESTING: usize = 128;
+
 struct Parser<'source> {
     source: &'source str,
     tokens: Vec<Token>,
     cursor: usize,
     diagnostics: Vec<Diagnostic>,
+    syntax_nesting: usize,
 }
 
 impl<'source> Parser<'source> {
@@ -44,6 +47,7 @@ impl<'source> Parser<'source> {
             tokens,
             cursor: 0,
             diagnostics,
+            syntax_nesting: 0,
         }
     }
 
@@ -309,6 +313,15 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_block(&mut self) -> Option<Block> {
+        if !self.enter_syntax_nesting() {
+            return None;
+        }
+        let result = self.parse_block_contents();
+        self.syntax_nesting -= 1;
+        result
+    }
+
+    fn parse_block_contents(&mut self) -> Option<Block> {
         self.expect(TokenKind::LeftBrace, "expected `{` before block");
         let mut statements = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
@@ -353,6 +366,44 @@ impl<'source> Parser<'source> {
 
         if self.consume_keyword(Keyword::For) {
             self.expect(TokenKind::LeftParen, "expected `(` after `for`");
+            if self.at(TokenKind::Keyword(Keyword::Int))
+                && self
+                    .tokens
+                    .get(self.cursor + 1)
+                    .is_some_and(|token| token.kind == TokenKind::Identifier)
+                && self
+                    .tokens
+                    .get(self.cursor + 2)
+                    .is_some_and(|token| token.kind == TokenKind::Keyword(Keyword::In))
+            {
+                self.advance();
+                let index = self.parse_identifier()?;
+                self.advance();
+                let collection = self.parse_expression();
+                self.expect(TokenKind::RightParen, "expected `)` after collection");
+                let body = self.parse_block()?;
+                if let ExprKind::Call { callee, args } = &collection.kind
+                    && matches!(&callee.kind, ExprKind::Variable(name) if name.as_str() == "range")
+                {
+                    if args.len() != 2 {
+                        self.error(collection.span, "range requires a count and literal cap");
+                        return None;
+                    }
+                    let count = args.first()?.clone();
+                    let cap = args.get(1)?.clone();
+                    return Some(Stmt::ForRange {
+                        index,
+                        count,
+                        cap,
+                        body,
+                    });
+                }
+                return Some(Stmt::ForMarks {
+                    index,
+                    marks: collection,
+                    body,
+                });
+            }
             let initializer = Box::new(self.parse_for_clause()?);
             self.expect(TokenKind::Semicolon, "expected `;` after for initializer");
             let condition = self.parse_expression();
@@ -490,6 +541,15 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_precedence(&mut self, min_precedence: u8) -> Expr {
+        if !self.enter_syntax_nesting() {
+            return self.invalid_expression();
+        }
+        let result = self.parse_precedence_contents(min_precedence);
+        self.syntax_nesting -= 1;
+        result
+    }
+
+    fn parse_precedence_contents(&mut self, min_precedence: u8) -> Expr {
         let mut left = self.parse_unary();
         while let Some((op, precedence)) = self.current_binary_op() {
             if precedence < min_precedence {
@@ -514,6 +574,15 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_unary(&mut self) -> Expr {
+        if !self.enter_syntax_nesting() {
+            return self.invalid_expression();
+        }
+        let result = self.parse_unary_contents();
+        self.syntax_nesting -= 1;
+        result
+    }
+
+    fn parse_unary_contents(&mut self) -> Expr {
         let token = self.current().clone();
         match token.kind {
             TokenKind::Minus => {
@@ -701,10 +770,15 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_type(&mut self) -> Option<Type> {
-        self.try_parse_type().or_else(|| {
+        if !self.enter_syntax_nesting() {
+            return None;
+        }
+        let result = self.try_parse_type().or_else(|| {
             self.error_here("expected type");
             None
-        })
+        });
+        self.syntax_nesting -= 1;
+        result
     }
 
     fn try_parse_type(&mut self) -> Option<Type> {
@@ -935,6 +1009,24 @@ impl<'source> Parser<'source> {
 
     fn error(&mut self, span: TextSpan, message: impl Into<String>) {
         self.diagnostics.push(Diagnostic::new(span, message));
+    }
+
+    fn enter_syntax_nesting(&mut self) -> bool {
+        if self.syntax_nesting == MAX_SYNTAX_NESTING {
+            self.error_here(format!(
+                "syntax nesting exceeds the limit of {MAX_SYNTAX_NESTING}"
+            ));
+            return false;
+        }
+        self.syntax_nesting += 1;
+        true
+    }
+
+    fn invalid_expression(&self) -> Expr {
+        Expr {
+            span: self.current().span,
+            kind: ExprKind::Literal(Value::Void),
+        }
     }
 
     fn ensure_progress(&mut self, start_cursor: usize, message: &str) {

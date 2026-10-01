@@ -8,6 +8,7 @@ publish = false
 pc-profile = []
 loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc"]
 i2s-output = ["loader", "donder-runtime/atomic"]
+dig-quad = ["i2s-output"]
 
 [[bin]]
 name = "loader"
@@ -32,7 +33,7 @@ esp-radio-rtos-driver = { version = "0.4.1", optional = true }
 esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"], optional = true }
 esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"], optional = true }
 embassy-executor = { version = "0.10.0", optional = true }
-embassy-net = { version = "0.9.1", features = ["tcp", "dhcpv4", "medium-ethernet"], optional = true }
+embassy-net = { version = "0.9.1", features = ["tcp", "udp", "dhcpv4", "medium-ethernet"], optional = true }
 embassy-sync = { version = "0.8.0", optional = true }
 embassy-time = { version = "0.5.1", optional = true }
 embedded-io-async = { version = "0.7.0", optional = true }

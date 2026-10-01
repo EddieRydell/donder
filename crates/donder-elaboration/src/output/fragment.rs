@@ -134,14 +134,14 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
                 continue;
             };
             let outer = outer_indices[&signal.fixtures[old_fixture].id];
-            let Ok(cell) = cells[outer].binary_search(&u32::from(pixel.fixture_pixel_index)) else {
+            let Ok(cell) = cells[outer].binary_search(&pixel.fixture_pixel_index) else {
                 continue;
             };
             let mut pixel = pixel.clone();
             // Only storage addresses change. Effect/operator indices, counts and
             // fractions keep the original global or target-local sampling context.
             pixel.fixture_index = fixture_index;
-            pixel.fixture_pixel_index = u16::try_from(cell).map_err(|_| RenderError::BadTarget)?;
+            pixel.fixture_pixel_index = index32(cell)?;
             max_count = max_count.max(pixel.pixel_count);
             pixels.push(pixel);
             if !signal.spatial_contexts.is_empty() {
@@ -205,7 +205,7 @@ pub(super) fn compact(sequence: &mut PreparedSequence) -> Result<(), RenderError
                             let old_fixture = pixel.fixture_index as usize;
                             signal_fixture_map[old_fixture].is_some()
                                 && cells[outer_indices[&signal.fixtures[old_fixture].id]]
-                                    .binary_search(&u32::from(pixel.fixture_pixel_index))
+                                    .binary_search(&pixel.fixture_pixel_index)
                                     .is_ok()
                         });
                         if !intersects {

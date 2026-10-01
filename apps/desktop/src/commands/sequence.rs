@@ -198,6 +198,44 @@ pub(crate) async fn device_capabilities(
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) async fn connect_sequence_device(
+    request: GuiDocumentRequest,
+    outputs: Vec<u32>,
+    address: String,
+    token: String,
+    state: State<'_, DesktopState>,
+) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        state.connect_sequence_device(&request, &outputs, &address, &token)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn disconnect_sequence_device(
+    address: String,
+    state: State<'_, DesktopState>,
+) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.disconnect_sequence_device(&address))
+        .await
+        .map_err(|error| error.to_string())?
+}
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn sequence_devices(
+    state: State<'_, DesktopState>,
+) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || Ok(state.sequence_devices()))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) async fn device_transport(
     address: String,
     token: String,

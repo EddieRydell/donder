@@ -141,9 +141,9 @@ effect MarkPulse {
     TargetItems items = sections(target, section_width_pixels);
     int section_count = count(items);
     if (section_count > 0) {
-      for (int mark = 0; mark < mark_count(beats); mark = mark + 1) {
+      for (int mark in beats) {
         float hit_time = mark_at(beats, mark, -999.0);
-        for (int section = 0; section < sections_per_mark; section = section + 1) {
+        for (int section in range(sections_per_mark, 10000)) {
           float choice = floor(rand(seed + hit_time * 1000.0, section) * section_count);
           timeline.emit Pulse {
             start: hit_time + offset_seconds,
@@ -173,7 +173,7 @@ effect MarkChase {
     int gradient_count = len(gradients);
     int position_count = len(chase_positions);
     if (gradient_count > 0 && position_count > 0) {
-      for (int mark = 0; mark < mark_count(beats); mark = mark + 1) {
+      for (int mark in beats) {
         float hit_time = mark_at(beats, mark, -999.0);
         timeline.emit Chase {
           start: hit_time + offset_seconds,
@@ -207,7 +207,7 @@ effect MarkWipe {
     int gradient_count = len(gradients);
     int position_count = len(wipe_positions);
     if (gradient_count > 0 && position_count > 0) {
-      for (int mark = 0; mark < mark_count(beats); mark = mark + 1) {
+      for (int mark in beats) {
         float hit_time = mark_at(beats, mark, -999.0);
         timeline.emit Wipe {
           start: hit_time + offset_seconds,

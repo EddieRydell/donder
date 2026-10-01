@@ -21,7 +21,12 @@ pub(super) struct SourceMetadata {
 
 pub(super) trait AudioDriver: Send {
     fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String>;
-    fn play(&mut self, path: &str, position_seconds: f32) -> Result<Box<dyn AudioHandle>, String>;
+    fn play(
+        &mut self,
+        path: &str,
+        position_seconds: f32,
+        deadline: Option<Instant>,
+    ) -> Result<Box<dyn AudioHandle>, String>;
     fn debug_observe(&mut self) {}
 }
 
@@ -36,7 +41,7 @@ pub(super) fn audio_debug(message: std::fmt::Arguments<'_>) {
 
 pub(super) trait AudioHandle: Send {
     fn observe(&mut self) -> BackendObservation;
-    fn pause(&mut self);
+    fn pause(&mut self, deadline: Option<Instant>);
     fn resume(&mut self);
     fn seek_to(&mut self, position_seconds: f32);
     fn stop(&mut self);
@@ -106,7 +111,12 @@ impl AudioDriver for KiraAudioDriver {
             .map_err(|error| error.to_string())
     }
 
-    fn play(&mut self, path: &str, position_seconds: f32) -> Result<Box<dyn AudioHandle>, String> {
+    fn play(
+        &mut self,
+        path: &str,
+        position_seconds: f32,
+        deadline: Option<Instant>,
+    ) -> Result<Box<dyn AudioHandle>, String> {
         audio_debug(format_args!(
             "create sound path={path:?} position={position_seconds}"
         ));
@@ -114,6 +124,12 @@ impl AudioDriver for KiraAudioDriver {
             .inspect_err(|error| audio_debug(format_args!("open sound failed: {error:?}")))
             .map_err(|error| error.to_string())?
             .start_position(f64::from(position_seconds));
+        if deadline.is_some_and(|deadline| deadline <= Instant::now()) {
+            return Err("Audio start deadline passed while opening the source".into());
+        }
+        let sound = sound.start_time(deadline.map_or(kira::StartTime::Immediate, |deadline| {
+            kira::StartTime::Delayed(deadline.saturating_duration_since(Instant::now()))
+        }));
         self.manager
             .play(sound)
             .inspect(|_| audio_debug(format_args!("sound handle created")))
@@ -145,8 +161,13 @@ impl AudioHandle for KiraAudioHandle {
         }
     }
 
-    fn pause(&mut self) {
-        self.handle.pause(instant_tween());
+    fn pause(&mut self, deadline: Option<Instant>) {
+        self.handle.pause(Tween {
+            start_time: deadline.map_or(kira::StartTime::Immediate, |deadline| {
+                kira::StartTime::Delayed(deadline.saturating_duration_since(Instant::now()))
+            }),
+            ..instant_tween()
+        });
     }
 
     fn resume(&mut self) {

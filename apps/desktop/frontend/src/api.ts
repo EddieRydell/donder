@@ -9,6 +9,11 @@ import type {
 
 export const commands = {
   ...generatedCommands,
+  audioPlay: async () => unwrapResult(await generatedCommands.audioPlay()),
+  audioPause: async () => unwrapResult(await generatedCommands.audioPause()),
+  audioStop: async () => unwrapResult(await generatedCommands.audioStop()),
+  audioRewindToZero: async () => unwrapResult(await generatedCommands.audioRewindToZero()),
+  audioSeek: async (positionSeconds: number) => unwrapResult(await generatedCommands.audioSeek(positionSeconds)),
   createSequence: async (request: import("./types").NewSequenceRequest) =>
     unwrapResult(await generatedCommands.createSequence(request)),
   setPreviewAppearance: async (appearance: import("./types").PreviewAppearance) =>

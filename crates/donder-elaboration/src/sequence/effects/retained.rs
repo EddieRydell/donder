@@ -80,17 +80,10 @@ pub(crate) fn environment(
 ) -> Result<u32, RenderError> {
     let mut bindings = Vec::new();
     let mut values = Vec::new();
-    let mut capacity = 0u32;
-    let mut width = 0u32;
     for (index, input) in inputs.iter().enumerate() {
         values.push(match input {
             ParameterInput::Constant(value) => Some(value.clone()),
             ParameterInput::Source(source) => {
-                let parent = &context.environments[source.environment as usize];
-                capacity = capacity
-                    .checked_add(parent.array_capacity)
-                    .ok_or_else(|| error("parameter array capacity exceeded"))?;
-                width = width.max(parent.array_width);
                 bindings.push(PreparedParameterBinding {
                     parameter: u16::try_from(index).map_err(|_| error("too many parameters"))?,
                     source: *source,
@@ -99,17 +92,12 @@ pub(crate) fn environment(
             }
         });
     }
-    if let Some(calculation) = &calculation
-        && calculation
-            .outputs
-            .iter()
-            .any(|ty| matches!(ty, Type::Array(_)))
-    {
-        capacity = capacity
-            .checked_add(calculation.program.array_capacity)
-            .ok_or_else(|| error("parameter array capacity exceeded"))?;
-        width = width.max(calculation.program.array_width);
-    }
+    let (capacity, width) = PreparedParameterEnvironment::required_array_storage(
+        context.environments,
+        &bindings,
+        calculation.as_ref(),
+    )
+    .ok_or_else(|| error("parameter array storage bound could not be calculated"))?;
     let index = u32::try_from(context.environments.len())
         .map_err(|_| error("too many parameter environments"))?;
     context.environments.push(PreparedParameterEnvironment {
@@ -203,10 +191,6 @@ pub(crate) fn expand(
         )?);
     }
     for child in specialized.children {
-        if *context.generated_child_count >= crate::MAX_GENERATED_EFFECTS {
-            return Err(error("generated child limit exceeded"));
-        }
-        *context.generated_child_count += 1;
         let reference = definition
             .generated_effect_targets
             .get(child.definition.0 as usize)
@@ -241,6 +225,17 @@ pub(crate) fn expand(
             context.fixtures,
             child.target,
         )?;
+        if child
+            .start_time
+            .checked_add_duration(child.duration)
+            .is_none_or(|end| end.as_ticks() > context.sequence_duration.as_ticks())
+        {
+            continue;
+        }
+        if *context.generated_child_count >= crate::MAX_GENERATED_EFFECTS {
+            return Err(error("generated child limit exceeded"));
+        }
+        *context.generated_child_count += 1;
         let child_expansion = GeneratorExpansion {
             start_time: child.start_time,
             duration: child.duration,

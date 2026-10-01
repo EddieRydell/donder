@@ -24,6 +24,37 @@ oscilloscope were connected, so they do not verify external voltage levels,
 waveform shape, signal integrity, or visible output. Network tasks can allocate
 independently even though frame evaluation recorded zero allocations.
 
+## Scheduled controller playback
+
+The [September 30 Dig-Quad result](../firmware/esp32/results/accepted/2026-09-30-dig-quad-scheduled-playback.json)
+identifies the tested firmware and 600-pixel archive by SHA-256. The final
+board-specific image passed upload replacement, scheduled start, cancellation,
+elapsed position, pause, seek, and stop. The desktop's real-controller transport
+test also passed Play, Pause, Seek, Stop, and unchanged replay.
+
+The best UDP round trip was 2.316 ms, giving an estimated clock uncertainty of
+1.258 ms under the approximately symmetric-path assumption. These checks used
+the removed ESP32 module on USB power. They establish controller transport
+behavior, not visible LED output, multi-controller physical skew, or speaker
+latency; the test sequence had no audio file.
+
+The [October 1 Stanford result](../firmware/esp32/results/accepted/2026-10-01-dig-quad-stanford-playback.json)
+records the full 78,392-byte show mapped to 150 serial pixels on Dig-Quad LED1.
+Repeated full-show replacement, damaged-upload rejection, ten desktop/device
+frame checksums, scheduled transport, and desktop transport with audio passed.
+Replacement releases the old decoded show before receiving the new body and
+validates the candidate once. The decoded sequence uses 93,860 bytes; its workspace
+uses 4,228 bytes, and retained playback including outputs uses 98,552 bytes.
+Frame evaluation recorded zero allocations. Active sampled frames took
+41.5–48.9 ms, so this workload cannot produce 120 distinct frames per second;
+elapsed-time playback skips missed frames. The best UDP round trip was 2.610 ms,
+with estimated clock uncertainty of 1.405 ms. After reboot the show restored
+stopped, and a scheduled preview traversed its colored 70–82-second section.
+The checksum and desktop checks used the removed module on USB power. After
+reinstallation, the user confirmed visible Stanford playback on LED1 during a
+second scheduled color preview. Physical clock skew and audio/LED alignment
+remain unmeasured.
+
 ## Retention policy
 
 Raw captures, failed uploads, superseded profiles, generated archives, checksum

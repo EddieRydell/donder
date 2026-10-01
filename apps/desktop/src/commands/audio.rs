@@ -18,38 +18,70 @@ pub(crate) fn unload_audio(app: AppHandle, state: State<'_, DesktopState>) -> Ap
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn audio_play(app: AppHandle, state: State<'_, DesktopState>) -> AppSnapshot {
-    let snapshot = publish_audio_snapshot(&app, state.audio_play());
+pub(crate) async fn audio_play(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_play())
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    let snapshot = publish_audio_snapshot(&app, snapshot);
     if matches!(snapshot.audio_transport.state, AudioTransportState::Playing) {
         start_audio_transport_poll(app);
     }
-    snapshot
+    Ok(snapshot)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn audio_pause(app: AppHandle, state: State<'_, DesktopState>) -> AppSnapshot {
-    publish_audio_snapshot(&app, state.audio_pause())
+pub(crate) async fn audio_pause(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_pause())
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn audio_stop(app: AppHandle, state: State<'_, DesktopState>) -> AppSnapshot {
-    publish_audio_snapshot(&app, state.audio_stop())
+pub(crate) async fn audio_stop(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_stop())
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn audio_rewind_to_zero(app: AppHandle, state: State<'_, DesktopState>) -> AppSnapshot {
-    publish_audio_snapshot(&app, state.audio_rewind_to_zero())
+pub(crate) async fn audio_rewind_to_zero(
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_rewind_to_zero())
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn audio_seek(
+pub(crate) async fn audio_seek(
     position_seconds: f32,
     app: AppHandle,
     state: State<'_, DesktopState>,
-) -> AppSnapshot {
-    publish_audio_snapshot(&app, state.audio_seek(position_seconds))
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_seek(position_seconds))
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
 }

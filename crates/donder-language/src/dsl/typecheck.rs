@@ -355,11 +355,65 @@ impl Checker {
                 self.require_assignable(&Type::Bool, &condition.ty, condition.span);
                 let (update, _) = self.check_statement(*update, &mut loop_env, return_type);
                 let (body, _) = self.check_block(body, &mut loop_env, return_type);
+                if super::loop_bounds::fixed_for_iterations(
+                    &initializer,
+                    &condition,
+                    &update,
+                    &body,
+                )
+                .is_none()
+                {
+                    self.error(condition.span, "C-style for loop requires a compile-time-proven trip count; use `for (int i in range(count, cap))` for a dynamic count");
+                }
                 (
                     CheckedStmt::For {
                         initializer: Box::new(initializer),
                         condition,
                         update: Box::new(update),
+                        body,
+                    },
+                    false,
+                )
+            }
+            Stmt::ForMarks { index, marks, body } => {
+                let marks = self.check_expr(marks, env, Some(&Type::Marks));
+                self.require_assignable(&Type::Marks, &marks.ty, marks.span);
+                let mut loop_env = env.clone();
+                loop_env.insert(index.clone(), Type::Int);
+                let (body, _) = self.check_block(body, &mut loop_env, return_type);
+                if super::loop_bounds::block_assigns_name(&body, &index) {
+                    self.error(marks.span, "marks iteration index cannot be assigned");
+                }
+                (CheckedStmt::ForMarks { index, marks, body }, false)
+            }
+            Stmt::ForRange {
+                index,
+                count,
+                cap,
+                body,
+            } => {
+                let count = self.check_expr(count, env, Some(&Type::Int));
+                self.require_assignable(&Type::Int, &count.ty, count.span);
+                let cap = self.check_expr(cap, env, Some(&Type::Int));
+                self.require_assignable(&Type::Int, &cap.ty, cap.span);
+                if !matches!(&cap.kind, CheckedExprKind::Literal(Value::Int(value)) if *value > 0 && (*value as usize) <= donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS)
+                {
+                    self.error(
+                        cap.span,
+                        "range cap must be a positive integer literal at most 10000",
+                    );
+                }
+                let mut loop_env = env.clone();
+                loop_env.insert(index.clone(), Type::Int);
+                let (body, _) = self.check_block(body, &mut loop_env, return_type);
+                if super::loop_bounds::block_assigns_name(&body, &index) {
+                    self.error(count.span, "range iteration index cannot be assigned");
+                }
+                (
+                    CheckedStmt::ForRange {
+                        index,
+                        count,
+                        cap,
                         body,
                     },
                     false,

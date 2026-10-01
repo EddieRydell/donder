@@ -1,6 +1,9 @@
 //! Retained generator parameter environments. Structural expansion belongs to
 //! the host; playback executes only numeric bindings and typed VM calculations.
-use crate::dsl::{BoundParams, RunContext, Type, VmWorkspace, bytecode::BytecodeProgram};
+use crate::dsl::{
+    BoundParams, RunContext, Type, VmWorkspace,
+    bytecode::{BytecodeProgram, ParameterKind, ProgramContext},
+};
 use crate::signal::{EvaluationError, PreparedAutomation, apply_bound_automation};
 use crate::values::{SampleDuration, SampleTime};
 use alloc::{boxed::Box, string::ToString, vec::Vec};
@@ -45,11 +48,39 @@ impl PreparedParameterEnvironment {
             .map_or(&self.types, |calculation| &calculation.outputs)
     }
 
+    /// Conservative result-arena bound shared by host preparation and wire admission.
+    pub fn required_array_storage(
+        prior: &[Self],
+        bindings: &[PreparedParameterBinding],
+        calculation: Option<&PreparedParameterCalculation>,
+    ) -> Option<(u32, u32)> {
+        let mut capacity = 0_u32;
+        let mut width = 0_u32;
+        for binding in bindings {
+            let parent = prior.get(binding.source.environment as usize)?;
+            capacity = capacity.checked_add(parent.array_capacity)?;
+            width = width.max(parent.array_width);
+        }
+        if let Some(calculation) = calculation
+            && calculation
+                .outputs
+                .iter()
+                .any(|ty| matches!(ty, Type::Array(_)))
+        {
+            capacity = capacity.checked_add(calculation.program.array_capacity)?;
+            width = width.max(calculation.program.array_width);
+        }
+        Some((capacity, width))
+    }
+
     pub fn validate_all(environments: &[Self]) -> Result<(), EvaluationError> {
         for (index, environment) in environments.iter().enumerate() {
             if environment.duration.as_ticks() == 0
                 || environment.params.len() != environment.types.len()
                 || !environment.params.is_frozen()
+                || !environment
+                    .params
+                    .has_valid_automation(&environment.automation)
                 || (environment.array_capacity != 0 && environment.array_width == 0)
             {
                 return Err(invalid("invalid prepared parameter environment"));
@@ -90,6 +121,9 @@ impl PreparedParameterEnvironment {
             }
             for automation in &environment.automation {
                 if usize::from(automation.param_index) >= environment.types.len()
+                    || !automation
+                        .mapping
+                        .accepts_type(&environment.types[usize::from(automation.param_index)])
                     || environment
                         .bindings
                         .iter()
@@ -100,11 +134,31 @@ impl PreparedParameterEnvironment {
             }
             if let Some(calculation) = &environment.calculation {
                 let program = &calculation.program;
-                if program.uses_pixel_context || program.frame_cache_count() != 0 {
+                if !program.has_valid_structure()
+                    || !program.has_valid_context(ProgramContext::Calculation)
+                    || !program.has_valid_calculation_outputs(&calculation.outputs)
+                    || !program.has_valid_parameter_reads(|index| {
+                        environment.types.get(index).map(ParameterKind::for_type)
+                    })
+                    || !program.has_valid_reference_parameter_reads(|index, expected| {
+                        environment
+                            .types
+                            .get(index)
+                            .is_some_and(|actual| expected.accepts(actual))
+                    })
+                {
                     return Err(invalid(
                         "parameter calculations cannot read pixel or signal context",
                     ));
                 }
+            }
+            if Self::required_array_storage(
+                &environments[..index],
+                &environment.bindings,
+                environment.calculation.as_ref(),
+            ) != Some((environment.array_capacity, environment.array_width))
+            {
+                return Err(invalid("invalid parameter array storage"));
             }
         }
         Ok(())
@@ -231,6 +285,7 @@ impl ParameterTimeWorkspace {
                             .map(|count| count as usize),
                             program.array_capacity as usize,
                             program.array_width as usize,
+                            program.loop_count as usize,
                         )?
                         .checked_sub(size_of::<VmWorkspace>())?,
                     )?;

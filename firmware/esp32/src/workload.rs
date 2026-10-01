@@ -410,7 +410,7 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
             target_pixels: (0..count)
                 .map(|pixel| PreparedPixel {
                     fixture_index: 0,
-                    fixture_pixel_index: pixel as u16,
+                    fixture_pixel_index: pixel as u32,
                     pixel_index: pixel as u32,
                     pixel_count: count as u32,
                     pixel_fraction: pixel as f32 / (count - 1) as f32,

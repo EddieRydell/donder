@@ -3,6 +3,7 @@ use crate::dto::{AppSnapshot, GuiDocumentRequest};
 
 impl DesktopState {
     pub fn load_sequence_audio(&self, request: GuiDocumentRequest) -> AppSnapshot {
+        let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = lock_unpoisoned(&self.authoring);
         if request.project_revision != self.snapshot().project_revision
             || self.project_session().is_none()
@@ -11,6 +12,12 @@ impl DesktopState {
         }
         let audio = self.resolve_sequence_audio(&request);
         let sequence_id = self.resolve_sequence_id(&request);
+        if let Err(error) = self
+            .device_playback
+            .stop_for_source(self.snapshot().project_epoch, sequence_id.as_ref())
+        {
+            return self.device_transport_error(error);
+        }
         let project = self.project_session();
         let silent_duration = project
             .as_ref()
@@ -46,7 +53,14 @@ impl DesktopState {
     }
 
     pub fn unload_audio(&self) -> AppSnapshot {
+        let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = lock_unpoisoned(&self.authoring);
+        if let Err(error) = self
+            .device_playback
+            .stop_for_source(self.snapshot().project_epoch, None)
+        {
+            return self.device_transport_error(error);
+        }
         let audio_transport = lock_unpoisoned(&self.audio).unload();
         if self.snapshot().project_health == crate::dto::ProjectHealth::Ready {
             lock_unpoisoned(&self.workspace).render_target = None;
@@ -61,6 +75,11 @@ impl DesktopState {
     }
 
     pub fn audio_play(&self) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            return self
+                .device_audio_play()
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
         let audio_transport = lock_unpoisoned(&self.audio).play();
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
@@ -68,6 +87,11 @@ impl DesktopState {
     }
 
     pub fn audio_pause(&self) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            return self
+                .device_audio_hold(crate::dto::DevicePlaybackMode::Paused, None, false)
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
@@ -75,6 +99,15 @@ impl DesktopState {
     }
 
     pub fn audio_stop(&self) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            return self
+                .device_audio_hold(
+                    crate::dto::DevicePlaybackMode::Stopped,
+                    Some(self.audio_snapshot().home_seconds),
+                    false,
+                )
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
         let audio_transport = lock_unpoisoned(&self.audio).stop();
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
@@ -82,6 +115,11 @@ impl DesktopState {
     }
 
     pub fn audio_rewind_to_zero(&self) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            return self
+                .device_audio_hold(crate::dto::DevicePlaybackMode::Paused, Some(0.0), true)
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
         let audio_transport = lock_unpoisoned(&self.audio).rewind_to_zero();
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
@@ -89,6 +127,19 @@ impl DesktopState {
     }
 
     pub fn audio_seek(&self, position_seconds: f32) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            let duration = self.audio_snapshot().duration_seconds;
+            if !position_seconds.is_finite() {
+                return self.device_transport_error("Seek position must be finite".into());
+            }
+            return self
+                .device_audio_hold(
+                    crate::dto::DevicePlaybackMode::Paused,
+                    Some(position_seconds.clamp(0.0, duration)),
+                    true,
+                )
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
         let audio_transport = lock_unpoisoned(&self.audio).seek(position_seconds);
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;

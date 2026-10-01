@@ -26,8 +26,8 @@ fn structural_dependencies_include_arrays_merges_and_loop_carried_values() {
         "array<float> values = [live]; float start = values[0]; timeline.emit Child { start: start, duration: 1.0, target: target };".to_string(),
         "float start = 0.0; if (live > 0.5) { start = 1.0; } timeline.emit Child { start: start, duration: 1.0, target: target };".to_string(),
         format!("if (live > 0.5) {{ {EMIT} }} else {{ {EMIT} }}"),
-        "float start = 0.0; for (int i = 0; i < count; i = i + 1) { timeline.emit Child { start: start, duration: 1.0, target: target }; start = live; }".to_string(),
-        format!("for (int i = 0; i < live; i = i + 1) {{ {EMIT} }}"),
+        "float start = 0.0; for (int i in range(count, 10000)) { timeline.emit Child { start: start, duration: 1.0, target: target }; start = live; }".to_string(),
+        format!("for (int i in range(count, 10000)) {{ if (live > 0.5) {{ {EMIT} }} }}"),
     ] {
         let errors = compile_effects(&generator(&body)).unwrap_err();
         assert!(errors.iter().any(|error| error.message.contains("live dependency `live`") && error.message.contains("fixed")), "{errors:?}");
@@ -36,7 +36,7 @@ fn structural_dependencies_include_arrays_merges_and_loop_carried_values() {
 
 #[test]
 fn pure_live_calculations_and_fixed_expansion_are_allowed() {
-    let body = "float level = live * 0.5; if (live > 0.5) { level = live * 0.25; } for (int i = 0; i < count; i = i + 1) { timeline.emit Child { start: i * 0.25, duration: 1.0, target: target, level: level + seconds() }; }";
+    let body = "float level = live * 0.5; if (live > 0.5) { level = live * 0.25; } for (int i in range(count, 10000)) { timeline.emit Child { start: i * 0.25, duration: 1.0, target: target, level: level + seconds() }; }";
     compile_effects(&generator(body)).unwrap();
 }
 

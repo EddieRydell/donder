@@ -54,6 +54,17 @@ pub(crate) enum CheckedStmt {
         update: Box<CheckedStmt>,
         body: CheckedBlock,
     },
+    ForMarks {
+        index: Identifier,
+        marks: CheckedExpr,
+        body: CheckedBlock,
+    },
+    ForRange {
+        index: Identifier,
+        count: CheckedExpr,
+        cap: CheckedExpr,
+        body: CheckedBlock,
+    },
     Emit {
         effect: EmittedReference,
         fields: Vec<(Identifier, CheckedExpr)>,
@@ -154,6 +165,22 @@ impl CheckedStmt {
                 initializer: Box::new(Self::unchecked(*initializer)),
                 condition: CheckedExpr::unchecked(condition),
                 update: Box::new(Self::unchecked(*update)),
+                body: body.into(),
+            },
+            super::ast::Stmt::ForMarks { index, marks, body } => Self::ForMarks {
+                index,
+                marks: CheckedExpr::unchecked(marks),
+                body: body.into(),
+            },
+            super::ast::Stmt::ForRange {
+                index,
+                count,
+                cap,
+                body,
+            } => Self::ForRange {
+                index,
+                count: CheckedExpr::unchecked(count),
+                cap: CheckedExpr::unchecked(cap),
                 body: body.into(),
             },
             super::ast::Stmt::Emit { effect, fields } => Self::Emit {

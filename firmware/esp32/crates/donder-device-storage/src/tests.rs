@@ -1,6 +1,77 @@
 use super::*;
 use alloc::vec;
 
+fn stage_show(flash: &mut Flash, bytes: &[u8]) -> Result<show_slots::Slot, Error> {
+    let slot = show_slots::begin(flash, bytes.len())?;
+    for (index, chunk) in bytes.chunks(1024).enumerate() {
+        let mut aligned = [0xff; 1024];
+        aligned[..chunk.len()].copy_from_slice(chunk);
+        show_slots::append(
+            flash,
+            slot,
+            index * 1024,
+            &aligned[..chunk.len().next_multiple_of(4)],
+        )?;
+    }
+    Ok(slot)
+}
+
+#[test]
+fn staged_show_does_not_replace_the_committed_show() {
+    let mut flash = Flash::blank();
+    let first = stage_show(&mut flash, &vec![0x35; 78392]).unwrap();
+    show_slots::commit(&mut flash, first).unwrap();
+    let second = stage_show(&mut flash, &vec![0x72; 90003]).unwrap();
+    assert_eq!(show_slots::latest(&mut flash).unwrap(), Some(first));
+    show_slots::commit(&mut flash, second).unwrap();
+    assert_eq!(show_slots::latest(&mut flash).unwrap(), Some(second));
+    assert_eq!(
+        &flash.bytes[second.data_offset()..second.data_offset() + second.length],
+        &vec![0x72; 90003]
+    );
+}
+
+#[test]
+fn interrupted_show_replacement_preserves_a_complete_committed_slot() {
+    let mut saved = Flash::blank();
+    let first = stage_show(&mut saved, &vec![0x35; 78392]).unwrap();
+    show_slots::commit(&mut saved, first).unwrap();
+    saved.writes = 0;
+    let replacement = vec![0x72; 90003];
+    let mut complete = saved.clone();
+    let second = stage_show(&mut complete, &replacement).unwrap();
+    show_slots::commit(&mut complete, second).unwrap();
+    for failure in 1..=complete.writes {
+        let mut flash = saved.clone();
+        flash.fail_at = Some(failure);
+        if let Ok(slot) = stage_show(&mut flash, &replacement) {
+            let _ = show_slots::commit(&mut flash, slot);
+        }
+        flash.fail_at = None;
+        let selected = show_slots::latest(&mut flash).unwrap().unwrap();
+        assert!(selected == first || selected == second);
+        let expected = if selected == first { 0x35 } else { 0x72 };
+        assert!(
+            flash.bytes[selected.data_offset()..selected.data_offset() + selected.length]
+                .iter()
+                .all(|&byte| byte == expected)
+        );
+    }
+}
+
+#[test]
+fn committed_show_corruption_and_invalid_chunk_bounds_are_rejected() {
+    let mut flash = Flash::blank();
+    let slot = stage_show(&mut flash, &vec![0x35; 78392]).unwrap();
+    assert_eq!(
+        show_slots::append(&mut flash, slot, slot.length, &[0; 4]),
+        Err(Error::INVALID)
+    );
+    show_slots::commit(&mut flash, slot).unwrap();
+    flash.bytes[slot.data_offset() + 1234] ^= 1;
+    assert_eq!(show_slots::latest(&mut flash), Err(Error::CORRUPTION));
+}
+
 #[derive(Clone)]
 struct Flash {
     bytes: Vec<u8>,

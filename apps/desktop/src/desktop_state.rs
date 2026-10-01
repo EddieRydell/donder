@@ -50,6 +50,8 @@ pub(crate) struct DesktopServices {
     audio: Arc<Mutex<crate::audio::AudioEngine>>,
     sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
     live_output: Mutex<crate::output::LiveOutputService>,
+    device_playback: crate::device::playback::DevicePlaybackService,
+    transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
     sequence_clipboard: Mutex<Option<crate::gui::SequenceClipboard>>,
     filesystem: Arc<Mutex<()>>,
@@ -60,7 +62,7 @@ pub(crate) struct DesktopServices {
     live_output_poll_running: AtomicBool,
 }
 
-fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -119,6 +121,16 @@ impl DesktopState {
                     audio,
                     sequence_render,
                     live_output: Mutex::new(output),
+                    device_playback: crate::device::playback::DevicePlaybackService::new({
+                        let weak = weak.clone();
+                        move |error| {
+                            if let Some(inner) = weak.upgrade() {
+                                DesktopState(inner)
+                                    .update_snapshot(|snapshot| snapshot.status = error);
+                            }
+                        }
+                    }),
+                    transport_operation: Mutex::new(()),
                     sequence_clip_raster: Mutex::new(
                         crate::sequence_clip_raster::SequenceClipRasterService::new(),
                     ),
@@ -346,6 +358,7 @@ mod diagnostics;
 pub(super) use diagnostics::project_diagnostics;
 mod editor_projection;
 pub(super) use editor_projection::{descriptor_for_path, generated_source_texts};
+mod device_playback;
 mod filesystem;
 mod gui_editing;
 mod output_test;

@@ -10,9 +10,8 @@ pub use types::{
     Identifier, TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue, Type, Value,
 };
 pub use vm::{
-    BoundParams, DslBindCache, GeneratedEffect, GeneratorContext,
-    MAX_VM_INSTRUCTIONS_PER_INVOCATION, OperatorRunContext, RunContext, RuntimeError,
-    SignalSampler, VmWorkspace,
+    BoundParams, DslBindCache, GeneratedEffect, GeneratorContext, MAX_DSL_LOOP_ITERATIONS,
+    OperatorRunContext, RunContext, RuntimeError, SignalSampler, VmWorkspace,
 };
 
 #[derive(

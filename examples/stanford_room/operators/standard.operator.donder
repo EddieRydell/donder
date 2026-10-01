@@ -105,17 +105,21 @@ operator Echo {
     if (count > 32) { count = 32; }
     float fade = clamp(decay, 0.0, 1.0);
     color result = rgb(0.0, 0.0, 0.0);
-    for (int repeat = 0; repeat <= count; repeat = repeat + 1) {
-      float time = seconds() - delay * repeat;
-      if (time >= 0.0) {
-        // Exponentiation by squaring preserves the decay multiplication order.
-        float amount = 1.0;
-        float base = fade;
-        for (int bit = 1; bit <= repeat; bit = bit * 2) {
-          if (repeat % (bit * 2) >= bit) { amount = amount * base; }
-          base = base * base;
+    for (int repeat = 0; repeat <= 32; repeat = repeat + 1) {
+      if (repeat <= count) {
+        float time = seconds() - delay * repeat;
+        if (time >= 0.0) {
+          // Exponentiation by squaring preserves the decay multiplication order.
+          float amount = 1.0;
+          float base = fade;
+          for (int bit = 1; bit <= 32; bit = bit * 2) {
+            if (bit <= repeat) {
+              if (repeat % (bit * 2) >= bit) { amount = amount * base; }
+              base = base * base;
+            }
+          }
+          result = max(result, input.at(time) * amount);
         }
-        result = max(result, input.at(time) * amount);
       }
     }
     return result;

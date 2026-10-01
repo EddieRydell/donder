@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 11;
+pub const FORMAT_VERSION: u32 = 17;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -83,7 +83,11 @@ pub fn payload_length(header: &[u8], limits: LoadLimits) -> Result<usize, LoadEr
     Ok(length)
 }
 
-pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSequence, LoadError> {
+/// Validate the archive in place before allocating decoded playback state.
+fn validate_archive(
+    bytes: &[u8],
+    limits: LoadLimits,
+) -> Result<&Archived<PreparedSequence>, LoadError> {
     use rkyv::validation::{Validator, archive::ArchiveValidator, shared::SharedValidator};
     let header = bytes.get(..HEADER_BYTES).ok_or(LoadError::Header)?;
     let length = payload_length(header, limits)?;
@@ -114,6 +118,11 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
         return Err(LoadError::Limit);
     }
     drop(validator);
+    Ok(archived)
+}
+
+pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSequence, LoadError> {
+    let archived = validate_archive(bytes, limits)?;
     let sequence = rkyv::deserialize::<PreparedSequence, rkyv::rancor::Failure>(archived)
         .map_err(|_| LoadError::Archive)?;
     validate_sequence(&sequence, limits)?;
@@ -121,6 +130,7 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
 }
 
 fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<(), LoadError> {
+    use crate::dsl::bytecode::{ParameterKind, ProgramContext};
     use crate::dsl::{BoundParams, VmWorkspace};
     use crate::signal::{
         CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
@@ -195,8 +205,9 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     let mut registers = [0usize; 5];
     let mut array_capacity = 0usize;
     let mut array_width = 0usize;
+    let mut loop_count = 0usize;
     for program in &signal.programs {
-        if program.pixel_entry as usize > program.instructions.len() {
+        if !program.has_valid_structure() {
             return Err(bad);
         }
         let layout = program.layout;
@@ -211,6 +222,7 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         }
         array_capacity = array_capacity.max(program.array_capacity as usize);
         array_width = array_width.max(program.array_width as usize);
+        loop_count = loop_count.max(program.loop_count as usize);
         if program.frame_cache_count() > program.instructions.len() {
             return Err(bad);
         }
@@ -252,7 +264,7 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     )?;
     reserve(
         1 + plan.vm_workspace_count,
-        VmWorkspace::storage_estimate(registers, array_capacity, array_width)
+        VmWorkspace::storage_estimate(registers, array_capacity, array_width, loop_count)
             .ok_or(LoadError::Limit)?,
     )?;
     reserve(plan.nodes.len(), size_of::<Option<CachedSignal>>())?;
@@ -323,7 +335,22 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                 program,
                 bound_params,
             } => {
-                if *program as usize >= signal.programs.len() || !bound_params.is_frozen() {
+                if !bound_params.is_frozen()
+                    || signal
+                        .programs
+                        .get(*program as usize)
+                        .is_none_or(|program| {
+                            !program.has_valid_context(ProgramContext::Effect)
+                                || !program.has_valid_parameter_reads(|index| {
+                                    bound_params.parameter_kind(index)
+                                })
+                                || !program.has_valid_reference_parameter_reads(
+                                    |index, expected| {
+                                        bound_params.parameter_accepts_type(index, expected)
+                                    },
+                                )
+                        })
+                {
                     return Err(bad);
                 }
             }
@@ -331,9 +358,28 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                 environment,
                 program,
             } => {
-                if *environment as usize >= signal.parameter_environments.len()
-                    || effect.automation.is_some()
-                    || *program as usize >= signal.programs.len()
+                if effect.automation.is_some()
+                    || signal
+                        .parameter_environments
+                        .get(*environment as usize)
+                        .zip(signal.programs.get(*program as usize))
+                        .is_none_or(|(environment, program)| {
+                            !program.has_valid_context(ProgramContext::Effect)
+                                || !program.has_valid_parameter_reads(|index| {
+                                    environment
+                                        .output_types()
+                                        .get(index)
+                                        .map(ParameterKind::for_type)
+                                })
+                                || !program.has_valid_reference_parameter_reads(
+                                    |index, expected| {
+                                        environment
+                                            .output_types()
+                                            .get(index)
+                                            .is_some_and(|actual| expected.accepts(actual))
+                                    },
+                                )
+                        })
                 {
                     return Err(bad);
                 }
@@ -343,6 +389,9 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
             match &effect.implementation {
                 PreparedEffectImplementation::Dsl { bound_params, .. } => {
+                    if !bound_params.has_valid_automation(&automation.bindings) {
+                        return Err(bad);
+                    }
                     reserve(
                         1,
                         bound_params
@@ -391,10 +440,24 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                 if program as usize >= signal.programs.len() {
                     return Err(bad);
                 }
-                if !operator.params.is_frozen() {
+                if !operator.params.is_frozen()
+                    || !signal.programs[program as usize].has_valid_context(
+                        ProgramContext::Operator {
+                            inputs: inputs.len(),
+                        },
+                    )
+                    || !signal.programs[program as usize]
+                        .has_valid_parameter_reads(|index| operator.params.parameter_kind(index))
+                    || !signal.programs[program as usize].has_valid_reference_parameter_reads(
+                        |index, expected| operator.params.parameter_accepts_type(index, expected),
+                    )
+                {
                     return Err(bad);
                 }
                 if !automation.is_empty() {
+                    if !operator.params.has_valid_automation(automation) {
+                        return Err(bad);
+                    }
                     reserve(1, size_of::<(BoundParams, Option<SampleTime>)>())?;
                     reserve(
                         1,

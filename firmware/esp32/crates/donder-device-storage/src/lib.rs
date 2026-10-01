@@ -2,12 +2,21 @@
 
 extern crate alloc;
 
+#[cfg(test)]
+#[path = "../../../src/transport.rs"]
+mod transport;
+
+#[cfg(test)]
+#[path = "../../../src/control_protocol.rs"]
+mod control_protocol;
+
 use alloc::vec::Vec;
 use littlefs2::io::{Read, Write};
 pub use littlefs2::{driver::Storage, io::Error};
 use littlefs2::{fs::Filesystem, path, path::Path};
 
 pub mod credentials;
+pub mod show_slots;
 
 pub use littlefs2::consts;
 

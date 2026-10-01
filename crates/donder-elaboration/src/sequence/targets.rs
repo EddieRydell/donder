@@ -442,10 +442,24 @@ pub(crate) fn spatial_contexts(
 
 #[cfg(test)]
 mod representation_tests {
-    use super::PreparedTargetPixel;
+    use super::{PreparedFixture, PreparedTargetPixel, full_rig_target_pixels};
+    use donder_language::layout::FixtureInstanceId;
 
     #[test]
-    fn prepared_target_pixel_stays_32_bit_compact() {
-        assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 16);
+    fn prepared_target_pixel_has_a_wide_local_index() {
+        assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 20);
+    }
+
+    #[test]
+    fn full_rig_target_accepts_a_fixture_larger_than_u16_indices() {
+        let pixels = full_rig_target_pixels(&[PreparedFixture {
+            id: FixtureInstanceId(1),
+            pixel_count: 65_537,
+            positions: Vec::new(),
+        }])
+        .expect("valid fixture size must fit prepared local indices");
+
+        assert_eq!(pixels.len(), 65_537);
+        assert_eq!(pixels.last().unwrap().fixture_pixel_index, 65_536);
     }
 }

@@ -35,7 +35,6 @@ fn value(binding: &GeneratorBinding, params: &[Value], calculations: &[Vec<Value
 
 fn evaluate(generator: &SpecializedGenerator, params: &[Value], time: u32) -> Vec<Vec<Value>> {
     let mut outputs = Vec::new();
-    let mut remaining_iterations = donder_runtime::dsl::MAX_VM_INSTRUCTIONS_PER_INVOCATION;
     for calculation in &generator.calculations {
         let declarations = calculation
             .inputs
@@ -69,7 +68,6 @@ fn evaluate(generator: &SpecializedGenerator, params: &[Value], time: u32) -> Ve
                     pixel_fraction: 0.0,
                 },
                 &mut VmWorkspace::default(),
-                &mut remaining_iterations,
             )
             .unwrap()
         else {
@@ -92,7 +90,7 @@ fn evaluate(generator: &SpecializedGenerator, params: &[Value], time: u32) -> Ve
 
 #[test]
 fn fixed_loops_capture_values_and_live_loop_carried_calculations() {
-    let source = "effect Parent { fixed param int count = 3; param float level = 1.0; void generate() { float accumulated = 0.0; for (int i = 0; i < count; i = i + 1) { accumulated = accumulated + level; timeline.emit Child { start: i * 0.25, duration: 1.0, target: target, value: accumulated + i }; } } }";
+    let source = "effect Parent { fixed param int count = 3; param float level = 1.0; void generate() { float accumulated = 0.0; for (int i in range(count, 10000)) { accumulated = accumulated + level; timeline.emit Child { start: i * 0.25, duration: 1.0, target: target, value: accumulated + i }; } } }";
     let generator = specialize(
         source,
         &[GeneratorInput::Fixed(Value::Int(3)), GeneratorInput::Live],
@@ -118,6 +116,50 @@ fn fixed_loops_capture_values_and_live_loop_carried_calculations() {
 }
 
 #[test]
+fn invalid_fixed_emission_timing_omits_only_that_child() {
+    let source = "effect Parent {
+        fixed param float early = 0.0;
+        fixed param float empty = 0.0;
+        void generate() {
+            timeline.emit Child { start: early, duration: 1.0, target: target };
+            timeline.emit Child { start: 0.0, duration: empty, target: target };
+            timeline.emit Child { start: 0.5, duration: 1.0, target: target };
+        }
+    }";
+    let compiled = compile_effects(source).unwrap().remove(0);
+    let context = GeneratorContext {
+        start_time: SampleTime::from_ticks(2_000_000),
+        duration: SampleDuration::from_ticks(1_000_000),
+        target: Arc::new(TargetValue { groups: Vec::new() }),
+    };
+    let params = compiled
+        .effect
+        .bind_params_pairs(&[(Identifier::new("early".into()).unwrap(), Value::Float(-3.0))])
+        .unwrap();
+    let generated = compiled
+        .effect
+        .generate_bound(&params, &context, &mut VmWorkspace::default())
+        .unwrap();
+    assert_eq!(generated.len(), 1);
+    assert_eq!(generated[0].start_time.as_ticks(), 2_500_000);
+
+    let specialized = compiled
+        .generator
+        .unwrap()
+        .specialize(
+            &[
+                GeneratorInput::Fixed(Value::Float(-3.0)),
+                GeneratorInput::Fixed(Value::Float(0.0)),
+            ],
+            &context,
+            1,
+        )
+        .unwrap();
+    assert_eq!(specialized.children.len(), 1);
+    assert_eq!(specialized.children[0].start_time.as_ticks(), 2_500_000);
+}
+
+#[test]
 fn unautomated_inputs_fold_to_the_static_child_path() {
     let generator = specialize(
         "effect Parent { param float level = 1.0; void generate() { float value = level * 0.5; timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: value }; } }",
@@ -133,7 +175,7 @@ fn unautomated_inputs_fold_to_the_static_child_path() {
 #[test]
 fn live_only_branches_loops_and_arrays_remain_vm_programs() {
     let generator = specialize(
-        "effect Parent { param int count = 1; void generate() { float total = 0.0; for (int i = 0; i < count; i = i + 1) { total = total + i; } if (count > 0) { total = total + 1.0 / count; } else { total = 0.0; } timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [total, seconds()] }; } }",
+        "effect Parent { param int count = 1; void generate() { float total = 0.0; for (int i in range(count, 10000)) { total = total + i; } if (count > 0) { total = total + 1.0 / count; } else { total = 0.0; } timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [total, seconds()] }; } }",
         &[GeneratorInput::Live],
     );
     assert_eq!(generator.children.len(), 1);
@@ -166,7 +208,7 @@ fn fixed_local_capture_does_not_follow_later_assignment() {
 #[test]
 fn lexical_shadows_in_pure_control_do_not_mutate_outer_bindings() {
     let generator = specialize(
-        "effect Parent { param int count = 1; void generate() { float value = 2.0; for (int value = 0; value < count; value = value + 1) { float value = 5.0; value = value + 1.0; } timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: value }; } }",
+        "effect Parent { param int count = 1; void generate() { float value = 2.0; for (int value in range(count, 10000)) { float value = 5.0; value = value + 1.0; } timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: value }; } }",
         &[GeneratorInput::Live],
     );
     assert_eq!(

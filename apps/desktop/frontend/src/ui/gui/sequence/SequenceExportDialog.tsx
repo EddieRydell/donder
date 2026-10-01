@@ -5,7 +5,7 @@ import { useState } from "react";
 import { commands } from "../../../api";
 import { useAppStore } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
-import type { DeviceFirmwareInfo, DeviceInstallProgress, DeviceCapabilities, DevicePlaybackMode, DeviceTransportStatus, DeviceSerialPort, GuiDocumentRequest, SequenceExportPort } from "../../../types";
+import type { DeviceFirmwareInfo, DeviceInstallProgress, DeviceCapabilities, DevicePlaybackMode, DeviceTransportStatus, DeviceSerialPort, GuiDocumentRequest, SequenceExportPort, SequenceDeviceStatus } from "../../../types";
 
 export function SequenceExportDialog() {
   const request = useAppStore((state) => state.guiRequest);
@@ -31,6 +31,7 @@ export function SequenceExportDialog() {
   const [capabilities, setCapabilities] = useState<DeviceCapabilities | null>(null);
   const [transport, setTransport] = useState<DeviceTransportStatus | null>(null);
   const [uploaded, setUploaded] = useState<string | null>(null);
+  const [devices, setDevices] = useState<SequenceDeviceStatus[]>([]);
   const stale = origin !== null && origin !== request;
   const begin = async () => {
     if (request === null || editing || request.projectRevision !== revision) return;
@@ -41,6 +42,9 @@ export function SequenceExportDialog() {
       const result = await commands.sequenceExportPorts(request);
       if (result.status === "error") throw new Error(result.error);
       setPorts(result.data);
+      const connected = await commands.sequenceDevices();
+      if (connected.status === "error") throw new Error(connected.error);
+      setDevices(connected.data);
       const image = await commands.deviceFirmwareInfo();
       if (image.status === "error") throw new Error(image.error);
       setFirmware(image.data);
@@ -92,6 +96,26 @@ export function SequenceExportDialog() {
       if (result.status === "error") throw new Error(result.error);
       setUploaded(result.data);
       await readTransport(address, token);
+    } catch (error: unknown) { setError(String(error)); }
+    finally { setPending(false); }
+  };
+  const connectEditor = async () => {
+    if (origin === null || stale) return;
+    setPending(true); setError(null);
+    try {
+      const result = await commands.connectSequenceDevice(origin, selected, address, token);
+      if (result.status === "error") throw new Error(result.error);
+      setDevices(result.data);
+      setConnectionStatus("Connected to editor playback. Close this dialog and press Play in the sequence editor.");
+    } catch (error: unknown) { setError(String(error)); }
+    finally { setPending(false); }
+  };
+  const disconnectEditor = async (deviceAddress: string) => {
+    setPending(true); setError(null);
+    try {
+      const result = await commands.disconnectSequenceDevice(deviceAddress);
+      if (result.status === "error") throw new Error(result.error);
+      setDevices(result.data);
     } catch (error: unknown) { setError(String(error)); }
     finally { setPending(false); }
   };
@@ -185,7 +209,7 @@ export function SequenceExportDialog() {
               : installProgress.stage === "verifying" ? "Verifying written firmware..." : "Restarting controller..."}</p>}
             <label>Wi-Fi network name<input value={ssid} onChange={(event) => { setSsid(event.target.value); }} autoComplete="off" /></label>
             <label>Wi-Fi password<input type="password" value={password} onChange={(event) => { setPassword(event.target.value); }} autoComplete="off" /></label>
-            <p>Use a 2.4 GHz WPA2 personal network. Provisioning resets the selected device. Wi-Fi credentials and the uploaded sequence are saved on the controller; a saved sequence restarts after reset.</p>
+            <p>Use a 2.4 GHz WPA2 personal network. Provisioning resets the selected device. Wi-Fi credentials and the uploaded sequence are saved on the controller; playback stays stopped after reset. Remove the Dig-Quad ESP32 module before connecting USB.</p>
             <button type="button" disabled={serialPort === "" || ssid === "" || password === ""} onClick={() => { void provision(); }}>Reset and connect to Wi-Fi</button>
             <label className="device-erase-confirmation"><input type="checkbox" checked={eraseConfirmed} onChange={(event) => { setEraseConfirmed(event.target.checked); }} />Erase the selected controller's saved Wi-Fi credentials, token, and sequence. This cannot be undone.</label>
             <button type="button" disabled={serialPort === "" || !eraseConfirmed} onClick={() => { void eraseSavedData(); }}>Erase saved controller data</button>
@@ -199,8 +223,17 @@ export function SequenceExportDialog() {
             {capabilities !== null && <p>{capabilities.output.type === "ws281x"
               ? `${capabilities.output.lanes} outputs, up to ${capabilities.output.channelsPerLane} channels each in multiples of ${capabilities.output.channelMultiple}, at ${capabilities.output.frameRate} Hz.`
               : "This firmware cannot drive lights."} Maximum sequence payload: {capabilities.maxPayloadBytes} bytes. Storage: persistent flash.</p>}
-            <p>Connect over USB above, or enter the address and token of an already provisioned device. Upload replaces the running sequence and starts playback. Output selection order maps to physical device lanes. Audio is not uploaded.</p>
-            <button type="button" disabled={selected.length === 0 || address === "" || token === "" || capabilities?.output.type !== "ws281x"} onClick={() => { void upload(); }}>Upload and play</button>
+            <p>Output selection order maps to physical device lanes. Upload replaces the saved sequence and leaves playback stopped. Audio plays on the computer.</p>
+            <button type="button" disabled={selected.length === 0 || address === "" || token === "" || capabilities?.output.type !== "ws281x"} onClick={() => { void upload(); }}>Upload sequence</button>
+            <button type="button" disabled={selected.length === 0 || address === "" || token === "" || capabilities?.output.type !== "ws281x"} onClick={() => { void connectEditor(); }}>Connect to editor playback</button>
+          </fieldset>
+          <fieldset className="sequence-device-form" disabled={pending}>
+            <legend>Editor playback devices</legend>
+            <p>Editor Play uploads changed sequences and schedules audio and connected devices together. Pause, Stop, and Seek follow the editor. Connections last for this desktop session.</p>
+            {devices.length === 0 ? <p>No devices connected to editor playback.</p> : devices.map((device) => <div key={device.address}>
+              <p>{device.address} · {device.outputCount} outputs{device.clockUncertaintyMicros === null ? "" : ` · estimated clock uncertainty ${(device.clockUncertaintyMicros / 1000).toFixed(2)} ms`}{device.lastError === null ? "" : ` · ${device.lastError}`}</p>
+              <button type="button" onClick={() => { void disconnectEditor(device.address); }}>Disconnect and stop device</button>
+            </div>)}
           </fieldset>
           {capabilities?.output.type === "ws281x" && <fieldset className="sequence-device-form" disabled={pending}>
             <legend>Device playback</legend>

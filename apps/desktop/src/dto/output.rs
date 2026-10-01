@@ -79,6 +79,7 @@ pub enum DeviceOutputCapabilities {
         channels_per_lane: u32,
         channel_multiple: u32,
         frame_rate: u32,
+        clock_udp_port: u16,
     },
     EvaluationOnly,
 }
@@ -109,6 +110,7 @@ pub enum DevicePlaybackMode {
     Playing,
     Paused,
     Stopped,
+    Ended,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -117,6 +119,19 @@ pub struct DevicePlaybackStatus {
     pub mode: DevicePlaybackMode,
     pub position_micros: u32,
     pub duration_micros: u32,
+    pub archive_crc: u32,
+    pub archive_bytes: u32,
+    pub pending_command: Option<u32>,
+    pub command_id: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceDeviceStatus {
+    pub address: String,
+    pub output_count: u32,
+    pub clock_uncertainty_micros: Option<u32>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

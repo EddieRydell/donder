@@ -174,7 +174,7 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
         setAnimatedPositionSeconds(latest.positionSeconds);
         return;
       }
-      const elapsedSeconds = transportExtrapolationSeconds(current.anchoredAt);
+      const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(current.anchoredAt) - current.transport.startDelaySeconds);
       setAnimatedPositionSeconds(clamp(current.positionSeconds + elapsedSeconds, 0, current.transport.durationSeconds));
       frame = window.requestAnimationFrame(tick);
     };

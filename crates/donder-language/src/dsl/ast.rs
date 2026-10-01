@@ -67,6 +67,17 @@ pub(crate) enum Stmt {
         update: Box<Stmt>,
         body: Block,
     },
+    ForMarks {
+        index: Identifier,
+        marks: Expr,
+        body: Block,
+    },
+    ForRange {
+        index: Identifier,
+        count: Expr,
+        cap: Expr,
+        body: Block,
+    },
     Emit {
         effect: EmittedReference,
         fields: Vec<(Identifier, Expr)>,

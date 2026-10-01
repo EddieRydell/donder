@@ -21,6 +21,7 @@ pub struct PreviewClockSnapshot {
     pub generation: u32,
     pub state: PreviewPlaybackState,
     pub position_seconds: f32,
+    pub start_delay_seconds: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -32,7 +33,12 @@ struct ClockAnchor {
 impl ClockAnchor {
     fn position_at(self, now: Instant) -> f32 {
         if self.snapshot.state == PreviewPlaybackState::Playing {
-            self.snapshot.position_seconds + now.duration_since(self.received_at).as_secs_f32()
+            self.snapshot.position_seconds
+                + (now
+                    .saturating_duration_since(self.received_at)
+                    .as_secs_f32()
+                    - self.snapshot.start_delay_seconds)
+                    .max(0.0)
         } else {
             self.snapshot.position_seconds
         }
@@ -60,6 +66,7 @@ impl PreviewPlayback {
                     generation: 0,
                     state: PreviewPlaybackState::Unavailable,
                     position_seconds: 0.0,
+                    start_delay_seconds: 0.0,
                 },
                 received_at: Instant::now(),
             },

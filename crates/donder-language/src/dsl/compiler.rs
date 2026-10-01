@@ -30,9 +30,17 @@ pub(super) fn compile_value(
     params: &[super::ParamDecl],
     mut statements: Vec<CheckedStmt>,
     result: CheckedExpr,
+    outputs: &[Type],
 ) -> Result<BytecodeProgram, super::Diagnostic> {
     statements.push(CheckedStmt::Return(result));
-    FunctionCompiler::new(params, EffectKind::Generator).compile(CheckedBlock { statements })
+    let program = FunctionCompiler::new(params, EffectKind::Generator)
+        .compile_with_implicit_return(CheckedBlock { statements }, false)?;
+    if !program.has_valid_context(super::bytecode::ProgramContext::Calculation)
+        || !program.has_valid_calculation_outputs(outputs)
+    {
+        return Err(invalid_compiled_program());
+    }
+    Ok(program)
 }
 
 pub(super) fn compile_emission(
@@ -64,6 +72,11 @@ fn compile_effect(
     let mut compiler = FunctionCompiler::new(&effect.params, kind);
     let generator_body = (kind == EffectKind::Generator).then(|| effect.body.clone());
     let bytecode = compiler.compile(effect.body)?;
+    if kind == EffectKind::Sample
+        && !bytecode.has_valid_context(super::bytecode::ProgramContext::Effect)
+    {
+        return Err(invalid_compiled_program());
+    }
     Ok(super::EffectCompilation {
         generator: generator_body.map(|body| {
             super::GeneratorProgram::new(
@@ -87,12 +100,24 @@ fn compile_effect(
 fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, super::Diagnostic> {
     let bytecode = FunctionCompiler::new_operator(&operator.params, &operator.inputs)
         .compile(operator.body)?;
+    if !bytecode.has_valid_context(super::bytecode::ProgramContext::Operator {
+        inputs: operator.inputs.len(),
+    }) {
+        return Err(invalid_compiled_program());
+    }
     Ok(CompiledOperator {
         name: operator.name,
         inputs: operator.inputs,
         params: operator.params,
         bytecode,
     })
+}
+
+fn invalid_compiled_program() -> super::Diagnostic {
+    super::Diagnostic::new(
+        super::lexer::TextSpan { start: 0, end: 0 },
+        "compiler produced invalid bytecode",
+    )
 }
 
 struct FunctionCompiler {
@@ -104,22 +129,14 @@ struct FunctionCompiler {
     scopes: Vec<IndexMap<Identifier, Binding>>,
     param_types: Vec<Type>,
     layout: SlotLayout,
+    ref_types: Vec<Type>,
     kind: EffectKind,
     signal_inputs: IndexMap<Identifier, usize>,
     assigned_names: HashSet<Identifier>,
     context_reads: HashMap<ContextRead, ValueSlot>,
     param_reads: HashMap<ParamId, ValueSlot>,
-    array_roots: Vec<u32>,
-    array_widths: Vec<u32>,
-}
-
-fn array_depth(mut ty: &Type) -> usize {
-    let mut depth = 0;
-    while let Type::Array(item) = ty {
-        depth += 1;
-        ty = item;
-    }
-    depth
+    loop_count: u32,
+    invalid_loop: bool,
 }
 
 fn constant_array_item(expr: &CheckedExpr) -> Option<Value> {
@@ -172,6 +189,9 @@ fn collect_statement_assigned_names(statement: &CheckedStmt, assigned: &mut Hash
             collect_statement_assigned_names(update, assigned);
             collect_assigned_names(body, assigned);
         }
+        CheckedStmt::ForMarks { body, .. } | CheckedStmt::ForRange { body, .. } => {
+            collect_assigned_names(body, assigned)
+        }
         CheckedStmt::Local { .. }
         | CheckedStmt::Expr(_)
         | CheckedStmt::Emit { .. }
@@ -210,7 +230,9 @@ fn float_const_operand(
         | BinaryOp::Multiply
         | BinaryOp::Divide
         | BinaryOp::Remainder => matches!(result_ty, Type::Float),
-        BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => true,
+        BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => {
+            !matches!((&left.ty, &right.ty), (Type::Int, Type::Int))
+        }
         _ => false,
     };
     if !supported {
@@ -268,13 +290,14 @@ impl FunctionCompiler {
             scopes: vec![param_scope],
             param_types: params.iter().map(|param| param.ty.clone()).collect(),
             layout: SlotLayout::default(),
+            ref_types: Vec::new(),
             kind,
             signal_inputs: IndexMap::new(),
             assigned_names: HashSet::new(),
             context_reads: HashMap::new(),
             param_reads: HashMap::new(),
-            array_roots: Vec::new(),
-            array_widths: Vec::new(),
+            loop_count: 0,
+            invalid_loop: false,
         }
     }
 
@@ -292,6 +315,14 @@ impl FunctionCompiler {
     }
 
     fn compile(&mut self, block: CheckedBlock) -> Result<BytecodeProgram, super::Diagnostic> {
+        self.compile_with_implicit_return(block, true)
+    }
+
+    fn compile_with_implicit_return(
+        &mut self,
+        block: CheckedBlock,
+        implicit_return: bool,
+    ) -> Result<BytecodeProgram, super::Diagnostic> {
         collect_assigned_names(&block, &mut self.assigned_names);
         // Parameters are immutable inputs. Assignment uses an ordinary local,
         // initialized once on entry, including assignments inside branches/loops.
@@ -310,13 +341,19 @@ impl FunctionCompiler {
             self.scopes[0].insert(name, Binding::Local(slot));
         }
         self.compile_block(block);
+        if self.invalid_loop {
+            return Err(super::Diagnostic::new(
+                super::lexer::TextSpan { start: 0, end: 0 },
+                "loop bound could not be compiled",
+            ));
+        }
         if self.constants.len() > u32::MAX as usize {
             return Err(super::Diagnostic::new(
                 super::lexer::TextSpan { start: 0, end: 0 },
                 "constant pool exceeds 32-bit addressable capacity",
             ));
         }
-        if self.kind == EffectKind::Generator {
+        if self.kind == EffectKind::Generator && implicit_return {
             let void = self.allocate_slot(&Type::Void);
             let constant = self.add_constant(Value::Void);
             self.emit(Instruction::LoadConst {
@@ -336,13 +373,8 @@ impl FunctionCompiler {
             &mut self.value_operands,
             &mut self.emit_fields,
             &mut self.layout,
+            &mut self.ref_types,
         );
-        let (array_capacity, array_width) = self.array_storage_bound().ok_or_else(|| {
-            super::Diagnostic::new(
-                super::lexer::TextSpan { start: 0, end: 0 },
-                "calculated array storage exceeds 32-bit addressable capacity",
-            )
-        })?;
         let pixel_entry = if self.kind == EffectKind::Sample {
             super::optimize::hoist_uniform(
                 &mut self.instructions,
@@ -352,10 +384,11 @@ impl FunctionCompiler {
         } else {
             0
         };
-        Ok(BytecodeProgram {
+        let mut program = BytecodeProgram {
             pixel_entry,
-            array_capacity,
-            array_width,
+            array_capacity: 0,
+            array_width: 0,
+            loop_count: self.loop_count,
             uses_pixel_context: self.instructions.iter().any(|instruction| {
                 matches!(
                     instruction,
@@ -377,8 +410,32 @@ impl FunctionCompiler {
             instructions: std::mem::take(&mut self.instructions).into_boxed_slice(),
             constants: std::mem::take(&mut self.constants).into_boxed_slice(),
             value_operands: std::mem::take(&mut self.value_operands).into_boxed_slice(),
+            ref_types: std::mem::take(&mut self.ref_types).into_boxed_slice(),
             layout: self.layout,
-        })
+        };
+        let (array_capacity, array_width) = program.required_array_storage().ok_or_else(|| {
+            super::Diagnostic::new(
+                super::lexer::TextSpan { start: 0, end: 0 },
+                "calculated array storage exceeds 32-bit addressable capacity",
+            )
+        })?;
+        program.array_capacity = array_capacity;
+        program.array_width = array_width;
+        if !program.has_valid_structure()
+            || !program.has_valid_parameter_reads(|index| {
+                self.param_types
+                    .get(index)
+                    .map(super::bytecode::ParameterKind::for_type)
+            })
+            || !program.has_valid_reference_parameter_reads(|index, expected| {
+                self.param_types
+                    .get(index)
+                    .is_some_and(|actual| expected.accepts(actual))
+            })
+        {
+            return Err(invalid_compiled_program());
+        }
+        Ok(program)
     }
 
     fn compile_block(&mut self, block: CheckedBlock) {
@@ -473,22 +530,116 @@ impl FunctionCompiler {
                 update,
                 body,
             } => {
+                let Some(iterations) = super::loop_bounds::fixed_for_iterations(
+                    &initializer,
+                    &condition,
+                    &update,
+                    &body,
+                ) else {
+                    self.invalid_loop = true;
+                    return;
+                };
                 self.scopes.push(IndexMap::new());
                 self.compile_statement(*initializer);
-                let loop_start = self.current_target();
-                let condition = self.compile_expr(condition);
-                let condition = self.bool_slot(condition);
+                let count = self.allocate_slot(&Type::Int);
+                let constant = self.add_constant(Value::Int(iterations as i32));
+                self.emit(Instruction::LoadConst {
+                    dst: count,
+                    constant,
+                });
+                let Some((id, loop_start)) = self
+                    .emit_range_start(count, donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS as i32)
+                else {
+                    return;
+                };
                 let dominating_context_reads = self.context_reads.clone();
                 let dominating_param_reads = self.param_reads.clone();
-                let end_jump = self.emit_jump(Instruction::JumpIfFalse {
-                    condition,
-                    target: usize::MAX,
-                });
-                self.emit(Instruction::CheckLoopLimit);
                 self.compile_block(body);
                 self.compile_statement(*update);
-                self.emit(Instruction::Jump(loop_start));
-                self.patch_jump(end_jump, self.current_target());
+                self.finish_loop(id, loop_start);
+                self.context_reads = dominating_context_reads;
+                self.param_reads = dominating_param_reads;
+                let _ = self.scopes.pop();
+            }
+            CheckedStmt::ForMarks { index, marks, body } => {
+                self.scopes.push(IndexMap::new());
+                let source = self.compile_expr(marks);
+                let snapshot = self.allocate_slot(&Type::Marks);
+                self.emit(Instruction::Move {
+                    dst: snapshot,
+                    src: source,
+                });
+                let index_slot = self.allocate_local(index, &Type::Int);
+                let zero = self.add_constant(Value::Int(0));
+                self.emit(Instruction::LoadConst {
+                    dst: index_slot,
+                    constant: zero,
+                });
+                let one_slot = self.allocate_slot(&Type::Int);
+                let one = self.add_constant(Value::Int(1));
+                self.emit(Instruction::LoadConst {
+                    dst: one_slot,
+                    constant: one,
+                });
+                let Some((id, loop_start)) = self.emit_marks_start(self.ref_slot(snapshot)) else {
+                    return;
+                };
+                let dominating_context_reads = self.context_reads.clone();
+                let dominating_param_reads = self.param_reads.clone();
+                self.compile_block(body);
+                self.emit(Instruction::IntArithmetic {
+                    dst: self.int_slot(index_slot),
+                    op: IntArithmeticOp::Add,
+                    left: self.int_slot(index_slot),
+                    right: self.int_slot(one_slot),
+                });
+                self.finish_loop(id, loop_start);
+                self.context_reads = dominating_context_reads;
+                self.param_reads = dominating_param_reads;
+                let _ = self.scopes.pop();
+            }
+            CheckedStmt::ForRange {
+                index,
+                count,
+                cap,
+                body,
+            } => {
+                self.scopes.push(IndexMap::new());
+                let source = self.compile_expr(count);
+                let count = self.allocate_slot(&Type::Int);
+                self.emit(Instruction::Move {
+                    dst: count,
+                    src: source,
+                });
+                let CheckedExprKind::Literal(Value::Int(cap)) = cap.kind else {
+                    self.invalid_loop = true;
+                    return;
+                };
+                let index_slot = self.allocate_local(index, &Type::Int);
+                let zero = self.add_constant(Value::Int(0));
+                self.emit(Instruction::LoadConst {
+                    dst: index_slot,
+                    constant: zero,
+                });
+                let one_slot = self.allocate_slot(&Type::Int);
+                let one = self.add_constant(Value::Int(1));
+                self.emit(Instruction::LoadConst {
+                    dst: one_slot,
+                    constant: one,
+                });
+                let Some((id, loop_start)) = self.emit_range_start(count, cap) else {
+                    return;
+                };
+                let dominating_context_reads = self.context_reads.clone();
+                let dominating_param_reads = self.param_reads.clone();
+                self.compile_block(body);
+                self.emit(Instruction::IntArithmetic {
+                    dst: self.int_slot(index_slot),
+                    op: IntArithmeticOp::Add,
+                    left: self.int_slot(index_slot),
+                    right: self.int_slot(one_slot),
+                });
+                self.finish_loop(id, loop_start);
                 self.context_reads = dominating_context_reads;
                 self.param_reads = dominating_param_reads;
                 let _ = self.scopes.pop();
@@ -569,10 +720,6 @@ impl FunctionCompiler {
                     .into_iter()
                     .map(|item| self.compile_expr(item))
                     .collect::<Vec<_>>();
-                let depth = array_depth(&result_ty);
-                self.array_widths
-                    .resize(self.array_widths.len().max(depth + 1), 0);
-                self.array_widths[depth] = self.array_widths[depth].max(item_slots.len() as u32);
                 let item_slots = self.add_value_operands(item_slots);
                 let dst = self.allocate_slot(&result_ty);
                 let dst = self.ref_slot(dst);
@@ -1200,14 +1347,26 @@ impl FunctionCompiler {
                 _ => unreachable!("checked arithmetic result is numeric"),
             },
             BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => {
-                let left = self.float_slot(left);
-                let right = self.float_slot(right);
-                self.emit(Instruction::FloatCompare {
-                    dst: self.bool_slot(dst),
-                    op: compare_op(op),
-                    left,
-                    right,
-                });
+                match (left, right) {
+                    (ValueSlot::Int(left), ValueSlot::Int(right)) => {
+                        self.emit(Instruction::IntCompare {
+                            dst: self.bool_slot(dst),
+                            op: compare_op(op),
+                            left,
+                            right,
+                        });
+                    }
+                    (left, right) => {
+                        let left = self.float_slot(left);
+                        let right = self.float_slot(right);
+                        self.emit(Instruction::FloatCompare {
+                            dst: self.bool_slot(dst),
+                            op: compare_op(op),
+                            left,
+                            right,
+                        });
+                    }
+                }
             }
             BinaryOp::Equal | BinaryOp::NotEqual => self.emit(Instruction::ValueEqual {
                 dst: self.bool_slot(dst),
@@ -1321,41 +1480,12 @@ impl FunctionCompiler {
     }
 
     fn allocate_slot(&mut self, ty: &Type) -> ValueSlot {
-        let depth = array_depth(ty);
-        if depth != 0 {
-            self.array_roots
-                .resize(self.array_roots.len().max(depth + 1), 0);
-            self.array_roots[depth] += 1;
+        let slot = ValueSlot::for_type(ty, &mut self.layout);
+        if let ValueSlot::Ref(index) = slot {
+            self.ref_types.push(ty.clone());
+            debug_assert_eq!(index.0 as usize, self.ref_types.len() - 1);
         }
-        ValueSlot::for_type(ty, &mut self.layout)
-    }
-
-    fn array_storage_bound(&self) -> Option<(u32, u32)> {
-        if !self
-            .instructions
-            .iter()
-            .any(|op| matches!(op, Instruction::MakeArray { .. }))
-        {
-            return Some((0, 0));
-        }
-        let width = self.array_widths.iter().copied().max().unwrap_or(0);
-        if width == 0 {
-            return Some((0, 0));
-        }
-        let mut live = 0_u32;
-        let mut capacity = 1_u32; // New array before its destination is overwritten.
-        for depth in (1..self.array_roots.len()).rev() {
-            let parent_width = self.array_widths.get(depth + 1).copied().unwrap_or(0);
-            live = live
-                .checked_mul(parent_width)?
-                .checked_add(self.array_roots[depth])?;
-            capacity = capacity.checked_add(live)?;
-        }
-        capacity
-            .checked_mul(width)?
-            .checked_mul(size_of::<Value>() as u32)?;
-        capacity.checked_mul(2)?.checked_add(3)?;
-        Some((capacity, width))
+        slot
     }
 
     fn int_slot(&self, slot: ValueSlot) -> IntSlot {
@@ -1450,6 +1580,57 @@ impl FunctionCompiler {
 
     fn emit(&mut self, instruction: Instruction) {
         self.instructions.push(instruction);
+    }
+
+    fn allocate_loop_id(&mut self) -> Option<u32> {
+        let Some(next) = self.loop_count.checked_add(1) else {
+            self.invalid_loop = true;
+            return None;
+        };
+        let id = self.loop_count;
+        self.loop_count = next;
+        Some(id)
+    }
+
+    fn emit_range_start(&mut self, count: ValueSlot, cap: i32) -> Option<(u32, usize)> {
+        if cap <= 0 || cap as usize > donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS {
+            self.invalid_loop = true;
+            return None;
+        }
+        let id = self.allocate_loop_id()?;
+        self.emit(Instruction::LoopRangeStart {
+            id,
+            count: self.int_slot(count),
+            cap,
+            end: usize::MAX,
+        });
+        Some((id, self.current_target()))
+    }
+
+    fn emit_marks_start(&mut self, marks: RefSlot) -> Option<(u32, usize)> {
+        let id = self.allocate_loop_id()?;
+        self.emit(Instruction::LoopMarksStart {
+            id,
+            marks,
+            end: usize::MAX,
+        });
+        Some((id, self.current_target()))
+    }
+
+    fn finish_loop(&mut self, id: u32, start: usize) {
+        let end = self.current_target();
+        self.emit(Instruction::LoopEnd { id, start });
+        if let Some(
+            Instruction::LoopRangeStart { end: target, .. }
+            | Instruction::LoopMarksStart { end: target, .. },
+        ) = start
+            .checked_sub(1)
+            .and_then(|index| self.instructions.get_mut(index))
+        {
+            *target = end;
+        } else {
+            self.invalid_loop = true;
+        }
     }
 
     fn emit_jump(&mut self, instruction: Instruction) -> usize {

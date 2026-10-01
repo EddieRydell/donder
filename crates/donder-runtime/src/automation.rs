@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::dsl::Identifier;
+use crate::dsl::{Identifier, Type};
 use crate::sampling::sample_curve;
 use crate::values::{Curve, CurvePoint};
 
@@ -11,6 +11,33 @@ pub enum AutomationMapping {
     Bool,
     Enum { values: Vec<Identifier> },
     Curve { min: f32, max: f32 },
+}
+
+impl AutomationMapping {
+    pub fn is_well_formed(&self) -> bool {
+        match self {
+            Self::Float { min, max } | Self::Curve { min, max } => {
+                min.is_finite() && max.is_finite() && min <= max
+            }
+            Self::Int { min, max } => min <= max,
+            Self::Bool => true,
+            Self::Enum { values } => !values.is_empty(),
+        }
+    }
+
+    pub fn accepts_type(&self, ty: &Type) -> bool {
+        self.is_well_formed()
+            && match (self, ty) {
+                (Self::Float { .. }, Type::Float)
+                | (Self::Int { .. }, Type::Int)
+                | (Self::Bool, Type::Bool)
+                | (Self::Curve { .. }, Type::Curve) => true,
+                (Self::Enum { values }, Type::Enum(options)) => {
+                    values.iter().all(|value| options.contains(value))
+                }
+                _ => false,
+            }
+    }
 }
 
 pub enum AutomationValue<'a> {

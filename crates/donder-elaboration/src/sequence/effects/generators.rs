@@ -18,6 +18,7 @@ pub(crate) struct GeneratorExpansion {
 
 pub(crate) struct GeneratorPrepareContext<'a> {
     pub(crate) project: &'a DonderProject,
+    pub(crate) sequence_duration: SampleDuration,
     pub(crate) fixtures: &'a [PreparedFixture],
     pub(crate) environments: &'a mut Vec<donder_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,

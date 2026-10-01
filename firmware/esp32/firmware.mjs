@@ -16,8 +16,9 @@ function requiredPath(name, directoryOnly = false) {
 
 function main() {
   const [mode, ...args] = process.argv.slice(2);
-  if ((mode !== 'build' && mode !== 'cargo') || (mode === 'build' && args.length > 0) || (mode === 'cargo' && args.length === 0)) {
-    throw new Error('Usage: pnpm firmware:build | pnpm firmware:cargo <cargo arguments>');
+  const digQuad = mode === 'build' && args.length === 2 && args[0] === '--board' && args[1] === 'dig-quad';
+  if ((mode !== 'build' && mode !== 'cargo') || (mode === 'build' && args.length > 0 && !digQuad) || (mode === 'cargo' && args.length === 0)) {
+    throw new Error('Usage: pnpm firmware:build [--board dig-quad] | pnpm firmware:cargo <cargo arguments>');
   }
   const library = requiredPath('DONDER_ESP_LIBCLANG_PATH');
   const compilerBin = requiredPath('DONDER_ESP_TOOLCHAIN_BIN', true);
@@ -44,7 +45,7 @@ function main() {
   }
   // Check packaging tooling before starting a potentially lengthy build.
   run('espflash', ['--version']);
-  run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', '--features', 'i2s-output', '--locked']);
+  run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', '--features', digQuad ? 'dig-quad' : 'i2s-output', '--locked']);
   const output = join(root, 'target/firmware');
   mkdirSync(output, { recursive: true });
   const pending = join(output, 'donder-esp32.build.bin');
@@ -55,9 +56,9 @@ function main() {
   const partitions = readFileSync(join(directory, 'partitions.csv'), 'utf8')
     .split(/\r?\n/).filter((line) => line.trim() && !line.trimStart().startsWith('#'))
     .map((line) => line.split(',').map((field) => field.trim()));
-  const data = partitions.filter(([name]) => name === 'donder');
-  if (data.length !== 1 || !/^0x[\da-f]+$/i.test(data[0][3])) throw new Error('Expected exactly one Donder data partition with a hexadecimal offset.');
-  const boundary = Number(data[0][3]);
+  const data = partitions.filter(([name]) => name === 'donder' || name === 'shows');
+  if (data.length !== 2 || new Set(data.map(([name]) => name)).size !== 2 || data.some((entry) => !/^0x[\da-f]+$/i.test(entry[3]))) throw new Error('Expected Donder credential and show partitions with hexadecimal offsets.');
+  const boundary = Math.min(...data.map((entry) => Number(entry[3])));
   const image = readFileSync(pending);
   if (!Number.isSafeInteger(boundary) || image.length <= 0x10000 || image.length > boundary) {
     throw new Error('Packaged image is empty or overlaps the Donder data partition.');

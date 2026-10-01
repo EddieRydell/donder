@@ -163,12 +163,14 @@ impl PreviewHostApplication {
                 generation,
                 state,
                 position_seconds,
+                start_delay_seconds,
             } => {
                 self.playback.set_clock(
                     PreviewClockSnapshot {
                         generation,
                         state: playback_state(state),
                         position_seconds,
+                        start_delay_seconds,
                     },
                     Instant::now(),
                 );

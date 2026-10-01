@@ -9,6 +9,7 @@ impl DesktopState {
     ) -> Result<TransitionResult, String> {
         self.working_copy.finish_pending();
         self.reconcile_external_files()?;
+        let _operation = lock_unpoisoned(&self.transport_operation);
         let _authoring = self.settled_authoring();
         let snapshot = self.snapshot();
         if snapshot.project_epoch != request.project_epoch
@@ -88,6 +89,8 @@ impl DesktopState {
                 matches!(request.decision, Some(TransitionDecision::Discard)),
             ),
             WorkspaceTransition::CloseApplication => {
+                self.device_playback
+                    .stop_for_source(self.snapshot().project_epoch, None)?;
                 self.persistence.record_snapshot(&self.snapshot())?;
                 let mut workspace = lock_unpoisoned(&self.workspace);
                 workspace.close_authorization = Some((

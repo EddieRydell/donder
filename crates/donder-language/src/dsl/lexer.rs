@@ -83,6 +83,7 @@ impl<'source> Lexer<'source> {
             "if" => TokenKind::Keyword(Keyword::If),
             "else" => TokenKind::Keyword(Keyword::Else),
             "for" => TokenKind::Keyword(Keyword::For),
+            "in" => TokenKind::Keyword(Keyword::In),
             "true" => TokenKind::Keyword(Keyword::True),
             "false" => TokenKind::Keyword(Keyword::False),
             _ => TokenKind::Identifier,
@@ -359,6 +360,7 @@ pub enum Keyword {
     If,
     Else,
     For,
+    In,
     True,
     False,
 }

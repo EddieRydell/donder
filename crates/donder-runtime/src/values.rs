@@ -21,49 +21,43 @@ pub fn sample_time_from_frame(frame: u32, frame_rate: u32) -> Result<SampleTime,
     if frame_rate == 0 {
         return Err(SampleTimeError::InvalidFrameRate);
     }
-    let whole_ticks = (frame / frame_rate)
-        .checked_mul(MICROS_PER_SECOND)
-        .ok_or(SampleTimeError::OutOfRange)?;
-    let partial_ticks = (frame % frame_rate)
-        .checked_mul(MICROS_PER_SECOND)
-        .ok_or(SampleTimeError::OutOfRange)?
-        / frame_rate;
-    Ok(SampleTime::from_ticks(
-        whole_ticks
-            .checked_add(partial_ticks)
-            .ok_or(SampleTimeError::OutOfRange)?,
-    ))
+    let whole_ticks = u64::from(frame / frame_rate) * u64::from(MICROS_PER_SECOND);
+    let partial_ticks =
+        u64::from(frame % frame_rate) * u64::from(MICROS_PER_SECOND) / u64::from(frame_rate);
+    let ticks =
+        u32::try_from(whole_ticks + partial_ticks).map_err(|_| SampleTimeError::OutOfRange)?;
+    Ok(SampleTime::from_ticks(ticks))
 }
 
 /// Converts a desktop/audio API value at the boundary of the portable runtime.
 pub fn sample_time_from_seconds_f32(seconds: f32) -> Result<SampleTime, SampleTimeError> {
-    if !seconds.is_finite() {
-        return Err(SampleTimeError::NotFinite);
-    }
-    if seconds < 0.0 {
-        return Err(SampleTimeError::Negative);
-    }
-    let micros = seconds * MICROS_PER_SECOND as f32;
-    if micros > u32::MAX as f32 {
-        return Err(SampleTimeError::OutOfRange);
-    }
-    Ok(SampleTime::from_ticks(libm::roundf(micros) as u32))
+    Ok(SampleTime::from_ticks(positive_seconds_to_ticks(seconds)?))
 }
 
 /// Converts a floating-point DSL duration at the VM boundary. Runtime state
 /// keeps the resulting 32-bit microsecond value, not the source float.
 pub fn sample_duration_from_seconds_f32(seconds: f32) -> Result<SampleDuration, SampleTimeError> {
+    Ok(SampleDuration::from_ticks(positive_seconds_to_ticks(
+        seconds,
+    )?))
+}
+
+fn positive_seconds_to_ticks(seconds: f32) -> Result<u32, SampleTimeError> {
     if !seconds.is_finite() {
         return Err(SampleTimeError::NotFinite);
     }
     if seconds < 0.0 {
         return Err(SampleTimeError::Negative);
     }
-    let micros = seconds * MICROS_PER_SECOND as f32;
-    if micros > u32::MAX as f32 {
+    rounded_ticks(f64::from(seconds) * f64::from(MICROS_PER_SECOND))
+}
+
+fn rounded_ticks(micros: f64) -> Result<u32, SampleTimeError> {
+    let rounded = libm::round(micros);
+    if rounded > f64::from(u32::MAX) {
         return Err(SampleTimeError::OutOfRange);
     }
-    Ok(SampleDuration::from_ticks(libm::roundf(micros) as u32))
+    Ok(rounded as u32)
 }
 
 /// Adds a possibly-negative floating-point DSL offset to the portable clock.
@@ -75,11 +69,8 @@ pub fn sample_time_with_seconds_offset(
     if !seconds.is_finite() {
         return Err(SampleTimeError::NotFinite);
     }
-    let micros = libm::roundf(libm::fabsf(seconds) * MICROS_PER_SECOND as f32);
-    if micros > u32::MAX as f32 {
-        return Err(SampleTimeError::OutOfRange);
-    }
-    let offset = SampleDuration::from_ticks(micros as u32);
+    let micros = f64::from(seconds).abs() * f64::from(MICROS_PER_SECOND);
+    let offset = SampleDuration::from_ticks(rounded_ticks(micros)?);
     if seconds.is_sign_negative() {
         start
             .checked_sub_duration(offset)
@@ -88,6 +79,55 @@ pub fn sample_time_with_seconds_offset(
         start
             .checked_add_duration(offset)
             .ok_or(SampleTimeError::OutOfRange)
+    }
+}
+
+#[cfg(test)]
+mod clock_conversion_tests {
+    use super::{
+        SampleTime, SampleTimeError, sample_duration_from_seconds_f32, sample_time_from_frame,
+        sample_time_from_seconds_f32, sample_time_with_seconds_offset,
+    };
+
+    #[test]
+    fn frame_conversion_uses_wide_intermediates_but_keeps_a_32_bit_clock() {
+        assert_eq!(
+            sample_time_from_frame(4_500, 5_000).unwrap().as_ticks(),
+            900_000
+        );
+        assert_eq!(
+            sample_time_from_frame(u32::MAX, u32::MAX)
+                .unwrap()
+                .as_ticks(),
+            1_000_000
+        );
+        assert_eq!(
+            sample_time_from_frame(u32::MAX, 1),
+            Err(SampleTimeError::OutOfRange)
+        );
+        assert_eq!(
+            sample_time_from_frame(1, 0),
+            Err(SampleTimeError::InvalidFrameRate)
+        );
+    }
+
+    #[test]
+    fn float_seconds_reject_values_that_round_beyond_the_last_tick() {
+        let near_limit = (f64::from(u32::MAX) / 1_000_000.0) as f32;
+        let over_limit = f32::from_bits(near_limit.to_bits() + 1);
+        assert!(sample_time_from_seconds_f32(near_limit).is_ok());
+        assert_eq!(
+            sample_time_from_seconds_f32(over_limit),
+            Err(SampleTimeError::OutOfRange)
+        );
+        assert_eq!(
+            sample_duration_from_seconds_f32(over_limit),
+            Err(SampleTimeError::OutOfRange)
+        );
+        assert_eq!(
+            sample_time_with_seconds_offset(SampleTime::from_ticks(0), over_limit),
+            Err(SampleTimeError::OutOfRange)
+        );
     }
 }
 

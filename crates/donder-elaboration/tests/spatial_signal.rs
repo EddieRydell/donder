@@ -37,7 +37,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     let mut pixels = base.target_pixels.to_vec();
     for (index, pixel) in pixels.iter_mut().enumerate() {
         pixel.fixture_index = (index / 4) as u16;
-        pixel.fixture_pixel_index = (index % 4) as u16;
+        pixel.fixture_pixel_index = (index % 4) as u32;
     }
     let effect_pixels = pixels.clone();
     for (index, pixel) in pixels.iter_mut().enumerate() {

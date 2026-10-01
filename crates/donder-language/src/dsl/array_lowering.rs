@@ -42,7 +42,10 @@ pub(super) fn lower_arrays(
         .filter_map(|op| match op {
             Instruction::Jump(target)
             | Instruction::JumpIfFalse { target, .. }
-            | Instruction::JumpIfTrue { target, .. } => Some(*target),
+            | Instruction::JumpIfTrue { target, .. }
+            | Instruction::LoopRangeStart { end: target, .. }
+            | Instruction::LoopMarksStart { end: target, .. }
+            | Instruction::LoopEnd { start: target, .. } => Some(*target),
             _ => None,
         })
         .collect::<HashSet<_>>();
@@ -120,6 +123,9 @@ pub(super) fn lower_arrays(
             Instruction::Jump(_)
             | Instruction::JumpIfFalse { .. }
             | Instruction::JumpIfTrue { .. }
+            | Instruction::LoopRangeStart { .. }
+            | Instruction::LoopMarksStart { .. }
+            | Instruction::LoopEnd { .. }
             | Instruction::Return(_)
             | Instruction::ReturnColor(_) => arrays.clear(),
             _ => {}
