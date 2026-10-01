@@ -248,9 +248,9 @@ impl Color {
             return None;
         }
         Some(Self {
-            red: u8::from_str_radix(&value[1..3], 16).ok()?,
-            green: u8::from_str_radix(&value[3..5], 16).ok()?,
-            blue: u8::from_str_radix(&value[5..7], 16).ok()?,
+            red: u8::from_str_radix(value.get(1..3)?, 16).ok()?,
+            green: u8::from_str_radix(value.get(3..5)?, 16).ok()?,
+            blue: u8::from_str_radix(value.get(5..7)?, 16).ok()?,
         })
     }
 
@@ -272,7 +272,6 @@ pub struct CurvePoint {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CurveValidationError {
-    Empty,
     NonFinitePoint,
     PositionOutOfRange,
     PositionsNotStrictlyIncreasing,
@@ -281,7 +280,7 @@ pub enum CurveValidationError {
 impl Curve {
     pub fn validate(&self) -> Result<(), CurveValidationError> {
         let Some(first) = self.points.first() else {
-            return Err(CurveValidationError::Empty);
+            return Ok(());
         };
         if !first.position.is_finite() || !first.value.is_finite() {
             return Err(CurveValidationError::NonFinitePoint);
@@ -313,16 +312,12 @@ pub struct Gradient {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GradientValidationError {
-    Empty,
     InvalidPosition,
     PositionsOutOfOrder,
 }
 
 impl Gradient {
     pub fn validate(&self) -> Result<(), GradientValidationError> {
-        if self.stops.is_empty() {
-            return Err(GradientValidationError::Empty);
-        }
         let mut previous = 0.0;
         for stop in &self.stops {
             if !stop.position.is_finite() || !(0.0..=1.0).contains(&stop.position) {

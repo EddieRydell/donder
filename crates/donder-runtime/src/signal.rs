@@ -392,9 +392,16 @@ impl PreparedSignalGraph {
         self.duration
     }
 
+    /// Validate mutable prepared data before any unchecked workspace indexing.
+    /// A previously admitted graph may have been changed by its Rust owner.
+    pub fn workspace(&self) -> Result<EvaluationWorkspace, crate::wire::LoadError> {
+        crate::wire::validate_prepared_signal_graph(self)?;
+        Ok(self.workspace_unchecked())
+    }
+
     /// Preallocates frame buffers, VM registers, calculated-array slots,
-    /// and automation storage.
-    pub fn workspace(&self) -> EvaluationWorkspace {
+    /// and automation storage after admission.
+    pub(crate) fn workspace_unchecked(&self) -> EvaluationWorkspace {
         let mut operator_frame_counts = vec![0usize; self.plan.vm_workspace_count];
         for node in &self.plan.nodes {
             let PreparedSignalKind::Operator {
@@ -554,7 +561,12 @@ impl PreparedSignalGraph {
     }
 
     pub fn evaluate_frame(&self, frame_index: u32) -> Result<EvaluatedFrame, EvaluationError> {
-        self.evaluate_frame_with_workspace(frame_index, &mut self.workspace())
+        let mut workspace = self
+            .workspace()
+            .map_err(|error| EvaluationError::InvalidGraph {
+                message: alloc::format!("invalid prepared signal graph: {error:?}"),
+            })?;
+        self.evaluate_frame_with_workspace(frame_index, &mut workspace)
     }
 
     pub fn evaluate_frame_with_workspace(

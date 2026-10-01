@@ -125,11 +125,75 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
     let archived = validate_archive(bytes, limits)?;
     let sequence = rkyv::deserialize::<PreparedSequence, rkyv::rancor::Failure>(archived)
         .map_err(|_| LoadError::Archive)?;
-    validate_sequence(&sequence, limits)?;
+    validate_sequence(&sequence, Some(limits))?;
     Ok(sequence)
 }
 
-fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<(), LoadError> {
+/// Check a host-prepared sequence before a workspace is constructed. Upload
+/// memory and graph-depth budgets are enforced separately by `decode_sequence`.
+pub fn validate_prepared_sequence(sequence: &PreparedSequence) -> Result<(), LoadError> {
+    validate_sequence(sequence, None)
+}
+
+fn validate_sequence(
+    sequence: &PreparedSequence,
+    limits: Option<LoadLimits>,
+) -> Result<(), LoadError> {
+    let signal = &sequence.signals;
+    let mut workspace = validate_signal_graph(signal, limits)?;
+    let mut reserve = |count: usize, width: usize| -> Result<(), LoadError> {
+        workspace = workspace
+            .checked_add(count.checked_mul(width).ok_or(LoadError::Limit)?)
+            .ok_or(LoadError::Limit)?;
+        if limits.is_some_and(|limits| workspace > limits.workspace_bytes) {
+            return Err(LoadError::Limit);
+        }
+        Ok(())
+    };
+    reserve(1, size_of::<crate::sequence::SequenceWorkspace>())?;
+    for &width in &sequence.output_widths {
+        reserve(width as usize, 1)?;
+    }
+    let bad = LoadError::InvalidSequence;
+    for route in &sequence.patch.routes {
+        if route.pixels.start > route.pixels.end
+            || route.pixels.end as usize > signal.pixel_count
+            || !route.encoding.is_valid()
+            || route
+                .lookup
+                .is_some_and(|index| usize::from(index) >= sequence.patch.lookups.len())
+        {
+            return Err(bad);
+        }
+        let width = (route.pixels.end - route.pixels.start)
+            .checked_mul(route.encoding.channel_order().len() as u32)
+            .ok_or(LoadError::Limit)?;
+        let end = route
+            .start_slot
+            .checked_add(width)
+            .ok_or(LoadError::Limit)?;
+        if sequence
+            .output_widths
+            .get(route.frame as usize)
+            .is_none_or(|&capacity| end > capacity)
+        {
+            return Err(bad);
+        }
+    }
+    Ok(())
+}
+
+/// Admit a bare graph for host preview and elaboration without upload budgets.
+pub fn validate_prepared_signal_graph(
+    signal: &crate::signal::PreparedSignalGraph,
+) -> Result<(), LoadError> {
+    validate_signal_graph(signal, None).map(|_| ())
+}
+
+fn validate_signal_graph(
+    signal: &crate::signal::PreparedSignalGraph,
+    limits: Option<LoadLimits>,
+) -> Result<usize, LoadError> {
     use crate::dsl::bytecode::{ParameterKind, ProgramContext};
     use crate::dsl::{BoundParams, VmWorkspace};
     use crate::signal::{
@@ -141,13 +205,14 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     };
     use crate::values::Color;
     let bad = LoadError::InvalidSequence;
-    let signal = &sequence.signals;
     let plan = &signal.plan;
     if signal.frame_rate == 0
         || signal.duration.as_ticks() == 0
         || signal.frame_count == 0
         || plan.output_index >= plan.nodes.len()
         || plan.target as usize >= signal.targets.len()
+        || plan.vm_workspace_count > plan.nodes.len()
+        || usize::from(plan.frame_buffer_count) > plan.nodes.len()
         || signal.fixture_pixel_offsets.len() != signal.fixtures.len()
         || signal.layers.len() != signal.effects_by_layer.len()
         || plan.frame_slots.len() != plan.nodes.len()
@@ -179,12 +244,11 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
         workspace = workspace
             .checked_add(count.checked_mul(width).ok_or(LoadError::Limit)?)
             .ok_or(LoadError::Limit)?;
-        if workspace > limits.workspace_bytes {
+        if limits.is_some_and(|limits| workspace > limits.workspace_bytes) {
             return Err(LoadError::Limit);
         }
         Ok(())
     };
-    reserve(1, size_of::<crate::sequence::SequenceWorkspace>())?;
     crate::bindings::PreparedParameterEnvironment::validate_all(&signal.parameter_environments)
         .map_err(|_| bad)?;
     reserve(
@@ -268,9 +332,6 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
             .ok_or(LoadError::Limit)?,
     )?;
     reserve(plan.nodes.len(), size_of::<Option<CachedSignal>>())?;
-    for &width in &sequence.output_widths {
-        reserve(width as usize, 1)?;
-    }
     let mut count = 0usize;
     for (fixture, &offset) in signal.fixtures.iter().zip(&signal.fixture_pixel_offsets) {
         if offset != count {
@@ -419,13 +480,14 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     }
     let mut automation_slot = 0;
     let mut depths = Vec::with_capacity(plan.nodes.len());
+    let mut nested_vm_depths = Vec::with_capacity(plan.nodes.len());
     for (index, node) in plan.nodes.iter().enumerate() {
-        let inputs = match &node.kind {
+        let (inputs, vm_slot) = match &node.kind {
             PreparedSignalKind::Layer { layer_index } => {
                 if *layer_index >= signal.layers.len() {
                     return Err(bad);
                 }
-                &[][..]
+                (&[][..], None)
             }
             PreparedSignalKind::Operator {
                 operator,
@@ -471,23 +533,55 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
                     }
                     automation_slot += 1;
                 }
-                &inputs[..]
+                (&inputs[..], Some(*vm_slot))
             }
-            PreparedSignalKind::Output { inputs } => &inputs[..],
+            PreparedSignalKind::Output { inputs } => (&inputs[..], None),
         };
         if inputs.iter().any(|&input| input >= index) {
             return Err(bad);
         }
+        let input_vm_depth = inputs
+            .iter()
+            .map(|&input| nested_vm_depths[input])
+            .max()
+            .unwrap_or(0);
+        let vm_depth = if let Some(slot) = vm_slot {
+            if usize::from(slot) < input_vm_depth {
+                return Err(bad);
+            }
+            usize::from(slot) + 1
+        } else {
+            input_vm_depth
+        };
+        nested_vm_depths.push(vm_depth);
         let depth = inputs.iter().map(|&input| depths[input]).max().unwrap_or(0) + 1;
-        if depth > 32 {
+        if limits.is_some() && depth > 32 {
             return Err(LoadError::Limit);
         }
         depths.push(depth);
     }
+    let mut scheduled = vec![false; plan.nodes.len()];
+    let mut slot_owner = vec![None; usize::from(plan.frame_buffer_count)];
     for &node in &plan.frame_nodes {
-        if node >= plan.nodes.len() || plan.frame_slots[node] >= plan.frame_buffer_count {
+        if node >= plan.nodes.len()
+            || scheduled[node]
+            || plan.frame_slots[node] >= plan.frame_buffer_count
+        {
             return Err(bad);
         }
+        let destination = usize::from(plan.frame_slots[node]);
+        if let PreparedSignalKind::Output { inputs } = &plan.nodes[node].kind
+            && inputs.iter().any(|&input| {
+                let source = usize::from(plan.frame_slots[input]);
+                !scheduled[input]
+                    || source == destination
+                    || slot_owner.get(source) != Some(&Some(input))
+            })
+        {
+            return Err(bad);
+        }
+        slot_owner[destination] = Some(node);
+        scheduled[node] = true;
     }
     reserve(
         signal.frame_scratch_count(),
@@ -500,32 +594,24 @@ fn validate_sequence(sequence: &PreparedSequence, limits: LoadLimits) -> Result<
     if plan.frame_slots[plan.output_index] >= plan.frame_buffer_count {
         return Err(bad);
     }
-    for route in &sequence.patch.routes {
-        if route.pixels.start > route.pixels.end
-            || route.pixels.end as usize > signal.pixel_count
-            || !route.encoding.is_valid()
-            || route
-                .lookup
-                .is_some_and(|index| usize::from(index) >= sequence.patch.lookups.len())
+    let output_owner = slot_owner[usize::from(plan.frame_slots[plan.output_index])];
+    if !scheduled[plan.output_index] {
+        let PreparedSignalKind::Output { inputs } = &plan.nodes[plan.output_index].kind else {
+            return Err(bad);
+        };
+        let [input] = inputs.as_ref() else {
+            return Err(bad);
+        };
+        if !scheduled[*input]
+            || plan.frame_slots[plan.output_index] != plan.frame_slots[*input]
+            || output_owner != Some(*input)
         {
             return Err(bad);
         }
-        let width = (route.pixels.end - route.pixels.start)
-            .checked_mul(route.encoding.channel_order().len() as u32)
-            .ok_or(LoadError::Limit)?;
-        let end = route
-            .start_slot
-            .checked_add(width)
-            .ok_or(LoadError::Limit)?;
-        if sequence
-            .output_widths
-            .get(route.frame as usize)
-            .is_none_or(|&capacity| end > capacity)
-        {
-            return Err(bad);
-        }
+    } else if output_owner != Some(plan.output_index) {
+        return Err(bad);
     }
-    Ok(())
+    Ok(workspace)
 }
 
 pub(crate) struct Microseconds;

@@ -70,7 +70,6 @@ pub(crate) fn prepare_validated_sequence(
         .map(|fixture| fixture.id)
         .collect::<IndexSet<_>>();
     let mut effects = Vec::with_capacity(sequence.effects.len());
-    let mut generated_child_count = 0usize;
     let mut bind_cache = DslBindCache::default();
     let mut sample_programs = IndexMap::new();
     let mut environments = Vec::new();
@@ -104,7 +103,6 @@ pub(crate) fn prepare_validated_sequence(
                 fixture_ids: &fixture_ids,
                 groups: &groups,
                 effects: &mut effects,
-                generated_child_count: &mut generated_child_count,
                 bind_cache: &mut bind_cache,
                 sample_programs: &mut sample_programs,
                 target_cache: &mut target_cache,
@@ -175,8 +173,7 @@ pub(crate) fn prepare_validated_sequence(
         .collect::<Result<Box<[_]>, RenderError>>()?;
     let mut environments = environments.into_boxed_slice();
     super::effects::retained::compact_environments(&mut environments, &mut effects)?;
-    donder_runtime::bindings::PreparedParameterEnvironment::validate_all(&environments)?;
-    Ok(PreparedSignalGraph {
+    let graph = PreparedSignalGraph {
         parameter_environments: environments,
         workspace_key: NEXT_SEQUENCE_ID.fetch_add(1, Ordering::Relaxed),
         frame_rate,
@@ -202,5 +199,11 @@ pub(crate) fn prepare_validated_sequence(
             .collect(),
         layers: layers.into_boxed_slice(),
         plan,
-    })
+    };
+    donder_runtime::wire::validate_prepared_signal_graph(&graph).map_err(|error| {
+        RenderError::BadGraph {
+            message: format!("Prepared signal graph violates runtime invariants: {error:?}"),
+        }
+    })?;
+    Ok(graph)
 }

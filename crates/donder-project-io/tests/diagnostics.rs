@@ -2,13 +2,182 @@ mod common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::DocumentId;
+use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::{
     IoDiagnosticCode, IoDiagnosticSeverity, TextRange, check_document_text, check_project,
     check_project_document_text,
 };
 use std::fs;
+use std::time::Duration;
 
 use common::{load_project as load_local_project, write_workspace_metadata};
+
+#[test]
+fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let session = load_local_project(&root);
+    let mut sequence = session
+        .project
+        .sequences
+        .values()
+        .find(|sequence| !sequence.effects.is_empty())
+        .unwrap()
+        .clone();
+    sequence.frame_rate = 1;
+    sequence.duration = DonderDuration(Duration::from_secs(4_300));
+    let error =
+        donder_language::validation::validate_sequence(&session.project, &sequence).unwrap_err();
+    assert!(error.message.contains("runtime clock range"), "{error:?}");
+
+    sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
+    sequence.effects[0].start = DonderTime(Duration::from_nanos(500));
+    sequence.effects[0].duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
+    let error =
+        donder_language::validation::validate_sequence(&session.project, &sequence).unwrap_err();
+    assert!(error.message.contains("after rounding"), "{error:?}");
+}
+
+#[test]
+fn project_validation_rejects_invalid_edited_curve_definitions() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut session = load_local_project(&root);
+    session
+        .project
+        .definitions
+        .curves
+        .definitions
+        .values_mut()
+        .next()
+        .unwrap()
+        .curve
+        .points[0]
+        .position = f32::NAN;
+    let error = donder_language::validation::validate_project(&session.project).unwrap_err();
+    assert!(error.to_string().contains("Curve"), "{error}");
+}
+
+#[test]
+fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut sources = donder_project_io::project_source_texts(&root).unwrap();
+    let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.gradient.donder");
+    let source = sources.get_mut(&gradient_path).unwrap();
+    *source = source.replacen("position: 0.3499999940395355", "position: -0.1", 1);
+    let report = donder_project_io::check_project_with_overrides(&root, &sources);
+    assert!(report.session.is_none());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("invalid gradient")),
+        "{:?}",
+        report.diagnostics
+    );
+
+    let mut session = load_local_project(&root);
+    session
+        .project
+        .definitions
+        .gradients
+        .definitions
+        .values_mut()
+        .next()
+        .unwrap()
+        .gradient
+        .stops[0]
+        .position = f32::NAN;
+    let error = donder_language::validation::validate_project(&session.project).unwrap_err();
+    assert!(error.to_string().contains("Gradient"), "{error}");
+}
+
+#[test]
+fn edited_operator_parameters_validate_inline_resources() {
+    use donder_language::dsl::{Identifier, compile_operators};
+    use donder_language::effect::{EffectParamValue, GradientSource};
+    use donder_language::identity::SourceIdentity;
+    use donder_language::operator::{
+        GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
+    };
+    use donder_language::sequence::{
+        CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, GraphNodePosition,
+    };
+    use donder_language::values::{Color, Gradient, GradientStop};
+
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut session = load_local_project(&root);
+    let document = session
+        .project
+        .definitions
+        .operators
+        .definitions
+        .keys()
+        .next()
+        .unwrap()
+        .0
+        .document_id()
+        .clone();
+    let id = OperatorDefinitionId(SourceIdentity::from_document(
+        document,
+        "gradient_probe".into(),
+    ));
+    let compiled = compile_operators(
+        "operator GradientProbe { input Signal source; param gradient colors; color sample() { return source.at(seconds()); } }",
+    )
+    .unwrap()
+    .remove(0);
+    session
+        .project
+        .definitions
+        .operators
+        .definitions
+        .insert(id.clone(), custom_operator_definition(id.clone(), compiled));
+    let sequence_id = session.project.sequences.keys().next().unwrap().clone();
+    let sequence = session.project.sequences.get_mut(&sequence_id).unwrap();
+    let mut operator = GraphOperatorNode {
+        operator: OperatorRef::Custom(id),
+        params: Default::default(),
+    };
+    operator.params.insert(
+        Identifier::new("colors".into()).unwrap(),
+        EffectParamValue::Gradient(GradientSource::Inline(Gradient {
+            stops: vec![GradientStop {
+                position: f32::NAN,
+                color: Color::BLACK,
+            }],
+        })),
+    );
+    sequence.composition_graph.nodes.push(CompositionGraphNode {
+        id: CompositionGraphNodeId(900_001),
+        position: GraphNodePosition { x: 0.0, y: 0.0 },
+        kind: CompositionGraphNodeKind::Operator(operator),
+    });
+    let sequence = session.project.sequences.get(&sequence_id).unwrap();
+    let error =
+        donder_language::validation::validate_sequence(&session.project, sequence).unwrap_err();
+    assert!(
+        error.message.contains("inline gradient is invalid"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut sources = donder_project_io::project_source_texts(&root).unwrap();
+    let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.gradient.donder");
+    let source = sources.get_mut(&gradient_path).unwrap();
+    *source = source.replacen("#fff4d6", "#1é234", 1);
+    let report = donder_project_io::check_project_with_overrides(&root, &sources);
+    assert!(report.session.is_none());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.to_lowercase().contains("color")),
+        "{:?}",
+        report.diagnostics
+    );
+}
 
 #[test]
 fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {

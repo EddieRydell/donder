@@ -152,10 +152,11 @@ fn main() {
         for instruction in &effect.bytecode.instructions {
             writeln!(generated, "{},", instruction_source(instruction)).unwrap();
         }
-        writeln!(generated, "]; let program = BytecodeProgram {{ instructions: CODE.into(), constants: vec![{}].into_boxed_slice(), value_operands: vec![{}].into_boxed_slice(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {} }};",
+        writeln!(generated, "]; let program = BytecodeProgram {{ instructions: CODE.into(), constants: vec![{}].into_boxed_slice(), value_operands: vec![{}].into_boxed_slice(), ref_types: vec![{}].into_boxed_slice(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }};",
             effect.bytecode.constants.iter().map(value_source).collect::<Vec<_>>().join(","),
             effect.bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
-            effect.bytecode.layout, effect.bytecode.uses_pixel_context, effect.bytecode.pixel_entry, effect.bytecode.array_capacity, effect.bytecode.array_width).unwrap();
+            effect.bytecode.ref_types.iter().map(type_source).collect::<Vec<_>>().join(","),
+            effect.bytecode.layout, effect.bytecode.uses_pixel_context, effect.bytecode.pixel_entry, effect.bytecode.array_capacity, effect.bytecode.array_width, effect.bytecode.loop_count).unwrap();
         writeln!(generated, "let declarations = [").unwrap();
         for param in &effect.params {
             writeln!(
@@ -193,7 +194,7 @@ fn main() {
             } else {
                 workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 16)
             };
-            let mut workspace = show.workspace();
+            let mut workspace = show.workspace().unwrap();
             let mut buffers = [vec![0; count * 3]];
             let mut vm = donder_language::dsl::VmWorkspace::default();
             let mut frames = Vec::new();
@@ -226,7 +227,7 @@ fn main() {
                 let mut mixed = workload::show(count, effect.bytecode.clone(), bound.clone());
                 workload::apply_operator(&mut mixed, identity.bytecode.clone(), true);
                 workload::insert_invert(&mut mixed, invert.bytecode.clone());
-                let mut workspace = mixed.workspace();
+                let mut workspace = mixed.workspace().unwrap();
                 let mut mixed_frames = Vec::new();
                 for frame in 0..workload::FRAMES {
                     mixed
@@ -249,7 +250,12 @@ fn main() {
                     let mut nested = workload::show(count, effect.bytecode.clone(), bound.clone());
                     workload::apply_operator(&mut nested, operator.bytecode.clone(), true);
                     workload::nest_operator(&mut nested, depth);
-                    let mut workspace = nested.workspace();
+                    let mut workspace = nested.workspace().unwrap();
+                    let mut full_nested =
+                        workload::show(count, effect.bytecode.clone(), bound.clone());
+                    workload::apply_operator(&mut full_nested, operator.bytecode.clone(), false);
+                    workload::nest_operator(&mut full_nested, depth);
+                    let mut full_workspace = full_nested.workspace().unwrap();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
                         nested
@@ -257,16 +263,17 @@ fn main() {
                             .unwrap();
                         let checksum = workload::checksum(&buffers[0]);
                         nested
-                            .evaluate(workload::time(frame), &mut buffers, &mut nested.workspace())
+                            .evaluate(
+                                workload::time(frame),
+                                &mut buffers,
+                                &mut nested.workspace().unwrap(),
+                            )
                             .unwrap();
                         assert_eq!(checksum, workload::checksum(&buffers[0]));
-                        let entry = nested.signals.programs[1].pixel_entry;
-                        nested.signals.programs[1].pixel_entry = 0;
-                        nested
-                            .evaluate(workload::time(frame), &mut buffers, &mut workspace)
+                        full_nested
+                            .evaluate(workload::time(frame), &mut buffers, &mut full_workspace)
                             .unwrap();
                         assert_eq!(checksum, workload::checksum(&buffers[0]));
-                        nested.signals.programs[1].pixel_entry = entry;
                         frames.push(checksum);
                     }
                     depths.push(frames);
@@ -279,7 +286,7 @@ fn main() {
                     let mut automated =
                         workload::show(count, effect.bytecode.clone(), bound.clone());
                     workload::apply_pulse_automation(&mut automated, pulse_program.clone(), empty);
-                    let mut workspace = automated.workspace();
+                    let mut workspace = automated.workspace().unwrap();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
                         automated
@@ -290,7 +297,7 @@ fn main() {
                             .evaluate(
                                 workload::time(frame),
                                 &mut buffers,
-                                &mut automated.workspace(),
+                                &mut automated.workspace().unwrap(),
                             )
                             .unwrap();
                         assert_eq!(checksum, workload::checksum(&buffers[0]));
@@ -313,7 +320,7 @@ fn main() {
                         let mut show =
                             workload::show(count, effect.bytecode.clone(), bound.clone());
                         workload::apply_operator(&mut show, operator.bytecode.clone(), reuse);
-                        let mut workspace = show.workspace();
+                        let mut workspace = show.workspace().unwrap();
                         let mut frames = Vec::new();
                         for frame in 0..workload::FRAMES {
                             show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
@@ -332,7 +339,7 @@ fn main() {
                     let mut show =
                         workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 1);
                     workload::apply_gamma(&mut show, gamma_lookup);
-                    let mut workspace = show.workspace();
+                    let mut workspace = show.workspace().unwrap();
                     for (frame, expected) in gamma_frames.iter().enumerate() {
                         show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
                             .unwrap();
@@ -370,11 +377,12 @@ fn main() {
         ("grouped_program", &grouped),
         ("alternating_program", &alternating),
     ] {
-        writeln!(generated, "pub fn {name}() -> BytecodeProgram {{ BytecodeProgram {{ instructions: vec![{}].into(), constants: vec![{}].into(), value_operands: vec![{}].into(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {} }} }}",
+        writeln!(generated, "pub fn {name}() -> BytecodeProgram {{ BytecodeProgram {{ instructions: vec![{}].into(), constants: vec![{}].into(), value_operands: vec![{}].into(), ref_types: vec![{}].into(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }} }}",
         operator.bytecode.instructions.iter().map(instruction_source).collect::<Vec<_>>().join(","),
         operator.bytecode.constants.iter().map(value_source).collect::<Vec<_>>().join(","),
         operator.bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
-        operator.bytecode.layout, operator.bytecode.uses_pixel_context, operator.bytecode.pixel_entry, operator.bytecode.array_capacity, operator.bytecode.array_width).unwrap();
+        operator.bytecode.ref_types.iter().map(type_source).collect::<Vec<_>>().join(","),
+        operator.bytecode.layout, operator.bytecode.uses_pixel_context, operator.bytecode.pixel_entry, operator.bytecode.array_capacity, operator.bytecode.array_width, operator.bytecode.loop_count).unwrap();
     }
     writeln!(
         generated,
@@ -481,7 +489,7 @@ fn main() {
         let show = generator_workload::show(200, case, true, true);
         let reference = generator_workload::show(200, case, false, true);
         let golden = export_fixture(name, &show);
-        let mut workspace = reference.workspace();
+        let mut workspace = reference.workspace().unwrap();
         let mut output = [vec![0; 600]];
         for (frame, expected) in golden.iter().enumerate() {
             reference
@@ -535,14 +543,14 @@ fn export_fixture(
     let decoded = donder_runtime::wire::decode_sequence(&bytes, Default::default()).unwrap();
     fs::write(directory.join(format!("{name}.donderseq")), bytes).unwrap();
     assert_eq!(&*show.output_widths, &[600]);
-    let mut workspace = decoded.workspace();
+    let mut workspace = decoded.workspace().unwrap();
     let mut output = [vec![0; 600]];
     let mut reference = [vec![0; 600]];
     let mut checksums = String::new();
     let golden = core::array::from_fn(|frame| {
         let time = workload::time(frame);
         decoded.evaluate(time, &mut output, &mut workspace).unwrap();
-        show.evaluate(time, &mut reference, &mut show.workspace())
+        show.evaluate(time, &mut reference, &mut show.workspace().unwrap())
             .unwrap();
         assert_eq!(output, reference);
         assert!(output[0].iter().any(|&byte| byte != 0));

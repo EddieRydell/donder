@@ -2,7 +2,10 @@ use donder_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 extern crate alloc;
 
 use alloc::vec;
-use donder_runtime::dsl::{BoundParams, RunContext, bytecode::BytecodeProgram};
+use donder_runtime::dsl::{
+    BoundParams, RunContext,
+    bytecode::{BytecodeProgram, Instruction},
+};
 use donder_runtime::sequence::PreparedSequence;
 use donder_runtime::signal::*;
 use donder_runtime::values::{SampleDuration, SampleTime};
@@ -171,7 +174,7 @@ pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
     programs.push(program);
     show.signals.programs = programs.into();
     let graph = &mut show.signals.plan;
-    let vm_slot = graph.vm_workspace_count as u16;
+    let vm_slot = 1;
     graph.vm_workspace_count += 1;
     let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
     nodes.insert(
@@ -189,10 +192,16 @@ pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
             },
         },
     );
-    let PreparedSignalKind::Operator { inputs, .. } = &mut nodes[3].kind else {
+    let PreparedSignalKind::Operator {
+        inputs,
+        vm_slot: downstream_slot,
+        ..
+    } = &mut nodes[3].kind
+    else {
         unreachable!()
     };
     inputs[0] = 2;
+    *downstream_slot = 2;
     graph.nodes = nodes.into();
     graph.output_index = 3;
     graph.frame_nodes = vec![3].into();
@@ -295,7 +304,7 @@ pub const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
 
 pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram, reuse: bool) {
     if !reuse {
-        program.pixel_entry = 0;
+        disable_uniform_reuse(&mut program);
     }
     let sequence = &mut show.signals;
     let mut programs = core::mem::take(&mut sequence.programs).into_vec();
@@ -328,6 +337,15 @@ pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram,
         frame_slots: vec![0, 0].into(),
         frame_buffer_count: 1,
     };
+}
+
+pub fn disable_uniform_reuse(program: &mut BytecodeProgram) {
+    program.pixel_entry = 0;
+    for instruction in &mut program.instructions {
+        if let Instruction::SignalSample { frame_cache, .. } = instruction {
+            *frame_cache = u32::MAX;
+        }
+    }
 }
 
 // The firmware receives this host-prepared lookup as data.

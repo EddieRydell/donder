@@ -21,7 +21,7 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         )
         .unwrap();
         let show = &mut output.sequence;
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut buffers = show
             .output_widths
             .iter()
@@ -42,7 +42,7 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         ]);
         for time in times {
             show.evaluate(time, &mut buffers, &mut workspace).unwrap();
-            let mut fresh = show.workspace();
+            let mut fresh = show.workspace().unwrap();
             let mut expected = buffers.clone();
             show.evaluate(time, &mut expected, &mut fresh).unwrap();
             assert_eq!(buffers, expected, "{sequence:?} at {time:?}");

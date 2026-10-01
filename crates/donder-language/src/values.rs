@@ -6,6 +6,7 @@ use core::time::Duration;
 pub enum SecondsError {
     NotFinite,
     Negative,
+    OutOfRange,
 }
 
 pub const NANOS_PER_SECOND: u64 = 1_000_000_000;
@@ -24,11 +25,9 @@ impl DonderTime {
         if seconds < 0.0 {
             return Err(SecondsError::Negative);
         }
-        Ok(Self(Duration::from_secs_f32(seconds)))
-    }
-
-    pub fn from_seconds_f32(seconds: f32) -> Self {
-        Self(Duration::from_secs_f32(seconds))
+        Duration::try_from_secs_f32(seconds)
+            .map(Self)
+            .map_err(|_| SecondsError::OutOfRange)
     }
 
     pub const fn from_nanos(nanos: u64) -> Self {
@@ -60,11 +59,9 @@ impl DonderDuration {
         if seconds < 0.0 {
             return Err(SecondsError::Negative);
         }
-        Ok(Self(Duration::from_secs_f32(seconds)))
-    }
-
-    pub fn from_seconds_f32(seconds: f32) -> Self {
-        Self(Duration::from_secs_f32(seconds))
+        Duration::try_from_secs_f32(seconds)
+            .map(Self)
+            .map_err(|_| SecondsError::OutOfRange)
     }
 
     pub const fn from_nanos(nanos: u64) -> Self {

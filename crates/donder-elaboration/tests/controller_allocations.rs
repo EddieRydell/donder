@@ -94,7 +94,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         assert_prepared_sampling_does_not_allocate(&selected, &frames, "selected output");
         let measure = |output: &PreparedSequenceOutput| {
             let before = LIVE_BYTES.load(Ordering::Relaxed);
-            let workspace = output.sequence.workspace();
+            let workspace = output.sequence.workspace().unwrap();
             let bytes = LIVE_BYTES.load(Ordering::Relaxed) - before;
             drop(workspace);
             bytes
@@ -198,7 +198,7 @@ fn assert_prepared_sampling_does_not_allocate(
     frames: &[u32],
     name: &str,
 ) {
-    let mut workspace = output.workspace();
+    let mut workspace = output.workspace().unwrap();
 
     ALLOCATIONS.store(0, Ordering::Relaxed);
     COUNTING.store(true, Ordering::Relaxed);

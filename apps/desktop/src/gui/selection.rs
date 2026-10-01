@@ -235,9 +235,8 @@ pub(super) fn paste_sequence_clipboard(
                 let mut effect = entry.effect.clone();
                 id_map.insert(effect.id.0, next_id);
                 effect.id = EffectInstId(next_id);
-                effect.start = DonderTime::from_seconds_f32(
-                    anchor.time_seconds + entry.start_seconds - min_start,
-                );
+                effect.start =
+                    super::checked_gui_time(anchor.time_seconds + entry.start_seconds - min_start)?;
                 effect.target = target;
                 sequence.effects.push(effect);
                 effect_ids.push(next_id);
@@ -256,9 +255,9 @@ pub(super) fn paste_sequence_clipboard(
                 let mut clip = entry.clip.clone();
                 clip.id = donder_language::sequence::AutomationClipId(next_id);
                 clip.row_target = target;
-                clip.start = DonderTime::from_seconds_f32(
+                clip.start = super::checked_gui_time(
                     anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
-                );
+                )?;
                 // Copy bindings only within the copied selection. Cut may retain existing bindings
                 // in the same sequence when no other clip has claimed them since the cut.
                 let remap = |target: &mut AutomationTarget| {
@@ -316,7 +315,7 @@ pub(super) fn paste_sequence_clipboard(
                 let time_seconds = (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
                 collection
                     .marks
-                    .push(DonderTime::from_seconds_f32(time_seconds));
+                    .push(super::checked_gui_time(time_seconds)?);
                 collection.marks.sort_by_key(|time| time.0);
                 let index = collection
                     .marks
@@ -449,7 +448,7 @@ pub(super) fn edit_effect_selection(
                     "Effect start must be finite.".into(),
                 ));
             }
-            let start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            let start = super::checked_gui_time(start_seconds.max(0.0))?;
             for id in effect_ids {
                 effect_mut(sequence, *id)?.start = start.clone();
             }
@@ -460,7 +459,7 @@ pub(super) fn edit_effect_selection(
                     "Effect duration must be finite.".into(),
                 ));
             }
-            let duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
             for id in effect_ids {
                 effect_mut(sequence, *id)?.duration = duration.clone();
             }
@@ -534,7 +533,7 @@ fn shifted_start(start: &DonderTime, delta: f32) -> Result<DonderTime, GuiMutati
             "Clip start must be finite and nonnegative.".into(),
         ));
     }
-    Ok(DonderTime::from_seconds_f32(seconds))
+    super::checked_gui_time(seconds)
 }
 
 pub(super) fn resize_clip_selection(
@@ -560,7 +559,7 @@ pub(super) fn resize_clip_selection(
             if matches!(edge, SequenceResizeEdge::Left) {
                 *start = shifted_start(start, time_delta_seconds)?;
             }
-            *duration = DonderDuration::from_seconds_f32(seconds);
+            *duration = super::checked_gui_duration(seconds)?;
             Ok(())
         };
     let sequence = sequence_mut(session, sequence_id)?;
@@ -593,7 +592,7 @@ pub(super) fn move_mark_selection(
             let collection = mark_collection_mut(sequence, &collection_key)?;
             if let Some(value) = collection.marks.get_mut(index) {
                 let time_seconds = (value.as_seconds_f32() + time_delta_seconds).max(0.0);
-                *value = DonderTime::from_seconds_f32(time_seconds);
+                *value = super::checked_gui_time(time_seconds)?;
                 moved_times.push(time_seconds);
             }
         }

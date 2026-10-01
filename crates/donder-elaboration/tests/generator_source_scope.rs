@@ -2,6 +2,7 @@ use camino::Utf8PathBuf;
 use donder_elaboration::PreparedSequenceOutput;
 use donder_language::dsl::Identifier;
 use donder_language::effect::{CurveSource, EffectParamValue, EffectRef, GradientSource};
+use donder_language::values::DonderDuration;
 use donder_language::values::DonderTime;
 use donder_project_io::{check_project_with_overrides, project_source_texts};
 use std::time::Duration;
@@ -161,4 +162,97 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     )
     .unwrap();
     assert!(!prepared.sequence.signals.effects.is_empty());
+}
+
+#[test]
+fn acyclic_generator_chain_can_exceed_four_levels() {
+    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut sources = project_source_texts(&root).unwrap();
+    let generator_path = Utf8PathBuf::from("effects/mark-impact-burst.effect.donder");
+    let source = sources.get_mut(&generator_path).unwrap();
+    for level in 0..5 {
+        source.push_str(&format!(
+            "\neffect Chain{level} {{ void generate() {{ timeline.emit Chain{} {{ start: 0.0, duration: 0.1, target: target }}; }} }}",
+            level + 1
+        ));
+    }
+    source.push_str("\neffect Chain5 { color sample() { return hsv(0.0, 1.0, 1.0); } }");
+    let report = check_project_with_overrides(&root, &sources);
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let mut session = report.session.unwrap();
+    let generator_id = session
+        .project
+        .definitions
+        .effects
+        .definitions
+        .keys()
+        .find(|id| id.0.object() == "Chain0")
+        .unwrap()
+        .clone();
+    let sequence = session
+        .project
+        .sequences
+        .values_mut()
+        .find(|sequence| !sequence.effects.is_empty())
+        .unwrap();
+    sequence.effects.truncate(1);
+    sequence.effects[0].definition = EffectRef::Custom(generator_id);
+    sequence.effects[0].param_overrides.clear();
+    let sequence_id = sequence.id.clone();
+    let prepared = PreparedSequenceOutput::prepare(
+        &session.project,
+        session.project.root.setup.id(),
+        &sequence_id,
+    )
+    .unwrap();
+    assert!(!prepared.sequence.signals.effects.is_empty());
+}
+
+#[test]
+fn prepared_generator_accepts_more_than_four_thousand_mark_children() {
+    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let mut sources = project_source_texts(&root).unwrap();
+    sources
+        .get_mut(&Utf8PathBuf::from("effects/mark-impact-burst.effect.donder"))
+        .unwrap()
+        .push_str("\neffect Many { fixed param marks beats; void generate() { for (int mark in beats) { timeline.emit ManyChild { start: 0.0, duration: 0.1, target: target }; } } } effect ManyChild { color sample() { return #ffffff; } }");
+    let report = check_project_with_overrides(&root, &sources);
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let mut session = report.session.unwrap();
+    let generator_id = session
+        .project
+        .definitions
+        .effects
+        .definitions
+        .keys()
+        .find(|id| id.0.object() == "Many")
+        .unwrap()
+        .clone();
+    let sequence = session
+        .project
+        .sequences
+        .values_mut()
+        .find(|sequence| !sequence.effects.is_empty())
+        .unwrap();
+    sequence.mark_collections[0].marks = vec![DonderTime(Duration::ZERO); 137];
+    let marks = sequence.mark_collections[0].key.clone();
+    sequence.effects.truncate(1);
+    let effect = &mut sequence.effects[0];
+    effect.start = DonderTime(Duration::ZERO);
+    effect.duration = DonderDuration(Duration::from_secs(1));
+    effect.definition = EffectRef::Custom(generator_id);
+    effect.param_overrides = [(
+        Identifier::new("beats".into()).unwrap(),
+        EffectParamValue::Marks(marks),
+    )]
+    .into_iter()
+    .collect();
+    let sequence_id = sequence.id.clone();
+    let prepared = PreparedSequenceOutput::prepare(
+        &session.project,
+        session.project.root.setup.id(),
+        &sequence_id,
+    )
+    .unwrap();
+    assert!(prepared.sequence.signals.effects.len() > 4_096);
 }

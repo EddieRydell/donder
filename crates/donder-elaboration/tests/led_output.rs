@@ -132,7 +132,7 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
         ..LoadLimits::default()
     };
     let decoded = decode_sequence(&selected.encode().unwrap(), limits).unwrap();
-    let mut workspace = decoded.workspace();
+    let mut workspace = decoded.workspace().unwrap();
     let mut buffers: Vec<_> = decoded
         .output_widths
         .iter()

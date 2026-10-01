@@ -19,7 +19,8 @@ fn effect_automation_slots_skip_unautomated_effects() {
     show.signals.effects = vec![show.signals.effects[0].clone(); 4].into();
     show.signals.effects_by_layer[0] = vec![1, 3, 0, 2].into();
     for index in [0, 2] {
-        show.signals.effects[index].start_time = SampleTime::from_ticks(8_000_000);
+        show.signals.effects[index].start_time = SampleTime::from_ticks(7_999_999);
+        show.signals.effects[index].duration = SampleDuration::from_ticks(1);
     }
     for (slot, index) in [1, 3].into_iter().enumerate() {
         show.signals.effects[index].automation = Some(Box::new(PreparedEffectAutomation {
@@ -47,7 +48,7 @@ fn effect_automation_slots_skip_unautomated_effects() {
             .workspace_slot = 0;
         single
     });
-    let mut workspace = show.workspace();
+    let mut workspace = show.workspace().unwrap();
     let mut actual = [vec![0; 600]];
     let mut expected = vec![0; 600];
     let mut component = [vec![0; 600]];
@@ -58,7 +59,7 @@ fn effect_automation_slots_skip_unautomated_effects() {
                 .evaluate(
                     workload::time(frame),
                     &mut component,
-                    &mut single.workspace(),
+                    &mut single.workspace().unwrap(),
                 )
                 .unwrap();
             for (expected, component) in expected.iter_mut().zip(&component[0]) {
@@ -87,7 +88,7 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
             .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
     );
     let show = workload::show(200, effect.bytecode.clone(), params.clone());
-    let mut workspace = show.workspace();
+    let mut workspace = show.workspace().unwrap();
     let mut output = [vec![0; 600]];
     let mut vm = VmWorkspace::default();
     for frame in [0, 31, 4, 0] {
@@ -230,7 +231,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
         show.signals.plan.frame_slots = vec![0; 3].into();
         show.signals.plan.frame_nodes = vec![2].into();
         show.signals.plan.vm_workspace_count = 2;
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut direct = workload::show(200, reference.programs[0].clone(), Default::default());
         direct.signals = reference.clone();
         for min in [0.0, 0.4] {
@@ -246,7 +247,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                 let time = SampleTime::from_ticks(ticks);
                 show.evaluate(time, &mut actual, &mut workspace).unwrap();
                 direct
-                    .evaluate(time, &mut expected, &mut direct.workspace())
+                    .evaluate(time, &mut expected, &mut direct.workspace().unwrap())
                     .unwrap();
                 if source != workload::IDENTITY_SOURCE {
                     let mut past = [vec![0; 600]];
@@ -254,7 +255,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                         .evaluate(
                             SampleTime::from_ticks(ticks / 2),
                             &mut past,
-                            &mut direct.workspace(),
+                            &mut direct.workspace().unwrap(),
                         )
                         .unwrap();
                     for (now, past) in expected[0].iter_mut().zip(&past[0]) {
@@ -303,10 +304,10 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
         );
         full.signals = show.signals.clone();
         for program in &mut full.signals.programs {
-            program.pixel_entry = 0;
+            workload::disable_uniform_reuse(program);
         }
-        let mut workspace = show.workspace();
-        let mut full_workspace = full.workspace();
+        let mut workspace = show.workspace().unwrap();
+        let mut full_workspace = full.workspace().unwrap();
         let mut actual = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
         for frame in [0, 31, 4, 0] {
@@ -380,9 +381,9 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
                 effect.bind_params(&IndexMap::new()).unwrap(),
             );
             full.signals = show.signals.clone();
-            full.signals.programs[1].pixel_entry = 0;
-            let mut workspace = show.workspace();
-            let mut full_workspace = full.workspace();
+            workload::disable_uniform_reuse(&mut full.signals.programs[1]);
+            let mut workspace = show.workspace().unwrap();
+            let mut full_workspace = full.workspace().unwrap();
             let mut actual = [vec![0; 600]];
             let mut expected = [vec![0; 600]];
             for frame in [0, 31, 4, 0] {
@@ -502,10 +503,10 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     );
     full.signals = show.signals.clone();
     for program in &mut full.signals.programs {
-        program.pixel_entry = 0;
+        workload::disable_uniform_reuse(program);
     }
-    let mut workspace = show.workspace();
-    let mut full_workspace = full.workspace();
+    let mut workspace = show.workspace().unwrap();
+    let mut full_workspace = full.workspace().unwrap();
     let mut actual = [vec![0; 600]];
     let mut expected = [vec![0; 600]];
     for frame in [0, 31, 4, 0] {
@@ -541,7 +542,7 @@ fn uniform_frames_match_individual_samples_when_seeking() {
         if wrapped {
             workload::apply_operator(&mut show, identity.bytecode.clone(), true);
         }
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut buffers = [vec![0; 600]];
         let mut vm = VmWorkspace::default();
         for frame in [0, 31, 4, 0] {
@@ -579,13 +580,29 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
         .unwrap();
     let mut show = workload::show(200, effect.bytecode, params);
     let mut output = [vec![0; 600]];
-    show.evaluate(workload::time(0), &mut output, &mut show.workspace())
-        .unwrap();
+    show.evaluate(
+        workload::time(0),
+        &mut output,
+        &mut show.workspace().unwrap(),
+    )
+    .unwrap();
     assert!(output[0].iter().all(|&byte| byte == 0));
-    show.signals.targets[0].pixels = 0..0;
+    show.signals.targets = vec![
+        show.signals.targets[0].clone(),
+        donder_runtime::signal::PreparedTarget {
+            pixels: 0..0,
+            sample_count: 0,
+        },
+    ]
+    .into();
+    show.signals.effects[0].target = 1;
     output[0].fill(255);
-    show.evaluate(workload::time(0), &mut output, &mut show.workspace())
-        .unwrap();
+    show.evaluate(
+        workload::time(0),
+        &mut output,
+        &mut show.workspace().unwrap(),
+    )
+    .unwrap();
     assert!(output[0].iter().all(|&byte| byte == 0));
 }
 
@@ -609,8 +626,8 @@ fn identical_target_routing_matches_address_search() {
     // exactly the same contexts. Production elaboration interns this duplicate.
     searched.signals.targets = vec![direct.signals.targets[0].clone(); 2].into();
     searched.signals.effects[0].target = 1;
-    let mut direct_workspace = direct.workspace();
-    let mut searched_workspace = searched.workspace();
+    let mut direct_workspace = direct.workspace().unwrap();
+    let mut searched_workspace = searched.workspace().unwrap();
     let mut actual = [vec![0; 600]];
     let mut expected = [vec![0; 600]];
     for frame in [0, 31, 4, 0] {
@@ -683,7 +700,7 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
         let params = effect.bind_params(&IndexMap::new()).unwrap();
         for layers in [1, 4, 16] {
             let show = workload::layered_show(200, effect.bytecode.clone(), params.clone(), layers);
-            let mut workspace = show.workspace();
+            let mut workspace = show.workspace().unwrap();
             let mut output = [vec![0; 600]];
             let mut vm = VmWorkspace::default();
             for frame in [0, 31, 4, 0] {

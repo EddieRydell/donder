@@ -409,6 +409,9 @@ use that validator. A sequence must satisfy these rules:
 - `duration` is finite, non-negative source input and is positive once loaded.
 - `frame_rate` is greater than zero, and `duration * frame_rate` cannot exceed
   250,000 prepared frames.
+- Sequence duration and each timed object's start, duration, and rounded end
+  must fit the portable 32-bit microsecond clock; positive durations cannot
+  round to zero.
 - Layer, effect, mark-collection, automation-clip, and control-clip IDs are
   unique. Timed objects fit within the sequence duration.
 - Effects reference an existing layer, a compatible color target, a defined
@@ -492,7 +495,8 @@ members read as zero and `pixel_fraction` reads as `0.0`. Collection counts
 above the DSL integer range report `i32::MAX`.
 Sampling a curve at NaN returns zero. Sampling a gradient at NaN or sampling
 an empty gradient returns black; these rules apply to direct and parameter
-sampling alike.
+sampling alike. Authored gradient stops must have finite positions in `[0, 1]`
+and be nondecreasing; an empty gradient remains valid.
 `curve_crossing` at a NaN query returns its fallback argument for both direct
 and parameter curves. If no fallback is supplied, the query itself is the
 fallback and remains NaN.
@@ -506,12 +510,12 @@ not inherit Rust's panicking `f32::clamp` behavior for invalid bounds.
 
 ## Runtime budgets
 
-The renderer limits a prepared sequence to 250,000 frames, generated effects
-to 4,096 per preparation, and custom-operator Signal sampling to 4,096 unique
-times per operator render. C-style loops are admitted only when proven to
-finish within 10,000 iterations; dynamic `range` loops clamp their count to
-the authored cap. Generator expansion has a separate 10,000-iteration
-preparation budget. Other resource budgets still return errors when exceeded;
+The renderer limits a prepared sequence to 250,000 frames. C-style loops are
+admitted only when each loop is proven to finish within 10,000 iterations;
+dynamic `range` loops clamp their count to the authored cap. Marks iteration
+uses the collection's length. Generator child counts and nesting depth have no
+arbitrary preparation budgets; project validation rejects cyclic generated
+effect references. Other resource budgets still return errors when exceeded;
 the total-preparation proof is not complete yet.
 Portable bytecode encodes loops as paired counted operations with private
 iteration state. Ordinary jumps must go forward, and malformed loop pairs or

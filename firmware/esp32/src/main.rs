@@ -242,7 +242,7 @@ fn main() -> ! {
                 } else {
                     &fixtures::GOLDEN[case][count_index]
                 };
-                let mut workspace = show.workspace();
+                let mut workspace = show.workspace().unwrap();
                 let mut buffers = [vec![0; count * 3]];
                 let setup_us = setup_start.elapsed().as_micros() as u32;
                 let first_start = Instant::now();
@@ -292,7 +292,7 @@ fn main() -> ! {
             Default::default(),
         )
         .unwrap();
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut output = [vec![0; 600]];
         let setup_us = start.elapsed().as_micros() as u32;
         let first_allocations = ALLOCATIONS.load(Relaxed);

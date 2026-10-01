@@ -78,9 +78,9 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
     let (effect, params) = fixtures::uniform_resources();
     let show = workload::show(200, effect.bytecode, params);
     let sequence = &show.signals;
-    let mut workspace = sequence.workspace();
+    let mut workspace = sequence.workspace().unwrap();
     let expected = sequence
-        .evaluate(workload::time(4), &mut sequence.workspace())
+        .evaluate(workload::time(4), &mut sequence.workspace().unwrap())
         .unwrap()
         .to_vec();
     let black = Color {
@@ -327,7 +327,7 @@ fn prepared_calculated_arrays_do_not_allocate_on_the_first_frame() {
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let show = workload::layered_show(200, effect.bytecode, params, 4);
-    let mut workspace = show.workspace();
+    let mut workspace = show.workspace().unwrap();
     let mut buffers = [vec![0; 600]];
     ALLOCATIONS.set(0);
     COUNTING.set(true);
@@ -401,8 +401,8 @@ fn many_signal_times_use_fixed_storage_from_the_first_frame() {
     .unwrap()
     .remove(0);
     workload::apply_operator(&mut show, operator.bytecode, true);
-    let mut workspace = show.workspace();
-    let mut expected_workspace = expected.workspace();
+    let mut workspace = show.workspace().unwrap();
+    let mut expected_workspace = expected.workspace().unwrap();
     let mut actual = [vec![0; 6]];
     let mut expected_bytes = [vec![0; 6]];
     for frame in [0, 31, 4, 0] {
@@ -435,7 +435,7 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
         LIVE_BYTES.set(0);
         PEAK_BYTES.set(0);
         COUNTING.set(true);
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         COUNTING.set(false);
         println!(
             "effects={count} workspace_bytes={} workspace_allocations={}",
@@ -484,12 +484,16 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
                 .remove(0);
             workload::apply_operator(&mut show, operator.bytecode, true);
         }
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut output = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
         for frame in [0, 31, 4, 0] {
-            show.evaluate(workload::time(frame), &mut expected, &mut show.workspace())
-                .unwrap();
+            show.evaluate(
+                workload::time(frame),
+                &mut expected,
+                &mut show.workspace().unwrap(),
+            )
+            .unwrap();
             ALLOCATIONS.set(0);
             COUNTING.set(true);
             let result = show.evaluate(workload::time(frame), &mut output, &mut workspace);
@@ -518,7 +522,7 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
     .remove(0)
     .effect;
     workload::apply_pulse_automation(&mut show, pulse.bytecode, false);
-    let mut workspace = show.workspace();
+    let mut workspace = show.workspace().unwrap();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
     let mut counts = [0; 4];
@@ -529,8 +533,12 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
         COUNTING.set(false);
         counts[index] = ALLOCATIONS.get();
         result.unwrap();
-        show.evaluate(workload::time(frame), &mut expected, &mut show.workspace())
-            .unwrap();
+        show.evaluate(
+            workload::time(frame),
+            &mut expected,
+            &mut show.workspace().unwrap(),
+        )
+        .unwrap();
         assert_eq!(actual, expected);
     }
     assert_eq!(counts, [0; 4]);
@@ -559,8 +567,8 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
     .find(|operator| operator.name().as_str() == "Invert")
     .unwrap();
     workload::insert_invert(&mut show, invert.bytecode);
-    let mut workspace = show.workspace();
-    let mut reference_workspace = reference.workspace();
+    let mut workspace = show.workspace().unwrap();
+    let mut reference_workspace = reference.workspace().unwrap();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
     for frame in [0, 31, 4, 0] {
@@ -607,7 +615,7 @@ fn empty_curve_automation_reserves_its_fallback_point() {
         }]
         .into(),
     }));
-    let mut workspace = show.workspace();
+    let mut workspace = show.workspace().unwrap();
     let mut buffers = [vec![0; 6]];
     ALLOCATIONS.set(0);
     COUNTING.set(true);
@@ -628,7 +636,7 @@ fn retained_nested_array_results_forward_without_first_or_repeated_sample_alloca
         .remove(0).generator.unwrap().specialize(&[], &GeneratorContext {
             start_time: SampleTime::from_ticks(0), duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
-        }, 1).unwrap();
+        }).unwrap();
     let GeneratorBinding::Calculation { index, output } = generator.children[0].params[0].1 else {
         panic!("live calculation")
     };

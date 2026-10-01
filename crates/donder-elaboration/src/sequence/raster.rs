@@ -311,7 +311,6 @@ impl<'a> EffectRasterPrepareBatch<'a> {
                 effect_id: effect_id.clone(),
             })?;
         let mut effects = Vec::new();
-        let mut generated_child_count = 0usize;
         let mut environments = Vec::new();
         let target = prepare_effect_inst(
             PrepareEffectContext {
@@ -322,7 +321,6 @@ impl<'a> EffectRasterPrepareBatch<'a> {
                 fixture_ids: &self.fixture_ids,
                 groups: &self.groups,
                 effects: &mut effects,
-                generated_child_count: &mut generated_child_count,
                 bind_cache: &mut self.bind_cache,
                 sample_programs: &mut self.sample_programs,
                 target_cache: &mut self.target_cache,

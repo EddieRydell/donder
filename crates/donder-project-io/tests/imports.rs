@@ -16,6 +16,25 @@ const CHILD: &str = "effects/impact-burst.effect.donder";
 const EXTRA: &str = "effects/import-test.effect.donder";
 
 #[test]
+fn generated_effect_cycle_is_rejected_when_loading() {
+    let mut sources = project_source_texts(&root()).unwrap();
+    sources
+        .get_mut(&Utf8PathBuf::from(GENERATOR))
+        .unwrap()
+        .push_str("\neffect First { void generate() { timeline.emit Second { start: 0.0, duration: 0.1, target: target }; } } effect Second { void generate() { timeline.emit First { start: 0.0, duration: 0.1, target: target }; } }");
+    let report = check_project_with_overrides(&root(), &sources);
+    assert!(report.session.is_none());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cycle")),
+        "{:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
 fn unused_imported_emissions_validate_types_and_fixed_parameters() {
     for (declaration, argument, expected) in [
         (

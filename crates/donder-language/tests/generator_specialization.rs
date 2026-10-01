@@ -2,6 +2,7 @@ use donder_language::dsl::{
     BoundParams, GeneratorBinding, GeneratorContext, GeneratorInput, Identifier, ParamDecl,
     RunContext, SpecializedGenerator, TargetValue, Value, VmWorkspace, compile_effects,
 };
+use donder_language::values::Marks;
 use donder_language::values::{SampleDuration, SampleTime};
 use std::sync::Arc;
 
@@ -18,7 +19,6 @@ fn specialize(source: &str, inputs: &[GeneratorInput]) -> SpecializedGenerator {
                 duration: SampleDuration::from_ticks(1_000_000),
                 target: Arc::new(TargetValue { groups: Vec::new() }),
             },
-            64,
         )
         .unwrap()
 }
@@ -116,6 +116,26 @@ fn fixed_loops_capture_values_and_live_loop_carried_calculations() {
 }
 
 #[test]
+fn fixed_range_can_emit_more_than_the_old_global_child_limit() {
+    let generator = specialize(
+        "effect Parent { fixed param int count = 5000; void generate() { for (int i in range(count, 10000)) { timeline.emit Child { start: 0.0, duration: 1.0, target: target }; } } }",
+        &[GeneratorInput::Fixed(Value::Int(5_000))],
+    );
+    assert_eq!(generator.children.len(), 5_000);
+}
+
+#[test]
+fn marks_collection_emission_has_no_shared_iteration_budget() {
+    let generator = specialize(
+        "effect Parent { fixed param marks beats; void generate() { for (int mark in beats) { timeline.emit Child { start: 0.0, duration: 1.0, target: target }; } } }",
+        &[GeneratorInput::Fixed(Value::Marks(Arc::new(Marks {
+            marks: vec![SampleDuration::from_ticks(0); 10_001],
+        })))],
+    );
+    assert_eq!(generator.children.len(), 10_001);
+}
+
+#[test]
 fn invalid_fixed_emission_timing_omits_only_that_child() {
     let source = "effect Parent {
         fixed param float early = 0.0;
@@ -152,7 +172,6 @@ fn invalid_fixed_emission_timing_omits_only_that_child() {
                 GeneratorInput::Fixed(Value::Float(0.0)),
             ],
             &context,
-            1,
         )
         .unwrap();
     assert_eq!(specialized.children.len(), 1);

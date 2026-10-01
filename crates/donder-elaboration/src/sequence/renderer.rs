@@ -5,8 +5,6 @@ use donder_language::setup::SetupId;
 use donder_runtime::dsl::RuntimeError;
 use donder_runtime::signal::EvaluationError;
 
-pub const MAX_GENERATED_EFFECTS: usize = 4_096;
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum RenderError {
     InvalidTiming { reason: String },

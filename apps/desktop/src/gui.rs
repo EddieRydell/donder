@@ -4,6 +4,7 @@ use camino::Utf8Path;
 use donder_language::effect::EffectInst;
 use donder_language::identity::SourceIdentity;
 use donder_language::sequence::SequenceId;
+use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use crate::dto::{
@@ -49,3 +50,26 @@ pub use document::{GuiMutationError, blocked, project_gui_document};
 pub(crate) use document::{
     ResolvedGuiObject, affected_paths, ensure_owned_gui_document, gui_diagnostic, resolve_request,
 };
+
+fn checked_gui_time(seconds: f32) -> Result<DonderTime, GuiMutationError> {
+    DonderTime::try_from_seconds_f32(seconds)
+        .map_err(|_| GuiMutationError::Invalid("Time is outside the supported range.".into()))
+}
+
+fn checked_gui_duration(seconds: f32) -> Result<DonderDuration, GuiMutationError> {
+    DonderDuration::try_from_seconds_f32(seconds)
+        .map_err(|_| GuiMutationError::Invalid("Duration is outside the supported range.".into()))
+}
+
+#[cfg(test)]
+mod time_conversion_tests {
+    use super::{checked_gui_duration, checked_gui_time};
+
+    #[test]
+    fn finite_but_unrepresentable_gui_times_are_rejected_without_panicking() {
+        assert!(checked_gui_time(f32::MAX).is_err());
+        assert!(checked_gui_duration(f32::MAX).is_err());
+        assert!(checked_gui_time(1.0).is_ok());
+        assert!(checked_gui_duration(1.0).is_ok());
+    }
+}

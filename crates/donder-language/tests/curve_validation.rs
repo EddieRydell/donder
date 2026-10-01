@@ -2,6 +2,13 @@ use donder_language::sampling::sample_curve;
 use donder_language::values::{Curve, CurvePoint, CurveValidationError};
 
 #[test]
+fn empty_curve_is_valid_and_samples_zero() {
+    let curve = Curve { points: vec![] };
+    assert_eq!(curve.validate(), Ok(()));
+    assert_eq!(sample_curve(&curve, 0.5), 0.0);
+}
+
+#[test]
 fn unsorted_curves_are_rejected() {
     let curve = Curve {
         points: vec![

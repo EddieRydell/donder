@@ -77,8 +77,8 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let disconnected = donder_elaboration::elaborate_sequence(&project, &setup, &id).unwrap();
     assert_eq!(baseline.plan.nodes.len(), disconnected.plan.nodes.len());
     assert_eq!(baseline.programs.len(), disconnected.programs.len());
-    let mut before = baseline.workspace();
-    let mut after = disconnected.workspace();
+    let mut before = baseline.workspace().unwrap();
+    let mut after = disconnected.workspace().unwrap();
     for ticks in [0, 1_000_000, 3_000_000] {
         let expected = baseline
             .evaluate(SampleTime::from_ticks(ticks), &mut before)

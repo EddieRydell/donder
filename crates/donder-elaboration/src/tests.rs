@@ -102,7 +102,7 @@ fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
                 .fold(hash, |hash, slot| hash.wrapping_mul(16777619)
                     ^ u64::from(*slot)))
     );
-    let mut workspace = renderer.workspace();
+    let mut workspace = renderer.workspace().unwrap();
     let sampled = renderer
         .sample_into(first.sample_time, &mut workspace)
         .unwrap();

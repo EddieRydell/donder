@@ -1,7 +1,6 @@
 use std::time::{Duration, Instant};
 
-use donder_runtime::sequence::PreparedSequence;
-use donder_runtime::signal::EvaluationWorkspace;
+use donder_runtime::sequence::SequencePlayback;
 use donder_runtime::values::sample_time_from_seconds_f32;
 use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence};
 
@@ -46,8 +45,7 @@ impl ClockAnchor {
 }
 
 pub struct PreviewPlayback {
-    sequence: Option<PreparedSequence>,
-    workspace: Option<EvaluationWorkspace>,
+    sequence: Option<SequencePlayback>,
     colors: Vec<PreviewColor>,
     unlit: PreviewColor,
     clock: ClockAnchor,
@@ -58,7 +56,6 @@ impl PreviewPlayback {
     pub fn new(unlit: PreviewColor) -> Self {
         Self {
             sequence: None,
-            workspace: None,
             colors: Vec::new(),
             unlit,
             clock: ClockAnchor {
@@ -101,10 +98,10 @@ impl PreviewPlayback {
                 scene: instance_count,
             });
         }
-        self.workspace = sequence
-            .as_ref()
-            .map(|sequence| sequence.signals.workspace());
-        self.sequence = sequence;
+        self.sequence = sequence
+            .map(|sequence| sequence.into_playback())
+            .transpose()
+            .map_err(PreviewPlaybackError::Decode)?;
         self.colors.clear();
         self.colors.resize(instance_count, self.unlit);
         self.last_frame = None;
@@ -120,7 +117,7 @@ impl PreviewPlayback {
     }
 
     pub fn evaluate(&mut self, now: Instant) -> Result<bool, PreviewPlaybackError> {
-        let Some(sequence) = self.sequence.as_ref() else {
+        let Some(sequence) = self.sequence.as_mut() else {
             return Ok(self.last_frame.take().is_some());
         };
         if self.clock.snapshot.state == PreviewPlaybackState::Unavailable {
@@ -130,8 +127,8 @@ impl PreviewPlayback {
             return Ok(changed);
         }
         let position = self.clock.position_at(now).max(0.0);
-        let frame_rate = sequence.signals.frame_rate();
-        let frame_count = sequence.signals.frame_count();
+        let frame_rate = sequence.sequence().signals.frame_rate();
+        let frame_count = sequence.sequence().signals.frame_count();
         let frame = frame_at_position(position, frame_rate, frame_count);
         let key = (self.clock.snapshot.generation, frame);
         if self.last_frame == Some(key) {
@@ -139,13 +136,8 @@ impl PreviewPlayback {
         }
         let sample_time = sample_time_from_seconds_f32(position)
             .map_err(|_| PreviewPlaybackError::ClockPosition)?;
-        let workspace = self
-            .workspace
-            .as_mut()
-            .ok_or(PreviewPlaybackError::Workspace)?;
         let evaluated = sequence
-            .signals
-            .evaluate(sample_time, workspace)
+            .evaluate_signals(sample_time)
             .map_err(|_| PreviewPlaybackError::Evaluation)?;
         for (target, color) in self.colors.iter_mut().zip(evaluated) {
             *target = PreviewColor::opaque([color.red, color.green, color.blue]);
@@ -163,7 +155,7 @@ impl PreviewPlayback {
         if self.clock.snapshot.state != PreviewPlaybackState::Playing {
             return None;
         }
-        let frame_rate = sequence.signals.frame_rate();
+        let frame_rate = sequence.sequence().signals.frame_rate();
         if frame_rate == 0 {
             return None;
         }
@@ -199,6 +191,5 @@ pub enum PreviewPlaybackError {
     Decode(LoadError),
     PixelCount { sequence: usize, scene: usize },
     ClockPosition,
-    Workspace,
     Evaluation,
 }

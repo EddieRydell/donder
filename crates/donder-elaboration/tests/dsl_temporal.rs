@@ -103,8 +103,8 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
                 }
             }
         }
-        let mut workspace = graph.workspace();
-        let mut scalar_workspace = scalar.workspace();
+        let mut workspace = graph.workspace().unwrap();
+        let mut scalar_workspace = scalar.workspace().unwrap();
         for frame in [0, 1, 4, 31, 12, 4, 0, 31] {
             let actual = graph
                 .evaluate(workload::time(frame), &mut workspace)

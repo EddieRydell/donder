@@ -137,8 +137,8 @@ pub(crate) fn expand(
     inputs: &[ParameterInput],
     expansion: GeneratorExpansion,
 ) -> Result<(), RenderError> {
-    if expansion.depth >= 4 {
-        return Err(error("generator depth limit exceeded"));
+    if expansion.depth >= context.project.definitions.effects.definitions.len() {
+        return Err(error("generated effect references form a cycle"));
     }
     for (param, input) in definition.params.iter().zip(inputs) {
         if param.fixed && matches!(input, ParameterInput::Source(_)) {
@@ -165,7 +165,6 @@ pub(crate) fn expand(
             duration: expansion.duration,
             target: generator_context_target(context.target_cache, &expansion.target),
         },
-        crate::MAX_GENERATED_EFFECTS.saturating_sub(*context.generated_child_count),
     )?;
     let mut calculations = Vec::new();
     for calculation in specialized.calculations {
@@ -232,10 +231,6 @@ pub(crate) fn expand(
         {
             continue;
         }
-        if *context.generated_child_count >= crate::MAX_GENERATED_EFFECTS {
-            return Err(error("generated child limit exceeded"));
-        }
-        *context.generated_child_count += 1;
         let child_expansion = GeneratorExpansion {
             start_time: child.start_time,
             duration: child.duration,

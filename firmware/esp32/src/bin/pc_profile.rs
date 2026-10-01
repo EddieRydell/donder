@@ -143,7 +143,7 @@ fn main() -> ! {
                 &fixtures::GENERATOR_GOLDEN[index],
             )
         };
-        let mut workspace = show.workspace();
+        let mut workspace = show.workspace().unwrap();
         let mut output = [vec![0; 600]];
         show.evaluate(workload::time(0), &mut output, &mut workspace)
             .unwrap();

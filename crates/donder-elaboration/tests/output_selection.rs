@@ -91,8 +91,8 @@ fn compare(
     let fragment =
         PreparedSequenceOutput::prepare_selected(project, project.root.setup.id(), id, selected)
             .unwrap();
-    let mut full_workspace = full.workspace();
-    let mut workspace = fragment.workspace();
+    let mut full_workspace = full.workspace().unwrap();
+    let mut workspace = fragment.workspace().unwrap();
     let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
         .map(|frame| sample_time_from_frame(frame, full.frame_rate()).unwrap())
         .to_vec();
@@ -255,8 +255,8 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             },
         )
         .unwrap();
-        let mut original_workspace = fragment.workspace();
-        let mut decoded_workspace = decoded.workspace();
+        let mut original_workspace = fragment.workspace().unwrap();
+        let mut decoded_workspace = decoded.workspace().unwrap();
         let mut original = vec![vec![0; fragment.output_widths[0] as usize]];
         let mut restored = original.clone();
         let time = SampleTime::from_ticks(59_000_000);
@@ -392,7 +392,7 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
         node.kind,
         donder_runtime::signal::PreparedSignalKind::Operator { .. }
     )));
-    let mut workspace = fragment.workspace();
+    let mut workspace = fragment.workspace().unwrap();
     let mut buffers = vec![vec![0; fragment.output_widths[0] as usize]];
     fragment
         .evaluate(SampleTime::from_ticks(0), &mut buffers, &mut workspace)

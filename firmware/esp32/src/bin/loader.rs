@@ -29,7 +29,7 @@ use core::{
 #[cfg(feature = "i2s-output")]
 use donder_runtime::values::sample_time_from_frame;
 use donder_runtime::{
-    sequence::{PreparedSequence, SequenceWorkspace},
+    sequence::SequencePlayback,
     values::SampleTime,
     wire::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence},
 };
@@ -110,8 +110,7 @@ fn local_micros() -> u64 {
 }
 
 struct Playback {
-    sequence: PreparedSequence,
-    workspace: SequenceWorkspace,
+    show: SequencePlayback,
     buffers: Vec<Vec<u8>>,
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
@@ -124,9 +123,10 @@ struct Playback {
 #[cfg(feature = "i2s-output")]
 impl Playback {
     fn render(&mut self, display_time: u64) {
-        let (mode, position) = self
-            .transport
-            .sample(display_time, self.sequence.signals.duration.as_ticks());
+        let (mode, position) = self.transport.sample(
+            display_time,
+            self.show.sequence().signals.duration.as_ticks(),
+        );
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             for buffer in &mut self.buffers {
                 buffer.fill(0);
@@ -135,9 +135,7 @@ impl Playback {
         }
         let frame = (u64::from(position) * u64::from(OUTPUT_FRAME_RATE) / 1_000_000) as u32;
         let time = sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap();
-        self.sequence
-            .evaluate(time, &mut self.buffers, &mut self.workspace)
-            .unwrap();
+        self.show.evaluate(time, &mut self.buffers).unwrap();
         #[cfg(feature = "dig-quad")]
         for buffer in &mut self.buffers {
             for channel in buffer {
@@ -244,9 +242,10 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
     {
         return Err(LoadError::Limit);
     }
-    let workspace = sequence.workspace();
+    let show = sequence.into_playback()?;
     println!("LOAD workspace heap_free={}", esp_alloc::HEAP.free());
-    let buffers = sequence
+    let buffers = show
+        .sequence()
         .output_widths
         .iter()
         .map(|&width| vec![0; width as usize])
@@ -256,8 +255,7 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         archive_crc: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
         #[cfg(feature = "i2s-output")]
         archive_bytes: bytes.len() as u32,
-        sequence,
-        workspace,
+        show,
         buffers,
         #[cfg(feature = "i2s-output")]
         transport: transport::Transport::new(),
@@ -511,7 +509,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let start = Instant::now();
         match load(bytes) {
             Ok(playback) => {
-                let pixels = playback.sequence.signals.pixel_count;
+                let pixels = playback.show.sequence().signals.pixel_count;
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
                 if show_slots::commit(&mut storage.shows(), slot).is_err() {
@@ -593,13 +591,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
 
         let ticks = u32::from_le_bytes(ticks);
         let mut active = state.playback.lock().await;
-        let Some(Playback {
-            sequence,
-            workspace,
-            buffers,
-            ..
-        }) = active.as_mut()
-        else {
+        let Some(Playback { show, buffers, .. }) = active.as_mut() else {
             drop(active);
             return (StatusCode::CONFLICT, "REJECT NoSequence\n")
                 .write_to(connection, response_writer)
@@ -613,7 +605,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
             Relaxed,
         );
         let start = Instant::now();
-        let result = sequence.evaluate(SampleTime::from_ticks(ticks), buffers, workspace);
+        let result = show.evaluate(SampleTime::from_ticks(ticks), buffers);
         let elapsed = start.elapsed().as_micros();
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_allocations = EVALUATION_ALLOCATIONS.load(Relaxed) - evaluation_allocations;
@@ -718,7 +710,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             } else {
                 playback
                     .transport
-                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
                     .1
             };
             playback.transport.apply(mode, position, now, true);
@@ -727,13 +719,13 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             playback: active.as_ref().map(|playback| PlaybackStatus {
                 mode: playback
                     .transport
-                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
                     .0,
                 position_micros: playback
                     .transport
-                    .sample(now, playback.sequence.signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
                     .1,
-                duration_micros: playback.sequence.signals.duration.as_ticks(),
+                duration_micros: playback.show.sequence().signals.duration.as_ticks(),
                 archive_crc: playback.archive_crc,
                 archive_bytes: playback.archive_bytes,
                 pending_command: playback.transport.pending.map(|command| command.id),
@@ -977,9 +969,10 @@ async fn render_outputs(
             Relaxed,
         );
         if let Some(playback) = active.as_mut() {
-            playback
-                .transport
-                .refresh(master_now, playback.sequence.signals.duration.as_ticks());
+            playback.transport.refresh(
+                master_now,
+                playback.show.sequence().signals.duration.as_ticks(),
+            );
             playback.render(next_latch);
         }
         EVALUATION_TASK.store(0, Relaxed);

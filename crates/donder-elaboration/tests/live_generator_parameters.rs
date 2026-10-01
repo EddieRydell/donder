@@ -190,14 +190,16 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
     .unwrap();
     let reference = compile_effects("effect Reference { color sample() { return rgb((seconds() + 0.5) / 4.0 + min(seconds() + 0.5, 1.0) * 0.25 + (seconds() + 0.25) / 4.0, seconds() / 4.0, progress()); } }").unwrap().remove(0).effect;
     let params = reference.bind_params_pairs(&[]).unwrap();
-    let mut workspace = signal.workspace();
-    let mut decoded_workspace = decoded.signals.workspace();
+    let mut workspace = signal.workspace().unwrap();
+    let mut decoded_workspace = decoded.signals.workspace().unwrap();
     for tick in [1_500_000, 1_750_000, 2_500_000, 1_500_000, 3_000_000] {
         let time = SampleTime::from_ticks(tick);
         let actual = signal.evaluate(time, &mut workspace).unwrap().to_vec();
         assert_eq!(
             actual,
-            signal.evaluate(time, &mut signal.workspace()).unwrap()
+            signal
+                .evaluate(time, &mut signal.workspace().unwrap())
+                .unwrap()
         );
         assert_eq!(
             actual,
@@ -315,8 +317,8 @@ fn temporal_and_spatial_queries_share_live_bindings_in_recursive_frames_and_pixe
     ] {
         let framed = query_graph(base, expression, true);
         let scalar = query_graph(base, expression, false);
-        let mut frames = framed.workspace();
-        let mut pixels = scalar.workspace();
+        let mut frames = framed.workspace().unwrap();
+        let mut pixels = scalar.workspace().unwrap();
         for tick in [1_250_000, 1_750_000, 2_500_000, 1_250_000] {
             let time = SampleTime::from_ticks(tick);
             let actual = framed.evaluate(time, &mut frames).unwrap();
@@ -325,7 +327,7 @@ fn temporal_and_spatial_queries_share_live_bindings_in_recursive_frames_and_pixe
                 assert_eq!(actual, expected, "{expression} at {tick} pixel {index}");
             }
             let fresh = framed
-                .evaluate(time, &mut framed.workspace())
+                .evaluate(time, &mut framed.workspace().unwrap())
                 .unwrap()
                 .to_vec();
             assert!(actual.iter().eq(fresh.iter()));
@@ -406,8 +408,8 @@ fn generator_workloads_match_ordinary_samples_and_allocate_nothing_during_playba
                 let reference = generator_workload::show(count, case, false, automated);
                 assert_eq!(show.signals.effects.len(), reference.signals.effects.len());
                 assert_eq!(show.signals.parameter_environments.is_empty(), !automated);
-                let mut workspace = show.workspace();
-                let mut reference_workspace = reference.workspace();
+                let mut workspace = show.workspace().unwrap();
+                let mut reference_workspace = reference.workspace().unwrap();
                 let mut buffers = show
                     .output_widths
                     .iter()
@@ -452,8 +454,8 @@ fn alternating_query_times_keep_forwarded_curves_current_without_allocations() {
             let expression = "max(source.at(seconds()), source.at(seconds() - 0.125))";
             let graph = query_graph(&show.signals, expression, cached);
             let reference = query_graph(&reference.signals, expression, cached);
-            let mut workspace = graph.workspace();
-            let mut reference_workspace = reference.workspace();
+            let mut workspace = graph.workspace().unwrap();
+            let mut reference_workspace = reference.workspace().unwrap();
             for frame in [0, 31, 12, 0] {
                 let time = workload::time(frame);
                 let expected = reference.evaluate(time, &mut reference_workspace).unwrap();

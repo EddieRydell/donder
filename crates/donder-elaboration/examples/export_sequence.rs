@@ -38,8 +38,8 @@ fn main() {
     let sequence = &prepared.sequence;
     let bytes = encode_sequence(sequence).unwrap();
     let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
-    let mut source_workspace = sequence.workspace();
-    let mut workspace = decoded.workspace();
+    let mut source_workspace = sequence.workspace().unwrap();
+    let mut workspace = decoded.workspace().unwrap();
     let mut source = sequence
         .output_widths
         .iter()

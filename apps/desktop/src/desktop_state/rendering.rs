@@ -88,9 +88,10 @@ impl DesktopState {
         {
             return;
         }
+        let result = result
+            .and_then(|session| lock_unpoisoned(&self.sequence_render).apply_prepared(session));
         match result {
-            Ok(session) => {
-                lock_unpoisoned(&self.sequence_render).apply_prepared(session);
+            Ok(()) => {
                 self.clear_render_error_if_set();
                 self.resume_live_output_after_prepare();
             }

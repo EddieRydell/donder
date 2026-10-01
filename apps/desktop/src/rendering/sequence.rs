@@ -65,7 +65,7 @@ impl SequenceRenderService {
         sequence_id: &SequenceId,
     ) -> Result<(), RuntimePrepareError> {
         let session = prepare_sequence_output(project, setup_id, sequence_id)?;
-        self.apply_prepared(session);
+        self.apply_prepared(session)?;
         Ok(())
     }
 
@@ -205,9 +205,16 @@ impl SequenceRenderService {
             .transpose()
     }
 
-    pub fn apply_prepared(&mut self, session: PreparedSequenceOutput) {
+    pub fn apply_prepared(
+        &mut self,
+        session: PreparedSequenceOutput,
+    ) -> Result<(), RuntimePrepareError> {
+        let workspace = session.renderer.workspace().map_err(|error| {
+            RuntimePrepareError::Render(donder_elaboration::RenderError::BadGraph {
+                message: format!("Prepared output workspace could not be constructed: {error:?}"),
+            })
+        })?;
         self.session_generation = self.session_generation.saturating_add(1);
-        let workspace = session.renderer.workspace();
         self.session = Some(SequenceRenderSession {
             setup_id: session.setup_id,
             sequence_id: session.sequence_id,
@@ -215,6 +222,7 @@ impl SequenceRenderService {
             workspace,
             cached: None,
         });
+        Ok(())
     }
 }
 

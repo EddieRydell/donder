@@ -26,7 +26,6 @@ pub use sequence::raster::{
     EffectRasterPrepareBatch, EffectRasterWorkspace, PreparedEffectRasterRenderer,
     PreparedEffectRasterSample,
 };
-pub(crate) use sequence::renderer::MAX_GENERATED_EFFECTS;
 pub use sequence::renderer::RenderError;
 pub use sequence::targets::RenderedTargetPixelAddress;
 pub use sequence::{elaborate_sequence, resolve_effect_target_pixel_addresses};

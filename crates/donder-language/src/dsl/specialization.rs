@@ -79,7 +79,6 @@ impl GeneratorProgram {
         &self,
         inputs: &[GeneratorInput],
         context: &GeneratorContext,
-        max_children: usize,
     ) -> Result<SpecializedGenerator, RuntimeError> {
         if inputs.len() != self.params.len() {
             return Err(error(
@@ -129,8 +128,6 @@ impl GeneratorProgram {
             context,
             result: SpecializedGenerator::default(),
             workspace: VmWorkspace::default(),
-            max_children,
-            remaining_iterations: donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS,
         };
         specializer.block(&self.body, &mut env)?;
         Ok(specializer.result)
@@ -142,8 +139,6 @@ struct Specializer<'a> {
     context: &'a GeneratorContext,
     result: SpecializedGenerator,
     workspace: VmWorkspace,
-    remaining_iterations: usize,
-    max_children: usize,
 }
 
 impl Specializer<'_> {
@@ -354,10 +349,6 @@ impl Specializer<'_> {
                 let mut loop_env = env.clone();
                 self.statement(initializer, &mut loop_env)?;
                 while self.fixed_bool(condition, &loop_env)? {
-                    self.remaining_iterations = self
-                        .remaining_iterations
-                        .checked_sub(1)
-                        .ok_or_else(|| error("loop iteration limit exceeded"))?;
                     self.block(body, &mut loop_env)?;
                     self.statement(update, &mut loop_env)?;
                 }
@@ -383,10 +374,6 @@ impl Specializer<'_> {
                 };
                 let mut loop_env = env.clone();
                 for mark in 0..marks.marks.len() {
-                    self.remaining_iterations = self
-                        .remaining_iterations
-                        .checked_sub(1)
-                        .ok_or_else(|| error("loop iteration limit exceeded"))?;
                     let mark =
                         i32::try_from(mark).map_err(|_| error("mark count exceeds int range"))?;
                     loop_env.insert(
@@ -423,10 +410,6 @@ impl Specializer<'_> {
                 };
                 let mut loop_env = env.clone();
                 for value in 0..count.max(0).min(cap) {
-                    self.remaining_iterations = self
-                        .remaining_iterations
-                        .checked_sub(1)
-                        .ok_or_else(|| error("loop iteration limit exceeded"))?;
                     loop_env.insert(
                         index.clone(),
                         Symbol {
@@ -466,9 +449,6 @@ impl Specializer<'_> {
                     // omitted by the generator VM.
                     return Ok(());
                 };
-                if self.result.children.len() >= self.max_children {
-                    return Err(error("generated child limit exceeded"));
-                }
                 let params = fields
                     .iter()
                     .filter(|(name, _)| !matches!(name.as_str(), "start" | "duration" | "target"))

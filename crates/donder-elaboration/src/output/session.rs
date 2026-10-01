@@ -34,11 +34,7 @@ impl PreparedSequenceOutput {
         donder_runtime::wire::encode_sequence(&self.sequence)
     }
 
-    pub fn prepare(
-        project: &DonderProject,
-        setup_id: &SetupId,
-        sequence_id: &SequenceId,
-    ) -> Result<Self, SequenceOutputPrepareError> {
+    pub fn prepare(project: &DonderProject, setup_id: &SetupId, sequence_id: &SequenceId) -> Self {
         Self::prepare_outputs(project, setup_id, sequence_id, None)
     }
 
@@ -139,6 +135,11 @@ impl PreparedSequenceOutput {
             super::fragment::compact(&mut output.sequence)
                 .map_err(SequenceOutputPrepareError::Render)?;
         }
+        donder_runtime::wire::validate_prepared_sequence(&output.sequence).map_err(|error| {
+            SequenceOutputPrepareError::Render(RenderError::BadGraph {
+                message: format!("Prepared output violates runtime invariants: {error:?}"),
+            })
+        })?;
         Ok(output)
     }
 
@@ -146,7 +147,8 @@ impl PreparedSequenceOutput {
         &self,
         seconds: f32,
     ) -> Result<RenderedSequenceFrame, SequenceOutputRenderError> {
-        self.render_seconds_with_workspace(seconds, &mut self.workspace())
+        let mut workspace = self.workspace()?;
+        self.render_seconds_with_workspace(seconds, &mut workspace)
     }
 
     pub fn render_seconds_with_workspace(
@@ -174,7 +176,7 @@ impl PreparedSequenceOutput {
         &self,
         frame: u32,
     ) -> Result<RenderedSequenceFrame, SequenceOutputRenderError> {
-        let mut workspace = self.workspace();
+        let mut workspace = self.workspace()?;
         let sample_time = sample_time_for_frame(frame, self.frame_rate())
             .map_err(SequenceOutputRenderError::Render)?;
         self.render_at(frame, sample_time, &mut workspace)
@@ -187,11 +189,15 @@ impl PreparedSequenceOutput {
         self.sequence.signals.frame_count()
     }
 
-    pub fn workspace(&self) -> OutputEvaluationWorkspace {
-        OutputEvaluationWorkspace {
-            sequence: self.sequence.workspace(),
+    pub fn workspace(&self) -> Result<OutputEvaluationWorkspace, SequenceOutputRenderError> {
+        Ok(OutputEvaluationWorkspace {
+            sequence: self.sequence.workspace().map_err(|error| {
+                SequenceOutputRenderError::Render(RenderError::BadGraph {
+                    message: format!("Prepared output violates runtime invariants: {error:?}"),
+                })
+            })?,
             controller_frames: self.controller_ports.to_vec(),
-        }
+        })
     }
 
     /// Samples controller port bytes into buffers owned by `workspace`.

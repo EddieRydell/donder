@@ -142,8 +142,8 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             graph.plan.frame_nodes = vec![1].into();
             graph.plan.frame_slots = vec![u16::MAX, 0].into();
             graph.plan.frame_buffer_count = 1;
-            let mut workspace = graph.workspace();
-            let mut source_workspace = base.workspace();
+            let mut workspace = graph.workspace().unwrap();
+            let mut source_workspace = base.workspace().unwrap();
             for ticks in [0, 500000, 2000000, 100000, 0] {
                 let time = SampleTime::from_ticks(ticks);
                 let source = base.evaluate(time, &mut source_workspace).unwrap();

@@ -22,7 +22,6 @@ pub(crate) struct GeneratorPrepareContext<'a> {
     pub(crate) fixtures: &'a [PreparedFixture],
     pub(crate) environments: &'a mut Vec<donder_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,
-    pub(crate) generated_child_count: &'a mut usize,
     pub(crate) bind_cache: &'a mut DslBindCache,
     pub(crate) sample_programs: &'a mut IndexMap<EffectDefinitionId, Arc<BytecodeProgram>>,
     pub(crate) target_cache: &'a mut PreparedTargetCache,

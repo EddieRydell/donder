@@ -13,6 +13,9 @@ pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
     let Some(first) = points.first() else {
         return 0.0;
     };
+    if points.len() == 1 {
+        return first.value;
+    }
     if position < first.position {
         return first.value;
     }
@@ -64,6 +67,9 @@ pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Color {
     let Some(first) = stops.first() else {
         return Color::BLACK;
     };
+    if stops.len() == 1 {
+        return first.color;
+    }
     if position < first.position {
         return first.color;
     }

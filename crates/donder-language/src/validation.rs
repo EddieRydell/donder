@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::dsl::Type;
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
@@ -7,6 +7,10 @@ use crate::layout::LayoutError;
 use crate::model::DonderProject;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
 use crate::sequence::{AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence};
+use crate::values::{
+    DonderDuration, DonderTime, SampleDuration, sample_duration_from_donder_duration,
+    sample_time_from_donder_time,
+};
 use indexmap::IndexMap;
 
 pub const MAX_SEQUENCE_FRAME_COUNT: u32 = 250_000;
@@ -48,6 +52,23 @@ pub struct SequenceValidationError {
 
 pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
     crate::ownership::validate_ownership(project)?;
+    for (id, definition) in &project.definitions.curves.definitions {
+        definition.curve.validate().map_err(|error| {
+            ProjectValidationError::InvalidRelationship(format!(
+                "Curve `{}` is invalid: {error:?}.",
+                id.0.object()
+            ))
+        })?;
+    }
+    for (id, definition) in &project.definitions.gradients.definitions {
+        definition.gradient.validate().map_err(|error| {
+            ProjectValidationError::InvalidRelationship(format!(
+                "Gradient `{}` is invalid: {error:?}.",
+                id.0.object()
+            ))
+        })?;
+    }
+    validate_generated_effects(project)?;
     if project.setup(project.root.setup.id()).is_none() {
         return Err(ProjectValidationError::MissingSetup);
     }
@@ -74,6 +95,65 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
     }
     for sequence in project.sequences() {
         validate_sequence(project, sequence).map_err(ProjectValidationError::Sequence)?;
+    }
+    Ok(())
+}
+
+fn validate_generated_effects(project: &DonderProject) -> Result<(), ProjectValidationError> {
+    let definitions = &project.definitions.effects.definitions;
+    let indices = definitions
+        .keys()
+        .enumerate()
+        .map(|(index, id)| (id, index))
+        .collect::<HashMap<_, _>>();
+    let mut children = vec![Vec::new(); definitions.len()];
+    let mut incoming = vec![0usize; definitions.len()];
+    for (id, definition) in definitions {
+        if definition.emitted_references.len() != definition.generated_effect_targets.len() {
+            return Err(ProjectValidationError::InvalidRelationship(format!(
+                "Generator `{}` has unlinked child references.",
+                id.0.object()
+            )));
+        }
+        let parent = indices[id];
+        for (emission, target) in definition
+            .emitted_references
+            .iter()
+            .zip(definition.generated_effect_targets.iter())
+        {
+            let crate::effect::EffectRef::Custom(child_id) = target;
+            let Some(&child) = indices.get(child_id) else {
+                return Err(ProjectValidationError::InvalidRelationship(format!(
+                    "Generator `{}` references a missing child effect.",
+                    id.0.object()
+                )));
+            };
+            crate::dsl::validate_emission(emission, &definitions[child_id].params).map_err(
+                |diagnostic| ProjectValidationError::InvalidRelationship(diagnostic.message),
+            )?;
+            children[parent].push(child);
+            incoming[child] += 1;
+        }
+    }
+    let mut ready = incoming
+        .iter()
+        .enumerate()
+        .filter_map(|(index, count)| (*count == 0).then_some(index))
+        .collect::<VecDeque<_>>();
+    let mut visited = 0usize;
+    while let Some(parent) = ready.pop_front() {
+        visited += 1;
+        for &child in &children[parent] {
+            incoming[child] -= 1;
+            if incoming[child] == 0 {
+                ready.push_back(child);
+            }
+        }
+    }
+    if visited != definitions.len() {
+        return Err(ProjectValidationError::InvalidRelationship(
+            "Generated effect references form a cycle.".into(),
+        ));
     }
     Ok(())
 }
@@ -228,6 +308,13 @@ pub fn validate_sequence(
     if sequence.duration.0.is_zero() {
         return Err(sequence_error("sequence duration must be positive"));
     }
+    let sampled_sequence_duration = sample_duration_from_donder_duration(&sequence.duration)
+        .map_err(|_| sequence_error("sequence duration exceeds the runtime clock range"))?;
+    if sampled_sequence_duration.as_ticks() == 0 {
+        return Err(sequence_error(
+            "sequence duration rounds to zero on the runtime clock",
+        ));
+    }
     let frame_count = sequence.frame_count();
     if frame_count > u128::from(MAX_SEQUENCE_FRAME_COUNT) {
         return Err(sequence_error(format!(
@@ -282,6 +369,7 @@ pub fn validate_sequence(
             effect.start.0,
             effect.duration.0,
             sequence.duration.0,
+            sampled_sequence_duration,
             "effect",
         )?;
         if active && &effect.target.layout != active_layout {
@@ -349,6 +437,13 @@ pub fn validate_sequence(
 
     validate_composition_graph(&sequence.composition_graph, &project.definitions.operators)
         .map_err(|error| sequence_error(error.message))?;
+    for node in &sequence.composition_graph.nodes {
+        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
+            for value in operator.params.values() {
+                validate_param_references(project, value, &mark_keys)?;
+            }
+        }
+    }
     let mut graph_layers = HashSet::new();
     for node in &sequence.composition_graph.nodes {
         if let CompositionGraphNodeKind::Layer { layer_id } = &node.kind {
@@ -400,6 +495,7 @@ pub fn validate_sequence(
             clip.start.0,
             clip.duration.0,
             sequence.duration.0,
+            sampled_sequence_duration,
             "automation clip",
         )?;
         clip.curve
@@ -450,6 +546,7 @@ fn validate_timed_region(
     start: std::time::Duration,
     duration: std::time::Duration,
     sequence_duration: std::time::Duration,
+    sampled_sequence_duration: SampleDuration,
     label: &str,
 ) -> Result<(), SequenceValidationError> {
     if duration.is_zero() {
@@ -461,6 +558,23 @@ fn validate_timed_region(
     if end > sequence_duration {
         return Err(sequence_error(format!(
             "{label} extends beyond the sequence duration"
+        )));
+    }
+    let sampled_start = sample_time_from_donder_time(&DonderTime(start))
+        .map_err(|_| sequence_error(format!("{label} start exceeds the runtime clock range")))?;
+    let sampled_duration = sample_duration_from_donder_duration(&DonderDuration(duration))
+        .map_err(|_| sequence_error(format!("{label} duration exceeds the runtime clock range")))?;
+    if sampled_duration.as_ticks() == 0 {
+        return Err(sequence_error(format!(
+            "{label} duration rounds to zero on the runtime clock"
+        )));
+    }
+    if sampled_start
+        .checked_add_duration(sampled_duration)
+        .is_none_or(|sampled_end| sampled_end.as_ticks() > sampled_sequence_duration.as_ticks())
+    {
+        return Err(sequence_error(format!(
+            "{label} end exceeds the runtime clock range or sequence duration after rounding"
         )));
     }
     Ok(())
@@ -492,6 +606,9 @@ fn validate_param_references(
                 "effect parameter references a missing gradient",
             ))
         }
+        EffectParamValue::Gradient(GradientSource::Inline(gradient)) => gradient
+            .validate()
+            .map_err(|error| sequence_error(format!("inline gradient is invalid: {error:?}"))),
         EffectParamValue::Array(values) => {
             for value in values {
                 validate_param_references(project, value, mark_keys)?;

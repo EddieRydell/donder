@@ -401,7 +401,17 @@ pub(crate) fn parse_gradient_fields(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Gradient { stops })
+    let gradient = Gradient { stops };
+    gradient
+        .validate()
+        .map_err(|error| LoadProjectError::InvalidDocument {
+            path: path.to_path_buf(),
+            range: fields
+                .optional("stops")
+                .and_then(|stops| source_range_for_value(path, stops)),
+            message: format!("invalid gradient: {error:?}"),
+        })?;
+    Ok(gradient)
 }
 
 pub(crate) fn parse_point3(path: &Utf8Path, value: &Value) -> Result<Point3, LoadProjectError> {

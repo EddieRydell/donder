@@ -17,9 +17,9 @@ impl AutomationMapping {
     pub fn is_well_formed(&self) -> bool {
         match self {
             Self::Float { min, max } | Self::Curve { min, max } => {
-                min.is_finite() && max.is_finite() && min <= max
+                min.is_finite() && max.is_finite()
             }
-            Self::Int { min, max } => min <= max,
+            Self::Int { .. } => true,
             Self::Bool => true,
             Self::Enum { values } => !values.is_empty(),
         }

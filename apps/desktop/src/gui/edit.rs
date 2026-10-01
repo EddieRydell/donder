@@ -44,7 +44,7 @@ pub(super) fn edit_sequence(
                 ));
             }
             sequence_mut(session, &sequence_id)?.duration =
-                DonderDuration::from_seconds_f32(duration_seconds);
+                super::checked_gui_duration(duration_seconds)?;
         }
         SequenceGuiEdit::SetAudio { import_path } => {
             let audio = match import_path {
@@ -69,7 +69,7 @@ pub(super) fn edit_sequence(
                 target.map(|target| layout_target_to_effect_target(&layout, target));
             let sequence = sequence_mut(session, &sequence_id)?;
             let effect = effect_mut(sequence, id)?;
-            effect.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            effect.start = super::checked_gui_time(start_seconds.max(0.0))?;
             if let Some(target) = parsed_target {
                 effect.target = target;
             }
@@ -80,8 +80,8 @@ pub(super) fn edit_sequence(
             duration_seconds,
         } => {
             let sequence = sequence_mut(session, &sequence_id)?;
-            let start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
-            let duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            let start = super::checked_gui_time(start_seconds.max(0.0))?;
+            let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
             let effect = effect_mut(sequence, id)?;
             effect.start = start;
             effect.duration = duration;
@@ -116,7 +116,7 @@ pub(super) fn edit_sequence(
                 .marks
                 .get_mut(index as usize)
                 .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
-            *mark = DonderTime::from_seconds_f32(time_seconds.max(0.0));
+            *mark = super::checked_gui_time(time_seconds.max(0.0))?;
             collection.marks.sort_by_key(|time| time.0);
         }
         SequenceGuiEdit::ReassignMarkCollection {
@@ -146,7 +146,7 @@ pub(super) fn edit_sequence(
                 mark_collection_mut(sequence_mut(session, &sequence_id)?, &collection_key)?;
             collection
                 .marks
-                .push(DonderTime::from_seconds_f32(time_seconds.max(0.0)));
+                .push(super::checked_gui_time(time_seconds.max(0.0))?);
             collection.marks.sort_by_key(|time| time.0);
         }
         SequenceGuiEdit::DeleteMark {
@@ -273,8 +273,8 @@ pub(super) fn edit_sequence(
             sequence.effects.push(EffectInst {
                 id: EffectInstId(next_id),
                 layer_id,
-                start: DonderTime::from_seconds_f32(start_seconds.max(0.0)),
-                duration: DonderDuration::from_seconds_f32(1.0),
+                start: super::checked_gui_time(start_seconds.max(0.0))?,
+                duration: super::checked_gui_duration(1.0)?,
                 target: layout_target_to_effect_target(&layout, target),
                 scope: effect_scope(scope),
                 definition,
@@ -501,8 +501,8 @@ pub(super) fn edit_sequence(
                 + 1;
             sequence.automation_clips.push(AutomationClip {
                 id: AutomationClipId(next_id),
-                start: DonderTime::from_seconds_f32(start_seconds.max(0.0)),
-                duration: DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001)),
+                start: super::checked_gui_time(start_seconds.max(0.0))?,
+                duration: super::checked_gui_duration(duration_seconds.max(0.000000001))?,
                 row_target: layout_target_to_effect_target(&layout, row_target),
                 curve: default_automation_curve(),
                 bindings: Vec::new(),
@@ -551,7 +551,7 @@ pub(super) fn edit_sequence(
             row_target,
         } => {
             let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
-            clip.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
+            clip.start = super::checked_gui_time(start_seconds.max(0.0))?;
             clip.row_target = layout_target_to_effect_target(&layout, row_target);
         }
         SequenceGuiEdit::ResizeAutomationClip {
@@ -560,8 +560,8 @@ pub(super) fn edit_sequence(
             duration_seconds,
         } => {
             let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
-            clip.start = DonderTime::from_seconds_f32(start_seconds.max(0.0));
-            clip.duration = DonderDuration::from_seconds_f32(duration_seconds.max(0.000000001));
+            clip.start = super::checked_gui_time(start_seconds.max(0.0))?;
+            clip.duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
         }
         SequenceGuiEdit::UpdateAutomationCurve { id, curve } => {
             automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?.curve =
@@ -774,7 +774,7 @@ fn automation_target_timing(
                 ));
             }
             Ok((
-                DonderTime::from_seconds_f32(0.0),
+                super::checked_gui_time(0.0)?,
                 sequence.duration.clone(),
                 super::selection::target_for_lane(session, 0).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence has no target for automation.".into())
