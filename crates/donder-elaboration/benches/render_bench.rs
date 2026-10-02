@@ -1,10 +1,10 @@
 use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use donder_elaboration::{PrepareOutputs, prepare};
+use donder_language::model::{DonderProject, ProjectEdit};
 use donder_language::values::{Color, sample_time_from_frame};
 use donder_project_io::load_project;
-use donder_runtime::PreparedSignalGraph;
-use donder_runtime::{PreparedSequence, SequenceFrame, SequencePlayback};
+use donder_runtime::{PreparedSequence, SequenceFrame};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -44,22 +44,22 @@ const SCENARIOS: [RenderScenario; 7] = [
     },
     RenderScenario {
         frame: 8530,
-        checksum: 0xfe52_aa76_b372_c103,
+        checksum: 0x07ec_1fb5_19f7_8b83,
         active_effect_count: 3,
     },
     RenderScenario {
         frame: 9270,
-        checksum: 0x520a_4dfc_5977_d97a,
+        checksum: 0xac57_56bd_f3ff_27f8,
         active_effect_count: 2,
     },
     RenderScenario {
         frame: 9504,
-        checksum: 0x9dca_f48a_50e4_f8df,
+        checksum: 0x0ab2_eca9_b6ce_8207,
         active_effect_count: 1,
     },
     RenderScenario {
         frame: 9650,
-        checksum: 0x2319_7d72_88c3_6a09,
+        checksum: 0xfaf7_582c_96c9_730f,
         active_effect_count: 2,
     },
 ];
@@ -87,8 +87,23 @@ fn bench_render(c: &mut Criterion) {
         .expect("benchmark project should include the layer_test sequence");
     let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
         .expect("benchmark controller output should prepare");
-    let renderer = output.to_raw_signals();
+    let logical_project = render_only_project(&session.project);
+    let renderer = prepare(&logical_project, sequence_id, PrepareOutputs::All)
+        .expect("benchmark logical fixtures should prepare");
+    assert!(renderer.outputs().is_empty());
+    assert!(
+        renderer
+            .fixtures()
+            .iter()
+            .map(|fixture| (fixture.id, fixture.pixel_count))
+            .eq(output
+                .fixtures()
+                .iter()
+                .map(|fixture| (fixture.id, fixture.pixel_count))),
+        "render-only preparation must retain every logical fixture"
+    );
     assert_scenarios(&renderer);
+    let frame_rate = output.frame_rate();
 
     c.bench_function("prepare_starter", |b| {
         b.iter(|| {
@@ -103,53 +118,50 @@ fn bench_render(c: &mut Criterion) {
         });
     });
 
-    let mut scenario_workspace = logical_playback(&renderer);
+    let mut scenario_workspace = renderer.clone().into_playback();
     c.bench_function("render_representative_frames", |b| {
         b.iter(|| {
             for scenario in SCENARIOS {
                 black_box(scenario_workspace.evaluate(
-                    sample_time_from_frame(black_box(scenario.frame), renderer.frame_rate).unwrap(),
+                    sample_time_from_frame(black_box(scenario.frame), frame_rate).unwrap(),
                 ));
             }
         });
     });
 
-    let mut playback_workspace = logical_playback(&renderer);
+    let mut playback_workspace = renderer.clone().into_playback();
     c.bench_function("render_playback_dense_60_frames", |b| {
         b.iter(|| {
             for frame in PLAYBACK_START_FRAME..PLAYBACK_START_FRAME + PLAYBACK_FRAME_COUNT {
-                black_box(playback_workspace.evaluate(
-                    sample_time_from_frame(black_box(frame), renderer.frame_rate).unwrap(),
-                ));
+                black_box(
+                    playback_workspace
+                        .evaluate(sample_time_from_frame(black_box(frame), frame_rate).unwrap()),
+                );
             }
         });
     });
 
     c.bench_function("render_playback_dense_cold_60_frames", |b| {
         b.iter_batched(
-            || logical_playback(&renderer),
+            || renderer.clone().into_playback(),
             |mut workspace| {
                 for frame in PLAYBACK_START_FRAME..PLAYBACK_START_FRAME + PLAYBACK_FRAME_COUNT {
-                    black_box(workspace.evaluate(
-                        sample_time_from_frame(black_box(frame), renderer.frame_rate).unwrap(),
-                    ));
+                    black_box(
+                        workspace.evaluate(
+                            sample_time_from_frame(black_box(frame), frame_rate).unwrap(),
+                        ),
+                    );
                 }
             },
             BatchSize::SmallInput,
         );
     });
 
-    let mut output_workspace = PreparedSequence::admit(
-        output.to_raw_signals(),
-        output.patch().clone(),
-        output.outputs().into(),
-    )
-    .unwrap()
-    .into_playback();
+    let mut output_workspace = output.into_playback();
     c.bench_function("controller_output_dense_60_frames", |b| {
         b.iter(|| {
             for frame in PLAYBACK_START_FRAME..PLAYBACK_START_FRAME + PLAYBACK_FRAME_COUNT {
-                let sample_time = sample_time_from_frame(frame, output.frame_rate())
+                let sample_time = sample_time_from_frame(frame, frame_rate)
                     .expect("benchmark frame should fit the controller clock");
                 black_box(output_workspace.evaluate(black_box(sample_time)));
             }
@@ -162,10 +174,9 @@ fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::effect::{CurveSource, EffectParamValue, EffectRef};
     use donder_language::sequence::{MarkCollection, MarkCollectionKey};
     use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
-    use donder_runtime::PreparedEffectImplementation;
     use donder_runtime::SampleTime;
     pin_benchmark_thread();
-    let source_project = load_project(&project_path()).unwrap().project;
+    let source_project = render_only_project(&load_project(&project_path()).unwrap().project);
     for (name, pulse) in [("pulse", true), ("chase", false)] {
         let mut project = source_project.clone();
         let id = project
@@ -256,25 +267,18 @@ fn bench_mark_playback(c: &mut Criterion) {
         source.automation_clips.clear();
         project.replace_sequence(&id, source).unwrap();
         let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
-        let sequence = prepared.to_raw_signals();
-        let effect = sequence
-            .effects
-            .iter()
-            .find(|effect| {
-                matches!(
-                    &effect.implementation,
-                    PreparedEffectImplementation::Dsl { .. }
-                        | PreparedEffectImplementation::Bound { .. }
-                )
-            })
+        assert!(prepared.outputs().is_empty());
+        let (_, duration) = prepared
+            .effect_windows()
+            .next()
             .expect("constructed fixture must contain DSL mark children");
-        assert!(effect.duration.as_ticks() > 0);
+        assert!(duration.as_ticks() > 0);
         assert!(
-            sequence.effects.len() >= 32,
+            prepared.effect_count() >= 32,
             "marks must expand into actual children"
         );
         let start = 3_000_000;
-        let mut workspace = logical_playback(&sequence);
+        let mut workspace = prepared.clone().into_playback();
         let black = Color {
             red: 0,
             green: 0,
@@ -283,7 +287,7 @@ fn bench_mark_playback(c: &mut Criterion) {
         for frame in [0, 15, 3, 0] {
             let time = SampleTime::from_ticks(start + frame * 8333);
             let colors = workspace.evaluate(time).colors();
-            let mut fresh = logical_playback(&sequence);
+            let mut fresh = prepared.clone().into_playback();
             let expected = fresh.evaluate(time).colors();
             assert_eq!(colors, expected);
             assert!(
@@ -325,7 +329,7 @@ fn bench_chase_pulse(c: &mut Criterion) {
             ),
         ]);
     for (name, show) in cases {
-        let mut workspace = show.clone().prepare().unwrap().into_playback();
+        let mut workspace = show.clone().prepare().into_playback();
         let mut output = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
         for frame in [0, 31, 4, 0] {
@@ -338,7 +342,6 @@ fn bench_chase_pulse(c: &mut Criterion) {
             for (snapshot, output) in expected.iter_mut().zip(
                 show.clone()
                     .prepare()
-                    .unwrap()
                     .into_playback()
                     .evaluate(workload::time(frame))
                     .outputs(),
@@ -369,8 +372,8 @@ fn bench_generator_bindings(c: &mut Criterion) {
             ] {
                 let show = generator_workload::show(count, case, generator, automated);
                 let reference = generator_workload::show(count, case, false, automated);
-                let mut workspace = show.clone().prepare().unwrap().into_playback();
-                let mut reference_workspace = reference.clone().prepare().unwrap().into_playback();
+                let mut workspace = show.clone().prepare().into_playback();
+                let mut reference_workspace = reference.clone().prepare().into_playback();
                 let mut output = [vec![0u8; count * 3]];
                 let mut expected = output.clone();
                 for frame in 0..workload::FRAMES {
@@ -408,11 +411,11 @@ fn bench_layers(c: &mut Criterion) {
         for layers in [1, 4, 16] {
             let show = workload::layered_show(
                 200,
-                effect.sample_program().unwrap().clone().into_parts().0,
+                effect.sample_program().unwrap().clone(),
                 bound.clone(),
                 layers,
             );
-            let mut workspace = show.clone().prepare().unwrap().into_playback();
+            let mut workspace = show.clone().prepare().into_playback();
             let mut frame = 0;
             c.bench_function(&format!("prepared_layers/{name}/{layers}"), |b| {
                 b.iter(|| {
@@ -452,7 +455,7 @@ fn bench_operators(c: &mut Criterion) {
                     .remove(0);
                 let mut show = workload::show(
                     count,
-                    effect.sample_program().unwrap().clone().into_parts().0,
+                    effect.sample_program().unwrap().clone(),
                     bound.clone(),
                 );
                 workload::apply_operator(
@@ -460,7 +463,7 @@ fn bench_operators(c: &mut Criterion) {
                     operator.program().clone().into_parts().0,
                     reuse,
                 );
-                let mut workspace = show.clone().prepare().unwrap().into_playback();
+                let mut workspace = show.clone().prepare().into_playback();
                 let mut output = [vec![0; count * 3]];
                 let mut checksums = Vec::new();
                 for frame in 0..workload::FRAMES {
@@ -506,21 +509,13 @@ fn bench_operators(c: &mut Criterion) {
             ("standard_echo_nested_invert", true),
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
-            workload::apply_operator(&mut show, echo.program().clone().into_parts().0, true);
-            let mut signals = show.signals().clone();
-            let donder_runtime::PreparedSignalKind::Operator { operator, .. } =
-                &mut signals.plan.nodes[1].kind
-            else {
-                unreachable!();
-            };
-            operator.params = donder_runtime::BoundParams::bind_pairs(echo.params(), &[]).unwrap();
-            show = workload::Workload::new(signals, show.patch().clone(), show.outputs().into());
+            workload::apply_compiled_operator(&mut show, echo.clone());
             if nested {
                 // Layer -> Echo -> Invert -> Echo mixes scalar temporal requests
                 // with a uniform upstream query that must not promote back to frames.
                 workload::insert_invert(&mut show, invert.program().clone().into_parts().0);
             }
-            let mut workspace = show.clone().prepare().unwrap().into_playback();
+            let mut workspace = show.clone().prepare().into_playback();
             let mut output = [vec![0; count * 3]];
             let mut fresh_output = [vec![0; count * 3]];
             let mut any_lit = false;
@@ -533,7 +528,6 @@ fn bench_operators(c: &mut Criterion) {
                 for (snapshot, output) in fresh_output.iter_mut().zip(
                     show.clone()
                         .prepare()
-                        .unwrap()
                         .into_playback()
                         .evaluate(time)
                         .outputs(),
@@ -564,12 +558,13 @@ fn bench_uniform_resources(c: &mut Criterion) {
     let (effect, params) = effect_fixtures::uniform_resources();
     let mut expected = None;
     for (name, reuse) in [("full", false), ("reuse", true)] {
-        let mut program = effect.sample_program().unwrap().clone().into_parts().0;
+        let (mut program, types) = effect.sample_program().unwrap().clone().into_parts();
         if !reuse {
             program.pixel_entry = 0;
         }
+        let program = donder_runtime::SampleProgram::admit(program, types).unwrap();
         let show = workload::show(200, program, params.clone());
-        let mut workspace = show.clone().prepare().unwrap().into_playback();
+        let mut workspace = show.clone().prepare().into_playback();
         let mut output = [vec![0; 600]];
         let checksums = (0..workload::FRAMES)
             .map(|frame| {
@@ -615,13 +610,14 @@ fn bench_uniform_upstream(c: &mut Criterion) {
     for count in [200, 1600] {
         let mut expected = None;
         for reuse in [false, true] {
-            let mut program = effect.sample_program().unwrap().clone().into_parts().0;
-            // Conservative dependency metadata forces recomputation of the same
-            // bytecode, giving an exact-output control for uniform-result reuse.
-            program.uses_pixel_context = !reuse;
-            let mut show = workload::show(count, program, bound.clone());
+            let mut show = workload::show(
+                count,
+                effect.sample_program().unwrap().clone(),
+                bound.clone(),
+            );
+            workload::set_uniform_upstream(&mut show, reuse);
             workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
-            let mut workspace = show.clone().prepare().unwrap().into_playback();
+            let mut workspace = show.clone().prepare().into_playback();
             let mut output = [vec![0; count * 3]];
             let mut checksums = Vec::new();
             for frame in 0..workload::FRAMES {
@@ -657,12 +653,12 @@ fn bench_gamma(c: &mut Criterion) {
     for count in workload::COUNTS {
         let mut show = workload::layered_show(
             count,
-            effect.sample_program().unwrap().clone().into_parts().0,
+            effect.sample_program().unwrap().clone(),
             bound.clone(),
             1,
         );
         workload::apply_gamma(&mut show, workload::gamma_lookup());
-        let mut workspace = show.clone().prepare().unwrap().into_playback();
+        let mut workspace = show.clone().prepare().into_playback();
         let mut frame = 0;
         c.bench_function(&format!("prepared_gamma/lookup/{count}"), |b| {
             b.iter(|| {
@@ -702,33 +698,39 @@ fn pin_benchmark_thread() {
 #[cfg(not(windows))]
 fn pin_benchmark_thread() {}
 
-fn assert_scenarios(renderer: &PreparedSignalGraph) {
-    let mut playback = logical_playback(renderer);
+fn assert_scenarios(sequence: &PreparedSequence) {
+    let mut playback = sequence.clone().into_playback();
     for scenario in SCENARIOS {
-        let rendered =
-            playback.evaluate(sample_time_from_frame(scenario.frame, renderer.frame_rate).unwrap());
+        let time = sample_time_from_frame(scenario.frame, sequence.frame_rate()).unwrap();
+        let rendered = playback.evaluate(time);
         assert_eq!(checksum_frame(scenario.frame, &rendered), scenario.checksum);
         assert_eq!(
-            renderer.active_effect_count(
-                sample_time_from_frame(scenario.frame, renderer.frame_rate).unwrap()
-            ),
+            sequence.active_effect_count(time),
             scenario.active_effect_count
         );
     }
 }
 
-// Keep logical-only measurements separate from controller packing.
-fn logical_playback(signals: &PreparedSignalGraph) -> SequencePlayback {
-    PreparedSequence::admit(
-        signals.clone(),
-        donder_runtime::PreparedPatch {
-            routes: Box::new([]),
-            lookups: Box::new([]),
-        },
-        Box::new([]),
-    )
-    .unwrap()
-    .into_playback()
+// All logical fixtures remain selected while normal playback has no bytes to pack.
+fn render_only_project(source: &DonderProject) -> DonderProject {
+    let mut project = source.clone();
+    let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
+    let mut patch = project.patch(setup.patch.id()).unwrap().clone();
+    patch.routes.clear();
+    setup.controllers.clear();
+    project
+        .apply_edits([
+            ProjectEdit::ReplacePatch {
+                id: patch.id.clone(),
+                value: patch,
+            },
+            ProjectEdit::ReplaceSetup {
+                id: setup.id.clone(),
+                value: setup,
+            },
+        ])
+        .expect("render-only fixture should retain a valid typed project");
+    project
 }
 
 fn project_path() -> Utf8PathBuf {

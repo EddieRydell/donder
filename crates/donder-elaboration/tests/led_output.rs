@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::values::sample_time_from_frame;
-use donder_runtime::{LoadError, LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::{LoadLimits, decode_sequence, encode_sequence};
 
 fn project() -> donder_project_io::ProjectSession {
     donder_project_io::load_project(
@@ -56,14 +56,9 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
     let output = prepare(project, sequence, PrepareOutputs::All).unwrap();
-    let signal = output.to_raw_signals();
-    let mut workspace = donder_runtime::PreparedSequence::admit(
-        output.to_raw_signals(),
-        output.patch().clone(),
-        output.outputs().into(),
-    )
-    .unwrap()
-    .into_playback();
+    let mut workspace = prepare(project, sequence, PrepareOutputs::All)
+        .unwrap()
+        .into_playback();
     let mut buffers: Vec<_> = output
         .outputs()
         .iter()
@@ -75,7 +70,7 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         (8494, 0xadc5_9683_e46e_175f),
     ] {
         let rendered =
-            workspace.evaluate(sample_time_from_frame(frame, signal.frame_rate).unwrap());
+            workspace.evaluate(sample_time_from_frame(frame, output.frame_rate()).unwrap());
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
         let mut feed = |byte: u8| {
             hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
@@ -142,21 +137,12 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
         ..LoadLimits::default()
     };
     let decoded = decode_sequence(&encode_sequence(&selected).unwrap(), limits).unwrap();
-    let mut workspace = donder_runtime::PreparedSequence::admit(
-        decoded.to_raw_signals(),
-        decoded.patch().clone(),
-        decoded.outputs().into(),
-    )
-    .unwrap()
-    .into_playback();
-    let mut full_workspace = donder_runtime::PreparedSequence::admit(
-        full.to_raw_signals(),
-        full.patch().clone(),
-        full.outputs().into(),
-    )
-    .unwrap()
-    .into_playback();
-    let mut buffers: Vec<_> = decoded
+    let mut workspace = decoded.into_playback();
+    let mut full_workspace = prepare(project, sequence, PrepareOutputs::All)
+        .unwrap()
+        .into_playback();
+    let mut buffers: Vec<_> = workspace
+        .sequence()
         .outputs()
         .iter()
         .map(|port| vec![0; port.width])
@@ -181,12 +167,4 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
             assert_eq!(buffer, &full_buffers[index]);
         }
     }
-    let mut invalid_patch = selected.patch().clone();
-    invalid_patch.routes[0].encoding = donder_runtime::PixelEncoding::Rgb { order: [0, 1, 4] };
-    let invalid = PreparedSequence::admit(
-        selected.to_raw_signals(),
-        invalid_patch,
-        selected.outputs().into(),
-    );
-    assert!(matches!(invalid, Err(LoadError::InvalidSequence)));
 }

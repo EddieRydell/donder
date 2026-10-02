@@ -1,8 +1,6 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
-use donder_runtime::PreparedSignalGraph;
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_runtime::sample_time_from_frame;
-use donder_runtime::{ColorSlot, Instruction, PoolSpan};
 use donder_runtime::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence};
 
 #[test]
@@ -12,8 +10,6 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
     let setup = &project.reusable_setups()[project.root().setup.id()];
     let controller = setup.controllers[0].id();
     let port = project.reusable_controllers()[controller].ports[0].id;
-    let mut tested_invalid_bytecode = false;
-    let mut tested_invalid_frame_plan = false;
     for id in project.root().sequences.iter().map(|source| source.id()) {
         let prepared = prepare(
             &project,
@@ -24,75 +20,23 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
         let original = prepared;
         let bytes = encode_sequence(&original).unwrap();
         let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
-        let mut invalid_bytecode = original.to_raw_signals();
-        if let Some(first_program) = invalid_bytecode.programs.first_mut() {
-            first_program.instructions[0] = Instruction::ReturnColor(ColorSlot(u32::MAX));
-            assert!(matches!(
-                admit_modified(&original, &invalid_bytecode),
-                Err(LoadError::InvalidSequence)
-            ));
-            tested_invalid_bytecode = true;
-        }
-        let mut wrong_return = original.to_raw_signals();
-        if let Some(first_program) = wrong_return.programs.first_mut() {
-            let instruction = first_program
-                .instructions
-                .iter_mut()
-                .find(|instruction| matches!(instruction, Instruction::ReturnColor(_)))
-                .expect("sample program returns color");
-            *instruction = Instruction::ReturnValues(PoolSpan { start: 0, len: 0 });
-            assert!(matches!(
-                admit_modified(&original, &wrong_return),
-                Err(LoadError::InvalidSequence)
-            ));
-        }
-        let mut missing_frame_input = original.to_raw_signals();
-        let output = missing_frame_input.plan.output_index;
-        let input = match &missing_frame_input.plan.nodes[output].kind {
-            donder_runtime::PreparedSignalKind::Output { inputs } => inputs.first().copied(),
-            _ => None,
-        };
-        if let Some(input) = input {
-            missing_frame_input.plan.frame_nodes = missing_frame_input
-                .plan
-                .frame_nodes
-                .iter()
-                .copied()
-                .filter(|&node| node != input)
-                .collect();
-            assert!(matches!(
-                admit_modified(&original, &missing_frame_input),
-                Err(LoadError::InvalidSequence)
-            ));
-            tested_invalid_frame_plan = true;
-        }
         assert_eq!(
             encode_sequence(&decoded).unwrap(),
             bytes,
             "sharing or data changed during roundtrip"
         );
-        let mut original_workspace = donder_runtime::PreparedSequence::admit(
-            original.to_raw_signals(),
-            original.patch().clone(),
-            original.outputs().into(),
-        )
-        .unwrap()
-        .into_playback();
-        let mut decoded_workspace = donder_runtime::PreparedSequence::admit(
-            decoded.to_raw_signals(),
-            decoded.patch().clone(),
-            decoded.outputs().into(),
-        )
-        .unwrap()
-        .into_playback();
-        let mut expected = original
+        let frame_rate = original.frame_rate();
+        let mut original_workspace = original.into_playback();
+        let mut decoded_workspace = decoded.into_playback();
+        let mut expected = original_workspace
+            .sequence()
             .outputs()
             .iter()
             .map(|port| vec![0; port.width])
             .collect::<Vec<_>>();
         let mut actual = expected.clone();
         for frame in [9504, 7150, 8450, 0, 8494, 8398, 15000] {
-            let time = sample_time_from_frame(frame, original.frame_rate()).unwrap();
+            let time = sample_time_from_frame(frame, frame_rate).unwrap();
             for (snapshot, output) in expected
                 .iter_mut()
                 .zip(original_workspace.evaluate(time).outputs())
@@ -110,7 +54,7 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
         let mut playback = decode_sequence(&bytes, LoadLimits::default())
             .unwrap()
             .into_playback();
-        let time = sample_time_from_frame(8398, original.frame_rate()).unwrap();
+        let time = sample_time_from_frame(8398, frame_rate).unwrap();
         let expected = original_workspace.evaluate(time);
         let actual = playback.evaluate(time);
         assert!(actual.outputs().eq(expected.outputs()));
@@ -147,24 +91,6 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
             ),
             Err(LoadError::Limit)
         ));
-        let mut invalid = original.to_raw_signals();
-        let saved_count = invalid.targets[0].sample_count;
-        let saved_pixel = invalid.target_pixels[0];
-        invalid.targets[0].sample_count = 1;
-        invalid.target_pixels[0].pixel_index = 1;
-        invalid.target_pixels[0].pixel_count = 2;
-        assert!(
-            matches!(
-                admit_modified(&original, &invalid),
-                Err(LoadError::InvalidSequence)
-            ),
-            "an upload must not be able to index past the prepared sample cache"
-        );
-        invalid.targets[0].sample_count = saved_count;
-        invalid.target_pixels[0] = saved_pixel;
-        invalid.plan.output_index = usize::MAX;
-        let invalid_admission = admit_modified(&original, &invalid);
-        assert!(matches!(invalid_admission, Err(LoadError::InvalidSequence)));
         assert!(matches!(
             decode_sequence(
                 &bytes,
@@ -181,140 +107,4 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
             bytes.len()
         );
     }
-    assert!(
-        tested_invalid_bytecode,
-        "starter must exercise bytecode validation"
-    );
-    assert!(
-        tested_invalid_frame_plan,
-        "starter must exercise frame-plan validation"
-    );
-}
-
-#[test]
-fn admission_rejects_reused_nested_operator_vm_slot() {
-    use donder_runtime::BoundParams;
-    use donder_runtime::{
-        PreparedOperator, PreparedOperatorNode, PreparedSignalKind, PreparedSignalNode,
-    };
-
-    let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_project(&path).unwrap().project;
-    let sequence = prepare(
-        &project,
-        project.root().sequences[0].id(),
-        PrepareOutputs::All,
-    )
-    .unwrap();
-    let mut signals = sequence.to_raw_signals();
-    let identity = donder_language::dsl::compile_operators(
-        "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }",
-    )
-    .unwrap()
-    .remove(0);
-    let program = signals.programs.len();
-    let mut programs = signals.programs.to_vec();
-    programs.push(identity.program().clone().into_parts().0);
-    signals.programs = programs.into();
-
-    let first = signals.plan.nodes.len();
-    let first_slot = signals.plan.vm_workspace_count;
-    let second = first + 1;
-    let node = |input, slot| PreparedSignalNode {
-        kind: PreparedSignalKind::Operator {
-            operator: PreparedOperatorNode {
-                automation_slot: 0,
-                implementation: PreparedOperator::Dsl(program),
-                params: BoundParams::default(),
-            },
-            inputs: vec![input].into(),
-            automation: Vec::new().into_boxed_slice(),
-            vm_slot: slot,
-        },
-    };
-    let mut nodes = signals.plan.nodes.to_vec();
-    nodes.push(node(signals.plan.output_index, first_slot));
-    nodes.push(node(first, first_slot + 1));
-    signals.plan.nodes = nodes.into();
-    signals.plan.output_index = second;
-    signals.plan.vm_workspace_count += 2;
-    signals.plan.frame_nodes = vec![second].into();
-    signals.plan.frame_slots = vec![usize::MAX; second + 1].into();
-    signals.plan.frame_slots[second] = 0;
-    signals.plan.frame_buffer_count = 1;
-    assert!(admit_modified(&sequence, &signals).is_ok());
-
-    let PreparedSignalKind::Operator { vm_slot, .. } = &mut signals.plan.nodes[second].kind else {
-        unreachable!()
-    };
-    *vm_slot = first_slot;
-    assert!(matches!(
-        admit_modified(&sequence, &signals),
-        Err(LoadError::InvalidSequence)
-    ));
-}
-
-#[test]
-fn admission_rejects_overwritten_output_buffer() {
-    use donder_runtime::{PreparedSignalKind, PreparedSignalNode};
-
-    let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let project = donder_project_io::load_project(&path).unwrap().project;
-    let sequence_id = project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .find(|id| id.0.root_source().object() == "layer_test")
-        .unwrap();
-    let setup = &project.reusable_setups()[project.root().setup.id()];
-    let controller = setup.controllers[0].id();
-    let port = project.reusable_controllers()[controller].ports[0].id;
-    let sequence = prepare(
-        &project,
-        sequence_id,
-        PrepareOutputs::Ports(&[(controller.clone(), port)]),
-    )
-    .unwrap();
-    let mut signals = sequence.to_raw_signals();
-    assert!(admit_modified(&sequence, &signals).is_ok());
-    let workspace_count = signals.plan.vm_workspace_count;
-    signals.plan.vm_workspace_count = usize::MAX;
-    assert!(matches!(
-        admit_modified(&sequence, &signals),
-        Err(LoadError::InvalidSequence)
-    ));
-    signals.plan.vm_workspace_count = workspace_count;
-    let accepted = admit_modified(&sequence, &signals);
-    assert!(accepted.is_ok(), "{:?}", accepted.err());
-
-    let plan = &mut signals.plan;
-    let extra = plan.nodes.len();
-    let output_slot = plan.frame_slots[plan.output_index];
-    let mut nodes = plan.nodes.to_vec();
-    nodes.push(PreparedSignalNode {
-        kind: PreparedSignalKind::Layer { layer_index: 0 },
-    });
-    plan.nodes = nodes.into();
-    let mut slots = plan.frame_slots.to_vec();
-    slots.push(output_slot);
-    plan.frame_slots = slots.into();
-    let mut scheduled = plan.frame_nodes.to_vec();
-    scheduled.push(extra);
-    plan.frame_nodes = scheduled.into();
-    assert!(matches!(
-        admit_modified(&sequence, &signals),
-        Err(LoadError::InvalidSequence)
-    ));
-}
-
-fn admit_modified(
-    original: &PreparedSequence,
-    signals: &PreparedSignalGraph,
-) -> Result<PreparedSequence, LoadError> {
-    PreparedSequence::admit(
-        signals.clone(),
-        original.patch().clone(),
-        original.outputs().into(),
-    )
 }

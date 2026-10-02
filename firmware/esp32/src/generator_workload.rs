@@ -1,17 +1,10 @@
-//! Host-built generator fixtures, archived for the same portable device evaluator.
-use super::workload::Workload;
-use donder_language::dsl::{Identifier, compile_effects, validate_emission};
-use donder_language::effect::*;
-use donder_language::fixture::*;
-use donder_language::identity::{DocumentId, SourceIdentity};
-use donder_language::imports::SourceReference;
-use donder_language::layout::*;
-use donder_language::model::*;
-use donder_language::sequence::*;
-use donder_language::setup::*;
-use donder_language::values::*;
-use indexmap::IndexMap;
-use std::time::Duration;
+//! Typed generator fixtures shared by host benchmarks and device archives.
+use super::workload::{SampleFixture, Workload, link_generator};
+use donder_language::dsl::compile_effects;
+use donder_runtime::{
+    AutomationMapping, BoundParams, Curve, CurvePoint, DslBindCache, GeneratorPlayback, Gradient,
+    GradientStop, Identifier, PreparedAutomation, SampleDuration, SampleTime, Value,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Case {
@@ -80,146 +73,35 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Workl
             ),
         }
     };
-    let identity = |name: &str| {
-        SourceIdentity::from_document(
-            DocumentId::new(Default::default(), "fixture.donder".into()),
-            name.into(),
-        )
-    };
-    let setup_id = SetupId(identity("setup").into());
-    let layout_id = LayoutId(identity("layout").into());
-    let fixture_id = FixtureDefinitionId(identity("fixture"));
-    let sequence_id = SequenceId(identity("sequence").into());
-    let mut definitions = ProjectDefinitionStores::default();
     let source = format!(
         "{source}\n{}",
         include_str!("../../../examples/starter/effects/standard.effect.donder")
     );
-    for compilation in compile_effects(&source).unwrap() {
-        let id = EffectDefinitionId(identity(compilation.effect.name().as_str()));
-        definitions
-            .effects
-            .insert(id.clone(), EffectDefinition::custom(id, compilation));
-    }
-    let linked = definitions
-        .effects
-        .definitions
+    let definitions = compile_effects(&source).unwrap();
+    let parent = &definitions
         .iter()
-        .map(|(id, definition)| {
-            let references = definition
-                .emitted_references()
-                .iter()
-                .map(|emission| {
-                    let reference = match &emission.reference {
-                        SourceReference::Local(name) => {
-                            EffectRef::Custom(EffectDefinitionId(identity(name.as_str())))
-                        }
-                        SourceReference::Builtin(_) => {
-                            panic!("fixture children must use project effects")
-                        }
-                        SourceReference::Qualified { .. } => {
-                            panic!("fixture children are local")
-                        }
-                    };
-                    validate_emission(
-                        emission,
-                        definitions.effects.resolve(&reference).unwrap().params(),
-                    )
-                    .unwrap();
-                    reference
-                })
-                .collect::<Box<[_]>>();
-            (id.clone(), references)
-        })
-        .collect::<Vec<_>>();
-    for (id, references) in linked {
-        definitions
-            .effects
-            .definitions
-            .get_mut(&id)
-            .unwrap()
-            .link_generated_effect_targets(references)
-            .unwrap();
-    }
-    let effect_count = if !generator && matches!(case, Case::Overlap) {
-        4
-    } else {
-        1
-    };
-    let mut sequence = Sequence {
-        id: sequence_id.clone(),
-        duration: DonderDuration(Duration::from_secs(8)),
-        frame_rate: 120,
-        audio: SequenceAudio::None,
-        mark_collections: vec![],
-        layers: vec![SequenceLayer {
-            id: SequenceLayerId(0),
-            name: "fixture".into(),
-            color: Color::BLACK,
-            enabled: true,
-        }],
-        effects: (0..effect_count)
-            .map(|index| EffectInst {
-                id: EffectInstId(index),
-                layer_id: SequenceLayerId(0),
-                start: DonderTime(Duration::ZERO),
-                duration: DonderDuration(Duration::from_secs(8)),
-                target: FixtureTarget {
-                    layout: layout_id.clone(),
-                    fixture: FixtureInstanceId(0),
-                },
-                scope: EffectScope::WholeTarget,
-                definition: EffectRef::Custom(EffectDefinitionId(identity("Parent"))),
-                param_overrides: if !generator && matches!(case, Case::Overlap) {
-                    [(
-                        Identifier::new("offset".into()).unwrap(),
-                        EffectParamValue::Float(index as f32 * 0.05),
-                    )]
-                    .into()
-                } else {
-                    IndexMap::new()
-                },
-            })
-            .collect(),
-        automation_clips: vec![],
-        composition_graph: SequenceCompositionGraph {
-            nodes: vec![
-                CompositionGraphNode {
-                    id: CompositionGraphNodeId(0),
-                    position: GraphNodePosition { x: 0.0, y: 0.0 },
-                    kind: CompositionGraphNodeKind::Layer {
-                        layer_id: SequenceLayerId(0),
-                    },
-                },
-                CompositionGraphNode {
-                    id: CompositionGraphNodeId(1),
-                    position: GraphNodePosition { x: 1.0, y: 0.0 },
-                    kind: CompositionGraphNodeKind::Output,
-                },
-            ],
-            edges: vec![EffectGraphEdge {
-                from: CompositionGraphNodeId(0),
-                from_port: GraphPortId("output".into()),
-                to: CompositionGraphNodeId(1),
-                to_port: GraphPortId("input".into()),
-            }],
-        },
-    };
+        .find(|item| item.effect.name().as_str() == "Parent")
+        .unwrap()
+        .effect;
+    let mut overrides = Vec::new();
     if matches!(case, Case::Resources) {
-        for effect in &mut sequence.effects {
-            let ramps = (0..2)
-                .map(|index| {
-                    EffectParamValue::Gradient(GradientSource::Inline(Gradient {
+        let ramps = (0..2)
+            .map(|index| {
+                Value::Gradient(
+                    Gradient {
                         stops: vec![GradientStop {
                             position: 0.0,
                             color: donder_runtime::hsv(index as f32 * 0.6, 1.0, 1.0),
                         }],
-                    }))
-                })
-                .collect();
-            let shapes = (0..2)
-                .map(|index| {
-                    EffectParamValue::Curve(CurveSource::Inline(Curve {
+                    }
+                    .into(),
+                )
+            })
+            .collect();
+        let shapes = (0..2)
+            .map(|index| {
+                Value::Curve(
+                    Curve {
                         points: vec![
                             CurvePoint {
                                 position: 0.0,
@@ -230,46 +112,53 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Workl
                                 value: 1.0 - index as f32,
                             },
                         ],
-                    }))
-                })
-                .collect();
-            effect.param_overrides.insert(
-                Identifier::new("ramps".into()).unwrap(),
-                EffectParamValue::Array(ramps),
-            );
-            effect.param_overrides.insert(
-                Identifier::new("shapes".into()).unwrap(),
-                EffectParamValue::Array(shapes),
-            );
-        }
+                    }
+                    .into(),
+                )
+            })
+            .collect();
+        overrides.push((
+            Identifier::new("ramps".into()).unwrap(),
+            Value::Array(ramps),
+        ));
+        overrides.push((
+            Identifier::new("shapes".into()).unwrap(),
+            Value::Array(shapes),
+        ));
     }
     if matches!(case, Case::Curve) {
-        sequence.effects[0].param_overrides.insert(
+        overrides.push((
             Identifier::new("shape".into()).unwrap(),
-            EffectParamValue::Curve(CurveSource::Inline(Curve {
-                points: vec![
-                    CurvePoint {
-                        position: 0.0,
-                        value: 0.0,
-                    },
-                    CurvePoint {
-                        position: 0.5,
-                        value: 1.0,
-                    },
-                    CurvePoint {
-                        position: 1.0,
-                        value: 0.0,
-                    },
-                ],
-            })),
-        );
+            Value::Curve(
+                Curve {
+                    points: vec![
+                        CurvePoint {
+                            position: 0.0,
+                            value: 0.0,
+                        },
+                        CurvePoint {
+                            position: 0.5,
+                            value: 1.0,
+                        },
+                        CurvePoint {
+                            position: 1.0,
+                            value: 0.0,
+                        },
+                    ],
+                }
+                .into(),
+            ),
+        ));
     }
-    if automated {
-        sequence.automation_clips.push(AutomationClip {
-            id: AutomationClipId(0),
-            start: DonderTime(Duration::ZERO),
-            duration: DonderDuration(Duration::from_secs(8)),
-            row_target: sequence.effects[0].target.clone(),
+    let automation = if automated {
+        let name = if matches!(case, Case::Curve) {
+            "shape"
+        } else {
+            "level"
+        };
+        vec![PreparedAutomation {
+            start: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
             curve: Curve {
                 points: vec![
                     CurvePoint {
@@ -281,103 +170,54 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Workl
                         value: 1.0,
                     },
                 ],
+            }
+            .into(),
+            mapping: if matches!(case, Case::Curve) {
+                AutomationMapping::Curve { min: 0.0, max: 1.0 }
+            } else {
+                AutomationMapping::Float { min: 0.0, max: 1.0 }
             },
-            bindings: sequence
-                .effects
+            param_index: parent
+                .params()
                 .iter()
-                .map(|effect| AutomationBinding {
-                    target: AutomationTarget::EffectParam {
-                        effect_id: effect.id.clone(),
-                        param: Identifier::new(
-                            if matches!(case, Case::Curve) {
-                                "shape"
-                            } else {
-                                "level"
-                            }
-                            .into(),
-                        )
-                        .unwrap(),
-                    },
-                    mapping: if matches!(case, Case::Curve) {
-                        AutomationMapping::Curve { min: 0.0, max: 1.0 }
-                    } else {
-                        AutomationMapping::Float { min: 0.0, max: 1.0 }
-                    },
-                })
-                .collect(),
-            detached_bindings: vec![],
-        });
+                .position(|param| param.name.as_str() == name)
+                .unwrap() as u16,
+        }]
+    } else {
+        vec![]
+    };
+    if generator {
+        let params = BoundParams::bind_pairs(parent.params(), &overrides).unwrap();
+        Workload::generator(
+            count,
+            GeneratorPlayback::admit(
+                link_generator(&definitions, "Parent"),
+                params.iter_values().collect(),
+                automation.into(),
+                &mut DslBindCache::default(),
+            )
+            .unwrap(),
+        )
+    } else {
+        let effect_count = if matches!(case, Case::Overlap) { 4 } else { 1 };
+        let effects = (0..effect_count)
+            .map(|index| {
+                let mut overrides = overrides.clone();
+                if matches!(case, Case::Overlap) {
+                    overrides.push((
+                        Identifier::new("offset".into()).unwrap(),
+                        Value::Float(index as f32 * 0.05),
+                    ));
+                }
+                SampleFixture {
+                    program: parent.sample_program().unwrap().clone(),
+                    params: BoundParams::bind_pairs(parent.params(), &overrides).unwrap(),
+                    start: SampleTime::from_ticks(0),
+                    duration: SampleDuration::from_ticks(8_000_000),
+                    automation: automation.clone(),
+                }
+            })
+            .collect();
+        Workload::samples(count, vec![effects])
     }
-    definitions.fixtures.definitions.insert(
-        fixture_id.clone(),
-        FixtureDefinition {
-            elements: (0..count)
-                .map(|index| FixtureElement {
-                    id: FixtureElementId(index as u32),
-                    name: format!("Pixel {index}"),
-                    transform: Default::default(),
-                    diameter: DistanceSpan { micrometers: 10000 },
-                    reverse: false,
-                    shape: FixtureShape::Pixel,
-                })
-                .collect(),
-        },
-    );
-    let project = DonderProject::try_new(donder_language::model::ProjectData {
-        root: ProjectRoot {
-            id: ProjectId(identity("project")),
-            setup: donder_language::ownership::ValueSource::Reference(setup_id.clone()),
-            sequences: vec![donder_language::ownership::ValueSource::Reference(
-                sequence_id.clone(),
-            )],
-        },
-        setups: [(
-            setup_id.clone(),
-            Setup {
-                id: setup_id.clone(),
-                layout: donder_language::ownership::ValueSource::Reference(layout_id.clone()),
-                patch: donder_language::ownership::ValueSource::Reference(
-                    donder_language::patch::PatchId(identity("patch").into()),
-                ),
-                controllers: vec![],
-            },
-        )]
-        .into(),
-        layouts: [(
-            layout_id.clone(),
-            Layout {
-                id: layout_id,
-                fixtures: vec![LayoutFixture {
-                    id: FixtureInstanceId(0),
-                    name: "Pixels".into(),
-                    kind: LayoutFixtureKind::Fixture {
-                        definition: donder_language::fixture::FixtureSource::Reference(
-                            fixture_id.clone(),
-                        ),
-                        transform: FixtureTransform::default(),
-                    },
-                }],
-            },
-        )]
-        .into(),
-        patches: [(
-            donder_language::patch::PatchId(identity("patch").into()),
-            donder_language::patch::Patch {
-                id: donder_language::patch::PatchId(identity("patch").into()),
-                routes: vec![],
-            },
-        )]
-        .into(),
-        controllers: IndexMap::new(),
-        sequences: [(sequence_id.clone(), sequence)].into(),
-        definitions,
-    })
-    .unwrap();
-    let prepared = donder_elaboration::prepare(
-        &project,
-        &sequence_id,
-        donder_elaboration::PrepareOutputs::All,
-    )
-    .unwrap();
-    super::workload::rgb_output(prepared.to_raw_signals())
 }

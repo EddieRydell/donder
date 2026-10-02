@@ -451,6 +451,8 @@ impl<'id> SequenceBuilder<'id> {
 
 #[cfg(test)]
 mod tests {
+    mod retention;
+
     use super::*;
     use crate::dsl::bytecode::{
         BytecodeProgram, ColorSlot, ContextRead, FloatSlot, Instruction, NumberSlot, PoolSpan,

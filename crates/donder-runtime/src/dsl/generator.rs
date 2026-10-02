@@ -15,10 +15,8 @@ use alloc::{boxed::Box, format, string::String, vec::Vec};
 mod bindings;
 mod link;
 use bindings::Bindings;
-pub use link::{
-    EmissionExecution, GeneratorEmission, GeneratorInvocation, GeneratorTarget, LinkedGenerator,
-    LinkedSpecialization,
-};
+pub(crate) use link::{EmissionExecution, GeneratorInvocation};
+pub use link::{GeneratorTarget, LinkedGenerator};
 mod program;
 mod provenance;
 pub use program::{

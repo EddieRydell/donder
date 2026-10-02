@@ -14,40 +14,40 @@ use alloc::{boxed::Box, string::ToString, vec::Vec};
 mod tests;
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct ParameterSource {
-    pub environment: usize,
-    pub parameter: u16,
+pub(crate) struct ParameterSource {
+    pub(crate) environment: usize,
+    pub(crate) parameter: u16,
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedParameterBinding {
-    pub parameter: u16,
-    pub source: ParameterSource,
+pub(crate) struct PreparedParameterBinding {
+    pub(crate) parameter: u16,
+    pub(crate) source: ParameterSource,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedParameterCalculation {
-    pub program: BytecodeProgram,
-    pub outputs: Box<[Type]>,
+pub(crate) struct PreparedParameterCalculation {
+    pub(crate) program: BytecodeProgram,
+    pub(crate) outputs: Box<[Type]>,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedParameterEnvironment<
+pub(crate) struct PreparedParameterEnvironment<
     C = PreparedParameterCalculation,
     B = PreparedParameterBinding,
     A = Box<[PreparedAutomation]>,
 > {
     #[rkyv(with = crate::wire::Microseconds)]
-    pub start_time: SampleTime,
+    pub(crate) start_time: SampleTime,
     #[rkyv(with = crate::wire::Microseconds)]
-    pub duration: SampleDuration,
-    pub params: BoundParams,
-    pub types: Box<[Type]>,
-    pub bindings: Box<[B]>,
-    pub automation: A,
-    pub calculation: Option<C>,
-    pub array_capacity: usize,
-    pub array_width: usize,
+    pub(crate) duration: SampleDuration,
+    pub(crate) params: BoundParams,
+    pub(crate) types: Box<[Type]>,
+    pub(crate) bindings: Box<[B]>,
+    pub(crate) automation: A,
+    pub(crate) calculation: Option<C>,
+    pub(crate) array_capacity: usize,
+    pub(crate) array_width: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -177,7 +177,7 @@ pub(crate) fn admit_environments(
 }
 
 impl PreparedParameterEnvironment {
-    pub fn output_types(&self) -> &[Type] {
+    pub(crate) fn output_types(&self) -> &[Type] {
         self.calculation
             .as_ref()
             .map_or(&self.types, |calculation| &calculation.outputs)
@@ -186,7 +186,7 @@ impl PreparedParameterEnvironment {
     /// Conservative result-arena bound shared by host preparation and wire admission.
     /// Result copying preserves shared array nodes, so source capacities can be
     /// added; repeated references do not multiply their subtrees in the result.
-    pub fn required_array_storage<'a>(
+    pub(crate) fn required_array_storage<'a>(
         parents: impl IntoIterator<Item = &'a Self>,
         calculation: Option<&PreparedParameterCalculation>,
     ) -> (usize, usize) {

@@ -30,7 +30,10 @@ if let Some(sequence) = prepare(
 
 `PreparedSequence` is owned by runtime and re-exported by elaboration. Its fields
 are private; elaboration assembles it through `PreparedSequence::build`, and callers
-inspect it through read-only accessors. The builder issues owner-bound handles for
+inspect it through read-only accessors. Cloning preserves the accepted sequence;
+`effect_windows()` exposes only retained start/duration metadata, including generated
+children. Neither operation exposes execution-plan or storage addresses.
+The builder issues owner-bound handles for
 fixtures, targets, effects and signal nodes; callers cannot supply mismatched graph
 indices. Project admission binds typed programs, parameter values, automation,
 timing and geometry before preparation.
@@ -60,14 +63,20 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Project IO | Text and source ownership to an accepted `DonderProject` | Syntax, references, authored values and compiled definitions |
 | Project editing | A typed edit batch applied to an accepted project | Affected relationships and playback inputs; rejection leaves the accepted project unchanged |
 | Elaboration | Accepted project plus selection to `Option<PreparedSequence>` | Resolving the selection, not repeating text validation |
-| Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership; raw-data admission is a separate checked boundary |
+| Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
 | Archive decoding | Untrusted bytes to an admitted sequence | Format, storage addresses, program structure and execution capabilities |
 
-Raw graph and bytecode records are construction/inspection data, not executable
-objects. Mutating a raw copy cannot mutate an accepted sequence. Parameter binding
-pairs values with their admitted program before execution; evaluation does not
-accept an independently replaceable parameter bank.
+Raw sequence graphs, execution plans, parameter environments and output-routing
+storage are runtime-private. Callers cannot export or reconstruct them; archive
+decoding validates the private representation before returning a prepared sequence.
+Tests that deliberately corrupt these records live inside runtime.
+
+Bytecode instructions and slots form a separate, necessary cross-crate contract:
+the private compiler in `donder-language` emits the runtime-owned representation
+and admits it as a typed program. Raw bytecode cannot execute directly. Parameter
+binding pairs values with their admitted program before execution; evaluation
+does not accept an independently replaceable parameter bank.
 
 In elaboration, `selection.rs` resolves identities and output ordering, while
 `sequence.rs` lowers accepted fixtures, effects and generators. Its `composition`

@@ -52,7 +52,7 @@ fn full_rig_target_accepts_a_fixture_larger_than_u16_indices() {
         builder.fixture(7, geometry);
         builder.output([])
     });
-    let graph = sequence.to_raw_signals();
+    let graph = sequence.archive_data().signals;
     let target = graph.target(graph.plan.target);
     assert_eq!(target.len(), 65_537);
     assert_eq!(target.last().unwrap().fixture_pixel_index, 65_536);

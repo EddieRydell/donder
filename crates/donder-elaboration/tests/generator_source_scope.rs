@@ -95,7 +95,7 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
         let prepared =
             prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
         assert!(
-            !prepared.to_raw_signals().effects.is_empty(),
+            prepared.effect_count() > 0,
             "the generator must actually emit"
         );
     }
@@ -162,7 +162,7 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
         .replace_sequence(&sequence_id, sequence)
         .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(!prepared.to_raw_signals().effects.is_empty());
+    assert!(prepared.effect_count() > 0);
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn acyclic_generator_chain_can_exceed_four_levels() {
         .replace_sequence(&sequence_id, sequence)
         .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(!prepared.to_raw_signals().effects.is_empty());
+    assert!(prepared.effect_count() > 0);
 }
 
 #[test]
@@ -255,5 +255,5 @@ fn prepared_generator_accepts_more_than_four_thousand_mark_children() {
         .replace_sequence(&sequence_id, sequence)
         .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(prepared.to_raw_signals().effects.len() > 4_096);
+    assert!(prepared.effect_count() > 4_096);
 }

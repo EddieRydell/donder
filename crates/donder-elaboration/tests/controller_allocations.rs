@@ -1,3 +1,5 @@
+mod support;
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -70,7 +72,7 @@ fn prepared_controller_sampling_does_not_allocate() {
             output.frame_count().saturating_sub(1),
         ];
         assert_prepared_sampling_does_not_allocate(
-            &output,
+            output.clone(),
             &frames,
             sequence_id.0.root_source().object(),
         );
@@ -85,22 +87,16 @@ fn prepared_controller_sampling_does_not_allocate() {
         .unwrap();
         let encoded = donder_runtime::encode_sequence(&selected).unwrap();
         selected = donder_runtime::decode_sequence(&encoded, Default::default()).unwrap();
-        assert_prepared_sampling_does_not_allocate(&selected, &frames, "selected output");
-        let measure = |output: &PreparedSequence| {
-            let accepted = PreparedSequence::admit(
-                output.to_raw_signals(),
-                output.patch().clone(),
-                output.outputs().into(),
-            )
-            .unwrap();
+        assert_prepared_sampling_does_not_allocate(selected.clone(), &frames, "selected output");
+        let measure = |accepted: PreparedSequence| {
             let before = LIVE_BYTES.load(Ordering::Relaxed);
             let workspace = accepted.into_playback();
             let bytes = LIVE_BYTES.load(Ordering::Relaxed) - before;
             drop(workspace);
             bytes
         };
-        let full_bytes = measure(&output);
-        let selected_bytes = measure(&selected);
+        let full_bytes = measure(output);
+        let selected_bytes = measure(selected);
         assert!(selected_bytes < full_bytes);
         println!(
             "{} runtime workspace heap: {full_bytes} -> {selected_bytes} bytes",
@@ -128,11 +124,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     project.replace_sequence(&sequence_id, sequence).unwrap();
     let output = prepare(&project, &sequence_id, PrepareOutputs::All)
         .expect("automated DSL output should prepare");
-    assert_prepared_sampling_does_not_allocate(
-        &output,
-        &[7150, 7151, 7152],
-        "automated DSL effect",
-    );
+    assert_prepared_sampling_does_not_allocate(output, &[7150, 7151, 7152], "automated DSL effect");
     for query in [
         "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
         "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
@@ -160,7 +152,7 @@ fn prepared_controller_sampling_does_not_allocate() {
             )
             .unwrap();
         let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
-        assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 7152, 0], query);
+        assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 7152, 0], query);
     }
 
     // Exercise the project-owned bounded Echo loop through the same prepared
@@ -172,57 +164,22 @@ fn prepared_controller_sampling_does_not_allocate() {
     .into_iter()
     .find(|operator| operator.name().as_str() == "Echo")
     .unwrap();
-    let mut signal = output.to_raw_signals();
-    let program = signal.programs.len();
-    let params = donder_runtime::BoundParams::bind_pairs(echo.params(), &[]).unwrap();
-    let mut programs = signal.programs.to_vec();
-    programs.push(echo.program().clone().into_parts().0);
-    signal.programs = programs.into();
-    let mut nodes = signal.plan.nodes.to_vec();
-    nodes.push(donder_runtime::PreparedSignalNode {
-        kind: donder_runtime::PreparedSignalKind::Operator {
-            operator: donder_runtime::PreparedOperatorNode {
-                implementation: donder_runtime::PreparedOperator::Dsl(program),
-                params,
-                automation_slot: 0,
-            },
-            inputs: vec![signal.plan.output_index].into(),
-            automation: Box::new([]),
-            vm_slot: signal.plan.vm_workspace_count,
-        },
-    });
-    signal.plan.output_index = nodes.len() - 1;
-    signal.plan.frame_slots = vec![usize::MAX; nodes.len()].into();
-    signal.plan.frame_slots[signal.plan.output_index] = 0;
-    signal.plan.frame_nodes = vec![signal.plan.output_index].into();
-    signal.plan.frame_buffer_count = 1;
-    signal.plan.vm_workspace_count += 1;
-    signal.plan.nodes = nodes.into();
-    let output = PreparedSequence::admit(
-        signal,
-        output.patch().clone(),
-        output.outputs().to_vec().into(),
-    )
-    .unwrap();
-    assert_prepared_sampling_does_not_allocate(&output, &[0, 8494, 7150, 7151, 0], "DSL Echo");
+    support::append_operator(&mut project, &sequence_id, echo);
+    let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
+    assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 0], "DSL Echo");
 }
 
 fn assert_prepared_sampling_does_not_allocate(
-    output: &PreparedSequence,
+    output: PreparedSequence,
     frames: &[u32],
     name: &str,
 ) {
-    let mut workspace = donder_runtime::PreparedSequence::admit(
-        output.to_raw_signals(),
-        output.patch().clone(),
-        output.outputs().into(),
-    )
-    .unwrap()
-    .into_playback();
+    let frame_rate = output.frame_rate();
+    let mut workspace = output.into_playback();
     ALLOCATIONS.store(0, Ordering::Relaxed);
     COUNTING.store(true, Ordering::Relaxed);
     for &frame in frames {
-        let time = sample_time_from_frame(frame, output.frame_rate())
+        let time = sample_time_from_frame(frame, frame_rate)
             .expect("sample frame should fit the controller clock");
         std::hint::black_box(workspace.evaluate(time));
     }

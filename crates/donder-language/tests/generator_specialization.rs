@@ -13,8 +13,8 @@ use donder_language::values::{SampleDuration, SampleTime};
 use std::sync::Arc;
 
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/workload.rs"]
-mod workload;
+#[path = "support/playback.rs"]
+mod playback;
 
 fn specialize(source: &str, inputs: &[GeneratorInput]) -> SpecializedGenerator {
     let mut compiled = compile_effects(source).unwrap();
@@ -301,35 +301,14 @@ fn repeated_calculation_outputs_share_the_result_array() {
 
 #[test]
 fn retained_array_copies_preserve_sharing_across_nested_calculations() {
-    use donder_runtime::{BoundParams, Type};
-    use donder_runtime::{
-        ParameterSource, PreparedParameterBinding, PreparedParameterCalculation,
-        PreparedParameterEnvironment,
-    };
-
-    let generator = specialize(
-        "effect Parent { param float seed; void generate() {
+    let source = "effect Parent { param float seed; void generate() {
             array<float> item = [seed + seconds()];
             array<array<float>> repeated = [item, item, item, item, item, item, item, item];
             array<array<array<float>>> wrapped = [repeated, repeated, repeated, repeated];
             timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: wrapped };
-        } }",
-        &[GeneratorInput::Live],
-    );
+        } }";
+    let generator = specialize(source, &[GeneratorInput::Live]);
     assert_eq!(generator.calculations.len(), 3);
-    let seed = Value::Float(0.25);
-    let mut cache = DslBindCache::default();
-    let mut environments: Vec<PreparedParameterEnvironment> = vec![PreparedParameterEnvironment {
-        start_time: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(1_000_000),
-        params: BoundParams::from_values([(&Type::Float, seed.clone())], &mut cache),
-        types: Box::new([Type::Float]),
-        bindings: Box::new([]),
-        automation: Box::new([]),
-        calculation: None,
-        array_capacity: 0,
-        array_width: 0,
-    }];
     for (index, calculation) in generator.calculations.iter().enumerate() {
         let source = if index == 0 {
             GeneratorBinding::Parameter(0)
@@ -340,47 +319,32 @@ fn retained_array_copies_preserve_sharing_across_nested_calculations() {
             }
         };
         assert_eq!(calculation.inputs.as_ref(), &[source]);
-        let (program, types, outputs) = calculation.program.clone().into_parts();
-        let calculation = PreparedParameterCalculation { program, outputs };
-        let (array_capacity, array_width) = PreparedParameterEnvironment::required_array_storage(
-            [&environments[index]],
-            Some(&calculation),
-        );
-        environments.push(PreparedParameterEnvironment {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            params: BoundParams::from_values(types.iter().map(|ty| (ty, Value::Void)), &mut cache),
-            types,
-            bindings: Box::new([PreparedParameterBinding {
-                parameter: 0,
-                source: ParameterSource {
-                    environment: index,
-                    parameter: 0,
-                },
-            }]),
-            automation: Box::new([]),
-            calculation: Some(calculation),
-            array_capacity,
-            array_width,
-        });
     }
     let sample = compile_effects("effect Child { param array<array<array<float>>> value; color sample() { return rgb(value[0][0][0], value[1][3][0], value[3][7][0]); } }")
         .unwrap().remove(0).effect;
-    let base = workload::show(
-        2,
-        sample.sample_program().unwrap().clone().into_parts().0,
-        BoundParams::default(),
+    let parent = compile_effects(source).unwrap().remove(0).effect;
+    // Constant-valued automation keeps the seed live through all three retained
+    // calculation banks, just as an authored automated generator parameter does.
+    let invocation = playback::generator(
+        &parent,
+        &sample,
+        vec![Value::Float(0.25)],
+        vec![donder_runtime::PreparedAutomation {
+            start: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            curve: donder_runtime::Curve {
+                points: vec![donder_runtime::CurvePoint {
+                    position: 0.0,
+                    value: 0.25,
+                }],
+            }
+            .into(),
+            mapping: donder_runtime::AutomationMapping::Float { min: 0.0, max: 1.0 },
+            param_index: 0,
+        }]
+        .into(),
     );
-    let mut graph = base.signals().clone();
-    graph.parameter_environments = environments.into();
-    graph.effects[0].implementation = donder_runtime::PreparedEffectImplementation::Bound {
-        program: 0,
-        environment: 3,
-    };
-    let mut playback =
-        donder_runtime::PreparedSequence::admit(graph, base.patch().clone(), base.outputs().into())
-            .unwrap()
-            .into_playback();
+    let mut playback = playback::generated(2, &invocation).into_playback();
     for time in [0, 500_000, 200_000, 0] {
         let channel = ((0.25 + time as f32 / 1_000_000.0) * 255.0).round() as u8;
         let output = playback.evaluate(SampleTime::from_ticks(time));

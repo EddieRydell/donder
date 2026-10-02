@@ -13,10 +13,10 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 /// Raw construction/archive data. This representation is not executable by itself:
-/// `PreparedSequence::admit` checks it before publishing immutable playback state.
+/// Archive admission checks it before publishing immutable playback state.
 /// The private executable graph substitutes admitted programs and binding plans.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedSignalGraph<
+pub(crate) struct PreparedSignalGraph<
     P = Box<[BytecodeProgram]>,
     E = crate::bindings::PreparedParameterEnvironment,
     A = Box<[PreparedAutomation]>,
@@ -57,7 +57,7 @@ impl core::ops::Deref for SignalGraph<'_> {
 /// Numeric source identity and sampling domain for an authored timeline clip.
 /// Playback effects can be reordered or filtered without losing clip ownership.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedClip {
+pub(crate) struct PreparedClip {
     pub id: u32,
     #[rkyv(with = crate::wire::Microseconds)]
     pub start_time: SampleTime,
@@ -74,7 +74,7 @@ pub struct PreparedFixture {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedEffect<A = Box<[PreparedAutomation]>> {
+pub(crate) struct PreparedEffect<A = Box<[PreparedAutomation]>> {
     #[rkyv(with = crate::wire::Microseconds)]
     pub start_time: SampleTime,
     #[rkyv(with = crate::wire::Microseconds)]
@@ -85,7 +85,7 @@ pub struct PreparedEffect<A = Box<[PreparedAutomation]>> {
 }
 
 impl<A> PreparedEffect<A> {
-    pub fn is_active(&self, sample_time: SampleTime) -> bool {
+    pub(crate) fn is_active(&self, sample_time: SampleTime) -> bool {
         sample_time >= self.start_time
             && self
                 .start_time
@@ -93,13 +93,13 @@ impl<A> PreparedEffect<A> {
                 .is_some_and(|end| sample_time < end)
     }
 
-    pub fn local_time(&self, sample_time: SampleTime) -> SampleDuration {
+    pub(crate) fn local_time(&self, sample_time: SampleTime) -> SampleDuration {
         sample_time
             .checked_duration_since(self.start_time)
             .unwrap_or(SampleDuration::from_ticks(0))
     }
 
-    pub fn progress(&self, sample_time: SampleTime) -> f32 {
+    pub(crate) fn progress(&self, sample_time: SampleTime) -> f32 {
         let elapsed = sample_time
             .checked_duration_since(self.start_time)
             .map_or(0, |duration| duration.as_ticks());
@@ -108,7 +108,7 @@ impl<A> PreparedEffect<A> {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum PreparedEffectImplementation {
+pub(crate) enum PreparedEffectImplementation {
     Bound {
         environment: usize,
         program: usize,
@@ -120,7 +120,7 @@ pub enum PreparedEffectImplementation {
 }
 
 impl PreparedEffectImplementation {
-    pub fn dsl_program(&self) -> usize {
+    pub(crate) fn dsl_program(&self) -> usize {
         match self {
             Self::Dsl { program, .. } | Self::Bound { program, .. } => *program,
         }
@@ -128,12 +128,12 @@ impl PreparedEffectImplementation {
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedLayer {
+pub(crate) struct PreparedLayer {
     pub enabled: bool,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedEffectAutomation<A = Box<[PreparedAutomation]>> {
+pub(crate) struct PreparedEffectAutomation<A = Box<[PreparedAutomation]>> {
     /// Dense index in automated-effect order, assigned by elaboration.
     pub workspace_slot: usize,
     pub bindings: A,
@@ -165,7 +165,7 @@ impl PreparedAutomation {
 
 /// Graph connections and the buffer/VM schedule assigned during elaboration.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct SignalPlan<A = Box<[PreparedAutomation]>> {
+pub(crate) struct SignalPlan<A = Box<[PreparedAutomation]>> {
     pub output_index: usize,
     pub target: usize,
     pub nodes: Box<[PreparedSignalNode<A>]>,
@@ -176,12 +176,12 @@ pub struct SignalPlan<A = Box<[PreparedAutomation]>> {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedSignalNode<A = Box<[PreparedAutomation]>> {
+pub(crate) struct PreparedSignalNode<A = Box<[PreparedAutomation]>> {
     pub kind: PreparedSignalKind<A>,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
+pub(crate) enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
     Layer {
         layer_index: usize,
     },
@@ -197,12 +197,12 @@ pub enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum PreparedOperator {
+pub(crate) enum PreparedOperator {
     Dsl(usize),
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedOperatorNode {
+pub(crate) struct PreparedOperatorNode {
     /// Dense index among automated graph nodes; unused without bindings.
     pub automation_slot: usize,
     pub implementation: PreparedOperator,
@@ -210,7 +210,7 @@ pub struct PreparedOperatorNode {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedTarget {
+pub(crate) struct PreparedTarget {
     pub pixels: core::ops::Range<usize>,
     /// Zero disables sample reuse; otherwise this is the required cache width.
     pub sample_count: usize,
@@ -645,28 +645,12 @@ impl<P, E, A> PreparedSignalGraph<P, E, A> {
         required
     }
 
-    pub fn target(&self, index: usize) -> &[PreparedPixel] {
+    pub(crate) fn target(&self, index: usize) -> &[PreparedPixel] {
         let range = &self.targets[index].pixels;
         &self.target_pixels[range.start..range.end]
     }
 
-    pub fn frame_count(&self) -> u32 {
-        self.frame_count
-    }
-
-    pub fn frame_rate(&self) -> u32 {
-        self.frame_rate
-    }
-
-    pub fn pixel_count(&self) -> usize {
-        self.pixel_count
-    }
-
-    pub fn duration(&self) -> SampleDuration {
-        self.duration
-    }
-
-    pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {
+    pub(crate) fn active_effect_count(&self, sample_time: SampleTime) -> usize {
         self.effects
             .iter()
             .filter(|effect| effect.is_active(sample_time))

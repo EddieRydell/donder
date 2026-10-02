@@ -1,11 +1,8 @@
 //! Host-prepared mark fixtures using the same editable effects as projects.
 use super::workload::Workload;
 use donder_language::dsl::{GeneratorBinding, GeneratorContext, GeneratorInput, compile_effects};
-use donder_runtime::{BoundParams, Identifier, TargetItemValue, TargetValue, Value};
-use donder_runtime::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
-};
-use donder_runtime::{PreparedEffect, PreparedEffectImplementation, PreparedTarget};
+use donder_runtime::{BoundParams, DslBindCache, GeneratorPlayback, Identifier, Value};
+use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration};
 
 #[allow(dead_code)] // Shared device-profile and host benchmark fixture.
 pub fn mark_show(count: usize, pulse: bool) -> Workload {
@@ -19,28 +16,12 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
         .iter()
         .find(|definition| definition.effect.name().as_str() == generator_name)
         .unwrap();
-    let child = definitions
-        .iter()
-        .find(|definition| definition.effect.name().as_str() == child_name)
-        .unwrap();
     assert!(generator.emitted_references.iter().all(|emission| {
         emission.reference
             == donder_language::imports::SourceReference::Local(
                 Identifier::new(child_name.into()).unwrap(),
             )
     }));
-    let show = super::workload::show(
-        count,
-        child
-            .effect
-            .sample_program()
-            .unwrap()
-            .clone()
-            .into_parts()
-            .0,
-        BoundParams::default(),
-    );
-    let mut signals = show.signals().clone();
     let ramp = Value::Curve(
         Curve {
             points: vec![
@@ -121,21 +102,7 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
             ),
         ]);
     }
-    let params =
-        donder_runtime::BoundParams::bind_pairs(generator.effect.params(), &overrides).unwrap();
-    let context = GeneratorContext {
-        start_time: SampleTime::from_ticks(0),
-        duration: signals.duration,
-        target: TargetValue {
-            groups: vec![
-                TargetItemValue {
-                    pixels: signals.target_pixels.to_vec().into(),
-                }
-                .into(),
-            ],
-        }
-        .into(),
-    };
+    let params = BoundParams::bind_pairs(generator.effect.params(), &overrides).unwrap();
     let generated = generator
         .effect
         .generator()
@@ -147,78 +114,51 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
                 .collect::<Vec<_>>(),
         )
         .unwrap()
-        .specialize(&context);
+        .specialize(&GeneratorContext {
+            start_time: donder_runtime::SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
+            target: donder_runtime::TargetValue {
+                groups: vec![
+                    donder_runtime::TargetItemValue {
+                        pixels: (0..count)
+                            .map(|pixel| donder_runtime::PreparedPixel {
+                                fixture_index: 0,
+                                fixture_pixel_index: pixel as u32,
+                                pixel_index: pixel,
+                                pixel_count: count,
+                                pixel_fraction: pixel as f32
+                                    / count.saturating_sub(1).max(1) as f32,
+                            })
+                            .collect(),
+                    }
+                    .into(),
+                ],
+            }
+            .into(),
+        });
     // These fixtures supply fixed inputs and use no live clock expressions.
     assert!(generated.calculations.is_empty());
     assert!(generated.children.len() >= 32);
-    let mut pixels = signals.target_pixels.to_vec();
-    let mut spatial_contexts = signals.spatial_contexts.to_vec();
-    let mut targets = signals.targets.to_vec();
-    signals.effects = generated
-        .children
-        .into_iter()
-        .map(|emission| {
-            assert_eq!(emission.definition.0, 0);
-            let target = if emission.target == context.target.groups[0] {
-                0
-            } else {
-                let index = targets.len();
-                let start = pixels.len();
-                // Each emitted section has its own spatial scope on the fixture line.
-                let positions = emission
-                    .target
-                    .pixels
-                    .iter()
-                    .map(|pixel| pixel.fixture_pixel_index as f32);
-                if let Some((min, max)) = positions
-                    .clone()
-                    .map(|position| (position, position))
-                    .reduce(|(min, max), (position, _)| (min.min(position), max.max(position)))
-                {
-                    spatial_contexts.extend(positions.map(|position| {
-                        donder_runtime::SpatialContext {
-                            position: [position, 0.0],
-                            min: [min, 0.0],
-                            max: [max, 0.0],
-                        }
-                    }));
-                }
-                pixels.extend_from_slice(&emission.target.pixels);
-                targets.push(PreparedTarget {
-                    pixels: start..pixels.len(),
-                    sample_count: 0,
-                });
-                index
-            };
-            let params = emission
+    for emission in generated.children {
+        assert_eq!(emission.definition.0, 0);
+        assert!(
+            emission
                 .params
-                .into_iter()
-                .map(|(name, binding)| {
-                    let GeneratorBinding::Constant(value) = binding else {
-                        panic!("fixed mark fixture produced a live child parameter");
-                    };
-                    (name, value)
-                })
-                .collect::<Vec<_>>();
-            PreparedEffect {
-                start_time: emission.start_time,
-                duration: emission.duration,
-                target,
-                implementation: PreparedEffectImplementation::Dsl {
-                    program: 0,
-                    bound_params: donder_runtime::BoundParams::bind_pairs(
-                        child.effect.params(),
-                        &params,
-                    )
-                    .unwrap(),
-                },
-                automation: None,
-            }
-        })
-        .collect();
-    signals.targets = targets.into();
-    signals.target_pixels = pixels.into();
-    signals.spatial_contexts = spatial_contexts.into();
-    signals.effects_by_layer = vec![(0..signals.effects.len()).collect()].into();
-    Workload::new(signals, show.patch().clone(), show.outputs().into())
+                .iter()
+                .all(|(_, binding)| matches!(binding, GeneratorBinding::Constant(_))),
+            "fixed mark fixture produced a live child parameter"
+        );
+    }
+    let linked = super::workload::link_generator(&definitions, generator_name);
+    let playback = GeneratorPlayback::admit(
+        linked,
+        params.iter_values().collect(),
+        Box::new([]),
+        &mut DslBindCache::default(),
+    )
+    .unwrap();
+    let show = Workload::generator(count, playback);
+    // Fixed mark inputs must expand to at least one sample child per beat.
+    assert!(show.clone().prepare().effect_count() >= 32);
+    show
 }

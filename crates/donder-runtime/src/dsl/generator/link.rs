@@ -39,13 +39,13 @@ pub struct LinkedGenerator {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct GeneratorInvocation {
+pub(crate) struct GeneratorInvocation {
     generator: Arc<LinkedGenerator>,
     inputs: Box<[GeneratorInput]>,
 }
 
 #[derive(Debug)]
-pub struct GeneratorEmission {
+pub(crate) struct GeneratorEmission {
     child: SpecializedChild,
     inputs: Box<[GeneratorBinding]>,
     execution: EmissionExecution,
@@ -53,12 +53,12 @@ pub struct GeneratorEmission {
 }
 
 #[derive(Debug)]
-pub enum EmissionExecution {
+pub(crate) enum EmissionExecution {
     Sample(Arc<super::super::SampleProgram>),
     Generator(GeneratorInvocation),
 }
 
-pub struct LinkedSpecialization {
+pub(crate) struct LinkedSpecialization {
     calculations: Vec<GeneratorCalculation>,
     children: Vec<GeneratorEmission>,
 }
@@ -149,13 +149,13 @@ impl LinkedGenerator {
         }))
     }
 
-    pub fn params(&self) -> &[ParamDecl] {
+    pub(crate) fn params(&self) -> &[ParamDecl] {
         self.program.params()
     }
 
     /// External values enter once, when a project instance is accepted. Child
     /// invocations are formed only by the linked call plan below.
-    pub fn bind(
+    pub(crate) fn bind(
         self: &Arc<Self>,
         inputs: Box<[GeneratorInput]>,
     ) -> Result<GeneratorInvocation, RuntimeError> {
@@ -171,7 +171,7 @@ impl GeneratorInvocation {
     pub(crate) fn params(&self) -> &[ParamDecl] {
         self.generator.program.params()
     }
-    pub fn specialize(&self, context: &GeneratorContext) -> LinkedSpecialization {
+    pub(crate) fn specialize(&self, context: &GeneratorContext) -> LinkedSpecialization {
         let result = BoundGenerator {
             program: &self.generator.program,
             inputs: &self.inputs,
@@ -238,7 +238,7 @@ impl GeneratorInvocation {
 }
 
 impl LinkedSpecialization {
-    pub fn into_parts(self) -> (Vec<GeneratorCalculation>, Vec<GeneratorEmission>) {
+    pub(crate) fn into_parts(self) -> (Vec<GeneratorCalculation>, Vec<GeneratorEmission>) {
         (self.calculations, self.children)
     }
 }
@@ -248,15 +248,15 @@ impl GeneratorEmission {
         &self.links
     }
 
-    pub fn child(&self) -> &SpecializedChild {
+    pub(crate) fn child(&self) -> &SpecializedChild {
         &self.child
     }
 
-    pub fn inputs(&self) -> &[GeneratorBinding] {
+    pub(crate) fn inputs(&self) -> &[GeneratorBinding] {
         &self.inputs
     }
 
-    pub fn execution(&self) -> &EmissionExecution {
+    pub(crate) fn execution(&self) -> &EmissionExecution {
         &self.execution
     }
 }

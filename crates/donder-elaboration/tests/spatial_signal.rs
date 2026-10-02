@@ -1,76 +1,75 @@
-#[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/workload.rs"]
-mod workload;
-
 use donder_language::dsl::{compile_effects, compile_operators};
-use donder_runtime::BoundParams;
-use donder_runtime::Instruction;
-use donder_runtime::{Color, SampleTime};
 use donder_runtime::{
-    PreparedFixture, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
-    PreparedSignalNode, PreparedTarget,
+    Color, CompiledOperator, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition,
+    PreparedSequence, SampleDefinition, SampleTime, SequenceTiming, TargetScope,
 };
+use std::num::NonZeroU32;
 
-#[test]
-fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() {
+fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
     let effect = compile_effects(
         "effect Positions { color sample() {
-        return rgb(pixel_index() / 8.0, seconds() / 8.0, 0.0);
-    } }",
+            return rgb(pixel_index() / 8.0, seconds() / 8.0, 0.0);
+        } }",
     )
     .unwrap()
     .remove(0)
     .effect;
-    let mut base = workload::show(
-        8,
-        effect.sample_program().unwrap().clone().into_parts().0,
-        BoundParams::default(),
+    let sample = SampleDefinition::new(effect.sample_program().unwrap().clone())
+        .bind(vec![], &mut DslBindCache::default())
+        .unwrap();
+    let operator = query.map(|(query, cached)| {
+        let compiled = compile_operators(&format!(
+            "operator Spatial {{ input Signal source; color sample() {{ return {query}; }} }}"
+        ))
+        .unwrap()
+        .remove(0);
+        let compiled = if cached {
+            compiled
+        } else {
+            let mut bytecode = compiled.program().clone().into_parts().0;
+            for instruction in &mut bytecode.instructions {
+                if let Instruction::SignalSample { frame_cache, .. } = instruction {
+                    *frame_cache = u32::MAX;
+                }
+            }
+            CompiledOperator::admit(
+                compiled.name().clone(),
+                compiled.inputs().to_vec(),
+                compiled.params().to_vec(),
+                bytecode,
+            )
+            .unwrap()
+        };
+        OperatorDefinition::new(compiled)
+            .bind(vec![], &mut DslBindCache::default())
+            .unwrap()
+    });
+    let timing = SequenceTiming::admit(
+        NonZeroU32::new(120).unwrap(),
+        NonZeroU32::new(960).unwrap(),
+        NonZeroU32::new(8_000_000).unwrap(),
+        Box::new([]),
     )
-    .signals()
-    .clone();
-    base.fixtures = vec![
-        PreparedFixture {
-            id: 0,
-            pixel_count: 4,
-        },
-        PreparedFixture {
-            id: 1,
-            pixel_count: 4,
-        },
-    ]
-    .into();
-    base.fixture_pixel_offsets = vec![0, 4].into();
-    let mut pixels = base.target_pixels.to_vec();
-    for (index, pixel) in pixels.iter_mut().enumerate() {
-        pixel.fixture_index = index / 4;
-        pixel.fixture_pixel_index = (index % 4) as u32;
-    }
-    let effect_pixels = pixels.clone();
-    for (index, pixel) in pixels.iter_mut().enumerate() {
-        pixel.pixel_index = index % 4;
-        pixel.pixel_count = 4;
-        pixel.pixel_fraction = (index % 4) as f32 / 3.0;
-    }
-    pixels.extend(effect_pixels);
-    base.target_pixels = pixels.into();
-    // The output and effect targets address the same physical pixels. Keep
-    // their parallel geometry entries aligned when duplicating target pixels.
-    let mut spatial_contexts = base.spatial_contexts.to_vec();
-    spatial_contexts.extend_from_within(..);
-    base.spatial_contexts = spatial_contexts.into();
-    base.targets = vec![
-        PreparedTarget {
-            pixels: 0..8,
-            sample_count: 0,
-        },
-        PreparedTarget {
-            pixels: 8..16,
-            sample_count: 0,
-        },
-    ]
-    .into();
-    base.effects[0].target = 1;
+    .unwrap();
+    PreparedSequence::build(timing, |builder| {
+        let fixtures = [0, 1].map(|id| {
+            builder.fixture(
+                id,
+                FixtureGeometry::admit(vec![[0.0; 2]; 4].into()).unwrap(),
+            )
+        });
+        let target = builder.target(fixtures, TargetScope::WholeTarget);
+        let effect = builder.sample(&sample, builder.whole_sequence(), target);
+        let layer = builder.layer(true, [effect]);
+        let output = operator
+            .as_ref()
+            .map_or(layer, |operator| builder.operator(operator, |_| layer));
+        builder.output([output])
+    })
+}
 
+#[test]
+fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() {
     for (query, indices) in [
         (
             "source.at(seconds(), pixel_count() - 1 - pixel_index())",
@@ -119,63 +118,8 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
         ),
     ] {
         for cached in [true, false] {
-            let mut graph = base.clone();
-            let mut program = compile_operators(&format!(
-                "operator Spatial {{ input Signal source; color sample() {{ return {query}; }} }}"
-            ))
-            .unwrap()
-            .remove(0)
-            .program()
-            .clone()
-            .into_parts()
-            .0;
-            if !cached {
-                for op in &mut program.instructions {
-                    if let Instruction::SignalSample { frame_cache, .. } = op {
-                        *frame_cache = u32::MAX;
-                    }
-                }
-            }
-            let mut programs = graph.programs.to_vec();
-            let program_index = programs.len();
-            programs.push(program);
-            graph.programs = programs.into();
-            graph.plan.nodes[1] = PreparedSignalNode {
-                kind: PreparedSignalKind::Operator {
-                    operator: PreparedOperatorNode {
-                        implementation: PreparedOperator::Dsl(program_index),
-                        params: BoundParams::default(),
-                        automation_slot: 0,
-                    },
-                    inputs: vec![0].into(),
-                    automation: Box::new([]),
-                    vm_slot: 0,
-                },
-            };
-            graph.plan.vm_workspace_count = 1;
-            graph.plan.frame_nodes = vec![1].into();
-            graph.plan.frame_slots = vec![usize::MAX, 0].into();
-            graph.plan.frame_buffer_count = 1;
-            let mut workspace = donder_runtime::PreparedSequence::admit(
-                graph.clone(),
-                donder_runtime::PreparedPatch {
-                    routes: Box::new([]),
-                    lookups: Box::new([]),
-                },
-                Box::new([]),
-            )
-            .unwrap()
-            .into_playback();
-            let mut source_workspace = donder_runtime::PreparedSequence::admit(
-                base.clone(),
-                donder_runtime::PreparedPatch {
-                    routes: Box::new([]),
-                    lookups: Box::new([]),
-                },
-                Box::new([]),
-            )
-            .unwrap()
-            .into_playback();
+            let mut workspace = sequence(Some((query, cached))).into_playback();
+            let mut source_workspace = sequence(None).into_playback();
             for ticks in [0, 500000, 2000000, 100000, 0] {
                 let time = SampleTime::from_ticks(ticks);
                 let source = source_workspace.evaluate(time).colors();

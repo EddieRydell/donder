@@ -412,6 +412,8 @@ fn frame_inputs(node: &PreparedSignalNode<AutomationPlan>) -> &[usize] {
 
 #[cfg(test)]
 mod tests {
+    mod storage;
+
     use super::*;
     use crate::dsl::bytecode::{
         BytecodeProgram, ColorSlot, ContextRead, FloatSlot, IntSlot, NumberSlot, SlotLayout,
@@ -619,8 +621,8 @@ mod tests {
             let compacted = sequence(true, true, query);
             assert_eq!(full.pixel_count(), 12);
             assert_eq!(compacted.pixel_count(), count);
-            let compact_raw = compacted.to_raw_signals();
-            let full_raw = full.to_raw_signals();
+            let compact_raw = compacted.archive_data().signals;
+            let full_raw = full.archive_data().signals;
             // Operators request their inputs at the query time; neither plan
             // eagerly renders upstream layers, and the terminal output aliases.
             assert_eq!(full_raw.plan.frame_nodes.as_ref(), [3]);
@@ -669,9 +671,19 @@ mod tests {
 
     #[test]
     fn empty_selected_outputs_remove_all_execution_dependencies() {
+        let full = sequence(false, false, SignalPixel::Global(9));
+        let before = full.archive_data();
+        assert!(!before.signals.programs.is_empty());
+        assert!(!before.signals.effects.is_empty());
+        assert!(!before.signals.target_pixels.is_empty());
         let compacted = sequence(true, false, SignalPixel::Global(9));
         assert_eq!(compacted.pixel_count(), 0);
-        let raw = compacted.to_raw_signals();
+        let data = compacted.archive_data();
+        assert!(data.outputs.is_empty());
+        assert!(data.patch.routes.is_empty());
+        let raw = data.signals;
+        assert!(raw.fixtures.is_empty());
+        assert!(raw.fixture_pixel_offsets.is_empty());
         assert!(raw.programs.is_empty());
         assert!(raw.effects.is_empty());
         assert!(raw.parameter_environments.is_empty());

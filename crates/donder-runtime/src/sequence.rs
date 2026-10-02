@@ -17,11 +17,12 @@ use programs::AdmittedPrograms;
 /// Frozen playback data; authoring, elaboration, networking, and pin timing are external.
 /// Construction and archive decoding admit the complete graph before publishing it.
 /// The archive representation is private so deserialization cannot bypass admission.
+#[derive(Clone)]
 pub struct PreparedSequence {
     data: ExecutableSequenceData,
 }
 
-#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct SequenceData<
     P = Box<[crate::dsl::bytecode::BytecodeProgram]>,
     E = crate::bindings::PreparedParameterEnvironment,
@@ -113,20 +114,6 @@ impl PreparedSequence {
         Self::assembled(builder.finish(root))
     }
 
-    /// Admit raw host-lowered data once, before allocating playback storage.
-    pub fn admit(
-        signals: PreparedSignalGraph,
-        patch: PreparedPatch,
-        outputs: Box<[PreparedOutput]>,
-    ) -> Result<Self, crate::wire::LoadError> {
-        let data = SequenceData {
-            signals,
-            patch,
-            outputs,
-        };
-        Self::admit_data(data, None)
-    }
-
     pub(crate) fn admit_data(
         data: SequenceData,
         limits: Option<crate::wire::LoadLimits>,
@@ -163,12 +150,6 @@ impl PreparedSequence {
         }
     }
 
-    /// Project owned raw data for inspection or checked re-admission.
-    /// This clones metadata and reconstructs raw programs; playback never uses it.
-    pub fn to_raw_signals(&self) -> PreparedSignalGraph {
-        self.data.signals.to_raw()
-    }
-
     pub fn fixtures(&self) -> &[crate::signal::PreparedFixture] {
         &self.data.signals.fixtures
     }
@@ -177,12 +158,19 @@ impl PreparedSequence {
         self.data.signals.effects.len()
     }
 
-    pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {
-        self.data.signals.active_effect_count(sample_time)
+    /// Start and duration of each retained effect, including generated children.
+    pub fn effect_windows(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (SampleTime, SampleDuration)> + '_ {
+        self.data
+            .signals
+            .effects
+            .iter()
+            .map(|effect| (effect.start_time, effect.duration))
     }
 
-    pub fn patch(&self) -> &PreparedPatch {
-        &self.data.patch
+    pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {
+        self.data.signals.active_effect_count(sample_time)
     }
 
     pub fn outputs(&self) -> &[PreparedOutput] {
@@ -268,6 +256,23 @@ mod tests {
     use crate::values::SampleDuration;
     use alloc::vec;
 
+    mod admission;
+
+    fn admit_fixture(
+        signals: PreparedSignalGraph,
+        patch: PreparedPatch,
+        outputs: Box<[PreparedOutput]>,
+    ) -> Result<PreparedSequence, crate::wire::LoadError> {
+        PreparedSequence::admit_data(
+            SequenceData {
+                signals,
+                patch,
+                outputs,
+            },
+            None,
+        )
+    }
+
     #[test]
     fn builder_nested_operators_keep_temporal_queries_and_clip_identity() {
         use crate::dsl::{
@@ -275,7 +280,8 @@ mod tests {
         };
         use core::num::NonZeroU32;
         let raw = queried_sequence(crate::dsl::bytecode::SignalPixel::Current)
-            .to_raw_signals()
+            .archive_data()
+            .signals
             .programs;
         let sample =
             SampleDefinition::new(SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap());
@@ -326,8 +332,8 @@ mod tests {
             });
             builder.output([outer])
         });
-        assert_eq!(sequence.to_raw_signals().programs.len(), 2);
-        assert_eq!(sequence.to_raw_signals().plan.vm_workspace_count, 2);
+        assert_eq!(sequence.archive_data().signals.programs.len(), 2);
+        assert_eq!(sequence.archive_data().signals.plan.vm_workspace_count, 2);
         let bytes = crate::wire::encode_sequence(&sequence).unwrap();
         let decoded =
             crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
@@ -400,11 +406,14 @@ mod tests {
             builder.padding(output, 1);
             builder.output([layer])
         });
-        assert_eq!(sequence.to_raw_signals().programs.len(), 1);
+        assert_eq!(sequence.archive_data().signals.programs.len(), 1);
         // The terminal one-input output aliases its input's frame buffer.
-        assert_eq!(sequence.to_raw_signals().plan.frame_nodes.as_ref(), [1]);
+        assert_eq!(
+            sequence.archive_data().signals.plan.frame_nodes.as_ref(),
+            [1]
+        );
         assert_eq!(sequence.outputs()[0].width, 12);
-        assert_eq!(sequence.patch().routes.len(), 2);
+        assert_eq!(sequence.data.patch.routes.len(), 2);
         let bytes = crate::wire::encode_sequence(&sequence).unwrap();
         let decoded =
             crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
@@ -547,11 +556,11 @@ mod tests {
             lookup: None,
         }]
         .into();
-        PreparedSequence::admit(data.signals, data.patch, data.outputs).unwrap()
+        admit_fixture(data.signals, data.patch, data.outputs).unwrap()
     }
 
     fn empty_sequence() -> PreparedSequence {
-        PreparedSequence::admit(
+        admit_fixture(
             PreparedSignalGraph {
                 clips: Box::new([]),
                 parameter_environments: Box::new([]),
@@ -697,7 +706,7 @@ mod tests {
             frame_slots: vec![1, 0, 0].into(),
             frame_buffer_count: 1,
         };
-        PreparedSequence::admit(data.signals, data.patch, data.outputs).unwrap()
+        admit_fixture(data.signals, data.patch, data.outputs).unwrap()
     }
 
     #[test]
@@ -735,7 +744,7 @@ mod tests {
         let mut data = queried_sequence(crate::dsl::bytecode::SignalPixel::Local(0)).archive_data();
         data.signals.target_pixels[0].pixel_index = 1;
         assert!(matches!(
-            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            admit_fixture(data.signals, data.patch, data.outputs),
             Err(crate::wire::LoadError::InvalidSequence)
         ));
     }
@@ -839,13 +848,13 @@ mod tests {
         let mut data = timed_sequence().archive_data();
         data.outputs[0].width = 10;
         assert!(matches!(
-            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            admit_fixture(data.signals, data.patch, data.outputs),
             Err(crate::wire::LoadError::InvalidSequence)
         ));
         let mut data = timed_sequence().archive_data();
         data.patch.routes[0].encoding = crate::patch::PixelEncoding::Rgb { order: [0, 0, 2] };
         assert!(matches!(
-            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            admit_fixture(data.signals, data.patch, data.outputs),
             Err(crate::wire::LoadError::InvalidSequence)
         ));
     }
@@ -873,7 +882,7 @@ mod tests {
         }]
         .into();
         assert!(matches!(
-            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            admit_fixture(data.signals, data.patch, data.outputs),
             Err(crate::wire::LoadError::InvalidSequence)
         ));
     }

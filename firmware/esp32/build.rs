@@ -80,9 +80,7 @@ fn main() {
     .effect
     .sample_program()
     .unwrap()
-    .clone()
-    .into_parts()
-    .0;
+    .clone();
     let pulse_params = indexmap::IndexMap::from([
         (
             donder_language::dsl::Identifier::new("gradient".into()).unwrap(),
@@ -213,18 +211,18 @@ fn main() {
             let show = if case < 4 || name == "ArrayLifetimes" {
                 workload::show(
                     count,
-                    effect.sample_program().unwrap().clone().into_parts().0,
+                    effect.sample_program().unwrap().clone(),
                     bound.clone(),
                 )
             } else {
                 workload::layered_show(
                     count,
-                    effect.sample_program().unwrap().clone().into_parts().0,
+                    effect.sample_program().unwrap().clone(),
                     bound.clone(),
                     16,
                 )
             };
-            let mut show = show.prepare().unwrap().into_playback();
+            let mut show = show.prepare().into_playback();
             let mut vm = donder_language::dsl::VmWorkspace::default();
             let mut frames = Vec::new();
             let mut gamma_frames = Vec::new();
@@ -257,7 +255,7 @@ fn main() {
             if case == workload::GAMMA_CASE {
                 let mut mixed = workload::show(
                     count,
-                    effect.sample_program().unwrap().clone().into_parts().0,
+                    effect.sample_program().unwrap().clone(),
                     bound.clone(),
                 );
                 workload::apply_operator(
@@ -266,7 +264,7 @@ fn main() {
                     true,
                 );
                 workload::insert_invert(&mut mixed, invert.program().clone().into_parts().0);
-                let mut mixed = mixed.prepare().unwrap().into_playback();
+                let mut mixed = mixed.prepare().into_playback();
                 let mut mixed_frames = Vec::new();
                 for frame in 0..workload::FRAMES {
                     let rendered = mixed.evaluate(workload::time(frame));
@@ -289,7 +287,7 @@ fn main() {
                 for depth in workload::OPERATOR_DEPTHS {
                     let mut nested = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone().into_parts().0,
+                        effect.sample_program().unwrap().clone(),
                         bound.clone(),
                     );
                     workload::apply_operator(
@@ -299,10 +297,10 @@ fn main() {
                     );
                     workload::nest_operator(&mut nested, depth);
                     let nested_fixture = nested;
-                    let mut nested = nested_fixture.clone().prepare().unwrap().into_playback();
+                    let mut nested = nested_fixture.clone().prepare().into_playback();
                     let mut full_nested = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone().into_parts().0,
+                        effect.sample_program().unwrap().clone(),
                         bound.clone(),
                     );
                     workload::apply_operator(
@@ -311,13 +309,13 @@ fn main() {
                         false,
                     );
                     workload::nest_operator(&mut full_nested, depth);
-                    let mut full_nested = full_nested.prepare().unwrap().into_playback();
+                    let mut full_nested = full_nested.prepare().into_playback();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
                         let rendered = nested.evaluate(workload::time(frame));
                         let buffers = rendered.outputs().next().unwrap().bytes;
                         let checksum = workload::checksum(buffers);
-                        let mut fresh = nested_fixture.clone().prepare().unwrap().into_playback();
+                        let mut fresh = nested_fixture.clone().prepare().into_playback();
                         let rendered = fresh.evaluate(workload::time(frame));
                         let buffers = rendered.outputs().next().unwrap().bytes;
                         assert_eq!(checksum, workload::checksum(buffers));
@@ -335,20 +333,18 @@ fn main() {
                 ] {
                     let mut automated = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone().into_parts().0,
+                        effect.sample_program().unwrap().clone(),
                         bound.clone(),
                     );
                     workload::apply_pulse_automation(&mut automated, pulse_program.clone(), empty);
                     let automated_fixture = automated;
-                    let mut automated =
-                        automated_fixture.clone().prepare().unwrap().into_playback();
+                    let mut automated = automated_fixture.clone().prepare().into_playback();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
                         let rendered = automated.evaluate(workload::time(frame));
                         let buffers = rendered.outputs().next().unwrap().bytes;
                         let checksum = workload::checksum(buffers);
-                        let mut fresh =
-                            automated_fixture.clone().prepare().unwrap().into_playback();
+                        let mut fresh = automated_fixture.clone().prepare().into_playback();
                         let rendered = fresh.evaluate(workload::time(frame));
                         let buffers = rendered.outputs().next().unwrap().bytes;
                         assert_eq!(checksum, workload::checksum(buffers));
@@ -370,7 +366,7 @@ fn main() {
                     for (operator, reuse) in pair {
                         let mut show = workload::show(
                             count,
-                            effect.sample_program().unwrap().clone().into_parts().0,
+                            effect.sample_program().unwrap().clone(),
                             bound.clone(),
                         );
                         workload::apply_operator(
@@ -378,7 +374,7 @@ fn main() {
                             operator.program().clone().into_parts().0,
                             reuse,
                         );
-                        let mut show = show.prepare().unwrap().into_playback();
+                        let mut show = show.prepare().into_playback();
                         let mut frames = Vec::new();
                         for frame in 0..workload::FRAMES {
                             let rendered = show.evaluate(workload::time(frame));
@@ -396,12 +392,12 @@ fn main() {
                 {
                     let mut show = workload::layered_show(
                         count,
-                        effect.sample_program().unwrap().clone().into_parts().0,
+                        effect.sample_program().unwrap().clone(),
                         bound.clone(),
                         1,
                     );
                     workload::apply_gamma(&mut show, gamma_lookup);
-                    let mut show = show.prepare().unwrap().into_playback();
+                    let mut show = show.prepare().into_playback();
                     for (frame, expected) in gamma_frames.iter().enumerate() {
                         let rendered = show.evaluate(workload::time(frame));
                         let buffers = rendered.outputs().next().unwrap().bytes;
@@ -559,7 +555,7 @@ fn main() {
         let show = generator_workload::show(200, case, true, true);
         let reference = generator_workload::show(200, case, false, true);
         let golden = export_fixture(name, &show);
-        let mut reference = reference.prepare().unwrap().into_playback();
+        let mut reference = reference.prepare().into_playback();
         for (frame, expected) in golden.iter().enumerate() {
             let rendered = reference.evaluate(workload::time(frame));
             let output = rendered.outputs().next().unwrap().bytes;
@@ -604,7 +600,7 @@ fn main() {
 
 fn export_fixture(name: &str, show: &workload::Workload) -> [u32; workload::FRAMES] {
     let directory = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let prepared = show.clone().prepare().unwrap();
+    let prepared = show.clone().prepare();
     let bytes = donder_runtime::encode_sequence(&prepared).unwrap();
     let decoded = donder_runtime::decode_sequence(&bytes, Default::default()).unwrap();
     fs::write(directory.join(format!("{name}.donderseq")), bytes).unwrap();
@@ -621,7 +617,7 @@ fn export_fixture(name: &str, show: &workload::Workload) -> [u32; workload::FRAM
         let time = workload::time(frame);
         let rendered = decoded.evaluate(time);
         let output = rendered.outputs().next().unwrap().bytes;
-        let mut fresh = show.clone().prepare().unwrap().into_playback();
+        let mut fresh = show.clone().prepare().into_playback();
         let rendered_reference = fresh.evaluate(time);
         let reference = rendered_reference.outputs().next().unwrap().bytes;
         assert_eq!(output, reference);

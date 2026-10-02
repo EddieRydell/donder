@@ -205,7 +205,6 @@ fn main() -> ! {
                 REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
                 let setup_start = Instant::now();
                 let (program, params) = fixtures::case(case);
-                let program = program.into_parts().0;
                 let mut show = if case < 4 {
                     workload::show(count, program, params)
                 } else {
@@ -222,14 +221,7 @@ fn main() -> ! {
                         Mixed | Uniform(_) => fixtures::identity_program(),
                     };
                     if let Uniform(reuse) = kind {
-                        let mut signals = show.signals().clone();
-                        assert!(!signals.programs[0].uses_pixel_context);
-                        signals.programs[0].uses_pixel_context = !reuse;
-                        show = workload::Workload::new(
-                            signals,
-                            show.patch().clone(),
-                            show.outputs().into(),
-                        );
+                        workload::set_uniform_upstream(&mut show, reuse);
                     }
                     workload::apply_operator(
                         &mut show,
@@ -244,11 +236,7 @@ fn main() -> ! {
                 }
                 if let Some(empty) = automation_case {
                     let (pulse_program, _) = fixtures::case(fixtures::NAMES.len() - 1);
-                    workload::apply_pulse_automation(
-                        &mut show,
-                        pulse_program.into_parts().0,
-                        empty,
-                    );
+                    workload::apply_pulse_automation(&mut show, pulse_program, empty);
                 }
                 let golden = if let Some(empty) = automation_case {
                     if empty {
@@ -269,7 +257,7 @@ fn main() -> ! {
                 } else {
                     &fixtures::GOLDEN[case][count_index]
                 };
-                let mut show = show.prepare().unwrap().into_playback();
+                let mut show = show.prepare().into_playback();
                 let setup_us = setup_start.elapsed().as_micros() as u32;
                 let first_start = Instant::now();
                 let first_allocations = ALLOCATIONS.load(Relaxed);

@@ -15,21 +15,13 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         .map(|source| source.id())
     {
         let show = prepare_sequence(&session.project, sequence, PrepareOutputs::All).unwrap();
-        let mut workspace = donder_runtime::PreparedSequence::admit(
-            show.to_raw_signals(),
-            show.patch().clone(),
-            show.outputs().into(),
-        )
-        .unwrap()
-        .into_playback();
+        let mut workspace = show.clone().into_playback();
         let mut times = [9504, 8450, 0, 8494, 8398]
             .map(|frame| sample_time_from_frame(frame, show.frame_rate()).unwrap())
             .to_vec();
         times.extend(
-            show.to_raw_signals()
-                .effects
-                .iter()
-                .filter_map(|effect| effect.start_time.checked_add_duration(effect.duration)),
+            show.effect_windows()
+                .filter_map(|(start, duration)| start.checked_add_duration(duration)),
         );
         times.extend([
             SampleTime::from_ticks(0),
@@ -37,13 +29,7 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         ]);
         for time in times {
             let actual = workspace.evaluate(time);
-            let mut fresh = donder_runtime::PreparedSequence::admit(
-                show.to_raw_signals(),
-                show.patch().clone(),
-                show.outputs().into(),
-            )
-            .unwrap()
-            .into_playback();
+            let mut fresh = show.clone().into_playback();
             let expected = fresh.evaluate(time);
             assert!(
                 actual.outputs().eq(expected.outputs()),

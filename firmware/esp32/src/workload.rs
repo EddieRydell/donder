@@ -1,49 +1,146 @@
-use donder_runtime::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 extern crate alloc;
 
-use alloc::{boxed::Box, vec};
-use donder_runtime::{BoundParams, BytecodeProgram, Instruction, RunContext};
+use alloc::{vec, vec::Vec};
+use core::num::NonZeroU32;
 use donder_runtime::{
-    PreparedAutomation, PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation,
-    PreparedFixture, PreparedLayer, PreparedOperator, PreparedOperatorNode, PreparedPixel,
-    PreparedSignalGraph, PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan,
+    BoundParams, BytecodeProgram, CompiledOperator, DslBindCache, FixtureGeometry,
+    GeneratorPlayback, Identifier, Instruction, OperatorDefinition, OperatorInputDecl,
+    OperatorInvocation, OutputEncoding, PreparedAutomation, PreparedSequence, RgbOrder, RunContext,
+    SampleDefinition, SampleDuration, SampleProgram, SampleTime, SequenceBuilder, SequenceRoot,
+    SequenceTiming, SequenceWindow, SignalHandle, TargetScope,
 };
-use donder_runtime::{PreparedOutput, PreparedSequence};
-use donder_runtime::{SampleDuration, SampleTime};
 
 #[derive(Clone)]
+pub struct SampleFixture {
+    pub program: SampleProgram,
+    pub params: BoundParams,
+    pub start: SampleTime,
+    pub duration: SampleDuration,
+    pub automation: Vec<PreparedAutomation>,
+}
+
+/// Typed benchmark inputs. The runtime builder owns all graph and storage addresses.
+#[derive(Clone)]
 pub struct Workload {
-    signals: PreparedSignalGraph,
-    patch: PreparedPatch,
-    outputs: alloc::boxed::Box<[PreparedOutput]>,
+    count: usize,
+    layers: Vec<Vec<SampleFixture>>,
+    generator: Option<GeneratorPlayback>,
+    operators: Vec<OperatorInvocation>,
+    lookup: Option<[u8; 256]>,
 }
 
 impl Workload {
-    pub fn new(
-        signals: PreparedSignalGraph,
-        patch: PreparedPatch,
-        outputs: alloc::boxed::Box<[PreparedOutput]>,
-    ) -> Self {
+    pub fn samples(count: usize, layers: Vec<Vec<SampleFixture>>) -> Self {
         Self {
-            signals,
-            patch,
-            outputs,
+            count,
+            layers,
+            generator: None,
+            operators: vec![],
+            lookup: None,
         }
     }
 
-    pub fn signals(&self) -> &PreparedSignalGraph {
-        &self.signals
-    }
-    pub fn patch(&self) -> &PreparedPatch {
-        &self.patch
-    }
-    pub fn outputs(&self) -> &[PreparedOutput] {
-        &self.outputs
+    #[allow(dead_code)]
+    pub fn generator(count: usize, generator: GeneratorPlayback) -> Self {
+        Self {
+            count,
+            layers: vec![],
+            generator: Some(generator),
+            operators: vec![],
+            lookup: None,
+        }
     }
 
-    /// Admit the complete benchmark fixture before any playback is created.
-    pub fn prepare(self) -> Result<PreparedSequence, donder_runtime::LoadError> {
-        PreparedSequence::admit(self.signals, self.patch, self.outputs)
+    pub fn prepare(self) -> PreparedSequence {
+        self.prepare_with(|builder, _layers, signal| builder.output([signal]))
+    }
+
+    /// Extend the fixture using its layers and composed signal after its operator chain.
+    /// Fixture geometry, timing and the GRB output route remain builder-owned.
+    pub fn prepare_with(
+        self,
+        build: impl for<'id> FnOnce(
+            &mut SequenceBuilder<'id>,
+            &[SignalHandle<'id>],
+            SignalHandle<'id>,
+        ) -> SequenceRoot<'id>,
+    ) -> PreparedSequence {
+        let windows = self
+            .layers
+            .iter()
+            .flatten()
+            .map(|effect| SequenceWindow {
+                start: effect.start,
+                duration: NonZeroU32::new(effect.duration.as_ticks()).unwrap(),
+            })
+            .collect();
+        let timing = SequenceTiming::admit(
+            NonZeroU32::new(120).unwrap(),
+            NonZeroU32::new(960).unwrap(),
+            NonZeroU32::new(8_000_000).unwrap(),
+            windows,
+        )
+        .unwrap();
+        PreparedSequence::build(timing, |builder| {
+            let fixture = builder.fixture(
+                0,
+                FixtureGeometry::admit((0..self.count).map(|pixel| [pixel as f32, 0.0]).collect())
+                    .unwrap(),
+            );
+            let target = builder.target([fixture], TargetScope::PerFixture);
+            let windows: Vec<_> = builder.windows().collect();
+            let mut windows = windows.into_iter();
+            let mut cache = DslBindCache::default();
+            let mut definitions: Vec<(SampleProgram, SampleDefinition)> = Vec::new();
+            let mut layers = Vec::new();
+            for layer in &self.layers {
+                let effects: Vec<_> = layer
+                    .iter()
+                    .map(|effect| {
+                        let definition = match definitions
+                            .iter()
+                            .find(|(program, _)| program == &effect.program)
+                        {
+                            Some((_, definition)) => definition.clone(),
+                            None => {
+                                let definition = SampleDefinition::new(effect.program.clone());
+                                definitions.push((effect.program.clone(), definition.clone()));
+                                definition
+                            }
+                        };
+                        let invocation = definition
+                            .bind(effect.params.iter_values().collect(), &mut cache)
+                            .unwrap()
+                            .with_automation(effect.automation.clone().into())
+                            .unwrap();
+                        builder.sample(&invocation, windows.next().unwrap(), target)
+                    })
+                    .collect();
+                layers.push(builder.layer(true, effects));
+            }
+            if let Some(generator) = &self.generator {
+                let effects = builder.generator(generator, builder.whole_sequence(), target);
+                layers.push(builder.layer(true, effects.into_iter().map(|child| child.effect)));
+            }
+            // Operator fixtures measure Layer 0 -> operator chain, including
+            // the four-layer Chase/Pulse source used by the Echo cases.
+            // Preserve that input selection; layer-only cases mix every layer.
+            let mut signal = if layers.len() == 1 || !self.operators.is_empty() {
+                layers[0]
+            } else {
+                builder.mix(layers.iter().copied())
+            };
+            for operator in &self.operators {
+                signal = builder.operator(operator, |input| {
+                    assert_eq!(input, 0);
+                    signal
+                });
+            }
+            let output = builder.port(0, 0);
+            let lookup = self.lookup.map(|table| builder.lookup(table));
+            builder.route(output, target, OutputEncoding::Rgb(RgbOrder::Grb), lookup);
+            build(builder, &layers, signal)
+        })
     }
 }
 
@@ -77,36 +174,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
         .iter()
         .find(|definition| definition.effect.name().as_str() == "Pulse")
         .unwrap();
-    let show = layered_show(
-        count,
-        pulse
-            .effect
-            .sample_program()
-            .unwrap()
-            .clone()
-            .into_parts()
-            .0,
-        BoundParams::default(),
-        layers,
-    );
-    let mut signals = show.signals().clone();
-    signals.programs = vec![
-        chase
-            .effect
-            .sample_program()
-            .unwrap()
-            .clone()
-            .into_parts()
-            .0,
-        pulse
-            .effect
-            .sample_program()
-            .unwrap()
-            .clone()
-            .into_parts()
-            .0,
-    ]
-    .into();
+    let mut effects = vec::Vec::new();
     let shape: Value = Value::Curve(
         Curve {
             points: vec![
@@ -141,7 +209,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
         }
         .into(),
     );
-    for (index, effect) in signals.effects.iter_mut().enumerate() {
+    for index in 0..layers {
         let gradient = Value::Gradient(
             Gradient {
                 stops: vec![GradientStop {
@@ -187,101 +255,95 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
             &overrides,
         )
         .unwrap();
-        effect.implementation = PreparedEffectImplementation::Dsl {
-            program: if chasing { 0 } else { 1 },
-            bound_params: params,
-        };
-        effect.start_time = SampleTime::from_ticks(index as u32 * 43_000);
-        effect.duration = SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000);
+        effects.push(SampleFixture {
+            program: if chasing { chase } else { pulse }
+                .effect
+                .sample_program()
+                .unwrap()
+                .clone(),
+            params,
+            start: SampleTime::from_ticks(index as u32 * 43_000),
+            duration: SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000),
+            automation: vec![],
+        });
     }
-    Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
+    Workload::samples(
+        count,
+        effects.into_iter().map(|effect| vec![effect]).collect(),
     )
 }
 
-// Extend the single-operator fixture into a chain, sharing its bytecode.
+// Extend the single-operator fixture into a chain, sharing its admitted definition.
 pub fn nest_operator(show: &mut Workload, depth: usize) {
-    let mut signals = show.signals().clone();
     assert!(depth > 0);
-    let graph = &mut signals.plan;
-    let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
-    assert_eq!(nodes.len(), 2);
-    for input in 1..depth {
-        let mut node = nodes[1].clone();
-        let PreparedSignalKind::Operator {
-            inputs, vm_slot, ..
-        } = &mut node.kind
-        else {
-            panic!("nested fixture requires a DSL operator");
-        };
-        inputs[0] = input;
-        *vm_slot = input;
-        nodes.push(node);
+    assert_eq!(show.operators.len(), 1);
+    show.operators.resize(depth, show.operators[0].clone());
+}
+
+pub fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
+    nest_operator(show, 2);
+    show.operators.insert(1, operator_invocation(program));
+}
+
+fn operator_invocation(program: BytecodeProgram) -> OperatorInvocation {
+    let operator = CompiledOperator::admit(
+        Identifier::new("fixture".into()).unwrap(),
+        vec![OperatorInputDecl {
+            name: Identifier::new("source".into()).unwrap(),
+        }],
+        vec![],
+        program,
+    )
+    .unwrap();
+    OperatorDefinition::new(operator)
+        .bind(vec![], &mut DslBindCache::default())
+        .unwrap()
+}
+
+pub fn apply_compiled_operator(show: &mut Workload, operator: CompiledOperator) {
+    let params = BoundParams::bind_pairs(operator.params(), &[]).unwrap();
+    show.operators = vec![
+        OperatorDefinition::new(operator)
+            .bind(params.iter_values().collect(), &mut DslBindCache::default())
+            .unwrap(),
+    ];
+}
+
+pub fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
+    if !reuse {
+        disable_uniform_reuse(&mut program);
     }
-    graph.nodes = nodes.into();
-    graph.output_index = depth;
-    graph.vm_workspace_count = depth;
-    graph.frame_nodes = vec![depth].into();
-    graph.frame_slots = vec![0; depth + 1].into();
-    *show = Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
-    );
+    show.operators = vec![operator_invocation(program)];
+}
+
+pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
+    if reuse {
+        return;
+    }
+    let effect = &mut show.layers[0][0];
+    assert!(!effect.program.bytecode().uses_pixel_context);
+    let (mut program, types) = effect.program.clone().into_parts();
+    // A real, unused pixel read disables whole-result reuse without changing
+    // colors. Dependency metadata must agree with the admitted instructions;
+    // flipping its flag alone would make this benchmark fixture invalid.
+    let dst = donder_runtime::FloatSlot(program.layout.floats);
+    program.layout.floats += 1;
+    let mut instructions = program.instructions.into_vec();
+    let return_color = instructions.pop().unwrap();
+    assert!(matches!(return_color, Instruction::ReturnColor(_)));
+    instructions.push(Instruction::ContextRead {
+        dst: donder_runtime::NumberSlot::Float(dst),
+        read: donder_runtime::ContextRead::PixelFraction,
+    });
+    instructions.push(return_color);
+    program.instructions = instructions.into_boxed_slice();
+    program.uses_pixel_context = true;
+    effect.program = SampleProgram::admit(program, types).unwrap();
 }
 
 #[allow(dead_code)] // Compiled on the host, not the device.
 pub const IDENTITY_SOURCE: &str =
     "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }";
-
-pub fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
-    nest_operator(show, 2);
-    let mut signals = show.signals().clone();
-    let program_index = signals.programs.len();
-    let mut programs = core::mem::take(&mut signals.programs).into_vec();
-    programs.push(program);
-    signals.programs = programs.into();
-    let graph = &mut signals.plan;
-    let vm_slot = 1;
-    graph.vm_workspace_count += 1;
-    let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
-    nodes.insert(
-        2,
-        PreparedSignalNode {
-            kind: PreparedSignalKind::Operator {
-                operator: PreparedOperatorNode {
-                    automation_slot: 0,
-                    implementation: PreparedOperator::Dsl(program_index),
-                    params: Default::default(),
-                },
-                inputs: vec![1].into(),
-                automation: vec![].into(),
-                vm_slot,
-            },
-        },
-    );
-    let PreparedSignalKind::Operator {
-        inputs,
-        vm_slot: downstream_slot,
-        ..
-    } = &mut nodes[3].kind
-    else {
-        unreachable!()
-    };
-    inputs[0] = 2;
-    *downstream_slot = 2;
-    graph.nodes = nodes.into();
-    graph.output_index = 3;
-    graph.frame_nodes = vec![3].into();
-    graph.frame_slots = vec![0; 4].into();
-    *show = Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
-    );
-}
 
 #[allow(dead_code)] // Compiled on the host, not the device.
 pub const GROUPED_SOURCE: &str = "operator Times { input Signal source; color sample() {
@@ -298,8 +360,7 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
     return max(max(a, b), max(c, d));
 } }";
 
-pub fn apply_pulse_automation(show: &mut Workload, program: BytecodeProgram, empty: bool) {
-    let mut signals = show.signals().clone();
+pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty: bool) {
     use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
     use donder_runtime::{Identifier, ParamDecl, Type, Value};
     let mut curve = Curve {
@@ -352,14 +413,12 @@ pub fn apply_pulse_automation(show: &mut Workload, program: BytecodeProgram, emp
         default: Some(value),
     });
     let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-    signals.programs[0] = program;
-    signals.effects[0].implementation = PreparedEffectImplementation::Dsl {
-        program: 0,
-        bound_params: params,
-    };
-    signals.effects[0].automation = Some(alloc::boxed::Box::new(PreparedEffectAutomation {
-        workspace_slot: 0,
-        bindings: vec![PreparedAutomation {
+    show.layers[0][0] = SampleFixture {
+        program,
+        params,
+        start: SampleTime::from_ticks(0),
+        duration: SampleDuration::from_ticks(8_000_000),
+        automation: vec![PreparedAutomation {
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(8_000_000),
             curve: curve.into(),
@@ -368,63 +427,14 @@ pub fn apply_pulse_automation(show: &mut Workload, program: BytecodeProgram, emp
                 max: 1.0,
             },
             param_index: 1,
-        }]
-        .into(),
-    }));
-    *show = Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
-    );
+        }],
+    };
 }
 
 #[allow(dead_code)] // Compiled on the host; firmware receives only bytecode.
 pub const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
     color sample() { return source.at(seconds()) * (sin(seconds() * 7.0) * 0.5 + 0.5); }
 }";
-
-pub fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
-    let mut signals = show.signals().clone();
-    if !reuse {
-        disable_uniform_reuse(&mut program);
-    }
-    let sequence = &mut signals;
-    let mut programs = core::mem::take(&mut sequence.programs).into_vec();
-    let program_index = programs.len();
-    programs.push(program);
-    sequence.programs = programs.into();
-    sequence.plan = SignalPlan {
-        output_index: 1,
-        target: 0,
-        vm_workspace_count: 1,
-        nodes: vec![
-            PreparedSignalNode {
-                kind: PreparedSignalKind::Layer { layer_index: 0 },
-            },
-            PreparedSignalNode {
-                kind: PreparedSignalKind::Operator {
-                    operator: PreparedOperatorNode {
-                        automation_slot: 0,
-                        implementation: PreparedOperator::Dsl(program_index),
-                        params: BoundParams::default(),
-                    },
-                    inputs: vec![0].into(),
-                    automation: vec![].into(),
-                    vm_slot: 0,
-                },
-            },
-        ]
-        .into(),
-        frame_nodes: vec![1].into(),
-        frame_slots: vec![0, 0].into(),
-        frame_buffer_count: 1,
-    };
-    *show = Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
-    );
-}
 
 pub fn disable_uniform_reuse(program: &mut BytecodeProgram) {
     program.pixel_entry = 0;
@@ -442,16 +452,7 @@ pub fn gamma_lookup() -> [u8; 256] {
 }
 
 pub fn apply_gamma(show: &mut Workload, lookup: [u8; 256]) {
-    let mut patch = show.patch().clone();
-    patch.lookups = vec![lookup].into_boxed_slice();
-    for route in &mut patch.routes {
-        route.lookup = Some(0);
-    }
-    *show = Workload::new(
-        show.signals().clone(),
-        patch,
-        show.outputs().to_vec().into(),
-    );
+    show.lookup = Some(lookup);
 }
 
 pub fn time(frame: usize) -> SampleTime {
@@ -475,141 +476,65 @@ pub fn checksum(bytes: &[u8]) -> u32 {
     })
 }
 
-// A deliberately small prepared workload: one DSL effect on one RGB fixture,
-// one layer/output signal graph, and the production RGB-to-GRB patch path.
-// Construction is measured separately; the runtime evaluator is not duplicated.
-pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Workload {
-    rgb_output(PreparedSignalGraph {
-        clips: Box::new([]),
-        parameter_environments: vec![].into_boxed_slice(),
-        frame_rate: 120,
-        frame_count: 960,
-        duration: SampleDuration::from_ticks(8_000_000),
-        fixtures: vec![PreparedFixture {
-            id: 0,
-            pixel_count: count,
-        }]
-        .into_boxed_slice(),
-        fixture_pixel_offsets: vec![0].into_boxed_slice(),
-        pixel_count: count,
-        effects: vec![PreparedEffect {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(8_000_000),
-            target: 0,
-            implementation: PreparedEffectImplementation::Dsl {
-                program: 0,
-                bound_params: params,
-            },
-            automation: None,
-        }]
-        .into_boxed_slice(),
-        programs: vec![program].into_boxed_slice(),
-        targets: vec![PreparedTarget {
-            pixels: 0..count,
-            sample_count: 0,
-        }]
-        .into_boxed_slice(),
-        spatial_contexts: (0..count)
-            .map(|pixel| donder_runtime::SpatialContext {
-                position: [pixel as f32, 0.0],
-                min: [0.0, 0.0],
-                max: [count.saturating_sub(1) as f32, 0.0],
-            })
-            .collect(),
-        target_pixels: (0..count)
-            .map(|pixel| PreparedPixel {
-                fixture_index: 0,
-                fixture_pixel_index: pixel as u32,
-                pixel_index: pixel,
-                pixel_count: count,
-                pixel_fraction: pixel as f32 / count.saturating_sub(1).max(1) as f32,
-            })
-            .collect(),
-        effects_by_layer: vec![vec![0].into_boxed_slice()].into_boxed_slice(),
-        layers: vec![PreparedLayer { enabled: true }].into_boxed_slice(),
-        plan: SignalPlan {
-            output_index: 1,
-            target: 0,
-            nodes: vec![
-                PreparedSignalNode {
-                    kind: PreparedSignalKind::Layer { layer_index: 0 },
-                },
-                PreparedSignalNode {
-                    kind: PreparedSignalKind::Output {
-                        inputs: vec![0].into_boxed_slice(),
-                    },
-                },
-            ]
-            .into_boxed_slice(),
-            vm_workspace_count: 0,
-            frame_nodes: vec![0, 1].into_boxed_slice(),
-            frame_slots: vec![0, 1].into_boxed_slice(),
-            frame_buffer_count: 2,
-        },
-    })
+pub fn show(count: usize, program: SampleProgram, params: BoundParams) -> Workload {
+    layered_show(count, program, params, 1)
 }
 
-/// Attach the benchmark's single GRB output after its signal graph is complete.
-pub fn rgb_output(signals: PreparedSignalGraph) -> Workload {
-    let count = signals.pixel_count;
-    Workload::new(
-        signals,
-        PreparedPatch {
-            routes: vec![PreparedPixelRoute {
-                pixels: 0..count,
-                frame: 0,
-                start_slot: 0,
-                encoding: PixelEncoding::Rgb { order: [1, 0, 2] },
-                lookup: None,
-            }]
-            .into_boxed_slice(),
-            lookups: vec![].into_boxed_slice(),
-        },
-        vec![donder_runtime::PreparedOutput {
-            controller_index: 0,
-            port: 0,
-            width: count * 3,
-        }]
-        .into_boxed_slice(),
-    )
-}
-
-// Identical overlapping inputs have the same max-composited golden output.
-// This isolates coverage/layer cost without changing effect math or geometry.
+// Identical overlapping inputs preserve the max-composited golden output.
 pub fn layered_show(
     count: usize,
-    program: BytecodeProgram,
+    program: SampleProgram,
     params: BoundParams,
     layers: usize,
 ) -> Workload {
     assert!(layers > 0);
-    let show = show(count, program, params);
-    let mut signals = show.signals().clone();
-    let sequence = &mut signals;
-    sequence.effects = vec![sequence.effects[0].clone(); layers].into();
-    sequence.layers = vec![PreparedLayer { enabled: true }; layers].into();
-    sequence.effects_by_layer = (0..layers).map(|i| vec![i].into()).collect();
-    let graph = &mut sequence.plan;
-    graph.nodes = (0..layers)
-        .map(|i| PreparedSignalNode {
-            kind: PreparedSignalKind::Layer { layer_index: i },
+    let effect = SampleFixture {
+        program,
+        params,
+        start: SampleTime::from_ticks(0),
+        duration: SampleDuration::from_ticks(8_000_000),
+        automation: vec![],
+    };
+    Workload::samples(count, vec![vec![effect]; layers])
+}
+
+/// Link the local declarations of a self-contained benchmark effect document.
+#[cfg(not(target_arch = "xtensa"))]
+pub fn link_generator(
+    definitions: &[donder_language::dsl::EffectCompilation],
+    name: &str,
+) -> alloc::sync::Arc<donder_runtime::LinkedGenerator> {
+    use donder_language::imports::SourceReference;
+    use donder_runtime::{GeneratorTarget, LinkedGenerator};
+    let definition = definitions
+        .iter()
+        .find(|item| item.effect.name().as_str() == name)
+        .unwrap();
+    let children = definition
+        .emitted_references
+        .iter()
+        .map(|emission| {
+            let SourceReference::Local(name) = &emission.reference else {
+                panic!("fixture children must use local effects");
+            };
+            let child = definitions
+                .iter()
+                .find(|item| item.effect.name() == name)
+                .unwrap();
+            donder_language::dsl::validate_emission(emission, child.effect.params()).unwrap();
+            if let Some(program) = child.effect.sample_program() {
+                GeneratorTarget::Sample {
+                    program: program.clone().into(),
+                    params: child.effect.params().into(),
+                }
+            } else {
+                GeneratorTarget::Generator(link_generator(definitions, name.as_str()))
+            }
         })
-        .chain(core::iter::once(PreparedSignalNode {
-            kind: PreparedSignalKind::Output {
-                inputs: (0..layers).collect(),
-            },
-        }))
         .collect();
-    graph.output_index = layers;
-    // Match elaboration's single-input alias; multiple inputs need composition.
-    graph.frame_nodes = (0..if layers == 1 { 1 } else { layers + 1 }).collect();
-    graph.frame_slots = (0..=layers)
-        .map(|i| if layers == 1 { 0 } else { i })
-        .collect();
-    graph.frame_buffer_count = if layers == 1 { 1 } else { layers + 1 };
-    Workload::new(
-        signals,
-        show.patch().clone(),
-        show.outputs().to_vec().into(),
+    LinkedGenerator::link(
+        definition.effect.generator().unwrap().clone().into(),
+        children,
     )
+    .unwrap()
 }

@@ -98,9 +98,7 @@ fn main() -> ! {
             let (program, params) = fixtures::case(case);
             (
                 fixtures::NAMES[case],
-                workload::show(200, program.into_parts().0, params)
-                    .prepare()
-                    .unwrap(),
+                workload::show(200, program, params).prepare(),
                 &fixtures::GOLDEN[case][0],
             )
         } else if case < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() {

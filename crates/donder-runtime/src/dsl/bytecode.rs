@@ -205,7 +205,7 @@ impl BytecodeProgram {
 
     /// Check the declared output schema against those registers. Calculation
     /// outputs are not arrays and cannot be read through a DSL array operation.
-    pub fn has_valid_calculation_outputs(&self, outputs: &[Type]) -> bool {
+    pub(crate) fn has_valid_calculation_outputs(&self, outputs: &[Type]) -> bool {
         let Some(slots) = self.calculation_outputs() else {
             return false;
         };
@@ -1379,11 +1379,11 @@ impl BytecodeProgram {
             .unwrap_or(0)
     }
 
-    pub fn value_operands(&self, span: PoolSpan) -> Option<&[ValueSlot]> {
+    pub(crate) fn value_operands(&self, span: PoolSpan) -> Option<&[ValueSlot]> {
         self.value_operands.get(span.range())
     }
 
-    pub fn uses_spatial_context(&self) -> bool {
+    pub(crate) fn uses_spatial_context(&self) -> bool {
         self.instructions.iter().any(|instruction| {
             matches!(
                 instruction,

@@ -35,7 +35,6 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let baseline =
         donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
             .unwrap();
-    let baseline = baseline.to_raw_signals();
     let definitions = &project.definitions().operators;
     let make_node = |id, name| CompositionGraphNode {
         id: CompositionGraphNodeId(id),
@@ -87,29 +86,12 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let disconnected =
         donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
             .unwrap();
-    let disconnected = disconnected.to_raw_signals();
-    assert_eq!(baseline.plan.nodes.len(), disconnected.plan.nodes.len());
-    assert_eq!(baseline.programs.len(), disconnected.programs.len());
-    let mut before = donder_runtime::PreparedSequence::admit(
-        baseline.clone(),
-        donder_runtime::PreparedPatch {
-            routes: Box::new([]),
-            lookups: Box::new([]),
-        },
-        Box::new([]),
-    )
-    .unwrap()
-    .into_playback();
-    let mut after = donder_runtime::PreparedSequence::admit(
-        disconnected.clone(),
-        donder_runtime::PreparedPatch {
-            routes: Box::new([]),
-            lookups: Box::new([]),
-        },
-        Box::new([]),
-    )
-    .unwrap()
-    .into_playback();
+    assert_eq!(
+        donder_runtime::encode_sequence(&baseline).unwrap(),
+        donder_runtime::encode_sequence(&disconnected).unwrap(),
+    );
+    let mut before = baseline.into_playback();
+    let mut after = disconnected.into_playback();
     for ticks in [0, 1_000_000, 3_000_000] {
         let expected = before.evaluate(SampleTime::from_ticks(ticks)).colors();
         let actual = after.evaluate(SampleTime::from_ticks(ticks)).colors();

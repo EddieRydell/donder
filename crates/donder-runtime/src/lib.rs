@@ -25,11 +25,10 @@ pub use dsl::bytecode::{
     TargetSource, ValueSlot,
 };
 pub use dsl::generator::{
-    BindingSlot, Block, BoundGenerator, Calculation, EmissionExecution, Expression,
-    FixedBindingSlot, FixedCalculation, GeneratedEffectSlot, GeneratorBinding,
-    GeneratorCalculation, GeneratorContext, GeneratorEmission, GeneratorInput, GeneratorInvocation,
-    GeneratorProgram, GeneratorTarget, LinkedGenerator, LinkedSpecialization, SpecializedChild,
-    SpecializedGenerator, Statement,
+    BindingSlot, Block, BoundGenerator, Calculation, Expression, FixedBindingSlot,
+    FixedCalculation, GeneratedEffectSlot, GeneratorBinding, GeneratorCalculation,
+    GeneratorContext, GeneratorInput, GeneratorProgram, GeneratorTarget, LinkedGenerator,
+    SpecializedChild, SpecializedGenerator, Statement,
 };
 pub use dsl::types::IdentifierError;
 pub use dsl::{
@@ -54,18 +53,9 @@ pub use sequence::{
     SequenceWindow, SignalHandle, TargetHandle, TargetScope, WhitePosition, WindowHandle,
 };
 
-// Raw data is inspectable and serializable, but must pass admission before playback.
-pub use bindings::{
-    ParameterSource, PreparedParameterBinding, PreparedParameterCalculation,
-    PreparedParameterEnvironment,
-};
-pub use patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
-pub use signal::{
-    PreparedAutomation, PreparedClip, PreparedEffect, PreparedEffectAutomation,
-    PreparedEffectImplementation, PreparedFixture, PreparedLayer, PreparedOperator,
-    PreparedOperatorNode, PreparedPixel, PreparedSignalGraph, PreparedSignalKind,
-    PreparedSignalNode, PreparedTarget, SignalPlan,
-};
+// Values shared with authoring and typed host construction.
+pub use patch::PixelEncoding;
+pub use signal::{PreparedAutomation, PreparedFixture, PreparedPixel};
 pub use wire::{
     FORMAT_VERSION, HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence,
     payload_length,

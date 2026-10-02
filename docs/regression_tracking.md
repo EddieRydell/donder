@@ -69,11 +69,17 @@ program. Generator expansion is not a VM benchmark entry point; renderer fixture
 exercise generator binding and expansion separately from per-pixel execution.
 
 The renderer benches live in `crates/donder-elaboration/benches/render_bench.rs`. They load
-`examples/starter/project.donder`, benchmark renderer preparation, and render frames
-`144`, `2088`, `5904`, `9504`, `11520`, `19080`, and `25934`.
+`examples/starter/project.donder`, benchmark preparation, and check representative frames
+`8398`, `8450`, `8494`, `8530`, `9270`, `9504`, and `9650`.
+Render-only cases prepare a typed project clone with no output routes or controllers;
+logical fixtures remain intact. Both render-only and controller-output cases use the
+same public `SequencePlayback::evaluate` path. Benchmark fixtures construct sequences
+through typed builder handles, never raw execution plans.
 
 Renderer benches assert frame checksums and active effect counts. Update those committed expected
 values only when a renderer or Effect DSL behavior change is intentional.
+The Spin frames use the stock effect's wrapped spatial-phase formula, not the former
+per-revolution crossing-time pulse calculation.
 
 ## Focused Benchmarks
 
@@ -83,10 +89,10 @@ Run one VM benchmark by name:
 cargo bench -p donder-language --bench effect_vm_bench -- scan_sweep
 ```
 
-Run one render benchmark by frame:
+Run the dense controller-output workload:
 
 ```powershell
-cargo bench -p donder-elaboration --bench render_bench -- render_frame_9504
+cargo bench -p donder-elaboration --bench render_bench -- controller_output_dense_60_frames
 ```
 
 ## Regression Classes

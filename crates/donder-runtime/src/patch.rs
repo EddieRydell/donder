@@ -31,7 +31,7 @@ impl PixelEncoding {
 }
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedPixelRoute {
+pub(crate) struct PreparedPixelRoute {
     pub pixels: Range<usize>,
     pub frame: usize,
     pub start_slot: usize,
@@ -40,7 +40,7 @@ pub struct PreparedPixelRoute {
 }
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedPatch {
+pub(crate) struct PreparedPatch {
     pub routes: Box<[PreparedPixelRoute]>,
     pub lookups: Box<[[u8; 256]]>,
 }
