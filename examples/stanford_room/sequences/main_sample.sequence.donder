@@ -11,7 +11,7 @@ imports:
     documents:
     - operators/standard.operator.donder
   as: operators
-main:
+main_sample:
   type: sequence
   duration: 330.489624s
   frame_rate: 120
@@ -106,7 +106,7 @@ main:
     - 87.838997s
     - 87.938866s
     - 88.109901s
-    - 88.327644s
+    - 88.302643s
     - 88.543388s
     - 89.086739s
     - 89.192604s
@@ -237,7 +237,7 @@ main:
       section_width_pixels:
         type: integer
         value: 100
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 4
     layer_id: 1
     start: 67.796455s
@@ -260,24 +260,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -301,7 +300,7 @@ main:
       offset_seconds:
         type: float
         value: -0.07000000029802322
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 8
     layer_id: 1
     start: 67.850548s
@@ -339,7 +338,7 @@ main:
       section_width_pixels:
         type: integer
         value: 100
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 9
     layer_id: 1
     start: 67.79187s
@@ -362,24 +361,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -403,7 +401,7 @@ main:
       offset_seconds:
         type: float
         value: -0.07000000029802322
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 13
     layer_id: 1
     start: 67.866844s
@@ -441,7 +439,7 @@ main:
       section_width_pixels:
         type: integer
         value: 100
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 14
     layer_id: 1
     start: 73.926605s
@@ -479,7 +477,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 15
     layer_id: 1
     start: 70.753166s
@@ -517,7 +515,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 16
     layer_id: 1
     start: 71.174309s
@@ -557,7 +555,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 20
     layer_id: 1
     start: 77.093742s
@@ -595,7 +593,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 21
     layer_id: 1
     start: 68.021805s
@@ -620,24 +618,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -661,7 +658,7 @@ main:
       offset_seconds:
         type: float
         value: -0.10000000149011612
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 22
     layer_id: 1
     start: 71.359451s
@@ -686,24 +683,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 1.0
-            - position: 0.2070000022649765
-              value: 0.5289999842643738
-            - position: 0.4009999930858612
-              value: 0.2809999883174896
-            - position: 0.5789999961853027
-              value: 0.12600000202655792
-            - position: 0.777999997138977
-              value: 0.03700000047683716
-            - position: 1.0
-              value: 0.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.2070000022649765
+            value: 0.5289999842643738
+          - position: 0.4009999930858612
+            value: 0.2809999883174896
+          - position: 0.5789999961853027
+            value: 0.12600000202655792
+          - position: 0.777999997138977
+            value: 0.03700000047683716
+          - position: 1.0
+            value: 0.0
       pulse_shape:
         type: curve
         curve:
@@ -727,7 +723,7 @@ main:
       offset_seconds:
         type: float
         value: -0.10000000149011612
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 23
     layer_id: 1
     start: 74.529404s
@@ -752,24 +748,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -793,7 +788,7 @@ main:
       offset_seconds:
         type: float
         value: -0.10000000149011612
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 24
     layer_id: 1
     start: 77.753281s
@@ -869,7 +864,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.4000000059604645
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 25
     layer_id: 1
     start: 77.54528s
@@ -907,7 +902,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 27
     layer_id: 0
     start: 80.357948s
@@ -1081,7 +1076,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.30000001192092896
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 30
     layer_id: 1
     start: 80.674782s
@@ -1104,24 +1099,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -1145,7 +1139,7 @@ main:
       offset_seconds:
         type: float
         value: -0.07000000029802322
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 31
     layer_id: 1
     start: 80.706306s
@@ -1183,7 +1177,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 32
     layer_id: 1
     start: 80.637878s
@@ -1206,24 +1200,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -1247,7 +1240,7 @@ main:
       offset_seconds:
         type: float
         value: -0.07000000029802322
-    effect: effects.MarkChase
+    effect: effects.MarkChaseSample
   - id: 33
     layer_id: 1
     start: 80.669403s
@@ -1285,7 +1278,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 34
     layer_id: 1
     start: 80.783806s
@@ -1323,7 +1316,7 @@ main:
       section_width_pixels:
         type: integer
         value: 1000
-    effect: effects.MarkPulse
+    effect: effects.MarkPulseSample
   - id: 35
     layer_id: 2
     start: 67.132805s
@@ -1424,7 +1417,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.30000001192092896
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 37
     layer_id: 1
     start: 85.783058s
@@ -1506,7 +1499,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.20000000298023224
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 38
     layer_id: 1
     start: 86.3908s
@@ -1588,7 +1581,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.30000001192092896
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 39
     layer_id: 1
     start: 87.24556s
@@ -1670,7 +1663,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.30000001192092896
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 40
     layer_id: 1
     start: 90.460312s
@@ -1746,7 +1739,7 @@ main:
       wipe_seconds:
         type: float
         value: 0.4000000059604645
-    effect: effects.MarkWipe
+    effect: effects.MarkWipeSample
   - id: 42
     layer_id: 3
     start: 113.921364s
@@ -1791,7 +1784,7 @@ main:
   - id: 43
     layer_id: 2
     start: 74.380547s
-    duration: 19.85618s
+    duration: 6.476666s
     target:
       layout: layouts.main
       fixture: 4
@@ -1806,6 +1799,25 @@ main:
             color: '#ff00d6'
           - position: 1.0
             color: '#6aff00'
+    effect: effects.Gradient
+  - id: 44
+    layer_id: 2
+    start: 80.822891s
+    duration: 13.161526s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: whole_target
+    params:
+      gradient:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ff0000'
+          - position: 1.0
+            color: '#ff00c3'
     effect: effects.Gradient
   composition_graph:
     nodes:

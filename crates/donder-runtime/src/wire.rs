@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 36;
+pub const FORMAT_VERSION: u32 = 37;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -345,6 +345,9 @@ fn validate_signal_graph(
             .get(target.pixels.start..target.pixels.end)
             .ok_or(bad)?;
         let mut previous = None;
+        if !target.sections.valid(pixels.len()) {
+            return Err(bad);
+        }
         for pixel in pixels {
             let fixture = signal.fixtures.get(pixel.fixture_index).ok_or(bad)?;
             let address = (pixel.fixture_index, pixel.fixture_pixel_index);
@@ -423,6 +426,22 @@ fn validate_signal_graph(
                 .start_time
                 .checked_add_duration(effect.duration)
                 .is_none_or(|end| end.as_ticks() > signal.duration.as_ticks())
+        {
+            return Err(bad);
+        }
+        if signal
+            .programs
+            .get(effect.implementation.dsl_program())
+            .is_some_and(|program| {
+                program.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction,
+                        crate::dsl::bytecode::Instruction::SectionQuery { .. }
+                    )
+                })
+            })
+            && signal.targets[effect.target].sections.pixels.len()
+                != signal.targets[effect.target].pixels.len()
         {
             return Err(bad);
         }
@@ -534,6 +553,20 @@ fn validate_signal_graph(
                 }
                 let PreparedOperator::Dsl(program) = operator.implementation;
                 if program >= signal.programs.len() {
+                    return Err(bad);
+                }
+                if signal.programs[program]
+                    .instructions
+                    .iter()
+                    .any(|instruction| {
+                        matches!(
+                            instruction,
+                            crate::dsl::bytecode::Instruction::SectionQuery { .. }
+                        )
+                    })
+                    && signal.targets[plan.target].sections.pixels.len()
+                        != signal.targets[plan.target].pixels.len()
+                {
                     return Err(bad);
                 }
                 if !operator.params.is_frozen()

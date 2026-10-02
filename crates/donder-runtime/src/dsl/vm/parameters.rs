@@ -97,7 +97,7 @@ impl CurveRegister {
     pub(super) fn crossing(&self, value: f32, fallback: f32) -> f32 {
         match self {
             Self::Prepared(curve) => {
-                super::prepared_curve_crossing(&curve.crossings, value, fallback)
+                super::prepared_curve_crossing(&curve.crossings, &curve.raw, value, fallback)
             }
             _ => super::curve_crossing_raw(self.raw(), value, fallback),
         }

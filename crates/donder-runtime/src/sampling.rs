@@ -11,10 +11,10 @@ pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
 #[inline(always)]
 pub(crate) fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
     if position.is_nan() {
-        return 0.0;
+        return f32::NAN;
     }
     let Some(first) = points.first() else {
-        return 0.0;
+        return f32::NAN;
     };
     if points.len() == 1 {
         return first.value;
@@ -48,12 +48,67 @@ pub(crate) fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
             if span.abs() <= 1e-9 {
                 return previous.position;
             }
-            let t = unit_span_fraction(value - previous.value, span).clamp(0.0, 1.0);
+            let t = if span.is_finite() {
+                unit_span_fraction(value - previous.value, span)
+            } else {
+                ((f64::from(value) - f64::from(previous.value))
+                    / (f64::from(point.value) - f64::from(previous.value))) as f32
+            }
+            .clamp(0.0, 1.0);
             return previous.position + (point.position - previous.position) * t;
         }
         previous = point;
     }
     fallback
+}
+
+/// Latest arrival at `value`, including an exact touch. A plateau triggers on
+/// arrival, not continuously while held or again when leaving it. Endpoint
+/// extension is a sampling rule and does not create crossing events.
+pub(crate) fn curve_last_crossing(curve: &Curve, value: f32, before: f32) -> f32 {
+    if value.is_nan() || before.is_nan() {
+        return f32::NAN;
+    }
+    let points = &curve.points;
+    let end = points.partition_point(|point| point.position <= before);
+    // Include the segment containing the query position, if there is one.
+    for pair in points[..end.saturating_add(1).min(points.len())]
+        .windows(2)
+        .rev()
+    {
+        let (start, finish) = (&pair[0], &pair[1]);
+        if value == start.value
+            || value < start.value.min(finish.value)
+            || value > start.value.max(finish.value)
+        {
+            continue;
+        }
+        // Equal-position points form a step. Only landing on the requested
+        // value counts, not values skipped by the discontinuity.
+        if start.position == finish.position && value != finish.value {
+            continue;
+        }
+        let position = if value == finish.value {
+            finish.position
+        } else {
+            let span = finish.value - start.value;
+            let fraction = if span.is_finite() {
+                (value - start.value) / span
+            } else {
+                // Finite opposite-sign endpoints can overflow a f32 difference.
+                ((f64::from(value) - f64::from(start.value))
+                    / (f64::from(finish.value) - f64::from(start.value))) as f32
+            };
+            start.position + (finish.position - start.position) * fraction
+        };
+        if position <= before {
+            return position;
+        }
+    }
+    points
+        .first()
+        .filter(|point| point.value == value && point.position <= before)
+        .map_or(f32::NAN, |point| point.position)
 }
 
 #[inline]
@@ -104,6 +159,9 @@ fn unit_span_fraction(numerator: f32, span: f32) -> f32 {
 
 #[inline(always)]
 pub(crate) fn mix_colors(left: Color, right: Color, t: f32) -> Color {
+    if t.is_nan() {
+        return Color::BLACK;
+    }
     let channel = |left: u8, right: u8| {
         ((left as f32 + (right as f32 - left as f32) * t).clamp(0.0, 255.0) + 0.5) as u8
     };
@@ -116,6 +174,9 @@ pub(crate) fn mix_colors(left: Color, right: Color, t: f32) -> Color {
 
 #[inline(always)]
 pub(crate) fn scale_color(color: Color, scale: f32) -> Color {
+    if scale.is_nan() {
+        return Color::BLACK;
+    }
     let channel = |value: u8| ((value as f32 * scale).clamp(0.0, 255.0) + 0.5) as u8;
     Color {
         red: channel(color.red),
@@ -202,6 +263,9 @@ pub(crate) fn color_saturation(color: Color) -> f32 {
 
 #[inline]
 pub fn hsv(h: f32, s: f32, v: f32) -> Color {
+    if h.is_nan() || s.is_nan() || v.is_nan() {
+        return Color::BLACK;
+    }
     let h = h - libm::floorf(h);
     let sector = h * 6.0;
     let c = v * s;
@@ -236,6 +300,9 @@ pub fn deterministic_random(values: impl Iterator<Item = f32>) -> f32 {
 
 #[inline(always)]
 pub(crate) fn deterministic_random_seed(seed: f32) -> f32 {
+    if seed.is_nan() {
+        return f32::NAN;
+    }
     // MurmurHash3's 32-bit avalanche finalizer. Hash the seed representation,
     // not its sine: this is stateless, allocation-free and uses no doubles.
     // Normalize signed zero so numerically equal zero seeds agree.

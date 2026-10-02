@@ -112,6 +112,7 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
         let index = targets.len();
         let start = pixels.len();
         let mut max_count = 0;
+        let mut retained_sections = Vec::new();
         for (local_index, pixel) in signal.target(old).iter().enumerate() {
             let old_fixture = pixel.fixture_index;
             let Some(fixture_index) = fixture_map[old_fixture] else {
@@ -125,6 +126,7 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
             pixel.fixture_pixel_index = cell as u32;
             max_count = max_count.max(pixel.pixel_count);
             pixels.push(pixel);
+            retained_sections.push(local_index);
             if !signal.spatial_contexts.is_empty() {
                 spatial
                     .push(signal.spatial_contexts[signal.targets[old].pixels.start + local_index]);
@@ -133,6 +135,11 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
         let end = pixels.len();
         targets.push(PreparedTarget {
             pixels: start..end,
+            sections: if signal.targets[old].sections.pixels.is_empty() {
+                Default::default()
+            } else {
+                signal.targets[old].sections.retain(&retained_sections)
+            },
             sample_count: if end - start > max_count {
                 max_count
             } else {
@@ -412,6 +419,7 @@ fn frame_inputs(node: &PreparedSignalNode<AutomationPlan>) -> &[usize] {
 
 #[cfg(test)]
 mod tests {
+    mod sections;
     mod storage;
 
     use super::*;

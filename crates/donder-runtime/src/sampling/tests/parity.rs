@@ -84,7 +84,7 @@ fn gradient_parameter_and_direct_sampling_agree_at_steps_and_boundaries() {
         sample_gradient(&Gradient { stops: vec![] }, 0.5),
         Color::BLACK
     );
-    assert_eq!(
+    assert!(
         sample_curve(
             &Curve {
                 points: vec![
@@ -99,7 +99,7 @@ fn gradient_parameter_and_direct_sampling_agree_at_steps_and_boundaries() {
                 ],
             },
             f32::NAN,
-        ),
-        0.0
+        )
+        .is_nan()
     );
 }

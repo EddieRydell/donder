@@ -212,6 +212,7 @@ pub(crate) struct PreparedOperatorNode {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedTarget {
     pub pixels: core::ops::Range<usize>,
+    pub sections: crate::sections::PreparedSections,
     /// Zero disables sample reuse; otherwise this is the required cache width.
     pub sample_count: usize,
 }

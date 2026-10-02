@@ -441,6 +441,7 @@ impl FunctionCompiler {
                             | ContextRead::TargetMaxY,
                         ..
                     } | Instruction::SectionPosition { .. }
+                        | Instruction::SectionQuery { .. }
                         | Instruction::SignalSample { .. }
                 )
             }),
@@ -1029,6 +1030,14 @@ impl FunctionCompiler {
                     width: args[0],
                 });
             }
+            "section_count" | "section_index" => {
+                let args = self.compile_args(args);
+                self.emit(Instruction::SectionQuery {
+                    dst: self.int_slot(dst),
+                    width: self.int_slot(args[0]),
+                    index: name.as_str() == "section_index",
+                });
+            }
             "sin" | "cos" | "abs" | "floor" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
@@ -1042,6 +1051,25 @@ impl FunctionCompiler {
                         _ => unreachable!("matched float unary builtin"),
                     },
                     value: args[0],
+                });
+            }
+            "is_nan" => {
+                let args = self.compile_float_args(args);
+                self.emit(Instruction::ValueEqual {
+                    dst: self.bool_slot(dst),
+                    negate: true,
+                    left: ValueSlot::Float(args[0]),
+                    right: ValueSlot::Float(args[0]),
+                });
+            }
+            "value_or" => {
+                let args = self.compile_float_args(args);
+                let dst = self.float_slot(dst);
+                self.emit(Instruction::FloatBinary {
+                    dst,
+                    op: FloatBinary::ValueOr,
+                    left: args[0],
+                    right: args[1],
                 });
             }
             "min" => {
@@ -1288,7 +1316,7 @@ impl FunctionCompiler {
                     });
                 }
             }
-            "curve_crossing" if args.len() == 2 || args.len() == 3 => {
+            "curve_first_crossing" | "curve_last_crossing" => {
                 if let Some(param) = self.param_binding(&args[0], &Type::Curve) {
                     let registers = self.compile_float_args(args.into_iter().skip(1).collect());
                     let dst = self.float_slot(dst);
@@ -1297,7 +1325,7 @@ impl FunctionCompiler {
                         param,
                         source: CurveSlot(self.parameter_bank_index(param)),
                         value: registers[0],
-                        fallback: registers.get(1).copied(),
+                        before: registers.get(1).copied(),
                     });
                 } else {
                     let mut args = args;
@@ -1310,7 +1338,7 @@ impl FunctionCompiler {
                         dst,
                         curve,
                         value: registers[0],
-                        fallback: registers.get(1).copied(),
+                        before: registers.get(1).copied(),
                     });
                 }
             }
@@ -1329,52 +1357,24 @@ impl FunctionCompiler {
                     }),
                 }
             }
-            "mark_count" | "mark_at" | "mark_prev" | "mark_prev_index" | "mark_next_index"
-            | "mark_elapsed" | "mark_phase" => {
+            "mark_count" | "mark_at" | "mark_last" | "mark_last_index" => {
                 let args = self.compile_args(args);
                 let marks = self.marks_slot(args[0]);
-                let mut time = args.get(1).copied().map(Self::number_slot);
-                if time.is_none()
-                    && self.kind == EffectKind::Generator
-                    && name.as_str() != "mark_count"
-                {
-                    // A generator's omitted query time is its preparation-time
-                    // origin, not the playback clock of a retained calculation.
-                    // Keep that source context explicit when code is staged.
-                    let zero = self.allocate_slot(&Type::Float);
-                    self.emit_default(zero, &Type::Float);
-                    time = Some(Self::number_slot(zero));
-                }
-                let fallback = || args.get(2).copied().map(Self::number_slot);
                 let op = match name.as_str() {
                     "mark_count" => MarkOp::Count {
                         dst: self.int_slot(dst),
                     },
                     "mark_at" => MarkOp::At {
                         dst: self.float_slot(dst),
-                        index: Self::number_slot(args[1]),
-                        fallback: fallback(),
+                        index: self.int_slot(args[1]),
                     },
-                    "mark_prev" => MarkOp::Prev {
+                    "mark_last" => MarkOp::Last {
                         dst: self.float_slot(dst),
-                        seconds: time,
-                        fallback: fallback(),
+                        seconds: self.float_slot(args[1]),
                     },
-                    "mark_prev_index" => MarkOp::PrevIndex {
+                    "mark_last_index" => MarkOp::LastIndex {
                         dst: self.int_slot(dst),
-                        seconds: time,
-                    },
-                    "mark_next_index" => MarkOp::NextIndex {
-                        dst: self.int_slot(dst),
-                        seconds: time,
-                    },
-                    "mark_elapsed" => MarkOp::Elapsed {
-                        dst: self.float_slot(dst),
-                        seconds: time,
-                    },
-                    "mark_phase" => MarkOp::Phase {
-                        dst: self.float_slot(dst),
-                        seconds: time,
+                        seconds: self.float_slot(args[1]),
                     },
                     _ => unreachable!("matched mark builtin"),
                 };

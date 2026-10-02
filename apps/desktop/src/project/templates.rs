@@ -29,6 +29,7 @@ pub(crate) fn new_project_files(
 - from:
     documents:
     - effects/standard.effect.donder
+    - effects/mark-impact-burst.effect.donder
   as: effects
 - from:
     documents:
@@ -93,6 +94,18 @@ pub(crate) fn new_project_files(
             path: "operators/standard.operator.donder",
             text: include_str!("../../../../examples/starter/operators/standard.operator.donder")
                 .to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "effects/impact-burst.effect.donder",
+            text: include_str!("../../../../examples/starter/effects/impact-burst.effect.donder")
+                .to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "effects/mark-impact-burst.effect.donder",
+            text: include_str!(
+                "../../../../examples/starter/effects/mark-impact-burst.effect.donder"
+            )
+            .to_string(),
         },
     ])
 }
@@ -178,7 +191,7 @@ mod tests {
                 .iter()
                 .filter(|file| file.path.ends_with(".donder"))
                 .count(),
-            3
+            5
         );
         write_new_project_files(&root, &files).unwrap();
         let session = donder_project_io::load_project(&root).unwrap();

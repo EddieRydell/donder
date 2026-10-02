@@ -574,6 +574,7 @@ mod tests {
                 programs: Box::new([]),
                 targets: vec![PreparedTarget {
                     pixels: 0..0,
+                    sections: Default::default(),
                     sample_count: 0,
                 }]
                 .into(),
@@ -656,10 +657,12 @@ mod tests {
         targets.extend([
             PreparedTarget {
                 pixels: 0..2,
+                sections: Default::default(),
                 sample_count: 0,
             },
             PreparedTarget {
                 pixels: 2..3,
+                sections: Default::default(),
                 sample_count: 0,
             },
         ]);

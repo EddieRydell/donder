@@ -5,6 +5,7 @@ imports:
 - from:
     documents:
     - effects/standard.effect.donder
+    - effects/mark-impact-burst.effect.donder
   as: effects
 - from:
     documents:
@@ -17,9 +18,11 @@ imports:
 - from:
     documents:
     - sequences/main.sequence.donder
+    - sequences/main_sample.sequence.donder
   as: sequences
 stanford_room:
   type: project
   setup: setups.main
   sequences:
   - sequences.main
+  - sequences.main_sample

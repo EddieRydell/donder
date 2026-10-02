@@ -1588,10 +1588,12 @@ pub(super) fn evaluate_sample(
     params: &BoundParams,
     context: &RunContext,
     spatial: &SpatialContext,
+    sections: crate::sections::SectionContext<'_>,
     workspace: &mut VmWorkspace,
     entry: usize,
 ) -> Color {
     let mut vm = Vm::new(program, params, context, spatial, workspace, (), entry);
+    vm.sections = sections;
     match vm.run::<Color>() {
         Ok(color) => color,
         Err(never) => match never {},
@@ -1635,11 +1637,13 @@ pub(super) fn evaluate_operator<E>(
     params: &BoundParams,
     context: &RunContext,
     spatial: &SpatialContext,
+    sections: crate::sections::SectionContext<'_>,
     sampler: &mut dyn SignalSampler<E>,
     workspace: &mut VmWorkspace,
     entry: usize,
 ) -> Result<Color, E> {
     let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
+    vm.sections = sections;
     vm.run::<Color>()
 }
 
@@ -1814,6 +1818,7 @@ struct Vm<'a, C: ReadContext, S, A, B, P> {
     params: &'a BoundParams,
     context: &'a RunContext,
     spatial: &'a C::Spatial,
+    sections: crate::sections::SectionContext<'a>,
     workspace: &'a mut VmWorkspace,
     ip: usize,
     signal_sampler: P,
@@ -1885,6 +1890,10 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
             workspace,
             ip: entry,
             signal_sampler,
+            sections: crate::sections::SectionContext::Single {
+                index: context.pixel_index,
+                count: context.pixel_count,
+            },
         }
     }
 
@@ -2311,17 +2320,30 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                     self.context_read(*dst, *read);
                 }
                 Instruction::SectionPosition { dst, width } => {
-                    let width = self.float(*width).max(1.0);
+                    let width = self.float(*width);
                     let index = self.context.pixel_index as f32;
-                    self.set_float(*dst, (index - libm::floorf(index / width) * width) / width);
+                    let value = if width.is_nan() {
+                        f32::NAN
+                    } else {
+                        let width = width.max(1.0);
+                        (index - libm::floorf(index / width) * width) / width
+                    };
+                    self.set_float(*dst, value);
+                }
+                Instruction::SectionQuery { dst, width, index } => {
+                    self.set_int(*dst, self.sections.query(self.int(*width), *index));
                 }
                 Instruction::FloatUnary { dst, op, value } => {
                     let value = self.float(*value);
-                    let result = match op {
-                        FloatUnary::Sin => micromath::F32Ext::sin(value),
-                        FloatUnary::Cos => micromath::F32Ext::cos(value),
-                        FloatUnary::Abs => value.abs(),
-                        FloatUnary::Floor => libm::floorf(value),
+                    let result = if value.is_nan() {
+                        f32::NAN
+                    } else {
+                        match op {
+                            FloatUnary::Sin => micromath::F32Ext::sin(value),
+                            FloatUnary::Cos => micromath::F32Ext::cos(value),
+                            FloatUnary::Abs => value.abs(),
+                            FloatUnary::Floor => libm::floorf(value),
+                        }
                     };
                     self.set_float(*dst, result);
                 }
@@ -2333,10 +2355,7 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                 } => {
                     let left = self.float(*left);
                     let right = self.float(*right);
-                    let result = match op {
-                        FloatBinary::Min => left.min(right),
-                        FloatBinary::Max => left.max(right),
-                    };
+                    let result = float_binary(*op, left, right);
                     self.set_float(*dst, result);
                 }
                 Instruction::FloatBinaryConst {
@@ -2347,10 +2366,7 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                 } => {
                     let value = self.float(*value);
                     let constant = f32::from_bits(*constant_bits);
-                    let result = match op {
-                        FloatBinary::Min => value.min(constant),
-                        FloatBinary::Max => value.max(constant),
-                    };
+                    let result = float_binary(*op, value, constant);
                     self.set_float(*dst, result);
                 }
                 Instruction::Clamp {
@@ -2449,12 +2465,18 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                     green,
                     blue,
                 } => {
+                    let (red, green, blue) =
+                        (self.float(*red), self.float(*green), self.float(*blue));
                     self.set_color(
                         *dst,
-                        Color {
-                            red: channel(self.float(*red)),
-                            green: channel(self.float(*green)),
-                            blue: channel(self.float(*blue)),
+                        if red.is_nan() || green.is_nan() || blue.is_nan() {
+                            Color::BLACK
+                        } else {
+                            Color {
+                                red: channel(red),
+                                green: channel(green),
+                                blue: channel(blue),
+                            }
                         },
                     );
                 }
@@ -2545,30 +2567,38 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                     dst,
                     curve,
                     value,
-                    fallback,
+                    before,
                 } => {
                     let curve = self.curve_value(*curve).raw();
                     let value = self.float(*value);
-                    let fallback = fallback
-                        .map(|fallback| self.float(fallback))
-                        .unwrap_or(value);
-                    self.set_float(*dst, curve_crossing_raw(curve, value, fallback));
+                    let result = match before {
+                        Some(position) => crate::sampling::curve_last_crossing(
+                            curve,
+                            value,
+                            self.float(*position),
+                        ),
+                        None => curve_crossing_raw(curve, value, f32::NAN),
+                    };
+                    self.set_float(*dst, result);
                 }
                 Instruction::CurveParamCrossing {
                     dst,
                     source,
                     value,
-                    fallback,
+                    before,
                     ..
                 } => {
                     let value = self.float(*value);
-                    let fallback = fallback
-                        .map(|fallback| self.float(fallback))
-                        .unwrap_or(value);
-                    self.set_float(
-                        *dst,
-                        self.params.values.curves[source.0 as usize].crossing(value, fallback),
-                    );
+                    let curve = &self.params.values.curves[source.0 as usize];
+                    let result = match before {
+                        Some(position) => crate::sampling::curve_last_crossing(
+                            curve.raw(),
+                            value,
+                            self.float(*position),
+                        ),
+                        None => curve.crossing(value, f32::NAN),
+                    };
+                    self.set_float(*dst, result);
                 }
                 Instruction::Len { dst, value } => {
                     let length = self
@@ -2583,46 +2613,20 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
                         MarkOp::Count { dst } => {
                             self.set_int(dst, int_len(marks.marks.len()));
                         }
-                        MarkOp::At {
-                            dst,
-                            index,
-                            fallback,
-                        } => {
-                            let index = self.number_int(index);
-                            let fallback =
-                                fallback.map(|slot| self.number_float(slot)).unwrap_or(0.0);
-                            self.set_float(dst, mark_at_from(marks, index, fallback));
+                        MarkOp::At { dst, index } => {
+                            self.set_float(dst, mark_at_from(marks, self.int(index)));
                         }
-                        MarkOp::Prev {
-                            dst,
-                            seconds,
-                            fallback,
-                        } => {
-                            let seconds = self.mark_seconds(seconds);
-                            let fallback =
-                                fallback.map(|slot| self.number_float(slot)).unwrap_or(0.0);
-                            let index = prev_index(marks, seconds);
-                            self.set_float(dst, mark_at_from(marks, index, fallback));
-                        }
-                        MarkOp::PrevIndex { dst, seconds } => {
-                            let seconds = self.mark_seconds(seconds);
-                            self.set_int(dst, prev_index(marks, seconds));
-                        }
-                        MarkOp::NextIndex { dst, seconds } => {
-                            let seconds = self.mark_seconds(seconds);
-                            self.set_int(dst, next_index(marks, seconds));
-                        }
-                        MarkOp::Elapsed { dst, seconds } => {
-                            let seconds = self.mark_seconds(seconds);
-                            self.set_float(dst, elapsed(marks, seconds));
-                        }
-                        MarkOp::Phase { dst, seconds } => {
-                            let seconds = self.mark_seconds(seconds);
-                            let duration = self.context.duration;
+                        MarkOp::Last { dst, seconds } => {
+                            let mark = previous_mark(marks, self.float(seconds));
                             self.set_float(
                                 dst,
-                                phase(marks, seconds, sample_duration_seconds_f32(duration)),
+                                mark.map_or(f32::NAN, |(_, time)| {
+                                    sample_duration_seconds_f32(time)
+                                }),
                             );
+                        }
+                        MarkOp::LastIndex { dst, seconds } => {
+                            self.set_int(dst, prev_index(marks, self.float(seconds)));
                         }
                     }
                 }
@@ -2756,13 +2760,6 @@ impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P
         match slot {
             NumberSlot::Int(slot) => self.int(slot) as f32,
             NumberSlot::Float(slot) => self.float(slot),
-        }
-    }
-
-    fn mark_seconds(&self, seconds: Option<NumberSlot>) -> f32 {
-        match seconds {
-            Some(slot) => self.number_float(slot),
-            None => sample_duration_seconds_f32(self.context.time),
         }
     }
 
@@ -3108,33 +3105,36 @@ fn prepare_curve_crossings_into(curve: &Curve, output: &mut PreparedCurveCrossin
 
 pub(crate) fn prepared_curve_crossing(
     crossings: &PreparedCurveCrossings,
+    raw: &Curve,
     value: f32,
     fallback: f32,
 ) -> f32 {
+    let crossing = |segment: &CrossingSegment| {
+        if !(segment.max_value - segment.min_value).is_finite() {
+            // Extreme finite endpoints need a wider intermediate difference;
+            // their cached f32 slope cannot represent the inverse accurately.
+            Some(curve_crossing_raw(raw, value, fallback))
+        } else {
+            crossing_at(segment, value)
+        }
+    };
     match crossings.segments() {
         [] => return fallback,
-        [segment] => return crossing_at(segment, value).unwrap_or(fallback),
+        [segment] => return crossing(segment).unwrap_or(fallback),
         _ => {}
     }
     match crossings {
         PreparedCurveCrossings::Increasing(segments) => {
             let index = segments.partition_point(|segment| segment.max_value < value);
-            segments
-                .get(index)
-                .and_then(|segment| crossing_at(segment, value))
-                .unwrap_or(fallback)
+            segments.get(index).and_then(crossing).unwrap_or(fallback)
         }
         PreparedCurveCrossings::Decreasing(segments) => {
             let index = segments.partition_point(|segment| segment.min_value > value);
-            segments
-                .get(index)
-                .and_then(|segment| crossing_at(segment, value))
-                .unwrap_or(fallback)
+            segments.get(index).and_then(crossing).unwrap_or(fallback)
         }
-        PreparedCurveCrossings::Mixed(segments) => segments
-            .iter()
-            .find_map(|segment| crossing_at(segment, value))
-            .unwrap_or(fallback),
+        PreparedCurveCrossings::Mixed(segments) => {
+            segments.iter().find_map(crossing).unwrap_or(fallback)
+        }
     }
 }
 
@@ -3205,7 +3205,7 @@ mod curve_crossing_tests {
                 f32::NAN,
             ] {
                 let expected = curve_crossing(&curve, value, -7.0);
-                let actual = prepared_curve_crossing(&prepared.crossings, value, -7.0);
+                let actual = prepared_curve_crossing(&prepared.crossings, &curve, value, -7.0);
                 assert!(
                     (actual - expected).abs() <= 0.000001,
                     "{points:?} at {value}"
@@ -3217,8 +3217,14 @@ mod curve_crossing_tests {
     #[test]
     fn prepared_crossing_preserves_single_point_behavior() {
         let curve = prepared(&[(0.25, 0.75)]);
-        assert_eq!(prepared_curve_crossing(&curve.crossings, 0.75, -1.0), 0.25);
-        assert_eq!(prepared_curve_crossing(&curve.crossings, 0.5, -1.0), -1.0);
+        assert_eq!(
+            prepared_curve_crossing(&curve.crossings, &curve.raw, 0.75, -1.0),
+            0.25
+        );
+        assert_eq!(
+            prepared_curve_crossing(&curve.crossings, &curve.raw, 0.5, -1.0),
+            -1.0
+        );
     }
 }
 
@@ -3228,6 +3234,21 @@ fn sample_curve(curve: &Curve, position: f32) -> f32 {
 
 fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
     crate::sampling::sample_gradient(gradient, position)
+}
+
+fn float_binary(op: FloatBinary, left: f32, right: f32) -> f32 {
+    match op {
+        FloatBinary::ValueOr => {
+            if left.is_nan() {
+                right
+            } else {
+                left
+            }
+        }
+        FloatBinary::Min | FloatBinary::Max if left.is_nan() || right.is_nan() => f32::NAN,
+        FloatBinary::Min => left.min(right),
+        FloatBinary::Max => left.max(right),
+    }
 }
 
 fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
@@ -3246,12 +3267,12 @@ fn channel_byte(value: f32) -> u8 {
     (value.clamp(0.0, 255.0) + 0.5) as u8
 }
 
-fn mark_at_from(marks: &Marks, index: i32, fallback: f32) -> f32 {
+fn mark_at_from(marks: &Marks, index: i32) -> f32 {
     usize::try_from(index)
         .ok()
         .and_then(|index| marks.marks.get(index))
         .map(|mark| sample_duration_seconds_f32(*mark))
-        .unwrap_or(fallback)
+        .unwrap_or(f32::NAN)
 }
 
 fn previous_mark(marks: &Marks, seconds: f32) -> Option<(usize, SampleDuration)> {
@@ -3260,45 +3281,14 @@ fn previous_mark(marks: &Marks, seconds: f32) -> Option<(usize, SampleDuration)>
         .iter()
         .copied()
         .enumerate()
-        .rfind(|(_, mark)| sample_duration_seconds_f32(*mark) <= seconds)
-}
-
-fn next_mark(marks: &Marks, seconds: f32) -> Option<(usize, SampleDuration)> {
-    marks
-        .marks
-        .iter()
-        .copied()
-        .enumerate()
-        .find(|(_, mark)| sample_duration_seconds_f32(*mark) > seconds)
+        .filter(|(_, mark)| sample_duration_seconds_f32(*mark) <= seconds)
+        .max_by_key(|(index, mark)| (mark.as_ticks(), *index))
 }
 
 fn prev_index(marks: &Marks, seconds: f32) -> i32 {
     previous_mark(marks, seconds)
         .map(|(index, _)| int_len(index))
         .unwrap_or(-1)
-}
-
-fn next_index(marks: &Marks, seconds: f32) -> i32 {
-    next_mark(marks, seconds)
-        .map(|(index, _)| int_len(index))
-        .unwrap_or(-1)
-}
-
-fn elapsed(marks: &Marks, seconds: f32) -> f32 {
-    seconds
-        - previous_mark(marks, seconds)
-            .map(|(_, mark)| sample_duration_seconds_f32(mark))
-            .unwrap_or(0.0)
-}
-
-fn phase(marks: &Marks, seconds: f32, duration: f32) -> f32 {
-    let start = previous_mark(marks, seconds)
-        .map(|(_, mark)| sample_duration_seconds_f32(mark))
-        .unwrap_or(0.0);
-    let end = next_mark(marks, seconds)
-        .map(|(_, mark)| sample_duration_seconds_f32(mark))
-        .unwrap_or(duration);
-    ((seconds - start) / (end - start).max(0.000000001)).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
@@ -3382,18 +3372,18 @@ mod binding_totality_tests {
 
 #[cfg(test)]
 mod mark_totality_tests {
-    use super::{elapsed, int_len, mark_at_from, next_index, phase, prev_index};
+    use super::{int_len, mark_at_from, prev_index, previous_mark};
     use crate::values::{Marks, SampleDuration};
     use alloc::vec;
 
     #[test]
-    fn mark_at_uses_fallback_for_negative_and_out_of_range_indices() {
+    fn mark_at_returns_nan_for_negative_and_out_of_range_indices() {
         let marks = Marks {
             marks: vec![SampleDuration::from_ticks(1_000_000)],
         };
-        assert_eq!(mark_at_from(&marks, -1, 2.5), 2.5);
-        assert_eq!(mark_at_from(&marks, 1, 2.5), 2.5);
-        assert_eq!(mark_at_from(&marks, 0, 2.5), 1.0);
+        assert!(mark_at_from(&marks, -1).is_nan());
+        assert!(mark_at_from(&marks, 1).is_nan());
+        assert_eq!(mark_at_from(&marks, 0), 1.0);
     }
 
     #[test]
@@ -3406,11 +3396,14 @@ mod mark_totality_tests {
             ],
         };
         assert_eq!(prev_index(&marks, 1.2), 1);
-        assert_eq!(next_index(&marks, 1.2), 2);
-        assert!((elapsed(&marks, 1.2) - 0.2).abs() < 1e-6);
-        assert!((phase(&marks, 1.2, 2.0) - 0.4).abs() < 1e-6);
+        assert_eq!(
+            previous_mark(&marks, 1.0),
+            Some((1, SampleDuration::from_ticks(1_000_000)))
+        );
+        assert_eq!(previous_mark(&marks, 0.0), None);
         assert_eq!(prev_index(&marks, f32::NAN), -1);
-        assert_eq!(next_index(&marks, f32::NAN), -1);
+        assert_eq!(prev_index(&marks, f32::NEG_INFINITY), -1);
+        assert_eq!(prev_index(&marks, f32::INFINITY), 2);
         assert_eq!(int_len(usize::MAX), i32::MAX);
     }
 }

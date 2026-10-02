@@ -72,19 +72,30 @@ impl<'a> SequenceClip<'a> {
                         count: pixel.pixel_count,
                         fraction: pixel.pixel_fraction,
                         spatial,
+                        section: self.graph.targets[effect.target].sections.pixel(local),
                     };
-                    let key = (context.index, context.count, context.fraction.to_bits(), {
-                        let context = spatial;
-                        [
-                            context.position[0],
-                            context.position[1],
-                            context.min[0],
-                            context.min[1],
-                            context.max[0],
-                            context.max[1],
-                        ]
-                        .map(f32::to_bits)
-                    });
+                    let key = (
+                        if program.uses_sections() {
+                            Some(context.section)
+                        } else {
+                            None
+                        },
+                        context.index,
+                        context.count,
+                        context.fraction.to_bits(),
+                        {
+                            let context = spatial;
+                            [
+                                context.position[0],
+                                context.position[1],
+                                context.min[0],
+                                context.min[1],
+                                context.max[0],
+                                context.max[1],
+                            ]
+                            .map(f32::to_bits)
+                        },
+                    );
                     if let Some(&group) = group_by_context.get(&key) {
                         let group: &mut SampleGroup = &mut groups[group];
                         group.rows.extend(rows);
@@ -145,6 +156,7 @@ struct SampleGroup {
 struct SampleContext {
     index: usize,
     count: usize,
+    section: crate::sections::SectionPixel,
     fraction: f32,
     spatial: SpatialContext,
 }
@@ -167,6 +179,7 @@ impl ClipSampler<'_> {
                         context.index,
                         context.count,
                         context.fraction,
+                        context.section,
                         &context.spatial,
                         &mut self.vm,
                     );

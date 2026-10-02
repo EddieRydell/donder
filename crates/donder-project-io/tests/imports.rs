@@ -389,11 +389,14 @@ fn linked_target_slots_include_local_and_imported_children_in_source_order() {
         let project = reordered
             .get_mut(&Utf8PathBuf::from("project.donder"))
             .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n- from: {{ documents: [{first}] }}\n  as: first\n"),
-            1,
-        );
+        *project = project
+            .replace("\r\n", "\n")
+            .replace(&format!("    - {GENERATOR}\n"), "")
+            .replacen(
+                "imports:\n",
+                &format!("imports:\n- from: {{ documents: [{first}] }}\n  as: first\n"),
+                1,
+            );
         let report = check_project_with_overrides(&root(), &reordered);
         assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
         let session = report.session.unwrap();

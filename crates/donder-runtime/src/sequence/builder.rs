@@ -255,7 +255,7 @@ impl OperatorInvocation {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum TargetScope {
     PerFixture,
     WholeTarget,
@@ -362,6 +362,7 @@ struct Target {
     pixels: Vec<PreparedPixel>,
     spatial: Vec<SpatialContext>,
     selection: Shared<[PreparedPixel]>,
+    scope: TargetScope,
 }
 
 struct Output {
@@ -511,7 +512,10 @@ impl<'id> SequenceBuilder<'id> {
         pixels.sort_by_key(|(pixel, _)| (pixel.fixture_index, pixel.fixture_pixel_index));
         let (pixels, spatial): (Vec<_>, Vec<_>) = pixels.into_iter().unzip();
         if let Some(index) = self.targets.iter().position(|target| {
-            target.pixels == pixels && target.spatial == spatial && target.selection == selection
+            target.pixels == pixels
+                && target.spatial == spatial
+                && target.selection == selection
+                && target.scope == scope
         }) {
             return TargetHandle::new(index);
         }
@@ -520,6 +524,7 @@ impl<'id> SequenceBuilder<'id> {
             pixels,
             spatial,
             selection,
+            scope,
         });
         TargetHandle::new(index)
     }
@@ -537,6 +542,7 @@ impl<'id> SequenceBuilder<'id> {
         range: core::ops::Range<usize>,
     ) -> TargetHandle<'id> {
         let original = &self.targets[target.index];
+        let scope = original.scope;
         let (pixels, spatial): (Vec<_>, Vec<_>) = original
             .pixels
             .iter()
@@ -556,7 +562,10 @@ impl<'id> SequenceBuilder<'id> {
             .copied()
             .collect();
         if let Some(index) = self.targets.iter().position(|target| {
-            target.pixels == pixels && target.spatial == spatial && target.selection == selection
+            target.pixels == pixels
+                && target.spatial == spatial
+                && target.selection == selection
+                && target.scope == scope
         }) {
             return TargetHandle::new(index);
         }
@@ -565,6 +574,7 @@ impl<'id> SequenceBuilder<'id> {
             pixels,
             spatial,
             selection,
+            scope,
         });
         TargetHandle::new(index)
     }
@@ -782,12 +792,29 @@ impl<'id> SequenceBuilder<'id> {
                 .iter()
                 .any(|program| program.0.program().uses_spatial_context());
         let mut target_pixels = Vec::new();
+        let needs_sections = self
+            .sample_programs
+            .iter()
+            .any(|program| program.0.uses_sections())
+            || self
+                .operator_programs
+                .iter()
+                .any(|program| program.0.program().uses_sections());
         let mut spatial_contexts = Vec::new();
         let targets = self
             .targets
             .into_iter()
             .map(|target| {
                 let start = target_pixels.len();
+                let sections = if needs_sections {
+                    crate::sections::PreparedSections::new(
+                        &target.selection,
+                        &target.pixels,
+                        target.scope == TargetScope::PerFixture,
+                    )
+                } else {
+                    Default::default()
+                };
                 let max_count = target
                     .pixels
                     .iter()
@@ -803,6 +830,7 @@ impl<'id> SequenceBuilder<'id> {
                 }
                 PreparedTarget {
                     pixels: start..target_pixels.len(),
+                    sections,
                     sample_count,
                 }
             })

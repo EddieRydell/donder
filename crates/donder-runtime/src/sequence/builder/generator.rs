@@ -396,6 +396,7 @@ impl<'id> SequenceBuilder<'id> {
         selection: Shared<[PreparedPixel]>,
     ) -> TargetHandle<'id> {
         let parent = &self.targets[parent.index];
+        let scope = parent.scope;
         let positions: BTreeMap<_, _> = parent
             .pixels
             .iter()
@@ -435,7 +436,10 @@ impl<'id> SequenceBuilder<'id> {
             })
             .collect();
         if let Some(index) = self.targets.iter().position(|target| {
-            target.pixels == pixels && target.spatial == spatial && target.selection == selection
+            target.pixels == pixels
+                && target.spatial == spatial
+                && target.selection == selection
+                && target.scope == scope
         }) {
             return TargetHandle::new(index);
         }
@@ -444,6 +448,7 @@ impl<'id> SequenceBuilder<'id> {
             pixels,
             spatial,
             selection,
+            scope,
         });
         TargetHandle::new(index)
     }

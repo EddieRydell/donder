@@ -184,10 +184,14 @@ fn reference_sampling_keeps_integer_and_float_index_semantics() {
                 |position| (donder_runtime::sample_curve(&curve, position) * 255.0).round() as u8;
             assert_eq!(
                 sampled,
-                Color {
-                    red: channel(integer as f32),
-                    green: channel(fraction),
-                    blue: 0,
+                if fraction.is_nan() {
+                    Color::BLACK
+                } else {
+                    Color {
+                        red: channel(integer as f32),
+                        green: channel(fraction),
+                        blue: 0,
+                    }
                 }
             );
         }

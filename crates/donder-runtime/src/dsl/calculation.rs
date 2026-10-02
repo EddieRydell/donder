@@ -72,17 +72,15 @@ impl CalculationProgram {
             &results,
             &BoundParams::result_workspace(&outputs, 0, 0),
         )?;
-        let uses_time = bytecode
-            .instructions
-            .iter()
-            .any(|instruction| match instruction {
+        let uses_time = bytecode.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
                 Instruction::ContextRead {
                     read: ContextRead::Seconds | ContextRead::Progress,
                     ..
-                } => true,
-                Instruction::Mark { op, .. } => op.reads_current_time(),
-                _ => false,
-            });
+                }
+            )
+        });
         let bytecode = bytecode
             .try_map_execution(
                 |read| CalculationRead::admit(read).ok_or(()),

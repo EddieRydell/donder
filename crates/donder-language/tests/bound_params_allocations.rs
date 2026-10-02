@@ -775,7 +775,7 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
 }
 
 #[test]
-fn empty_curve_automation_reserves_its_fallback_point() {
+fn empty_curve_automation_preserves_missingness_without_allocating() {
     use donder_runtime::PreparedAutomation;
     use donder_runtime::{Curve, SampleDuration, SampleTime};
     let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0).effect;
@@ -810,7 +810,7 @@ fn empty_curve_automation_reserves_its_fallback_point() {
         snapshot.copy_from_slice(output.bytes);
     }
     COUNTING.set(false);
-    assert!(buffers[0].iter().any(|&value| value != 0));
+    assert!(buffers[0].iter().all(|&value| value == 0));
     assert_eq!(ALLOCATIONS.get(), 0, "empty automation window allocated");
 }
 

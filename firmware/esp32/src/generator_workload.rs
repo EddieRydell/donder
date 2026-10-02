@@ -30,7 +30,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Workl
     let params = "param float level = 0.5;";
     let resources = "param array<gradient> ramps; param array<curve> shapes;";
     let selection = "int selected = 0; if (level >= 0.4) { selected = 1; }";
-    let curve_sample = "color sample() { return rgb(shape[progress()], curve_crossing(shape, pixel_fraction()), 0.25); }";
+    let curve_sample = "color sample() { return rgb(shape[progress()], value_or(curve_first_crossing(shape, pixel_fraction()), pixel_fraction()), 0.25); }";
     let source = if generator {
         match case {
             Case::Curve => format!(

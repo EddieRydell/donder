@@ -19,6 +19,7 @@ pub struct OperatorProgram {
     inputs: usize,
     parameters: Box<[Type]>,
     uses_spatial_context: bool,
+    uses_sections: bool,
 }
 
 /// One admitted operator paired with its immutable, schema-checked parameters.
@@ -64,6 +65,12 @@ impl OperatorProgram {
             return None;
         }
         let uses_spatial_context = bytecode.uses_spatial_context();
+        let uses_sections = bytecode.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                super::bytecode::Instruction::SectionQuery { .. }
+            )
+        });
         let bytecode = bytecode
             .try_map_execution(
                 Ok,
@@ -77,6 +84,7 @@ impl OperatorProgram {
             inputs,
             parameters,
             uses_spatial_context,
+            uses_sections,
         })
     }
 
@@ -118,6 +126,10 @@ impl OperatorProgram {
         self.uses_spatial_context
     }
 
+    pub(crate) fn uses_sections(&self) -> bool {
+        self.uses_sections
+    }
+
     pub fn into_parts(self) -> (BytecodeProgram, usize, Box<[Type]>) {
         let bytecode = match self.bytecode.try_map_execution(
             Ok::<_, Infallible>,
@@ -137,6 +149,7 @@ impl OperatorProgram {
         params: &BoundParams,
         context: &RunContext,
         spatial: &SpatialContext,
+        sections: crate::sections::SectionContext<'_>,
         sampler: &mut dyn SignalSampler<E>,
         workspace: &mut VmWorkspace,
         reuse_uniform: bool,
@@ -146,6 +159,7 @@ impl OperatorProgram {
             params,
             context,
             spatial,
+            sections,
             sampler,
             workspace,
             if reuse_uniform {
@@ -158,6 +172,8 @@ impl OperatorProgram {
 }
 
 impl BoundOperator<'_> {
+    /// Standalone context describes one virtual fixture. Prepared playback uses
+    /// the original full graph target for fixture-aware section queries.
     pub fn evaluate<E>(
         &self,
         context: &RunContext,
@@ -165,7 +181,17 @@ impl BoundOperator<'_> {
         sampler: &mut dyn SignalSampler<E>,
         workspace: &mut VmWorkspace,
     ) -> Result<Color, E> {
-        self.program
-            .sample(&self.params, context, spatial, sampler, workspace, false)
+        self.program.sample(
+            &self.params,
+            context,
+            spatial,
+            crate::sections::SectionContext::Single {
+                index: context.pixel_index,
+                count: context.pixel_count,
+            },
+            sampler,
+            workspace,
+            false,
+        )
     }
 }

@@ -112,7 +112,7 @@ pub(super) fn pixels(value: TargetView<'_>) -> TargetItemsValue {
 }
 
 pub(super) fn sections(value: TargetView<'_>, width: f32) -> TargetItemsValue {
-    let width = libm::floorf(width.max(1.0)) as u32;
+    let width = crate::sections::normalize_width(width);
     regroup(value, |first, next| {
         first.fixture_index == next.fixture_index
             && first.fixture_pixel_index / width == next.fixture_pixel_index / width
@@ -143,5 +143,62 @@ fn regroup(
                 })
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod section_query_tests {
+    use super::*;
+    use crate::sections::{PreparedSections, SectionContext};
+
+    #[test]
+    fn section_queries_match_generator_groups_for_ordered_sparse_membership() {
+        let selection: Vec<_> = [
+            (4, 3),
+            (4, 4),
+            (4, 7),
+            (4, 8),
+            (1, 2),
+            (1, 3),
+            (1, 9),
+            (4, 12),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(logical, (fixture, cell))| {
+            PreparedPixel::try_new(fixture, cell, logical, 8, logical as f32 / 7.0).unwrap()
+        })
+        .collect();
+        let mut physical = selection.clone();
+        physical.sort_by_key(|pixel| (pixel.fixture_index, pixel.fixture_pixel_index));
+        for width in [-1, 0, 1, 3, 5, 20, i32::MAX] {
+            for per_fixture in [false, true] {
+                let prepared = PreparedSections::new(&selection, &physical, per_fixture);
+                for (local, pixel) in physical.iter().enumerate() {
+                    let scope: Vec<_> = selection
+                        .iter()
+                        .filter(|other| !per_fixture || other.fixture_index == pixel.fixture_index)
+                        .copied()
+                        .collect();
+                    let generated = sections(TargetView::Pixels(&scope), width as f32);
+                    let index = generated
+                        .groups
+                        .iter()
+                        .position(|group| {
+                            group.pixels.iter().any(|other| {
+                                other.fixture_index == pixel.fixture_index
+                                    && other.fixture_pixel_index == pixel.fixture_pixel_index
+                            })
+                        })
+                        .unwrap();
+                    let context = SectionContext::Prepared {
+                        target: &prepared,
+                        pixel: prepared.pixel(local),
+                    };
+                    assert_eq!(context.query(width, false), generated.groups.len() as i32);
+                    assert_eq!(context.query(width, true), index as i32);
+                }
+            }
+        }
     }
 }

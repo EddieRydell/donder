@@ -160,11 +160,10 @@ fn fixed_loop_outputs_remain_available_to_child_timing() {
 }
 
 #[test]
-fn implicit_generator_mark_time_is_independent_of_specialization() {
+fn explicit_generator_mark_time_is_independent_of_specialization() {
     let source = "effect Parent { param marks marks; void generate() {
         timeline.emit Child { start: 0.0, duration: 1.0, target: target,
-            previous: mark_prev(marks), previous_index: mark_prev_index(marks),
-            next_index: mark_next_index(marks), elapsed: mark_elapsed(marks), phase: mark_phase(marks)
+            previous: mark_last(marks, 0.0), previous_index: mark_last_index(marks, 0.0)
         };
     } }";
     let marks = Value::Marks(Arc::new(Marks {
@@ -173,17 +172,11 @@ fn implicit_generator_mark_time_is_independent_of_specialization() {
             SampleDuration::from_ticks(1_000_000),
         ],
     }));
-    let expected = vec![vec![
-        Value::Float(0.0),
-        Value::Int(0),
-        Value::Int(1),
-        Value::Float(0.0),
-        Value::Float(0.0),
-    ]];
+    let expected = vec![vec![Value::Float(0.0), Value::Int(0)]];
     let fixed = specialize(source, &[GeneratorInput::Fixed(marks.clone())]);
     let live = specialize(source, &[GeneratorInput::Live]);
     assert!(fixed.calculations.is_empty());
-    assert_eq!(live.calculations.len(), 5);
+    assert_eq!(live.calculations.len(), 2);
     assert!(
         live.calculations
             .iter()
@@ -202,60 +195,24 @@ fn implicit_generator_mark_time_is_independent_of_specialization() {
 
     // An explicit clock remains live, even when every parameter is fixed.
     let explicit = specialize(
-        &source.replace("(marks)", "(marks, seconds())"),
+        &source.replace("(marks, 0.0)", "(marks, seconds())"),
         &[GeneratorInput::Fixed(marks.clone())],
     );
-    assert_eq!(explicit.calculations.len(), 5);
+    assert_eq!(explicit.calculations.len(), 2);
     assert!(
         explicit
             .calculations
             .iter()
             .all(|calculation| calculation.program.uses_time())
     );
-    let mut at_half_second = expected.clone();
-    at_half_second[0][3] = Value::Float(0.5);
-    at_half_second[0][4] = Value::Float(0.5);
     assert_eq!(
         evaluate(&explicit, core::slice::from_ref(&marks), 500_000),
-        at_half_second
+        expected
     );
-
-    // Raw calculation admission must also recognize implicit clock reads;
-    // not every accepted program originated in this generator compiler.
-    use donder_runtime::{CalculationProgram, Instruction, MarkOp};
-    let context = RunContext {
-        progress: 0.5,
-        time: SampleDuration::from_ticks(500_000),
-        duration: SampleDuration::from_ticks(1_000_000),
-        pixel_index: 0,
-        pixel_count: 0,
-        pixel_fraction: 0.0,
-    };
-    let mut implicit_values = Vec::new();
-    for calculation in &live.calculations {
-        let (mut code, inputs, outputs) = calculation.program.clone().into_parts();
-        for instruction in &mut code.instructions {
-            if let Instruction::Mark { op, .. } = instruction {
-                match op {
-                    MarkOp::Prev { seconds, .. }
-                    | MarkOp::PrevIndex { seconds, .. }
-                    | MarkOp::NextIndex { seconds, .. }
-                    | MarkOp::Elapsed { seconds, .. }
-                    | MarkOp::Phase { seconds, .. } => *seconds = None,
-                    _ => panic!("expected a time-based mark query"),
-                }
-            }
-        }
-        let program = CalculationProgram::new(code, inputs, outputs).unwrap();
-        assert!(program.uses_time());
-        implicit_values.extend(
-            program
-                .bind(vec![marks.clone()], &mut DslBindCache::default())
-                .unwrap()
-                .evaluate(&context, &mut VmWorkspace::default()),
-        );
-    }
-    assert_eq!(vec![implicit_values], at_half_second);
+    assert_eq!(
+        evaluate(&explicit, core::slice::from_ref(&marks), 1_000_000),
+        vec![vec![Value::Float(1.0), Value::Int(1)]]
+    );
 }
 
 #[test]
@@ -415,19 +372,22 @@ fn random_seed_lowering_matches_fixed_and_live_evaluation() {
             deterministic_random([seed].into_iter()),
             deterministic_random([seed, 0.25, seed, -0.0, 5.0].into_iter()),
         ];
-        let expected_values = vec![expected.into_iter().map(Value::Float).collect::<Vec<_>>()];
         let params = [Value::Float(seed)];
         let fixed = specialize(source, &[GeneratorInput::Fixed(params[0].clone())]);
-        assert_eq!(
-            evaluate(&fixed, &params, 0),
-            expected_values,
-            "fixed seed {seed:?}"
-        );
-        assert_eq!(
-            evaluate(&live, &params, 0),
-            expected_values,
-            "live seed {seed:?}"
-        );
+        for (label, generator) in [("fixed", &fixed), ("live", &live)] {
+            let actual = evaluate(generator, &params, 0);
+            assert_eq!(actual.len(), 1);
+            assert_eq!(actual[0].len(), expected.len());
+            for (actual, expected) in actual[0].iter().zip(expected) {
+                let Value::Float(actual) = actual else {
+                    panic!("expected float output")
+                };
+                assert!(
+                    *actual == expected || (actual.is_nan() && expected.is_nan()),
+                    "{label} seed {seed:?}: {actual:?} != {expected:?}"
+                );
+            }
+        }
 
         let bound = sample
             .bind(
@@ -440,7 +400,11 @@ fn random_seed_lowering_matches_fixed_and_live_evaluation() {
         let [red, green, blue] = expected.map(|value| (value * 255.0).round() as u8);
         assert_eq!(
             bound.evaluate(&context, &SPATIAL, &mut workspace),
-            donder_language::dsl::Color { red, green, blue }
+            if expected.iter().any(|value| value.is_nan()) {
+                donder_language::dsl::Color::BLACK
+            } else {
+                donder_language::dsl::Color { red, green, blue }
+            }
         );
     }
 }
@@ -779,10 +743,10 @@ fn typed_builtin_operand_addresses_are_checked_at_admission() {
         CalculationProgram, Instruction, IntSlot, MarkOp, NumberSlot, TargetItemsOp,
     };
     let generator = specialize(
-        "effect Parent { fixed param marks beats; param float query = 0.0;
+        "effect Parent { fixed param marks beats; param int query = 0;
             void generate() {
                 timeline.emit Child { start: 0.0, duration: 1.0, target: target,
-                    value: mark_at(beats, query, 0.0) + count(sections(target, 3)) };
+                    value: value_or(mark_at(beats, query), 0.0) + count(sections(target, 3)) };
             }
         }",
         &[
@@ -794,22 +758,27 @@ fn typed_builtin_operand_addresses_are_checked_at_admission() {
     assert!(CalculationProgram::new(bytecode.clone(), inputs.clone(), outputs.clone()).is_some());
     for mark_operand in [true, false] {
         let mut invalid = bytecode.clone();
-        let operand = invalid
+        invalid
             .instructions
             .iter_mut()
             .find_map(|instruction| match instruction {
                 Instruction::Mark {
                     op: MarkOp::At { index, .. },
                     ..
-                } if mark_operand => Some(index),
+                } if mark_operand => {
+                    *index = IntSlot(u32::MAX);
+                    Some(())
+                }
                 Instruction::TargetItems {
                     op: TargetItemsOp::Sections { width, .. },
                     ..
-                } if !mark_operand => Some(width),
+                } if !mark_operand => {
+                    *width = NumberSlot::Int(IntSlot(u32::MAX));
+                    Some(())
+                }
                 _ => None,
             })
             .unwrap();
-        *operand = NumberSlot::Int(IntSlot(u32::MAX));
         assert!(CalculationProgram::new(invalid, inputs.clone(), outputs.clone()).is_none());
     }
 }

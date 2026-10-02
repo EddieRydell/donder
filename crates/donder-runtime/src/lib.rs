@@ -81,6 +81,7 @@ mod dsl;
 mod evaluation;
 mod patch;
 mod sampling;
+mod sections;
 mod sequence;
 mod signal;
 mod values;

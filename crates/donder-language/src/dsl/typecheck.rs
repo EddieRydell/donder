@@ -700,12 +700,22 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Float
             }
+            "section_count" | "section_index" => {
+                self.require_arg_count(name, args.len(), 1, span);
+                self.require_arg(args, 0, &Type::Int, env);
+                Type::Int
+            }
             "sin" | "cos" | "abs" | "floor" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Float
             }
-            "min" => {
+            "is_nan" => {
+                self.require_arg_count(name, args.len(), 1, span);
+                self.require_arg(args, 0, &Type::Float, env);
+                Type::Bool
+            }
+            "min" | "value_or" => {
                 self.require_arg_count(name, args.len(), 2, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 self.require_arg(args, 1, &Type::Float, env);
@@ -771,14 +781,12 @@ impl Checker {
                 }
                 Type::Float
             }
-            "curve_crossing" => {
-                if args.len() != 2 && args.len() != 3 {
-                    self.error(span, "`curve_crossing` expects 2 or 3 arguments");
-                }
+            "curve_first_crossing" | "curve_last_crossing" => {
+                let count = if name == "curve_first_crossing" { 2 } else { 3 };
+                self.require_arg_count(name, args.len(), count, span);
                 self.require_arg(args, 0, &Type::Curve, env);
-                self.require_arg(args, 1, &Type::Float, env);
-                if args.len() == 3 {
-                    self.require_arg(args, 2, &Type::Float, env);
+                for index in 1..count {
+                    self.require_arg(args, index, &Type::Float, env);
                 }
                 Type::Float
             }
@@ -808,11 +816,11 @@ impl Checker {
                 }
                 Type::Int
             }
-            "mark_count" | "mark_prev_index" | "mark_next_index" => {
+            "mark_count" | "mark_last_index" => {
                 self.require_mark_args(name, args, env, span);
                 Type::Int
             }
-            "mark_at" | "mark_prev" | "mark_elapsed" | "mark_phase" => {
+            "mark_at" | "mark_last" => {
                 self.require_mark_args(name, args, env, span);
                 Type::Float
             }
@@ -852,33 +860,13 @@ impl Checker {
         env: &mut IndexMap<Identifier, Type>,
         span: TextSpan,
     ) {
-        let (minimum, maximum) = match name {
-            "mark_count" => (1, 1),
-            "mark_at" => (2, 3),
-            "mark_prev" => (1, 3),
-            "mark_prev_index" | "mark_next_index" | "mark_elapsed" | "mark_phase" => (1, 2),
-            _ => {
-                self.error(span, format!("unknown mark function `{name}`"));
-                return;
-            }
-        };
-        if minimum == maximum {
-            self.require_arg_count(name, args.len(), minimum, span);
-        } else if !(minimum..=maximum).contains(&args.len()) {
-            self.error(
-                span,
-                format!(
-                    "`{name}` expects {minimum} to {maximum} arguments, got {}",
-                    args.len()
-                ),
-            );
-        }
+        let count = if name == "mark_count" { 1 } else { 2 };
+        self.require_arg_count(name, args.len(), count, span);
         self.require_arg(args, 0, &Type::Marks, env);
-        if args.len() > 1 {
+        if name == "mark_at" {
+            self.require_arg(args, 1, &Type::Int, env);
+        } else if count == 2 {
             self.require_arg(args, 1, &Type::Float, env);
-        }
-        if matches!(name, "mark_at" | "mark_prev") && args.len() > 2 {
-            self.require_arg(args, 2, &Type::Float, env);
         }
     }
 
@@ -984,26 +972,22 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         "count" if index == 0 => Some(Type::TargetItems),
         "pick" if index == 0 => Some(Type::TargetItems),
         "pick" if index == 1 => Some(Type::Float),
-        "mark_count" | "mark_at" | "mark_prev" | "mark_prev_index" | "mark_next_index"
-        | "mark_elapsed" | "mark_phase"
-            if index == 0 =>
-        {
+        "section_count" | "section_index" => Some(Type::Int),
+        "mark_count" | "mark_at" | "mark_last" | "mark_last_index" if index == 0 => {
             Some(Type::Marks)
         }
-        "mark_at" if index == 1 => Some(Type::Float),
-        "mark_at" | "mark_prev" if index == 2 => Some(Type::Float),
-        "mark_prev" | "mark_prev_index" | "mark_next_index" | "mark_elapsed" | "mark_phase"
-            if index == 1 =>
-        {
-            Some(Type::Float)
-        }
+        "mark_at" if index == 1 => Some(Type::Int),
+        "mark_last" | "mark_last_index" if index == 1 => Some(Type::Float),
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
         "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "min" | "clamp"
-        | "smoothstep" | "section_position" => Some(Type::Float),
-        "curve_crossing" if index == 0 => Some(Type::Curve),
+        | "smoothstep" | "section_position" | "is_nan" | "value_or" => Some(Type::Float),
+        "curve_first_crossing" | "curve_last_crossing" if index == 0 => Some(Type::Curve),
         "curve_clamped" if index == 0 => Some(Type::Curve),
         "gradient_color_scaled" if index == 0 => Some(Type::Gradient),
-        "curve_crossing" | "curve_clamped" | "gradient_color_scaled" => Some(Type::Float),
+        "curve_first_crossing"
+        | "curve_last_crossing"
+        | "curve_clamped"
+        | "gradient_color_scaled" => Some(Type::Float),
         _ => None,
     }
 }

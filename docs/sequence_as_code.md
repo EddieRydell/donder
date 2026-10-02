@@ -183,6 +183,24 @@ from their prepared runtime payload.
 MarkImpactBurst's gradient collection is fixed because its emptiness determines
 whether a child is emitted.
 
+`MarkPulseSample`, `MarkChaseSample`, `MarkWipeSample`, and
+`MarkImpactBurstSample` are non-generator counterparts. Pulse, Wipe, and
+ImpactBurst retain their generator parameters and retrigger from the latest
+eligible mark, discarding older pulses. Wipe uses the latest curve crossing,
+including on nonmonotonic curves.
+`MarkChaseSample` instead takes one fixed `chase_position` curve, shared by every
+mark, rather than a `chase_positions` array. Its first crossing at each pixel
+defines that pixel's travel delay. The mark lookup subtracts this delay, so a
+new mark replaces the older pulse only when the new chase reaches that pixel.
+Increasing and decreasing trajectories work alike; repeated crossings in a
+nonmonotonic trajectory do not create additional arrivals. Gradients still
+alternate by the selected mark's index. This effect has no mark-iteration loop.
+Their output is confined to the parent clip, unlike generated children whose
+tails can continue outside it. A negative would-be emitted start contributes
+nothing, matching omission of an invalid negative-start child. These are
+comparison alternatives, not visually equivalent replacements when overlapping
+pulses, repeated curve crossings, or tails beyond the parent clip matter.
+
 Declaration metadata governs automation even when an instance has no active
 automation. Fixed child arguments and assignments cannot receive live values;
 structural branches are rejected conservatively, including branches that appear
@@ -533,10 +551,13 @@ they do not change the authored sequence or create project undo entries.
 
 ## Curves
 
-Curves are normalized, piecewise-linear values. They must contain at least one
-point; each point’s position and value must be finite; positions are in
-`[0, 1]` and strictly increasing. Sequence automation and
-DSL curve reads use `donder_language::sampling::sample_curve`.
+Curves are piecewise-linear scalar values. Each point's position and value must
+be finite; positions are normalized to `[0, 1]` and strictly increasing. Values
+are not restricted to `[0, 1]`. Empty curves are valid and sample as NaN.
+For a nonempty curve, sampling before or after its extent holds the first or
+last endpoint, including queries at negative or positive infinity. Sampling at
+NaN returns NaN, including for a single-point curve. Sequence automation and
+DSL curve reads use the same portable sampling semantics.
 
 ## Source diagnostics
 
@@ -562,30 +583,113 @@ and do not round through `float`.
 Array indexing clamps negative and out-of-range indices to the first or last
 element. Indexing an empty array returns the element type's default value;
 `len()` still returns zero. This also applies after assigning a different
-array to a local variable. `mark_at` uses its fallback for either a negative or
-an out-of-range index.
-Time-based mark queries with no time argument use the current sampling time in
-sample effects and operators, and zero in generators. Generator specialization
-preserves that default even when a calculation is retained for playback; pass
-`seconds()` explicitly to query at the generator's live parent-relative time.
+array to a local variable. Mark lookup is different from array indexing:
+`mark_at(marks, index)` takes an integer index and returns NaN for a negative or
+out-of-range index, rather than selecting a different event.
 `pick(items, index)` clamps to the first or last target item when the collection
 is nonempty. An empty collection yields an empty `TargetItem`, whose integer
 members read as zero and `pixel_fraction` reads as `0.0`. Collection counts
 above the DSL integer range report `i32::MAX`.
-Sampling a curve at NaN returns zero. Sampling a gradient at NaN or sampling
-an empty gradient returns black; these rules apply to direct and parameter
-sampling alike. Authored gradient stops must have finite positions in `[0, 1]`
-and be nondecreasing; an empty gradient remains valid.
-`curve_crossing` at a NaN query returns its fallback argument for both direct
-and parameter curves. If no fallback is supplied, the query itself is the
-fallback and remains NaN.
+Sampling a gradient at NaN or sampling an empty gradient returns black;
+these rules apply to direct and parameter sampling alike. Authored gradient
+stops must have finite positions in `[0, 1]` and be nondecreasing; an empty
+gradient remains valid.
 A `Signal.at` query at a negative, non-finite, or unrepresentable time returns
 black without invoking its input signal.
 
-`clamp(value, min, max)` and `curve_clamped(curve, position, min, max)` return
-NaN when either bound is NaN or `min > max`; otherwise they clamp normally.
-This applies to both literal and computed bounds, so these DSL operations do
-not inherit Rust's panicking `f32::clamp` behavior for invalid bounds.
+### Missing scalar values and color boundaries
+
+NaN represents an unavailable or undefined scalar result. Ordinary floating-point
+arithmetic retains its floating-point semantics, including infinities and NaNs;
+NaN is not a separate optional type. Comparisons retain ordinary floating-point
+semantics: NaN is unequal to every value, including itself, and ordered
+comparisons involving NaN are false. Use `is_nan(value)` to test for NaN.
+`value_or(value, replacement)` replaces only NaN; finite values and infinities
+are returned unchanged. Neither function implicitly converts a value to bool.
+Like other function calls, `value_or` evaluates both arguments; use an `if`
+statement when the replacement calculation should run only when needed.
+
+Scalar `min`, `max`, `clamp`, `rand`, and `srand` propagate NaN inputs.
+`clamp(value, min, max)` also returns NaN when `min > max`.
+`curve_clamped(curve, position, min, max)` samples and then clamps, preserving a
+NaN sample or bound. These rules apply to literal and computed operands and to
+direct and parameter sampling. Invalid bounds do not inherit Rust's panicking
+`f32::clamp` behavior.
+
+Colors are concrete RGB values, not optional contributions. `rgb` and `hsv`
+return whole black if any scalar input is NaN. Color `mix` with a NaN amount,
+color scaling by NaN, and gradient sampling at NaN return black as well.
+Conversion to black consumes missingness: inverting that black produces white.
+Likewise, adding a missing scalar brightness to a valid brightness yields NaN;
+converting each contribution to a color before combining them has different
+semantics. Missingness does not mean "skip this operator."
+
+### Event queries
+
+Event queries use explicit coordinates in every execution context. They return
+the event's coordinate, not elapsed time; subtract that coordinate from the
+query coordinate when an age is needed. There are no implicit clocks or fallback
+arguments. Use `value_or` when a missing event should have a replacement.
+
+| Signature | Result |
+| --- | --- |
+| `curve_first_crossing(curve, value)` | First authored curve position that reaches `value`, or NaN |
+| `curve_last_crossing(curve, value, position)` | Latest crossing at or before `position`, or NaN |
+| `mark_last(marks, time)` | Latest mark time at or before `time`, or NaN |
+| `mark_last_index(marks, time)` | Index of that mark, or `-1` |
+| `mark_at(marks, index)` | Time of the mark at the integer index, or NaN |
+| `mark_count(marks)` | Number of marks, capped at `i32::MAX` |
+
+Curve positions are normalized coordinates; mark times are seconds. A NaN query
+value or coordinate produces NaN for the floating-point queries and `-1` for
+`mark_last_index`. Empty resources have no events. Duplicate marks at the same
+time select the last matching index. Exact-time queries include the event.
+
+Curve crossing queries support increasing, decreasing, and nonmonotonic curves.
+An exact touch counts as a crossing. A plateau at the requested value contributes
+one event at its arrival, not repeated events while it stays flat or on departure.
+The first authored point counts if it equals the requested value. Endpoint
+holding outside the authored extent never introduces additional crossing events.
+
+For example, a mark-triggered pulse uses an explicit sample clock:
+
+```c
+float hit = mark_last(beats, seconds());
+float age = seconds() - hit;
+float phase = age / pulse_duration;
+return gradient[phase] * pulse_shape[phase];
+```
+
+Before the first mark, NaN propagates through the scalar calculations and the
+color boundary produces black. Each new mark restarts the pulse, discarding the
+previous pulse rather than accumulating overlapping contributions. Because curves
+hold endpoints, a pulse shape must end at zero to remain dark after its duration.
+For curve-driven motion, use `curve_last_crossing(motion, pixel_position,
+progress())` and subtract the returned normalized position from `progress()`;
+convert units explicitly if the pulse duration is expressed in seconds.
+
+### Fixture-aware section queries
+
+`section_count(width)` returns the number of sections in the current sample
+target, and `section_index(width)` returns the zero-based section containing
+the sampled pixel. Both take an integer width and return an integer. They use
+the same section ordering and fixture boundaries as generator
+`sections(target, width)`: a short final section belongs to its fixture rather
+than being joined to the next fixture's first pixels. Per-fixture effects query
+their own fixture; whole-target effects query the ordered sections across the
+target's fixtures.
+
+Widths below one are treated as one. An empty sample target has count zero and
+index `-1`; results beyond the DSL integer range saturate at `i32::MAX`. These
+queries are available in effect and operator sampling contexts, using the
+current sample target's fixture membership. They are not available in generators
+or retained calculations, which cannot read pixel context. Generators use
+`sections(target, width)` to obtain the actual target items.
+
+For example, two 113-pixel fixtures with width 7 have 17 sections each and 34
+sections in total. The second fixture starts at section index 17. Dividing a
+flattened global pixel index by 7 would give a different answer and must not be
+used as a substitute when matching generator selections.
 
 ## Runtime budgets
 

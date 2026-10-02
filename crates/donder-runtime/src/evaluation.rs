@@ -27,6 +27,8 @@ pub(crate) struct EffectSampler<'a> {
     context: RunContext,
     reuse_uniform: bool,
     spatial: bool,
+    sections: &'a crate::sections::PreparedSections,
+    uses_sections: bool,
 }
 
 impl PreparedEffect<AutomationPlan> {
@@ -52,6 +54,8 @@ impl PreparedEffect<AutomationPlan> {
             },
             reuse_uniform: false,
             spatial: program.uses_spatial_context(),
+            sections: &graph.targets[self.target].sections,
+            uses_sections: program.uses_sections(),
         };
         run(&mut sampler)
     }
@@ -91,6 +95,7 @@ impl EffectSampler<'_> {
     pub(crate) fn sample_spatial(
         &mut self,
         pixel: &crate::signal::PreparedPixel,
+        target_index: usize,
         spatial: &crate::dsl::SpatialContext,
         workspace: &mut VmWorkspace,
     ) -> Color {
@@ -98,6 +103,7 @@ impl EffectSampler<'_> {
             pixel.pixel_index(),
             pixel.pixel_count(),
             pixel.pixel_fraction,
+            self.sections.pixel(target_index),
             spatial,
             workspace,
         )
@@ -108,6 +114,7 @@ impl EffectSampler<'_> {
         pixel_index: usize,
         pixel_count: usize,
         pixel_fraction: f32,
+        section_pixel: crate::sections::SectionPixel,
         spatial: &crate::dsl::SpatialContext,
         workspace: &mut VmWorkspace,
     ) -> Color {
@@ -118,6 +125,10 @@ impl EffectSampler<'_> {
             self.params,
             &self.context,
             spatial,
+            crate::sections::SectionContext::Prepared {
+                target: self.sections,
+                pixel: section_pixel,
+            },
             workspace,
             self.reuse_uniform,
         );
@@ -278,6 +289,7 @@ fn sample_layer_frame(
                 if let Some(pixel) = target.first() {
                     let color = sampler.sample_spatial(
                         pixel,
+                        0,
                         renderer.spatial_context(
                             sampler.spatial,
                             renderer.targets[effect.target].pixels.start,
@@ -298,13 +310,14 @@ fn sample_layer_frame(
             for (target_index, pixel) in target.iter().enumerate() {
                 // Pixel indices are already dense. The count distinguishes
                 // fixtures of different sizes sharing the same index.
-                let cached = (sample_count != 0 && !sampler.spatial)
+                let cached = (sample_count != 0 && !sampler.spatial && !sampler.uses_sections)
                     .then(|| &mut workspace.effect_samples[pixel.pixel_index()]);
                 let color = match cached {
                     Some(sample) if sample.pixel_count == pixel.pixel_count => sample.color,
                     cached => {
                         let color = sampler.sample_spatial(
                             pixel,
+                            target_index,
                             renderer.spatial_context(
                                 sampler.spatial,
                                 renderer.targets[effect.target].pixels.start + target_index,
@@ -381,6 +394,12 @@ fn sample_operator_frame(
                 compiled.uses_spatial_context(),
                 renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index,
             ),
+            crate::sections::SectionContext::Prepared {
+                target: &renderer.targets[renderer.plan.target].sections,
+                pixel: renderer.targets[renderer.plan.target]
+                    .sections
+                    .pixel(flat_pixel_index),
+            },
             &mut sampler,
             vm_workspace,
             reuse_uniform,
@@ -571,6 +590,7 @@ fn sample_layer_pixel(
                 sampler.reuse_uniform = reuse_uniform;
                 sampler.sample_spatial(
                     effect_pixel,
+                    target_index,
                     renderer.spatial_context(
                         sampler.spatial,
                         renderer.targets[effect.target].pixels.start + target_index,
@@ -640,6 +660,12 @@ fn sample_operator_pixel(
             compiled.uses_spatial_context(),
             renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index,
         ),
+        crate::sections::SectionContext::Prepared {
+            target: &renderer.targets[renderer.plan.target].sections,
+            pixel: renderer.targets[renderer.plan.target]
+                .sections
+                .pixel(flat_pixel_index),
+        },
         &mut sampler,
         vm_workspace,
         reuse_uniform,

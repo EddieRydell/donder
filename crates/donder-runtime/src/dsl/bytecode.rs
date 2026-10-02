@@ -366,6 +366,7 @@ impl BytecodeProgram {
                         | ContextRead::TargetMaxY,
                     ..
                 } | Instruction::SectionPosition { .. }
+                    | Instruction::SectionQuery { .. }
                     | Instruction::SignalSample { .. }
             )
         });
@@ -606,6 +607,9 @@ impl BytecodeProgram {
                     SectionPosition { dst, width } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*width))
                     }
+                    SectionQuery { dst, width, .. } => {
+                        valid_slot(ValueSlot::Int(*dst)) && valid_slot(ValueSlot::Int(*width))
+                    }
                     Clamp {
                         dst,
                         value,
@@ -743,22 +747,19 @@ impl BytecodeProgram {
                         dst,
                         curve,
                         value,
-                        fallback,
+                        before,
                     } => {
                         valid_slot(ValueSlot::Float(*dst))
                             && valid_slot(ValueSlot::Curve(*curve))
                             && valid_slot(ValueSlot::Float(*value))
-                            && fallback.is_none_or(|slot| valid_slot(ValueSlot::Float(slot)))
+                            && before.is_none_or(|slot| valid_slot(ValueSlot::Float(slot)))
                     }
                     CurveParamCrossing {
-                        dst,
-                        value,
-                        fallback,
-                        ..
+                        dst, value, before, ..
                     } => {
                         valid_slot(ValueSlot::Float(*dst))
                             && valid_slot(ValueSlot::Float(*value))
-                            && fallback.is_none_or(|slot| valid_slot(ValueSlot::Float(slot)))
+                            && before.is_none_or(|slot| valid_slot(ValueSlot::Float(slot)))
                     }
                     Len { dst, value } => {
                         valid_slot(ValueSlot::Int(*dst)) && valid_slot(ValueSlot::Array(*value))
@@ -960,13 +961,10 @@ impl BytecodeProgram {
                     ValueSlot::Color(*dst)
                 }
                 CurveParamCrossing {
-                    dst,
-                    value,
-                    fallback,
-                    ..
+                    dst, value, before, ..
                 } => {
                     reads[0] = Some(ValueSlot::Float(*value));
-                    reads[1] = fallback.map(ValueSlot::Float);
+                    reads[1] = before.map(ValueSlot::Float);
                     ValueSlot::Float(*dst)
                 }
                 _ => return false,
@@ -2016,6 +2014,11 @@ instructions! {
         dst: FloatSlot,
         width: FloatSlot,
     },
+    SectionQuery {
+        dst: IntSlot,
+        width: IntSlot,
+        index: bool,
+    },
     FloatUnary {
         dst: FloatSlot,
         op: FloatUnary,
@@ -2131,14 +2134,18 @@ instructions! {
         dst: FloatSlot,
         curve: CurveSlot,
         value: FloatSlot,
-        fallback: Option<FloatSlot>,
+        /// None selects the first crossing; Some selects the last crossing
+        /// at or before the supplied curve position.
+        before: Option<FloatSlot>,
     },
     CurveParamCrossing {
         dst: FloatSlot,
         param: ParamId,
         source: CurveSlot,
         value: FloatSlot,
-        fallback: Option<FloatSlot>,
+        /// None selects the first crossing; Some selects the last crossing
+        /// at or before the supplied curve position.
+        before: Option<FloatSlot>,
     },
     Len {
         dst: IntSlot,
@@ -2183,6 +2190,7 @@ impl Instruction {
             | LoadIntParam { dst, .. }
             | NegInt { dst, .. }
             | IntArithmetic { dst, .. }
+            | SectionQuery { dst, .. }
             | Len { dst, .. } => ValueSlot::Int(*dst),
             LoadFloatConst { dst, .. }
             | LoadFloatParam { dst, .. }
@@ -3062,80 +3070,35 @@ pub enum CompareOp {
 pub enum FloatBinary {
     Min,
     Max,
+    /// Preserve the left operand unless it is NaN; otherwise use the right.
+    ValueOr,
 }
 
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
 pub enum MarkOp {
-    Count {
-        dst: IntSlot,
-    },
-    At {
-        dst: FloatSlot,
-        index: NumberSlot,
-        fallback: Option<NumberSlot>,
-    },
-    Prev {
-        dst: FloatSlot,
-        seconds: Option<NumberSlot>,
-        fallback: Option<NumberSlot>,
-    },
-    PrevIndex {
-        dst: IntSlot,
-        seconds: Option<NumberSlot>,
-    },
-    NextIndex {
-        dst: IntSlot,
-        seconds: Option<NumberSlot>,
-    },
-    Elapsed {
-        dst: FloatSlot,
-        seconds: Option<NumberSlot>,
-    },
-    Phase {
-        dst: FloatSlot,
-        seconds: Option<NumberSlot>,
-    },
+    Count { dst: IntSlot },
+    At { dst: FloatSlot, index: IntSlot },
+    Last { dst: FloatSlot, seconds: FloatSlot },
+    LastIndex { dst: IntSlot, seconds: FloatSlot },
 }
 
 impl MarkOp {
-    pub(super) fn reads_current_time(self) -> bool {
-        match self {
-            Self::Count { .. } | Self::At { .. } => false,
-            Self::Prev { seconds, .. }
-            | Self::PrevIndex { seconds, .. }
-            | Self::NextIndex { seconds, .. }
-            | Self::Elapsed { seconds, .. }
-            | Self::Phase { seconds, .. } => seconds.is_none(),
-        }
-    }
-
     fn output(self) -> ValueSlot {
         match self {
-            Self::Count { dst } | Self::PrevIndex { dst, .. } | Self::NextIndex { dst, .. } => {
-                ValueSlot::Int(dst)
-            }
-            Self::At { dst, .. }
-            | Self::Prev { dst, .. }
-            | Self::Elapsed { dst, .. }
-            | Self::Phase { dst, .. } => ValueSlot::Float(dst),
+            Self::Count { dst } | Self::LastIndex { dst, .. } => ValueSlot::Int(dst),
+            Self::At { dst, .. } | Self::Last { dst, .. } => ValueSlot::Float(dst),
         }
     }
 
-    fn inputs(self) -> [Option<NumberSlot>; 2] {
+    fn inputs(self) -> [Option<NumberSlot>; 1] {
         match self {
-            Self::Count { .. } => [None, None],
-            Self::At {
-                index, fallback, ..
-            } => [Some(index), fallback],
-            Self::Prev {
-                seconds, fallback, ..
-            } => [seconds, fallback],
-            Self::PrevIndex { seconds, .. }
-            | Self::NextIndex { seconds, .. }
-            | Self::Elapsed { seconds, .. }
-            | Self::Phase { seconds, .. } => [seconds, None],
+            Self::Count { .. } => [None],
+            Self::At { index, .. } => [Some(NumberSlot::Int(index))],
+            Self::Last { seconds, .. } | Self::LastIndex { seconds, .. } => {
+                [Some(NumberSlot::Float(seconds))]
+            }
         }
     }
 }

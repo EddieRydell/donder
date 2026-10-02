@@ -582,6 +582,10 @@ fn slots(
         }
         Instruction::LoopRangeStart { count, .. } => typed!(false, Int, count),
         Instruction::LoopMarksStart { marks, .. } => typed!(false, Marks, marks),
+        Instruction::SectionQuery { dst, width, .. } => {
+            typed!(false, Int, width);
+            typed!(true, Int, dst);
+        }
         Instruction::SectionPosition { dst, width } => {
             typed!(false, Float, width);
             typed!(true, Float, dst);
@@ -715,24 +719,21 @@ fn slots(
             dst,
             curve,
             value,
-            fallback,
+            before,
         } => {
             typed!(false, Curve, curve);
             typed!(false, Float, value);
-            if let Some(fallback) = fallback {
-                typed!(false, Float, fallback);
+            if let Some(before) = before {
+                typed!(false, Float, before);
             }
             typed!(true, Float, dst);
         }
         Instruction::CurveParamCrossing {
-            dst,
-            value,
-            fallback,
-            ..
+            dst, value, before, ..
         } => {
             typed!(false, Float, value);
-            if let Some(fallback) = fallback {
-                typed!(false, Float, fallback);
+            if let Some(before) = before {
+                typed!(false, Float, before);
             }
             typed!(true, Float, dst);
         }
@@ -744,41 +745,17 @@ fn slots(
             typed!(false, Marks, marks);
             match op {
                 MarkOp::Count { dst } => typed!(true, Int, dst),
-                MarkOp::At {
-                    dst,
-                    index,
-                    fallback,
-                } => {
-                    number!(index);
-                    if let Some(value) = fallback {
-                        number!(value);
-                    }
+                MarkOp::At { dst, index } => {
+                    typed!(false, Int, index);
                     typed!(true, Float, dst);
                 }
-                MarkOp::Prev {
-                    dst,
-                    seconds,
-                    fallback,
-                } => {
-                    if let Some(value) = seconds {
-                        number!(value);
-                    }
-                    if let Some(value) = fallback {
-                        number!(value);
-                    }
+                MarkOp::Last { dst, seconds } => {
+                    typed!(false, Float, seconds);
                     typed!(true, Float, dst);
                 }
-                MarkOp::PrevIndex { dst, seconds } | MarkOp::NextIndex { dst, seconds } => {
-                    if let Some(value) = seconds {
-                        number!(value);
-                    }
+                MarkOp::LastIndex { dst, seconds } => {
+                    typed!(false, Float, seconds);
                     typed!(true, Int, dst);
-                }
-                MarkOp::Elapsed { dst, seconds } | MarkOp::Phase { dst, seconds } => {
-                    if let Some(value) = seconds {
-                        number!(value);
-                    }
-                    typed!(true, Float, dst);
                 }
             }
         }

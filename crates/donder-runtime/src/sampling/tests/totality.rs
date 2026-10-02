@@ -1,5 +1,5 @@
 use crate::dsl::Type;
-use crate::sampling::{sample_curve, sample_gradient};
+use crate::sampling::{curve_last_crossing, sample_curve, sample_gradient};
 use crate::{
     AutomationMapping, AutomationValue, Color, Curve, CurvePoint, Gradient, GradientStop,
     automation_value_at_position,
@@ -16,7 +16,7 @@ fn single_point_resources_are_total_even_when_their_position_is_invalid() {
     };
     assert!(curve.validate().is_err());
     assert_eq!(sample_curve(&curve, 0.25), 0.75);
-    assert_eq!(sample_curve(&curve, f32::NAN), 0.0);
+    assert!(sample_curve(&curve, f32::NAN).is_nan());
 
     let color = Color {
         red: 1,
@@ -39,6 +39,92 @@ fn empty_gradient_is_valid_and_samples_black() {
     let gradient = Gradient { stops: vec![] };
     assert!(gradient.validate().is_ok());
     assert_eq!(sample_gradient(&gradient, 0.5), Color::BLACK);
+}
+
+#[test]
+fn missing_curve_samples_propagate_but_endpoints_are_held() {
+    let empty = Curve { points: vec![] };
+    assert!(sample_curve(&empty, 0.0).is_nan());
+    let curve = Curve {
+        points: vec![
+            CurvePoint {
+                position: 0.25,
+                value: -2.0,
+            },
+            CurvePoint {
+                position: 0.75,
+                value: 3.0,
+            },
+        ],
+    };
+    assert_eq!(sample_curve(&curve, f32::NEG_INFINITY), -2.0);
+    assert_eq!(sample_curve(&curve, f32::INFINITY), 3.0);
+    assert_eq!(sample_curve(&curve, 0.5), 0.5);
+    assert!(sample_curve(&curve, f32::NAN).is_nan());
+}
+
+#[test]
+fn latest_crossing_counts_plateau_arrival_once_and_not_its_departure() {
+    let curve = Curve {
+        points: vec![
+            CurvePoint {
+                position: 0.0,
+                value: 0.0,
+            },
+            CurvePoint {
+                position: 0.25,
+                value: 1.0,
+            },
+            CurvePoint {
+                position: 0.5,
+                value: 1.0,
+            },
+            CurvePoint {
+                position: 0.75,
+                value: 1.0,
+            },
+            CurvePoint {
+                position: 1.0,
+                value: 0.0,
+            },
+        ],
+    };
+    assert!(curve_last_crossing(&curve, 1.0, 0.24).is_nan());
+    for position in [0.25, 0.5, 0.75, 1.0, f32::INFINITY] {
+        assert_eq!(curve_last_crossing(&curve, 1.0, position), 0.25);
+    }
+    assert_eq!(curve_last_crossing(&curve, 0.5, 0.8), 0.125);
+    assert_eq!(curve_last_crossing(&curve, 0.5, 0.875), 0.875);
+    assert_eq!(curve_last_crossing(&curve, 0.0, 0.5), 0.0);
+    assert_eq!(curve_last_crossing(&curve, 0.0, 1.0), 1.0);
+    assert!(curve_last_crossing(&curve, f32::NAN, 1.0).is_nan());
+    assert!(curve_last_crossing(&curve, 0.5, f32::NAN).is_nan());
+}
+
+#[test]
+fn latest_crossing_does_not_invent_values_inside_a_discontinuous_step() {
+    let curve = Curve {
+        points: vec![
+            CurvePoint {
+                position: 0.0,
+                value: 0.0,
+            },
+            CurvePoint {
+                position: 0.5,
+                value: 0.0,
+            },
+            CurvePoint {
+                position: 0.5,
+                value: 1.0,
+            },
+            CurvePoint {
+                position: 1.0,
+                value: 1.0,
+            },
+        ],
+    };
+    assert!(curve_last_crossing(&curve, 0.5, 1.0).is_nan());
+    assert_eq!(curve_last_crossing(&curve, 1.0, 1.0), 0.5);
 }
 
 #[test]

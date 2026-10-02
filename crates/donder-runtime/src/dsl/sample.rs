@@ -14,6 +14,7 @@ pub struct SampleProgram {
     bytecode: BytecodeProgram<ContextRead, Infallible, ColorSlot, Infallible>,
     inputs: Box<[Type]>,
     uses_spatial_context: bool,
+    uses_sections: bool,
 }
 
 pub struct BoundSample<'a> {
@@ -49,6 +50,12 @@ impl SampleProgram {
             return None;
         }
         let uses_spatial_context = bytecode.uses_spatial_context();
+        let uses_sections = bytecode.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                super::bytecode::Instruction::SectionQuery { .. }
+            )
+        });
         let bytecode = bytecode
             .try_map_execution(
                 Ok,
@@ -61,6 +68,7 @@ impl SampleProgram {
             bytecode,
             inputs,
             uses_spatial_context,
+            uses_sections,
         })
     }
 
@@ -74,6 +82,10 @@ impl SampleProgram {
 
     pub fn uses_spatial_context(&self) -> bool {
         self.uses_spatial_context
+    }
+
+    pub(crate) fn uses_sections(&self) -> bool {
+        self.uses_sections
     }
 
     pub fn bind(
@@ -134,6 +146,7 @@ impl SampleProgram {
         params: &BoundParams,
         context: &RunContext,
         spatial: &SpatialContext,
+        sections: crate::sections::SectionContext<'_>,
         workspace: &mut VmWorkspace,
         reuse_uniform: bool,
     ) -> Color {
@@ -142,6 +155,7 @@ impl SampleProgram {
             params,
             context,
             spatial,
+            sections,
             workspace,
             if reuse_uniform {
                 self.bytecode.pixel_entry as usize
@@ -175,13 +189,24 @@ where
 }
 
 impl BoundSample<'_> {
+    /// Evaluate one standalone virtual fixture described by the context's pixel
+    /// index/count. Prepared sequence playback supplies its full fixture topology.
     pub fn evaluate(
         &self,
         context: &RunContext,
         spatial: &SpatialContext,
         workspace: &mut VmWorkspace,
     ) -> Color {
-        self.program
-            .sample(&self.params, context, spatial, workspace, false)
+        self.program.sample(
+            &self.params,
+            context,
+            spatial,
+            crate::sections::SectionContext::Single {
+                index: context.pixel_index,
+                count: context.pixel_count,
+            },
+            workspace,
+            false,
+        )
     }
 }

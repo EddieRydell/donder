@@ -49,7 +49,7 @@ effect Chase {
     float travel_end = max(0.0, 1.0 - pulse_duration);
     if (extend_to_start) { travel_start = -pulse_duration; }
     if (extend_to_end) { travel_end = 1.0; }
-    float hit = mix(travel_start, travel_end, clamp(curve_crossing(chase_position, chase_value, chase_value), 0.0, 1.0));
+    float hit = mix(travel_start, travel_end, clamp(value_or(curve_first_crossing(chase_position, chase_value), chase_value), 0.0, 1.0));
     float pulse_progress = (progress() - hit) / pulse_duration;
     float level = 0.0;
     if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
@@ -91,7 +91,7 @@ effect Wipe {
     float travel_end = max(0.0, 1.0 - pulse_duration);
     if (extend_to_start) { travel_start = -pulse_duration; }
     if (extend_to_end) { travel_end = 1.0; }
-    float hit = mix(travel_start, travel_end, clamp(curve_crossing(wipe_position, chase_value, chase_value), 0.0, 1.0));
+    float hit = mix(travel_start, travel_end, clamp(value_or(curve_first_crossing(wipe_position, chase_value), chase_value), 0.0, 1.0));
     float pulse_progress = (progress() - hit) / pulse_duration;
     float level = 0.0;
     if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
@@ -161,7 +161,7 @@ effect MarkPulse {
     int section_count = count(items);
     if (section_count > 0) {
       for (int mark in beats) {
-        float hit_time = mark_at(beats, mark, -999.0);
+        float hit_time = mark_at(beats, mark);
         for (int section in range(sections_per_mark, 10000)) {
           float choice = floor(rand(seed + hit_time * 1000.0, section) * section_count);
           timeline.emit Pulse {
@@ -193,7 +193,7 @@ effect MarkChase {
     int position_count = len(chase_positions);
     if (gradient_count > 0 && position_count > 0) {
       for (int mark in beats) {
-        float hit_time = mark_at(beats, mark, -999.0);
+        float hit_time = mark_at(beats, mark);
         timeline.emit Chase {
           start: hit_time + offset_seconds,
           duration: max(0.000000001, chase_seconds),
@@ -227,7 +227,7 @@ effect MarkWipe {
     int position_count = len(wipe_positions);
     if (gradient_count > 0 && position_count > 0) {
       for (int mark in beats) {
-        float hit_time = mark_at(beats, mark, -999.0);
+        float hit_time = mark_at(beats, mark);
         timeline.emit Wipe {
           start: hit_time + offset_seconds,
           duration: max(0.000000001, wipe_seconds),
@@ -241,5 +241,133 @@ effect MarkWipe {
         };
       }
     }
+  }
+}
+
+effect MarkPulseSample {
+  fixed param marks beats;
+  param gradient accent;
+  param curve pulse_shape;
+  fixed param float offset_seconds = 0.0;
+  fixed param float decay_seconds = 0.18;
+  fixed param int section_width_pixels = 5;
+  fixed param int sections_per_mark = 3;
+  fixed param float seed = 0.0;
+
+  // Prepared section queries preserve fixture boundaries and short final sections.
+  // A new mark retriggers the entire selection, discarding every older pulse.
+  color sample() {
+    float hit_time = mark_last(beats, seconds() - offset_seconds);
+    float child_start = hit_time + offset_seconds;
+    float child_duration = max(0.000000001, decay_seconds);
+    float age = seconds() - child_start;
+    if (is_nan(age) || child_start < 0.0 || age < 0.0 || age >= child_duration) {
+      return rgb(0.0, 0.0, 0.0);
+    }
+    int total_sections = section_count(section_width_pixels);
+    int current_section = section_index(section_width_pixels);
+    if (total_sections <= 0 || current_section < 0) { return rgb(0.0, 0.0, 0.0); }
+    for (int section in range(sections_per_mark, 10000)) {
+      float choice = floor(rand(seed + hit_time * 1000.0, section) * total_sections);
+      // Match pick(items, choice), including its clamped index contract.
+      choice = clamp(choice, 0.0, total_sections - 1.0);
+      if (choice == current_section) {
+        float child_progress = age / child_duration;
+        return gradient_color_scaled(accent, child_progress, curve_clamped(pulse_shape, child_progress, 0.0, 1.0));
+      }
+    }
+    return rgb(0.0, 0.0, 0.0);
+  }
+}
+
+effect MarkChaseSample {
+  fixed param marks beats;
+  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
+  fixed param array<gradient> gradients;
+  fixed param float offset_seconds = 0.0;
+  fixed param float chase_seconds = 0.5;
+  param float pulse_overlap = 8.0;
+  param int section_width_pixels = 5;
+  fixed param curve chase_position;
+  param curve pulse_shape;
+
+  // One arrival per mark and pixel: a new mark replaces this pulse only on arrival.
+  // All marks share the trajectory; its first crossing defines the travel delay.
+  color sample() {
+    if (len(gradients) == 0) { return rgb(0.0, 0.0, 0.0); }
+    float child_duration = max(0.000000001, chase_seconds);
+    float width = max(1.0, section_width_pixels);
+    float item_count = max(1.0, floor((pixel_count() + width - 1.0) / width));
+    float item_index = floor(pixel_index() / width);
+    float position = item_index / max(1.0, item_count - 1.0);
+    float pulse_duration = max(0.000000001, max(1.0, pulse_overlap) / item_count);
+    float travel_end = max(0.0, 1.0 - pulse_duration);
+    float hit = travel_end * curve_first_crossing(chase_position, position);
+    int mark = mark_last_index(beats, seconds() - offset_seconds - child_duration * hit);
+    float hit_time = mark_at(beats, mark);
+    float age = seconds() - hit_time - offset_seconds;
+    if (is_nan(age) || hit_time + offset_seconds < 0.0 || age < 0.0 || age >= child_duration) { return rgb(0.0, 0.0, 0.0); }
+    float child_progress = age / child_duration;
+    gradient selected_gradient = gradients[mark % len(gradients)];
+    float pulse_progress = (child_progress - hit) / pulse_duration;
+    float level = 0.0;
+    if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
+      level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
+    }
+    float gradient_position = pulse_progress;
+    if (gradient_mode == through_effect) { gradient_position = child_progress; }
+    if (gradient_mode == across_items) { gradient_position = position; }
+    return gradient_color_scaled(selected_gradient, clamp(gradient_position, 0.0, 1.0), level);
+  }
+}
+
+effect MarkWipeSample {
+  fixed param marks beats;
+  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
+  fixed param array<gradient> gradients;
+  fixed param float offset_seconds = 0.0;
+  fixed param float wipe_seconds = 0.5;
+  param float pulse_width = 0.15;
+  // Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
+  fixed param curve direction_angle;
+  fixed param array<curve> wipe_positions;
+  param curve pulse_shape;
+
+  // Direction is captured at the mark, matching the generated Wipe.
+  color sample() {
+    int mark = mark_last_index(beats, seconds() - offset_seconds);
+    float hit_time = mark_at(beats, mark);
+    float child_duration = max(0.000000001, wipe_seconds);
+    float age = seconds() - hit_time - offset_seconds;
+    if (is_nan(age) || hit_time + offset_seconds < 0.0 || age < 0.0 || age >= child_duration) { return rgb(0.0, 0.0, 0.0); }
+    if (len(gradients) == 0 || len(wipe_positions) == 0) { return rgb(0.0, 0.0, 0.0); }
+    float child_progress = age / child_duration;
+    gradient selected_gradient = gradients[mark % len(gradients)];
+    curve wipe_position = wipe_positions[mark % len(wipe_positions)];
+    float angle = 360.0 * direction_angle[clamp(hit_time / duration(), 0.0, 1.0)];
+    float radians = angle * 0.017453292519943295;
+    float dx = cos(radians);
+    float dy = sin(radians);
+    if (abs(dx) < 0.000001) { dx = 0.0; }
+    if (abs(dy) < 0.000001) { dy = 0.0; }
+    float projection = pixel_x() * dx + pixel_y() * dy;
+    float projection_min = min(target_min_x() * dx, target_max_x() * dx) + min(target_min_y() * dy, target_max_y() * dy);
+    float span = (target_max_x() - target_min_x()) * abs(dx) + (target_max_y() - target_min_y()) * abs(dy);
+    float position = 0.0;
+    if (span > 0.000000001) { position = clamp((projection - projection_min) / span, 0.0, 1.0); }
+    float pulse_duration = max(0.000000001, pulse_width);
+    float travel_end = max(0.0, 1.0 - pulse_duration);
+    float query_position = 1.0;
+    if (travel_end > 0.0) { query_position = child_progress / travel_end; }
+    float hit = travel_end * curve_last_crossing(wipe_position, position, query_position);
+    float pulse_progress = (child_progress - hit) / pulse_duration;
+    float level = 0.0;
+    if (pulse_progress >= 0.0 && pulse_progress <= 1.0) {
+      level = curve_clamped(pulse_shape, pulse_progress, 0.0, 1.0);
+    }
+    float gradient_position = pulse_progress;
+    if (gradient_mode == through_effect) { gradient_position = child_progress; }
+    if (gradient_mode == across_items) { gradient_position = position; }
+    return gradient_color_scaled(selected_gradient, clamp(gradient_position, 0.0, 1.0), level);
   }
 }
