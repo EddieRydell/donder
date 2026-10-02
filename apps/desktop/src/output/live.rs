@@ -20,7 +20,7 @@ const OUTPUT_TEST_DURATION: Duration = Duration::from_secs(10);
 enum OutputSource {
     Sequence,
     Test {
-        frames: Vec<donder_elaboration::ControllerPortFrame>,
+        frames: Vec<donder_output::ControllerPortFrame>,
         started: Instant,
     },
 }
@@ -88,7 +88,7 @@ impl LiveOutputService {
         &mut self,
         id: ControllerId,
         controller: Controller,
-        frame: donder_elaboration::ControllerPortFrame,
+        frame: donder_output::ControllerPortFrame,
     ) -> LiveOutputSnapshot {
         self.start(
             IndexMap::from([(id.clone(), controller)]),

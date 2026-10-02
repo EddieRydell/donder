@@ -82,16 +82,13 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     );
     setup.controllers.reverse();
     assert_eq!(setup.controllers[1].id(), &address);
-    let output = donder_elaboration::PreparedSequenceOutput::prepare(
+    let output = donder_elaboration::prepare(
         &session.project,
-        session.project.root.setup.id(),
         session.project.root.sequences[0].id(),
+        donder_elaboration::PrepareOutputs::All,
     )
     .unwrap();
-    assert_eq!(
-        output.render_seconds(0.0).unwrap().controller_frames.len(),
-        2
-    );
+    assert_eq!(output.outputs().len(), 2);
     save_project(&session).unwrap();
     let reloaded = common::load_project(root);
     assert_eq!(session.project, reloaded.project);
@@ -416,8 +413,12 @@ fn independent_layout_copies_active_sequences_and_preserves_the_reusable_origina
         for effect in &sequence.effects {
             assert_eq!(&effect.target.layout, new_layout);
         }
-        donder_elaboration::PreparedSequenceOutput::prepare(&session.project, &setup, &sequence.id)
-            .unwrap();
+        donder_elaboration::prepare(
+            &session.project,
+            &sequence.id,
+            donder_elaboration::PrepareOutputs::All,
+        )
+        .unwrap();
     }
     donder_language::validation::validate_project(&session.project).unwrap();
 }
@@ -617,10 +618,10 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
                 .iter()
                 .all(|effect| effect.target.layout == replacement.id)
         );
-        donder_elaboration::PreparedSequenceOutput::prepare(
+        donder_elaboration::prepare(
             &session.project,
-            &setup,
             sequence.id(),
+            donder_elaboration::PrepareOutputs::All,
         )
         .unwrap();
     }

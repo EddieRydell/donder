@@ -897,9 +897,8 @@ mod tests {
             sequence_id,
             project,
         };
-        let result = crate::rendering::prepare_sequence_output(
+        let result = crate::rendering::prepare_render_session(
             &request.project.project,
-            &request.setup_id,
             &request.sequence_id,
         );
         assert!(result.is_ok());

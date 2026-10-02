@@ -109,9 +109,8 @@ impl DesktopState {
                         },
                     ),
                     render_refresh: LatestScheduler::new(move |request: RenderRefreshPayload| {
-                        let result = crate::rendering::prepare_sequence_output(
+                        let result = crate::rendering::prepare_render_session(
                             &request.project.project,
-                            &request.setup_id,
                             &request.sequence_id,
                         );
                         if let Some(state) = render_state.upgrade() {

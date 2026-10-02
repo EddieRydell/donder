@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::PreparedSequenceOutput;
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_runtime::values::{SampleTime, sample_time_from_frame};
 use donder_runtime::wire::{LoadLimits, decode_sequence, encode_sequence};
 
@@ -32,26 +32,24 @@ fn main() {
         .take(4)
         .map(|port| (controller.clone(), port.id))
         .collect::<Vec<_>>();
-    let prepared =
-        PreparedSequenceOutput::prepare_selected(&project, project.root.setup.id(), id, &ports)
-            .unwrap();
-    let sequence = &prepared.sequence;
+    let prepared = prepare(&project, id, PrepareOutputs::Ports(&ports)).unwrap();
+    let sequence = &prepared;
     let bytes = encode_sequence(sequence).unwrap();
     let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
     let mut source_workspace = sequence.workspace().unwrap();
     let mut workspace = decoded.workspace().unwrap();
     let mut source = sequence
-        .output_widths
+        .outputs()
         .iter()
-        .map(|&width| vec![0; width as usize])
+        .map(|output| vec![0; output.width as usize])
         .collect::<Vec<_>>();
     let mut output = source.clone();
     let mut checksums = String::new();
     let mut times = [0, 7150, 7151, 8398, 8450, 8494, 9504, 15000]
-        .map(|frame| sample_time_from_frame(frame, sequence.signals.frame_rate).unwrap())
+        .map(|frame| sample_time_from_frame(frame, sequence.signals().frame_rate).unwrap())
         .to_vec();
     times.extend([
-        SampleTime::from_ticks(sequence.signals.duration.as_ticks()),
+        SampleTime::from_ticks(sequence.signals().duration.as_ticks()),
         SampleTime::from_ticks(0),
     ]);
     for time in times {
@@ -72,8 +70,8 @@ fn main() {
         "sequence={} ports={} pixels={} effects={} payload_bytes={}",
         id.0.root_source().object(),
         ports.len(),
-        sequence.signals.pixel_count,
-        sequence.signals.effects.len(),
+        sequence.signals().pixel_count,
+        sequence.signals().effects.len(),
         bytes.len()
     );
 }

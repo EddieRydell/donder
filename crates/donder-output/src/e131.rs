@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
-use donder_elaboration::ControllerPortFrame;
+use crate::ControllerPortFrame;
 use donder_language::controller::{
     ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId, E131Config, E131Mode,
 };

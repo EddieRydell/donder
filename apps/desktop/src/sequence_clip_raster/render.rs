@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) struct RasterRenderRequest<'a> {
-    pub(super) renderer: PreparedEffectRasterRenderer,
+    pub(super) renderer: Arc<PreparedSequence>,
     pub(super) effect_id: u32,
     pub(super) signature_key: &'a str,
     pub(super) cache_key: &'a RasterCacheKey,
@@ -34,8 +34,12 @@ pub(super) fn render_effect_raster(
             "raster display row count must be greater than zero".to_string(),
         ));
     }
-    let start_seconds = renderer.start_seconds();
-    let duration_seconds = renderer.duration_seconds();
+    let renderer = renderer
+        .clip(effect_id)
+        .ok_or_else(|| RasterRenderFailure::Error("raster clip selection is unavailable".into()))?;
+    let start_seconds = donder_language::values::sample_time_seconds_f32(renderer.start_time());
+    let duration_seconds =
+        donder_language::values::sample_duration_seconds_f32(renderer.duration());
     if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
         return Err(RasterRenderFailure::Error(
             "effect duration must be positive and finite".to_string(),
@@ -61,22 +65,16 @@ pub(super) fn render_effect_raster(
     let rows = target_pixel_count
         .min(display_row_count as usize)
         .min(settings.max_rows.max(1) as usize);
-    let sample = renderer.prepare_sampled_raster(rows);
-    let mut render_workspace = renderer.workspace();
+    let mut sampler = renderer.sampler(rows);
+    let mut colors = vec![donder_language::values::Color::BLACK; rows];
     let mut pixels_rgba = vec![0u8; rows * columns * 4];
     for column in 0..columns {
         if !should_continue() {
             return Err(RasterRenderFailure::Cancelled);
         }
-        let sample_seconds = renderer
-            .sampled_raster_column_seconds(column, columns)
-            .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
-        let colors = renderer
-            .render_sampled_raster_column_with_workspace(
-                &sample,
-                sample_seconds,
-                &mut render_workspace,
-            )
+        let time = raster_column_time(&renderer, column, columns)?;
+        sampler
+            .evaluate(time, &mut colors)
             .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
         for row in 0..rows {
             let Some(color) = colors.get(row) else {
@@ -109,4 +107,23 @@ pub(super) fn render_effect_raster(
 pub(super) enum RasterRenderFailure {
     Cancelled,
     Error(String),
+}
+
+fn raster_column_time(
+    clip: &donder_runtime::clip::SequenceClip<'_>,
+    column: usize,
+    columns: usize,
+) -> Result<donder_language::values::SampleTime, RasterRenderFailure> {
+    let rate = u64::from(clip.frame_rate());
+    let ticks = u64::from(clip.start_time().as_ticks());
+    let end = ticks + u64::from(clip.duration().as_ticks());
+    let micros = u64::from(donder_language::values::MICROS_PER_SECOND);
+    let start_frame = (ticks * rate).div_ceil(micros);
+    let end_frame = (end * rate).div_ceil(micros);
+    let active_frames = end_frame.saturating_sub(start_frame).max(1);
+    let offset = (((column as f32 + 0.5) * active_frames as f32 / columns as f32).floor() as u64)
+        .min(active_frames - 1);
+    let frame = (start_frame + offset).min(u64::from(clip.frame_count().saturating_sub(1)));
+    donder_language::values::sample_time_from_frame(frame as u32, clip.frame_rate())
+        .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))
 }

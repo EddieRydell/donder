@@ -76,8 +76,8 @@ unsafe impl GlobalAlloc for CountingAllocator {
 fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
     use donder_runtime::values::{Color, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
-    let show = workload::show(200, effect.bytecode, params);
-    let sequence = &show.signals;
+    let show = workload::show(200, effect.sample_program().unwrap().clone(), params);
+    let sequence = show.signals();
     let mut workspace = sequence.workspace().unwrap();
     let expected = sequence
         .evaluate(workload::time(4), &mut sequence.workspace().unwrap())
@@ -318,6 +318,79 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
 }
 
 #[test]
+fn retained_array_results_do_not_allocate_on_the_first_evaluation() {
+    use donder_language::dsl::{
+        DslBindCache, GeneratorContext, GeneratorInput, RunContext, TargetValue, VmWorkspace,
+        compile_effects,
+    };
+    use donder_language::values::{SampleDuration, SampleTime};
+
+    let generator = compile_effects(
+        "effect Parent { param float value; void generate() {
+            timeline.emit Child { start: 0.0, duration: 1.0, target: target,
+                value: [[value + seconds()], [value]] };
+        } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect
+    .generator()
+    .unwrap()
+    .clone();
+    let specialized = generator
+        .bind(&[GeneratorInput::Live])
+        .unwrap()
+        .specialize(&GeneratorContext {
+            start_time: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            target: Arc::new(TargetValue { groups: Vec::new() }),
+        })
+        .unwrap();
+    let (program, types, outputs) = specialized.calculations[0].program.clone().into_parts();
+    let params = BoundParams::from_values(
+        types.iter().map(|ty| (ty, Value::Float(0.25))),
+        &mut DslBindCache::default(),
+    );
+    let mut workspace = VmWorkspace::for_program(&program);
+    let mut result = BoundParams::result_workspace(
+        &outputs,
+        program.array_capacity as usize,
+        program.array_width as usize,
+    );
+    for time in [0, 500_000, 250_000, 0] {
+        let context = RunContext {
+            progress: time as f32 / 1_000_000.0,
+            time: SampleDuration::from_ticks(time),
+            duration: SampleDuration::from_ticks(1_000_000),
+            pixel_index: 0,
+            pixel_count: 0,
+            pixel_fraction: 0.0,
+        };
+        ALLOCATIONS.set(0);
+        COUNTING.set(true);
+        let evaluated =
+            program.evaluate_bindings(&params, &context, &mut workspace, &mut result, &outputs);
+        COUNTING.set(false);
+        evaluated.unwrap();
+        assert_eq!(
+            ALLOCATIONS.get(),
+            0,
+            "retained array result allocated at {time}"
+        );
+        assert_eq!(
+            result.value(0).unwrap(),
+            Value::Array(
+                vec![
+                    Value::Array(vec![Value::Float(0.25 + time as f32 / 1_000_000.0)].into()),
+                    Value::Array(vec![Value::Float(0.25)].into()),
+                ]
+                .into()
+            )
+        );
+    }
+}
+
+#[test]
 fn prepared_calculated_arrays_do_not_allocate_on_the_first_frame() {
     let effect = donder_language::dsl::compile_effects(include_str!(
         "fixtures/array-lifetimes.effect.donder"
@@ -326,7 +399,7 @@ fn prepared_calculated_arrays_do_not_allocate_on_the_first_frame() {
     .remove(0)
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let show = workload::layered_show(200, effect.bytecode, params, 4);
+    let show = workload::layered_show(200, effect.sample_program().unwrap().clone(), params, 4);
     let mut workspace = show.workspace().unwrap();
     let mut buffers = [vec![0; 600]];
     ALLOCATIONS.set(0);
@@ -344,9 +417,12 @@ fn enum_local_assignment_and_constant_loads_do_not_allocate() {
     let effect = donder_language::dsl::compile_effects(
         "effect EnumLocals {
         param enum mode { short, much_longer_option } = short;
+        param enum gate { off, on } = on;
+        param enum shape { one, two } = two;
         color sample() {
             if (progress() > 0.5) { mode = much_longer_option; }
-            if (mode == much_longer_option) { return #ffffff; }
+            if (progress() < 0.5) { gate = off; }
+            if (mode == much_longer_option && gate == on && shape == two) { return #ffffff; }
             return #000000;
         }
     }",
@@ -373,7 +449,7 @@ fn enum_local_assignment_and_constant_loads_do_not_allocate() {
         context.progress = progress;
         effect
             .sample_bound(&params, &context, &mut workspace)
-            .map(|_| ())
+            .map(|color| assert_eq!(color.red, if progress > 0.5 { 255 } else { 0 }))
     });
     COUNTING.set(false);
     result.unwrap();
@@ -389,8 +465,8 @@ fn many_signal_times_use_fixed_storage_from_the_first_frame() {
     .remove(0)
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let expected = workload::show(2, effect.bytecode.clone(), params.clone());
-    let mut show = workload::show(2, effect.bytecode, params);
+    let expected = workload::show(2, effect.sample_program().unwrap().clone(), params.clone());
+    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
     let operator = donder_language::dsl::compile_operators(
         "operator ManyTimes { input Signal source; color sample() {
             color saved = source.at(seconds());
@@ -428,9 +504,15 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
     let (effect, params) = fixtures::uniform_resources();
     let mut expected_bytes = None;
     for count in [1, 16, 128] {
-        let mut show = workload::show(200, effect.bytecode.clone(), params.clone());
-        show.signals.effects = vec![show.signals.effects[0].clone(); count].into();
-        show.signals.effects_by_layer[0] = (0..count).collect();
+        let show = workload::show(
+            200,
+            effect.sample_program().unwrap().clone(),
+            params.clone(),
+        );
+        let mut signals = show.signals().clone();
+        signals.effects = vec![signals.effects[0].clone(); count].into();
+        signals.effects_by_layer[0] = (0..count).collect();
+        let show = workload::rgb_output(signals);
         ALLOCATIONS.set(0);
         LIVE_BYTES.set(0);
         PEAK_BYTES.set(0);
@@ -463,8 +545,13 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
     use donder_runtime::values::{SampleDuration, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
     for recursive in [false, true] {
-        let mut show = workload::show(200, effect.bytecode.clone(), params.clone());
-        show.signals.effects[0].automation = Some(Box::new(PreparedEffectAutomation {
+        let mut show = workload::show(
+            200,
+            effect.sample_program().unwrap().clone(),
+            params.clone(),
+        );
+        let mut signals = show.signals().clone();
+        signals.effects[0].automation = Some(Box::new(PreparedEffectAutomation {
             workspace_slot: 0,
             bindings: vec![PreparedAutomation {
                 start: SampleTime::from_ticks(0),
@@ -478,6 +565,7 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
             }]
             .into(),
         }));
+        show = workload::rgb_output(signals);
         if recursive {
             let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
                 .unwrap()
@@ -514,14 +602,14 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
     .remove(0)
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let mut show = workload::show(2, effect.bytecode, params);
+    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
     let pulse = donder_language::dsl::compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap()
     .remove(0)
     .effect;
-    workload::apply_pulse_automation(&mut show, pulse.bytecode, false);
+    workload::apply_pulse_automation(&mut show, pulse.sample_program().unwrap().clone(), false);
     let mut workspace = show.workspace().unwrap();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
@@ -553,8 +641,8 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
     .remove(0)
     .effect;
     let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let reference = workload::show(2, effect.bytecode.clone(), params.clone());
-    let mut show = workload::show(2, effect.bytecode, params);
+    let reference = workload::show(2, effect.sample_program().unwrap().clone(), params.clone());
+    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
     let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
@@ -603,8 +691,10 @@ fn empty_curve_automation_reserves_its_fallback_point() {
             donder_language::dsl::Value::Curve(Curve { points: vec![] }.into()),
         )]))
         .unwrap();
-    let mut show = workload::show(2, effect.bytecode, params);
-    show.signals.effects[0].automation = Some(Box::new(PreparedEffectAutomation {
+    let mut signals = workload::show(2, effect.sample_program().unwrap().clone(), params)
+        .signals()
+        .clone();
+    signals.effects[0].automation = Some(Box::new(PreparedEffectAutomation {
         workspace_slot: 0,
         bindings: vec![PreparedAutomation {
             start: SampleTime::from_ticks(0),
@@ -615,6 +705,7 @@ fn empty_curve_automation_reserves_its_fallback_point() {
         }]
         .into(),
     }));
+    let show = workload::rgb_output(signals);
     let mut workspace = show.workspace().unwrap();
     let mut buffers = [vec![0; 6]];
     ALLOCATIONS.set(0);
@@ -633,28 +724,30 @@ fn retained_nested_array_results_forward_without_first_or_repeated_sample_alloca
     };
     use donder_language::values::{SampleDuration, SampleTime};
     let generator = compile_effects("effect Parent { void generate() { timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } }").unwrap()
-        .remove(0).generator.unwrap().specialize(&[], &GeneratorContext {
+        .remove(0).effect.generator().unwrap().clone().bind(&[]).unwrap().specialize(&GeneratorContext {
             start_time: SampleTime::from_ticks(0), duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
         }).unwrap();
     let GeneratorBinding::Calculation { index, output } = generator.children[0].params[0].1 else {
         panic!("live calculation")
     };
-    let calculation = &generator.calculations[index as usize];
+    let calculation = &generator.calculations[index];
     assert!(calculation.inputs.is_empty());
+    let (program, _, output_types) = calculation.program.clone().into_parts();
     let child = compile_effects("effect Child { param array<array<float>> values; color sample() { return rgb(values[0][0], values[0][1] * 0.25, values[1][0] * 0.25); } }").unwrap().remove(0).effect;
-    let mut vm = VmWorkspace::for_program(&calculation.program);
-    let mut child_vm = VmWorkspace::for_program(&child.bytecode);
+    let mut vm = VmWorkspace::for_program(&program);
+    let mut child_vm = VmWorkspace::for_program(child.sample_program().unwrap());
     let mut results = BoundParams::result_workspace(
-        calculation.output_types.len(),
-        calculation.program.array_capacity,
-        calculation.program.array_width,
+        &output_types,
+        program.array_capacity as usize,
+        program.array_width as usize,
     );
     let mut child_params = BoundParams::result_workspace(
-        1,
-        calculation.program.array_capacity,
-        calculation.program.array_width,
+        &[child.params[0].ty.clone()],
+        program.array_capacity as usize,
+        program.array_width as usize,
     );
+    let inputs = BoundParams::default();
     for tick in [0, 750_000, 250_000, 999_999, 0] {
         let context = RunContext {
             progress: tick as f32 / 1_000_000.0,
@@ -668,13 +761,7 @@ fn retained_nested_array_results_forward_without_first_or_repeated_sample_alloca
         COUNTING.set(true);
         let result = (|| {
             child_params.clear_results();
-            calculation.program.evaluate_bindings(
-                &BoundParams::default(),
-                &context,
-                &mut vm,
-                &mut results,
-                &calculation.output_types,
-            )?;
+            program.evaluate_bindings(&inputs, &context, &mut vm, &mut results, &output_types)?;
             child_params.copy_parameter(0, &results, usize::from(output), &child.params[0].ty)?;
             child.sample_bound(&child_params, &context, &mut child_vm)
         })();

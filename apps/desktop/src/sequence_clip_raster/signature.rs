@@ -9,6 +9,8 @@ pub(super) enum RenderInputSignature {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct RenderInputSignatureData {
     effect: EffectInst,
+    frame_rate: u32,
+    sequence_duration: donder_language::values::DonderDuration,
     automation_clips: Vec<AutomationInputSignature>,
     definition: Option<EffectDefinition>,
     generator_definitions: Vec<(
@@ -18,7 +20,7 @@ pub(super) struct RenderInputSignatureData {
     curve_references: Vec<(CurveId, Option<CurveDefinition>)>,
     gradient_references: Vec<(GradientId, Option<GradientDefinition>)>,
     mark_references: Vec<(MarkCollectionKey, Option<Vec<DonderTime>>)>,
-    target_pixels: Vec<RenderedTargetPixelAddress>,
+    target_pixels: Vec<RasterTargetPixel>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -36,9 +38,31 @@ pub(super) fn render_signature(
     sequence: &Sequence,
     effect: &EffectInst,
 ) -> Result<RenderInputSignature, String> {
-    let target_pixels =
-        resolve_effect_target_pixel_addresses(project, setup_id, &effect.target, &effect.scope)
-            .map_err(|error| format!("{error:?}"))?;
+    let setup = project
+        .setup(setup_id)
+        .ok_or_else(|| "raster setup selection is unavailable".to_string())?;
+    let layout = project
+        .layout(setup.layout.id())
+        .ok_or_else(|| "raster layout selection is unavailable".to_string())?;
+    let geometry = donder_language::geometry::PreparedFixtureDefinitions::prepare(
+        &project.definitions.fixtures,
+    )
+    .prepare_layout(layout);
+    let target_pixels = geometry
+        .target(&effect.target)
+        .map_err(|error| format!("{error:?}"))?
+        .iter()
+        .flat_map(|instance| {
+            instance.pixels.iter().enumerate().map(|(index, pixel)| {
+                let position = instance.transform.transform_point3(pixel.position);
+                RasterTargetPixel {
+                    fixture_id: instance.id,
+                    fixture_pixel_index: index,
+                    position: [position.x, position.y],
+                }
+            })
+        })
+        .collect();
     let definition = project
         .definitions
         .effects
@@ -97,6 +121,8 @@ pub(super) fn render_signature(
     Ok(RenderInputSignature::Valid(Box::new(
         RenderInputSignatureData {
             effect: effect.clone(),
+            frame_rate: sequence.frame_rate,
+            sequence_duration: sequence.duration.clone(),
             automation_clips,
             definition,
             generator_definitions,
@@ -181,6 +207,8 @@ pub(super) fn hash_render_signature<H: Hasher>(signature: &RenderInputSignature,
         RenderInputSignature::Valid(data) => {
             0u8.hash(state);
             hash_effect_inst(&data.effect, state);
+            data.frame_rate.hash(state);
+            data.sequence_duration.as_micros_rounded().hash(state);
             data.automation_clips.len().hash(state);
             for clip in &data.automation_clips {
                 hash_automation_input_signature(clip, state);
@@ -216,6 +244,7 @@ pub(super) fn hash_render_signature<H: Hasher>(signature: &RenderInputSignature,
             for pixel in &data.target_pixels {
                 pixel.fixture_id.hash(state);
                 pixel.fixture_pixel_index.hash(state);
+                pixel.position.map(f32::to_bits).hash(state);
             }
         }
         RenderInputSignature::Invalid { message } => {
@@ -437,4 +466,11 @@ pub(super) fn hash_marks<H: Hasher>(marks: &[DonderTime], state: &mut H) {
     for mark in marks {
         mark.0.hash(state);
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct RasterTargetPixel {
+    fixture_id: donder_language::layout::FixtureInstanceId,
+    fixture_pixel_index: usize,
+    position: [f32; 2],
 }

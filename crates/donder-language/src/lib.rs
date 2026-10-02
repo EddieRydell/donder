@@ -14,6 +14,7 @@ pub mod controller;
 pub mod dsl;
 pub mod effect;
 pub mod fixture;
+pub mod geometry;
 pub mod identity;
 pub mod imports;
 pub use imports::{

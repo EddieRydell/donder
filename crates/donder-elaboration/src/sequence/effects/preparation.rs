@@ -1,4 +1,3 @@
-use crate::RenderError;
 use crate::sequence::effects::generators::{GeneratorExpansion, GeneratorPrepareContext};
 use crate::sequence::effects::parameters::{EffectParamTiming, prepare_params};
 use crate::sequence::fixtures::PreparedFixture;
@@ -6,24 +5,24 @@ use crate::sequence::targets::{
     PreparedTargetCache, PreparedTargetPixel, generator_expansion_targets, prepare_target,
     prepare_target_pixels_cached, sorted_sample_target,
 };
-use crate::{
-    PreparedAutomation, PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation,
-};
 use donder_language::dsl::{
-    BoundParams, BytecodeProgram, DslBindCache, EffectKind, Identifier, ParamDecl,
+    BoundParams, BytecodeProgram, DslBindCache, EffectProgram, Identifier, ParamDecl,
 };
 use donder_language::effect::{EffectDefinitionId, EffectImplementation, EffectInstId, EffectRef};
 use donder_language::layout::FixtureInstanceId;
 use donder_language::model::DonderProject;
 use donder_language::sequence::{AutomationBinding, AutomationClip, AutomationTarget, Sequence};
-use indexmap::{IndexMap, IndexSet};
+use donder_runtime::dsl::RuntimeError;
+use donder_runtime::signal::{
+    PreparedAutomation, PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation,
+};
+use indexmap::IndexMap;
 use std::sync::Arc;
 
 pub(crate) struct PrepareEffectContext<'a> {
     pub(crate) project: &'a DonderProject,
     pub(crate) sequence: &'a Sequence,
     pub(crate) fixtures: &'a [PreparedFixture],
-    pub(crate) fixture_ids: &'a IndexSet<FixtureInstanceId>,
     pub(crate) groups: &'a IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
     pub(crate) environments: &'a mut Vec<donder_runtime::bindings::PreparedParameterEnvironment>,
     pub(crate) effects: &'a mut Vec<PreparedEffect>,
@@ -35,60 +34,47 @@ pub(crate) struct PrepareEffectContext<'a> {
 pub(crate) fn prepare_effect_inst(
     context: PrepareEffectContext<'_>,
     effect: &donder_language::effect::EffectInst,
-) -> Result<Arc<[PreparedTargetPixel]>, RenderError> {
-    if effect.duration.is_zero() {
-        return Err(RenderError::InvalidTiming {
-            reason: "effect duration must be positive".to_string(),
-        });
-    }
+) -> Result<Arc<[PreparedTargetPixel]>, RuntimeError> {
+    // Authored timing and references were checked when the project was accepted.
     let start_time =
-        donder_language::values::sample_time_from_donder_time(&effect.start).map_err(|_| {
-            RenderError::InvalidTiming {
-                reason: "effect start exceeds the runtime clock range".to_string(),
-            }
-        })?;
-    let duration = donder_language::values::sample_duration_from_donder_duration(&effect.duration)
-        .map_err(|_| RenderError::InvalidTiming {
-            reason: "effect duration exceeds the runtime clock range".to_string(),
-        })?;
-    let definition = context
-        .project
-        .definitions
-        .effects
-        .resolve(&effect.definition)
-        .ok_or_else(|| RenderError::MissingEffect {
-            effect_id: effect.definition.clone(),
-        })?;
-    let target_selection = prepare_target(&effect.target, context.fixture_ids, context.groups)?;
+        donder_language::values::SampleTime::from_ticks(effect.start.as_micros_rounded() as u32);
+    let duration = donder_language::values::SampleDuration::from_ticks(
+        effect.duration.as_micros_rounded() as u32,
+    );
+    let EffectRef::Custom(id) = &effect.definition;
+    let definition = &context.project.definitions.effects.definitions[id];
+    let target_selection = prepare_target(&effect.target, context.groups);
     let target = prepare_target_pixels_cached(
         context.target_cache,
         &target_selection,
         context.fixtures,
         &effect.scope,
-    )?;
+    );
     let param_timing = EffectParamTiming {
         start: start_time,
         duration,
     };
-    let automation = automation_for_effect(context.sequence, &effect.id, &definition.params)?;
+    let automation = automation_for_effect(context.sequence, &effect.id, &definition.params);
     let params = prepare_params(
         context.project,
         context.sequence,
+        &definition.params,
         &effect.param_overrides,
         param_timing,
-    )?;
-    match definition.kind {
-        EffectKind::Sample => {
-            let implementation = match &definition.implementation {
-                EffectImplementation::Dsl(compiled) => {
-                    let EffectRef::Custom(id) = &effect.definition;
-                    let program =
-                        prepare_sample_program(context.sample_programs, id, &compiled.bytecode)?;
-                    PreparedEffectImplementation::Dsl {
-                        bound_params: compiled.bind_params_cached(&params, context.bind_cache)?,
-                        program,
-                    }
-                }
+    );
+    let EffectImplementation::Dsl(compiled) = &definition.implementation;
+    match &compiled.program {
+        EffectProgram::Sample(bytecode) => {
+            let program = prepare_sample_program(context.sample_programs, id, bytecode);
+            let implementation = PreparedEffectImplementation::Dsl {
+                bound_params: BoundParams::from_values(
+                    definition
+                        .params
+                        .iter()
+                        .map(|param| (&param.ty, params[&param.name].clone())),
+                    context.bind_cache,
+                ),
+                program,
             };
             let target = sorted_sample_target(&target);
             let automation = (!automation.is_empty()).then(|| {
@@ -100,32 +86,28 @@ pub(crate) fn prepare_effect_inst(
             context.effects.push(PreparedEffect {
                 start_time,
                 duration,
-                target: context.target_cache.sample_target(Arc::clone(&target))?,
+                target: context.target_cache.sample_target(Arc::clone(&target)),
                 implementation,
                 automation,
             });
         }
-        EffectKind::Generator => {
-            let sequence_duration = donder_language::values::sample_duration_from_donder_duration(
-                &context.sequence.duration,
-            )
-            .map_err(|_| RenderError::InvalidTiming {
-                reason: "sequence duration exceeds the runtime clock range".to_string(),
-            })?;
-            let params = BoundParams::bind_cached(&definition.params, &params, context.bind_cache)?;
-            let mut inputs = (0..definition.params.len())
-                .map(|index| {
-                    params
-                        .value(index)
-                        .map(super::retained::ParameterInput::Constant)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+        EffectProgram::Generator(program) => {
+            let sequence_duration = donder_language::values::SampleDuration::from_ticks(
+                context.sequence.duration.as_micros_rounded() as u32,
+            );
+            let params = BoundParams::from_values(
+                definition
+                    .params
+                    .iter()
+                    .map(|param| (&param.ty, params[&param.name].clone())),
+                context.bind_cache,
+            );
+            let mut inputs = params
+                .iter_values()
+                .map(super::retained::ParameterInput::Constant)
+                .collect::<Vec<_>>();
             if !automation.is_empty() {
-                let environment = u32::try_from(context.environments.len()).map_err(|_| {
-                    RenderError::GeneratorPrepare {
-                        message: "too many parameter environments".to_string(),
-                    }
-                })?;
+                let environment = context.environments.len();
                 for binding in &automation {
                     inputs[usize::from(binding.param_index)] =
                         super::retained::ParameterInput::Source(
@@ -157,7 +139,6 @@ pub(crate) fn prepare_effect_inst(
                 environments: context.environments,
                 project: context.project,
                 sequence_duration,
-                fixtures: context.fixtures,
                 effects: context.effects,
                 bind_cache: context.bind_cache,
                 sample_programs: context.sample_programs,
@@ -167,12 +148,12 @@ pub(crate) fn prepare_effect_inst(
                 super::retained::expand(
                     &mut generator_context,
                     definition,
+                    program,
                     &inputs,
                     GeneratorExpansion {
                         start_time,
                         duration,
                         target: expansion_target,
-                        depth: 0,
                     },
                 )?;
             }
@@ -185,7 +166,7 @@ pub(crate) fn automation_for_effect(
     sequence: &Sequence,
     target_effect_id: &EffectInstId,
     params: &[ParamDecl],
-) -> Result<Vec<PreparedAutomation>, RenderError> {
+) -> Vec<PreparedAutomation> {
     sequence
         .automation_clips
         .iter()
@@ -208,37 +189,32 @@ pub(crate) fn prepare_automation(
     clip: &AutomationClip,
     binding: &AutomationBinding,
     params: &[ParamDecl],
-) -> Result<PreparedAutomation, RenderError> {
+) -> PreparedAutomation {
     let param = automation_param(binding);
-    let param_index = params
+    let indexes = params
         .iter()
-        .position(|declaration| declaration.name == *param)
-        .ok_or_else(|| RenderError::BadGraph {
-            message: format!("automation targets unknown parameter `{}`", param.as_str()),
-        })?;
+        .enumerate()
+        .map(|(index, declaration)| (&declaration.name, index))
+        .collect::<IndexMap<_, _>>();
+    // The compiler bounds parameter slots; sequence validation checks the target
+    // and the rounded clock range before this conversion.
+    let param_index = indexes[param] as u16;
     let start =
-        donder_language::values::sample_time_from_donder_time(&clip.start).map_err(|_| {
-            RenderError::InvalidTiming {
-                reason: "automation start exceeds the runtime clock range".to_string(),
-            }
-        })?;
-    let duration = donder_language::values::sample_duration_from_donder_duration(&clip.duration)
-        .map_err(|_| RenderError::InvalidTiming {
-            reason: "automation duration exceeds the runtime clock range".to_string(),
-        })?;
+        donder_language::values::SampleTime::from_ticks(clip.start.as_micros_rounded() as u32);
+    let duration = donder_language::values::SampleDuration::from_ticks(
+        clip.duration.as_micros_rounded() as u32,
+    );
     let mut curve = clip.curve.clone();
     curve
         .points
         .sort_by(|left, right| left.position.total_cmp(&right.position));
-    Ok(PreparedAutomation {
+    PreparedAutomation {
         start,
         duration,
         curve: Arc::new(curve),
         mapping: binding.mapping.clone(),
-        param_index: u16::try_from(param_index).map_err(|_| RenderError::BadGraph {
-            message: "effect or operator has too many parameters".to_string(),
-        })?,
-    })
+        param_index,
+    }
 }
 
 pub(crate) fn automation_param(binding: &AutomationBinding) -> &Identifier {
@@ -252,16 +228,13 @@ pub(crate) fn prepare_sample_program(
     programs: &mut IndexMap<EffectDefinitionId, Arc<BytecodeProgram>>,
     id: &EffectDefinitionId,
     program: &BytecodeProgram,
-) -> Result<u32, RenderError> {
-    let index = match programs.get_index_of(id) {
+) -> usize {
+    match programs.get_index_of(id) {
         Some(index) => index,
         None => {
             programs
                 .insert_full(id.clone(), Arc::new(program.clone()))
                 .0
         }
-    };
-    u32::try_from(index).map_err(|_| RenderError::BadGraph {
-        message: "prepared sequence has too many bytecode programs".to_string(),
-    })
+    }
 }

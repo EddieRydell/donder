@@ -44,9 +44,20 @@ follows locals, arrays, assignments, branches, and loop-carried values. Generato
 pixel-context reads are rejected. Linked child argument types and live-to-fixed
 arguments are checked even in unused branches.
 
-Preparation expands structural branches and loops into concrete children. Child
+Preparation expands structural branches and loops into concrete children. It also
+expands control blocks that assign fixed values, even when they contain no emission;
+a fixed timing or target value must not become live merely because that block also
+computes a rendering parameter. Live-only control blocks remain VM calculations. Child
 parameters retain constants, numeric parent-parameter references, or typed VM
 calculations. Fixed locals, including loop indices, are captured at each emission.
+Generator expansion has one host-side implementation in `GeneratorProgram::specialize`.
+`CompiledEffect` belongs to the language crate and contains exactly one program:
+sample bytecode or a host generator program. Compiling a generator does not create
+a second, unused bytecode program. Its semantic hash includes the specialization
+statements and their calculation programs.
+The portable VM evaluates sample programs and retained calculations; it does not
+emit children or carry a generator context. Captured target selections and duration
+enter calculations as typed parameters.
 Pure live arithmetic, resource selection, arrays, branches, and bounded loops can
 compute rendering parameters. The existing VM execution and array limits apply.
 Unchanged projects without automation or time dependencies keep constant bindings
@@ -73,6 +84,68 @@ their parents. Existing automation positioning and endpoint rules apply during
 ordinary frames, temporal/spatial queries, and backward seeks. Parameter and
 resource workspaces are reserved during preparation, with exact-time caches
 shared across pixels. Resource references are forwarded without rebuilding them.
+
+Bound scalar parameters and VM registers use separate integer, float, boolean,
+and color banks. Compilation records each scalar load's bank address; admission
+checks it against declaration order before execution. Retained-result workspaces
+reserve their layout from the declared output types, including forwarded inputs
+whose values arrive later. Scalar loads copy directly between matching banks,
+without per-load value-kind checks or numeric conversion. Integer values accepted
+for float declarations are converted during binding. Marks, curves, and gradients
+also have typed parameter and register banks. Their queries read those banks
+directly; copied values share the original resources. Curve and gradient
+constants have typed pools. Curve parameters retain their prepared crossing data,
+and automation updates their detached, preallocated curve windows. Targets,
+target collections, and target items also use typed banks and constant pools;
+selection and regrouping preserve the original global pixel records. Member
+reads have separate integer and fractional instructions. Enums have a dedicated
+identifier bank and constant pool; compiled slot metadata supplies a valid
+initial value from each declaration. Enum loads and equality do not inspect
+dynamic value tags. Empty-array results are compiled into ordinary typed slots;
+indexing copies from the destination's bank instead of converting a tagged
+default at runtime. Array parameters, constants, and registers have dedicated
+storage; `void` occupies no register. Array views distinguish authored values,
+VM-calculated storage, and forwarded parameter storage. Each workspace and
+parameter bank owns its array arena, empty when unused; array views never need
+to check for a missing arena. Empty arenas allocate no buffers. Bytecode admission
+bounds calculated-array width and live storage, including one construction slot;
+VM construction uses that reservation directly. Copying into caller-sized result
+buffers still checks their capacity and width. Elements inside those
+arrays retain value tags, but writing an indexed element does not repeat a type
+check: binding validates authored elements, and bytecode admission validates
+calculated-array inputs and the receiving register's type. Tags select the
+destination bank, with int-to-float widening where the declaration permits it.
+Control-flow destinations, operand spans, and loop-state IDs are also checked
+at admission rather than reported as per-instruction execution errors.
+
+Host calculations use the same instruction schema and interpreter as playback,
+but their admitted instruction type permits only clock-context reads and has an
+uninhabited signal capability. `CalculationProgram::bind` checks external inputs
+against the program's declaration. The resulting `BoundCalculation::evaluate`
+returns owned values directly, without a runtime-error branch. Converting a
+retained calculation back to portable bytecode changes its instruction domain,
+not its operations or register addresses. Rendering still uses its existing
+fallible context and signal-sampling contract.
+
+Structural generator expressions select a sealed typed output projection while
+the generator is compiled: booleans for branches, integers for ranges, marks for
+collection iteration, numbers for timing, and target items for emission. These
+projections read the admitted result registers directly; specialization does not
+downcast their evaluated values. Target and target-list projections concatenate
+their existing groups without changing pixel identities. Structural calculations
+also carry fixed-input references created after staging analysis. Lexical values
+and symbolic playback references have separate storage, so those reads do not
+recheck whether a binding is fixed. Declarations initialize locals before any
+read; assigning a playback reference releases the previous constant value.
+Single generator expressions also have a one-value projection, rather than a
+possibly empty result vector. Multi-assignment calculations retain their ordered
+output vectors. When a calculation is retained for playback, projection metadata
+restores its original output slots without recompiling or revalidating the program.
+`GeneratorProgram::bind` admits external argument counts, fixed/live kinds, and
+value types (including unused parameters) before expansion. Its `BoundGenerator`
+borrows both the program and its inputs, preventing either from being replaced
+during that invocation. Expansion still checks calculation argument types when
+binding captured lexical values; these checks have not yet been eliminated.
 
 The editable `effects/standard.effect.donder` document defines Pulse, Chase,
 Spin, Wipe, MarkPulse, MarkChase, and MarkWipe. MarkPulse emits Pulse children for selected
@@ -489,6 +562,10 @@ element. Indexing an empty array returns the element type's default value;
 `len()` still returns zero. This also applies after assigning a different
 array to a local variable. `mark_at` uses its fallback for either a negative or
 an out-of-range index.
+Time-based mark queries with no time argument use the current sampling time in
+sample effects and operators, and zero in generators. Generator specialization
+preserves that default even when a calculation is retained for playback; pass
+`seconds()` explicitly to query at the generator's live parent-relative time.
 `pick(items, index)` clamps to the first or last target item when the collection
 is nonempty. An empty collection yields an empty `TargetItem`, whose integer
 members read as zero and `pixel_fraction` reads as `0.0`. Collection counts

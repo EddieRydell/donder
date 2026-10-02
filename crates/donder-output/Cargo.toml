@@ -9,7 +9,6 @@ license = "MIT"
 [dependencies]
 artnet_protocol.workspace = true
 donder-language.workspace = true
-donder-elaboration.workspace = true
 indexmap.workspace = true
 sacn.workspace = true
 

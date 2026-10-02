@@ -44,6 +44,8 @@ pub struct PreparedSignalGraph {
     pub fixture_pixel_offsets: Box<[usize]>,
     pub pixel_count: usize,
     pub effects: Box<[PreparedEffect]>,
+    /// Authored clip groups, including children expanded from generators.
+    pub clips: Box<[PreparedClip]>,
     pub programs: Box<[BytecodeProgram]>,
     pub targets: Box<[PreparedTarget]>,
     pub target_pixels: Box<[PreparedPixel]>,
@@ -51,6 +53,19 @@ pub struct PreparedSignalGraph {
     pub effects_by_layer: Box<[Box<[usize]>]>,
     pub layers: Box<[PreparedLayer]>,
     pub plan: SignalPlan,
+}
+
+/// Numeric source identity and sampling domain for an authored timeline clip.
+/// Playback effects can be reordered or filtered without losing clip ownership.
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub struct PreparedClip {
+    pub id: u32,
+    #[rkyv(with = crate::wire::Microseconds)]
+    pub start_time: SampleTime,
+    #[rkyv(with = crate::wire::Microseconds)]
+    pub duration: SampleDuration,
+    pub target: usize,
+    pub effects: Box<[usize]>,
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -79,7 +94,7 @@ pub struct PreparedEffect {
     pub start_time: SampleTime,
     #[rkyv(with = crate::wire::Microseconds)]
     pub duration: SampleDuration,
-    pub target: u32,
+    pub target: usize,
     pub implementation: PreparedEffectImplementation,
     pub automation: Option<Box<PreparedEffectAutomation>>,
 }
@@ -110,17 +125,17 @@ impl PreparedEffect {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PreparedEffectImplementation {
     Bound {
-        environment: u32,
-        program: u32,
+        environment: usize,
+        program: usize,
     },
     Dsl {
-        program: u32,
+        program: usize,
         bound_params: BoundParams,
     },
 }
 
 impl PreparedEffectImplementation {
-    pub fn dsl_program(&self) -> u32 {
+    pub fn dsl_program(&self) -> usize {
         match self {
             Self::Dsl { program, .. } | Self::Bound { program, .. } => *program,
         }
@@ -135,7 +150,7 @@ pub struct PreparedLayer {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedEffectAutomation {
     /// Dense index in automated-effect order, assigned by elaboration.
-    pub workspace_slot: u32,
+    pub workspace_slot: usize,
     pub bindings: Box<[PreparedAutomation]>,
 }
 
@@ -167,12 +182,12 @@ impl PreparedAutomation {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct SignalPlan {
     pub output_index: usize,
-    pub target: u32,
+    pub target: usize,
     pub nodes: Box<[PreparedSignalNode]>,
     pub vm_workspace_count: usize,
     pub frame_nodes: Box<[usize]>,
-    pub frame_slots: Box<[u16]>,
-    pub frame_buffer_count: u16,
+    pub frame_slots: Box<[usize]>,
+    pub frame_buffer_count: usize,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -189,7 +204,7 @@ pub enum PreparedSignalKind {
         operator: PreparedOperatorNode,
         inputs: Box<[usize]>,
         automation: Box<[PreparedAutomation]>,
-        vm_slot: u16,
+        vm_slot: usize,
     },
     Output {
         inputs: Box<[usize]>,
@@ -198,30 +213,30 @@ pub enum PreparedSignalKind {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PreparedOperator {
-    Dsl(u32),
+    Dsl(usize),
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedOperatorNode {
     /// Dense index among automated graph nodes; unused without bindings.
-    pub automation_slot: u32,
+    pub automation_slot: usize,
     pub implementation: PreparedOperator,
     pub params: BoundParams,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedTarget {
-    pub pixels: core::ops::Range<u32>,
+    pub pixels: core::ops::Range<usize>,
     /// Zero disables sample reuse; otherwise this is the required cache width.
-    pub sample_count: u32,
+    pub sample_count: usize,
 }
 
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedPixel {
-    pub fixture_index: u16,
+    pub fixture_index: usize,
     pub fixture_pixel_index: u32,
-    pub pixel_index: u32,
-    pub pixel_count: u32,
+    pub pixel_index: usize,
+    pub pixel_count: usize,
     pub pixel_fraction: f32,
 }
 
@@ -234,16 +249,16 @@ impl PreparedPixel {
         pixel_fraction: f32,
     ) -> Option<Self> {
         Some(Self {
-            fixture_index: u16::try_from(fixture_index).ok()?,
+            fixture_index,
             fixture_pixel_index: u32::try_from(fixture_pixel_index).ok()?,
-            pixel_index: u32::try_from(pixel_index).ok()?,
-            pixel_count: u32::try_from(pixel_count).ok()?,
+            pixel_index,
+            pixel_count,
             pixel_fraction,
         })
     }
 
     pub fn fixture_index(&self) -> usize {
-        self.fixture_index as usize
+        self.fixture_index
     }
 
     pub fn fixture_pixel_index(&self) -> usize {
@@ -251,11 +266,11 @@ impl PreparedPixel {
     }
 
     pub fn pixel_index(&self) -> usize {
-        self.pixel_index as usize
+        self.pixel_index
     }
 
     pub fn pixel_count(&self) -> usize {
-        self.pixel_count as usize
+        self.pixel_count
     }
 }
 
@@ -297,7 +312,7 @@ pub(crate) struct CachedSignalFrame {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CachedEffectSample {
-    pub(crate) pixel_count: u32,
+    pub(crate) pixel_count: usize,
     pub(crate) color: Color,
 }
 
@@ -320,7 +335,7 @@ impl PreparedSignalGraph {
             if let PreparedSignalKind::Operator { operator, .. } = &node.kind {
                 slots = slots.saturating_add(match operator.implementation {
                     PreparedOperator::Dsl(program) => {
-                        self.programs.get(program as usize).map_or(0, |program| {
+                        self.programs.get(program).map_or(0, |program| {
                             program
                                 .instructions
                                 .iter()
@@ -343,9 +358,7 @@ impl PreparedSignalGraph {
     pub(crate) fn frame_scratch_count(&self) -> usize {
         let samples_frames = |node: &PreparedSignalNode| match &node.kind {
             PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
-                PreparedOperator::Dsl(program) => {
-                    self.programs[program as usize].frame_cache_count() != 0
-                }
+                PreparedOperator::Dsl(program) => self.programs[program].frame_cache_count() != 0,
             },
             _ => false,
         };
@@ -371,9 +384,9 @@ impl PreparedSignalGraph {
         required
     }
 
-    pub fn target(&self, index: u32) -> &[PreparedPixel] {
-        let range = &self.targets[index as usize].pixels;
-        &self.target_pixels[range.start as usize..range.end as usize]
+    pub fn target(&self, index: usize) -> &[PreparedPixel] {
+        let range = &self.targets[index].pixels;
+        &self.target_pixels[range.start..range.end]
     }
 
     pub fn frame_count(&self) -> u32 {
@@ -416,9 +429,8 @@ impl PreparedSignalGraph {
             else {
                 continue;
             };
-            let count = self.programs[*program as usize].frame_cache_count();
-            operator_frame_counts[usize::from(*vm_slot)] =
-                operator_frame_counts[usize::from(*vm_slot)].max(count);
+            let count = self.programs[*program].frame_cache_count();
+            operator_frame_counts[*vm_slot] = operator_frame_counts[*vm_slot].max(count);
         }
         let mut workspace = EvaluationWorkspace {
             parameters: crate::bindings::ParameterWorkspace::new(
@@ -472,7 +484,7 @@ impl PreparedSignalGraph {
                     green: 0,
                     blue: 0
                 };
-                usize::from(self.plan.frame_buffer_count) * self.pixel_count
+                self.plan.frame_buffer_count * self.pixel_count
             ]
             .into_boxed_slice(),
             effect_samples: vec![
@@ -486,7 +498,7 @@ impl PreparedSignalGraph {
                 };
                 self.effects
                     .iter()
-                    .map(|effect| self.targets[effect.target as usize].sample_count as usize)
+                    .map(|effect| self.targets[effect.target].sample_count)
                     .max()
                     .unwrap_or(0)
             ],
@@ -514,9 +526,7 @@ impl PreparedSignalGraph {
         };
         for effect in self.effects.iter() {
             let program = effect.implementation.dsl_program();
-            workspace
-                .effect_vm
-                .reserve(&self.programs[program as usize]);
+            workspace.effect_vm.reserve(&self.programs[program]);
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {
@@ -531,9 +541,9 @@ impl PreparedSignalGraph {
             else {
                 continue;
             };
-            workspace.operator_vm[usize::from(*vm_slot)]
+            workspace.operator_vm[*vm_slot]
                 .0
-                .reserve(&self.programs[*program as usize]);
+                .reserve(&self.programs[*program]);
         }
         workspace
     }

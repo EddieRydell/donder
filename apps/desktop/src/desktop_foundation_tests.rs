@@ -125,9 +125,7 @@ pub(crate) mod tests {
         let session = starter();
         let sequence = session.project.root.sequences.first().unwrap().id();
         let mut service = crate::rendering::SequenceRenderService::new();
-        service
-            .prepare(&session.project, session.project.root.setup.id(), sequence)
-            .unwrap();
+        service.prepare(&session.project, sequence).unwrap();
         let audio = crate::dto::AudioTransportSnapshot {
             state: crate::dto::AudioTransportState::Paused,
             source: None,

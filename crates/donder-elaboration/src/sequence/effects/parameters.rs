@@ -1,13 +1,10 @@
-use donder_language::dsl::{Identifier, Value};
+use donder_language::dsl::{Identifier, ParamDecl, Value};
 use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
 use donder_language::model::DonderProject;
-use donder_language::operator::OperatorDefinition;
-use donder_language::sequence::Sequence;
-use donder_language::values::{Marks, SampleDuration, SampleTime, sample_time_from_donder_time};
+use donder_language::sequence::{MarkCollection, MarkCollectionKey, Sequence};
+use donder_language::values::{Marks, SampleDuration, SampleTime};
 use indexmap::IndexMap;
 use std::sync::Arc;
-
-use crate::RenderError;
 
 #[derive(Clone, Copy)]
 pub(crate) struct EffectParamTiming {
@@ -18,106 +15,79 @@ pub(crate) struct EffectParamTiming {
 pub(crate) fn prepare_params(
     project: &DonderProject,
     sequence: &Sequence,
+    declarations: &[ParamDecl],
     overrides: &IndexMap<Identifier, EffectParamValue>,
     timing: EffectParamTiming,
-) -> Result<IndexMap<Identifier, Value>, RenderError> {
-    overrides
+) -> IndexMap<Identifier, Value> {
+    let collections = sequence
+        .mark_collections
         .iter()
-        .map(|(key, value)| {
-            Ok((
-                key.clone(),
-                prepare_param_value(project, sequence, value, timing)?,
-            ))
-        })
-        .collect()
-}
-
-pub(crate) fn prepare_operator_params(
-    project: &DonderProject,
-    sequence: &Sequence,
-    definition: &OperatorDefinition,
-    overrides: &IndexMap<Identifier, EffectParamValue>,
-    timing: EffectParamTiming,
-) -> Result<IndexMap<Identifier, Value>, RenderError> {
-    let mut params = definition
-        .params
+        .map(|collection| (&collection.key, collection))
+        .collect();
+    let mut params = declarations
         .iter()
         .filter_map(|param| {
             param
                 .default
                 .as_ref()
-                .map(|default| (param.name.clone(), default.clone()))
+                .map(|value| (param.name.clone(), value.clone()))
         })
         .collect::<IndexMap<_, _>>();
-    for (name, value) in prepare_params(project, sequence, overrides, timing)? {
-        params.insert(name, value);
-    }
-    Ok(params)
+    params.extend(overrides.iter().map(|(key, value)| {
+        (
+            key.clone(),
+            prepare_param_value(project, &collections, value, timing),
+        )
+    }));
+    params
 }
 
 fn prepare_param_value(
     project: &DonderProject,
-    sequence: &Sequence,
+    collections: &IndexMap<&MarkCollectionKey, &MarkCollection>,
     value: &EffectParamValue,
     timing: EffectParamTiming,
-) -> Result<Value, RenderError> {
+) -> Value {
+    // Loading/edit acceptance establishes reference existence and timing ranges.
+    // Here we only turn those authored values into their playback representation.
     match value {
-        EffectParamValue::Int(value) => Ok(Value::Int(*value)),
-        EffectParamValue::Float(value) => Ok(Value::Float(*value)),
-        EffectParamValue::Bool(value) => Ok(Value::Bool(*value)),
-        EffectParamValue::Color(value) => Ok(Value::Color(*value)),
-        EffectParamValue::Enum(value) => Ok(Value::Enum(value.clone())),
+        EffectParamValue::Int(value) => Value::Int(*value),
+        EffectParamValue::Float(value) => Value::Float(*value),
+        EffectParamValue::Bool(value) => Value::Bool(*value),
+        EffectParamValue::Color(value) => Value::Color(*value),
+        EffectParamValue::Enum(value) => Value::Enum(value.clone()),
         EffectParamValue::Marks(key) => {
-            let collection = sequence
-                .mark_collections
-                .iter()
-                .find(|collection| collection.key == *key)
-                .ok_or_else(|| RenderError::MissingMarkCollection { key: key.clone() })?;
-            let end = timing
-                .start
-                .checked_add_duration(timing.duration)
-                .ok_or_else(|| RenderError::InvalidTiming {
-                    reason: "effect parameter window exceeds the runtime clock range".to_string(),
-                })?;
-            Ok(Value::Marks(Arc::new(Marks {
+            let collection = collections[key];
+            let start = u64::from(timing.start.as_ticks());
+            let end = start + u64::from(timing.duration.as_ticks());
+            Value::Marks(Arc::new(Marks {
                 marks: collection
                     .marks
                     .iter()
                     .filter_map(|mark| {
-                        let mark = sample_time_from_donder_time(mark).ok()?;
-                        (mark >= timing.start && mark < end).then(|| {
-                            let elapsed = mark.checked_duration_since(timing.start)?;
-                            Some(elapsed)
-                        })?
+                        let mark = mark.as_micros_rounded();
+                        (mark >= u128::from(start) && mark < u128::from(end))
+                            .then(|| SampleDuration::from_ticks((mark - u128::from(start)) as u32))
                     })
                     .collect(),
-            })))
+            }))
         }
-        EffectParamValue::Curve(source) => Ok(Value::Curve(Arc::new(match source {
+        EffectParamValue::Curve(source) => Value::Curve(Arc::new(match source {
             CurveSource::Inline(curve) => curve.clone(),
-            CurveSource::Reference(id) => project
-                .definitions
-                .curves
-                .get(id)
-                .ok_or(RenderError::MissingCurve)?
-                .curve
-                .clone(),
-        }))),
-        EffectParamValue::Gradient(source) => Ok(Value::Gradient(Arc::new(match source {
+            CurveSource::Reference(id) => project.definitions.curves.definitions[id].curve.clone(),
+        })),
+        EffectParamValue::Gradient(source) => Value::Gradient(Arc::new(match source {
             GradientSource::Inline(gradient) => gradient.clone(),
-            GradientSource::Reference(id) => project
-                .definitions
-                .gradients
-                .get(id)
-                .ok_or(RenderError::MissingGradient)?
+            GradientSource::Reference(id) => project.definitions.gradients.definitions[id]
                 .gradient
                 .clone(),
-        }))),
-        EffectParamValue::Array(values) => values
-            .iter()
-            .map(|value| prepare_param_value(project, sequence, value, timing))
-            .collect::<Result<Vec<_>, _>>()
-            .map(Arc::from)
-            .map(Value::Array),
+        })),
+        EffectParamValue::Array(values) => Value::Array(
+            values
+                .iter()
+                .map(|value| prepare_param_value(project, collections, value, timing))
+                .collect::<Vec<_>>()
+                .into(),
+        ),
     }
 }

@@ -56,7 +56,8 @@ fn hsv_components_execute_and_hoist_uniform_color_reads() {
         ColorComponent::Intensity,
     ] {
         assert!(
-            effect.bytecode.instructions[..effect.bytecode.pixel_entry as usize]
+            effect.sample_program().unwrap().instructions
+                [..effect.sample_program().unwrap().pixel_entry as usize]
                 .iter()
                 .any(|op| {
                     matches!(op, Instruction::ColorComponent { op, .. } if *op == expected)

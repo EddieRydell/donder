@@ -24,6 +24,7 @@ pub(crate) struct CheckedEffectDecl {
     pub params: Vec<ParamDecl>,
     pub entrypoint: FunctionDecl,
     pub body: CheckedBlock,
+    pub preparation_controls: super::staging::PreparationControls,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,6 +132,13 @@ impl From<Block> for CheckedBlock {
 }
 
 impl CheckedStmt {
+    /// Outer bindings assigned by this statement, excluding block and loop locals.
+    pub(crate) fn assigned_names(&self) -> indexmap::IndexSet<Identifier> {
+        let mut assigned = indexmap::IndexSet::new();
+        collect_assignments(self, &mut std::collections::HashSet::new(), &mut assigned);
+        assigned
+    }
+
     fn unchecked(statement: super::ast::Stmt) -> Self {
         match statement {
             super::ast::Stmt::Local {
@@ -192,6 +200,55 @@ impl CheckedStmt {
             },
             super::ast::Stmt::Return(expr) => Self::Return(CheckedExpr::unchecked(expr)),
         }
+    }
+}
+
+fn collect_assignments(
+    statement: &CheckedStmt,
+    locals: &mut std::collections::HashSet<Identifier>,
+    assigned: &mut indexmap::IndexSet<Identifier>,
+) {
+    match statement {
+        CheckedStmt::Local { name, .. } => {
+            locals.insert(name.clone());
+        }
+        CheckedStmt::Assign { name, .. } if !locals.contains(name) => {
+            assigned.insert(name.clone());
+        }
+        CheckedStmt::If {
+            then_block,
+            else_block,
+            ..
+        } => {
+            for block in std::iter::once(then_block).chain(else_block.iter()) {
+                let mut scoped = locals.clone();
+                for statement in &block.statements {
+                    collect_assignments(statement, &mut scoped, assigned);
+                }
+            }
+        }
+        CheckedStmt::For {
+            initializer,
+            update,
+            body,
+            ..
+        } => {
+            let mut scoped = locals.clone();
+            collect_assignments(initializer, &mut scoped, assigned);
+            let mut body_scope = scoped.clone();
+            for statement in &body.statements {
+                collect_assignments(statement, &mut body_scope, assigned);
+            }
+            collect_assignments(update, &mut scoped, assigned);
+        }
+        CheckedStmt::ForMarks { index, body, .. } | CheckedStmt::ForRange { index, body, .. } => {
+            let mut scoped = locals.clone();
+            scoped.insert(index.clone());
+            for statement in &body.statements {
+                collect_assignments(statement, &mut scoped, assigned);
+            }
+        }
+        _ => {}
     }
 }
 

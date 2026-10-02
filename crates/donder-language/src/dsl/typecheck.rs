@@ -177,14 +177,17 @@ impl Checker {
                 "`sample` must return a color on all paths",
             );
         }
-        if let Err(diagnostics) = super::staging::check(&effect.params, &mut body, is_generator) {
-            self.diagnostics.extend(diagnostics);
-        }
+        let preparation_controls = super::staging::check(&effect.params, &mut body, is_generator)
+            .unwrap_or_else(|diagnostics| {
+                self.diagnostics.extend(diagnostics);
+                super::staging::PreparationControls::default()
+            });
         CheckedEffectDecl {
             name: effect.name,
             params: effect.params,
             entrypoint: effect.entrypoint,
             body,
+            preparation_controls,
         }
     }
 

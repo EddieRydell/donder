@@ -125,7 +125,7 @@ impl Playback {
     fn render(&mut self, display_time: u64) {
         let (mode, position) = self.transport.sample(
             display_time,
-            self.show.sequence().signals.duration.as_ticks(),
+            self.show.sequence().signals().duration.as_ticks(),
         );
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             for buffer in &mut self.buffers {
@@ -233,12 +233,12 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
     let sequence = decode_sequence(bytes, limits)?;
     println!("LOAD decoded heap_free={}", esp_alloc::HEAP.free());
     #[cfg(feature = "i2s-output")]
-    if sequence.output_widths.is_empty()
-        || sequence.output_widths.len() > OUTPUT_LANES
+    if sequence.outputs().is_empty()
+        || sequence.outputs().len() > OUTPUT_LANES
         || sequence
-            .output_widths
+            .outputs()
             .iter()
-            .any(|&width| width as usize > OUTPUT_PIXELS * 3 || width % 3 != 0)
+            .any(|output| output.width as usize > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
     {
         return Err(LoadError::Limit);
     }
@@ -246,9 +246,9 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
     println!("LOAD workspace heap_free={}", esp_alloc::HEAP.free());
     let buffers = show
         .sequence()
-        .output_widths
+        .outputs()
         .iter()
-        .map(|&width| vec![0; width as usize])
+        .map(|output| vec![0; output.width as usize])
         .collect();
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
@@ -509,7 +509,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let start = Instant::now();
         match load(bytes) {
             Ok(playback) => {
-                let pixels = playback.show.sequence().signals.pixel_count;
+                let pixels = playback.show.sequence().signals().pixel_count;
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
                 if show_slots::commit(&mut storage.shows(), slot).is_err() {
@@ -710,7 +710,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             } else {
                 playback
                     .transport
-                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
                     .1
             };
             playback.transport.apply(mode, position, now, true);
@@ -719,13 +719,13 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             playback: active.as_ref().map(|playback| PlaybackStatus {
                 mode: playback
                     .transport
-                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
                     .0,
                 position_micros: playback
                     .transport
-                    .sample(now, playback.show.sequence().signals.duration.as_ticks())
+                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
                     .1,
-                duration_micros: playback.show.sequence().signals.duration.as_ticks(),
+                duration_micros: playback.show.sequence().signals().duration.as_ticks(),
                 archive_crc: playback.archive_crc,
                 archive_bytes: playback.archive_bytes,
                 pending_command: playback.transport.pending.map(|command| command.id),
@@ -971,7 +971,7 @@ async fn render_outputs(
         if let Some(playback) = active.as_mut() {
             playback.transport.refresh(
                 master_now,
-                playback.show.sequence().signals.duration.as_ticks(),
+                playback.show.sequence().signals().duration.as_ticks(),
             );
             playback.render(next_latch);
         }

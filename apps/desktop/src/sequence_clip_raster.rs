@@ -2,7 +2,7 @@
 //!
 //! The worker owns request coalescing, cancellation, cache records, and the
 //! pixel-token transport used by the Tauri protocol. Effect evaluation remains
-//! in `donder-elaboration`; pixel decoding and drawing remain in the frontend.
+//! in `donder-runtime`; pixel decoding and drawing remain in the frontend.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -13,10 +13,7 @@ use std::sync::{
 };
 use std::thread;
 
-use donder_elaboration::{
-    EffectRasterPrepareBatch, PreparedEffectRasterRenderer, RenderedTargetPixelAddress,
-    resolve_effect_target_pixel_addresses,
-};
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::dsl::{EffectKind, hash_compiled_effect};
 use donder_language::effect::{
     CurveDefinition, CurveId, CurveSource, EffectDefinition, EffectInst, EffectInstId,
@@ -29,6 +26,7 @@ use donder_language::sequence::{
 use donder_language::setup::SetupId;
 use donder_language::values::{Curve, DonderTime, Gradient};
 use donder_project_io::ProjectSession;
+use donder_runtime::sequence::PreparedSequence;
 
 use crate::dto::{
     EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,

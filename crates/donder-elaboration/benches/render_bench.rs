@@ -1,10 +1,9 @@
 use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use donder_elaboration::{
-    PreparedSequenceOutput, PreparedSignalGraph, RenderedFrame, elaborate_sequence,
-};
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::values::{Color, sample_time_from_frame};
 use donder_project_io::load_project;
+use donder_runtime::signal::{EvaluatedFrame, PreparedSignalGraph};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -74,7 +73,6 @@ struct RenderScenario {
 fn bench_render(c: &mut Criterion) {
     pin_benchmark_thread();
     let session = load_project(&project_path()).expect("benchmark project should load");
-    let setup_id = session.project.root.setup.id();
     let sequence_id = session
         .project
         .root
@@ -86,19 +84,18 @@ fn bench_render(c: &mut Criterion) {
                 && id.0.root_source().object() == BENCHMARK_SEQUENCE_OBJECT
         })
         .expect("benchmark project should include the layer_test sequence");
-    let renderer = elaborate_sequence(&session.project, setup_id, sequence_id)
-        .expect("benchmark project should prepare");
-    let output = PreparedSequenceOutput::prepare(&session.project, setup_id, sequence_id)
+    let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
         .expect("benchmark controller output should prepare");
+    let renderer = output.signals();
     assert_scenarios(&renderer);
 
     c.bench_function("prepare_starter", |b| {
         b.iter(|| {
             black_box(
-                elaborate_sequence(
+                prepare(
                     black_box(&session.project),
-                    black_box(setup_id),
                     black_box(sequence_id),
+                    PrepareOutputs::All,
                 )
                 .expect("benchmark project should prepare"),
             )
@@ -151,14 +148,23 @@ fn bench_render(c: &mut Criterion) {
     });
 
     let mut output_workspace = output.workspace().unwrap();
+    let mut output_buffers: Vec<_> = output
+        .outputs()
+        .iter()
+        .map(|port| vec![0; port.width as usize])
+        .collect();
     c.bench_function("controller_output_dense_60_frames", |b| {
         b.iter(|| {
             for frame in PLAYBACK_START_FRAME..PLAYBACK_START_FRAME + PLAYBACK_FRAME_COUNT {
-                let sample_time = sample_time_from_frame(frame, output.frame_rate())
+                let sample_time = sample_time_from_frame(frame, output.signals().frame_rate)
                     .expect("benchmark frame should fit the controller clock");
                 black_box(
                     output
-                        .sample_into(black_box(sample_time), &mut output_workspace)
+                        .evaluate(
+                            black_box(sample_time),
+                            &mut output_buffers,
+                            &mut output_workspace,
+                        )
                         .expect("benchmark controller frame should render"),
                 );
             }
@@ -263,7 +269,8 @@ fn bench_mark_playback(c: &mut Criterion) {
         );
         source.effects = vec![generator];
         source.automation_clips.clear();
-        let sequence = elaborate_sequence(&project, project.root.setup.id(), &id).unwrap();
+        let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
+        let sequence = prepared.signals();
         let effect = sequence
             .effects
             .iter()
@@ -416,7 +423,12 @@ fn bench_layers(c: &mut Criterion) {
     for (name, source, params) in effect_fixtures::layer_cases() {
         let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
         for layers in [1, 4, 16] {
-            let show = workload::layered_show(200, effect.bytecode.clone(), bound.clone(), layers);
+            let show = workload::layered_show(
+                200,
+                effect.sample_program().unwrap().clone(),
+                bound.clone(),
+                layers,
+            );
             let mut workspace = show.workspace().unwrap();
             let mut output = [vec![0; 600]];
             let mut frame = 0;
@@ -462,7 +474,11 @@ fn bench_operators(c: &mut Criterion) {
                 let operator = donder_language::dsl::compile_operators(source)
                     .unwrap()
                     .remove(0);
-                let mut show = workload::show(count, effect.bytecode.clone(), bound.clone());
+                let mut show = workload::show(
+                    count,
+                    effect.sample_program().unwrap().clone(),
+                    bound.clone(),
+                );
                 workload::apply_operator(&mut show, operator.bytecode.clone(), reuse);
                 let mut workspace = show.workspace().unwrap();
                 let mut output = [vec![0; count * 3]];
@@ -513,13 +529,19 @@ fn bench_operators(c: &mut Criterion) {
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
             workload::apply_operator(&mut show, echo.bytecode.clone(), true);
+            let mut signals = show.signals().clone();
             let donder_runtime::signal::PreparedSignalKind::Operator { operator, .. } =
-                &mut show.signals.plan.nodes[1].kind
+                &mut signals.plan.nodes[1].kind
             else {
                 unreachable!();
             };
             operator.params =
                 donder_runtime::dsl::BoundParams::bind_pairs(echo.params(), &[]).unwrap();
+            show = donder_runtime::sequence::PreparedSequence::new(
+                signals,
+                show.patch().clone(),
+                show.outputs().into(),
+            );
             if nested {
                 // Layer -> Echo -> Invert -> Echo mixes scalar temporal requests
                 // with a uniform upstream query that must not promote back to frames.
@@ -564,7 +586,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
     let (effect, params) = effect_fixtures::uniform_resources();
     let mut expected = None;
     for (name, reuse) in [("full", false), ("reuse", true)] {
-        let mut program = effect.bytecode.clone();
+        let mut program = effect.sample_program().unwrap().clone();
         if !reuse {
             program.pixel_entry = 0;
         }
@@ -604,14 +626,14 @@ fn bench_uniform_upstream(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().next().unwrap();
     let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
-    assert!(!effect.bytecode.uses_pixel_context);
+    assert!(!effect.sample_program().unwrap().uses_pixel_context);
     let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     for count in [200, 1600] {
         let mut expected = None;
         for reuse in [false, true] {
-            let mut program = effect.bytecode.clone();
+            let mut program = effect.sample_program().unwrap().clone();
             // Conservative dependency metadata forces recomputation of the same
             // bytecode, giving an exact-output control for uniform-result reuse.
             program.uses_pixel_context = !reuse;
@@ -653,7 +675,12 @@ fn bench_gamma(c: &mut Criterion) {
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
     let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
     for count in workload::COUNTS {
-        let mut show = workload::layered_show(count, effect.bytecode.clone(), bound.clone(), 1);
+        let mut show = workload::layered_show(
+            count,
+            effect.sample_program().unwrap().clone(),
+            bound.clone(),
+            1,
+        );
         workload::apply_gamma(&mut show, workload::gamma_lookup());
         let mut workspace = show.workspace().unwrap();
         let mut output = [vec![0; count * 3]];
@@ -721,7 +748,7 @@ fn project_path() -> Utf8PathBuf {
         .join("examples/starter")
 }
 
-fn checksum_frame(frame: &RenderedFrame) -> u64 {
+fn checksum_frame(frame: &EvaluatedFrame) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     hash = checksum_u64(hash, u64::from(frame.frame_index));
     for element in &frame.fixtures {

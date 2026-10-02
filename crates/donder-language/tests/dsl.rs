@@ -1,7 +1,7 @@
 use donder_language::dsl::{
-    Color, GeneratedEffectSlot, GeneratorContext, Identifier, OperatorRunContext, RuntimeError,
-    SignalSampler, TargetItemValue, TargetPixelValue, TargetValue, Value, VmWorkspace,
-    compile_effects, compile_operators,
+    Color, GeneratedEffectSlot, GeneratorBinding, GeneratorContext, GeneratorInput, Identifier,
+    OperatorRunContext, RuntimeError, SignalSampler, TargetItemValue, TargetValue, Value,
+    VmWorkspace, compile_effects, compile_operators,
 };
 use donder_language::values::{Marks, SampleDuration, SampleTime};
 use donder_runtime::dsl::bytecode::{Instruction, SignalPixel};
@@ -187,19 +187,21 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
     )
     .unwrap()
     .remove(0)
-    .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    .effect
+    .generator()
+    .unwrap()
+    .clone();
     let target = Arc::new(TargetValue {
         groups: vec![Arc::new(TargetItemValue {
             pixels: Arc::from([
-                TargetPixelValue {
+                donder_runtime::signal::PreparedPixel {
                     fixture_index: 0,
                     fixture_pixel_index: 0,
                     pixel_index: 0,
                     pixel_count: 2,
                     pixel_fraction: 0.0,
                 },
-                TargetPixelValue {
+                donder_runtime::signal::PreparedPixel {
                     fixture_index: 0,
                     fixture_pixel_index: 1,
                     pixel_index: 1,
@@ -210,16 +212,15 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
         })],
     });
     let generated = effect
-        .generate_bound(
-            &params,
-            &GeneratorContext {
-                start_time: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(1_000_000),
-                target,
-            },
-            &mut VmWorkspace::default(),
-        )
-        .unwrap();
+        .bind(&[])
+        .unwrap()
+        .specialize(&GeneratorContext {
+            start_time: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            target,
+        })
+        .unwrap()
+        .children;
     assert_eq!(
         generated
             .iter()
@@ -229,16 +230,15 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
     );
 
     let generated = effect
-        .generate_bound(
-            &params,
-            &GeneratorContext {
-                start_time: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(1_000_000),
-                target: Arc::new(TargetValue { groups: Vec::new() }),
-            },
-            &mut VmWorkspace::default(),
-        )
-        .unwrap();
+        .bind(&[])
+        .unwrap()
+        .specialize(&GeneratorContext {
+            start_time: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            target: Arc::new(TargetValue { groups: Vec::new() }),
+        })
+        .unwrap()
+        .children;
     assert_eq!(generated.len(), 2);
     assert!(generated.iter().all(|child| child.target.pixels.is_empty()));
 }
@@ -414,14 +414,18 @@ fn compiler_tracks_pixel_dependency_including_branches_and_signal_samples() {
     ] {
         let source = format!("effect Dependency {{ color sample() {{ return {expression}; }} }}");
         let effect = compile_effects(&source).unwrap().remove(0).effect;
-        assert_eq!(effect.bytecode.uses_pixel_context, expected, "{expression}");
+        assert_eq!(
+            effect.sample_program().unwrap().uses_pixel_context,
+            expected,
+            "{expression}"
+        );
     }
     let operator = compile_operators("operator Identity { input Signal source; color sample() { return source.at(seconds()); } }")
         .unwrap().remove(0);
     assert!(operator.bytecode.uses_pixel_context);
     let effect = compile_effects("effect Branch { color sample() { if (progress() > 0.5) { return rgb(pixel_index(), 0.0, 0.0); } return #000000; } }")
         .unwrap().remove(0).effect;
-    assert!(effect.bytecode.uses_pixel_context);
+    assert!(effect.sample_program().unwrap().uses_pixel_context);
 }
 
 #[test]
@@ -662,7 +666,7 @@ fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
 }
 
 #[test]
-fn generator_emitted_arrays_and_enums_outlive_vm_registers() {
+fn generator_emitted_arrays_and_enums_outlive_specialization() {
     let effect = compile_effects(
         "effect EmitValues {
             param enum mode { alpha, beta } = beta;
@@ -678,21 +682,32 @@ fn generator_emitted_arrays_and_enums_outlive_vm_registers() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    .remove(0);
+    let params = effect
+        .effect
+        .bind_params(&IndexMap::new())
+        .unwrap()
+        .iter_values()
+        .map(GeneratorInput::Fixed)
+        .collect::<Vec<_>>();
+    let generator = effect.effect.generator().unwrap().clone();
     let context = GeneratorContext {
         start_time: SampleTime::from_ticks(0),
         duration: SampleDuration::from_ticks(1_000_000),
         target: Arc::new(TargetValue { groups: Vec::new() }),
     };
-    let mut workspace = VmWorkspace::default();
-    let first = effect
-        .generate_bound(&params, &context, &mut workspace)
-        .unwrap();
-    let second = effect
-        .generate_bound(&params, &context, &mut workspace)
-        .unwrap();
+    let first = generator
+        .bind(&params)
+        .unwrap()
+        .specialize(&context)
+        .unwrap()
+        .children;
+    let second = generator
+        .bind(&params)
+        .unwrap()
+        .specialize(&context)
+        .unwrap()
+        .children;
     assert_eq!(first, second);
     assert_eq!(first.len(), 3);
     for (index, child) in first.iter().enumerate() {
@@ -702,16 +717,16 @@ fn generator_emitted_arrays_and_enums_outlive_vm_registers() {
             vec![
                 (
                     Identifier::new("mode".into()).unwrap(),
-                    Value::Enum(
+                    GeneratorBinding::Constant(Value::Enum(
                         Identifier::new(if index == 0 { "beta" } else { "alpha" }.into()).unwrap()
-                    )
+                    ))
                 ),
                 (
                     Identifier::new("values".into()).unwrap(),
-                    Value::Array(Arc::from([
+                    GeneratorBinding::Constant(Value::Array(Arc::from([
                         Value::Array(Arc::from([Value::Int(index)])),
                         Value::Array(Arc::from([Value::Int(index + 1), Value::Int(index + 2)])),
-                    ]))
+                    ])))
                 ),
             ]
         );
@@ -797,18 +812,20 @@ fn generator_emit_events_carry_only_ordered_numeric_slots() {
     .into_iter()
     .next()
     .expect("one effect")
-    .effect;
+    .effect
+    .generator()
+    .unwrap()
+    .clone();
     let generated = effect
-        .generate_bound(
-            &effect.bind_params(&IndexMap::new()).unwrap(),
-            &GeneratorContext {
-                start_time: SampleTime::from_ticks(2_000_000),
-                duration: SampleDuration::from_ticks(1_000_000),
-                target: Arc::new(TargetValue { groups: Vec::new() }),
-            },
-            &mut VmWorkspace::default(),
-        )
-        .expect("generator runs");
+        .bind(&[])
+        .unwrap()
+        .specialize(&GeneratorContext {
+            start_time: SampleTime::from_ticks(2_000_000),
+            duration: SampleDuration::from_ticks(1_000_000),
+            target: Arc::new(TargetValue { groups: Vec::new() }),
+        })
+        .expect("generator specializes")
+        .children;
 
     assert_eq!(
         generated
@@ -860,19 +877,103 @@ fn emitted_reference_spans_do_not_change_semantics_or_bytecode_hashes() {
 }
 
 #[test]
-fn invalid_generated_effect_slot_is_rejected_by_the_vm() {
-    let mut effect = compile_effects("effect Parent { void generate() { timeline.emit Local { start: 0.0, duration: 1.0, target: target }; } }").unwrap().remove(0).effect;
-    effect.generated_effect_count = 0;
-    let result = effect.generate_bound(
-        &effect.bind_params(&IndexMap::new()).unwrap(),
-        &GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        },
-        &mut VmWorkspace::default(),
+fn generators_have_no_sampling_bytecode() {
+    let effect = compile_effects("effect Parent { void generate() { timeline.emit Local { start: 0.0, duration: 1.0, target: target }; } }").unwrap().remove(0).effect;
+    assert!(effect.sample_program().is_none());
+    assert!(effect.generator().is_some());
+}
+
+#[test]
+fn generator_child_slots_follow_source_order_across_control_flow() {
+    use donder_language::imports::SourceReference;
+    let compiled = compile_effects(
+        "effect Parent {
+        fixed param bool choose = true;
+        void generate() {
+            for (int i = 0; i < 2; i = i + 1) {
+                if (choose) {
+                    timeline.emit First { start: 0.0, duration: 1.0, target: target };
+                } else {
+                    timeline.emit Second { start: 0.0, duration: 1.0, target: target };
+                }
+            }
+            timeline.emit Last { start: 0.0, duration: 1.0, target: target };
+        }
+    }",
+    )
+    .unwrap()
+    .remove(0);
+    assert_eq!(
+        compiled
+            .emitted_references
+            .iter()
+            .map(|reference| &reference.reference)
+            .collect::<Vec<_>>(),
+        ["First", "Second", "Last"]
+            .map(|name| SourceReference::Local(Identifier::new(name.into()).unwrap()))
+            .iter()
+            .collect::<Vec<_>>()
     );
-    assert!(result.is_err());
+    let context = GeneratorContext {
+        start_time: SampleTime::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        target: Arc::new(TargetValue { groups: Vec::new() }),
+    };
+    for (choose, slots) in [(true, [0, 0, 2]), (false, [1, 1, 2])] {
+        let result = compiled
+            .effect
+            .generator()
+            .unwrap()
+            .bind(&[GeneratorInput::Fixed(Value::Bool(choose))])
+            .unwrap()
+            .specialize(&context)
+            .unwrap();
+        assert_eq!(
+            result
+                .children
+                .iter()
+                .map(|child| child.definition.0)
+                .collect::<Vec<_>>(),
+            slots
+        );
+    }
+}
+
+#[test]
+fn generator_hash_tracks_the_specialization_program() {
+    use std::hash::Hasher;
+    let source = "effect Parent {
+        fixed param bool choose = true;
+        param float level = 0.5;
+        void generate() {
+            float result = level + 1.0;
+            for (int i = 0; i < 2; i = i + 1) {
+                if (choose) {
+                    timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: result + i };
+                } else {
+                    timeline.emit Child { start: 0.0, duration: 2.0, target: target, value: level };
+                }
+            }
+        }
+    }";
+    let hash = |source: &str| {
+        let effect = compile_effects(source).unwrap().remove(0).effect;
+        let mut state = std::collections::hash_map::DefaultHasher::new();
+        donder_language::dsl::hash_compiled_effect(&effect, &mut state);
+        state.finish()
+    };
+    let original = hash(source);
+    assert_eq!(original, hash(&format!("\n{source}\n")));
+    for (old, new) in [
+        ("level + 1.0", "level + 2.0"),
+        ("i < 2", "i < 3"),
+        ("if (choose)", "if (!choose)"),
+        ("duration: 2.0", "duration: 3.0"),
+        ("value: result + i", "value: result - i"),
+        ("value: level", "alternate: level"),
+    ] {
+        assert_ne!(original, hash(&source.replace(old, new)), "{old} -> {new}");
+    }
 }
 
 #[test]

@@ -191,6 +191,10 @@ impl FixtureDefinition {
                 )
                 .filter(|count| *count <= MAX_FIXTURE_PIXELS)
                 .ok_or(FixtureGeometryError::TooManyPixels)?;
+            // Derived coordinates must be valid at authoring acceptance, not
+            // discovered later while preparing playback or drawing a preview.
+            crate::geometry::element_pixels(element)
+                .map_err(|_| FixtureGeometryError::InvalidElement(element.id))?;
         }
         Ok(total)
     }

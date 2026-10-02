@@ -158,28 +158,37 @@ impl Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TargetValue {
     pub groups: Vec<Arc<TargetItemValue>>,
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TargetItemsValue {
     pub groups: Vec<Arc<TargetItemValue>>,
 }
 
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct TargetItemValue {
-    pub pixels: Arc<[TargetPixelValue]>,
+    /// Generator selection only regroups existing records. Their physical
+    /// addresses and sampling coordinates retain the prepared representation.
+    pub pixels: Arc<[crate::signal::PreparedPixel]>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct TargetPixelValue {
-    pub fixture_index: i32,
-    pub fixture_pixel_index: i32,
-    pub pixel_index: i32,
-    pub pixel_count: i32,
-    pub pixel_fraction: f32,
+impl TargetItemValue {
+    /// Flatten selected groups without changing pixel addresses, sample context,
+    /// or order. A single group can keep its existing shared storage.
+    pub fn from_groups(groups: &[Arc<Self>]) -> Arc<Self> {
+        if let [group] = groups {
+            return Arc::clone(group);
+        }
+        Arc::new(Self {
+            pixels: groups
+                .iter()
+                .flat_map(|group| group.pixels.iter().copied())
+                .collect(),
+        })
+    }
 }
 
 fn is_identifier_start(candidate: char) -> bool {

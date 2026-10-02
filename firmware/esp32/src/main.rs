@@ -205,8 +205,12 @@ fn main() -> ! {
                         Mixed | Uniform(_) => fixtures::identity_program(),
                     };
                     if let Uniform(reuse) = kind {
-                        assert!(!show.signals.programs[0].uses_pixel_context);
-                        show.signals.programs[0].uses_pixel_context = !reuse;
+                        let mut signals = show.signals().clone();
+                        assert!(!signals.programs[0].uses_pixel_context);
+                        signals.programs[0].uses_pixel_context = !reuse;
+                        show = donder_runtime::sequence::PreparedSequence::new(
+                            signals, show.patch().clone(), show.outputs().into(),
+                        );
                     }
                     workload::apply_operator(
                         &mut show,

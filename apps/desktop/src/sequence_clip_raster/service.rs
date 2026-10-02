@@ -368,7 +368,6 @@ impl SequenceClipRasterService {
                 request_id,
                 document_key: document_key.clone(),
                 project,
-                setup_id,
                 sequence_id,
                 settings,
                 work_items,

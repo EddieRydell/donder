@@ -60,13 +60,12 @@ The direct VM benches live in `crates/donder-language/benches/effect_vm_bench.rs
 Effect DSL APIs:
 
 - `compile_effects`
-- `bind_params_cached`
+- `bind_params`
 - `sample_bound`
-- `generate_bound`
 
-The VM benches cover constant return overhead, curve sampling, branch-heavy scan logic, section
-position, smoothstep, enum comparisons, curve clamping, seeded random paths, trigonometry, HSV,
-dense mixed arithmetic, marks, target sections, `pick`, arrays, loops, and `timeline.emit`.
+The VM suite samples ScanSweep, ImpactBurst, SparkleComet, and ShimmerField over 512 pixels each.
+Generator expansion is not a VM benchmark entry point. The renderer's host-side mark fixtures
+use `GeneratorProgram::specialize`, the same expansion path as project preparation.
 
 The renderer benches live in `crates/donder-elaboration/benches/render_bench.rs`. They load
 `examples/starter/project.donder`, benchmark renderer preparation, and render frames

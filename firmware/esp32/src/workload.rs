@@ -40,14 +40,18 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
         .iter()
         .find(|definition| definition.effect.name.as_str() == "Pulse")
         .unwrap();
-    let mut show = layered_show(
+    let show = layered_show(
         count,
-        pulse.effect.bytecode.clone(),
+        pulse.effect.sample_program().unwrap().clone(),
         BoundParams::default(),
         layers,
     );
-    show.signals.programs =
-        vec![chase.effect.bytecode.clone(), pulse.effect.bytecode.clone()].into();
+    let mut signals = show.signals().clone();
+    signals.programs = vec![
+        chase.effect.sample_program().unwrap().clone(),
+        pulse.effect.sample_program().unwrap().clone(),
+    ]
+    .into();
     let shape: Value = Value::Curve(
         Curve {
             points: vec![
@@ -82,7 +86,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
         }
         .into(),
     );
-    for (index, effect) in show.signals.effects.iter_mut().enumerate() {
+    for (index, effect) in signals.effects.iter_mut().enumerate() {
         let gradient = Value::Gradient(
             Gradient {
                 stops: vec![GradientStop {
@@ -135,13 +139,18 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
         effect.start_time = SampleTime::from_ticks(index as u32 * 43_000);
         effect.duration = SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000);
     }
-    show
+    PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    )
 }
 
 // Extend the single-operator fixture into a chain, sharing its bytecode.
 pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
+    let mut signals = show.signals().clone();
     assert!(depth > 0);
-    let graph = &mut show.signals.plan;
+    let graph = &mut signals.plan;
     let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
     assert_eq!(nodes.len(), 2);
     for input in 1..depth {
@@ -153,7 +162,7 @@ pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
             panic!("nested fixture requires a DSL operator");
         };
         inputs[0] = input;
-        *vm_slot = input as u16;
+        *vm_slot = input;
         nodes.push(node);
     }
     graph.nodes = nodes.into();
@@ -161,6 +170,11 @@ pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
     graph.vm_workspace_count = depth;
     graph.frame_nodes = vec![depth].into();
     graph.frame_slots = vec![0; depth + 1].into();
+    *show = PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    );
 }
 
 #[allow(dead_code)] // Compiled on the host, not the device.
@@ -169,11 +183,12 @@ pub const IDENTITY_SOURCE: &str =
 
 pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
     nest_operator(show, 2);
-    let program_index = show.signals.programs.len() as u32;
-    let mut programs = core::mem::take(&mut show.signals.programs).into_vec();
+    let mut signals = show.signals().clone();
+    let program_index = signals.programs.len();
+    let mut programs = core::mem::take(&mut signals.programs).into_vec();
     programs.push(program);
-    show.signals.programs = programs.into();
-    let graph = &mut show.signals.plan;
+    signals.programs = programs.into();
+    let graph = &mut signals.plan;
     let vm_slot = 1;
     graph.vm_workspace_count += 1;
     let mut nodes = core::mem::take(&mut graph.nodes).into_vec();
@@ -206,6 +221,11 @@ pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
     graph.output_index = 3;
     graph.frame_nodes = vec![3].into();
     graph.frame_slots = vec![0; 4].into();
+    *show = PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    );
 }
 
 #[allow(dead_code)] // Compiled on the host, not the device.
@@ -224,6 +244,7 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
 } }";
 
 pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProgram, empty: bool) {
+    let mut signals = show.signals().clone();
     use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
     use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let mut curve = Curve {
@@ -276,12 +297,12 @@ pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProg
         default: Some(value),
     });
     let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
-    show.signals.programs[0] = program;
-    show.signals.effects[0].implementation = PreparedEffectImplementation::Dsl {
+    signals.programs[0] = program;
+    signals.effects[0].implementation = PreparedEffectImplementation::Dsl {
         program: 0,
         bound_params: params,
     };
-    show.signals.effects[0].automation = Some(alloc::boxed::Box::new(PreparedEffectAutomation {
+    signals.effects[0].automation = Some(alloc::boxed::Box::new(PreparedEffectAutomation {
         workspace_slot: 0,
         bindings: vec![PreparedAutomation {
             start: SampleTime::from_ticks(0),
@@ -295,6 +316,11 @@ pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProg
         }]
         .into(),
     }));
+    *show = PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    );
 }
 
 #[allow(dead_code)] // Compiled on the host; firmware receives only bytecode.
@@ -303,12 +329,13 @@ pub const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
 }";
 
 pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram, reuse: bool) {
+    let mut signals = show.signals().clone();
     if !reuse {
         disable_uniform_reuse(&mut program);
     }
-    let sequence = &mut show.signals;
+    let sequence = &mut signals;
     let mut programs = core::mem::take(&mut sequence.programs).into_vec();
-    let program_index = programs.len() as u32;
+    let program_index = programs.len();
     programs.push(program);
     sequence.programs = programs.into();
     sequence.plan = SignalPlan {
@@ -337,6 +364,11 @@ pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram,
         frame_slots: vec![0, 0].into(),
         frame_buffer_count: 1,
     };
+    *show = PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    );
 }
 
 pub fn disable_uniform_reuse(program: &mut BytecodeProgram) {
@@ -355,10 +387,16 @@ pub fn gamma_lookup() -> [u8; 256] {
 }
 
 pub fn apply_gamma(show: &mut PreparedSequence, lookup: [u8; 256]) {
-    show.patch.lookups = vec![lookup].into_boxed_slice();
-    for route in &mut show.patch.routes {
+    let mut patch = show.patch().clone();
+    patch.lookups = vec![lookup].into_boxed_slice();
+    for route in &mut patch.routes {
         route.lookup = Some(0);
     }
+    *show = PreparedSequence::new(
+        show.signals().clone(),
+        patch,
+        show.outputs().to_vec().into(),
+    );
 }
 
 pub fn time(frame: usize) -> SampleTime {
@@ -386,79 +424,85 @@ pub fn checksum(bytes: &[u8]) -> u32 {
 // one layer/output signal graph, and the production RGB-to-GRB patch path.
 // Construction is measured separately; the runtime evaluator is not duplicated.
 pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> PreparedSequence {
-    PreparedSequence {
+    rgb_output(PreparedSignalGraph {
+        clips: Box::new([]),
+        parameter_environments: vec![].into_boxed_slice(),
         workspace_key: 1,
-        signals: PreparedSignalGraph {
-            parameter_environments: vec![].into_boxed_slice(),
-            workspace_key: 1,
-            frame_rate: 120,
-            frame_count: 960,
-            duration: SampleDuration::from_ticks(8_000_000),
-            fixtures: vec![PreparedFixture {
-                id: 0,
-                pixel_count: count,
-            }]
-            .into_boxed_slice(),
-            fixture_pixel_offsets: vec![0].into_boxed_slice(),
+        frame_rate: 120,
+        frame_count: 960,
+        duration: SampleDuration::from_ticks(8_000_000),
+        fixtures: vec![PreparedFixture {
+            id: 0,
             pixel_count: count,
-            effects: vec![PreparedEffect {
-                start_time: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(8_000_000),
-                target: 0,
-                implementation: PreparedEffectImplementation::Dsl {
-                    program: 0,
-                    bound_params: params,
-                },
-                automation: None,
-            }]
-            .into_boxed_slice(),
-            programs: vec![program].into_boxed_slice(),
-            targets: vec![PreparedTarget {
-                pixels: 0..count as u32,
-                sample_count: 0,
-            }]
-            .into_boxed_slice(),
-            spatial_contexts: (0..count)
-                .map(|pixel| donder_runtime::dsl::SpatialContext {
-                    position: [pixel as f32, 0.0],
-                    min: [0.0, 0.0],
-                    max: [count.saturating_sub(1) as f32, 0.0],
-                })
-                .collect(),
-            target_pixels: (0..count)
-                .map(|pixel| PreparedPixel {
-                    fixture_index: 0,
-                    fixture_pixel_index: pixel as u32,
-                    pixel_index: pixel as u32,
-                    pixel_count: count as u32,
-                    pixel_fraction: pixel as f32 / (count - 1) as f32,
-                })
-                .collect(),
-            effects_by_layer: vec![vec![0].into_boxed_slice()].into_boxed_slice(),
-            layers: vec![PreparedLayer { enabled: true }].into_boxed_slice(),
-            plan: SignalPlan {
-                output_index: 1,
-                target: 0,
-                nodes: vec![
-                    PreparedSignalNode {
-                        kind: PreparedSignalKind::Layer { layer_index: 0 },
-                    },
-                    PreparedSignalNode {
-                        kind: PreparedSignalKind::Output {
-                            inputs: vec![0].into_boxed_slice(),
-                        },
-                    },
-                ]
-                .into_boxed_slice(),
-                vm_workspace_count: 0,
-                frame_nodes: vec![0, 1].into_boxed_slice(),
-                frame_slots: vec![0, 1].into_boxed_slice(),
-                frame_buffer_count: 2,
+        }]
+        .into_boxed_slice(),
+        fixture_pixel_offsets: vec![0].into_boxed_slice(),
+        pixel_count: count,
+        effects: vec![PreparedEffect {
+            start_time: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
+            target: 0,
+            implementation: PreparedEffectImplementation::Dsl {
+                program: 0,
+                bound_params: params,
             },
+            automation: None,
+        }]
+        .into_boxed_slice(),
+        programs: vec![program].into_boxed_slice(),
+        targets: vec![PreparedTarget {
+            pixels: 0..count,
+            sample_count: 0,
+        }]
+        .into_boxed_slice(),
+        spatial_contexts: (0..count)
+            .map(|pixel| donder_runtime::dsl::SpatialContext {
+                position: [pixel as f32, 0.0],
+                min: [0.0, 0.0],
+                max: [count.saturating_sub(1) as f32, 0.0],
+            })
+            .collect(),
+        target_pixels: (0..count)
+            .map(|pixel| PreparedPixel {
+                fixture_index: 0,
+                fixture_pixel_index: pixel as u32,
+                pixel_index: pixel,
+                pixel_count: count,
+                pixel_fraction: pixel as f32 / (count - 1) as f32,
+            })
+            .collect(),
+        effects_by_layer: vec![vec![0].into_boxed_slice()].into_boxed_slice(),
+        layers: vec![PreparedLayer { enabled: true }].into_boxed_slice(),
+        plan: SignalPlan {
+            output_index: 1,
+            target: 0,
+            nodes: vec![
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Layer { layer_index: 0 },
+                },
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Output {
+                        inputs: vec![0].into_boxed_slice(),
+                    },
+                },
+            ]
+            .into_boxed_slice(),
+            vm_workspace_count: 0,
+            frame_nodes: vec![0, 1].into_boxed_slice(),
+            frame_slots: vec![0, 1].into_boxed_slice(),
+            frame_buffer_count: 2,
         },
-        patch: PreparedPatch {
+    })
+}
+
+/// Attach the benchmark's single GRB output after its signal graph is complete.
+pub fn rgb_output(signals: PreparedSignalGraph) -> PreparedSequence {
+    let count = signals.pixel_count;
+    PreparedSequence::new(
+        signals,
+        PreparedPatch {
             routes: vec![PreparedPixelRoute {
-                pixels: 0..count as u32,
+                pixels: 0..count,
                 frame: 0,
                 start_slot: 0,
                 encoding: PixelEncoding::Rgb { order: [1, 0, 2] },
@@ -467,8 +511,13 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
             .into_boxed_slice(),
             lookups: vec![].into_boxed_slice(),
         },
-        output_widths: vec![count as u32 * 3].into_boxed_slice(),
-    }
+        vec![donder_runtime::sequence::PreparedOutput {
+            controller_index: 0,
+            port: 0,
+            width: count as u32 * 3,
+        }]
+        .into_boxed_slice(),
+    )
 }
 
 // Identical overlapping inputs have the same max-composited golden output.
@@ -480,8 +529,9 @@ pub fn layered_show(
     layers: usize,
 ) -> PreparedSequence {
     assert!(layers > 0);
-    let mut show = show(count, program, params);
-    let sequence = &mut show.signals;
+    let show = show(count, program, params);
+    let mut signals = show.signals().clone();
+    let sequence = &mut signals;
     sequence.effects = vec![sequence.effects[0].clone(); layers].into();
     sequence.layers = vec![PreparedLayer { enabled: true }; layers].into();
     sequence.effects_by_layer = (0..layers).map(|i| vec![i].into()).collect();
@@ -500,8 +550,12 @@ pub fn layered_show(
     // Match elaboration's single-input alias; multiple inputs need composition.
     graph.frame_nodes = (0..if layers == 1 { 1 } else { layers + 1 }).collect();
     graph.frame_slots = (0..=layers)
-        .map(|i| if layers == 1 { 0 } else { i as u16 })
+        .map(|i| if layers == 1 { 0 } else { i })
         .collect();
-    graph.frame_buffer_count = if layers == 1 { 1 } else { (layers + 1) as u16 };
-    show
+    graph.frame_buffer_count = if layers == 1 { 1 } else { layers + 1 };
+    PreparedSequence::new(
+        signals,
+        show.patch().clone(),
+        show.outputs().to_vec().into(),
+    )
 }

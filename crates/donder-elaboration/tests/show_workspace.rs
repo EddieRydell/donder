@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::PreparedSequenceOutput;
+use donder_elaboration::{PrepareOutputs, prepare as prepare_sequence};
 use donder_project_io::load_project;
 use donder_runtime::values::{SampleTime, sample_time_from_frame};
 
@@ -14,31 +14,25 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
         .iter()
         .map(|source| source.id())
     {
-        let mut output = PreparedSequenceOutput::prepare(
-            &session.project,
-            session.project.root.setup.id(),
-            sequence,
-        )
-        .unwrap();
-        let show = &mut output.sequence;
+        let show = prepare_sequence(&session.project, sequence, PrepareOutputs::All).unwrap();
         let mut workspace = show.workspace().unwrap();
         let mut buffers = show
-            .output_widths
+            .outputs()
             .iter()
-            .map(|&width| vec![0; width as usize])
+            .map(|output| vec![0; output.width as usize])
             .collect::<Vec<_>>();
         let mut times = [9504, 8450, 0, 8494, 8398]
-            .map(|frame| sample_time_from_frame(frame, show.signals.frame_rate()).unwrap())
+            .map(|frame| sample_time_from_frame(frame, show.signals().frame_rate()).unwrap())
             .to_vec();
         times.extend(
-            show.signals
+            show.signals()
                 .effects
                 .iter()
                 .filter_map(|effect| effect.start_time.checked_add_duration(effect.duration)),
         );
         times.extend([
             SampleTime::from_ticks(0),
-            SampleTime::from_ticks(show.signals.duration().as_ticks()),
+            SampleTime::from_ticks(show.signals().duration().as_ticks()),
         ]);
         for time in times {
             show.evaluate(time, &mut buffers, &mut workspace).unwrap();

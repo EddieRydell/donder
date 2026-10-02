@@ -1,7 +1,9 @@
 use camino::Utf8PathBuf;
 use donder_project_io::load_project;
 
-use crate::PreparedSequenceOutput;
+use crate::{PrepareOutputs, PreparedSequence, prepare};
+use donder_runtime::signal::EvaluatedFrame;
+use donder_runtime::values::{SampleTime, sample_time_from_frame};
 
 fn example(name: &str) -> donder_project_io::ProjectSession {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -16,15 +18,13 @@ fn every_example_prepares_and_produces_exact_controller_widths() {
     for name in ["starter"] {
         let session = example(name);
         let sequence_id = session.project.root.sequences.first().unwrap().id();
-        let renderer = PreparedSequenceOutput::prepare(
-            &session.project,
-            session.project.root.setup.id(),
-            sequence_id,
-        )
-        .unwrap_or_else(|error| panic!("failed to prepare {name}: {error:?}"));
-        let frame = renderer
-            .render_seconds(0.0)
-            .unwrap_or_else(|error| panic!("failed to render {name}: {error:?}"));
+        let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All)
+            .unwrap_or_else(|| panic!("failed to prepare {name}"));
+        let mut workspace = renderer.workspace().unwrap();
+        let mut buffers = buffers(&renderer);
+        renderer
+            .evaluate(SampleTime::from_ticks(0), &mut buffers, &mut workspace)
+            .unwrap();
         let setup = session
             .project
             .setups
@@ -35,19 +35,19 @@ fn every_example_prepares_and_produces_exact_controller_widths() {
             .iter()
             .map(|id| session.project.controller(id.id()).unwrap().ports.len())
             .sum::<usize>();
-        assert_eq!(frame.controller_frames.len(), expected_ports);
-        for port_frame in &frame.controller_frames {
+        assert_eq!(buffers.len(), expected_ports);
+        for (output, slots) in renderer.outputs().iter().zip(&buffers) {
             let controller = session
                 .project
                 .controllers
-                .get(&port_frame.controller)
+                .get(setup.controllers[output.controller_index].id())
                 .unwrap();
             let port = controller
                 .ports
                 .iter()
-                .find(|port| port.id == port_frame.port)
+                .find(|port| port.id.0 == output.port)
                 .unwrap();
-            assert_eq!(port_frame.slots.len(), usize::from(port.slot_count));
+            assert_eq!(slots.len(), usize::from(port.slot_count));
         }
     }
 }
@@ -56,70 +56,33 @@ fn every_example_prepares_and_produces_exact_controller_widths() {
 fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
     let session = example("starter");
     let sequence_id = session.project.root.sequences.first().unwrap().id();
-    let renderer = PreparedSequenceOutput::prepare(
-        &session.project,
-        session.project.root.setup.id(),
-        sequence_id,
-    )
-    .unwrap();
-    let first = renderer.render_frame(10).unwrap();
-    let second = renderer.render_frame(10).unwrap();
-    assert_eq!(first, second);
-    assert!(!first.fixtures.is_empty());
-    assert!(!first.controller_frames.is_empty());
-    let preview_checksum = first.fixtures.iter().fold(0u64, |hash, fixture| {
-        fixture.pixels.iter().copied().fold(hash, |hash, color| {
-            hash.wrapping_mul(16777619)
-                ^ u64::from(color.red)
-                ^ (u64::from(color.green) << 8)
-                ^ (u64::from(color.blue) << 16)
-        })
-    });
-    let controller_checksum = first.controller_frames.iter().fold(0u64, |hash, frame| {
-        frame.slots.iter().fold(hash, |hash, slot| {
-            hash.wrapping_mul(16777619) ^ u64::from(*slot)
-        })
-    });
-    assert_eq!(
-        preview_checksum,
-        second.fixtures.iter().fold(0u64, |hash, fixture| {
-            fixture.pixels.iter().copied().fold(hash, |hash, color| {
-                hash.wrapping_mul(16777619)
-                    ^ u64::from(color.red)
-                    ^ (u64::from(color.green) << 8)
-                    ^ (u64::from(color.blue) << 16)
-            })
-        })
-    );
-    assert_eq!(
-        controller_checksum,
-        second
-            .controller_frames
-            .iter()
-            .fold(0u64, |hash, frame| frame
-                .slots
-                .iter()
-                .fold(hash, |hash, slot| hash.wrapping_mul(16777619)
-                    ^ u64::from(*slot)))
-    );
+    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let time = sample_time_from_frame(10, renderer.signals().frame_rate).unwrap();
     let mut workspace = renderer.workspace().unwrap();
-    let sampled = renderer
-        .sample_into(first.sample_time, &mut workspace)
+    let mut first = buffers(&renderer);
+    renderer.evaluate(time, &mut first, &mut workspace).unwrap();
+    let first_fixtures = renderer.rendered_fixtures(&workspace).unwrap();
+    let mut second = buffers(&renderer);
+    renderer
+        .evaluate(time, &mut second, &mut workspace)
         .unwrap();
-    assert_eq!(sampled, first.controller_frames);
+    assert_eq!(first, second);
+    assert_eq!(
+        first_fixtures,
+        renderer.rendered_fixtures(&workspace).unwrap()
+    );
+    assert!(!first_fixtures.is_empty());
+    assert!(!first.is_empty());
+    let signal_frame = renderer.signals().evaluate_frame(10).unwrap();
+    assert_eq!(first_fixtures, signal_frame.fixtures);
 }
 
 #[test]
 fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let session = example("starter");
     let sequence_id = session.project.root.sequences.get(1).unwrap().id();
-    let renderer = crate::elaborate_sequence(
-        &session.project,
-        session.project.root.setup.id(),
-        sequence_id,
-    )
-    .unwrap();
-    let rendered = renderer.evaluate_frame(3594).unwrap();
+    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let rendered = renderer.signals().evaluate_frame(3594).unwrap();
     assert_eq!(checksum_frame(&rendered), 0xaa28_e560_49eb_1e76);
 }
 
@@ -127,13 +90,11 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
 fn output_fixtures_preserve_layout_instance_order() {
     let session = example("starter");
     let sequence_id = session.project.root.sequences.first().unwrap().id();
-    let renderer = PreparedSequenceOutput::prepare(
-        &session.project,
-        session.project.root.setup.id(),
-        sequence_id,
-    )
-    .unwrap();
-    let frame = renderer.render_seconds(1.0).unwrap();
+    let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
+    let frame = renderer
+        .signals()
+        .evaluate_frame(renderer.signals().frame_rate)
+        .unwrap();
     assert_eq!(
         frame
             .fixtures
@@ -150,7 +111,7 @@ fn output_fixtures_preserve_layout_instance_order() {
     );
 }
 
-fn checksum_frame(frame: &crate::RenderedFrame) -> u64 {
+fn checksum_frame(frame: &EvaluatedFrame) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     hash = checksum_u64(hash, u64::from(frame.frame_index));
     for fixture in &frame.fixtures {
@@ -174,4 +135,12 @@ fn checksum_u32(hash: u64, value: u32) -> u64 {
 
 fn checksum_u8(hash: u64, value: u8) -> u64 {
     (hash ^ u64::from(value)).wrapping_mul(0x0000_0100_0000_01b3)
+}
+
+fn buffers(sequence: &PreparedSequence) -> Vec<Vec<u8>> {
+    sequence
+        .outputs()
+        .iter()
+        .map(|output| vec![0; output.width as usize])
+        .collect()
 }

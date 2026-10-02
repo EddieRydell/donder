@@ -11,15 +11,28 @@ struct Binding {
 }
 type Environment = IndexMap<Identifier, Binding>;
 
+/// Controls that assign a preparation-time value. Lowering must not bundle
+/// those assignments with live outputs in one retained calculation.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct PreparationControls(std::collections::BTreeSet<(usize, usize)>);
+
+impl PreparationControls {
+    pub(crate) fn contains(&self, expression: &CheckedExpr) -> bool {
+        self.0
+            .contains(&(expression.span.start, expression.span.end))
+    }
+}
+
 pub(super) fn check(
     params: &[ParamDecl],
     body: &mut CheckedBlock,
     generator: bool,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PreparationControls, Vec<Diagnostic>> {
     let mut checker = Checker {
         generator,
         diagnostics: Vec::new(),
         emitted: IndexMap::new(),
+        control_outputs: IndexMap::new(),
     };
     let mut env = params
         .iter()
@@ -36,7 +49,13 @@ pub(super) fn check(
     checker.block(body, &mut env, &None);
     annotate(body, &checker.emitted);
     if checker.diagnostics.is_empty() {
-        Ok(())
+        Ok(PreparationControls(
+            checker
+                .control_outputs
+                .into_iter()
+                .filter_map(|(span, outputs)| outputs.values().any(Option::is_none).then_some(span))
+                .collect(),
+        ))
     } else {
         Err(checker.diagnostics)
     }
@@ -46,6 +65,7 @@ struct Checker {
     generator: bool,
     diagnostics: Vec<Diagnostic>,
     emitted: IndexMap<(usize, usize), Dependency>,
+    control_outputs: IndexMap<(usize, usize), IndexMap<Identifier, Dependency>>,
 }
 
 impl Checker {
@@ -305,6 +325,26 @@ impl Checker {
                     if matches!(name.as_str(), "start" | "duration" | "target") {
                         self.require_fixed(expr, &dependency, &format!("emit `{}`", name.as_str()));
                     }
+                }
+            }
+        }
+        if self.generator {
+            let control = match statement {
+                CheckedStmt::If { condition, .. } | CheckedStmt::For { condition, .. } => condition,
+                CheckedStmt::ForMarks { marks, .. } => marks,
+                CheckedStmt::ForRange { count, .. } => count,
+                _ => return,
+            };
+            let outputs = self
+                .control_outputs
+                .entry((control.span.start, control.span.end))
+                .or_default();
+            for name in statement.assigned_names() {
+                if let Some(binding) = env.get(&name) {
+                    // A loop may revisit the same statement with more live
+                    // dependencies. Preserve those until the fixed point settles.
+                    let dependency = outputs.entry(name).or_default();
+                    *dependency = dependency.clone().or_else(|| binding.dependency.clone());
                 }
             }
         }

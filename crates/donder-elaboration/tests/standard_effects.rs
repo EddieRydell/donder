@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::elaborate_sequence;
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::dsl::{Identifier, RunContext, Value, VmWorkspace, compile_effects};
 use donder_language::effect::{
     CurveSource, EffectImplementation, EffectParamValue, EffectRef, GradientSource,
@@ -39,13 +39,14 @@ fn standard_mark_effects_prepare_real_pulse_and_chase_children_without_hue_contr
         assert_eq!(child_definition.source_name, child_name);
         let EffectImplementation::Dsl(child_compiled) = &child_definition.implementation;
         assert_eq!(
-            child_compiled.bytecode,
+            child_compiled.sample_program().unwrap(),
             compiled
                 .iter()
                 .find(|definition| definition.effect.name.as_str() == child_name)
                 .unwrap()
                 .effect
-                .bytecode
+                .sample_program()
+                .unwrap()
         );
 
         let sequence_id = project
@@ -125,12 +126,13 @@ fn standard_mark_effects_prepare_real_pulse_and_chase_children_without_hue_contr
         }
         sequence.effects = vec![instance];
         sequence.automation_clips.clear();
-        let prepared = elaborate_sequence(&project, project.root.setup.id(), &sequence_id).unwrap();
+        let prepared = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
+        let prepared = prepared.signals();
         assert!(!prepared.effects.is_empty());
         assert!(
             prepared.effects.iter().all(|effect| {
-                prepared.programs[effect.implementation.dsl_program() as usize]
-                    == child_compiled.bytecode
+                &prepared.programs[effect.implementation.dsl_program() as usize]
+                    == child_compiled.sample_program().unwrap()
             }),
             "{parent_name} emitted a non-{child_name} sampler"
         );

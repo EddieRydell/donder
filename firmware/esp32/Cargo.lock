@@ -485,7 +485,6 @@ version = "0.1.0"
 dependencies = [
  "donder-language",
  "donder-runtime",
- "glam",
  "indexmap",
 ]
 
@@ -526,6 +525,7 @@ dependencies = [
  "camino",
  "donder-runtime",
  "fugit",
+ "glam",
  "indexmap",
  "uuid",
 ]

@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::PreparedSequenceOutput;
+use donder_elaboration::{PrepareOutputs, prepare as prepare_sequence};
 use donder_language::dsl::Identifier;
 use donder_language::effect::{CurveSource, EffectParamValue, EffectRef, GradientSource};
 use donder_language::values::DonderDuration;
@@ -87,14 +87,10 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
         sequence.effects[0].definition = EffectRef::Custom(generator_id);
         sequence.effects[0].param_overrides.clear();
         let sequence_id = sequence.id.clone();
-        let prepared = PreparedSequenceOutput::prepare(
-            &session.project,
-            session.project.root.setup.id(),
-            &sequence_id,
-        )
-        .unwrap();
+        let prepared =
+            prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
         assert!(
-            !prepared.sequence.signals.effects.is_empty(),
+            !prepared.signals().effects.is_empty(),
             "the generator must actually emit"
         );
     }
@@ -155,13 +151,8 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value))
     .collect();
     let sequence_id = sequence.id.clone();
-    let prepared = PreparedSequenceOutput::prepare(
-        &session.project,
-        session.project.root.setup.id(),
-        &sequence_id,
-    )
-    .unwrap();
-    assert!(!prepared.sequence.signals.effects.is_empty());
+    let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
+    assert!(!prepared.signals().effects.is_empty());
 }
 
 #[test]
@@ -199,13 +190,8 @@ fn acyclic_generator_chain_can_exceed_four_levels() {
     sequence.effects[0].definition = EffectRef::Custom(generator_id);
     sequence.effects[0].param_overrides.clear();
     let sequence_id = sequence.id.clone();
-    let prepared = PreparedSequenceOutput::prepare(
-        &session.project,
-        session.project.root.setup.id(),
-        &sequence_id,
-    )
-    .unwrap();
-    assert!(!prepared.sequence.signals.effects.is_empty());
+    let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
+    assert!(!prepared.signals().effects.is_empty());
 }
 
 #[test]
@@ -248,11 +234,6 @@ fn prepared_generator_accepts_more_than_four_thousand_mark_children() {
     .into_iter()
     .collect();
     let sequence_id = sequence.id.clone();
-    let prepared = PreparedSequenceOutput::prepare(
-        &session.project,
-        session.project.root.setup.id(),
-        &sequence_id,
-    )
-    .unwrap();
-    assert!(prepared.sequence.signals.effects.len() > 4_096);
+    let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
+    assert!(prepared.signals().effects.len() > 4_096);
 }

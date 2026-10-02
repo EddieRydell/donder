@@ -10,7 +10,7 @@ use alloc::{boxed::Box, string::ToString, vec::Vec};
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct ParameterSource {
-    pub environment: u32,
+    pub environment: usize,
     pub parameter: u16,
 }
 
@@ -37,8 +37,8 @@ pub struct PreparedParameterEnvironment {
     pub bindings: Box<[PreparedParameterBinding]>,
     pub automation: Box<[PreparedAutomation]>,
     pub calculation: Option<PreparedParameterCalculation>,
-    pub array_capacity: u32,
-    pub array_width: u32,
+    pub array_capacity: usize,
+    pub array_width: usize,
 }
 
 impl PreparedParameterEnvironment {
@@ -49,16 +49,18 @@ impl PreparedParameterEnvironment {
     }
 
     /// Conservative result-arena bound shared by host preparation and wire admission.
-    pub fn required_array_storage(
-        prior: &[Self],
-        bindings: &[PreparedParameterBinding],
+    /// Result copying preserves shared array nodes, so source capacities can be
+    /// added; repeated references do not multiply their subtrees in the result.
+    pub fn required_array_storage<'a>(
+        parents: impl IntoIterator<Item = &'a Self>,
         calculation: Option<&PreparedParameterCalculation>,
-    ) -> Option<(u32, u32)> {
-        let mut capacity = 0_u32;
-        let mut width = 0_u32;
-        for binding in bindings {
-            let parent = prior.get(binding.source.environment as usize)?;
-            capacity = capacity.checked_add(parent.array_capacity)?;
+    ) -> (usize, usize) {
+        let mut capacity = 0usize;
+        let mut width = 0usize;
+        for parent in parents {
+            // Saturation represents an arena larger than addressable memory.
+            // It cannot be allocated; it is not a smaller, permissive bound.
+            capacity = capacity.saturating_add(parent.array_capacity);
             width = width.max(parent.array_width);
         }
         if let Some(calculation) = calculation
@@ -67,10 +69,10 @@ impl PreparedParameterEnvironment {
                 .iter()
                 .any(|ty| matches!(ty, Type::Array(_)))
         {
-            capacity = capacity.checked_add(calculation.program.array_capacity)?;
-            width = width.max(calculation.program.array_width);
+            capacity = capacity.saturating_add(calculation.program.array_capacity as usize);
+            width = width.max(calculation.program.array_width as usize);
         }
-        Some((capacity, width))
+        (capacity, width)
     }
 
     pub fn validate_all(environments: &[Self]) -> Result<(), EvaluationError> {
@@ -78,6 +80,7 @@ impl PreparedParameterEnvironment {
             if environment.duration.as_ticks() == 0
                 || environment.params.len() != environment.types.len()
                 || !environment.params.is_frozen()
+                || !environment.params.has_type_layout(&environment.types)
                 || !environment
                     .params
                     .has_valid_automation(&environment.automation)
@@ -98,12 +101,12 @@ impl PreparedParameterEnvironment {
                 }
             }
             for (binding_index, binding) in environment.bindings.iter().enumerate() {
-                if binding.source.environment as usize >= index {
+                if binding.source.environment >= index {
                     return Err(invalid(
                         "parameter environments must reference earlier environments",
                     ));
                 }
-                let source = environments[binding.source.environment as usize]
+                let source = environments[binding.source.environment]
                     .output_types()
                     .get(usize::from(binding.source.parameter));
                 let destination = environment.types.get(usize::from(binding.parameter));
@@ -153,10 +156,12 @@ impl PreparedParameterEnvironment {
                 }
             }
             if Self::required_array_storage(
-                &environments[..index],
-                &environment.bindings,
+                environment
+                    .bindings
+                    .iter()
+                    .map(|binding| &environments[binding.source.environment]),
                 environment.calculation.as_ref(),
-            ) != Some((environment.array_capacity, environment.array_width))
+            ) != (environment.array_capacity, environment.array_width)
             {
                 return Err(invalid("invalid parameter array storage"));
             }
@@ -220,7 +225,7 @@ impl ParameterWorkspace {
     pub fn resolve(
         &mut self,
         environments: &[PreparedParameterEnvironment],
-        index: u32,
+        index: usize,
         time: SampleTime,
     ) -> Result<&BoundParams, EvaluationError> {
         let slot = self
@@ -280,7 +285,14 @@ impl ParameterTimeWorkspace {
                                 layout.floats,
                                 layout.bools,
                                 layout.colors,
-                                layout.refs,
+                                layout.arrays,
+                                layout.marks,
+                                layout.curves,
+                                layout.gradients,
+                                layout.targets,
+                                layout.target_lists,
+                                layout.target_items,
+                                layout.enums,
                             ]
                             .map(|count| count as usize),
                             program.array_capacity as usize,
@@ -314,7 +326,7 @@ impl ParameterTimeWorkspace {
                         |calculation| {
                             (
                                 BoundParams::result_workspace(
-                                    calculation.outputs.len(),
+                                    &calculation.outputs,
                                     environment.array_capacity,
                                     environment.array_width,
                                 ),
@@ -338,10 +350,10 @@ impl ParameterTimeWorkspace {
     fn resolve(
         &mut self,
         environments: &[PreparedParameterEnvironment],
-        index: u32,
+        index: usize,
         time: SampleTime,
     ) -> Result<&BoundParams, EvaluationError> {
-        if self.environments.len() != environments.len() || index as usize >= environments.len() {
+        if self.environments.len() != environments.len() || index >= environments.len() {
             return Err(EvaluationError::InvalidWorkspace);
         }
         if self.sample_time != Some(time) {
@@ -356,27 +368,27 @@ impl ParameterTimeWorkspace {
             }
             self.sample_time = Some(time);
         }
-        if self.environments[index as usize].ready {
-            return Ok(self.environments[index as usize].output(&environments[index as usize]));
+        if self.environments[index].ready {
+            return Ok(self.environments[index].output(&environments[index]));
         }
         for state in &mut self.environments {
             state.needed = false;
         }
-        self.environments[index as usize].needed = true;
-        for dependency in (0..=index as usize).rev() {
+        self.environments[index].needed = true;
+        for dependency in (0..=index).rev() {
             if !self.environments[dependency].needed || self.environments[dependency].ready {
                 continue;
             }
             for binding in &environments[dependency].bindings {
-                self.environments[binding.source.environment as usize].needed = true;
+                self.environments[binding.source.environment].needed = true;
             }
         }
-        for dependency in 0..=index as usize {
+        for dependency in 0..=index {
             if self.environments[dependency].needed {
                 self.evaluate(environments, dependency, time)?;
             }
         }
-        Ok(self.environments[index as usize].output(&environments[index as usize]))
+        Ok(self.environments[index].output(&environments[index]))
     }
 
     fn evaluate(
@@ -392,7 +404,7 @@ impl ParameterTimeWorkspace {
         let (ancestors, current) = self.environments.split_at_mut(index);
         let state = &mut current[0];
         for binding in &environment.bindings {
-            let source = binding.source.environment as usize;
+            let source = binding.source.environment;
             state.params.copy_parameter(
                 usize::from(binding.parameter),
                 ancestors[source].output(&environments[source]),

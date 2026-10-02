@@ -524,16 +524,27 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert_eq!(*state.project_session().unwrap(), *before_copy);
     state.redo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *final_session);
-    let prepared = donder_elaboration::PreparedSequenceOutput::prepare(
+    let prepared = donder_elaboration::prepare(
         &final_session.project,
-        &setup_id,
         final_session.project.root.sequences[0].id(),
+        donder_elaboration::PrepareOutputs::All,
     )
     .unwrap();
+    let mut buffers = prepared
+        .outputs()
+        .iter()
+        .map(|output| vec![0; output.width as usize])
+        .collect::<Vec<_>>();
+    let mut playback = prepared.into_playback().unwrap();
     let mut illuminated = false;
     for frame in 0..60 {
-        let rendered = prepared.render_seconds(frame as f32 / 60.0).unwrap();
-        let slots = &rendered.controller_frames[0].slots;
+        playback
+            .evaluate(
+                donder_runtime::values::sample_time_from_frame(frame, 60).unwrap(),
+                &mut buffers,
+            )
+            .unwrap();
+        let slots = &buffers[0];
         illuminated |= slots[..12].iter().any(|&value| value != 0);
         assert!(slots[12..].iter().all(|&value| value == 0));
     }

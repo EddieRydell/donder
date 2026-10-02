@@ -48,7 +48,7 @@ impl PreparedEffect {
         let (program, params) = match &self.implementation {
             PreparedEffectImplementation::Bound { program, .. } => {
                 let params = bound.ok_or(EvaluationError::InvalidWorkspace)?;
-                (programs[*program as usize].borrow(), params)
+                (programs[*program].borrow(), params)
             }
             PreparedEffectImplementation::Dsl {
                 program,
@@ -58,7 +58,7 @@ impl PreparedEffect {
                     Some(state) => prepare_effect_params(self, sample_time, state)?,
                     None => bound_params,
                 };
-                (programs[*program as usize].borrow(), params)
+                (programs[*program].borrow(), params)
             }
         };
         let mut sampler = EffectSampler {
@@ -209,7 +209,7 @@ pub(crate) fn sample_signal_graph<'a>(
                     automation,
                     vm_slot,
                 } => {
-                    let slot = operator.automation_slot as usize;
+                    let slot = operator.automation_slot;
                     let mut automation_workspace = (!automation.is_empty())
                         .then(|| core::mem::take(&mut workspace.operator_automation[slot]));
                     if let Some((state, time)) = &mut automation_workspace {
@@ -219,7 +219,7 @@ pub(crate) fn sample_signal_graph<'a>(
                         }
                         *time = Some(sample_time);
                     }
-                    let vm_slot = usize::from(*vm_slot);
+                    let vm_slot = *vm_slot;
                     let mut vm_workspace = core::mem::take(&mut workspace.operator_vm[vm_slot]);
                     let sampled = sample_operator_frame(
                         renderer,
@@ -266,13 +266,13 @@ pub(crate) fn frame_range(
         .frame_slots
         .get(node_index)
         .copied()
-        .unwrap_or(u16::MAX);
+        .unwrap_or(usize::MAX);
     if slot >= graph.frame_buffer_count {
         return Err(EvaluationError::InvalidGraph {
             message: "signal has no prepared frame buffer".to_string(),
         });
     }
-    let start = usize::from(slot) * renderer.pixel_count;
+    let start = slot * renderer.pixel_count;
     Ok(start..start + renderer.pixel_count)
 }
 
@@ -310,14 +310,14 @@ fn sample_layer_frame(
         if !effect.is_active(sample_time) {
             continue;
         }
-        let sample_count = renderer.targets[effect.target as usize].sample_count as usize;
+        let sample_count = renderer.targets[effect.target].sample_count;
         for sample in &mut workspace.effect_samples[..sample_count] {
             sample.pixel_count = 0;
         }
         let state = effect
             .automation
             .as_ref()
-            .map(|automation| &mut workspace.effect_automation[automation.workspace_slot as usize]);
+            .map(|automation| &mut workspace.effect_automation[automation.workspace_slot]);
         let bound = match effect.implementation {
             PreparedEffectImplementation::Bound { environment, .. } => {
                 Some(workspace.parameters.resolve(
@@ -360,10 +360,9 @@ fn sample_layer_frame(
                     cached => {
                         let color = sampler.sample_spatial(
                             pixel,
-                            renderer.spatial_contexts.get(
-                                renderer.targets[effect.target as usize].pixels.start as usize
-                                    + target_index,
-                            ),
+                            renderer
+                                .spatial_contexts
+                                .get(renderer.targets[effect.target].pixels.start + target_index),
                             &mut workspace.effect_vm,
                         )?;
                         if let Some(sample) = cached {
@@ -398,7 +397,7 @@ fn sample_operator_frame(
 ) -> Result<(), EvaluationError> {
     let params = automation.unwrap_or(&operator.params);
     let PreparedOperator::Dsl(program) = &operator.implementation;
-    let compiled = &renderer.programs[*program as usize];
+    let compiled = &renderer.programs[*program];
     let duration = renderer.duration;
     let progress = if duration.as_ticks() == 0 {
         0.0
@@ -436,10 +435,9 @@ fn sample_operator_frame(
             &mut sampler,
             vm_workspace,
             reuse_uniform,
-            renderer.spatial_contexts.get(
-                renderer.targets[renderer.plan.target as usize].pixels.start as usize
-                    + flat_pixel_index,
-            ),
+            renderer
+                .spatial_contexts
+                .get(renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index),
         ) {
             Ok(color) => {
                 output[flat_pixel_index] = color;
@@ -493,7 +491,7 @@ fn sample_signal_pixel(
             automation,
             vm_slot,
         } => {
-            let slot = operator.automation_slot as usize;
+            let slot = operator.automation_slot;
             let mut automation_workspace = (!automation.is_empty())
                 .then(|| core::mem::take(&mut workspace.operator_automation[slot]));
             if let Some((state, time)) = &mut automation_workspace
@@ -507,7 +505,7 @@ fn sample_signal_pixel(
                 }
                 *time = Some(sample_time);
             }
-            let vm_slot = usize::from(*vm_slot);
+            let vm_slot = *vm_slot;
             let mut vm_workspace = core::mem::take(&mut workspace.operator_vm[vm_slot]);
             let cached = vm_workspace
                 .1
@@ -637,8 +635,7 @@ fn sample_layer_pixel(
                 .effect_vm_sample
                 .filter(|(sample, ..)| sample.index == *effect_index && sample.time == sample_time);
             if let Some((_, _, color)) = cached
-                && !renderer.programs[effect.implementation.dsl_program() as usize]
-                    .uses_pixel_context
+                && !renderer.programs[effect.implementation.dsl_program()].uses_pixel_context
             {
                 compose_max(&mut rendered, color);
                 continue;
@@ -650,9 +647,10 @@ fn sample_layer_pixel(
                 || (effect.progress(sample_time), effect.local_time(sample_time)),
                 |(sample, local_time, _)| (sample.progress, local_time),
             );
-            let state = effect.automation.as_ref().map(|automation| {
-                &mut workspace.effect_automation[automation.workspace_slot as usize]
-            });
+            let state = effect
+                .automation
+                .as_ref()
+                .map(|automation| &mut workspace.effect_automation[automation.workspace_slot]);
             let bound = match effect.implementation {
                 PreparedEffectImplementation::Bound { environment, .. } => {
                     Some(workspace.parameters.resolve(
@@ -670,10 +668,9 @@ fn sample_layer_pixel(
                     sampler.reuse_uniform = reuse_uniform;
                     sampler.sample_spatial(
                         effect_pixel,
-                        renderer.spatial_contexts.get(
-                            renderer.targets[effect.target as usize].pixels.start as usize
-                                + target_index,
-                        ),
+                        renderer
+                            .spatial_contexts
+                            .get(renderer.targets[effect.target].pixels.start + target_index),
                         &mut workspace.effect_vm,
                     )
                 })?;
@@ -710,7 +707,7 @@ fn sample_operator_pixel(
 ) -> Result<Color, EvaluationError> {
     let params = automation.unwrap_or(&operator.params);
     let PreparedOperator::Dsl(program) = &operator.implementation;
-    let compiled = &renderer.programs[*program as usize];
+    let compiled = &renderer.programs[*program];
     let pixel = &renderer.target(renderer.plan.target)[flat_pixel_index];
     let duration = renderer.duration;
     let context = OperatorRunContext {
@@ -737,10 +734,9 @@ fn sample_operator_pixel(
         &mut sampler,
         vm_workspace,
         reuse_uniform,
-        renderer.spatial_contexts.get(
-            renderer.targets[renderer.plan.target as usize].pixels.start as usize
-                + flat_pixel_index,
-        ),
+        renderer
+            .spatial_contexts
+            .get(renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index),
     )?)
 }
 
@@ -780,10 +776,10 @@ impl SignalSampler for GraphSignalSampler<'_> {
                 };
                 let current =
                     &self.renderer.target(self.renderer.plan.target)[self.flat_pixel_index];
-                if index >= current.pixel_count as usize {
+                if index >= current.pixel_count {
                     return Ok(black());
                 }
-                self.flat_pixel_index - current.pixel_index as usize + index
+                self.flat_pixel_index - current.pixel_index + index
             }
         };
         self.sample_at_pixel(input, sample_time, index, frame_cache)

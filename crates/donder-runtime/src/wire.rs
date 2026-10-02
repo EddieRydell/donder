@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 17;
+pub const FORMAT_VERSION: u32 = 35;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -151,31 +151,31 @@ fn validate_sequence(
         Ok(())
     };
     reserve(1, size_of::<crate::sequence::SequenceWorkspace>())?;
-    for &width in &sequence.output_widths {
-        reserve(width as usize, 1)?;
+    for output in &sequence.outputs {
+        reserve(output.width as usize, 1)?;
     }
     let bad = LoadError::InvalidSequence;
     for route in &sequence.patch.routes {
         if route.pixels.start > route.pixels.end
-            || route.pixels.end as usize > signal.pixel_count
+            || route.pixels.end > signal.pixel_count
             || !route.encoding.is_valid()
             || route
                 .lookup
-                .is_some_and(|index| usize::from(index) >= sequence.patch.lookups.len())
+                .is_some_and(|index| index >= sequence.patch.lookups.len())
         {
             return Err(bad);
         }
         let width = (route.pixels.end - route.pixels.start)
-            .checked_mul(route.encoding.channel_order().len() as u32)
+            .checked_mul(route.encoding.channel_order().len())
             .ok_or(LoadError::Limit)?;
         let end = route
             .start_slot
             .checked_add(width)
             .ok_or(LoadError::Limit)?;
         if sequence
-            .output_widths
-            .get(route.frame as usize)
-            .is_none_or(|&capacity| end > capacity)
+            .outputs
+            .get(route.frame)
+            .is_none_or(|output| end > output.width as usize)
         {
             return Err(bad);
         }
@@ -210,9 +210,9 @@ fn validate_signal_graph(
         || signal.duration.as_ticks() == 0
         || signal.frame_count == 0
         || plan.output_index >= plan.nodes.len()
-        || plan.target as usize >= signal.targets.len()
+        || plan.target >= signal.targets.len()
         || plan.vm_workspace_count > plan.nodes.len()
-        || usize::from(plan.frame_buffer_count) > plan.nodes.len()
+        || plan.frame_buffer_count > plan.nodes.len()
         || signal.fixture_pixel_offsets.len() != signal.fixtures.len()
         || signal.layers.len() != signal.effects_by_layer.len()
         || plan.frame_slots.len() != plan.nodes.len()
@@ -261,12 +261,12 @@ fn validate_signal_graph(
     )?;
     reserve(
         signal.pixel_count,
-        usize::from(plan.frame_buffer_count) * size_of::<Color>(),
+        plan.frame_buffer_count * size_of::<Color>(),
     )?;
     // All VM slots reserve the component-wise largest layouts they can execute.
     // Budgeting that maximum for every slot also covers a program reused by
     // several operators, and array capacity/width maxima from different programs.
-    let mut registers = [0usize; 5];
+    let mut registers = [0usize; 12];
     let mut array_capacity = 0usize;
     let mut array_width = 0usize;
     let mut loop_count = 0usize;
@@ -280,7 +280,14 @@ fn validate_signal_graph(
             layout.floats,
             layout.bools,
             layout.colors,
-            layout.refs,
+            layout.arrays,
+            layout.marks,
+            layout.curves,
+            layout.gradients,
+            layout.targets,
+            layout.target_lists,
+            layout.target_items,
+            layout.enums,
         ]) {
             *maximum = (*maximum).max(count as usize);
         }
@@ -305,10 +312,10 @@ fn validate_signal_graph(
         else {
             continue;
         };
-        let Some(slot) = operator_frame_counts.get_mut(usize::from(*vm_slot)) else {
+        let Some(slot) = operator_frame_counts.get_mut(*vm_slot) else {
             return Err(bad);
         };
-        let Some(program) = signal.programs.get(*program as usize) else {
+        let Some(program) = signal.programs.get(*program) else {
             return Err(bad);
         };
         *slot = (*slot).max(program.frame_cache_count());
@@ -347,14 +354,11 @@ fn validate_signal_graph(
     for target in &signal.targets {
         let pixels = signal
             .target_pixels
-            .get(target.pixels.start as usize..target.pixels.end as usize)
+            .get(target.pixels.start..target.pixels.end)
             .ok_or(bad)?;
         let mut previous = None;
         for pixel in pixels {
-            let fixture = signal
-                .fixtures
-                .get(pixel.fixture_index as usize)
-                .ok_or(bad)?;
+            let fixture = signal.fixtures.get(pixel.fixture_index).ok_or(bad)?;
             let address = (pixel.fixture_index, pixel.fixture_pixel_index);
             if pixel.fixture_pixel_index as usize >= fixture.pixel_count
                 || pixel.pixel_count == 0
@@ -375,14 +379,29 @@ fn validate_signal_graph(
         signal
             .targets
             .iter()
-            .map(|target| target.sample_count as usize)
+            .map(|target| target.sample_count)
             .max()
             .unwrap_or(0),
         size_of::<CachedEffectSample>(),
     )?;
+    for clip in &signal.clips {
+        if clip.target >= signal.targets.len()
+            || clip.duration.as_ticks() == 0
+            || clip
+                .start_time
+                .checked_add_duration(clip.duration)
+                .is_none_or(|end| end.as_ticks() > signal.duration.as_ticks())
+            || clip
+                .effects
+                .iter()
+                .any(|&effect| effect >= signal.effects.len())
+        {
+            return Err(bad);
+        }
+    }
     let mut automation_slot = 0;
     for effect in &signal.effects {
-        if effect.target as usize >= signal.targets.len()
+        if effect.target >= signal.targets.len()
             || effect.duration.as_ticks() == 0
             || effect
                 .start_time
@@ -397,20 +416,15 @@ fn validate_signal_graph(
                 bound_params,
             } => {
                 if !bound_params.is_frozen()
-                    || signal
-                        .programs
-                        .get(*program as usize)
-                        .is_none_or(|program| {
-                            !program.has_valid_context(ProgramContext::Effect)
-                                || !program.has_valid_parameter_reads(|index| {
-                                    bound_params.parameter_kind(index)
-                                })
-                                || !program.has_valid_reference_parameter_reads(
-                                    |index, expected| {
-                                        bound_params.parameter_accepts_type(index, expected)
-                                    },
-                                )
-                        })
+                    || signal.programs.get(*program).is_none_or(|program| {
+                        !program.has_valid_context(ProgramContext::Effect)
+                            || !program.has_valid_parameter_reads(|index| {
+                                bound_params.parameter_kind(index)
+                            })
+                            || !program.has_valid_reference_parameter_reads(|index, expected| {
+                                bound_params.parameter_accepts_type(index, expected)
+                            })
+                    })
                 {
                     return Err(bad);
                 }
@@ -422,8 +436,8 @@ fn validate_signal_graph(
                 if effect.automation.is_some()
                     || signal
                         .parameter_environments
-                        .get(*environment as usize)
-                        .zip(signal.programs.get(*program as usize))
+                        .get(*environment)
+                        .zip(signal.programs.get(*program))
                         .is_none_or(|(environment, program)| {
                             !program.has_valid_context(ProgramContext::Effect)
                                 || !program.has_valid_parameter_reads(|index| {
@@ -495,22 +509,20 @@ fn validate_signal_graph(
                 automation,
                 vm_slot,
             } => {
-                if *vm_slot as usize >= plan.vm_workspace_count {
+                if *vm_slot >= plan.vm_workspace_count {
                     return Err(bad);
                 }
                 let PreparedOperator::Dsl(program) = operator.implementation;
-                if program as usize >= signal.programs.len() {
+                if program >= signal.programs.len() {
                     return Err(bad);
                 }
                 if !operator.params.is_frozen()
-                    || !signal.programs[program as usize].has_valid_context(
-                        ProgramContext::Operator {
-                            inputs: inputs.len(),
-                        },
-                    )
-                    || !signal.programs[program as usize]
+                    || !signal.programs[program].has_valid_context(ProgramContext::Operator {
+                        inputs: inputs.len(),
+                    })
+                    || !signal.programs[program]
                         .has_valid_parameter_reads(|index| operator.params.parameter_kind(index))
-                    || !signal.programs[program as usize].has_valid_reference_parameter_reads(
+                    || !signal.programs[program].has_valid_reference_parameter_reads(
                         |index, expected| operator.params.parameter_accepts_type(index, expected),
                     )
                 {
@@ -546,10 +558,10 @@ fn validate_signal_graph(
             .max()
             .unwrap_or(0);
         let vm_depth = if let Some(slot) = vm_slot {
-            if usize::from(slot) < input_vm_depth {
+            if slot < input_vm_depth {
                 return Err(bad);
             }
-            usize::from(slot) + 1
+            slot + 1
         } else {
             input_vm_depth
         };
@@ -561,7 +573,7 @@ fn validate_signal_graph(
         depths.push(depth);
     }
     let mut scheduled = vec![false; plan.nodes.len()];
-    let mut slot_owner = vec![None; usize::from(plan.frame_buffer_count)];
+    let mut slot_owner = vec![None; plan.frame_buffer_count];
     for &node in &plan.frame_nodes {
         if node >= plan.nodes.len()
             || scheduled[node]
@@ -569,10 +581,10 @@ fn validate_signal_graph(
         {
             return Err(bad);
         }
-        let destination = usize::from(plan.frame_slots[node]);
+        let destination = plan.frame_slots[node];
         if let PreparedSignalKind::Output { inputs } = &plan.nodes[node].kind
             && inputs.iter().any(|&input| {
-                let source = usize::from(plan.frame_slots[input]);
+                let source = plan.frame_slots[input];
                 !scheduled[input]
                     || source == destination
                     || slot_owner.get(source) != Some(&Some(input))
@@ -594,7 +606,7 @@ fn validate_signal_graph(
     if plan.frame_slots[plan.output_index] >= plan.frame_buffer_count {
         return Err(bad);
     }
-    let output_owner = slot_owner[usize::from(plan.frame_slots[plan.output_index])];
+    let output_owner = slot_owner[plan.frame_slots[plan.output_index]];
     if !scheduled[plan.output_index] {
         let PreparedSignalKind::Output { inputs } = &plan.nodes[plan.output_index].kind else {
             return Err(bad);

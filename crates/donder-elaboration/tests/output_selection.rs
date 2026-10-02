@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PreparedSequenceOutput, SequenceOutputPrepareError};
+use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::controller::{ControllerId, ControllerPortId};
 use donder_language::layout::FixtureInstanceId;
 use donder_language::model::DonderProject;
@@ -60,7 +60,7 @@ fn controller_fragments_retain_nested_generator_parameter_dependencies() {
     let mut retained = false;
     for id in project.sequences.keys() {
         let fragment = compare(&project, id, &ports[..1]);
-        retained |= !fragment.signals.parameter_environments.is_empty();
+        retained |= !fragment.signals().parameter_environments.is_empty();
         let bytes = donder_runtime::wire::encode_sequence(&fragment).unwrap();
         donder_runtime::wire::decode_sequence(&bytes, donder_runtime::wire::LoadLimits::default())
             .unwrap();
@@ -87,16 +87,30 @@ fn compare(
     id: &SequenceId,
     selected: &[(ControllerId, ControllerPortId)],
 ) -> PreparedSequence {
-    let full = PreparedSequenceOutput::prepare(project, project.root.setup.id(), id).unwrap();
-    let fragment =
-        PreparedSequenceOutput::prepare_selected(project, project.root.setup.id(), id, selected)
-            .unwrap();
+    let full = prepare(project, id, PrepareOutputs::All).unwrap();
+    let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
     let mut full_workspace = full.workspace().unwrap();
     let mut workspace = fragment.workspace().unwrap();
+    let buffers = |sequence: &PreparedSequence| {
+        sequence
+            .outputs()
+            .iter()
+            .map(|output| vec![0; output.width as usize])
+            .collect::<Vec<_>>()
+    };
+    let mut expected = buffers(&full);
+    let mut actual = buffers(&fragment);
+    let setup = project.setup(project.root.setup.id()).unwrap();
+    let identity = |output: &donder_runtime::sequence::PreparedOutput| {
+        (
+            setup.controllers[output.controller_index].id().clone(),
+            ControllerPortId(output.port),
+        )
+    };
     let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
-        .map(|frame| sample_time_from_frame(frame, full.frame_rate()).unwrap())
+        .map(|frame| sample_time_from_frame(frame, full.signals().frame_rate).unwrap())
         .to_vec();
-    times.extend(full.sequence.signals.effects.iter().flat_map(|effect| {
+    times.extend(full.signals().effects.iter().flat_map(|effect| {
         [
             Some(effect.start_time),
             effect.start_time.checked_add_duration(effect.duration),
@@ -105,28 +119,33 @@ fn compare(
         .flatten()
     }));
     times.extend([
-        SampleTime::from_ticks(full.sequence.signals.duration.as_ticks()),
+        SampleTime::from_ticks(full.signals().duration.as_ticks()),
         SampleTime::from_ticks(0),
     ]);
     for time in times {
-        let expected = full.sample_into(time, &mut full_workspace).unwrap();
-        let actual = fragment.sample_into(time, &mut workspace).unwrap();
+        full.evaluate(time, &mut expected, &mut full_workspace)
+            .unwrap();
+        fragment
+            .evaluate(time, &mut actual, &mut workspace)
+            .unwrap();
         assert_eq!(actual.len(), selected.len());
-        for (frame, (controller, port)) in actual.iter().zip(selected) {
-            assert_eq!((&frame.controller, frame.port), (controller, *port));
-            let expected = expected
+        for ((frame, output), selected) in actual.iter().zip(fragment.outputs()).zip(selected) {
+            assert_eq!(&identity(output), selected);
+            let index = full
+                .outputs()
                 .iter()
-                .find(|frame| frame.controller == *controller && frame.port == *port)
+                .position(|output| identity(output) == *selected)
                 .unwrap();
             assert_eq!(
                 frame,
-                expected,
-                "{} at {time:?}, port {port:?}",
-                id.0.root_source().object()
+                &expected[index],
+                "{} at {time:?}, port {:?}",
+                id.0.root_source().object(),
+                selected.1
             );
         }
     }
-    fragment.sequence
+    fragment
 }
 
 #[test]
@@ -134,37 +153,35 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
     let project = starter();
     let ports = ports(&project);
     for id in project.root.sequences.iter().map(|source| source.id()) {
-        let full = PreparedSequenceOutput::prepare(&project, project.root.setup.id(), id).unwrap();
+        let full = prepare(&project, id, PrepareOutputs::All).unwrap();
         for port in &ports {
             let fragment = compare(&project, id, std::slice::from_ref(port));
-            assert_eq!(fragment.signals.fixtures.len(), 1);
-            assert_eq!(fragment.signals.pixel_count, 113);
-            assert!(fragment.signals.effects.len() <= full.sequence.signals.effects.len());
-            assert!(fragment.signals.programs.len() <= full.sequence.signals.programs.len());
-            assert!(
-                fragment.signals.target_pixels.len() < full.sequence.signals.target_pixels.len()
-            );
+            assert_eq!(fragment.signals().fixtures.len(), 1);
+            assert_eq!(fragment.signals().pixel_count, 113);
+            assert!(fragment.signals().effects.len() <= full.signals().effects.len());
+            assert!(fragment.signals().programs.len() <= full.signals().programs.len());
+            assert!(fragment.signals().target_pixels.len() < full.signals().target_pixels.len());
         }
         let fragment = compare(&project, id, &ports[0..1]);
         let frame_bytes = |sequence: &PreparedSequence| {
-            sequence.signals.pixel_count
-                * usize::from(sequence.signals.plan.frame_buffer_count)
+            sequence.signals().pixel_count
+                * sequence.signals().plan.frame_buffer_count
                 * size_of::<Color>()
         };
         println!(
             "{}: pixels {} -> {}; target records {} -> {}; effects {} -> {}; programs {} -> {}; pixel routes {} -> {}; graph buffer bytes {} -> {}",
             id.0.root_source().object(),
-            full.sequence.signals.pixel_count,
-            fragment.signals.pixel_count,
-            full.sequence.signals.target_pixels.len(),
-            fragment.signals.target_pixels.len(),
-            full.sequence.signals.effects.len(),
-            fragment.signals.effects.len(),
-            full.sequence.signals.programs.len(),
-            fragment.signals.programs.len(),
-            full.sequence.patch.routes.len(),
-            fragment.patch.routes.len(),
-            frame_bytes(&full.sequence),
+            full.signals().pixel_count,
+            fragment.signals().pixel_count,
+            full.signals().target_pixels.len(),
+            fragment.signals().target_pixels.len(),
+            full.signals().effects.len(),
+            fragment.signals().effects.len(),
+            full.signals().programs.len(),
+            fragment.signals().programs.len(),
+            full.patch().routes.len(),
+            fragment.patch().routes.len(),
+            frame_bytes(&full),
             frame_bytes(&fragment)
         );
         let reversed = ports.iter().rev().cloned().collect::<Vec<_>>();
@@ -187,9 +204,9 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     let ports = ports(&project);
     for id in project.root.sequences.iter().map(|source| source.id()) {
         let fragment = compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
-        assert_eq!(fragment.signals.fixtures.len(), 1);
-        assert_eq!(fragment.signals.pixel_count, 74);
-        let target = fragment.signals.target(fragment.signals.plan.target);
+        assert_eq!(fragment.signals().fixtures.len(), 1);
+        assert_eq!(fragment.signals().pixel_count, 74);
+        let target = fragment.signals().target(fragment.signals().plan.target);
         assert_eq!(target[37].fixture_pixel_index, 37);
         assert_eq!(target[37].pixel_index, 76);
         assert_eq!(target[37].pixel_count, 113);
@@ -242,7 +259,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             .find(|id| id.0.root_source().object() == "layer_test")
             .unwrap();
         let fragment = compare(&project, id, &ports[1..2]);
-        assert_eq!(fragment.signals.pixel_count, expected_pixels, "{query}");
+        assert_eq!(fragment.signals().pixel_count, expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
         let encoded = donder_runtime::wire::encode_sequence(&fragment).unwrap();
         let decoded = donder_runtime::wire::decode_sequence(
@@ -257,7 +274,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .unwrap();
         let mut original_workspace = fragment.workspace().unwrap();
         let mut decoded_workspace = decoded.workspace().unwrap();
-        let mut original = vec![vec![0; fragment.output_widths[0] as usize]];
+        let mut original = vec![vec![0; fragment.outputs()[0].width as usize]];
         let mut restored = original.clone();
         let time = SampleTime::from_ticks(59_000_000);
         fragment
@@ -301,12 +318,12 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
             id,
             &[(other_id.clone(), selected[1].1), selected[0].clone()],
         );
-        assert_eq!(fragment.signals.fixtures.len(), 1);
-        assert_eq!(fragment.patch.routes.len(), 2);
-        assert_eq!(fragment.signals.pixel_count, 113);
+        assert_eq!(fragment.signals().fixtures.len(), 1);
+        assert_eq!(fragment.patch().routes.len(), 2);
+        assert_eq!(fragment.signals().pixel_count, 113);
         let unpatched = compare(&project, id, &selected[1..2]);
-        assert!(unpatched.signals.fixtures.is_empty());
-        assert!(unpatched.patch.routes.is_empty());
+        assert!(unpatched.signals().fixtures.is_empty());
+        assert!(unpatched.patch().routes.is_empty());
     }
 }
 
@@ -386,14 +403,14 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
         }),
     });
     let fragment = compare(&project, &id, &ports[0..1]);
-    assert!(fragment.signals.effects.is_empty());
-    assert_eq!(fragment.signals.programs.len(), 1);
-    assert!(fragment.signals.plan.nodes.iter().any(|node| matches!(
+    assert!(fragment.signals().effects.is_empty());
+    assert_eq!(fragment.signals().programs.len(), 1);
+    assert!(fragment.signals().plan.nodes.iter().any(|node| matches!(
         node.kind,
         donder_runtime::signal::PreparedSignalKind::Operator { .. }
     )));
     let mut workspace = fragment.workspace().unwrap();
-    let mut buffers = vec![vec![0; fragment.output_widths[0] as usize]];
+    let mut buffers = vec![vec![0; fragment.outputs()[0].width as usize]];
     fragment
         .evaluate(SampleTime::from_ticks(0), &mut buffers, &mut workspace)
         .unwrap();
@@ -406,29 +423,21 @@ fn empty_and_unknown_selections_are_explicit() {
     let ports = ports(&project);
     let id = project.root.sequences[0].id();
     let empty = compare(&project, id, &[]);
-    assert!(empty.signals.fixtures.is_empty());
-    assert!(empty.signals.effects.is_empty());
-    assert!(empty.signals.programs.is_empty());
-    assert!(empty.signals.target_pixels.is_empty());
-    assert!(empty.patch.routes.is_empty());
-    let duplicate = PreparedSequenceOutput::prepare_selected(
+    assert!(empty.signals().fixtures.is_empty());
+    assert!(empty.signals().effects.is_empty());
+    assert!(empty.signals().programs.is_empty());
+    assert!(empty.signals().target_pixels.is_empty());
+    assert!(empty.patch().routes.is_empty());
+    let duplicate = prepare(
         &project,
-        project.root.setup.id(),
         id,
-        &[ports[0].clone(), ports[0].clone()],
+        PrepareOutputs::Ports(&[ports[0].clone(), ports[0].clone()]),
     );
-    assert!(matches!(
-        duplicate,
-        Err(SequenceOutputPrepareError::DuplicateOutput { .. })
-    ));
-    let unknown = PreparedSequenceOutput::prepare_selected(
+    assert_eq!(duplicate.unwrap().outputs().len(), 1);
+    let unknown = prepare(
         &project,
-        project.root.setup.id(),
         id,
-        &[(ports[0].0.clone(), ControllerPortId(u32::MAX))],
+        PrepareOutputs::Ports(&[(ports[0].0.clone(), ControllerPortId(u32::MAX))]),
     );
-    assert!(matches!(
-        unknown,
-        Err(SequenceOutputPrepareError::UnknownOutput { .. })
-    ));
+    assert!(unknown.is_none());
 }

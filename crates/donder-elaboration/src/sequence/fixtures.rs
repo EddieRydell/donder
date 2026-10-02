@@ -1,4 +1,3 @@
-use crate::RenderError;
 use donder_language::layout::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind};
 use donder_language::model::DonderProject;
 use indexmap::IndexMap;
@@ -15,48 +14,39 @@ pub(crate) type PreparedFixtures = (
     IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
 );
 
-pub(crate) fn prepare_fixtures(
-    project: &DonderProject,
-    layout: &Layout,
-) -> Result<PreparedFixtures, RenderError> {
-    let counts = project
-        .definitions
-        .fixtures
-        .pixel_counts()
-        .map_err(|error| RenderError::BadGraph {
-            message: format!("Invalid fixture composition: {error:?}"),
-        })?;
-    layout
-        .validate(&counts)
-        .map_err(|error| RenderError::BadGraph {
-            message: format!("Invalid layout: {error:?}"),
-        })?;
+pub(crate) fn prepare_fixtures(project: &DonderProject, layout: &Layout) -> PreparedFixtures {
+    let geometry = donder_language::geometry::PreparedFixtureDefinitions::prepare(
+        &project.definitions.fixtures,
+    )
+    .prepare_layout(layout);
     fn visit(
         nodes: &[LayoutFixture],
-        counts: &IndexMap<donder_language::fixture::FixtureDefinitionId, u32>,
+        geometry: &donder_language::geometry::PreparedLayout,
         fixtures: &mut Vec<PreparedFixture>,
         groups: &mut IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
-    ) -> Result<(), donder_language::layout::LayoutError> {
+    ) {
         for fixture in nodes {
             match &fixture.kind {
-                LayoutFixtureKind::Fixture { definition, .. } => fixtures.push(PreparedFixture {
-                    id: fixture.id,
-                    positions: Vec::new(),
-                    pixel_count: match definition {
-                        donder_language::fixture::FixtureSource::Reference(id) => counts[id],
-                        donder_language::fixture::FixtureSource::Inline(value) => {
-                            value.validate_geometry().map_err(|error| {
-                                donder_language::layout::LayoutError::InvalidFixture {
-                                    fixture: fixture.id,
-                                    error,
-                                }
-                            })?
-                        }
-                    } as usize,
-                }),
+                LayoutFixtureKind::Fixture { .. } => {
+                    // Geometry and playback use the same layout traversal. Take
+                    // both counts and positions from that one expansion.
+                    let instance = &geometry.instances[fixtures.len()];
+                    fixtures.push(PreparedFixture {
+                        id: fixture.id,
+                        pixel_count: instance.pixels.len(),
+                        positions: instance
+                            .pixels
+                            .iter()
+                            .map(|pixel| {
+                                let point = instance.transform.transform_point3(pixel.position);
+                                [point.x, point.y]
+                            })
+                            .collect(),
+                    });
+                }
                 LayoutFixtureKind::Group { children } => {
                     let start = fixtures.len();
-                    visit(children, counts, fixtures, groups)?;
+                    visit(children, geometry, fixtures, groups);
                     groups.insert(
                         fixture.id,
                         fixtures[start..].iter().map(|fixture| fixture.id).collect(),
@@ -64,33 +54,9 @@ pub(crate) fn prepare_fixtures(
                 }
             }
         }
-        Ok(())
     }
     let mut fixtures = Vec::new();
     let mut groups = IndexMap::new();
-    visit(&layout.fixtures, &counts, &mut fixtures, &mut groups).map_err(|error| {
-        RenderError::BadGraph {
-            message: format!("Invalid layout: {error:?}"),
-        }
-    })?;
-    let geometry =
-        crate::fixture::PreparedFixtureDefinitions::prepare(&project.definitions.fixtures)
-            .map_err(|error| RenderError::BadGraph {
-                message: format!("Invalid fixture geometry: {error:?}"),
-            })?
-            .prepare_layout(layout)
-            .map_err(|error| RenderError::BadGraph {
-                message: format!("Invalid layout geometry: {error:?}"),
-            })?;
-    for (fixture, instance) in fixtures.iter_mut().zip(&geometry.instances) {
-        fixture.positions = instance
-            .pixels
-            .iter()
-            .map(|pixel| {
-                let point = instance.transform.transform_point3(pixel.position);
-                [point.x, point.y]
-            })
-            .collect();
-    }
-    Ok((fixtures, groups))
+    visit(&layout.fixtures, &geometry, &mut fixtures, &mut groups);
+    (fixtures, groups)
 }

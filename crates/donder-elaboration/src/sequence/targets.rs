@@ -1,22 +1,13 @@
-use donder_language::dsl::{TargetItemValue, TargetPixelValue, TargetValue};
+use donder_language::dsl::{TargetItemValue, TargetValue};
 use donder_language::effect::EffectScope;
 use donder_language::layout::FixtureInstanceId;
 use donder_language::layout::FixtureTarget;
-use donder_language::model::DonderProject;
-use donder_language::setup::SetupId;
 pub(crate) use donder_runtime::signal::PreparedPixel as PreparedTargetPixel;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::RenderError;
-use crate::sequence::fixtures::{PreparedFixture, prepare_fixtures};
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RenderedTargetPixelAddress {
-    pub fixture_id: FixtureInstanceId,
-    pub fixture_pixel_index: usize,
-}
+use crate::sequence::fixtures::PreparedFixture;
 
 fn pixel_fraction(index: usize, count: usize) -> f32 {
     if count <= 1 {
@@ -24,39 +15,6 @@ fn pixel_fraction(index: usize, count: usize) -> f32 {
     } else {
         index as f32 / (count - 1) as f32
     }
-}
-
-pub fn resolve_effect_target_pixel_addresses(
-    project: &DonderProject,
-    setup_id: &SetupId,
-    target: &FixtureTarget,
-    scope: &EffectScope,
-) -> Result<Vec<RenderedTargetPixelAddress>, RenderError> {
-    let setup = project
-        .setup(setup_id)
-        .ok_or_else(|| RenderError::MissingSetup {
-            setup_id: setup_id.clone(),
-        })?;
-    let layout = project
-        .layout(setup.layout.id())
-        .ok_or(RenderError::MissingLayout)?;
-    if target.layout != layout.id {
-        return Err(RenderError::BadTarget);
-    }
-    let (fixtures, groups) = prepare_fixtures(project, layout)?;
-    let fixture_ids = fixtures
-        .iter()
-        .map(|fixture| fixture.id)
-        .collect::<IndexSet<_>>();
-    let target = prepare_target(target, &fixture_ids, &groups)?;
-    let pixels = prepare_target_pixels(&target, &fixtures, scope)?;
-    Ok(pixels
-        .into_iter()
-        .map(|pixel| RenderedTargetPixelAddress {
-            fixture_id: fixtures[pixel.fixture_index()].id,
-            fixture_pixel_index: pixel.fixture_pixel_index(),
-        })
-        .collect())
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -68,7 +26,6 @@ pub(crate) struct PreparedTargetSelection {
 pub(crate) struct PreparedTargetCache {
     prepared_targets: HashMap<PreparedTargetCacheKey, Arc<[PreparedTargetPixel]>>,
     pub(crate) sample_targets: Vec<Arc<[PreparedTargetPixel]>>,
-    generated_targets: HashMap<usize, GeneratedTargetCacheEntry>,
     generator_context_targets: HashMap<usize, GeneratorContextTargetCacheEntry>,
 }
 
@@ -93,9 +50,7 @@ impl From<&EffectScope> for PreparedTargetScopeKey {
     }
 }
 
-pub(crate) fn full_rig_target_pixels(
-    fixtures: &[PreparedFixture],
-) -> Result<Vec<PreparedTargetPixel>, RenderError> {
+pub(crate) fn full_rig_target_pixels(fixtures: &[PreparedFixture]) -> Vec<PreparedTargetPixel> {
     let mut pixels = Vec::new();
     for (fixture_index, fixture) in fixtures.iter().enumerate() {
         for fixture_pixel_index in 0..fixture.pixel_count {
@@ -105,67 +60,54 @@ pub(crate) fn full_rig_target_pixels(
             } else {
                 fixture_pixel_index as f32 / (fixture.pixel_count - 1) as f32
             };
-            pixels.push(
-                PreparedTargetPixel::try_new(
-                    fixture_index,
-                    fixture_pixel_index,
-                    pixel_index,
-                    fixture.pixel_count,
-                    pixel_fraction,
-                )
-                .ok_or(RenderError::BadTarget)?,
-            );
+            pixels.push(PreparedTargetPixel {
+                fixture_index,
+                fixture_pixel_index: fixture_pixel_index as u32,
+                pixel_index,
+                pixel_count: fixture.pixel_count,
+                pixel_fraction,
+            });
         }
     }
-    Ok(pixels)
+    pixels
 }
 
 pub(crate) fn prepare_target(
     target: &FixtureTarget,
-    fixture_ids: &IndexSet<FixtureInstanceId>,
     groups: &IndexMap<FixtureInstanceId, Vec<FixtureInstanceId>>,
-) -> Result<PreparedTargetSelection, RenderError> {
+) -> PreparedTargetSelection {
     if let Some(members) = groups.get(&target.fixture) {
-        return Ok(PreparedTargetSelection {
+        return PreparedTargetSelection {
             fixtures: members.clone(),
-        });
+        };
     }
-    if !fixture_ids.contains(&target.fixture) {
-        return Err(RenderError::MissingFixture {
-            fixture_id: target.fixture,
-        });
-    }
-    Ok(PreparedTargetSelection {
+    PreparedTargetSelection {
         fixtures: vec![target.fixture],
-    })
+    }
 }
 
 fn prepare_target_indexes(
     target: &[FixtureInstanceId],
     fixtures: &[PreparedFixture],
-) -> Result<Vec<usize>, RenderError> {
-    target
+) -> Vec<usize> {
+    let indexes = fixtures
         .iter()
-        .map(|id| {
-            fixtures
-                .iter()
-                .position(|fixture| &fixture.id == id)
-                .ok_or(RenderError::MissingFixture { fixture_id: *id })
-        })
-        .collect()
+        .enumerate()
+        .map(|(index, fixture)| (fixture.id, index))
+        .collect::<IndexMap<_, _>>();
+    target.iter().map(|id| indexes[id]).collect()
 }
 
 pub(crate) fn prepare_target_pixels(
     target: &PreparedTargetSelection,
     fixtures: &[PreparedFixture],
     scope: &EffectScope,
-) -> Result<Vec<PreparedTargetPixel>, RenderError> {
-    let indexes = prepare_target_indexes(&target.fixtures, fixtures)?;
-    let total_target_pixels = indexes.iter().try_fold(0usize, |total, index| {
-        total
-            .checked_add(fixtures[*index].pixel_count)
-            .ok_or(RenderError::BadTarget)
-    })?;
+) -> Vec<PreparedTargetPixel> {
+    let indexes = prepare_target_indexes(&target.fixtures, fixtures);
+    let total_target_pixels = indexes
+        .iter()
+        .map(|index| fixtures[*index].pixel_count)
+        .sum();
     let mut pixels = Vec::with_capacity(total_target_pixels);
     let mut whole_index = 0usize;
     for fixture_index in indexes {
@@ -175,20 +117,17 @@ pub(crate) fn prepare_target_pixels(
                 EffectScope::PerFixture => (fixture_pixel_index, fixture_pixel_count),
                 EffectScope::WholeTarget => (whole_index, total_target_pixels),
             };
-            pixels.push(
-                PreparedTargetPixel::try_new(
-                    fixture_index,
-                    fixture_pixel_index,
-                    pixel_index,
-                    pixel_count,
-                    pixel_fraction(pixel_index, pixel_count),
-                )
-                .ok_or(RenderError::BadTarget)?,
-            );
+            pixels.push(PreparedTargetPixel {
+                fixture_index,
+                fixture_pixel_index: fixture_pixel_index as u32,
+                pixel_index,
+                pixel_count,
+                pixel_fraction: pixel_fraction(pixel_index, pixel_count),
+            });
             whole_index += 1;
         }
     }
-    Ok(pixels)
+    pixels
 }
 
 pub(crate) fn prepare_target_pixels_cached(
@@ -196,17 +135,17 @@ pub(crate) fn prepare_target_pixels_cached(
     target: &PreparedTargetSelection,
     fixtures: &[PreparedFixture],
     scope: &EffectScope,
-) -> Result<Arc<[PreparedTargetPixel]>, RenderError> {
+) -> Arc<[PreparedTargetPixel]> {
     let key = PreparedTargetCacheKey {
         target: target.clone(),
         scope: PreparedTargetScopeKey::from(scope),
     };
     if let Some(pixels) = cache.prepared_targets.get(&key) {
-        return Ok(Arc::clone(pixels));
+        return Arc::clone(pixels);
     }
-    let pixels = Arc::from(prepare_target_pixels(target, fixtures, scope)?);
+    let pixels = Arc::from(prepare_target_pixels(target, fixtures, scope));
     cache.prepared_targets.insert(key, Arc::clone(&pixels));
-    Ok(pixels)
+    pixels
 }
 
 pub(crate) fn sorted_sample_target(
@@ -249,11 +188,6 @@ pub(crate) fn generator_expansion_targets(
     }
 }
 
-struct GeneratedTargetCacheEntry {
-    source: Arc<TargetItemValue>,
-    pixels: Arc<[PreparedTargetPixel]>,
-}
-
 struct GeneratorContextTargetCacheEntry {
     source: Arc<[PreparedTargetPixel]>,
     target: Arc<TargetValue>,
@@ -263,9 +197,9 @@ fn arc_key<T: ?Sized>(value: &Arc<T>) -> usize {
     Arc::as_ptr(value).cast::<()>() as usize
 }
 
-fn target_groups_from_pixels(pixels: &[PreparedTargetPixel]) -> Vec<Arc<TargetItemValue>> {
+fn target_groups_from_pixels(pixels: &Arc<[PreparedTargetPixel]>) -> Vec<Arc<TargetItemValue>> {
     vec![Arc::new(TargetItemValue {
-        pixels: Arc::from(pixels.iter().map(target_pixel_value).collect::<Vec<_>>()),
+        pixels: Arc::clone(pixels),
     })]
 }
 
@@ -292,98 +226,8 @@ pub(crate) fn generator_context_target(
     target
 }
 
-fn target_pixel_value(pixel: &PreparedTargetPixel) -> TargetPixelValue {
-    TargetPixelValue {
-        fixture_index: pixel.fixture_index() as i32,
-        fixture_pixel_index: pixel.fixture_pixel_index() as i32,
-        pixel_index: pixel.pixel_index() as i32,
-        pixel_count: pixel.pixel_count() as i32,
-        pixel_fraction: pixel.pixel_fraction,
-    }
-}
-
-fn prepared_pixels_from_generated_target(
-    fixtures: &[PreparedFixture],
-    target: Arc<TargetItemValue>,
-) -> Result<Vec<PreparedTargetPixel>, RenderError> {
-    target
-        .pixels
-        .iter()
-        .copied()
-        .map(|pixel| {
-            let fixture_index = usize::try_from(pixel.fixture_index).map_err(|_| {
-                RenderError::GeneratorPrepare {
-                    message: "generated target fixture index cannot be negative".to_string(),
-                }
-            })?;
-            let fixture_pixel_index = usize::try_from(pixel.fixture_pixel_index).map_err(|_| {
-                RenderError::GeneratorPrepare {
-                    message: "generated target pixel index cannot be negative".to_string(),
-                }
-            })?;
-            let fixture =
-                fixtures
-                    .get(fixture_index)
-                    .ok_or_else(|| RenderError::GeneratorPrepare {
-                        message: "generated target fixture index is out of bounds".to_string(),
-                    })?;
-            if fixture_pixel_index >= fixture.pixel_count {
-                return Err(RenderError::GeneratorPrepare {
-                    message: "generated target pixel index is out of bounds".to_string(),
-                });
-            }
-            let pixel_index =
-                usize::try_from(pixel.pixel_index).map_err(|_| RenderError::GeneratorPrepare {
-                    message: "generated target pixel context index cannot be negative".to_string(),
-                })?;
-            let pixel_count =
-                usize::try_from(pixel.pixel_count).map_err(|_| RenderError::GeneratorPrepare {
-                    message: "generated target pixel context count cannot be negative".to_string(),
-                })?;
-            PreparedTargetPixel::try_new(
-                fixture_index,
-                fixture_pixel_index,
-                pixel_index,
-                pixel_count,
-                pixel.pixel_fraction,
-            )
-            .ok_or_else(|| RenderError::GeneratorPrepare {
-                message: "generated target pixel exceeds the prepared runtime range".to_string(),
-            })
-        })
-        .collect()
-}
-
-pub(crate) fn prepared_pixels_from_generated_target_cached(
-    cache: &mut PreparedTargetCache,
-    fixtures: &[PreparedFixture],
-    target: Arc<TargetItemValue>,
-) -> Result<Arc<[PreparedTargetPixel]>, RenderError> {
-    let key = arc_key(&target);
-    if let Some(entry) = cache.generated_targets.get(&key)
-        && Arc::ptr_eq(&entry.source, &target)
-    {
-        return Ok(Arc::clone(&entry.pixels));
-    }
-    let pixels = Arc::from(prepared_pixels_from_generated_target(
-        fixtures,
-        Arc::clone(&target),
-    )?);
-    cache.generated_targets.insert(
-        key,
-        GeneratedTargetCacheEntry {
-            source: target,
-            pixels: Arc::clone(&pixels),
-        },
-    );
-    Ok(pixels)
-}
-
 impl PreparedTargetCache {
-    pub(crate) fn sample_target(
-        &mut self,
-        pixels: Arc<[PreparedTargetPixel]>,
-    ) -> Result<u32, RenderError> {
+    pub(crate) fn sample_target(&mut self, pixels: Arc<[PreparedTargetPixel]>) -> usize {
         let key = |pixel: &PreparedTargetPixel| {
             (
                 pixel.fixture_index,
@@ -401,11 +245,10 @@ impl PreparedTargetCache {
                 Arc::ptr_eq(target, &pixels) || target.iter().map(key).eq(pixels.iter().map(key))
             })
             .unwrap_or(self.sample_targets.len());
-        let id = u32::try_from(index).map_err(|_| RenderError::BadTarget)?;
         if index == self.sample_targets.len() {
             self.sample_targets.push(pixels);
         }
-        Ok(id)
+        index
     }
 }
 
@@ -446,8 +289,18 @@ mod representation_tests {
     use donder_language::layout::FixtureInstanceId;
 
     #[test]
-    fn prepared_target_pixel_has_a_wide_local_index() {
-        assert_eq!(std::mem::size_of::<PreparedTargetPixel>(), 20);
+    fn prepared_target_pixel_uses_native_addresses_and_u32_fixture_cells() {
+        let pixel = PreparedTargetPixel {
+            fixture_index: usize::MAX,
+            fixture_pixel_index: u32::MAX,
+            pixel_index: usize::MAX,
+            pixel_count: usize::MAX,
+            pixel_fraction: 1.0,
+        };
+        assert_eq!(pixel.fixture_index(), usize::MAX);
+        assert_eq!(pixel.fixture_pixel_index(), u32::MAX as usize);
+        assert_eq!(pixel.pixel_index(), usize::MAX);
+        assert_eq!(pixel.pixel_count(), usize::MAX);
     }
 
     #[test]
@@ -456,8 +309,7 @@ mod representation_tests {
             id: FixtureInstanceId(1),
             pixel_count: 65_537,
             positions: Vec::new(),
-        }])
-        .expect("valid fixture size must fit prepared local indices");
+        }]);
 
         assert_eq!(pixels.len(), 65_537);
         assert_eq!(pixels.last().unwrap().fixture_pixel_index, 65_536);

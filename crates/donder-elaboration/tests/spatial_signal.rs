@@ -21,7 +21,13 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     .unwrap()
     .remove(0)
     .effect;
-    let mut base = workload::show(8, effect.bytecode, BoundParams::default()).signals;
+    let mut base = workload::show(
+        8,
+        effect.sample_program().unwrap().clone(),
+        BoundParams::default(),
+    )
+    .signals()
+    .clone();
     base.fixtures = vec![
         PreparedFixture {
             id: 0,
@@ -36,12 +42,12 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     base.fixture_pixel_offsets = vec![0, 4].into();
     let mut pixels = base.target_pixels.to_vec();
     for (index, pixel) in pixels.iter_mut().enumerate() {
-        pixel.fixture_index = (index / 4) as u16;
+        pixel.fixture_index = index / 4;
         pixel.fixture_pixel_index = (index % 4) as u32;
     }
     let effect_pixels = pixels.clone();
     for (index, pixel) in pixels.iter_mut().enumerate() {
-        pixel.pixel_index = (index % 4) as u32;
+        pixel.pixel_index = index % 4;
         pixel.pixel_count = 4;
         pixel.pixel_fraction = (index % 4) as f32 / 3.0;
     }
@@ -123,7 +129,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
                 }
             }
             let mut programs = graph.programs.to_vec();
-            let program_index = programs.len() as u32;
+            let program_index = programs.len();
             programs.push(program);
             graph.programs = programs.into();
             graph.plan.nodes[1] = PreparedSignalNode {
@@ -140,7 +146,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             };
             graph.plan.vm_workspace_count = 1;
             graph.plan.frame_nodes = vec![1].into();
-            graph.plan.frame_slots = vec![u16::MAX, 0].into();
+            graph.plan.frame_slots = vec![usize::MAX, 0].into();
             graph.plan.frame_buffer_count = 1;
             let mut workspace = graph.workspace().unwrap();
             let mut source_workspace = base.workspace().unwrap();

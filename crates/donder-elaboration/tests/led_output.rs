@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::{PreparedSequenceOutput, elaborate_sequence};
+use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
 use donder_language::values::sample_time_from_frame;
-use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence};
+use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence, encode_sequence};
 
 fn project() -> donder_project_io::ProjectSession {
     donder_project_io::load_project(
@@ -55,9 +55,14 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         .keys()
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
-    let signal = elaborate_sequence(project, project.root.setup.id(), sequence).unwrap();
-    let output =
-        PreparedSequenceOutput::prepare(project, project.root.setup.id(), sequence).unwrap();
+    let output = prepare(project, sequence, PrepareOutputs::All).unwrap();
+    let signal = output.signals();
+    let mut workspace = output.workspace().unwrap();
+    let mut buffers: Vec<_> = output
+        .outputs()
+        .iter()
+        .map(|port| vec![0; port.width as usize])
+        .collect();
     for (frame, expected) in [
         (8398, 0x8bb5_7d05_87a6_9ae8),
         (8450, 0x5bee_7460_eba9_0468),
@@ -82,19 +87,25 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
             }
         }
         assert_eq!(hash, expected, "frame {frame}");
-        let packed = output.render_frame(frame).unwrap();
-        for port in &packed.controller_frames {
+        output
+            .evaluate(
+                sample_time_from_frame(frame, signal.frame_rate).unwrap(),
+                &mut buffers,
+                &mut workspace,
+            )
+            .unwrap();
+        for (port, buffer) in output.outputs().iter().zip(&buffers) {
             let fixture = rendered
                 .fixtures
                 .iter()
-                .find(|fixture| fixture.fixture_id == port.port.0)
+                .find(|fixture| fixture.fixture_id == port.port)
                 .unwrap();
             let expected: Vec<_> = fixture
                 .pixels
                 .iter()
                 .flat_map(|color| [color.green, color.red, color.blue])
                 .collect();
-            assert_eq!(port.slots, expected);
+            assert_eq!(*buffer, expected);
         }
     }
 }
@@ -108,61 +119,58 @@ fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates()
         .keys()
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
-    let full = PreparedSequenceOutput::prepare(project, project.root.setup.id(), sequence).unwrap();
-    let frame = full.render_frame(8450).unwrap();
+    let full = prepare(project, sequence, PrepareOutputs::All).unwrap();
+    let setup = &project.setups[project.root.setup.id()];
     let ports: Vec<_> = [2, 17]
         .into_iter()
         .map(|index| {
+            let output = &full.outputs()[index];
             (
-                frame.controller_frames[index].controller.clone(),
-                frame.controller_frames[index].port,
+                setup.controllers[output.controller_index].id().clone(),
+                donder_language::controller::ControllerPortId(output.port),
             )
         })
         .collect();
-    let mut selected = PreparedSequenceOutput::prepare_selected(
-        project,
-        project.root.setup.id(),
-        sequence,
-        &ports,
-    )
-    .unwrap();
+    let selected = prepare(project, sequence, PrepareOutputs::Ports(&ports)).unwrap();
     let limits = LoadLimits {
         payload_bytes: 32 * 1024 * 1024,
         workspace_bytes: 32 * 1024 * 1024,
         ..LoadLimits::default()
     };
-    let decoded = decode_sequence(&selected.encode().unwrap(), limits).unwrap();
+    let decoded = decode_sequence(&encode_sequence(&selected).unwrap(), limits).unwrap();
     let mut workspace = decoded.workspace().unwrap();
+    let mut full_workspace = full.workspace().unwrap();
     let mut buffers: Vec<_> = decoded
-        .output_widths
+        .outputs()
         .iter()
-        .map(|&width| vec![0; width as usize])
+        .map(|port| vec![0; port.width as usize])
+        .collect();
+    let mut full_buffers: Vec<_> = full
+        .outputs()
+        .iter()
+        .map(|port| vec![0; port.width as usize])
         .collect();
     for frame_index in [8398, 8450, 8494] {
+        let time = sample_time_from_frame(frame_index, full.signals().frame_rate).unwrap();
         decoded
-            .evaluate(
-                sample_time_from_frame(frame_index, full.frame_rate()).unwrap(),
-                &mut buffers,
-                &mut workspace,
-            )
+            .evaluate(time, &mut buffers, &mut workspace)
             .unwrap();
-        let full_frame = full.render_frame(frame_index).unwrap();
-        for (buffer, (controller, port)) in buffers.iter().zip(&ports) {
-            assert_eq!(
-                buffer,
-                &full_frame
-                    .controller_frames
-                    .iter()
-                    .find(|frame| frame.controller == *controller && frame.port == *port)
-                    .unwrap()
-                    .slots
-            );
+        full.evaluate(time, &mut full_buffers, &mut full_workspace)
+            .unwrap();
+        for (buffer, index) in buffers.iter().zip([2, 17]) {
+            assert_eq!(buffer, &full_buffers[index]);
         }
     }
-    selected.sequence.patch.routes[0].encoding =
+    let mut invalid_patch = selected.patch().clone();
+    invalid_patch.routes[0].encoding =
         donder_runtime::patch::PixelEncoding::Rgb { order: [0, 1, 4] };
+    let invalid = PreparedSequence::new(
+        selected.signals().clone(),
+        invalid_patch,
+        selected.outputs().into(),
+    );
     assert!(matches!(
-        decode_sequence(&selected.encode().unwrap(), limits),
+        decode_sequence(&encode_sequence(&invalid).unwrap(), limits),
         Err(LoadError::InvalidSequence)
     ));
 }

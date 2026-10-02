@@ -53,7 +53,7 @@ impl DesktopState {
         let session = self
             .project_session()
             .ok_or("Open a valid project before starting devices")?;
-        let (setup, sequence) = lock_unpoisoned(&self.workspace)
+        let (_, sequence) = lock_unpoisoned(&self.workspace)
             .render_target
             .clone()
             .ok_or("Open a sequence before starting devices")?;
@@ -82,16 +82,14 @@ impl DesktopState {
                             .ok_or("A connected device output was removed from the setup")
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let prepared = donder_elaboration::PreparedSequenceOutput::prepare_selected(
+                let prepared = donder_elaboration::prepare(
                     &session.project,
-                    &setup,
                     &sequence,
-                    ports,
+                    donder_elaboration::PrepareOutputs::Ports(ports),
                 )
-                .map_err(|error| format!("Could not prepare device sequence: {error:?}"))?;
+                .ok_or("The sequence or a connected device output is unavailable.")?;
                 Ok((
-                    prepared
-                        .encode()
+                    donder_runtime::wire::encode_sequence(&prepared)
                         .map_err(|error| format!("Could not encode device sequence: {error:?}"))?,
                     widths,
                 ))

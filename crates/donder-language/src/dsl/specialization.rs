@@ -1,22 +1,69 @@
-//! Host specialization of checked generators. Expressions and retained control
-//! flow are always compiled to the ordinary typed VM; this is not an expression
-//! interpreter. Only fixed expansion control is traversed here.
-use super::checked::{CheckedBlock, CheckedExpr, CheckedExprKind, CheckedStmt};
-use super::lexer::TextSpan;
+//! Bind fixed inputs and expand a compiled generator into children and retained
+//! parameter calculations. Every expression was compiled with the declaration;
+//! specialization never recompiles authored code.
 use super::{
-    BoundParams, BytecodeProgram, EmittedReference, GeneratedEffectSlot, GeneratorContext,
-    Identifier, ParamDecl, RunContext, RuntimeError, TargetItemValue, Type, Value, VmWorkspace,
+    CalculationProgram, EmittedReference, Identifier, ParamDecl, RunContext, RuntimeError,
+    TargetItemValue, Type, Value, VmWorkspace,
 };
 use crate::values::{SampleDuration, SampleTime};
-use indexmap::{IndexMap, IndexSet};
-use std::collections::HashSet;
 use std::sync::Arc;
+
+mod bindings;
+mod compilation;
+use bindings::Bindings;
+mod hashing;
+use compilation::{Block, Calculation, Expression, FixedCalculation, Statement};
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct GeneratedEffectSlot(pub u32);
+
+/// Host-only context for expanding a generator. Its calculations receive captured
+/// targets and duration as ordinary typed inputs, not a second VM context.
+#[derive(Clone, Debug)]
+pub struct GeneratorContext {
+    pub start_time: SampleTime,
+    pub duration: SampleDuration,
+    pub target: Arc<super::TargetValue>,
+}
+
+impl GeneratorContext {
+    /// Invalid or zero-length children are omitted during specialization.
+    fn child_timing(
+        &self,
+        start_seconds: f32,
+        duration_seconds: f32,
+    ) -> Option<(SampleTime, SampleDuration)> {
+        let start =
+            crate::values::sample_time_with_seconds_offset(self.start_time, start_seconds).ok()?;
+        let duration = crate::values::sample_duration_from_seconds_f32(duration_seconds).ok()?;
+        (duration.as_ticks() != 0).then_some((start, duration))
+    }
+}
+
+/// Resolved lexical storage. Only generator compilation constructs these slots;
+/// branches and loop bodies refer directly to their declaration's storage.
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+struct BindingSlot(usize);
+
+/// Staging checked this use of a lexical slot as preparation-time data.
+/// Only structural-expression compilation constructs these references.
+#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+struct FixedBindingSlot(BindingSlot);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneratorProgram {
     params: Vec<ParamDecl>,
-    body: CheckedBlock,
-    emissions: Vec<EmittedReference>,
+    body: Block,
+    slot_count: usize,
+}
+
+/// Immutable program/input pairing admitted before expansion. Borrowing the
+/// input slice prevents callers from changing its values or fixed/live kinds
+/// while the invocation is in use.
+#[derive(Debug)]
+pub struct BoundGenerator<'a> {
+    program: &'a GeneratorProgram,
+    inputs: &'a [GeneratorInput],
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,15 +76,14 @@ pub enum GeneratorInput {
 pub enum GeneratorBinding {
     Constant(Value),
     Parameter(u16),
-    Calculation { index: u32, output: u16 },
+    Calculation { index: usize, output: u16 },
 }
 
-/// A tuple-valued VM program. Input/output names disappear before playback.
+/// A VM program with declared output slots. Input/output names disappear before playback.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneratorCalculation {
-    pub program: BytecodeProgram,
-    pub inputs: Box<[(Type, GeneratorBinding)]>,
-    pub output_types: Box<[Type]>,
+    pub program: CalculationProgram,
+    pub inputs: Box<[GeneratorBinding]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,96 +101,190 @@ pub struct SpecializedGenerator {
     pub children: Vec<SpecializedChild>,
 }
 
-#[derive(Clone)]
-struct Symbol {
-    ty: Type,
-    binding: GeneratorBinding,
-}
-type Environment = IndexMap<Identifier, Symbol>;
-
 impl GeneratorProgram {
     pub(super) fn new(
         params: Vec<ParamDecl>,
-        body: CheckedBlock,
+        body: super::checked::CheckedBlock,
         emissions: Vec<EmittedReference>,
-    ) -> Self {
-        Self {
+        preparation_controls: &super::staging::PreparationControls,
+    ) -> Result<Self, super::Diagnostic> {
+        let (body, slot_count) =
+            compilation::compile(&params, body, &emissions, preparation_controls)?;
+        Ok(Self {
             params,
             body,
-            emissions,
-        }
+            slot_count,
+        })
     }
 
-    pub fn specialize(
-        &self,
-        inputs: &[GeneratorInput],
-        context: &GeneratorContext,
-    ) -> Result<SpecializedGenerator, RuntimeError> {
+    /// Check external arguments once, including unused parameters. The
+    /// specialization executor only receives this immutable admitted pairing.
+    pub fn bind<'a>(
+        &'a self,
+        inputs: &'a [GeneratorInput],
+    ) -> Result<BoundGenerator<'a>, RuntimeError> {
         if inputs.len() != self.params.len() {
             return Err(error(
                 "generator input count does not match its declaration",
             ));
         }
-        let mut env = Environment::new();
-        for (index, (param, input)) in self.params.iter().zip(inputs).enumerate() {
-            let binding = match input {
-                GeneratorInput::Fixed(value) => GeneratorBinding::Constant(value.clone()),
+        for (param, input) in self.params.iter().zip(inputs) {
+            match input {
+                GeneratorInput::Fixed(value) if !param.ty.accepts_value(value) => {
+                    return Err(error(format!(
+                        "generator parameter `{}` does not match {:?}",
+                        param.name.as_str(),
+                        param.ty,
+                    )));
+                }
                 GeneratorInput::Live if param.fixed => {
                     return Err(error(format!(
                         "fixed parameter `{}` cannot receive a live binding",
-                        param.name.as_str()
+                        param.name.as_str(),
                     )));
                 }
-                GeneratorInput::Live => GeneratorBinding::Parameter(
-                    u16::try_from(index).map_err(|_| error("too many generator parameters"))?,
-                ),
-            };
-            env.insert(
-                param.name.clone(),
-                Symbol {
-                    ty: param.ty.clone(),
-                    binding,
-                },
-            );
+                _ => {}
+            }
         }
-        env.insert(
-            identifier("target"),
-            Symbol {
-                ty: Type::Target,
-                binding: GeneratorBinding::Constant(Value::Target(Arc::clone(&context.target))),
-            },
+        Ok(BoundGenerator {
+            program: self,
+            inputs,
+        })
+    }
+}
+
+impl BoundGenerator<'_> {
+    pub fn specialize(
+        &self,
+        context: &GeneratorContext,
+    ) -> Result<SpecializedGenerator, RuntimeError> {
+        let mut bindings = Bindings::new(self.program.slot_count);
+        for (index, input) in self.inputs.iter().enumerate() {
+            let binding = match input {
+                GeneratorInput::Fixed(value) => GeneratorBinding::Constant(value.clone()),
+                GeneratorInput::Live => GeneratorBinding::Parameter(index as u16),
+            };
+            bindings.assign(BindingSlot(index), binding);
+        }
+        // Compilation reserves parameters, target, and duration in this order.
+        bindings.assign(
+            BindingSlot(self.program.params.len()),
+            GeneratorBinding::Constant(Value::Target(Arc::clone(&context.target))),
         );
-        env.insert(
-            identifier("duration"),
-            Symbol {
-                ty: Type::Float,
-                binding: GeneratorBinding::Constant(Value::Float(
-                    crate::values::sample_duration_seconds_f32(context.duration),
-                )),
-            },
+        bindings.assign(
+            BindingSlot(self.program.params.len() + 1),
+            GeneratorBinding::Constant(Value::Float(crate::values::sample_duration_seconds_f32(
+                context.duration,
+            ))),
         );
         let mut specializer = Specializer {
-            source: self,
             context,
             result: SpecializedGenerator::default(),
             workspace: VmWorkspace::default(),
+            bind_cache: super::DslBindCache::default(),
+            bindings,
         };
-        specializer.block(&self.body, &mut env)?;
+        specializer.block(&self.program.body)?;
         Ok(specializer.result)
     }
 }
 
 struct Specializer<'a> {
-    source: &'a GeneratorProgram,
     context: &'a GeneratorContext,
     result: SpecializedGenerator,
     workspace: VmWorkspace,
+    bind_cache: super::DslBindCache,
+    bindings: Bindings,
+}
+
+enum Calculated<O> {
+    Fixed(O),
+    Retained(usize),
 }
 
 impl Specializer<'_> {
-    fn evaluate(&mut self, program: &BytecodeProgram) -> Result<Value, RuntimeError> {
-        program.evaluate_value(
-            &BoundParams::default(),
+    fn calculate<O: super::CalculationOutput>(
+        &mut self,
+        template: &Calculation<O>,
+    ) -> Result<Calculated<O>, RuntimeError> {
+        let inputs = template
+            .inputs
+            .iter()
+            .map(|slot| self.bindings.read(*slot))
+            .collect::<Vec<_>>();
+        let constants = inputs
+            .iter()
+            .map(|binding| match binding {
+                GeneratorBinding::Constant(value) => Some(value.clone()),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(constants) = constants.filter(|_| !template.program.uses_time()) {
+            let invocation = template.program.bind(constants, &mut self.bind_cache)?;
+            let values = invocation.evaluate(
+                &RunContext {
+                    progress: 0.0,
+                    time: SampleDuration::from_ticks(0),
+                    duration: self.context.duration,
+                    pixel_index: 0,
+                    pixel_count: 0,
+                    pixel_fraction: 0.0,
+                },
+                &mut self.workspace,
+            );
+            return Ok(Calculated::Fixed(values));
+        }
+        let index = self.result.calculations.len();
+        self.result.calculations.push(GeneratorCalculation {
+            program: template.program.clone().into_values(),
+            inputs: inputs.into(),
+        });
+        Ok(Calculated::Retained(index))
+    }
+
+    fn calculate_many(
+        &mut self,
+        template: &Calculation,
+    ) -> Result<Vec<GeneratorBinding>, RuntimeError> {
+        Ok(match self.calculate(template)? {
+            Calculated::Fixed(values) => {
+                values.into_iter().map(GeneratorBinding::Constant).collect()
+            }
+            Calculated::Retained(index) => template
+                .program
+                .output_types()
+                .iter()
+                .enumerate()
+                .map(|(output, _)| GeneratorBinding::Calculation {
+                    index,
+                    output: output as u16,
+                })
+                .collect(),
+        })
+    }
+
+    fn expression(&mut self, expression: &Expression) -> Result<GeneratorBinding, RuntimeError> {
+        match expression {
+            Expression::Constant(value) => Ok(GeneratorBinding::Constant(value.clone())),
+            Expression::Read(slot) => Ok(self.bindings.read(*slot)),
+            Expression::Calculate(template) => Ok(match self.calculate(template)? {
+                Calculated::Fixed(value) => GeneratorBinding::Constant(value),
+                Calculated::Retained(index) => GeneratorBinding::Calculation { index, output: 0 },
+            }),
+        }
+    }
+
+    fn fixed<O: super::CalculationOutput>(
+        &mut self,
+        template: &FixedCalculation<O>,
+    ) -> Result<O, RuntimeError> {
+        let inputs = template
+            .inputs
+            .iter()
+            .map(|slot| self.bindings.fixed(*slot))
+            .collect();
+        let invocation = template.program.bind(inputs, &mut self.bind_cache)?;
+        Ok(invocation.evaluate(
             &RunContext {
                 progress: 0.0,
                 time: SampleDuration::from_ticks(0),
@@ -154,659 +294,111 @@ impl Specializer<'_> {
                 pixel_fraction: 0.0,
             },
             &mut self.workspace,
-        )
+        ))
     }
 
-    fn calculate(
-        &mut self,
-        lowering: Lowering,
-        statements: Vec<CheckedStmt>,
-        outputs: Vec<CheckedExpr>,
-    ) -> Result<Vec<GeneratorBinding>, RuntimeError> {
-        let output_types = outputs
-            .iter()
-            .map(|output| output.ty.clone())
-            .collect::<Vec<_>>();
-        let result = CheckedExpr {
-            kind: CheckedExprKind::Array(outputs),
-            span: span(),
-            // Tuple slots are typed individually, not exposed as an authored array.
-            ty: Type::Array(Box::new(Type::Void)),
-        };
-        let params = lowering
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(index, (ty, _))| ParamDecl {
-                name: input_name(index),
-                ty: ty.clone(),
-                default: None,
-                fixed: false,
-            })
-            .collect::<Vec<_>>();
-        let program = super::compiler::compile_value(&params, statements, result, &output_types)
-            .map_err(|diagnostic| error(diagnostic.message))?;
-        let uses_time = program.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                donder_runtime::dsl::bytecode::Instruction::ContextRead {
-                    read: donder_runtime::dsl::bytecode::ContextRead::Seconds
-                        | donder_runtime::dsl::bytecode::ContextRead::Progress,
-                    ..
-                }
-            )
-        });
-        if lowering.inputs.is_empty() && !uses_time {
-            let Value::Array(values) = self.evaluate(&program)? else {
-                return Err(error(
-                    "generator calculation did not return its typed outputs",
-                ));
-            };
-            return Ok(values
-                .iter()
-                .cloned()
-                .map(GeneratorBinding::Constant)
-                .collect());
-        }
-        let index = u32::try_from(self.result.calculations.len())
-            .map_err(|_| error("too many retained generator calculations"))?;
-        let bindings = output_types
-            .iter()
-            .enumerate()
-            .map(|(output, _)| {
-                Ok(GeneratorBinding::Calculation {
-                    index,
-                    output: u16::try_from(output)
-                        .map_err(|_| error("too many generator calculation outputs"))?,
-                })
-            })
-            .collect::<Result<Vec<_>, RuntimeError>>()?;
-        self.result.calculations.push(GeneratorCalculation {
-            program,
-            inputs: lowering.inputs.into_boxed_slice(),
-            output_types: output_types.into_boxed_slice(),
-        });
-        Ok(bindings)
-    }
-
-    fn expression(
-        &mut self,
-        expr: &CheckedExpr,
-        env: &Environment,
-    ) -> Result<GeneratorBinding, RuntimeError> {
-        if let CheckedExprKind::Variable(name) = &expr.kind
-            && let Some(symbol) = env.get(name)
-        {
-            return Ok(symbol.binding.clone());
-        }
-        if let CheckedExprKind::Literal(value) = &expr.kind {
-            return Ok(GeneratorBinding::Constant(value.clone()));
-        }
-        let mut lowering = Lowering::default();
-        let lowered = lowering.expr(expr, &lexical_environment(env))?;
-        self.calculate(lowering, Vec::new(), vec![lowered])?
-            .pop()
-            .ok_or_else(|| error("generator expression has no result"))
-    }
-
-    fn fixed_bool(&mut self, expr: &CheckedExpr, env: &Environment) -> Result<bool, RuntimeError> {
-        match self.expression(expr, env)? {
-            GeneratorBinding::Constant(Value::Bool(value)) => Ok(value),
-            _ => Err(error(
-                "generator expansion control requires a fixed boolean",
-            )),
-        }
-    }
-
-    fn block(&mut self, block: &CheckedBlock, env: &mut Environment) -> Result<(), RuntimeError> {
-        let mut shadowed = IndexMap::new();
-        for statement in &block.statements {
-            if let CheckedStmt::Local { name, .. } = statement {
-                shadowed
-                    .entry(name.clone())
-                    .or_insert_with(|| env.get(name).cloned());
-            }
-            self.statement(statement, env)?;
-        }
-        for (name, previous) in shadowed {
-            if let Some(previous) = previous {
-                env.insert(name, previous);
-            } else {
-                env.shift_remove(&name);
-            }
+    fn block(&mut self, block: &Block) -> Result<(), RuntimeError> {
+        for statement in block {
+            self.statement(statement)?;
         }
         Ok(())
     }
 
-    fn statement(
-        &mut self,
-        statement: &CheckedStmt,
-        env: &mut Environment,
-    ) -> Result<(), RuntimeError> {
+    fn statement(&mut self, statement: &Statement) -> Result<(), RuntimeError> {
         match statement {
-            CheckedStmt::Local {
-                ty,
-                name,
-                initializer,
-            } => {
-                let binding = if let Some(expr) = initializer {
-                    self.expression(expr, env)?
-                } else {
-                    GeneratorBinding::Constant(ty.default_value())
-                };
-                env.insert(
-                    name.clone(),
-                    Symbol {
-                        ty: ty.clone(),
-                        binding,
-                    },
-                );
+            Statement::Assign { slot, value } => {
+                let binding = self.expression(value)?;
+                self.bindings.assign(*slot, binding);
             }
-            CheckedStmt::Assign { name, value } => {
-                let binding = self.expression(value, env)?;
-                env.get_mut(name)
-                    .ok_or_else(|| error("unknown generator assignment"))?
-                    .binding = binding;
+            Statement::Expression(value) => {
+                self.expression(value)?;
             }
-            CheckedStmt::Expr(expr) => {
-                self.expression(expr, env)?;
-            }
-            CheckedStmt::If {
+            Statement::Branch {
                 condition,
                 then_block,
                 else_block,
             } => {
-                let before_condition = self.result.calculations.len();
-                let condition_value = self.expression(condition, env)?;
-                if let GeneratorBinding::Constant(Value::Bool(value)) = condition_value {
-                    if value {
-                        self.block(then_block, env)?;
-                    } else if let Some(block) = else_block {
-                        self.block(block, env)?;
-                    }
-                } else if super::staging::contains_emit(then_block)
-                    || else_block
-                        .as_ref()
-                        .is_some_and(super::staging::contains_emit)
-                {
-                    return Err(error("live control flow cannot determine child emission"));
+                if self.fixed(condition)? {
+                    self.block(then_block)?;
                 } else {
-                    // The retained block contains its condition; do not retain the
-                    // probe as a second calculation.
-                    self.result.calculations.truncate(before_condition);
-                    self.pure_control(statement, env)?;
+                    self.block(else_block)?;
                 }
             }
-            CheckedStmt::For {
+            Statement::For {
                 initializer,
-                condition,
+                iterations,
                 update,
                 body,
             } => {
-                if !super::staging::contains_emit(body) {
-                    return self.pure_control(statement, env);
-                }
-                let mut loop_env = env.clone();
-                self.statement(initializer, &mut loop_env)?;
-                while self.fixed_bool(condition, &loop_env)? {
-                    self.block(body, &mut loop_env)?;
-                    self.statement(update, &mut loop_env)?;
-                }
-                for (name, value) in env.iter_mut() {
-                    if matches!(initializer.as_ref(), CheckedStmt::Local { name: local, .. } if local == name)
-                    {
-                        continue;
-                    }
-                    *value = loop_env
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| error("generator loop lost an outer binding"))?;
+                self.statement(initializer)?;
+                for _ in 0..*iterations {
+                    self.block(body)?;
+                    self.statement(update)?;
                 }
             }
-            CheckedStmt::ForMarks { index, marks, body } => {
-                if !super::staging::contains_emit(body) {
-                    return self.pure_control(statement, env);
-                }
-                let GeneratorBinding::Constant(Value::Marks(marks)) =
-                    self.expression(marks, env)?
-                else {
-                    return Err(error("marks controlling child emission must be fixed"));
-                };
-                let mut loop_env = env.clone();
+            Statement::Marks { index, marks, body } => {
+                let marks = self.fixed(marks)?;
                 for mark in 0..marks.marks.len() {
-                    let mark =
-                        i32::try_from(mark).map_err(|_| error("mark count exceeds int range"))?;
-                    loop_env.insert(
-                        index.clone(),
-                        Symbol {
-                            ty: Type::Int,
-                            binding: GeneratorBinding::Constant(Value::Int(mark)),
-                        },
-                    );
-                    self.block(body, &mut loop_env)?;
-                }
-                for (name, value) in env.iter_mut() {
-                    *value = loop_env
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| error("marks loop lost an outer binding"))?;
+                    // Collection traversal uses native lengths. The exposed DSL
+                    // int wraps just like the VM's loop-index increment.
+                    self.bindings
+                        .assign(*index, GeneratorBinding::Constant(Value::Int(mark as i32)));
+                    self.block(body)?;
                 }
             }
-            CheckedStmt::ForRange {
+            Statement::Range {
                 index,
                 count,
                 cap,
                 body,
             } => {
-                if !super::staging::contains_emit(body) {
-                    return self.pure_control(statement, env);
-                }
-                let GeneratorBinding::Constant(Value::Int(count)) = self.expression(count, env)?
-                else {
-                    return Err(error("range controlling child emission must be fixed"));
-                };
-                let GeneratorBinding::Constant(Value::Int(cap)) = self.expression(cap, env)? else {
-                    return Err(error("range cap must be fixed"));
-                };
-                let mut loop_env = env.clone();
-                for value in 0..count.max(0).min(cap) {
-                    loop_env.insert(
-                        index.clone(),
-                        Symbol {
-                            ty: Type::Int,
-                            binding: GeneratorBinding::Constant(Value::Int(value)),
-                        },
-                    );
-                    self.block(body, &mut loop_env)?;
-                }
-                for (name, value) in env.iter_mut() {
-                    *value = loop_env
-                        .get(name)
-                        .cloned()
-                        .ok_or_else(|| error("range loop lost an outer binding"))?;
+                let count = self.fixed(count)?;
+                for value in 0..count.max(0).min(*cap) {
+                    self.bindings
+                        .assign(*index, GeneratorBinding::Constant(Value::Int(value)));
+                    self.block(body)?;
                 }
             }
-            CheckedStmt::Emit { effect, fields } => {
-                let mut structural = Vec::new();
-                for (name, expr) in fields {
-                    if !matches!(name.as_str(), "start" | "duration" | "target") {
-                        continue;
-                    }
-                    let GeneratorBinding::Constant(value) = self.expression(expr, env)? else {
-                        return Err(error("emitted structure requires fixed values"));
-                    };
-                    structural.push((name.clone(), literal(value, expr.ty.clone(), expr.span)));
+            Statement::Calculate {
+                assigned,
+                calculation,
+            } => {
+                let values = self.calculate_many(calculation)?;
+                for (slot, binding) in assigned.iter().zip(values) {
+                    self.bindings.assign(*slot, binding);
                 }
-                let compiled = super::compiler::compile_emission(effect.clone(), structural)
-                    .map_err(|diagnostic| error(diagnostic.message))?;
-                let mut generated = compiled.generate_bound(
-                    &BoundParams::default(),
-                    self.context,
-                    &mut self.workspace,
-                )?;
-                let Some(child) = generated.pop() else {
-                    // A child with invalid fixed timing was intentionally
-                    // omitted by the generator VM.
+            }
+            Statement::Emit {
+                slot,
+                start,
+                duration,
+                target,
+                params,
+            } => {
+                let start = self.fixed(start)?;
+                let duration = self.fixed(duration)?;
+                let target = self.fixed(target)?;
+                let Some((start_time, duration)) = self.context.child_timing(start, duration)
+                else {
                     return Ok(());
                 };
-                let params = fields
+                let params = params
                     .iter()
-                    .filter(|(name, _)| !matches!(name.as_str(), "start" | "duration" | "target"))
-                    .map(|(name, expr)| Ok((name.clone(), self.expression(expr, env)?)))
-                    .collect::<Result<Vec<_>, RuntimeError>>()?;
-                let slot = self
-                    .source
-                    .emissions
-                    .iter()
-                    .position(|candidate| candidate.span == effect.span)
-                    .ok_or_else(|| error("emission is missing its numeric child slot"))?;
+                    .map(|(name, expression)| Ok((name.clone(), self.expression(expression)?)))
+                    .collect::<Result<_, RuntimeError>>()?;
                 self.result.children.push(SpecializedChild {
-                    definition: GeneratedEffectSlot(
-                        u32::try_from(slot).map_err(|_| error("too many emitted definitions"))?,
-                    ),
-                    start_time: child.start_time,
-                    duration: child.duration,
-                    target: child.target,
+                    definition: *slot,
+                    start_time,
+                    duration,
+                    target,
                     params,
                 });
             }
-            CheckedStmt::Return(_) => return Err(error("generator return cannot produce a value")),
-        }
-        Ok(())
-    }
-
-    fn pure_control(
-        &mut self,
-        statement: &CheckedStmt,
-        env: &mut Environment,
-    ) -> Result<(), RuntimeError> {
-        let mut assigned = IndexSet::new();
-        collect_assignments(statement, &mut HashSet::new(), env, &mut assigned);
-        let mut lowering = Lowering::default();
-        let mut lexical = lexical_environment(env);
-        let mut statements = Vec::new();
-        for name in &assigned {
-            let symbol = env
-                .get(name)
-                .ok_or_else(|| error("unknown generator local"))?;
-            let initializer = lowering.source(symbol, span());
-            let local = lowering.local();
-            statements.push(CheckedStmt::Local {
-                ty: symbol.ty.clone(),
-                name: local.clone(),
-                initializer: Some(initializer),
-            });
-            lexical.insert(name.clone(), LexicalValue::Local(local));
-        }
-        statements.push(lowering.statement(statement, &mut lexical)?);
-        let outputs = assigned
-            .iter()
-            .map(|name| {
-                let ty = &env
-                    .get(name)
-                    .ok_or_else(|| error("unknown generator output"))?
-                    .ty;
-                lowering.expr(
-                    &CheckedExpr {
-                        kind: CheckedExprKind::Variable(name.clone()),
-                        ty: ty.clone(),
-                        span: span(),
-                    },
-                    &lexical,
-                )
-            })
-            .collect::<Result<Vec<_>, RuntimeError>>()?;
-        let values = self.calculate(lowering, statements, outputs)?;
-        for (name, binding) in assigned.into_iter().zip(values) {
-            env.get_mut(&name)
-                .ok_or_else(|| error("unknown generator output"))?
-                .binding = binding;
         }
         Ok(())
     }
 }
 
-#[derive(Clone)]
-enum LexicalValue {
-    Source(Symbol),
-    Local(Identifier),
-}
-type LexicalEnvironment = IndexMap<Identifier, LexicalValue>;
-fn lexical_environment(env: &Environment) -> LexicalEnvironment {
-    env.iter()
-        .map(|(name, symbol)| (name.clone(), LexicalValue::Source(symbol.clone())))
-        .collect()
-}
-
-#[derive(Default)]
-struct Lowering {
-    inputs: Vec<(Type, GeneratorBinding)>,
-    next_local: usize,
-}
-impl Lowering {
-    fn local(&mut self) -> Identifier {
-        let name = identifier(&format!("local_{}", self.next_local));
-        self.next_local += 1;
-        name
-    }
-    fn source(&mut self, symbol: &Symbol, span: TextSpan) -> CheckedExpr {
-        if let GeneratorBinding::Constant(value) = &symbol.binding {
-            return literal(value.clone(), symbol.ty.clone(), span);
-        }
-        let index = self
-            .inputs
-            .iter()
-            .position(|input| input == &(symbol.ty.clone(), symbol.binding.clone()))
-            .unwrap_or_else(|| {
-                self.inputs
-                    .push((symbol.ty.clone(), symbol.binding.clone()));
-                self.inputs.len() - 1
-            });
-        CheckedExpr {
-            kind: CheckedExprKind::Variable(input_name(index)),
-            ty: symbol.ty.clone(),
-            span,
-        }
-    }
-    fn expr(
-        &mut self,
-        expr: &CheckedExpr,
-        env: &LexicalEnvironment,
-    ) -> Result<CheckedExpr, RuntimeError> {
-        let kind = match &expr.kind {
-            CheckedExprKind::Literal(_) => return Ok(expr.clone()),
-            CheckedExprKind::Variable(name) => match env.get(name) {
-                Some(LexicalValue::Source(symbol)) => return Ok(self.source(symbol, expr.span)),
-                Some(LexicalValue::Local(name)) => CheckedExprKind::Variable(name.clone()),
-                None => return Ok(expr.clone()),
-            },
-            CheckedExprKind::Array(items) => CheckedExprKind::Array(
-                items
-                    .iter()
-                    .map(|item| self.expr(item, env))
-                    .collect::<Result<_, _>>()?,
-            ),
-            CheckedExprKind::Index { target, index } => CheckedExprKind::Index {
-                target: Box::new(self.expr(target, env)?),
-                index: Box::new(self.expr(index, env)?),
-            },
-            CheckedExprKind::Member { target, member } => CheckedExprKind::Member {
-                target: Box::new(self.expr(target, env)?),
-                member: member.clone(),
-            },
-            CheckedExprKind::Call { callee, args } => CheckedExprKind::Call {
-                // A bare callee is a builtin, even when a parameter has the same name.
-                callee: if matches!(callee.kind, CheckedExprKind::Variable(_)) {
-                    callee.clone()
-                } else {
-                    Box::new(self.expr(callee, env)?)
-                },
-                args: args
-                    .iter()
-                    .map(|arg| self.expr(arg, env))
-                    .collect::<Result<_, _>>()?,
-            },
-            CheckedExprKind::Unary { op, expr } => CheckedExprKind::Unary {
-                op: *op,
-                expr: Box::new(self.expr(expr, env)?),
-            },
-            CheckedExprKind::Binary { op, left, right } => CheckedExprKind::Binary {
-                op: *op,
-                left: Box::new(self.expr(left, env)?),
-                right: Box::new(self.expr(right, env)?),
-            },
-            CheckedExprKind::SignalSample { .. } => {
-                return Err(error("generators cannot sample signals"));
-            }
-        };
-        Ok(CheckedExpr {
-            kind,
-            span: expr.span,
-            ty: expr.ty.clone(),
-        })
-    }
-    fn block(
-        &mut self,
-        block: &CheckedBlock,
-        env: &LexicalEnvironment,
-    ) -> Result<CheckedBlock, RuntimeError> {
-        let mut local = env.clone();
-        Ok(CheckedBlock {
-            statements: block
-                .statements
-                .iter()
-                .map(|statement| self.statement(statement, &mut local))
-                .collect::<Result<_, _>>()?,
-        })
-    }
-    fn statement(
-        &mut self,
-        statement: &CheckedStmt,
-        env: &mut LexicalEnvironment,
-    ) -> Result<CheckedStmt, RuntimeError> {
-        Ok(match statement {
-            CheckedStmt::Local {
-                ty,
-                name,
-                initializer,
-            } => {
-                let initializer = initializer
-                    .as_ref()
-                    .map(|expr| self.expr(expr, env))
-                    .transpose()?;
-                let local = self.local();
-                env.insert(name.clone(), LexicalValue::Local(local.clone()));
-                CheckedStmt::Local {
-                    ty: ty.clone(),
-                    name: local,
-                    initializer,
-                }
-            }
-            CheckedStmt::Assign { name, value } => {
-                let Some(LexicalValue::Local(local)) = env.get(name) else {
-                    return Err(error("retained assignment has no local storage"));
-                };
-                CheckedStmt::Assign {
-                    name: local.clone(),
-                    value: self.expr(value, env)?,
-                }
-            }
-            CheckedStmt::Expr(expr) => CheckedStmt::Expr(self.expr(expr, env)?),
-            CheckedStmt::If {
-                condition,
-                then_block,
-                else_block,
-            } => CheckedStmt::If {
-                condition: self.expr(condition, env)?,
-                then_block: self.block(then_block, env)?,
-                else_block: else_block
-                    .as_ref()
-                    .map(|block| self.block(block, env))
-                    .transpose()?,
-            },
-            CheckedStmt::For {
-                initializer,
-                condition,
-                update,
-                body,
-            } => {
-                let mut loop_env = env.clone();
-                let initializer = Box::new(self.statement(initializer, &mut loop_env)?);
-                CheckedStmt::For {
-                    initializer,
-                    condition: self.expr(condition, &loop_env)?,
-                    update: Box::new(self.statement(update, &mut loop_env)?),
-                    body: self.block(body, &loop_env)?,
-                }
-            }
-            CheckedStmt::ForMarks { index, marks, body } => {
-                let marks = self.expr(marks, env)?;
-                let mut loop_env = env.clone();
-                let local = self.local();
-                loop_env.insert(index.clone(), LexicalValue::Local(local.clone()));
-                CheckedStmt::ForMarks {
-                    index: local,
-                    marks,
-                    body: self.block(body, &loop_env)?,
-                }
-            }
-            CheckedStmt::ForRange {
-                index,
-                count,
-                cap,
-                body,
-            } => {
-                let count = self.expr(count, env)?;
-                let cap = self.expr(cap, env)?;
-                let mut loop_env = env.clone();
-                let local = self.local();
-                loop_env.insert(index.clone(), LexicalValue::Local(local.clone()));
-                CheckedStmt::ForRange {
-                    index: local,
-                    count,
-                    cap,
-                    body: self.block(body, &loop_env)?,
-                }
-            }
-            CheckedStmt::Emit { .. } => {
-                return Err(error("retained parameter code cannot emit children"));
-            }
-            CheckedStmt::Return(_) => {
-                return Err(error(
-                    "retained parameter code cannot return from a generator",
-                ));
-            }
-        })
-    }
-}
-
-fn collect_assignments(
-    statement: &CheckedStmt,
-    locals: &mut HashSet<Identifier>,
-    env: &Environment,
-    assigned: &mut IndexSet<Identifier>,
-) {
-    match statement {
-        CheckedStmt::Local { name, .. } => {
-            locals.insert(name.clone());
-        }
-        CheckedStmt::Assign { name, .. } if !locals.contains(name) && env.contains_key(name) => {
-            assigned.insert(name.clone());
-        }
-        CheckedStmt::If {
-            then_block,
-            else_block,
-            ..
-        } => {
-            for block in std::iter::once(then_block).chain(else_block.iter()) {
-                let mut scoped = locals.clone();
-                for statement in &block.statements {
-                    collect_assignments(statement, &mut scoped, env, assigned);
-                }
-            }
-        }
-        CheckedStmt::For {
-            initializer,
-            update,
-            body,
-            ..
-        } => {
-            let mut scoped = locals.clone();
-            collect_assignments(initializer, &mut scoped, env, assigned);
-            let mut body_scope = scoped.clone();
-            for statement in &body.statements {
-                collect_assignments(statement, &mut body_scope, env, assigned);
-            }
-            collect_assignments(update, &mut scoped, env, assigned);
-        }
-        CheckedStmt::ForMarks { index, body, .. } | CheckedStmt::ForRange { index, body, .. } => {
-            let mut scoped = locals.clone();
-            scoped.insert(index.clone());
-            for statement in &body.statements {
-                collect_assignments(statement, &mut scoped, env, assigned);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn literal(value: Value, ty: Type, span: TextSpan) -> CheckedExpr {
-    CheckedExpr {
-        kind: CheckedExprKind::Literal(value),
-        ty,
-        span,
-    }
-}
-fn span() -> TextSpan {
-    TextSpan { start: 0, end: 0 }
-}
-fn input_name(index: usize) -> Identifier {
-    identifier(&format!("input_{index}"))
-}
-fn identifier(name: &str) -> Identifier {
-    Identifier::new(name.to_owned())
-        .unwrap_or_else(|_| unreachable!("compiler-generated identifier is valid"))
-}
 fn error(message: impl Into<String>) -> RuntimeError {
     RuntimeError {
         message: message.into(),

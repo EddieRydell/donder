@@ -4,7 +4,6 @@ pub(super) struct RasterJob {
     pub(super) request_id: u32,
     pub(super) document_key: GuiDocumentRequest,
     pub(super) project: Arc<ProjectSession>,
-    pub(super) setup_id: SetupId,
     pub(super) sequence_id: SequenceId,
     pub(super) settings: EffectRasterSettings,
     pub(super) work_items: Vec<RasterWorkItem>,
@@ -68,24 +67,20 @@ pub(super) fn raster_worker(
     latest_request_id: Arc<AtomicU64>,
 ) {
     let mut raster_cache = HashMap::<RasterRenderCacheKey, CachedRasterValue>::new();
-    let mut renderer_cache = HashMap::<String, PreparedEffectRasterRenderer>::new();
+    let mut prepared_cache: Option<PreparedRasterSequence> = None;
     let mut job = match receiver.recv() {
         Ok(job) => job,
         Err(_) => return,
     };
     loop {
         prune_worker_raster_cache(&mut raster_cache, &job.work_items);
-        prune_prepared_renderer_cache(&mut renderer_cache, &job.work_items);
+        if prepared_cache.as_ref().is_some_and(|cached| {
+            !Arc::ptr_eq(&cached.project, &job.project) || cached.sequence_id != job.sequence_id
+        }) {
+            prepared_cache = None;
+        }
         let mut completed = true;
         let work_items = std::mem::take(&mut job.work_items);
-        let (mut prepare_batch, prepare_batch_error) = match EffectRasterPrepareBatch::prepare(
-            &job.project.project,
-            &job.setup_id,
-            &job.sequence_id,
-        ) {
-            Ok(batch) => (Some(batch), None),
-            Err(error) => (None, Some(format!("{error:?}"))),
-        };
         for item in work_items {
             if latest_request_id.load(Ordering::Relaxed) != u64::from(job.request_id) {
                 completed = false;
@@ -112,25 +107,23 @@ pub(super) fn raster_worker(
                 None => {
                     let should_continue =
                         || latest_request_id.load(Ordering::Relaxed) == u64::from(job.request_id);
-                    let renderer = match renderer_cache.get(&item.signature_key).cloned() {
-                        Some(renderer) => Ok(renderer),
-                        None => match prepare_batch.as_mut() {
-                            Some(batch) => {
-                                match batch.prepare_effect(&EffectInstId(item.effect_id)) {
-                                    Ok(renderer) => {
-                                        renderer_cache
-                                            .insert(item.signature_key.clone(), renderer.clone());
-                                        Ok(renderer)
-                                    }
-                                    Err(error) => Err(format!("{error:?}")),
-                                }
-                            }
-                            None => match &prepare_batch_error {
-                                Some(message) => Err(message.clone()),
-                                None => Err("raster prepare batch unavailable".to_string()),
-                            },
-                        },
-                    };
+                    // One preparation per immutable project snapshot and sequence,
+                    // shared by every clip and every raster size requested for it.
+                    let prepared = prepared_cache.get_or_insert_with(|| PreparedRasterSequence {
+                        project: Arc::clone(&job.project),
+                        sequence_id: job.sequence_id.clone(),
+                        sequence: prepare(
+                            &job.project.project,
+                            &job.sequence_id,
+                            PrepareOutputs::All,
+                        )
+                        .map(Arc::new),
+                    });
+                    let renderer = prepared
+                        .sequence
+                        .as_ref()
+                        .cloned()
+                        .ok_or_else(|| "raster sequence selection is unavailable".to_string());
                     match match renderer {
                         Ok(renderer) => render_effect_raster(RasterRenderRequest {
                             renderer,
@@ -259,17 +252,6 @@ pub(super) fn prune_worker_raster_cache(
     cache.retain(|key, _| active.contains(key));
 }
 
-pub(super) fn prune_prepared_renderer_cache(
-    cache: &mut HashMap<String, PreparedEffectRasterRenderer>,
-    active_items: &[RasterWorkItem],
-) {
-    let active = active_items
-        .iter()
-        .map(|item| item.signature_key.clone())
-        .collect::<HashSet<_>>();
-    cache.retain(|key, _| active.contains(key));
-}
-
 pub(super) fn newest_queued_job(receiver: &mpsc::Receiver<RasterJob>) -> Option<RasterJob> {
     let mut newest = None;
     while let Ok(job) = receiver.try_recv() {
@@ -293,4 +275,10 @@ pub(super) fn ordered_existing_effect_ids(
         }
     }
     ids
+}
+
+struct PreparedRasterSequence {
+    project: Arc<ProjectSession>,
+    sequence_id: SequenceId,
+    sequence: Option<Arc<PreparedSequence>>,
 }

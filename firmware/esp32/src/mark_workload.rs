@@ -1,9 +1,6 @@
 //! Host-prepared mark fixtures using the same editable effects as projects.
-use donder_language::dsl::compile_effects;
-use donder_runtime::dsl::{
-    BoundParams, GeneratorContext, Identifier, TargetItemValue, TargetPixelValue, TargetValue,
-    Value, VmWorkspace,
-};
+use donder_language::dsl::{GeneratorBinding, GeneratorContext, GeneratorInput, compile_effects};
+use donder_runtime::dsl::{BoundParams, Identifier, TargetItemValue, TargetValue, Value};
 use donder_runtime::sequence::PreparedSequence;
 use donder_runtime::signal::*;
 use donder_runtime::values::{
@@ -32,8 +29,12 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
                 Identifier::new(child_name.into()).unwrap(),
             )
     }));
-    let mut show =
-        super::workload::show(count, child.effect.bytecode.clone(), BoundParams::default());
+    let show = super::workload::show(
+        count,
+        child.effect.sample_program().unwrap().clone(),
+        BoundParams::default(),
+    );
+    let mut signals = show.signals().clone();
     let ramp = Value::Curve(
         Curve {
             points: vec![
@@ -117,23 +118,11 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
     let params = generator.effect.bind_params_pairs(&overrides).unwrap();
     let context = GeneratorContext {
         start_time: SampleTime::from_ticks(0),
-        duration: show.signals.duration,
+        duration: signals.duration,
         target: TargetValue {
             groups: vec![
                 TargetItemValue {
-                    pixels: show
-                        .signals
-                        .target_pixels
-                        .iter()
-                        .map(|pixel| TargetPixelValue {
-                            fixture_index: pixel.fixture_index as i32,
-                            fixture_pixel_index: pixel.fixture_pixel_index as i32,
-                            pixel_index: pixel.pixel_index as i32,
-                            pixel_count: pixel.pixel_count as i32,
-                            pixel_fraction: pixel.pixel_fraction,
-                        })
-                        .collect::<Vec<_>>()
-                        .into(),
+                    pixels: signals.target_pixels.to_vec().into(),
                 }
                 .into(),
             ],
@@ -142,47 +131,63 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
     };
     let generated = generator
         .effect
-        .generate_bound(&params, &context, &mut VmWorkspace::default())
+        .generator()
+        .unwrap()
+        .bind(
+            &params
+                .iter_values()
+                .map(GeneratorInput::Fixed)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap()
+        .specialize(&context)
         .unwrap();
-    assert!(generated.len() >= 32);
-    let mut pixels = show.signals.target_pixels.to_vec();
-    let mut targets = show.signals.targets.to_vec();
-    show.signals.effects = generated
+    // These fixtures supply fixed inputs and use no live clock expressions.
+    assert!(generated.calculations.is_empty());
+    assert!(generated.children.len() >= 32);
+    let mut pixels = signals.target_pixels.to_vec();
+    let mut targets = signals.targets.to_vec();
+    signals.effects = generated
+        .children
         .into_iter()
         .map(|emission| {
             assert_eq!(emission.definition.0, 0);
             let target = if emission.target == context.target.groups[0] {
                 0
             } else {
-                let index = targets.len() as u32;
-                let start = pixels.len() as u32;
-                pixels.extend(emission.target.pixels.iter().map(|pixel| PreparedPixel {
-                    fixture_index: pixel.fixture_index as u16,
-                    fixture_pixel_index: pixel.fixture_pixel_index as u32,
-                    pixel_index: pixel.pixel_index as u32,
-                    pixel_count: pixel.pixel_count as u32,
-                    pixel_fraction: pixel.pixel_fraction,
-                }));
+                let index = targets.len();
+                let start = pixels.len();
+                pixels.extend_from_slice(&emission.target.pixels);
                 targets.push(PreparedTarget {
-                    pixels: start..pixels.len() as u32,
+                    pixels: start..pixels.len(),
                     sample_count: 0,
                 });
                 index
             };
+            let params = emission
+                .params
+                .into_iter()
+                .map(|(name, binding)| {
+                    let GeneratorBinding::Constant(value) = binding else {
+                        panic!("fixed mark fixture produced a live child parameter");
+                    };
+                    (name, value)
+                })
+                .collect::<Vec<_>>();
             PreparedEffect {
                 start_time: emission.start_time,
                 duration: emission.duration,
                 target,
                 implementation: PreparedEffectImplementation::Dsl {
                     program: 0,
-                    bound_params: child.effect.bind_params_pairs(&emission.params).unwrap(),
+                    bound_params: child.effect.bind_params_pairs(&params).unwrap(),
                 },
                 automation: None,
             }
         })
         .collect();
-    show.signals.targets = targets.into();
-    show.signals.target_pixels = pixels.into();
-    show.signals.effects_by_layer = vec![(0..show.signals.effects.len()).collect()].into();
-    show
+    signals.targets = targets.into();
+    signals.target_pixels = pixels.into();
+    signals.effects_by_layer = vec![(0..signals.effects.len()).collect()].into();
+    PreparedSequence::new(signals, show.patch().clone(), show.outputs().into())
 }

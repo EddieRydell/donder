@@ -92,22 +92,20 @@ impl DesktopState {
         let mut ports = Vec::new();
         for index in selected {
             if !indices.insert(*index) {
-                return Err("An output was selected more than once.".into());
+                continue;
             }
             let (controller, port, _) = available
                 .get(*index as usize)
                 .ok_or("Selected output is unavailable.")?;
             ports.push((controller.clone(), *port));
         }
-        let prepared = donder_elaboration::PreparedSequenceOutput::prepare_selected(
+        let prepared = donder_elaboration::prepare(
             &session.project,
-            session.project.root.setup.id(),
             &id,
-            &ports,
+            donder_elaboration::PrepareOutputs::Ports(&ports),
         )
-        .map_err(|error| format!("Could not prepare sequence: {error:?}"))?;
-        prepared
-            .encode()
+        .ok_or("The sequence or selected output is unavailable.")?;
+        donder_runtime::wire::encode_sequence(&prepared)
             .map_err(|error| format!("Could not encode sequence: {error:?}"))
     }
 }

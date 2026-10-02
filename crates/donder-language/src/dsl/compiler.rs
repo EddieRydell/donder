@@ -1,16 +1,17 @@
 use super::ast::{BinaryOp, UnaryOp};
 use super::bytecode::{
-    ArithmeticOp, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
-    ContextRead, FloatBinary, FloatSlot, FloatUnary, GeneratorContextId, Instruction,
-    IntArithmeticOp, IntSlot, LocalId, MarkOp, ParamId, PoolSpan, RefSlot, SlotLayout, Target,
-    TargetItemsOp, TargetMember, ValueSlot,
+    ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot,
+    CompareOp, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary,
+    GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot,
+    ParamId, PoolSpan, SlotLayout, Target, TargetItemSlot, TargetItemsOp, TargetItemsSlot,
+    TargetMember, TargetSlot, TargetSource, ValueSlot,
 };
 use super::checked::{
     CheckedBlock, CheckedEffectDecl, CheckedExpr, CheckedExprKind, CheckedModule,
     CheckedOperatorDecl, CheckedStmt,
 };
 use super::types::{Identifier, Type, Value};
-use super::{CompiledEffect, CompiledOperator, EffectKind};
+use super::{CompiledEffect, CompiledOperator, EffectKind, EffectProgram};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
@@ -28,76 +29,90 @@ pub(crate) fn compile_checked_operators(
 
 pub(super) fn compile_value(
     params: &[super::ParamDecl],
-    mut statements: Vec<CheckedStmt>,
-    result: CheckedExpr,
-    outputs: &[Type],
-) -> Result<BytecodeProgram, super::Diagnostic> {
-    statements.push(CheckedStmt::Return(result));
-    let program = FunctionCompiler::new(params, EffectKind::Generator)
-        .compile_with_implicit_return(CheckedBlock { statements }, false)?;
-    if !program.has_valid_context(super::bytecode::ProgramContext::Calculation)
-        || !program.has_valid_calculation_outputs(outputs)
-    {
-        return Err(invalid_compiled_program());
+    statements: Vec<CheckedStmt>,
+    outputs: Vec<CheckedExpr>,
+) -> Result<super::CalculationProgram, super::Diagnostic> {
+    check_parameter_count(params)?;
+    if outputs.len() > usize::from(u16::MAX) + 1 {
+        return Err(super::Diagnostic::new(
+            super::lexer::TextSpan { start: 0, end: 0 },
+            "generator calculation exceeds the parameter output slot space",
+        ));
     }
-    Ok(program)
-}
-
-pub(super) fn compile_emission(
-    effect: super::EmittedReference,
-    fields: Vec<(Identifier, CheckedExpr)>,
-) -> Result<CompiledEffect, super::Diagnostic> {
-    let mut compiler = FunctionCompiler::new(&[], EffectKind::Generator);
-    let bytecode = compiler.compile(CheckedBlock {
-        statements: vec![CheckedStmt::Emit { effect, fields }],
-    })?;
-    Ok(CompiledEffect {
-        name: static_identifier("prepared_emission"),
-        params: Vec::new(),
-        kind: EffectKind::Generator,
-        bytecode,
-        emit_fields: compiler.emit_fields.into_boxed_slice(),
-        generated_effect_count: 1,
-    })
+    let output_types = outputs.iter().map(|output| output.ty.clone()).collect();
+    let program = FunctionCompiler::new(params, EffectKind::Generator)
+        .compile_with_outputs(CheckedBlock { statements }, Some(outputs))?;
+    super::CalculationProgram::new(
+        program,
+        params.iter().map(|param| param.ty.clone()).collect(),
+        output_types,
+    )
+    .ok_or_else(invalid_compiled_program)
 }
 
 fn compile_effect(
     effect: CheckedEffectDecl,
 ) -> Result<super::EffectCompilation, super::Diagnostic> {
+    check_parameter_count(&effect.params)?;
     let kind = if effect.entrypoint.name.as_str() == "generate" {
         EffectKind::Generator
     } else {
         EffectKind::Sample
     };
-    let mut compiler = FunctionCompiler::new(&effect.params, kind);
-    let generator_body = (kind == EffectKind::Generator).then(|| effect.body.clone());
-    let bytecode = compiler.compile(effect.body)?;
-    if kind == EffectKind::Sample
-        && !bytecode.has_valid_context(super::bytecode::ProgramContext::Effect)
-    {
-        return Err(invalid_compiled_program());
-    }
-    Ok(super::EffectCompilation {
-        generator: generator_body.map(|body| {
-            super::GeneratorProgram::new(
+    let mut emitted_references = Vec::new();
+    let program = match kind {
+        EffectKind::Generator => {
+            collect_emissions(&effect.body, &mut emitted_references);
+            EffectProgram::Generator(super::GeneratorProgram::new(
                 effect.params.clone(),
-                body,
-                compiler.generated_effects.clone(),
-            )
-        }),
+                effect.body,
+                emitted_references.clone(),
+                &effect.preparation_controls,
+            )?)
+        }
+        EffectKind::Sample => {
+            let bytecode = FunctionCompiler::new(&effect.params, kind).compile(effect.body)?;
+            if !bytecode.has_valid_context(super::bytecode::ProgramContext::Effect) {
+                return Err(invalid_compiled_program());
+            }
+            EffectProgram::Sample(bytecode)
+        }
+    };
+    Ok(super::EffectCompilation {
         effect: CompiledEffect {
             name: effect.name,
             params: effect.params,
-            kind,
-            bytecode,
-            emit_fields: compiler.emit_fields.into_boxed_slice(),
-            generated_effect_count: compiler.generated_effects.len() as u32,
+            program,
         },
-        emitted_references: compiler.generated_effects.into_boxed_slice(),
+        emitted_references: emitted_references.into_boxed_slice(),
     })
 }
 
+/// Linker slots follow authored statement order, independent of specialization.
+fn collect_emissions(block: &CheckedBlock, emissions: &mut Vec<super::EmittedReference>) {
+    for statement in &block.statements {
+        match statement {
+            CheckedStmt::Emit { effect, .. } => emissions.push(effect.clone()),
+            CheckedStmt::If {
+                then_block,
+                else_block,
+                ..
+            } => {
+                collect_emissions(then_block, emissions);
+                if let Some(block) = else_block {
+                    collect_emissions(block, emissions);
+                }
+            }
+            CheckedStmt::For { body, .. }
+            | CheckedStmt::ForMarks { body, .. }
+            | CheckedStmt::ForRange { body, .. } => collect_emissions(body, emissions),
+            _ => {}
+        }
+    }
+}
+
 fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, super::Diagnostic> {
+    check_parameter_count(&operator.params)?;
     let bytecode = FunctionCompiler::new_operator(&operator.params, &operator.inputs)
         .compile(operator.body)?;
     if !bytecode.has_valid_context(super::bytecode::ProgramContext::Operator {
@@ -120,16 +135,50 @@ fn invalid_compiled_program() -> super::Diagnostic {
     )
 }
 
+/// Prepared automation and retained bindings address declaration slots with u16.
+/// The declaration fixes this count; parameter values never change it.
+fn check_parameter_count(params: &[super::ParamDecl]) -> Result<(), super::Diagnostic> {
+    if params.len() > usize::from(u16::MAX) + 1 {
+        return Err(super::Diagnostic::new(
+            super::lexer::TextSpan { start: 0, end: 0 },
+            "declaration exceeds the parameter slot space",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod parameter_slot_tests {
+    #[test]
+    fn parameter_slot_bound_is_checked_during_compilation() {
+        let declaration = super::super::ParamDecl {
+            name: super::Identifier::new("parameter".into()).unwrap(),
+            ty: super::Type::Float,
+            default: None,
+            fixed: false,
+        };
+        let mut params = vec![declaration.clone(); usize::from(u16::MAX) + 1];
+        assert!(super::check_parameter_count(&params).is_ok());
+        params.push(declaration);
+        assert!(super::check_parameter_count(&params).is_err());
+    }
+}
+
 struct FunctionCompiler {
     instructions: Vec<Instruction>,
-    constants: Vec<Value>,
+    array_constants: Vec<std::sync::Arc<[Value]>>,
+    enums: Vec<Identifier>,
+    enum_types: Vec<Type>,
+    target_items: Vec<std::sync::Arc<super::types::TargetItemValue>>,
+    target_lists: Vec<std::sync::Arc<super::types::TargetItemsValue>>,
+    targets: Vec<std::sync::Arc<super::types::TargetValue>>,
+    curves: Vec<std::sync::Arc<crate::values::Curve>>,
+    gradients: Vec<std::sync::Arc<crate::values::Gradient>>,
     value_operands: Vec<ValueSlot>,
-    emit_fields: Vec<(Identifier, ValueSlot)>,
-    generated_effects: Vec<super::EmittedReference>,
     scopes: Vec<IndexMap<Identifier, Binding>>,
     param_types: Vec<Type>,
     layout: SlotLayout,
-    ref_types: Vec<Type>,
+    array_types: Vec<Type>,
     kind: EffectKind,
     signal_inputs: IndexMap<Identifier, usize>,
     assigned_names: HashSet<Identifier>,
@@ -137,6 +186,7 @@ struct FunctionCompiler {
     param_reads: HashMap<ParamId, ValueSlot>,
     loop_count: u32,
     invalid_loop: bool,
+    invalid_emission: Option<super::lexer::TextSpan>,
 }
 
 fn constant_array_item(expr: &CheckedExpr) -> Option<Value> {
@@ -155,7 +205,6 @@ fn constant_array_item(expr: &CheckedExpr) -> Option<Value> {
 enum Binding {
     Param(ParamId),
     Local(LocalId),
-    GeneratorContext(GeneratorContextId),
 }
 
 fn collect_assigned_names(block: &CheckedBlock, assigned: &mut HashSet<Identifier>) {
@@ -267,30 +316,21 @@ impl FunctionCompiler {
         for (index, param) in params.iter().enumerate() {
             param_scope.insert(param.name.clone(), Binding::Param(index));
         }
-        if kind == EffectKind::Generator {
-            param_scope.insert(
-                static_identifier("timeline"),
-                Binding::GeneratorContext(GeneratorContextId::Timeline),
-            );
-            param_scope.insert(
-                static_identifier("target"),
-                Binding::GeneratorContext(GeneratorContextId::Target),
-            );
-            param_scope.insert(
-                static_identifier("duration"),
-                Binding::GeneratorContext(GeneratorContextId::Duration),
-            );
-        }
         Self {
             instructions: Vec::new(),
-            constants: Vec::new(),
+            array_constants: Vec::new(),
+            enums: Vec::new(),
+            enum_types: Vec::new(),
+            target_items: Vec::new(),
+            target_lists: Vec::new(),
+            targets: Vec::new(),
+            curves: Vec::new(),
+            gradients: Vec::new(),
             value_operands: Vec::new(),
-            emit_fields: Vec::new(),
-            generated_effects: Vec::new(),
             scopes: vec![param_scope],
             param_types: params.iter().map(|param| param.ty.clone()).collect(),
             layout: SlotLayout::default(),
-            ref_types: Vec::new(),
+            array_types: Vec::new(),
             kind,
             signal_inputs: IndexMap::new(),
             assigned_names: HashSet::new(),
@@ -298,6 +338,7 @@ impl FunctionCompiler {
             param_reads: HashMap::new(),
             loop_count: 0,
             invalid_loop: false,
+            invalid_emission: None,
         }
     }
 
@@ -315,13 +356,13 @@ impl FunctionCompiler {
     }
 
     fn compile(&mut self, block: CheckedBlock) -> Result<BytecodeProgram, super::Diagnostic> {
-        self.compile_with_implicit_return(block, true)
+        self.compile_with_outputs(block, None)
     }
 
-    fn compile_with_implicit_return(
+    fn compile_with_outputs(
         &mut self,
         block: CheckedBlock,
-        implicit_return: bool,
+        outputs: Option<Vec<CheckedExpr>>,
     ) -> Result<BytecodeProgram, super::Diagnostic> {
         collect_assigned_names(&block, &mut self.assigned_names);
         // Parameters are immutable inputs. Assignment uses an ordinary local,
@@ -340,47 +381,50 @@ impl FunctionCompiler {
             self.emit_load_param(slot, index);
             self.scopes[0].insert(name, Binding::Local(slot));
         }
-        self.compile_block(block);
+        self.scopes.push(IndexMap::new());
+        for statement in block.statements {
+            self.compile_statement(statement);
+        }
+        if let Some(outputs) = outputs {
+            // Calculations return a declared list of registers, not an erased
+            // array<void> whose shape must be reconstructed during execution.
+            let values = outputs
+                .into_iter()
+                .map(|output| self.compile_expr(output))
+                .collect();
+            let outputs = self.add_value_operands(values);
+            self.emit(Instruction::ReturnValues(outputs));
+        }
+        let _ = self.scopes.pop();
+        if let Some(span) = self.invalid_emission {
+            return Err(super::Diagnostic::new(
+                span,
+                "generator emissions belong to specialization, not calculation bytecode",
+            ));
+        }
         if self.invalid_loop {
             return Err(super::Diagnostic::new(
                 super::lexer::TextSpan { start: 0, end: 0 },
                 "loop bound could not be compiled",
             ));
         }
-        if self.constants.len() > u32::MAX as usize {
+        if self.array_constants.len() > u32::MAX as usize {
             return Err(super::Diagnostic::new(
                 super::lexer::TextSpan { start: 0, end: 0 },
                 "constant pool exceeds 32-bit addressable capacity",
             ));
         }
-        if self.kind == EffectKind::Generator && implicit_return {
-            let void = self.allocate_slot(&Type::Void);
-            let constant = self.add_constant(Value::Void);
-            self.emit(Instruction::LoadConst {
-                dst: void,
-                constant,
-            });
-            self.emit(Instruction::Return(void));
-        }
-        super::array_lowering::lower_arrays(
-            &mut self.instructions,
-            &mut self.constants,
-            &mut self.value_operands,
-        );
+        super::array_lowering::lower_arrays(&mut self.instructions, &mut self.value_operands);
         super::optimize::cleanup(
             &mut self.instructions,
-            &mut self.constants,
+            &mut self.array_constants,
             &mut self.value_operands,
-            &mut self.emit_fields,
             &mut self.layout,
-            &mut self.ref_types,
+            &mut self.array_types,
+            &mut self.enum_types,
         );
         let pixel_entry = if self.kind == EffectKind::Sample {
-            super::optimize::hoist_uniform(
-                &mut self.instructions,
-                &mut self.value_operands,
-                &mut self.emit_fields,
-            )
+            super::optimize::hoist_uniform(&mut self.instructions, &mut self.value_operands)
         } else {
             0
         };
@@ -408,9 +452,20 @@ impl FunctionCompiler {
                 )
             }),
             instructions: std::mem::take(&mut self.instructions).into_boxed_slice(),
-            constants: std::mem::take(&mut self.constants).into_boxed_slice(),
+            targets: std::mem::take(&mut self.targets).into_boxed_slice(),
+            target_lists: std::mem::take(&mut self.target_lists).into_boxed_slice(),
+            target_items: std::mem::take(&mut self.target_items).into_boxed_slice(),
+            array_constants: std::mem::take(&mut self.array_constants).into_boxed_slice(),
+            enums: std::mem::take(&mut self.enums).into_boxed_slice(),
+            enum_types: std::mem::take(&mut self.enum_types)
+                .into_iter()
+                .map(EnumSlotType::new)
+                .collect::<Option<Box<[_]>>>()
+                .ok_or_else(invalid_compiled_program)?,
+            curves: std::mem::take(&mut self.curves).into_boxed_slice(),
+            gradients: std::mem::take(&mut self.gradients).into_boxed_slice(),
             value_operands: std::mem::take(&mut self.value_operands).into_boxed_slice(),
-            ref_types: std::mem::take(&mut self.ref_types).into_boxed_slice(),
+            array_types: std::mem::take(&mut self.array_types).into_boxed_slice(),
             layout: self.layout,
         };
         let (array_capacity, array_width) = program.required_array_storage().ok_or_else(|| {
@@ -464,12 +519,14 @@ impl FunctionCompiler {
                         self.bind_local(name, value);
                     }
                     Some(initializer) => {
-                        let slot = self.allocate_local(name, &ty);
+                        // The initializer sees the outer scope, just as it did
+                        // during type checking. Bind the new name only afterward.
                         let value = self.compile_expr(initializer);
                         let value = self.coerce_slot(value, &ty);
+                        let slot = self.allocate_local(name, &ty);
                         self.emit(Instruction::Move {
                             dst: slot,
-                            src: value,
+                            src: value.index(),
                         });
                     }
                     None => {
@@ -485,11 +542,11 @@ impl FunctionCompiler {
                         let value = self.coerce_to_slot(value, slot);
                         self.emit(Instruction::Move {
                             dst: slot,
-                            src: value,
+                            src: value.index(),
                         });
                     }
                     Some(Binding::Param(_)) => unreachable!("assigned parameters are locals"),
-                    Some(Binding::GeneratorContext(_)) | None => {}
+                    None => {}
                 }
             }
             CheckedStmt::Expr(expr) => {
@@ -542,11 +599,7 @@ impl FunctionCompiler {
                 self.scopes.push(IndexMap::new());
                 self.compile_statement(*initializer);
                 let count = self.allocate_slot(&Type::Int);
-                let constant = self.add_constant(Value::Int(iterations as i32));
-                self.emit(Instruction::LoadConst {
-                    dst: count,
-                    constant,
-                });
+                self.emit_constant(count, Value::Int(iterations as i32));
                 let Some((id, loop_start)) = self
                     .emit_range_start(count, donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS as i32)
                 else {
@@ -567,21 +620,14 @@ impl FunctionCompiler {
                 let snapshot = self.allocate_slot(&Type::Marks);
                 self.emit(Instruction::Move {
                     dst: snapshot,
-                    src: source,
+                    src: source.index(),
                 });
                 let index_slot = self.allocate_local(index, &Type::Int);
-                let zero = self.add_constant(Value::Int(0));
-                self.emit(Instruction::LoadConst {
-                    dst: index_slot,
-                    constant: zero,
-                });
+                self.emit_constant(index_slot, Value::Int(0));
                 let one_slot = self.allocate_slot(&Type::Int);
-                let one = self.add_constant(Value::Int(1));
-                self.emit(Instruction::LoadConst {
-                    dst: one_slot,
-                    constant: one,
-                });
-                let Some((id, loop_start)) = self.emit_marks_start(self.ref_slot(snapshot)) else {
+                self.emit_constant(one_slot, Value::Int(1));
+                let Some((id, loop_start)) = self.emit_marks_start(self.marks_slot(snapshot))
+                else {
                     return;
                 };
                 let dominating_context_reads = self.context_reads.clone();
@@ -609,24 +655,16 @@ impl FunctionCompiler {
                 let count = self.allocate_slot(&Type::Int);
                 self.emit(Instruction::Move {
                     dst: count,
-                    src: source,
+                    src: source.index(),
                 });
                 let CheckedExprKind::Literal(Value::Int(cap)) = cap.kind else {
                     self.invalid_loop = true;
                     return;
                 };
                 let index_slot = self.allocate_local(index, &Type::Int);
-                let zero = self.add_constant(Value::Int(0));
-                self.emit(Instruction::LoadConst {
-                    dst: index_slot,
-                    constant: zero,
-                });
+                self.emit_constant(index_slot, Value::Int(0));
                 let one_slot = self.allocate_slot(&Type::Int);
-                let one = self.add_constant(Value::Int(1));
-                self.emit(Instruction::LoadConst {
-                    dst: one_slot,
-                    constant: one,
-                });
+                self.emit_constant(one_slot, Value::Int(1));
                 let Some((id, loop_start)) = self.emit_range_start(count, cap) else {
                     return;
                 };
@@ -644,22 +682,12 @@ impl FunctionCompiler {
                 self.param_reads = dominating_param_reads;
                 let _ = self.scopes.pop();
             }
-            CheckedStmt::Emit { effect, fields } => {
-                let fields = fields
-                    .into_iter()
-                    .map(|(name, value)| (name, self.compile_expr(value)))
-                    .collect::<Vec<_>>();
-                let fields = self.add_emit_fields(fields);
-                let effect = self.add_generated_effect(effect);
-                self.emit(Instruction::Emit { effect, fields });
+            CheckedStmt::Emit { effect, .. } => {
+                self.invalid_emission = Some(effect.span);
             }
             CheckedStmt::Return(expr) => {
                 let value = self.compile_expr(expr);
-                if self.kind == EffectKind::Sample {
-                    self.emit(Instruction::ReturnColor(self.color_slot(value)));
-                } else {
-                    self.emit(Instruction::Return(value));
-                }
+                self.emit(Instruction::ReturnColor(self.color_slot(value)));
             }
         }
     }
@@ -669,8 +697,7 @@ impl FunctionCompiler {
         match expr.kind {
             CheckedExprKind::Literal(value) => {
                 let dst = self.allocate_slot(&result_ty);
-                let constant = self.add_constant(value);
-                self.emit(Instruction::LoadConst { dst, constant });
+                self.emit_constant(dst, value);
                 dst
             }
             CheckedExprKind::Variable(name) => match self.lookup(&name) {
@@ -688,11 +715,6 @@ impl FunctionCompiler {
                     dst
                 }
                 Some(Binding::Local(slot)) => slot,
-                Some(Binding::GeneratorContext(slot)) => {
-                    let dst = self.allocate_slot(&result_ty);
-                    self.emit(Instruction::LoadGeneratorContext { dst, slot });
-                    dst
-                }
                 None => {
                     let value = match name.as_str() {
                         "PI" => Value::Float(std::f32::consts::PI),
@@ -700,8 +722,7 @@ impl FunctionCompiler {
                         _ => Value::Enum(name),
                     };
                     let dst = self.allocate_slot(&result_ty);
-                    let constant = self.add_constant(value);
-                    self.emit(Instruction::LoadConst { dst, constant });
+                    self.emit_constant(dst, value);
                     dst
                 }
             },
@@ -712,8 +733,7 @@ impl FunctionCompiler {
                     .collect::<Option<Vec<_>>>()
                 {
                     let dst = self.allocate_slot(&result_ty);
-                    let constant = self.add_constant(Value::Array(values.into()));
-                    self.emit(Instruction::LoadConst { dst, constant });
+                    self.emit_constant(dst, Value::Array(values.into()));
                     return dst;
                 }
                 let item_slots = items
@@ -722,12 +742,12 @@ impl FunctionCompiler {
                     .collect::<Vec<_>>();
                 let item_slots = self.add_value_operands(item_slots);
                 let dst = self.allocate_slot(&result_ty);
-                let dst = self.ref_slot(dst);
+                let dst = self.array_slot(dst);
                 self.emit(Instruction::MakeArray {
                     dst,
                     items: item_slots,
                 });
-                ValueSlot::Ref(dst)
+                ValueSlot::Array(dst)
             }
             CheckedExprKind::Index { target, index } => {
                 if let Some(param) = self.param_binding(&target, &Type::Curve) {
@@ -737,6 +757,7 @@ impl FunctionCompiler {
                     self.emit(Instruction::CurveParamSample {
                         dst,
                         param,
+                        source: CurveSlot(self.parameter_bank_index(param)),
                         position,
                     });
                     ValueSlot::Float(dst)
@@ -747,33 +768,68 @@ impl FunctionCompiler {
                     self.emit(Instruction::GradientParamSample {
                         dst,
                         param,
+                        source: GradientSlot(self.parameter_bank_index(param)),
                         position,
                     });
                     ValueSlot::Color(dst)
                 } else {
                     let target = self.compile_expr(*target);
-                    let target = self.ref_slot(target);
                     let index = self.compile_expr(*index);
                     let dst = self.allocate_slot(&result_ty);
-                    let default = self.add_constant(result_ty.default_value()) as u32;
-                    self.emit(Instruction::Index {
-                        dst,
-                        target,
-                        index,
-                        default,
-                    });
+                    match target {
+                        ValueSlot::TargetItems(source) => {
+                            self.emit(Instruction::TargetPick {
+                                dst: self.target_item_slot(dst),
+                                source,
+                                index: Self::number_slot(index),
+                            });
+                        }
+                        ValueSlot::Curve(curve) => {
+                            let position = self.float_slot(index);
+                            let dst = self.float_slot(dst);
+                            self.emit(Instruction::CurveSample {
+                                dst,
+                                curve,
+                                position,
+                            });
+                        }
+                        ValueSlot::Gradient(gradient) => {
+                            let position = self.float_slot(index);
+                            self.emit(Instruction::GradientSample {
+                                dst: self.color_slot(dst),
+                                gradient,
+                                position,
+                            });
+                        }
+                        target => {
+                            let target = self.array_slot(target);
+                            let default = self.allocate_slot(&result_ty);
+                            self.emit_default(default, &result_ty);
+                            self.emit(Instruction::Index {
+                                dst,
+                                target,
+                                index: Self::number_slot(index),
+                                default: default.index(),
+                            });
+                        }
+                    }
                     dst
                 }
             }
             CheckedExprKind::Member { target, member } => {
                 let target = self.compile_expr(*target);
-                let target = self.ref_slot(target);
+                let target = self.target_item_slot(target);
                 let dst = self.allocate_slot(&result_ty);
-                self.emit(Instruction::Member {
-                    dst,
-                    target,
-                    member: target_member(&member),
-                });
+                if member.as_str() == "pixel_fraction" {
+                    let dst = self.float_slot(dst);
+                    self.emit(Instruction::MemberFraction { dst, target });
+                } else {
+                    self.emit(Instruction::MemberInt {
+                        dst: self.int_slot(dst),
+                        target,
+                        member: target_member(&member),
+                    });
+                }
                 dst
             }
             CheckedExprKind::Call { callee, args } => {
@@ -801,6 +857,7 @@ impl FunctionCompiler {
                     .copied()
                     .unwrap_or_else(|| unreachable!("checked Signal input exists"));
                 self.emit(Instruction::SignalSample {
+                    capability: (),
                     dst: self.color_slot(dst),
                     input,
                     seconds,
@@ -919,7 +976,10 @@ impl FunctionCompiler {
     ) -> ValueSlot {
         let dst = self.allocate_slot(&result_ty);
         let left = self.compile_expr(left);
-        self.emit(Instruction::Move { dst, src: left });
+        self.emit(Instruction::Move {
+            dst,
+            src: left.index(),
+        });
         let dominating_context_reads = self.context_reads.clone();
         let dominating_param_reads = self.param_reads.clone();
         let condition = self.bool_slot(dst);
@@ -935,7 +995,10 @@ impl FunctionCompiler {
             })
         };
         let right = self.compile_expr(right);
-        self.emit(Instruction::Move { dst, src: right });
+        self.emit(Instruction::Move {
+            dst,
+            src: right.index(),
+        });
         self.patch_jump(jump, self.current_target());
         self.context_reads = dominating_context_reads;
         self.param_reads = dominating_param_reads;
@@ -1143,9 +1206,40 @@ impl FunctionCompiler {
             }
             "srand" | "rand" => {
                 let args = self.compile_float_args(args);
-                let args = self.add_float_operands(args);
                 let dst = self.float_slot(dst);
-                self.emit(Instruction::Rand { dst, args });
+                // Argument count and types are known here. Lower the seed fold
+                // to ordinary float arithmetic, leaving one total scalar hash
+                // in the VM. Preserve the original evaluation order, including
+                // the initial +0.0 operation for signed zero and NaN inputs.
+                if args.is_empty() {
+                    self.emit_default(ValueSlot::Float(dst), &Type::Float);
+                }
+                for (index, arg) in args.into_iter().enumerate() {
+                    if index == 0 {
+                        self.emit(Instruction::FloatArithmeticConst {
+                            dst,
+                            op: ArithmeticOp::Add,
+                            value: arg,
+                            constant_bits: 0.0_f32.to_bits(),
+                            constant_left: true,
+                        });
+                    } else {
+                        self.emit(Instruction::FloatArithmeticConst {
+                            dst,
+                            op: ArithmeticOp::Multiply,
+                            value: dst,
+                            constant_bits: 31.0_f32.to_bits(),
+                            constant_left: false,
+                        });
+                        self.emit(Instruction::FloatArithmetic {
+                            dst,
+                            op: ArithmeticOp::Add,
+                            left: dst,
+                            right: arg,
+                        });
+                    }
+                }
+                self.emit(Instruction::Rand { dst, seed: dst });
             }
             "curve_clamped" if args.len() == 4 => {
                 if let Some(param) = self.param_binding(&args[0], &Type::Curve) {
@@ -1154,6 +1248,7 @@ impl FunctionCompiler {
                     self.emit(Instruction::CurveParamFloatClamped {
                         dst,
                         param,
+                        source: CurveSlot(self.parameter_bank_index(param)),
                         position: registers[0],
                         min: registers[1],
                         max: registers[2],
@@ -1162,7 +1257,7 @@ impl FunctionCompiler {
                     let mut args = args;
                     let curve_expr = args.remove(0);
                     let curve = self.compile_expr(curve_expr);
-                    let curve = self.ref_slot(curve);
+                    let curve = self.curve_slot(curve);
                     let registers = self.compile_float_args(args);
                     let dst = self.float_slot(dst);
                     self.emit(Instruction::CurveFloatClamped {
@@ -1181,6 +1276,7 @@ impl FunctionCompiler {
                     self.emit(Instruction::GradientParamColorScaled {
                         dst,
                         param,
+                        source: GradientSlot(self.parameter_bank_index(param)),
                         position: registers[0],
                         scale: registers[1],
                     });
@@ -1188,7 +1284,7 @@ impl FunctionCompiler {
                     let mut args = args;
                     let gradient_expr = args.remove(0);
                     let gradient = self.compile_expr(gradient_expr);
-                    let gradient = self.ref_slot(gradient);
+                    let gradient = self.gradient_slot(gradient);
                     let registers = self.compile_float_args(args);
                     let dst = self.color_slot(dst);
                     self.emit(Instruction::GradientColorScaled {
@@ -1206,6 +1302,7 @@ impl FunctionCompiler {
                     self.emit(Instruction::CurveParamCrossing {
                         dst,
                         param,
+                        source: CurveSlot(self.parameter_bank_index(param)),
                         value: registers[0],
                         fallback: registers.get(1).copied(),
                     });
@@ -1213,7 +1310,7 @@ impl FunctionCompiler {
                     let mut args = args;
                     let curve_expr = args.remove(0);
                     let curve = self.compile_expr(curve_expr);
-                    let curve = self.ref_slot(curve);
+                    let curve = self.curve_slot(curve);
                     let registers = self.compile_float_args(args);
                     let dst = self.float_slot(dst);
                     self.emit(Instruction::CurveCrossing {
@@ -1226,39 +1323,99 @@ impl FunctionCompiler {
             }
             "len" => {
                 let args = self.compile_args(args);
-                self.emit(Instruction::Len {
-                    dst: self.int_slot(dst),
-                    value: self.ref_slot(args[0]),
-                });
+                match args[0] {
+                    ValueSlot::Marks(marks) => self.emit(Instruction::Mark {
+                        marks,
+                        op: MarkOp::Count {
+                            dst: self.int_slot(dst),
+                        },
+                    }),
+                    slot => self.emit(Instruction::Len {
+                        dst: self.int_slot(dst),
+                        value: self.array_slot(slot),
+                    }),
+                }
             }
             "mark_count" | "mark_at" | "mark_prev" | "mark_prev_index" | "mark_next_index"
             | "mark_elapsed" | "mark_phase" => {
+                let args = self.compile_args(args);
+                let marks = self.marks_slot(args[0]);
+                let mut time = args.get(1).copied().map(Self::number_slot);
+                if time.is_none()
+                    && self.kind == EffectKind::Generator
+                    && name.as_str() != "mark_count"
+                {
+                    // A generator's omitted query time is its preparation-time
+                    // origin, not the playback clock of a retained calculation.
+                    // Keep that source context explicit when code is staged.
+                    let zero = self.allocate_slot(&Type::Float);
+                    self.emit_default(zero, &Type::Float);
+                    time = Some(Self::number_slot(zero));
+                }
+                let fallback = || args.get(2).copied().map(Self::number_slot);
                 let op = match name.as_str() {
-                    "mark_count" => MarkOp::Count,
-                    "mark_at" => MarkOp::At,
-                    "mark_prev" => MarkOp::Prev,
-                    "mark_prev_index" => MarkOp::PrevIndex,
-                    "mark_next_index" => MarkOp::NextIndex,
-                    "mark_elapsed" => MarkOp::Elapsed,
-                    "mark_phase" => MarkOp::Phase,
+                    "mark_count" => MarkOp::Count {
+                        dst: self.int_slot(dst),
+                    },
+                    "mark_at" => MarkOp::At {
+                        dst: self.float_slot(dst),
+                        index: Self::number_slot(args[1]),
+                        fallback: fallback(),
+                    },
+                    "mark_prev" => MarkOp::Prev {
+                        dst: self.float_slot(dst),
+                        seconds: time,
+                        fallback: fallback(),
+                    },
+                    "mark_prev_index" => MarkOp::PrevIndex {
+                        dst: self.int_slot(dst),
+                        seconds: time,
+                    },
+                    "mark_next_index" => MarkOp::NextIndex {
+                        dst: self.int_slot(dst),
+                        seconds: time,
+                    },
+                    "mark_elapsed" => MarkOp::Elapsed {
+                        dst: self.float_slot(dst),
+                        seconds: time,
+                    },
+                    "mark_phase" => MarkOp::Phase {
+                        dst: self.float_slot(dst),
+                        seconds: time,
+                    },
                     _ => unreachable!("matched mark builtin"),
                 };
-                let args = self.compile_args(args);
-                let args = self.add_value_operands(args);
-                self.emit(Instruction::Mark { dst, op, args });
+                self.emit(Instruction::Mark { marks, op });
             }
-            "fixtures" | "pixels" | "sections" | "count" | "pick" => {
+            "count" => {
+                let args = self.compile_args(args);
+                self.emit(Instruction::TargetCount {
+                    dst: self.int_slot(dst),
+                    source: self.target_items_slot(args[0]),
+                });
+            }
+            "pick" => {
+                let args = self.compile_args(args);
+                self.emit(Instruction::TargetPick {
+                    dst: self.target_item_slot(dst),
+                    source: self.target_items_slot(args[0]),
+                    index: Self::number_slot(args[1]),
+                });
+            }
+            "fixtures" | "pixels" | "sections" => {
+                let args = self.compile_args(args);
+                let source = Self::target_source(args[0]);
+                let dst = self.target_items_slot(dst);
                 let op = match name.as_str() {
-                    "fixtures" => TargetItemsOp::Fixtures,
-                    "pixels" => TargetItemsOp::Pixels,
-                    "sections" => TargetItemsOp::Sections,
-                    "count" => TargetItemsOp::Count,
-                    "pick" => TargetItemsOp::Pick,
+                    "fixtures" => TargetItemsOp::Fixtures { dst },
+                    "pixels" => TargetItemsOp::Pixels { dst },
+                    "sections" => TargetItemsOp::Sections {
+                        dst,
+                        width: Self::number_slot(args[1]),
+                    },
                     _ => unreachable!("matched target builtin"),
                 };
-                let args = self.compile_args(args);
-                let args = self.add_value_operands(args);
-                self.emit(Instruction::TargetItems { dst, op, args });
+                self.emit(Instruction::TargetItems { source, op });
             }
             _ => self.emit_default(dst, &Type::Void),
         }
@@ -1281,17 +1438,87 @@ impl FunctionCompiler {
     }
 
     fn emit_load_param(&mut self, dst: ValueSlot, param: ParamId) {
+        let source = self.parameter_bank_index(param);
         match dst {
-            ValueSlot::Int(dst) => self.emit(Instruction::LoadIntParam { dst, param }),
-            ValueSlot::Float(dst) => self.emit(Instruction::LoadFloatParam { dst, param }),
-            ValueSlot::Bool(dst) => self.emit(Instruction::LoadBoolParam { dst, param }),
-            ValueSlot::Color(dst) => self.emit(Instruction::LoadColorParam { dst, param }),
-            ValueSlot::Ref(dst) => self.emit(Instruction::LoadRefParam { dst, param }),
+            ValueSlot::Target(dst) => self.emit(Instruction::LoadTargetParam {
+                dst,
+                param,
+                source: TargetSlot(source),
+            }),
+            ValueSlot::TargetItems(dst) => self.emit(Instruction::LoadTargetItemsParam {
+                dst,
+                param,
+                source: TargetItemsSlot(source),
+            }),
+            ValueSlot::TargetItem(dst) => self.emit(Instruction::LoadTargetItemParam {
+                dst,
+                param,
+                source: TargetItemSlot(source),
+            }),
+            ValueSlot::Curve(dst) => self.emit(Instruction::LoadCurveParam {
+                dst,
+                param,
+                source: CurveSlot(source),
+            }),
+            ValueSlot::Gradient(dst) => self.emit(Instruction::LoadGradientParam {
+                dst,
+                param,
+                source: GradientSlot(source),
+            }),
+            ValueSlot::Marks(dst) => self.emit(Instruction::LoadMarksParam {
+                dst,
+                param,
+                source: MarksSlot(source),
+            }),
+            ValueSlot::Int(dst) => self.emit(Instruction::LoadIntParam {
+                dst,
+                param,
+                source: IntSlot(source),
+            }),
+            ValueSlot::Float(dst) => self.emit(Instruction::LoadFloatParam {
+                dst,
+                param,
+                source: FloatSlot(source),
+            }),
+            ValueSlot::Bool(dst) => self.emit(Instruction::LoadBoolParam {
+                dst,
+                param,
+                source: BoolSlot(source),
+            }),
+            ValueSlot::Color(dst) => self.emit(Instruction::LoadColorParam {
+                dst,
+                param,
+                source: ColorSlot(source),
+            }),
+            ValueSlot::Enum(dst) => self.emit(Instruction::LoadEnumParam {
+                dst,
+                param,
+                source: EnumSlot(self.parameter_bank_index(param)),
+            }),
+            ValueSlot::Array(dst) => self.emit(Instruction::LoadArrayParam {
+                dst,
+                param,
+                source: ArraySlot(self.parameter_bank_index(param)),
+            }),
+            ValueSlot::Void => {}
         }
     }
 
+    fn parameter_bank_index(&self, param: ParamId) -> u32 {
+        self.param_types[..param]
+            .iter()
+            .filter(|ty| {
+                super::bytecode::ParameterKind::for_type(ty)
+                    == super::bytecode::ParameterKind::for_type(&self.param_types[param])
+            })
+            .count() as u32
+    }
+
     fn emit_context_read(&mut self, dst: ValueSlot, read: ContextRead) {
-        self.emit(Instruction::ContextRead { dst, read });
+        self.emit(Instruction::ContextRead {
+            dst: Self::number_slot(dst),
+            read,
+        });
     }
 
     fn emit_binary(&mut self, dst: ValueSlot, op: BinaryOp, left: ValueSlot, right: ValueSlot) {
@@ -1390,6 +1617,7 @@ impl FunctionCompiler {
         self.emit(Instruction::EnumParamEqualConst {
             dst: bool_dst,
             param,
+            source: EnumSlot(self.parameter_bank_index(param)),
             constant,
             negate: op == BinaryOp::NotEqual,
         });
@@ -1430,7 +1658,9 @@ impl FunctionCompiler {
         if self.lookup(name).is_some() || !matches!(expr.ty, Type::Enum(_)) {
             return None;
         }
-        Some(self.add_constant(Value::Enum(name.clone())))
+        let index = self.enums.len();
+        self.enums.push(name.clone());
+        Some(index)
     }
 
     fn param_binding(&self, expr: &CheckedExpr, expected: &Type) -> Option<ParamId> {
@@ -1475,17 +1705,28 @@ impl FunctionCompiler {
         };
         match self.lookup(name) {
             Some(Binding::Local(_)) => !self.assigned_names.contains(name),
-            Some(Binding::Param(_) | Binding::GeneratorContext(_)) | None => true,
+            Some(Binding::Param(_)) | None => true,
         }
     }
 
     fn allocate_slot(&mut self, ty: &Type) -> ValueSlot {
         let slot = ValueSlot::for_type(ty, &mut self.layout);
-        if let ValueSlot::Ref(index) = slot {
-            self.ref_types.push(ty.clone());
-            debug_assert_eq!(index.0 as usize, self.ref_types.len() - 1);
+        if let ValueSlot::Enum(_) = slot {
+            self.enum_types.push(ty.clone());
+        }
+        if let ValueSlot::Array(index) = slot {
+            self.array_types.push(ty.clone());
+            debug_assert_eq!(index.0 as usize, self.array_types.len() - 1);
         }
         slot
+    }
+
+    fn number_slot(slot: ValueSlot) -> NumberSlot {
+        match slot {
+            ValueSlot::Int(slot) => NumberSlot::Int(slot),
+            ValueSlot::Float(slot) => NumberSlot::Float(slot),
+            _ => unreachable!("typechecked numeric operand"),
+        }
     }
 
     fn int_slot(&self, slot: ValueSlot) -> IntSlot {
@@ -1524,10 +1765,54 @@ impl FunctionCompiler {
         }
     }
 
-    fn ref_slot(&self, slot: ValueSlot) -> RefSlot {
+    fn array_slot(&self, slot: ValueSlot) -> ArraySlot {
         match slot {
-            ValueSlot::Ref(slot) => slot,
+            ValueSlot::Array(slot) => slot,
             _ => unreachable!("checked expression is reference-like"),
+        }
+    }
+
+    fn target_items_slot(&self, slot: ValueSlot) -> TargetItemsSlot {
+        match slot {
+            ValueSlot::TargetItems(slot) => slot,
+            _ => unreachable!("checked target collection"),
+        }
+    }
+
+    fn target_item_slot(&self, slot: ValueSlot) -> TargetItemSlot {
+        match slot {
+            ValueSlot::TargetItem(slot) => slot,
+            _ => unreachable!("checked target item"),
+        }
+    }
+
+    fn target_source(slot: ValueSlot) -> TargetSource {
+        match slot {
+            ValueSlot::Target(slot) => TargetSource::Target(slot),
+            ValueSlot::TargetItems(slot) => TargetSource::Items(slot),
+            ValueSlot::TargetItem(slot) => TargetSource::Item(slot),
+            _ => unreachable!("checked target operand"),
+        }
+    }
+
+    fn marks_slot(&self, slot: ValueSlot) -> MarksSlot {
+        match slot {
+            ValueSlot::Marks(slot) => slot,
+            _ => unreachable!("checked marks operand"),
+        }
+    }
+
+    fn curve_slot(&self, slot: ValueSlot) -> CurveSlot {
+        match slot {
+            ValueSlot::Curve(slot) => slot,
+            _ => unreachable!("checked curve operand"),
+        }
+    }
+
+    fn gradient_slot(&self, slot: ValueSlot) -> GradientSlot {
+        match slot {
+            ValueSlot::Gradient(slot) => slot,
+            _ => unreachable!("checked gradient operand"),
         }
     }
 
@@ -1538,40 +1823,79 @@ impl FunctionCompiler {
             .find_map(|scope| scope.get(name).cloned())
     }
 
-    fn add_constant(&mut self, value: Value) -> usize {
-        self.constants.push(value);
-        self.constants.len() - 1
+    fn add_array_constant(&mut self, value: std::sync::Arc<[Value]>) -> usize {
+        self.array_constants.push(value);
+        self.array_constants.len() - 1
     }
 
     fn emit_default(&mut self, dst: ValueSlot, ty: &Type) {
-        let constant = self.add_constant(ty.default_value());
-        self.emit(Instruction::LoadConst { dst, constant });
+        self.emit_constant(dst, ty.default_value());
+    }
+
+    fn emit_constant(&mut self, dst: ValueSlot, value: Value) {
+        if matches!((dst, &value), (ValueSlot::Void, Value::Void)) {
+            return;
+        }
+        let instruction = match (dst, value) {
+            (ValueSlot::TargetItem(dst), Value::TargetItem(value)) => {
+                let constant = self.target_items.len();
+                self.target_items.push(value);
+                Instruction::LoadTargetItemConst { dst, constant }
+            }
+            (ValueSlot::TargetItems(dst), Value::TargetItems(value)) => {
+                let constant = self.target_lists.len();
+                self.target_lists.push(value);
+                Instruction::LoadTargetItemsConst { dst, constant }
+            }
+            (ValueSlot::Target(dst), Value::Target(value)) => {
+                let constant = self.targets.len();
+                self.targets.push(value);
+                Instruction::LoadTargetConst { dst, constant }
+            }
+            (ValueSlot::Curve(dst), Value::Curve(value)) => {
+                let constant = self.curves.len();
+                self.curves.push(value);
+                Instruction::LoadCurveConst { dst, constant }
+            }
+            (ValueSlot::Gradient(dst), Value::Gradient(value)) => {
+                let constant = self.gradients.len();
+                self.gradients.push(value);
+                Instruction::LoadGradientConst { dst, constant }
+            }
+            (ValueSlot::Marks(dst), Value::Marks(value)) => {
+                Instruction::LoadMarksConst { dst, value }
+            }
+            (ValueSlot::Int(dst), Value::Int(value)) => Instruction::LoadIntConst { dst, value },
+            (ValueSlot::Float(dst), Value::Float(value)) => Instruction::LoadFloatConst {
+                dst,
+                bits: value.to_bits(),
+            },
+            (ValueSlot::Float(dst), Value::Int(value)) => Instruction::LoadFloatConst {
+                dst,
+                bits: (value as f32).to_bits(),
+            },
+            (ValueSlot::Bool(dst), Value::Bool(value)) => Instruction::LoadBoolConst { dst, value },
+            (ValueSlot::Color(dst), Value::Color(value)) => {
+                Instruction::LoadColorConst { dst, value }
+            }
+            (ValueSlot::Enum(dst), Value::Enum(value)) => {
+                let constant = self.enums.len();
+                self.enums.push(value);
+                Instruction::LoadEnumConst { dst, constant }
+            }
+            (ValueSlot::Array(dst), Value::Array(value)) => Instruction::LoadArrayConst {
+                dst,
+                constant: self.add_array_constant(value),
+            },
+            _ => unreachable!("checked constant matches its destination"),
+        };
+        self.emit(instruction);
     }
 
     fn add_value_operands(&mut self, values: Vec<ValueSlot>) -> PoolSpan {
         let span = pool_span(self.value_operands.len(), values.len());
         self.value_operands.extend(values);
         span
-    }
-
-    fn add_float_operands(&mut self, values: Vec<FloatSlot>) -> PoolSpan {
-        self.add_value_operands(values.into_iter().map(ValueSlot::Float).collect())
-    }
-
-    fn add_emit_fields(&mut self, values: Vec<(Identifier, ValueSlot)>) -> PoolSpan {
-        let span = pool_span(self.emit_fields.len(), values.len());
-        self.emit_fields.extend(values);
-        span
-    }
-
-    fn add_generated_effect(
-        &mut self,
-        effect: super::EmittedReference,
-    ) -> super::GeneratedEffectSlot {
-        debug_assert!(u32::try_from(self.generated_effects.len()).is_ok());
-        let index = self.generated_effects.len() as u32;
-        self.generated_effects.push(effect);
-        super::GeneratedEffectSlot(index)
     }
 
     fn current_target(&self) -> Target {
@@ -1607,7 +1931,7 @@ impl FunctionCompiler {
         Some((id, self.current_target()))
     }
 
-    fn emit_marks_start(&mut self, marks: RefSlot) -> Option<(u32, usize)> {
+    fn emit_marks_start(&mut self, marks: MarksSlot) -> Option<(u32, usize)> {
         let id = self.allocate_loop_id()?;
         self.emit(Instruction::LoopMarksStart {
             id,
@@ -1667,15 +1991,7 @@ fn target_member(member: &Identifier) -> TargetMember {
         "fixture_pixel_index" => TargetMember::FixturePixelIndex,
         "pixel_index" => TargetMember::PixelIndex,
         "pixel_count" => TargetMember::PixelCount,
-        "pixel_fraction" => TargetMember::PixelFraction,
         _ => unreachable!("checked TargetItem member is known"),
-    }
-}
-
-fn static_identifier(value: &str) -> Identifier {
-    match Identifier::new(value.to_string()) {
-        Ok(identifier) => identifier,
-        Err(_) => unreachable!("static identifier is valid"),
     }
 }
 

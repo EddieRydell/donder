@@ -1,15 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use super::bytecode::{Instruction, PoolSpan, RefSlot, ValueSlot};
-use super::types::Value;
+use super::bytecode::{ArraySlot, Instruction, PoolSpan, ValueSlot};
 
 /// Resolve array reads within a basic block. Generic cleanup removes unused
 /// array objects. Never substitute a mutable register for an array snapshot.
-pub(super) fn lower_arrays(
-    code: &mut [Instruction],
-    constants: &mut Vec<Value>,
-    operands: &mut Vec<ValueSlot>,
-) {
+pub(super) fn lower_arrays(code: &mut [Instruction], operands: &mut Vec<ValueSlot>) {
     if !code
         .iter()
         .any(|op| matches!(op, Instruction::MakeArray { .. }))
@@ -28,11 +23,10 @@ pub(super) fn lower_arrays(
     let integers = code
         .iter()
         .filter_map(|op| match op {
-            Instruction::LoadConst { dst, constant } if !mutable.contains(dst) => {
-                match constants[*constant] {
-                    Value::Int(value) => Some((*dst, value)),
-                    _ => None,
-                }
+            Instruction::LoadIntConst { dst, value }
+                if !mutable.contains(&ValueSlot::Int(*dst)) =>
+            {
+                Some((ValueSlot::Int(*dst), *value))
             }
             _ => None,
         })
@@ -49,7 +43,7 @@ pub(super) fn lower_arrays(
             _ => None,
         })
         .collect::<HashSet<_>>();
-    let mut arrays = HashMap::<RefSlot, Vec<ValueSlot>>::new();
+    let mut arrays = HashMap::<ArraySlot, Vec<ValueSlot>>::new();
     for (offset, op) in code.iter_mut().enumerate() {
         if targets.contains(&offset) {
             arrays.clear();
@@ -62,10 +56,10 @@ pub(super) fn lower_arrays(
                 }
             }
             Instruction::Move {
-                dst: ValueSlot::Ref(dst),
-                src: ValueSlot::Ref(src),
+                dst: ValueSlot::Array(dst),
+                src,
             } => {
-                let values = arrays.get(src).cloned();
+                let values = arrays.get(&ArraySlot(*src)).cloned();
                 arrays.remove(dst);
                 if let Some(values) = values {
                     arrays.insert(*dst, values);
@@ -78,20 +72,25 @@ pub(super) fn lower_arrays(
                 default,
             } => {
                 if let Some(value) = integers
-                    .get(index)
+                    .get(&index.value_slot())
                     .and_then(|index| usize::try_from(*index).ok())
                     .and_then(|index| arrays.get(target)?.get(index))
                     .copied()
                 {
                     // Ref results may themselves denote a known nested array.
-                    if let (ValueSlot::Ref(dst), ValueSlot::Ref(src)) = (*dst, value)
+                    if let (ValueSlot::Array(dst), ValueSlot::Array(src)) = (*dst, value)
                         && let Some(values) = arrays.get(&src).cloned()
                     {
                         arrays.insert(dst, values);
                     }
-                    *op = Instruction::Move {
-                        dst: *dst,
-                        src: value,
+                    *op = match (*dst, value) {
+                        (ValueSlot::Float(dst), ValueSlot::Int(src)) => {
+                            Instruction::IntToFloat { dst, src }
+                        }
+                        _ => Instruction::Move {
+                            dst: *dst,
+                            src: value.index(),
+                        },
                     };
                 } else if let Some(values) = arrays.get(target) {
                     let items = PoolSpan {
@@ -112,11 +111,9 @@ pub(super) fn lower_arrays(
                     .get(value)
                     .and_then(|values| i32::try_from(values.len()).ok())
                 {
-                    let constant = constants.len();
-                    constants.push(Value::Int(len));
-                    *op = Instruction::LoadConst {
-                        dst: ValueSlot::Int(*dst),
-                        constant,
+                    *op = Instruction::LoadIntConst {
+                        dst: *dst,
+                        value: len,
                     };
                 }
             }
@@ -126,7 +123,7 @@ pub(super) fn lower_arrays(
             | Instruction::LoopRangeStart { .. }
             | Instruction::LoopMarksStart { .. }
             | Instruction::LoopEnd { .. }
-            | Instruction::Return(_)
+            | Instruction::ReturnValues(_)
             | Instruction::ReturnColor(_) => arrays.clear(),
             _ => {}
         }

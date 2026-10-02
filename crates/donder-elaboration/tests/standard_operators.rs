@@ -26,8 +26,10 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap()
         .clone();
-    let setup = project.root.setup.id().clone();
-    let baseline = donder_elaboration::elaborate_sequence(&project, &setup, &id).unwrap();
+    let baseline =
+        donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
+            .unwrap();
+    let baseline = baseline.signals();
     let definitions = &project.definitions.operators;
     let make_node = |id, name| CompositionGraphNode {
         id: CompositionGraphNodeId(id),
@@ -74,7 +76,10 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         validate_composition_graph(&invalid, definitions).is_err(),
         "unknown port accepted"
     );
-    let disconnected = donder_elaboration::elaborate_sequence(&project, &setup, &id).unwrap();
+    let disconnected =
+        donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
+            .unwrap();
+    let disconnected = disconnected.signals();
     assert_eq!(baseline.plan.nodes.len(), disconnected.plan.nodes.len());
     assert_eq!(baseline.programs.len(), disconnected.programs.len());
     let mut before = baseline.workspace().unwrap();
@@ -96,7 +101,8 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         .edges
         .push(edge(8001, output, "input"));
     assert!(
-        donder_elaboration::elaborate_sequence(&project, &setup, &id).is_err(),
+        donder_language::validation::validate_sequence(&project, project.sequence(&id).unwrap())
+            .is_err(),
         "incomplete branch contributing to output accepted"
     );
 }

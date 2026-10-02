@@ -3,6 +3,10 @@
 mod workload;
 
 #[allow(dead_code)]
+#[path = "../../../firmware/esp32/src/mark_workload.rs"]
+mod mark_workload;
+
+#[allow(dead_code)]
 #[path = "../benches/fixtures/mod.rs"]
 mod fixtures;
 
@@ -10,21 +14,56 @@ use donder_language::dsl::{VmWorkspace, compile_effects};
 use indexmap::IndexMap;
 
 #[test]
+fn host_mark_fixtures_preserve_children_and_rendered_frames() {
+    use donder_runtime::values::SampleTime;
+    let actual = [true, false].map(|pulse| {
+        let show = mark_workload::mark_show(200, pulse);
+        let mut workspace = show.workspace().unwrap();
+        let mut output = [vec![0u8; 600]];
+        let mut checksum = 0xcbf2_9ce4_8422_2325u64;
+        for ticks in [
+            1_999_999, 2_000_000, 2_050_000, 2_375_000, 3_125_000, 4_750_000, 2_375_000,
+        ] {
+            show.evaluate(SampleTime::from_ticks(ticks), &mut output, &mut workspace)
+                .unwrap();
+            for byte in &output[0] {
+                checksum = (checksum ^ u64::from(*byte)).wrapping_mul(0x100_0000_01b3);
+            }
+        }
+        (show.signals().effects.len(), checksum)
+    });
+    // Captured from the raw generator path before migrating these host fixtures
+    // to the specialization path used by project preparation.
+    assert_eq!(
+        actual,
+        [
+            (96, 4_276_337_823_300_249_221),
+            (32, 2_010_629_835_981_686_248)
+        ]
+    );
+}
+
+#[test]
 fn effect_automation_slots_skip_unautomated_effects() {
     use donder_runtime::automation::AutomationMapping;
     use donder_runtime::signal::{PreparedAutomation, PreparedEffectAutomation};
     use donder_runtime::values::{SampleDuration, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
-    let mut show = workload::show(200, effect.bytecode.clone(), params.clone());
-    show.signals.effects = vec![show.signals.effects[0].clone(); 4].into();
-    show.signals.effects_by_layer[0] = vec![1, 3, 0, 2].into();
+    let show = workload::show(
+        200,
+        effect.sample_program().unwrap().clone(),
+        params.clone(),
+    );
+    let mut signals = show.signals().clone();
+    signals.effects = vec![signals.effects[0].clone(); 4].into();
+    signals.effects_by_layer[0] = vec![1, 3, 0, 2].into();
     for index in [0, 2] {
-        show.signals.effects[index].start_time = SampleTime::from_ticks(7_999_999);
-        show.signals.effects[index].duration = SampleDuration::from_ticks(1);
+        signals.effects[index].start_time = SampleTime::from_ticks(7_999_999);
+        signals.effects[index].duration = SampleDuration::from_ticks(1);
     }
     for (slot, index) in [1, 3].into_iter().enumerate() {
-        show.signals.effects[index].automation = Some(Box::new(PreparedEffectAutomation {
-            workspace_slot: slot as u32,
+        signals.effects[index].automation = Some(Box::new(PreparedEffectAutomation {
+            workspace_slot: slot,
             bindings: vec![PreparedAutomation {
                 start: SampleTime::from_ticks(0),
                 duration: SampleDuration::from_ticks(8_000_000),
@@ -39,15 +78,22 @@ fn effect_automation_slots_skip_unautomated_effects() {
         }));
     }
     let singles = [1, 3].map(|index| {
-        let mut single = workload::show(200, effect.bytecode.clone(), params.clone());
-        single.signals.effects[0] = show.signals.effects[index].clone();
-        single.signals.effects[0]
+        let mut single = workload::show(
+            200,
+            effect.sample_program().unwrap().clone(),
+            params.clone(),
+        )
+        .signals()
+        .clone();
+        single.effects[0] = signals.effects[index].clone();
+        single.effects[0]
             .automation
             .as_mut()
             .unwrap()
             .workspace_slot = 0;
-        single
+        workload::rgb_output(single)
     });
+    let show = workload::rgb_output(signals);
     let mut workspace = show.workspace().unwrap();
     let mut actual = [vec![0; 600]];
     let mut expected = vec![0; 600];
@@ -76,7 +122,8 @@ fn effect_automation_slots_skip_unautomated_effects() {
 fn uniform_resource_samples_are_hoisted_without_retaining_references() {
     use donder_runtime::dsl::bytecode::Instruction;
     let (effect, params) = fixtures::uniform_resources();
-    let prefix = &effect.bytecode.instructions[..effect.bytecode.pixel_entry as usize];
+    let prefix = &effect.sample_program().unwrap().instructions
+        [..effect.sample_program().unwrap().pixel_entry as usize];
     assert!(
         prefix
             .iter()
@@ -87,7 +134,11 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
             .iter()
             .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
     );
-    let show = workload::show(200, effect.bytecode.clone(), params.clone());
+    let show = workload::show(
+        200,
+        effect.sample_program().unwrap().clone(),
+        params.clone(),
+    );
     let mut workspace = show.workspace().unwrap();
     let mut output = [vec![0; 600]];
     let mut vm = VmWorkspace::default();
@@ -123,7 +174,8 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
     ] {
         let effect = compile_effects(source).unwrap().remove(0).effect;
         assert!(
-            !effect.bytecode.instructions[..effect.bytecode.pixel_entry as usize]
+            !effect.sample_program().unwrap().instructions
+                [..effect.sample_program().unwrap().pixel_entry as usize]
                 .iter()
                 .any(|op| matches!(
                     op,
@@ -168,15 +220,16 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
     let gain = compile_operators("operator Gain { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds()) * gain; } }").unwrap().remove(0);
     let mut show = workload::show(
         200,
-        effect.bytecode.clone(),
+        effect.sample_program().unwrap().clone(),
         effect.bind_params(&IndexMap::new()).unwrap(),
     );
     workload::apply_operator(&mut show, gain.bytecode.clone(), true);
+    let mut signals = show.signals().clone();
     let PreparedSignalKind::Operator {
         operator,
         automation,
         ..
-    } = &mut show.signals.plan.nodes[1].kind
+    } = &mut signals.plan.nodes[1].kind
     else {
         panic!("operator")
     };
@@ -201,7 +254,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
         param_index: 0,
     }]
     .into();
-    let reference = show.signals.clone();
+    let reference = signals.clone();
     let mut actual = [vec![0; 600]];
     let mut expected = [vec![0; 600]];
     for source in [
@@ -209,11 +262,11 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
         "operator Mix { input Signal source; color sample() { return max(source.at(seconds()), source.at(seconds() * 0.5)); } }",
     ] {
         let outer = compile_operators(source).unwrap().remove(0);
-        show.signals = reference.clone();
-        let mut programs = show.signals.programs.to_vec();
+        signals = reference.clone();
+        let mut programs = signals.programs.to_vec();
         programs.push(outer.bytecode.clone());
-        show.signals.programs = programs.into();
-        let mut nodes = show.signals.plan.nodes.to_vec();
+        signals.programs = programs.into();
+        let mut nodes = signals.plan.nodes.to_vec();
         nodes.push(PreparedSignalNode {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
@@ -226,16 +279,14 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                 vm_slot: 1,
             },
         });
-        show.signals.plan.nodes = nodes.into();
-        show.signals.plan.output_index = 2;
-        show.signals.plan.frame_slots = vec![0; 3].into();
-        show.signals.plan.frame_nodes = vec![2].into();
-        show.signals.plan.vm_workspace_count = 2;
-        let mut workspace = show.workspace().unwrap();
-        let mut direct = workload::show(200, reference.programs[0].clone(), Default::default());
-        direct.signals = reference.clone();
+        signals.plan.nodes = nodes.into();
+        signals.plan.output_index = 2;
+        signals.plan.frame_slots = vec![0; 3].into();
+        signals.plan.frame_nodes = vec![2].into();
+        signals.plan.vm_workspace_count = 2;
+        let mut direct_signals = reference.clone();
         for min in [0.0, 0.4] {
-            for sequence in [&mut show.signals, &mut direct.signals] {
+            for sequence in [&mut signals, &mut direct_signals] {
                 let PreparedSignalKind::Operator { automation, .. } =
                     &mut sequence.plan.nodes[1].kind
                 else {
@@ -243,6 +294,9 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                 };
                 automation[0].mapping = AutomationMapping::Float { min, max: 1.0 };
             }
+            let show = workload::rgb_output(signals.clone());
+            let direct = workload::rgb_output(direct_signals.clone());
+            let mut workspace = show.workspace().unwrap();
             for ticks in [3_000_000, 6_000_000, 1_000_000, 3_000_000] {
                 let time = SampleTime::from_ticks(ticks);
                 show.evaluate(time, &mut actual, &mut workspace).unwrap();
@@ -274,7 +328,7 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
     use donder_language::dsl::compile_operators;
     use donder_runtime::values::{SampleDuration, SampleTime};
     let effect = compile_effects("effect Source { color sample() { float gain = sin(seconds() * 7.0) * 0.5 + 0.5; return rgb(pixel_fraction(), progress() * gain, gain); } }").unwrap().remove(0).effect;
-    assert!(effect.bytecode.pixel_entry > 0);
+    assert!(effect.sample_program().unwrap().pixel_entry > 0);
     let operators = [
         workload::IDENTITY_SOURCE,
         "operator Mix { input Signal source; color sample() { return max(source.at(seconds()), source.at(seconds() * 0.5)); } }",
@@ -286,26 +340,24 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
         let operator = compile_operators(source).unwrap().remove(0);
         let mut show = workload::show(
             200,
-            effect.bytecode.clone(),
+            effect.sample_program().unwrap().clone(),
             effect.bind_params(&IndexMap::new()).unwrap(),
         );
+        let mut signals = show.signals().clone();
         if count == 2 {
-            let mut second = show.signals.effects[0].clone();
+            let mut second = signals.effects[0].clone();
             second.start_time = SampleTime::from_ticks(500_000);
             second.duration = SampleDuration::from_ticks(3_000_000);
-            show.signals.effects = vec![show.signals.effects[0].clone(), second].into();
-            show.signals.effects_by_layer[0] = vec![0, 1].into();
+            signals.effects = vec![signals.effects[0].clone(), second].into();
+            signals.effects_by_layer[0] = vec![0, 1].into();
         }
+        show = workload::rgb_output(signals);
         workload::apply_operator(&mut show, operator.bytecode.clone(), true);
-        let mut full = workload::show(
-            200,
-            effect.bytecode.clone(),
-            effect.bind_params(&IndexMap::new()).unwrap(),
-        );
-        full.signals = show.signals.clone();
-        for program in &mut full.signals.programs {
+        let mut full = show.signals().clone();
+        for program in &mut full.programs {
             workload::disable_uniform_reuse(program);
         }
+        let full = workload::rgb_output(full);
         let mut workspace = show.workspace().unwrap();
         let mut full_workspace = full.workspace().unwrap();
         let mut actual = [vec![0; 600]];
@@ -347,13 +399,18 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
         let operator = compile_operators(source).unwrap().remove(0);
         assert!(operator.bytecode.pixel_entry > 0);
         for depth in [1, 2, 8] {
-            let mut show = workload::show(
+            let show = workload::show(
                 200,
-                effect.bytecode.clone(),
+                effect.sample_program().unwrap().clone(),
                 effect.bind_params(&IndexMap::new()).unwrap(),
             );
-            show.signals.programs = vec![effect.bytecode.clone(), operator.bytecode.clone()].into();
-            let graph = &mut show.signals.plan;
+            let mut signals = show.signals().clone();
+            signals.programs = vec![
+                effect.sample_program().unwrap().clone(),
+                operator.bytecode.clone(),
+            ]
+            .into();
+            let graph = &mut signals.plan;
             graph.nodes = core::iter::once(PreparedSignalNode {
                 kind: PreparedSignalKind::Layer { layer_index: 0 },
             })
@@ -366,7 +423,7 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
                     },
                     inputs: vec![input].into(),
                     automation: vec![].into(),
-                    vm_slot: input as u16,
+                    vm_slot: input,
                 },
             }))
             .collect();
@@ -375,13 +432,10 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
             graph.frame_nodes = vec![depth].into();
             graph.frame_slots = vec![0; depth + 1].into();
             graph.frame_buffer_count = 1;
-            let mut full = workload::show(
-                200,
-                effect.bytecode.clone(),
-                effect.bind_params(&IndexMap::new()).unwrap(),
-            );
-            full.signals = show.signals.clone();
-            workload::disable_uniform_reuse(&mut full.signals.programs[1]);
+            let mut full = signals.clone();
+            workload::disable_uniform_reuse(&mut full.programs[1]);
+            let show = workload::rgb_output(signals);
+            let full = workload::rgb_output(full);
             let mut workspace = show.workspace().unwrap();
             let mut full_workspace = full.workspace().unwrap();
             let mut actual = [vec![0; 600]];
@@ -426,13 +480,18 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     .unwrap()
     .remove(0);
     assert!(gain.bytecode.pixel_entry > 0);
-    let mut show = workload::show(
+    let show = workload::show(
         200,
-        effect.bytecode.clone(),
+        effect.sample_program().unwrap().clone(),
         effect.bind_params(&IndexMap::new()).unwrap(),
     );
-    show.signals.programs =
-        vec![effect.bytecode, gain.bytecode.clone(), mix.bytecode.clone()].into();
+    let mut signals = show.signals().clone();
+    signals.programs = vec![
+        effect.sample_program().unwrap().clone(),
+        gain.bytecode.clone(),
+        mix.bytecode.clone(),
+    ]
+    .into();
     let mut nodes = vec![PreparedSignalNode {
         kind: PreparedSignalKind::Layer { layer_index: 0 },
     }];
@@ -440,7 +499,7 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
         nodes.push(PreparedSignalNode {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
-                    automation_slot: nodes.len() as u32 - 1,
+                    automation_slot: nodes.len() - 1,
                     implementation: PreparedOperator::Dsl(1),
                     params: gain
                         .bind_params(&IndexMap::from([(
@@ -489,22 +548,19 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
             vm_slot: 1,
         },
     });
-    let graph = &mut show.signals.plan;
+    let graph = &mut signals.plan;
     graph.nodes = nodes.into();
     graph.output_index = 3;
     graph.vm_workspace_count = 2;
     graph.frame_nodes = vec![3].into();
     graph.frame_slots = vec![0; 4].into();
     graph.frame_buffer_count = 1;
-    let mut full = workload::show(
-        200,
-        show.signals.programs[0].clone(),
-        donder_runtime::dsl::BoundParams::default(),
-    );
-    full.signals = show.signals.clone();
-    for program in &mut full.signals.programs {
+    let mut full = signals.clone();
+    for program in &mut full.programs {
         workload::disable_uniform_reuse(program);
     }
+    let show = workload::rgb_output(signals);
+    let full = workload::rgb_output(full);
     let mut workspace = show.workspace().unwrap();
     let mut full_workspace = full.workspace().unwrap();
     let mut actual = [vec![0; 600]];
@@ -529,7 +585,7 @@ fn uniform_frames_match_individual_samples_when_seeking() {
     .unwrap()
     .remove(0)
     .effect;
-    assert!(!effect.bytecode.uses_pixel_context);
+    assert!(!effect.sample_program().unwrap().uses_pixel_context);
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let identity = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
@@ -538,7 +594,12 @@ fn uniform_frames_match_individual_samples_when_seeking() {
         .into_iter()
         .flat_map(|layers| [false, true].map(|wrapped| (layers, wrapped)))
     {
-        let mut show = workload::layered_show(200, effect.bytecode.clone(), params.clone(), layers);
+        let mut show = workload::layered_show(
+            200,
+            effect.sample_program().unwrap().clone(),
+            params.clone(),
+            layers,
+        );
         if wrapped {
             workload::apply_operator(&mut show, identity.bytecode.clone(), true);
         }
@@ -571,14 +632,14 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     .unwrap()
     .remove(0)
     .effect;
-    assert!(!effect.bytecode.uses_pixel_context);
+    assert!(!effect.sample_program().unwrap().uses_pixel_context);
     let params = effect
         .bind_params(&IndexMap::from([(
             Identifier::new("colors".into()).unwrap(),
             Value::Gradient(Gradient { stops: vec![] }.into()),
         )]))
         .unwrap();
-    let mut show = workload::show(200, effect.bytecode, params);
+    let mut show = workload::show(200, effect.sample_program().unwrap().clone(), params);
     let mut output = [vec![0; 600]];
     show.evaluate(
         workload::time(0),
@@ -587,15 +648,17 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     )
     .unwrap();
     assert!(output[0].iter().all(|&byte| byte == 0));
-    show.signals.targets = vec![
-        show.signals.targets[0].clone(),
+    let mut signals = show.signals().clone();
+    signals.targets = vec![
+        signals.targets[0].clone(),
         donder_runtime::signal::PreparedTarget {
             pixels: 0..0,
             sample_count: 0,
         },
     ]
     .into();
-    show.signals.effects[0].target = 1;
+    signals.effects[0].target = 1;
+    show = workload::rgb_output(signals);
     output[0].fill(255);
     show.evaluate(
         workload::time(0),
@@ -618,14 +681,18 @@ fn identical_target_routing_matches_address_search() {
         .unwrap()
         .remove(0);
     let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let mut direct = workload::show(200, effect.bytecode.clone(), params.clone());
+    let mut direct = workload::show(
+        200,
+        effect.sample_program().unwrap().clone(),
+        params.clone(),
+    );
     workload::apply_operator(&mut direct, operator.bytecode, true);
-    let mut searched = workload::show(200, effect.bytecode, params);
-    searched.signals = direct.signals.clone();
+    let mut searched = direct.signals().clone();
     // Duplicate the target under another ID to exercise the general route with
     // exactly the same contexts. Production elaboration interns this duplicate.
-    searched.signals.targets = vec![direct.signals.targets[0].clone(); 2].into();
-    searched.signals.effects[0].target = 1;
+    searched.targets = vec![direct.signals().targets[0].clone(); 2].into();
+    searched.effects[0].target = 1;
+    let searched = workload::rgb_output(searched);
     let mut direct_workspace = direct.workspace().unwrap();
     let mut searched_workspace = searched.workspace().unwrap();
     let mut actual = [vec![0; 600]];
@@ -685,9 +752,10 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
         } }",
     ] {
         let effect = compile_effects(source).unwrap().remove(0).effect;
-        assert!(effect.bytecode.uses_pixel_context);
+        assert!(effect.sample_program().unwrap().uses_pixel_context);
         assert!(
-            effect.bytecode.instructions[..effect.bytecode.pixel_entry as usize]
+            effect.sample_program().unwrap().instructions
+                [..effect.sample_program().unwrap().pixel_entry as usize]
                 .iter()
                 .any(|op| matches!(
                     op,
@@ -699,7 +767,12 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
         );
         let params = effect.bind_params(&IndexMap::new()).unwrap();
         for layers in [1, 4, 16] {
-            let show = workload::layered_show(200, effect.bytecode.clone(), params.clone(), layers);
+            let show = workload::layered_show(
+                200,
+                effect.sample_program().unwrap().clone(),
+                params.clone(),
+                layers,
+            );
             let mut workspace = show.workspace().unwrap();
             let mut output = [vec![0; 600]];
             let mut vm = VmWorkspace::default();

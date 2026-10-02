@@ -35,10 +35,140 @@ fn fixed_array_syntax_compiles_to_the_same_program_as_scalar_syntax() {
     .unwrap()
     .remove(0)
     .effect;
-    assert_eq!(array.bytecode, scalar.bytecode);
-    assert_eq!(array.bytecode.layout.refs, 0);
-    assert_eq!(array.bytecode.layout.ints, 0);
-    assert!(array.bytecode.value_operands.is_empty());
+    assert_eq!(
+        array.sample_program().unwrap(),
+        scalar.sample_program().unwrap()
+    );
+    assert_eq!(array.sample_program().unwrap().layout.arrays, 0);
+    assert_eq!(array.sample_program().unwrap().layout.ints, 0);
+    assert!(array.sample_program().unwrap().value_operands.is_empty());
+}
+
+#[test]
+fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
+    use donder_language::dsl::{Identifier, Value};
+    let source = "effect Array { param int index = 0; color sample() {
+        array<float> values = [progress(), pixel_index() + 1];
+        float assigned = progress();
+        assigned = pixel_index() + 1;
+        return rgb(values[1], values[index], assigned);
+    } }";
+    let scalar = "effect Scalar { param int index = 0; color sample() {
+        float selected = progress();
+        if (index == 1) { selected = pixel_index() + 1; }
+        return rgb(pixel_index() + 1, selected, pixel_index() + 1);
+    } }";
+    let array = compile_effects(source).unwrap().remove(0).effect;
+    let scalar = compile_effects(scalar).unwrap().remove(0).effect;
+    assert_eq!(array.sample_program().unwrap().array_capacity, 0);
+    assert!(
+        array
+            .sample_program()
+            .unwrap()
+            .instructions
+            .iter()
+            .any(|op| matches!(op, Instruction::Select { .. }))
+    );
+    assert!(
+        array
+            .sample_program()
+            .unwrap()
+            .instructions
+            .iter()
+            .any(|op| matches!(op, Instruction::IntToFloat { .. }))
+    );
+    let mut workspace = VmWorkspace::default();
+    for index in [0, 1] {
+        let params = [(Identifier::new("index".into()).unwrap(), Value::Int(index))];
+        let array_params = array.bind_params_pairs(&params).unwrap();
+        let scalar_params = scalar.bind_params_pairs(&params).unwrap();
+        for progress in [0.0, 0.25, 0.75, 1.0] {
+            let context = context(progress);
+            let expected = scalar
+                .sample_bound(&scalar_params, &context, &mut workspace)
+                .unwrap();
+            assert_eq!(
+                array
+                    .sample_bound(&array_params, &context, &mut workspace)
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+}
+
+#[test]
+fn reference_sampling_keeps_integer_and_float_index_semantics() {
+    use donder_language::dsl::{Identifier, Value};
+    use donder_language::values::{Curve, CurvePoint};
+
+    let effect = compile_effects(
+        "effect Indexed {
+            param array<curve> shapes;
+            param int integer;
+            param float fraction;
+            color sample() {
+                curve shape = shapes[0];
+                return rgb(shape[integer], shape[fraction], 0.0);
+            }
+        }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let curve = Curve {
+        points: vec![
+            CurvePoint {
+                position: 0.0,
+                value: 0.0,
+            },
+            CurvePoint {
+                position: 1.0,
+                value: 1.0,
+            },
+        ],
+    };
+    let shapes = Value::Array(vec![Value::Curve(curve.clone().into())].into());
+    let mut workspace = VmWorkspace::default();
+    for integer in [i32::MIN, -1, 0, 1, i32::MAX] {
+        for fraction in [
+            f32::NEG_INFINITY,
+            -1.0,
+            0.0,
+            0.25,
+            1.0,
+            f32::INFINITY,
+            f32::NAN,
+        ] {
+            let params = effect
+                .bind_params_pairs(&[
+                    (Identifier::new("shapes".into()).unwrap(), shapes.clone()),
+                    (
+                        Identifier::new("integer".into()).unwrap(),
+                        Value::Int(integer),
+                    ),
+                    (
+                        Identifier::new("fraction".into()).unwrap(),
+                        Value::Float(fraction),
+                    ),
+                ])
+                .unwrap();
+            let sampled = effect
+                .sample_bound(&params, &context(0.0), &mut workspace)
+                .unwrap();
+            let channel = |position| {
+                (donder_runtime::sampling::sample_curve(&curve, position) * 255.0).round() as u8
+            };
+            assert_eq!(
+                sampled,
+                Color {
+                    red: channel(integer as f32),
+                    green: channel(fraction),
+                    blue: 0,
+                }
+            );
+        }
+    }
 }
 
 #[test]
@@ -52,7 +182,7 @@ fn unused_arrays_with_total_items_need_no_storage() {
     .unwrap()
     .remove(0)
     .effect;
-    assert_eq!(effect.bytecode.array_capacity, 0);
+    assert_eq!(effect.sample_program().unwrap().array_capacity, 0);
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let result = effect.sample_bound(&params, &context(0.25), &mut VmWorkspace::default());
     assert_eq!(result.unwrap(), Color::BLACK);
@@ -71,11 +201,18 @@ fn fixed_indices_and_aliases_need_no_calculated_array_storage() {
     .unwrap()
     .remove(0)
     .effect;
-    assert_eq!(effect.bytecode.array_capacity, 0);
-    assert!(!effect.bytecode.instructions.iter().any(|op| matches!(
-        op,
-        Instruction::MakeArray { .. } | Instruction::Len { .. } | Instruction::Index { .. }
-    )));
+    assert_eq!(effect.sample_program().unwrap().array_capacity, 0);
+    assert!(
+        !effect
+            .sample_program()
+            .unwrap()
+            .instructions
+            .iter()
+            .any(|op| matches!(
+                op,
+                Instruction::MakeArray { .. } | Instruction::Len { .. } | Instruction::Index { .. }
+            ))
+    );
     let params = effect.bind_params(&IndexMap::new()).unwrap();
     let mut vm = VmWorkspace::default();
     for (progress, expected) in [
@@ -181,10 +318,11 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
         .unwrap()
         .remove(0)
         .effect;
-        assert_eq!(effect.bytecode.array_capacity, 0);
+        assert_eq!(effect.sample_program().unwrap().array_capacity, 0);
         assert!(
             effect
-                .bytecode
+                .sample_program()
+                .unwrap()
                 .instructions
                 .iter()
                 .any(|op| matches!(op, Instruction::Select { .. }))

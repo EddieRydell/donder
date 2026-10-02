@@ -95,7 +95,6 @@ pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {
-    pub generator: Option<crate::dsl::GeneratorProgram>,
     /// Statically linked generator child targets, in the same order as the
     /// compiled effect's emitted-child slots.
     pub generated_effect_targets: Box<[EffectRef]>,
@@ -117,7 +116,6 @@ impl EffectDefinition {
     pub fn custom(id: EffectDefinitionId, compilation: crate::dsl::EffectCompilation) -> Self {
         let compiled = compilation.effect;
         Self {
-            generator: compilation.generator,
             generated_effect_targets: Box::new([]),
             emitted_references: compilation.emitted_references,
             id: EffectRef::Custom(id),

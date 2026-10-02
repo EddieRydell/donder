@@ -72,9 +72,12 @@ mutable session clone or reload YAML to validate a GUI mutation.
 
 ## Playback boundary
 
-Elaboration flattens fixture definitions, expands generators, resolves symbolic
-references, and assigns numeric child slots. Prepared events carry only those
-slots. Runtime evaluation uses flat buffers and direct output routes; it must not
+Compilation assigns numeric slots to generator emission sites, and project loading
+links their symbolic child references in the defining document's import scope.
+Elaboration flattens fixture definitions, expands generators, and resolves each
+emitted slot through that linked table. It prepares concrete sample effects and
+retained parameter calculations; playback has no generator emission instructions.
+Runtime evaluation uses flat buffers and direct output routes; it must not
 reconstruct source identity or repeat import, target, or fixture traversal.
 
 Output selection is also an elaboration concern. A controller fragment retains

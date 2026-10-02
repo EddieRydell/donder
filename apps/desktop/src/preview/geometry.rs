@@ -1,5 +1,5 @@
 use crate::dto::Point3Meters;
-use donder_elaboration::fixture::PreparedFixtureDefinitions;
+use donder_language::geometry::PreparedFixtureDefinitions;
 use donder_language::model::DonderProject;
 use donder_language::values::Point3;
 
@@ -17,11 +17,8 @@ impl PreviewGeometry {
         let layout = project
             .layout(setup.layout.id())
             .ok_or_else(|| "Preview layout was not found.".to_string())?;
-        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions.fixtures)
-            .map_err(|error| format!("Cannot prepare preview fixtures: {error:?}"))?;
-        let layout = definitions
-            .prepare_layout(layout)
-            .map_err(|error| format!("Cannot prepare preview layout: {error:?}"))?;
+        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions.fixtures);
+        let layout = definitions.prepare_layout(layout);
         let mut instances = Vec::new();
         let mut fixtures = Vec::new();
         for fixture in &layout.instances {

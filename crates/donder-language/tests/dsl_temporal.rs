@@ -1,5 +1,5 @@
 #[allow(dead_code)]
-#[path = "../../donder-language/benches/fixtures/mod.rs"]
+#[path = "../benches/fixtures/mod.rs"]
 mod fixtures;
 #[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/mark_workload.rs"]
@@ -34,7 +34,7 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
         .iter()
         .flat_map(|base| ["Delay", "Echo"].map(|name| (base, name)))
     {
-        let mut graph = base.signals.clone();
+        let mut graph = base.signals().clone();
         let declaration = compiled(name);
         let overrides = declaration
             .params()
@@ -50,7 +50,7 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
             })
             .collect::<Vec<_>>();
         let temporal_params = BoundParams::bind_pairs(declaration.params(), &overrides).unwrap();
-        let invert = graph.programs.len() as u32;
+        let invert = graph.programs.len();
         let temporal = invert + 1;
         let multiply = invert + 2;
         let mut programs = graph.programs.to_vec();
@@ -87,7 +87,7 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
         .into();
         graph.plan.output_index = 4;
         graph.plan.frame_nodes = vec![4].into();
-        graph.plan.frame_slots = vec![u16::MAX, u16::MAX, u16::MAX, u16::MAX, 0].into();
+        graph.plan.frame_slots = vec![usize::MAX, usize::MAX, usize::MAX, usize::MAX, 0].into();
         graph.plan.frame_buffer_count = 1;
         graph.plan.vm_workspace_count = 4;
 

@@ -10,7 +10,6 @@ license = "MIT"
 donder-language.workspace = true
 donder-runtime.workspace = true
 indexmap.workspace = true
-glam.workspace = true
 
 [dev-dependencies]
 crc32fast.workspace = true

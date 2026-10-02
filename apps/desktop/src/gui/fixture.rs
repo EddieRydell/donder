@@ -93,7 +93,7 @@ pub(super) fn edit_fixture(
                 .map(|element| element.id.0)
                 .max()
                 .unwrap_or(0);
-            let pixels = donder_elaboration::fixture::element_pixels(element)
+            let pixels = donder_language::geometry::element_pixels(element)
                 .map_err(|error| {
                     GuiMutationError::Invalid(format!("Cannot expand shape: {error:?}"))
                 })?
@@ -141,7 +141,7 @@ pub(super) fn domain_geometry(
 }
 
 fn validate_geometry(geometry: &FixtureDefinition) -> Result<(), GuiMutationError> {
-    donder_elaboration::fixture::prepare_geometry(geometry).map_err(|error| {
+    geometry.validate_geometry().map_err(|error| {
         GuiMutationError::Invalid(format!("Invalid fixture geometry: {error:?}"))
     })?;
     Ok(())
@@ -313,7 +313,7 @@ fn move_handle(
                 "Control point was not found.".into(),
             ));
         }
-        let transform = donder_elaboration::fixture::fixture_transform(&element.transform);
+        let transform = donder_language::geometry::fixture_transform(&element.transform);
         let start = if index == 0 {
             to_vec(position)
         } else {
@@ -352,7 +352,7 @@ fn move_handle(
         element.transform.position = position;
         return Ok(());
     }
-    let transform = donder_elaboration::fixture::fixture_transform(&element.transform);
+    let transform = donder_language::geometry::fixture_transform(&element.transform);
     let local = transform.inverse().transform_point3(to_vec(position));
     match &mut element.shape {
         FixtureShape::Polyline { points, .. } => {

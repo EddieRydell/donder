@@ -64,8 +64,9 @@ and leaves playback stopped. Explicit saved-data erase clears both partitions.
 Prepared-content admission also checks sample, operator, and retained-parameter
 bytecode register references, operand spans, constants, jump targets,
 parameter-read types, and reachable return paths before the VM can execute an
-upload. It also rejects generator-only instructions in playback programs and
-signal reads outside an operator's connected input table.
+upload. Generator emission is host-only and has no portable bytecode instruction.
+Admission rejects signal reads outside an operator's connected input table and
+return instructions that do not match the program's sample or calculation context.
 
 The current admission limits are 96 KiB of archive payload, 1,600 pixels, 128
 graph nodes, and 96 KiB of estimated workspace. They are conservative policy,

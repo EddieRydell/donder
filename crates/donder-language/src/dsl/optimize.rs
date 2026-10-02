@@ -1,19 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use super::bytecode::{
-    ColorSlot, FloatSlot, Instruction, IntSlot, SignalPixel, SlotLayout, ValueSlot,
+    ColorSlot, FloatSlot, Instruction, IntSlot, MarkOp, NumberSlot, SignalPixel, SlotLayout,
+    TargetItemsOp, TargetSource, ValueSlot,
 };
-use super::types::{Identifier, Type, Value};
+use super::types::{Type, Value};
 
 /// Move pure, single-assignment scalar expressions to a frame initialization
 /// prefix. Mutable locals and references stay in the pixel body. Hoisting may
 /// cross branches only when evaluation is harmless; resource samples retain
 /// their ordering relative to any earlier potentially failing instruction.
-pub(super) fn hoist_uniform(
-    code: &mut Vec<Instruction>,
-    operands: &mut [ValueSlot],
-    fields: &mut [(Identifier, ValueSlot)],
-) -> u32 {
+pub(super) fn hoist_uniform(code: &mut Vec<Instruction>, operands: &mut [ValueSlot]) -> u32 {
     use super::bytecode::ContextRead;
     let mut writes = HashMap::<ValueSlot, usize>::new();
     let mut entry_block = true;
@@ -33,7 +30,10 @@ pub(super) fn hoist_uniform(
                 | Instruction::LoadFloatParam { .. }
                 | Instruction::LoadBoolParam { .. }
                 | Instruction::LoadColorParam { .. } => entry_block,
-                Instruction::LoadConst { .. }
+                Instruction::LoadIntConst { .. }
+                | Instruction::LoadFloatConst { .. }
+                | Instruction::LoadBoolConst { .. }
+                | Instruction::LoadColorConst { .. }
                 | Instruction::ContextRead {
                     read: ContextRead::Progress | ContextRead::Seconds | ContextRead::Duration,
                     ..
@@ -60,13 +60,16 @@ pub(super) fn hoist_uniform(
                 _ => false,
             };
             if jump_target(op).is_some()
-                || matches!(op, Instruction::Return(_) | Instruction::ReturnColor(_))
+                || matches!(
+                    op,
+                    Instruction::ReturnColor(_) | Instruction::ReturnValues(_)
+                )
             {
                 entry_block = false;
             }
             let mut dst = None;
             let mut reads = Vec::new();
-            slots(op, operands, fields, |slot, write| {
+            slots(op, operands, |slot, write| {
                 if write {
                     dst = Some(slot);
                     *writes.entry(slot).or_default() += 1;
@@ -88,7 +91,13 @@ pub(super) fn hoist_uniform(
             if let Some(dst) = dst
                 && (*eligible || (*ordered && ordered_prefix))
                 && !lifted[index]
-                && !matches!(dst, ValueSlot::Ref(_))
+                && matches!(
+                    dst,
+                    ValueSlot::Int(_)
+                        | ValueSlot::Float(_)
+                        | ValueSlot::Bool(_)
+                        | ValueSlot::Color(_)
+                )
                 && writes[dst] == 1
                 && reads.iter().all(|slot| uniform.contains(slot))
             {
@@ -155,11 +164,11 @@ pub(super) fn hoist_uniform(
 
 pub(super) fn cleanup(
     code: &mut Vec<Instruction>,
-    constants: &mut Vec<Value>,
+    array_constants: &mut Vec<std::sync::Arc<[Value]>>,
     operands: &mut Vec<ValueSlot>,
-    fields: &mut Vec<(Identifier, ValueSlot)>,
     layout: &mut SlotLayout,
-    ref_types: &mut Vec<Type>,
+    array_types: &mut Vec<Type>,
+    enum_types: &mut Vec<Type>,
 ) {
     let targets = code.iter().filter_map(jump_target).collect::<HashSet<_>>();
     let mut copies = HashMap::<ValueSlot, ValueSlot>::new();
@@ -170,7 +179,7 @@ pub(super) fn cleanup(
             samples.clear();
         }
         let mut written = None;
-        slots(op, operands, fields, |slot, write| {
+        slots(op, operands, |slot, write| {
             if write {
                 written = Some(slot);
                 slot
@@ -201,20 +210,22 @@ pub(super) fn cleanup(
             if let Some(&src) = samples.get(&(input, seconds, pixel)) {
                 *op = Instruction::Move {
                     dst: ValueSlot::Color(dst),
-                    src: ValueSlot::Color(src),
+                    src: src.0,
                 };
             } else {
                 samples.insert((input, seconds, pixel), dst);
             }
         }
         if let Instruction::Move { dst, src } = op
-            && core::mem::discriminant(dst) == core::mem::discriminant(src)
-            && dst != src
+            && dst.index() != *src
         {
-            copies.insert(*dst, *src);
+            copies.insert(*dst, dst.with_index(*src));
         }
         if jump_target(op).is_some()
-            || matches!(op, Instruction::Return(_) | Instruction::ReturnColor(_))
+            || matches!(
+                op,
+                Instruction::ReturnColor(_) | Instruction::ReturnValues(_)
+            )
         {
             copies.clear();
             samples.clear();
@@ -229,13 +240,17 @@ pub(super) fn cleanup(
         .map(|op| {
             let removable = matches!(
                 op,
-                Instruction::LoadConst { .. }
+                Instruction::LoadIntConst { .. }
+                    | Instruction::LoadFloatConst { .. }
+                    | Instruction::LoadBoolConst { .. }
+                    | Instruction::LoadColorConst { .. }
+                    | Instruction::LoadArrayConst { .. }
                     | Instruction::Move { .. }
                     | Instruction::MakeArray { .. }
             );
             let mut reads = Vec::new();
             let mut dst = None;
-            slots(op, operands, fields, |slot, write| {
+            slots(op, operands, |slot, write| {
                 if write {
                     dst = Some(slot);
                 } else {
@@ -268,7 +283,7 @@ pub(super) fn cleanup(
         let (removable, dst, _) = &uses[index];
         index += 1;
         let keep = (!removable || dst.is_some_and(|dst| needed.contains(&dst)))
-            && !matches!(op, Instruction::Move { dst, src } if dst == src);
+            && !matches!(op, Instruction::Move { dst, src } if dst.index() == *src);
         kept += usize::from(keep);
         keep
     });
@@ -286,47 +301,32 @@ pub(super) fn cleanup(
     }
 
     // Rebuild only resources and registers actually named by surviving code.
-    let old_constants = core::mem::take(constants);
+    let old_constants = core::mem::take(array_constants);
     let old_operands = core::mem::take(operands);
-    let old_fields = core::mem::take(fields);
-    let old_ref_types = core::mem::take(ref_types);
+    let old_ref_types = core::mem::take(array_types);
+    let old_enum_types = core::mem::take(enum_types);
     let mut constant_ids = HashMap::new();
     let mut registers = HashMap::new();
     *layout = SlotLayout::default();
     for op in code {
-        if let Instruction::Index { default, .. } | Instruction::Select { default, .. } = op {
-            *default = *constant_ids.entry(*default as usize).or_insert_with(|| {
-                let index = constants.len();
-                constants.push(old_constants[*default as usize].clone());
-                index
-            }) as u32;
-        }
         match op {
-            Instruction::LoadConst { constant, .. }
-            | Instruction::EnumParamEqualConst { constant, .. } => {
+            Instruction::LoadArrayConst { constant, .. } => {
                 *constant = *constant_ids.entry(*constant).or_insert_with(|| {
-                    let index = constants.len();
-                    constants.push(old_constants[*constant].clone());
+                    let index = array_constants.len();
+                    array_constants.push(old_constants[*constant].clone());
                     index
                 });
             }
             Instruction::MakeArray { items: span, .. }
-            | Instruction::Select { items: span, .. }
-            | Instruction::Rand { args: span, .. }
-            | Instruction::Mark { args: span, .. }
-            | Instruction::TargetItems { args: span, .. } => {
+            | Instruction::ReturnValues(span)
+            | Instruction::Select { items: span, .. } => {
                 let values = &old_operands[span.start as usize..(span.start + span.len) as usize];
                 span.start = operands.len() as u32;
                 operands.extend_from_slice(values);
             }
-            Instruction::Emit { fields: span, .. } => {
-                let values = &old_fields[span.start as usize..(span.start + span.len) as usize];
-                span.start = fields.len() as u32;
-                fields.extend_from_slice(values);
-            }
             _ => {}
         }
-        slots(op, operands, fields, |slot, _| {
+        slots(op, operands, |slot, _| {
             *registers.entry(slot).or_insert_with(|| {
                 let mapped = ValueSlot::for_type(
                     &match slot {
@@ -334,12 +334,23 @@ pub(super) fn cleanup(
                         ValueSlot::Float(_) => Type::Float,
                         ValueSlot::Bool(_) => Type::Bool,
                         ValueSlot::Color(_) => Type::Color,
-                        ValueSlot::Ref(_) => Type::Void,
+                        ValueSlot::Marks(_) => Type::Marks,
+                        ValueSlot::Curve(_) => Type::Curve,
+                        ValueSlot::Gradient(_) => Type::Gradient,
+                        ValueSlot::TargetItem(_) => Type::TargetItem,
+                        ValueSlot::TargetItems(_) => Type::TargetItems,
+                        ValueSlot::Target(_) => Type::Target,
+                        ValueSlot::Array(slot) => old_ref_types[slot.0 as usize].clone(),
+                        ValueSlot::Void => Type::Void,
+                        ValueSlot::Enum(slot) => old_enum_types[slot.0 as usize].clone(),
                     },
                     layout,
                 );
-                if let (ValueSlot::Ref(old), ValueSlot::Ref(_)) = (slot, mapped) {
-                    ref_types.push(old_ref_types[old.0 as usize].clone());
+                if let ValueSlot::Enum(old) = slot {
+                    enum_types.push(old_enum_types[old.0 as usize].clone());
+                }
+                if let (ValueSlot::Array(old), ValueSlot::Array(_)) = (slot, mapped) {
+                    array_types.push(old_ref_types[old.0 as usize].clone());
                 }
                 mapped
             })
@@ -364,7 +375,6 @@ fn jump_target(op: &Instruction) -> Option<usize> {
 fn slots(
     op: &mut Instruction,
     operands: &mut [ValueSlot],
-    fields: &mut [(Identifier, ValueSlot)],
     mut visit: impl FnMut(ValueSlot, bool) -> ValueSlot,
 ) {
     macro_rules! typed {
@@ -373,46 +383,123 @@ fn slots(
             *$slot = mapped;
         )+}};
     }
+    macro_rules! number {
+        ($operand:expr) => {
+            match $operand {
+                NumberSlot::Int(slot) => typed!(false, Int, slot),
+                NumberSlot::Float(slot) => typed!(false, Float, slot),
+            }
+        };
+    }
     match op {
-        Instruction::LoadConst { dst, .. }
-        | Instruction::LoadGeneratorContext { dst, .. }
-        | Instruction::ContextRead { dst, .. } => *dst = visit(*dst, true),
-        Instruction::LoadIntParam { dst, .. } => typed!(true, Int, dst),
-        Instruction::LoadFloatParam { dst, .. } => typed!(true, Float, dst),
-        Instruction::LoadBoolParam { dst, .. } | Instruction::EnumParamEqualConst { dst, .. } => {
+        Instruction::LoadCurveConst { dst, .. } | Instruction::LoadCurveParam { dst, .. } => {
+            typed!(true, Curve, dst)
+        }
+        Instruction::LoadGradientConst { dst, .. } | Instruction::LoadGradientParam { dst, .. } => {
+            typed!(true, Gradient, dst)
+        }
+        Instruction::CurveSample {
+            dst,
+            curve,
+            position,
+        } => {
+            typed!(false, Curve, curve);
+            typed!(false, Float, position);
+            typed!(true, Float, dst);
+        }
+        Instruction::GradientSample {
+            dst,
+            gradient,
+            position,
+        } => {
+            typed!(false, Gradient, gradient);
+            typed!(false, Float, position);
+            typed!(true, Color, dst);
+        }
+        Instruction::LoadTargetConst { dst, .. } | Instruction::LoadTargetParam { dst, .. } => {
+            typed!(true, Target, dst)
+        }
+        Instruction::LoadTargetItemsConst { dst, .. }
+        | Instruction::LoadTargetItemsParam { dst, .. } => typed!(true, TargetItems, dst),
+        Instruction::LoadTargetItemConst { dst, .. }
+        | Instruction::LoadTargetItemParam { dst, .. } => typed!(true, TargetItem, dst),
+        Instruction::ContextRead { dst, .. } => match dst {
+            NumberSlot::Int(slot) => typed!(true, Int, slot),
+            NumberSlot::Float(slot) => typed!(true, Float, slot),
+        },
+        Instruction::LoadIntConst { dst, .. } | Instruction::LoadIntParam { dst, .. } => {
+            typed!(true, Int, dst)
+        }
+        Instruction::LoadFloatConst { dst, .. } | Instruction::LoadFloatParam { dst, .. } => {
+            typed!(true, Float, dst)
+        }
+        Instruction::LoadBoolConst { dst, .. }
+        | Instruction::LoadBoolParam { dst, .. }
+        | Instruction::EnumParamEqualConst { dst, .. } => {
             typed!(true, Bool, dst)
         }
-        Instruction::LoadColorParam { dst, .. } => typed!(true, Color, dst),
-        Instruction::LoadRefParam { dst, .. } => typed!(true, Ref, dst),
+        Instruction::LoadColorConst { dst, .. } | Instruction::LoadColorParam { dst, .. } => {
+            typed!(true, Color, dst)
+        }
+        Instruction::LoadEnumConst { dst, .. } | Instruction::LoadEnumParam { dst, .. } => {
+            typed!(true, Enum, dst);
+        }
+        Instruction::LoadArrayConst { dst, .. } | Instruction::LoadArrayParam { dst, .. } => {
+            typed!(true, Array, dst)
+        }
+        Instruction::LoadMarksConst { dst, .. } | Instruction::LoadMarksParam { dst, .. } => {
+            typed!(true, Marks, dst)
+        }
         Instruction::Move { dst, src } => {
-            *src = visit(*src, false);
+            *src = visit(dst.with_index(*src), false).index();
             *dst = visit(*dst, true);
         }
         Instruction::MakeArray { dst, items } => {
             for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
                 *slot = visit(*slot, false);
             }
-            typed!(true, Ref, dst);
+            typed!(true, Array, dst);
         }
         Instruction::Index {
-            dst, target, index, ..
+            dst,
+            target,
+            index,
+            default,
         } => {
-            typed!(false, Ref, target);
-            *index = visit(*index, false);
+            *default = visit(dst.with_index(*default), false).index();
+            typed!(false, Array, target);
+            number!(index);
             *dst = visit(*dst, true);
         }
         Instruction::Select {
-            dst, items, index, ..
+            dst,
+            items,
+            index,
+            default,
         } => {
+            *default = visit(dst.with_index(*default), false).index();
             for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
                 *slot = visit(*slot, false);
             }
-            *index = visit(*index, false);
+            number!(index);
             *dst = visit(*dst, true);
         }
-        Instruction::Member { dst, target, .. } => {
-            typed!(false, Ref, target);
-            *dst = visit(*dst, true);
+        Instruction::MemberInt { dst, target, .. } => {
+            typed!(false, TargetItem, target);
+            typed!(true, Int, dst);
+        }
+        Instruction::MemberFraction { dst, target } => {
+            typed!(false, TargetItem, target);
+            typed!(true, Float, dst);
+        }
+        Instruction::TargetCount { dst, source } => {
+            typed!(false, TargetItems, source);
+            typed!(true, Int, dst);
+        }
+        Instruction::TargetPick { dst, source, index } => {
+            typed!(false, TargetItems, source);
+            number!(index);
+            typed!(true, TargetItem, dst);
         }
         Instruction::CurveParamSample { dst, position, .. } => {
             typed!(false, Float, position);
@@ -494,7 +581,7 @@ fn slots(
             typed!(false, Bool, condition)
         }
         Instruction::LoopRangeStart { count, .. } => typed!(false, Int, count),
-        Instruction::LoopMarksStart { marks, .. } => typed!(false, Ref, marks),
+        Instruction::LoopMarksStart { marks, .. } => typed!(false, Marks, marks),
         Instruction::SectionPosition { dst, width } => {
             typed!(false, Float, width);
             typed!(true, Float, dst);
@@ -580,10 +667,8 @@ fn slots(
             typed!(false, Float, hue, saturation, value);
             typed!(true, Color, dst);
         }
-        Instruction::Rand { dst, args } => {
-            for slot in &mut operands[args.start as usize..(args.start + args.len) as usize] {
-                *slot = visit(*slot, false);
-            }
+        Instruction::Rand { dst, seed } => {
+            typed!(false, Float, seed);
             typed!(true, Float, dst);
         }
         Instruction::CurveFloatClamped {
@@ -593,7 +678,7 @@ fn slots(
             min,
             max,
         } => {
-            typed!(false, Ref, curve);
+            typed!(false, Curve, curve);
             typed!(false, Float, position, min, max);
             typed!(true, Float, dst);
         }
@@ -613,7 +698,7 @@ fn slots(
             position,
             scale,
         } => {
-            typed!(false, Ref, gradient);
+            typed!(false, Gradient, gradient);
             typed!(false, Float, position, scale);
             typed!(true, Color, dst);
         }
@@ -632,7 +717,7 @@ fn slots(
             value,
             fallback,
         } => {
-            typed!(false, Ref, curve);
+            typed!(false, Curve, curve);
             typed!(false, Float, value);
             if let Some(fallback) = fallback {
                 typed!(false, Float, fallback);
@@ -652,21 +737,74 @@ fn slots(
             typed!(true, Float, dst);
         }
         Instruction::Len { dst, value } => {
-            typed!(false, Ref, value);
+            typed!(false, Array, value);
             typed!(true, Int, dst);
         }
-        Instruction::Mark { dst, args, .. } | Instruction::TargetItems { dst, args, .. } => {
-            for slot in &mut operands[args.start as usize..(args.start + args.len) as usize] {
-                *slot = visit(*slot, false);
+        Instruction::Mark { marks, op } => {
+            typed!(false, Marks, marks);
+            match op {
+                MarkOp::Count { dst } => typed!(true, Int, dst),
+                MarkOp::At {
+                    dst,
+                    index,
+                    fallback,
+                } => {
+                    number!(index);
+                    if let Some(value) = fallback {
+                        number!(value);
+                    }
+                    typed!(true, Float, dst);
+                }
+                MarkOp::Prev {
+                    dst,
+                    seconds,
+                    fallback,
+                } => {
+                    if let Some(value) = seconds {
+                        number!(value);
+                    }
+                    if let Some(value) = fallback {
+                        number!(value);
+                    }
+                    typed!(true, Float, dst);
+                }
+                MarkOp::PrevIndex { dst, seconds } | MarkOp::NextIndex { dst, seconds } => {
+                    if let Some(value) = seconds {
+                        number!(value);
+                    }
+                    typed!(true, Int, dst);
+                }
+                MarkOp::Elapsed { dst, seconds } | MarkOp::Phase { dst, seconds } => {
+                    if let Some(value) = seconds {
+                        number!(value);
+                    }
+                    typed!(true, Float, dst);
+                }
             }
-            *dst = visit(*dst, true);
         }
-        Instruction::Emit { fields: span, .. } => {
-            for (_, slot) in &mut fields[span.start as usize..(span.start + span.len) as usize] {
-                *slot = visit(*slot, false);
+        Instruction::TargetItems { source, op } => {
+            match source {
+                TargetSource::Target(slot) => typed!(false, Target, slot),
+                TargetSource::Items(slot) => typed!(false, TargetItems, slot),
+                TargetSource::Item(slot) => typed!(false, TargetItem, slot),
+            }
+            match op {
+                TargetItemsOp::Fixtures { dst } | TargetItemsOp::Pixels { dst } => {
+                    typed!(true, TargetItems, dst)
+                }
+                TargetItemsOp::Sections { dst, width } => {
+                    number!(width);
+                    typed!(true, TargetItems, dst);
+                }
             }
         }
-        Instruction::Return(value) => *value = visit(*value, false),
+        Instruction::ReturnValues(outputs) => {
+            for value in
+                &mut operands[outputs.start as usize..(outputs.start + outputs.len) as usize]
+            {
+                *value = visit(*value, false);
+            }
+        }
         Instruction::ReturnColor(value) => typed!(false, Color, value),
         Instruction::Jump(_) | Instruction::LoopEnd { .. } => {}
     }

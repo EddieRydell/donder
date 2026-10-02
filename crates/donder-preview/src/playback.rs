@@ -91,10 +91,10 @@ impl PreviewPlayback {
             .transpose()
             .map_err(PreviewPlaybackError::Decode)?;
         if let Some(sequence) = sequence.as_ref()
-            && sequence.signals.pixel_count() != instance_count
+            && sequence.signals().pixel_count() != instance_count
         {
             return Err(PreviewPlaybackError::PixelCount {
-                sequence: sequence.signals.pixel_count(),
+                sequence: sequence.signals().pixel_count(),
                 scene: instance_count,
             });
         }
@@ -127,8 +127,8 @@ impl PreviewPlayback {
             return Ok(changed);
         }
         let position = self.clock.position_at(now).max(0.0);
-        let frame_rate = sequence.sequence().signals.frame_rate();
-        let frame_count = sequence.sequence().signals.frame_count();
+        let frame_rate = sequence.sequence().signals().frame_rate();
+        let frame_count = sequence.sequence().signals().frame_count();
         let frame = frame_at_position(position, frame_rate, frame_count);
         let key = (self.clock.snapshot.generation, frame);
         if self.last_frame == Some(key) {
@@ -155,7 +155,7 @@ impl PreviewPlayback {
         if self.clock.snapshot.state != PreviewPlaybackState::Playing {
             return None;
         }
-        let frame_rate = sequence.sequence().signals.frame_rate();
+        let frame_rate = sequence.sequence().signals().frame_rate();
         if frame_rate == 0 {
             return None;
         }

@@ -1,36 +1,45 @@
 # Preparing a sequence for selected outputs
 
-`donder_elaboration::PreparedSequenceOutput::prepare_selected` takes the project,
-setup, sequence, and a slice of `(ControllerId, ControllerPortId)` pairs. Output
-buffers follow that slice's order. Select every port of a controller to prepare
-its independent playback fragment:
+Elaboration has one public preparation function, declared in its `lib.rs`:
 
 ```rust,ignore
-let outputs = project.controllers[controller_id]
-    .ports
-    .iter()
-    .map(|port| (controller_id.clone(), port.id))
-    .collect::<Vec<_>>();
-let prepared = PreparedSequenceOutput::prepare_selected(
-    &project, setup_id, sequence_id, &outputs,
-)?;
-let sequence = prepared.sequence;
-let mut workspace = sequence.workspace();
-let mut buffers = sequence.output_widths.iter()
-    .map(|&width| vec![0; width as usize])
-    .collect::<Vec<_>>();
-sequence.evaluate(time, &mut buffers, &mut workspace)?;
+prepare(&DonderProject, &SequenceId, PrepareOutputs) -> Option<PreparedSequence>
 ```
 
-The returned `sequence` is the ordinary `donder-runtime::sequence::PreparedSequence`.
-Selection and compaction run entirely in elaboration. The runtime has no device
-selection branches, alternate executor, or fragment type.
+The project supplies its active setup. `PrepareOutputs::All` retains every output
+and logical preview fixture; `Controllers(&[ControllerId])` selects all ports of
+the requested controllers; `Ports(&[(ControllerId, ControllerPortId)])` selects
+individual ports. Explicit lists preserve first-occurrence order and ignore
+duplicates. Select a controller's independent playback fragment with:
+
+```rust,ignore
+use donder_elaboration::{PrepareOutputs, prepare};
+
+if let Some(sequence) = prepare(
+    &project,
+    &sequence_id,
+    PrepareOutputs::Controllers(&[controller_id]),
+) {
+    let mut workspace = sequence.workspace()?;
+    let mut buffers = sequence.outputs().iter()
+        .map(|output| vec![0; output.width as usize])
+        .collect::<Vec<_>>();
+    sequence.evaluate(time, &mut buffers, &mut workspace)?;
+}
+```
+
+`PreparedSequence` is owned by runtime and re-exported by elaboration. Its fields
+are private; elaboration assembles it through `PreparedSequence::new`, and callers
+inspect it through read-only accessors. Selection and compaction run entirely in
+elaboration's private modules. The runtime has no device-selection branches,
+alternate executor, or fragment type.
 
 An empty selection produces no outputs or retained fixture/effect data. An
-unpatched but valid port produces its normal zero-filled buffer. Duplicate ports
-and ports outside the selected setup return explicit preparation errors. The
-existing `prepare` method still prepares the complete setup, including its logical
-preview fixtures.
+unpatched but valid port produces its normal zero-filled buffer. `None` means the
+selection cannot be resolved: for example, a missing sequence, a controller or
+port outside the active setup, or a sequence targeting another layout. Internal
+preparation failures must not be disguised as an absent selection. Playback
+workspace creation and evaluation still have their own `Result` contracts.
 
 ## What gets retained
 

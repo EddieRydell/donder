@@ -2,7 +2,9 @@ mod array_lowering;
 mod ast;
 mod bytecode;
 mod checked;
+mod compiled_effect;
 mod compiler;
+pub use compiled_effect::{CompiledEffect, EffectKind, EffectProgram};
 mod diagnostic;
 mod emission;
 mod loop_bounds;
@@ -11,8 +13,8 @@ mod parser;
 mod specialization;
 mod staging;
 pub use specialization::{
-    GeneratorBinding, GeneratorCalculation, GeneratorInput, GeneratorProgram, SpecializedChild,
-    SpecializedGenerator,
+    BoundGenerator, GeneratedEffectSlot, GeneratorBinding, GeneratorCalculation, GeneratorContext,
+    GeneratorInput, GeneratorProgram, SpecializedChild, SpecializedGenerator,
 };
 mod typecheck;
 pub use emission::validate_emission;
@@ -21,9 +23,9 @@ use crate::imports::ImportDeclaration;
 use compiler::{compile_checked_effects, compile_checked_operators};
 pub use diagnostic::Diagnostic;
 pub use donder_runtime::dsl::{
-    BoundParams, CompiledEffect, CompiledOperator, DslBindCache, EffectKind, GeneratedEffect,
-    GeneratedEffectSlot, GeneratorContext, OperatorInputDecl, OperatorRunContext, ParamDecl,
-    RunContext, RuntimeError, SignalPixel, SignalSampler, VmWorkspace, bytecode::BytecodeProgram,
+    BoundCalculation, BoundParams, CalculationOutput, CalculationProgram, CompiledOperator,
+    DslBindCache, OperatorInputDecl, OperatorRunContext, ParamDecl, RunContext, RuntimeError,
+    SignalPixel, SignalSampler, VmWorkspace, bytecode::BytecodeProgram,
 };
 use parser::parse_module;
 use std::hash::{Hash, Hasher};
@@ -33,9 +35,7 @@ pub(crate) mod lexer;
 pub mod types;
 
 pub use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
-pub use types::{
-    Identifier, TargetItemValue, TargetItemsValue, TargetPixelValue, TargetValue, Type, Value,
-};
+pub use types::{Identifier, TargetItemValue, TargetItemsValue, TargetValue, Type, Value};
 
 #[derive(Clone, Debug)]
 pub struct EffectImport {
@@ -58,7 +58,6 @@ pub struct CompiledEffectDocument {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectCompilation {
-    pub generator: Option<GeneratorProgram>,
     pub effect: CompiledEffect,
     pub emitted_references: Box<[EmittedReference]>,
 }
@@ -145,17 +144,48 @@ pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diag
 pub fn hash_compiled_effect<H: Hasher>(effect: &CompiledEffect, state: &mut H) {
     effect.name.hash(state);
     hash_param_decls(&effect.params, state);
-    effect.kind.hash(state);
-    hash_bytecode(&effect.bytecode, state);
-    effect.emit_fields.hash(state);
-    effect.generated_effect_count.hash(state);
+    effect.kind().hash(state);
+    match &effect.program {
+        EffectProgram::Sample(program) => hash_bytecode(program, state),
+        EffectProgram::Generator(program) => program.hash_semantics(state),
+    }
 }
 
-fn hash_bytecode<H: Hasher>(bytecode: &BytecodeProgram, state: &mut H) {
+fn hash_bytecode<H: Hasher, C: Hash, S: Hash>(bytecode: &BytecodeProgram<C, S>, state: &mut H) {
     bytecode.instructions.hash(state);
-    hash_values(&bytecode.constants, state);
+    bytecode.enums.hash(state);
+    bytecode.enum_types.len().hash(state);
+    for ty in &bytecode.enum_types {
+        ty.ty().hash(state);
+    }
+    bytecode.targets.len().hash(state);
+    for target in &bytecode.targets {
+        hash_target_items(&target.groups, state);
+    }
+    bytecode.target_lists.len().hash(state);
+    for target in &bytecode.target_lists {
+        hash_target_items(&target.groups, state);
+    }
+    bytecode.target_items.len().hash(state);
+    for target in &bytecode.target_items {
+        hash_target_pixels(&target.pixels, state);
+    }
+    bytecode.array_constants.len().hash(state);
+    for values in &bytecode.array_constants {
+        hash_values(values, state);
+    }
+    bytecode.curves.len().hash(state);
+    for curve in &bytecode.curves {
+        hash_curve(curve, state);
+    }
+    bytecode.gradients.len().hash(state);
+    for gradient in &bytecode.gradients {
+        hash_gradient(gradient, state);
+    }
     bytecode.value_operands.hash(state);
     bytecode.layout.hash(state);
+    bytecode.array_types.hash(state);
+    bytecode.loop_count.hash(state);
     bytecode.uses_pixel_context.hash(state);
     bytecode.pixel_entry.hash(state);
     bytecode.array_capacity.hash(state);
@@ -253,7 +283,7 @@ fn hash_target_items<H: Hasher>(items: &[std::sync::Arc<TargetItemValue>], state
     }
 }
 
-fn hash_target_pixels<H: Hasher>(pixels: &[TargetPixelValue], state: &mut H) {
+fn hash_target_pixels<H: Hasher>(pixels: &[donder_runtime::signal::PreparedPixel], state: &mut H) {
     pixels.len().hash(state);
     for pixel in pixels {
         pixel.fixture_index.hash(state);

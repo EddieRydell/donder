@@ -9,7 +9,7 @@ impl DesktopState {
     pub(super) fn refresh_render_session(
         &self,
         project: &donder_language::model::DonderProject,
-    ) -> Option<donder_elaboration::SequenceOutputPrepareError> {
+    ) -> Option<crate::rendering::RenderSessionPrepareError> {
         let mut rendering = lock_unpoisoned(&self.sequence_render);
         let result = rendering.refresh_project(project);
         if result.is_err() {
@@ -71,8 +71,8 @@ impl DesktopState {
         &self,
         request: RenderRefreshPayload,
         result: Result<
-            crate::rendering::PreparedSequenceOutput,
-            donder_elaboration::SequenceOutputPrepareError,
+            crate::rendering::PreparedRenderSession,
+            crate::rendering::RenderSessionPrepareError,
         >,
     ) {
         let _authoring = lock_unpoisoned(&self.authoring);
@@ -88,8 +88,8 @@ impl DesktopState {
         {
             return;
         }
-        let result = result
-            .and_then(|session| lock_unpoisoned(&self.sequence_render).apply_prepared(session));
+        let result =
+            result.map(|session| lock_unpoisoned(&self.sequence_render).apply_prepared(session));
         match result {
             Ok(()) => {
                 self.clear_render_error_if_set();

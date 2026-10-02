@@ -1,5 +1,5 @@
 use camino::Utf8PathBuf;
-use donder_elaboration::PreparedSequenceOutput;
+use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare as prepare_sequence};
 use donder_language::dsl::{Identifier, RunContext, VmWorkspace, compile_effects};
 use donder_language::effect::EffectRef;
 use donder_language::sequence::{
@@ -14,7 +14,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::time::Duration;
 
-fn prepare(source: &str, automated: bool) -> PreparedSequenceOutput {
+fn prepare(source: &str, automated: bool) -> PreparedSequence {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut sources = donder_project_io::project_source_texts(&root).unwrap();
     sources.insert(
@@ -119,7 +119,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequenceOutput {
         });
     }
     let id = sequence.id.clone();
-    PreparedSequenceOutput::prepare(&session.project, session.project.root.setup.id(), &id).unwrap()
+    prepare_sequence(&session.project, &id, PrepareOutputs::All).unwrap()
 }
 
 #[test]
@@ -139,12 +139,12 @@ fn generated_children_outside_the_sequence_are_omitted_before_wire_admission() {
         effect Leaf { color sample() { return #ff0000; } }",
         false,
     );
-    assert!(!prepared.sequence.signals.effects.is_empty());
+    assert!(!prepared.signals().effects.is_empty());
     assert_eq!(
-        prepared.sequence.signals.effects.len(),
-        valid_only.sequence.signals.effects.len()
+        prepared.signals().effects.len(),
+        valid_only.signals().effects.len()
     );
-    let bytes = encode_sequence(&prepared.sequence).unwrap();
+    let bytes = encode_sequence(&prepared).unwrap();
     assert!(decode_sequence(&bytes, LoadLimits::default()).is_ok());
 }
 
@@ -172,13 +172,13 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
     "#,
         true,
     );
-    let signal = &prepared.sequence.signals;
+    let signal = &prepared.signals();
     assert!(!signal.parameter_environments.is_empty());
     assert!(signal.effects.iter().all(|effect| matches!(
         effect.implementation,
         PreparedEffectImplementation::Bound { .. }
     )));
-    let bytes = encode_sequence(&prepared.sequence).unwrap();
+    let bytes = encode_sequence(&prepared).unwrap();
     let decoded = decode_sequence(
         &bytes,
         LoadLimits {
@@ -191,7 +191,7 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
     let reference = compile_effects("effect Reference { color sample() { return rgb((seconds() + 0.5) / 4.0 + min(seconds() + 0.5, 1.0) * 0.25 + (seconds() + 0.25) / 4.0, seconds() / 4.0, progress()); } }").unwrap().remove(0).effect;
     let params = reference.bind_params_pairs(&[]).unwrap();
     let mut workspace = signal.workspace().unwrap();
-    let mut decoded_workspace = decoded.signals.workspace().unwrap();
+    let mut decoded_workspace = decoded.signals().workspace().unwrap();
     for tick in [1_500_000, 1_750_000, 2_500_000, 1_500_000, 3_000_000] {
         let time = SampleTime::from_ticks(tick);
         let actual = signal.evaluate(time, &mut workspace).unwrap().to_vec();
@@ -204,7 +204,7 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
         assert_eq!(
             actual,
             decoded
-                .signals
+                .signals()
                 .evaluate(time, &mut decoded_workspace)
                 .unwrap()
         );
@@ -237,18 +237,11 @@ fn unchanged_constant_generator_keeps_static_playback_path() {
         "effect MarkImpactBurst { param float level = 0.2; void generate() { timeline.emit Leaf { start: 0.0, duration: 1.0, target: target, value: level * 0.5 }; } } effect Leaf { param float value; color sample() { return rgb(value, value, value); } }",
         false,
     );
-    assert!(prepared.sequence.signals.parameter_environments.is_empty());
-    assert!(
-        prepared
-            .sequence
-            .signals
-            .effects
-            .iter()
-            .all(|effect| matches!(
-                effect.implementation,
-                PreparedEffectImplementation::Dsl { .. }
-            ))
-    );
+    assert!(prepared.signals().parameter_environments.is_empty());
+    assert!(prepared.signals().effects.iter().all(|effect| matches!(
+        effect.implementation,
+        PreparedEffectImplementation::Dsl { .. }
+    )));
 }
 
 fn query_graph(
@@ -276,7 +269,7 @@ fn query_graph(
             }
         }
     }
-    let program = graph.programs.len() as u32;
+    let program = graph.programs.len();
     let mut programs = graph.programs.to_vec();
     programs.push(operator);
     graph.programs = programs.into();
@@ -290,13 +283,13 @@ fn query_graph(
             },
             inputs: vec![graph.plan.output_index].into(),
             automation: Box::new([]),
-            vm_slot: graph.plan.vm_workspace_count as u16,
+            vm_slot: graph.plan.vm_workspace_count,
         },
     });
     graph.plan.output_index = nodes.len() - 1;
     graph.plan.vm_workspace_count += 1;
     graph.plan.frame_nodes = vec![graph.plan.output_index].into();
-    graph.plan.frame_slots = vec![u16::MAX; nodes.len()].into();
+    graph.plan.frame_slots = vec![usize::MAX; nodes.len()].into();
     graph.plan.frame_slots[graph.plan.output_index] = 0;
     graph.plan.frame_buffer_count = 1;
     graph.plan.nodes = nodes.into();
@@ -309,7 +302,7 @@ fn temporal_and_spatial_queries_share_live_bindings_in_recursive_frames_and_pixe
         "effect MarkImpactBurst { param float level = 0.2; void generate() { timeline.emit Leaf { start: 0.0, duration: 3.0, target: target, value: level * 0.5 + seconds() * 0.1 }; } } effect Leaf { param float value; color sample() { return rgb(value, pixel_fraction() * 0.5, progress()); } }",
         true,
     );
-    let base = &prepared.sequence.signals;
+    let base = &prepared.signals();
     for expression in [
         "source.at(seconds() - 0.125)",
         "max(source.at(seconds()), source.at(seconds() - 0.125))",
@@ -406,14 +399,17 @@ fn generator_workloads_match_ordinary_samples_and_allocate_nothing_during_playba
             for count in [8, 200, 800] {
                 let show = generator_workload::show(count, case, true, automated);
                 let reference = generator_workload::show(count, case, false, automated);
-                assert_eq!(show.signals.effects.len(), reference.signals.effects.len());
-                assert_eq!(show.signals.parameter_environments.is_empty(), !automated);
+                assert_eq!(
+                    show.signals().effects.len(),
+                    reference.signals().effects.len()
+                );
+                assert_eq!(show.signals().parameter_environments.is_empty(), !automated);
                 let mut workspace = show.workspace().unwrap();
                 let mut reference_workspace = reference.workspace().unwrap();
                 let mut buffers = show
-                    .output_widths
+                    .outputs()
                     .iter()
-                    .map(|width| vec![0u8; *width as usize])
+                    .map(|output| vec![0u8; output.width as usize])
                     .collect::<Vec<_>>();
                 let mut expected = buffers.clone();
                 for frame in [0, 1, 31, 12, 0] {
@@ -452,8 +448,8 @@ fn alternating_query_times_keep_forwarded_curves_current_without_allocations() {
         let reference = generator_workload::show(200, case, false, true);
         for cached in [true, false] {
             let expression = "max(source.at(seconds()), source.at(seconds() - 0.125))";
-            let graph = query_graph(&show.signals, expression, cached);
-            let reference = query_graph(&reference.signals, expression, cached);
+            let graph = query_graph(&show.signals(), expression, cached);
+            let reference = query_graph(&reference.signals(), expression, cached);
             let mut workspace = graph.workspace().unwrap();
             let mut reference_workspace = reference.workspace().unwrap();
             for frame in [0, 31, 12, 0] {
@@ -497,30 +493,30 @@ fn wire_rejects_malformed_environment_bindings_before_workspace_creation() {
         Invalid::ChildEnvironment,
         Invalid::Duration,
     ] {
-        let mut show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
-        let index = show
-            .signals
+        let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
+        let mut signals = show.signals().clone();
+        let index = signals
             .parameter_environments
             .iter()
             .position(|environment| !environment.bindings.is_empty())
             .unwrap();
-        let environment = &mut show.signals.parameter_environments[index];
+        let environment = &mut signals.parameter_environments[index];
         match invalid {
-            Invalid::SourceEnvironment => environment.bindings[0].source.environment = index as u32,
+            Invalid::SourceEnvironment => environment.bindings[0].source.environment = index,
             Invalid::SourceSlot => environment.bindings[0].source.parameter = u16::MAX,
             Invalid::DestinationSlot => environment.bindings[0].parameter = u16::MAX,
             Invalid::MissingBinding => environment.bindings = Box::new([]),
             Invalid::Duration => environment.duration = SampleDuration::from_ticks(0),
             Invalid::ChildEnvironment => {
                 let PreparedEffectImplementation::Bound { environment, .. } =
-                    &mut show.signals.effects[0].implementation
+                    &mut signals.effects[0].implementation
                 else {
                     panic!("bound child")
                 };
-                *environment = u32::MAX;
+                *environment = usize::MAX;
             }
         }
-        let bytes = encode_sequence(&show).unwrap();
+        let bytes = encode_modified(&show, signals.clone());
         assert!(matches!(
             decode_sequence(&bytes, LoadLimits::default()),
             Err(LoadError::InvalidSequence)
@@ -541,17 +537,18 @@ fn wire_rejects_automation_that_would_fail_during_playback() {
                 max: 1.0,
             },
         ] {
-            let mut show =
+            let show =
                 generator_workload::show(8, generator_workload::Case::Derived, generator, true);
+            let mut signals = show.signals().clone();
             let binding = if generator {
-                show.signals
+                signals
                     .parameter_environments
                     .iter_mut()
                     .flat_map(|environment| environment.automation.iter_mut())
                     .next()
                     .expect("generator automation")
             } else {
-                show.signals
+                signals
                     .effects
                     .iter_mut()
                     .flat_map(|effect| effect.automation.iter_mut())
@@ -560,7 +557,7 @@ fn wire_rejects_automation_that_would_fail_during_playback() {
                     .expect("sample automation")
             };
             binding.mapping = mapping.clone();
-            let bytes = encode_sequence(&show).unwrap();
+            let bytes = encode_modified(&show, signals.clone());
             assert!(
                 matches!(
                     decode_sequence(&bytes, LoadLimits::default()),
@@ -579,20 +576,21 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
     use donder_runtime::wire::LoadError;
     use std::sync::Arc;
 
-    let mut show = generator_workload::show(8, generator_workload::Case::Forward, false, false);
-    show.signals = query_graph(&show.signals, "source.at(seconds())", true);
+    let show = generator_workload::show(8, generator_workload::Case::Forward, false, false);
+    let mut signals = show.signals().clone();
+    signals = query_graph(&signals, "source.at(seconds())", true);
     let compiled = donder_language::dsl::compile_operators(
         "operator Query { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds()) * gain; } }",
     )
     .unwrap()
     .remove(0);
-    *show.signals.programs.last_mut().unwrap() = compiled.bytecode;
+    *signals.programs.last_mut().unwrap() = compiled.bytecode;
     {
         let PreparedSignalKind::Operator {
             operator,
             automation,
             ..
-        } = &mut show.signals.plan.nodes.last_mut().unwrap().kind
+        } = &mut signals.plan.nodes.last_mut().unwrap().kind
         else {
             panic!("query node is an operator")
         };
@@ -617,16 +615,25 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
         }]
         .into();
     }
-    assert!(decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()).is_ok());
+    assert!(
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        )
+        .is_ok()
+    );
 
     let PreparedSignalKind::Operator { automation, .. } =
-        &mut show.signals.plan.nodes.last_mut().unwrap().kind
+        &mut signals.plan.nodes.last_mut().unwrap().kind
     else {
         panic!("query node is an operator")
     };
     automation[0].mapping = AutomationMapping::Bool;
     assert!(matches!(
-        decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()),
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        ),
         Err(LoadError::InvalidSequence)
     ));
 }
@@ -635,23 +642,19 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
 fn wire_rejects_undersized_retained_array_arena() {
     use donder_runtime::wire::LoadError;
 
-    let mut prepared = prepare(
+    let prepared = prepare(
         "effect MarkImpactBurst { void generate() { timeline.emit Leaf { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } } effect Leaf { param array<array<float>> values; color sample() { return rgb(values[0][0], 0.0, 0.0); } }",
         false,
     );
-    let environment = prepared
-        .sequence
-        .signals
+    let mut signals = prepared.signals().clone();
+    let environment = signals
         .parameter_environments
         .iter_mut()
         .find(|environment| environment.array_capacity > 1)
         .expect("calculated nested arrays require a retained arena");
     environment.array_capacity -= 1;
     assert!(matches!(
-        decode_sequence(
-            &encode_sequence(&prepared.sequence).unwrap(),
-            LoadLimits::default()
-        ),
+        decode_sequence(&encode_modified(&prepared, signals), LoadLimits::default()),
         Err(LoadError::InvalidSequence)
     ));
 }
@@ -661,9 +664,9 @@ fn wire_rejects_malformed_retained_calculation_bytecode() {
     use donder_runtime::dsl::bytecode::{ColorSlot, Instruction};
     use donder_runtime::wire::LoadError;
 
-    let mut show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
-    let calculation = show
-        .signals
+    let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
+    let mut signals = show.signals().clone();
+    let calculation = signals
         .parameter_environments
         .iter_mut()
         .find_map(|environment| environment.calculation.as_mut())
@@ -671,7 +674,10 @@ fn wire_rejects_malformed_retained_calculation_bytecode() {
     calculation.program.instructions[0] = Instruction::ReturnColor(ColorSlot(u32::MAX));
 
     assert!(matches!(
-        decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()),
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        ),
         Err(LoadError::InvalidSequence)
     ));
 }
@@ -681,9 +687,9 @@ fn wire_rejects_retained_calculation_with_invalid_parameter_read() {
     use donder_runtime::dsl::bytecode::Instruction;
     use donder_runtime::wire::LoadError;
 
-    let mut show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
-    let calculation = show
-        .signals
+    let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
+    let mut signals = show.signals().clone();
+    let calculation = signals
         .parameter_environments
         .iter_mut()
         .find_map(|environment| environment.calculation.as_mut())
@@ -700,7 +706,10 @@ fn wire_rejects_retained_calculation_with_invalid_parameter_read() {
     *param = usize::MAX;
 
     assert!(matches!(
-        decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()),
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        ),
         Err(LoadError::InvalidSequence)
     ));
 }
@@ -710,9 +719,9 @@ fn wire_rejects_retained_calculation_with_mismatched_tuple_type() {
     use donder_language::dsl::Type;
     use donder_runtime::wire::LoadError;
 
-    let mut show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
-    let calculation = show
-        .signals
+    let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
+    let mut signals = show.signals().clone();
+    let calculation = signals
         .parameter_environments
         .iter_mut()
         .find_map(|environment| environment.calculation.as_mut())
@@ -728,7 +737,10 @@ fn wire_rejects_retained_calculation_with_mismatched_tuple_type() {
     };
 
     assert!(matches!(
-        decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()),
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        ),
         Err(LoadError::InvalidSequence)
     ));
 }
@@ -738,9 +750,9 @@ fn wire_rejects_sample_program_with_invalid_parameter_read() {
     use donder_runtime::dsl::bytecode::Instruction;
     use donder_runtime::wire::LoadError;
 
-    let mut show = generator_workload::show(8, generator_workload::Case::Derived, false, false);
-    let program_index = show
-        .signals
+    let show = generator_workload::show(8, generator_workload::Case::Derived, false, false);
+    let mut signals = show.signals().clone();
+    let program_index = signals
         .effects
         .iter()
         .find_map(|effect| match &effect.implementation {
@@ -748,7 +760,7 @@ fn wire_rejects_sample_program_with_invalid_parameter_read() {
             _ => None,
         })
         .expect("ordinary effect has a sample program");
-    let param = show.signals.programs[program_index]
+    let param = signals.programs[program_index]
         .instructions
         .iter_mut()
         .find_map(|instruction| match instruction {
@@ -759,7 +771,23 @@ fn wire_rejects_sample_program_with_invalid_parameter_read() {
     *param = usize::MAX;
 
     assert!(matches!(
-        decode_sequence(&encode_sequence(&show).unwrap(), LoadLimits::default()),
+        decode_sequence(
+            &encode_modified(&show, signals.clone()),
+            LoadLimits::default()
+        ),
         Err(LoadError::InvalidSequence)
     ));
+}
+
+// Malformed-wire tests edit the construction data, never an admitted sequence.
+fn encode_modified(
+    original: &PreparedSequence,
+    signals: donder_runtime::signal::PreparedSignalGraph,
+) -> Vec<u8> {
+    encode_sequence(&PreparedSequence::new(
+        signals,
+        original.patch().clone(),
+        original.outputs().to_vec().into(),
+    ))
+    .unwrap()
 }

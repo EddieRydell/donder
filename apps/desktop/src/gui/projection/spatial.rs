@@ -1,7 +1,7 @@
 use crate::dto::*;
 use crate::gui::{ResolvedGuiObject, blocked};
-use donder_elaboration::fixture::PreparedFixtureDefinitions;
 use donder_language::fixture::FixtureDefinitionId;
+use donder_language::geometry::PreparedFixtureDefinitions;
 use donder_language::layout::{LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -45,10 +45,7 @@ pub(in crate::gui) fn project_fixture(
         }
         _ => return blocked("Unsupported owned fixture path.", Vec::new()),
     };
-    let pixels = match donder_elaboration::fixture::prepare_geometry(definition) {
-        Ok(pixels) => pixels,
-        Err(error) => return blocked(format!("Cannot prepare fixture: {error:?}"), Vec::new()),
-    };
+    let pixels = donder_language::geometry::prepare_geometry(definition);
     let pixels = pixels
         .iter()
         .enumerate()
@@ -63,7 +60,7 @@ pub(in crate::gui) fn project_fixture(
         .elements
         .iter()
         .flat_map(|element| {
-            donder_elaboration::fixture::element_handles(element)
+            donder_language::geometry::element_handles(element)
                 .into_iter()
                 .enumerate()
                 .map(|(index, position)| GuiFixtureHandle {
@@ -108,17 +105,8 @@ pub(in crate::gui) fn project_layout(
     else {
         return blocked("Layout was not found.", Vec::new());
     };
-    let definitions =
-        match PreparedFixtureDefinitions::prepare(&session.project.definitions.fixtures) {
-            Ok(prepared) => prepared,
-            Err(error) => {
-                return blocked(format!("Cannot prepare fixtures: {error:?}"), Vec::new());
-            }
-        };
-    let prepared = match definitions.prepare_layout(layout) {
-        Ok(prepared) => prepared,
-        Err(error) => return blocked(format!("Cannot prepare layout: {error:?}"), Vec::new()),
-    };
+    let definitions = PreparedFixtureDefinitions::prepare(&session.project.definitions.fixtures);
+    let prepared = definitions.prepare_layout(layout);
     let mut pixels = Vec::new();
     for instance in prepared.instances {
         let definition_pixels = &instance.pixels;

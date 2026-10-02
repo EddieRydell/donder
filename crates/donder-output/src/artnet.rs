@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
 
+use crate::ControllerPortFrame;
 use artnet_protocol::{ArtCommand, Output, PaddedData, PortAddress};
-use donder_elaboration::ControllerPortFrame;
 use donder_language::controller::{
     ArtNetConfig, ArtNetMode, ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId,
 };

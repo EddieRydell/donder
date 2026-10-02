@@ -343,3 +343,12 @@ pub struct Marks {
     #[rkyv(with = rkyv::with::Map<crate::wire::Microseconds>)]
     pub marks: Vec<SampleDuration>,
 }
+
+impl core::hash::Hash for Marks {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.marks.len().hash(state);
+        for mark in &self.marks {
+            mark.as_ticks().hash(state);
+        }
+    }
+}

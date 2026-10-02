@@ -29,11 +29,11 @@ impl PixelEncoding {
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedPixelRoute {
-    pub pixels: Range<u32>,
-    pub frame: u32,
-    pub start_slot: u32,
+    pub pixels: Range<usize>,
+    pub frame: usize,
+    pub start_slot: usize,
     pub encoding: PixelEncoding,
-    pub lookup: Option<u16>,
+    pub lookup: Option<usize>,
 }
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -59,27 +59,23 @@ impl PreparedPatch {
         }
         for route in &self.routes {
             let colors = colors
-                .get(route.pixels.start as usize..route.pixels.end as usize)
+                .get(route.pixels.start..route.pixels.end)
                 .ok_or(PatchError::InvalidRoute)?;
             let width = colors
                 .len()
                 .checked_mul(route.encoding.channel_order().len())
                 .ok_or(PatchError::WidthMismatch)?;
             let frame = frames
-                .get_mut(route.frame as usize)
+                .get_mut(route.frame)
                 .ok_or(PatchError::InvalidRoute)?
                 .as_mut();
-            let start = route.start_slot as usize;
+            let start = route.start_slot;
             let output = frame
                 .get_mut(start..start.checked_add(width).ok_or(PatchError::WidthMismatch)?)
                 .ok_or(PatchError::WidthMismatch)?;
             let lookup = route
                 .lookup
-                .map(|index| {
-                    self.lookups
-                        .get(usize::from(index))
-                        .ok_or(PatchError::InvalidRoute)
-                })
+                .map(|index| self.lookups.get(index).ok_or(PatchError::InvalidRoute))
                 .transpose()?;
             match route.encoding {
                 PixelEncoding::Rgb { order } => {

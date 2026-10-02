@@ -1,5 +1,5 @@
 //! Host-built generator fixtures, archived for the same portable device evaluator.
-use donder_language::dsl::{BoundParams, Identifier, compile_effects, validate_emission};
+use donder_language::dsl::{Identifier, compile_effects, validate_emission};
 use donder_language::effect::*;
 use donder_language::fixture::*;
 use donder_language::identity::{DocumentId, SourceIdentity};
@@ -359,20 +359,23 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             },
         )]
         .into(),
-        patches: IndexMap::new(),
+        patches: [(
+            donder_language::patch::PatchId(identity("patch").into()),
+            donder_language::patch::Patch {
+                id: donder_language::patch::PatchId(identity("patch").into()),
+                routes: vec![],
+            },
+        )]
+        .into(),
         controllers: IndexMap::new(),
         sequences: [(sequence_id.clone(), sequence)].into(),
         definitions,
     };
-    let signals =
-        donder_elaboration::elaborate_sequence(&project, &setup_id, &sequence_id).unwrap();
-    let dummy =
-        compile_effects("effect Placeholder { color sample() { return rgb(0.0, 0.0, 0.0); } }")
-            .unwrap()
-            .remove(0)
-            .effect
-            .bytecode;
-    let mut output = super::workload::show(count, dummy, BoundParams::default());
-    output.signals = signals;
-    output
+    let prepared = donder_elaboration::prepare(
+        &project,
+        &sequence_id,
+        donder_elaboration::PrepareOutputs::All,
+    )
+    .unwrap();
+    super::workload::rgb_output(prepared.signals().clone())
 }

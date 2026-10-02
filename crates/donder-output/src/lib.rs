@@ -15,11 +15,24 @@ mod e131;
 
 use std::collections::HashMap;
 
-use donder_elaboration::ControllerPortFrame;
-use donder_language::controller::{Controller, ControllerId, ControllerProtocol};
+use donder_language::controller::{Controller, ControllerId, ControllerPortId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
+
+/// Bytes for one authored controller port, ready for network transport.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ControllerPortFrame {
+    pub controller: ControllerId,
+    pub port: ControllerPortId,
+    pub slots: Vec<u8>,
+}
+
+impl AsMut<[u8]> for ControllerPortFrame {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.slots
+    }
+}
 
 #[derive(Debug)]
 pub enum OutputError {
