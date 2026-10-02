@@ -31,8 +31,8 @@ if let Some(sequence) = prepare(
 `PreparedSequence` is owned by runtime and re-exported by elaboration. Its fields
 are private; elaboration assembles it through `PreparedSequence::build`, and callers
 inspect it through read-only accessors. Cloning preserves the accepted sequence;
-`effect_windows()` exposes only retained start/duration metadata, including generated
-children. Neither operation exposes execution-plan or storage addresses.
+`effect_windows()` exposes only retained start/duration metadata.
+Neither operation exposes execution-plan or storage addresses.
 The builder issues owner-bound handles for
 fixtures, targets, effects and signal nodes; callers cannot supply mismatched graph
 indices. Project admission binds typed programs, parameter values, automation,
@@ -67,7 +67,7 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
 | Archive decoding | Untrusted bytes to an admitted sequence | Format, storage addresses, program structure and execution capabilities |
 
-Raw sequence graphs, execution plans, parameter environments and output-routing
+Raw sequence graphs, execution plans, bound parameters and output-routing
 storage are runtime-private. Callers cannot export or reconstruct them; archive
 decoding validates the private representation before returning a prepared sequence.
 Tests that deliberately corrupt these records live inside runtime.
@@ -78,8 +78,14 @@ and admits it as a typed program. Raw bytecode cannot execute directly. Paramete
 binding pairs values with their admitted program before execution; evaluation
 does not accept an independently replaceable parameter bank.
 
+Authored parameter declarations, defaults, names, compiled effect/operator
+declarations, and layout geometry units belong to `donder-language`. Runtime
+stores executable programs and positional parameter schemas, not source-level
+declarations. Each authored clip references one sample effect; mark-triggered
+effects query marks and curve crossings inside that same sample program.
+
 In elaboration, `selection.rs` resolves identities and output ordering, while
-`sequence.rs` lowers accepted fixtures, effects and generators. Its `composition`
+`sequence.rs` lowers accepted fixtures and effects. Its `composition`
 and `routing` modules connect signals and physical outputs. Runtime's builder owns
 numeric graph addresses, selected-output compaction and the evaluation storage plan.
 These details are internal rather than independently callable preparation stages.
@@ -110,8 +116,8 @@ by retained code (curves, marks, gradients, target metadata) retain their conten
 their meaning cannot be changed merely because fewer output pixels are retained.
 
 The host still elaborates the complete authored signal graph before compacting
-it. Generators therefore see their original target and layout. This favors a
-simple implementation and correct sampling semantics over host preparation time.
+it. Sample contexts retain their original target and layout coordinates. This
+favors simple preparation and correct sampling semantics.
 
 ## Measurement and checks
 

@@ -2,8 +2,7 @@
 //! capabilities admitted here, rather than discovering missing ones per pixel.
 use super::bytecode::{BytecodeProgram, ColorSlot, ContextRead, ParameterKind, ProgramContext};
 use super::{
-    BoundParams, DslBindCache, Identifier, ParamDecl, RunContext, RuntimeError, SpatialContext,
-    Type, Value, VmWorkspace,
+    BoundParams, DslBindCache, RunContext, RuntimeError, SpatialContext, Type, Value, VmWorkspace,
 };
 use crate::values::Color;
 use alloc::{boxed::Box, vec::Vec};
@@ -11,7 +10,7 @@ use core::convert::Infallible;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampleProgram {
-    bytecode: BytecodeProgram<ContextRead, Infallible, ColorSlot, Infallible>,
+    bytecode: BytecodeProgram<ContextRead, Infallible, ColorSlot>,
     inputs: Box<[Type]>,
     uses_spatial_context: bool,
     uses_sections: bool,
@@ -57,12 +56,7 @@ impl SampleProgram {
             )
         });
         let bytecode = bytecode
-            .try_map_execution(
-                Ok,
-                |()| Err::<Infallible, _>(()),
-                Ok,
-                |_| Err::<Infallible, _>(()),
-            )
+            .try_map_execution(Ok, |()| Err::<Infallible, _>(()), Ok)
             .ok()?;
         Some(Self {
             bytecode,
@@ -72,7 +66,7 @@ impl SampleProgram {
         })
     }
 
-    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, Infallible, ColorSlot, Infallible> {
+    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, Infallible, ColorSlot> {
         &self.bytecode
     }
 
@@ -110,34 +104,15 @@ impl SampleProgram {
         })
     }
 
-    /// Resolve authored names and defaults against this program's exact input
-    /// schema. The returned invocation owns its parameters; execution cannot
-    /// substitute a separately constructed parameter bank.
-    pub fn bind_named<'p, P>(
-        &self,
-        declarations: &[ParamDecl],
-        params: P,
-        cache: &mut DslBindCache,
-    ) -> Result<BoundSample<'_>, RuntimeError>
-    where
-        P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-    {
-        Ok(BoundSample {
-            program: self,
-            params: bind_named(&self.inputs, declarations, params, cache)?,
-        })
-    }
-
     pub fn into_parts(self) -> (BytecodeProgram, Box<[Type]>) {
-        let bytecode = match self.bytecode.try_map_execution(
-            Ok::<_, Infallible>,
-            |never| match never {},
-            Ok,
-            |never| match never {},
-        ) {
-            Ok(bytecode) => bytecode,
-            Err(never) => match never {},
-        };
+        let bytecode =
+            match self
+                .bytecode
+                .try_map_execution(Ok::<_, Infallible>, |never| match never {}, Ok)
+            {
+                Ok(bytecode) => bytecode,
+                Err(never) => match never {},
+            };
         (bytecode, self.inputs)
     }
 
@@ -164,28 +139,6 @@ impl SampleProgram {
             },
         )
     }
-}
-
-pub(super) fn bind_named<'p, P>(
-    inputs: &[Type],
-    declarations: &[ParamDecl],
-    params: P,
-    cache: &mut DslBindCache,
-) -> Result<BoundParams, RuntimeError>
-where
-    P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-{
-    if inputs.len() != declarations.len()
-        || inputs
-            .iter()
-            .zip(declarations)
-            .any(|(ty, declaration)| ty != &declaration.ty)
-    {
-        return Err(RuntimeError {
-            message: "parameter declaration does not match the admitted program".into(),
-        });
-    }
-    BoundParams::bind_cached(declarations, params, cache)
 }
 
 impl BoundSample<'_> {

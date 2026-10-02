@@ -21,7 +21,6 @@ fn bench_effect_vm(c: &mut Criterion) {
         .map(|(effect, params)| {
             effect
                 .sample_program()
-                .unwrap()
                 .bind(
                     params.iter_values().collect(),
                     &mut donder_runtime::DslBindCache::default(),

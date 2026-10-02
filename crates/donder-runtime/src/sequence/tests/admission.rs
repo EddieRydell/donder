@@ -1,7 +1,7 @@
 //! Raw graph admission and representation-specific execution checks.
 use super::*;
-use crate::dsl::bytecode::{ColorSlot, Instruction, PoolSpan, SignalPixel};
-use crate::signal::{PreparedOperator, PreparedOperatorNode};
+use crate::dsl::bytecode::{ColorSlot, Instruction, SignalPixel};
+use crate::signal::PreparedOperatorNode;
 use crate::wire::LoadError;
 
 fn rejects(data: SequenceData) {
@@ -19,12 +19,7 @@ fn admission_rejects_invalid_bytecode_return_and_sample_addresses() {
     rejects(data);
 
     let mut data = sequence.archive_data();
-    let instruction = data.signals.programs[0]
-        .instructions
-        .iter_mut()
-        .find(|instruction| matches!(instruction, Instruction::ReturnColor(_)))
-        .unwrap();
-    *instruction = Instruction::ReturnValues(PoolSpan { start: 0, len: 0 });
+    data.signals.programs[0].instructions = Box::new([]);
     rejects(data);
 
     let mut data = sequence.archive_data();
@@ -74,16 +69,15 @@ fn admission_rejects_reused_nested_operator_vm_slot() {
     let second = first + 1;
     let first_slot = data.signals.plan.vm_workspace_count;
     let program = match &data.signals.plan.nodes[1].kind {
-        PreparedSignalKind::Operator { operator, .. } => operator.implementation.clone(),
+        PreparedSignalKind::Operator { operator, .. } => operator.program,
         _ => unreachable!(),
     };
-    let PreparedOperator::Dsl(program) = program;
     let node = |input, slot| -> PreparedSignalNode {
         PreparedSignalNode {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
                     automation_slot: 0,
-                    implementation: PreparedOperator::Dsl(program),
+                    program,
                     params: crate::dsl::BoundParams::default(),
                 },
                 inputs: vec![input].into(),

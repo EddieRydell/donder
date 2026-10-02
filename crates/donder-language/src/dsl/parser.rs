@@ -5,8 +5,6 @@ use super::ast::{
 use super::diagnostic::Diagnostic;
 use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
 use super::types::{Identifier, Type, Value};
-use crate::imports::SourceReference;
-use crate::imports::{ImportDeclaration, ImportSource};
 use crate::values::Color;
 use std::sync::Arc;
 
@@ -52,19 +50,11 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_module(&mut self) -> Module {
-        let mut imports = Vec::new();
         let mut effects = Vec::new();
         let mut operators = Vec::new();
         while !self.at(TokenKind::Eof) {
             let start_cursor = self.cursor;
-            if self.consume_keyword(Keyword::Import) {
-                if !effects.is_empty() || !operators.is_empty() {
-                    self.error_here("imports must precede effect declarations");
-                }
-                if let Some(import) = self.parse_import() {
-                    imports.push(import);
-                }
-            } else if self.consume_keyword(Keyword::Effect) {
+            if self.consume_keyword(Keyword::Effect) {
                 if let Some(effect) = self.parse_effect() {
                     effects.push(effect);
                 }
@@ -78,67 +68,7 @@ impl<'source> Parser<'source> {
             }
             self.ensure_progress(start_cursor, "parser made no progress in module");
         }
-        Module {
-            imports,
-            effects,
-            operators,
-        }
-    }
-
-    fn parse_import(&mut self) -> Option<super::EffectImport> {
-        let start = self.current().span.start;
-        let token = self.current().clone();
-        self.advance();
-        let alias = match crate::imports::ImportAlias::new(self.text(token.span)) {
-            Ok(alias) => alias,
-            Err(message) => {
-                self.error(token.span, message);
-                return None;
-            }
-        };
-        if !self.consume_keyword(Keyword::From) {
-            self.error_here("expected `from` after import alias");
-            return None;
-        }
-        let mut source_spans = Vec::new();
-        let source = if self.consume(TokenKind::LeftBracket) {
-            let mut documents = Vec::new();
-            if self.at(TokenKind::RightBracket) {
-                self.error_here("local import document list must not be empty");
-            }
-            while !self.at(TokenKind::RightBracket) && !self.at(TokenKind::Eof) {
-                let token = self.current().clone();
-                if token.kind != TokenKind::StringLiteral {
-                    self.error(token.span, "local import documents must be strings");
-                    self.advance();
-                } else {
-                    self.advance();
-                    // Import paths use forward slashes, without string escapes.
-                    documents.push(camino::Utf8PathBuf::from(
-                        self.source[token.span.start + 1..token.span.end - 1].to_string(),
-                    ));
-                    source_spans.push(token.span);
-                }
-                if !self.consume(TokenKind::Comma) {
-                    break;
-                }
-            }
-            self.expect(
-                TokenKind::RightBracket,
-                "expected `]` after local import documents",
-            );
-            ImportSource::LocalDocuments { documents }
-        } else {
-            self.error_here("expected a non-empty document list after `from`");
-            return None;
-        };
-        let end = self.current().span.end;
-        self.expect(TokenKind::Semicolon, "expected `;` after import");
-        Some(super::EffectImport {
-            declaration: ImportDeclaration { alias, source },
-            span: TextSpan { start, end },
-            source_spans,
-        })
+        Module { effects, operators }
     }
 
     fn parse_operator(&mut self) -> Option<OperatorDecl> {
@@ -223,7 +153,7 @@ impl<'source> Parser<'source> {
         let entrypoint = match entrypoint {
             Some(entrypoint) => entrypoint,
             None => {
-                self.error_here("effect must contain `color sample()` or `void generate()`");
+                self.error_here("effect must contain `color sample()`");
                 let name = match Identifier::new("sample".to_string()) {
                     Ok(identifier) => identifier,
                     Err(_) => return None,
@@ -334,19 +264,6 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_statement(&mut self) -> Option<Stmt> {
-        if self.current().kind == TokenKind::Identifier
-            && self.text(self.current().span) == "timeline"
-            && self
-                .tokens
-                .get(self.cursor + 1)
-                .is_some_and(|token| token.kind == TokenKind::Dot)
-            && self.tokens.get(self.cursor + 2).is_some_and(|token| {
-                token.kind == TokenKind::Identifier && self.text(token.span) == "emit"
-            })
-        {
-            return self.parse_emit_statement();
-        }
-
         if self.consume_keyword(Keyword::If) {
             self.expect(TokenKind::LeftParen, "expected `(` after `if`");
             let condition = self.parse_expression();
@@ -454,58 +371,6 @@ impl<'source> Parser<'source> {
 
         self.expect(TokenKind::Semicolon, "expected `;` after expression");
         Some(Stmt::Expr(expr))
-    }
-
-    fn parse_emit_statement(&mut self) -> Option<Stmt> {
-        self.advance();
-        self.expect(TokenKind::Dot, "expected `.` after `timeline`");
-        let emit_name = self.parse_identifier()?;
-        if emit_name.as_str() != "emit" {
-            self.error_here("expected `emit` after `timeline.`");
-        }
-        let start = self.current().span.start;
-        let reference = self.parse_generated_effect_ref()?;
-        let effect = super::EmittedReference {
-            arguments: Vec::new(),
-            reference,
-            span: TextSpan {
-                start,
-                end: self.tokens[self.cursor - 1].span.end,
-            },
-        };
-        self.expect(TokenKind::LeftBrace, "expected `{` after emitted effect id");
-        let mut fields = Vec::new();
-        while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            let name = self.parse_identifier()?;
-            self.expect(TokenKind::Colon, "expected `:` after emit field name");
-            let value = self.parse_expression();
-            fields.push((name, value));
-            if !self.consume(TokenKind::Comma) {
-                let _ = self.consume(TokenKind::Semicolon);
-            }
-        }
-        self.expect(TokenKind::RightBrace, "expected `}` after emit fields");
-        let _ = self.consume(TokenKind::Semicolon);
-        Some(Stmt::Emit { effect, fields })
-    }
-
-    fn parse_generated_effect_ref(&mut self) -> Option<SourceReference> {
-        let local = self.parse_identifier()?;
-        if !self.consume(TokenKind::Dot) {
-            return Some(SourceReference::Local(local));
-        }
-        let name = self.parse_identifier()?;
-        if self.at(TokenKind::Dot) {
-            self.error_here("generated effect reference must contain exactly two segments");
-            return None;
-        }
-        if local.as_str() == "builtins" {
-            return Some(SourceReference::Builtin(name));
-        }
-        let alias = crate::imports::ImportAlias::new(local.as_str())
-            .map_err(|message| self.error_here(message))
-            .ok()?;
-        Some(SourceReference::Qualified { alias, name })
     }
 
     fn parse_for_clause(&mut self) -> Option<Stmt> {
@@ -833,22 +698,6 @@ impl<'source> Parser<'source> {
             TokenKind::Identifier if self.text(token.span) == "marks" => {
                 self.advance();
                 Some(Type::Marks)
-            }
-            TokenKind::Identifier if self.text(token.span) == "Timeline" => {
-                self.advance();
-                Some(Type::Timeline)
-            }
-            TokenKind::Identifier if self.text(token.span) == "Target" => {
-                self.advance();
-                Some(Type::Target)
-            }
-            TokenKind::Identifier if self.text(token.span) == "TargetItems" => {
-                self.advance();
-                Some(Type::TargetItems)
-            }
-            TokenKind::Identifier if self.text(token.span) == "TargetItem" => {
-                self.advance();
-                Some(Type::TargetItem)
             }
             _ => None,
         }

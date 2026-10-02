@@ -1,10 +1,9 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
-use std::sync::Arc;
 
-use donder_language::dsl::{BoundParams, DslBindCache, Identifier, ParamDecl, Type, Value};
-use donder_language::sequence::{AutomationClip, AutomationClipId, AutomationMapping};
-use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
+use donder_language::dsl::{BoundParams, DslBindCache, Identifier, Value};
+use donder_language::sequence::AutomationMapping;
+use donder_language::values::{Curve, CurvePoint};
 use donder_runtime::SpatialContext;
 use indexmap::IndexMap;
 
@@ -120,105 +119,75 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
 }
 
 #[test]
-fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
-    let declarations = [ParamDecl {
-        fixed: false,
-        name: Identifier::new("shape".to_string()).expect("valid identifier"),
-        ty: Type::Curve,
-        default: Some(Value::Curve(Arc::new(Curve { points: Vec::new() }))),
-    }];
-    let base = BoundParams::bind(&declarations, &IndexMap::new()).expect("curve should bind");
-    let mut automated = base.clone();
-    let clip = AutomationClip {
-        id: AutomationClipId(1),
-        start: DonderTime::from_micros(0),
-        duration: DonderDuration::from_micros(1_000_000),
-        row_target: donder_language::layout::FixtureTarget {
-            layout: donder_language::layout::LayoutId(
-                donder_language::identity::SourceIdentity::from_document(
-                    donder_language::identity::DocumentId::new(
-                        uuid::Uuid::nil(),
-                        "allocation.layout.donder".into(),
-                    ),
-                    "layout".into(),
-                )
-                .into(),
-            ),
-            fixture: donder_language::layout::FixtureInstanceId(1),
-        },
-        curve: Curve {
-            points: vec![
-                CurvePoint {
-                    position: 0.0,
-                    value: 0.0,
-                },
-                CurvePoint {
-                    position: 0.25,
-                    value: 1.0,
-                },
-                CurvePoint {
-                    position: 0.5,
-                    value: 0.25,
-                },
-                CurvePoint {
-                    position: 0.75,
-                    value: 0.75,
-                },
-                CurvePoint {
-                    position: 1.0,
-                    value: 0.0,
-                },
-            ],
-        },
-        bindings: Vec::new(),
-        detached_bindings: Vec::new(),
-    };
-    let mapping = AutomationMapping::Curve {
-        min: -1.0,
-        max: 2.0,
-    };
-    let samples = [0.0, 0.25, 0.5, 0.75, 1.0];
-    for seconds in samples {
-        automated
-            .apply_automation(0, &clip.curve, &mapping, seconds)
-            .expect("warmup automation should apply");
-    }
-
-    ALLOCATIONS.set(0);
-    COUNTING.set(true);
-    let result = samples
-        .into_iter()
-        .try_for_each(|seconds| automated.apply_automation(0, &clip.curve, &mapping, seconds));
-    COUNTING.set(false);
-
-    result.expect("measured automation should apply");
-    assert_eq!(ALLOCATIONS.get(), 0);
-
+fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
+    use donder_runtime::{Color, PreparedAutomation, SampleDuration, SampleTime};
+    let effect = donder_language::dsl::compile_effects(
+        "effect Mode {
+            param enum mode { short, much_longer_option } = short;
+            color sample() {
+                if (mode == much_longer_option) { return rgb(1.0, 0.0, 0.0); }
+                return rgb(0.0, 0.0, 0.0);
+            }
+        }",
+    )
+    .unwrap()
+    .remove(0);
+    let params = donder_language::dsl::bind_params(
+        effect.params(),
+        &IndexMap::new(),
+        &mut DslBindCache::default(),
+    )
+    .unwrap();
     let options =
         ["short", "much_longer_option"].map(|value| Identifier::new(value.into()).unwrap());
-    let declarations = [ParamDecl {
-        fixed: false,
-        name: Identifier::new("mode".into()).unwrap(),
-        ty: Type::Enum(options.to_vec()),
-        default: Some(Value::Enum(options[0].clone())),
-    }];
-    let mut bound = BoundParams::bind(&declarations, &IndexMap::new()).unwrap();
-    let mapping = AutomationMapping::Enum {
-        values: options.to_vec(),
-    };
-    // Visit the longest option first so subsequent updates must reuse its storage.
-    bound
-        .apply_automation(0, &clip.curve, &mapping, 0.25)
+    let invocation = playback::sample(&effect, &params)
+        .with_automation(
+            vec![PreparedAutomation {
+                start: SampleTime::from_ticks(0),
+                duration: SampleDuration::from_ticks(1_000_000),
+                curve: Curve {
+                    points: [0.0, 1.0, 0.25, 0.75, 0.0]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, value)| CurvePoint {
+                            position: index as f32 * 0.25,
+                            value,
+                        })
+                        .collect(),
+                }
+                .into(),
+                mapping: AutomationMapping::Enum {
+                    values: options.into(),
+                },
+                param_index: 0,
+            }]
+            .into(),
+        )
         .unwrap();
+    let mut playback = playback::show(2, &invocation, 1).into_playback();
+    // Warm the longest option, then verify actual rendered colors while seeking.
+    playback.evaluate(SampleTime::from_ticks(250_000));
+    let mut observed = [[Color::BLACK; 2]; 5];
     ALLOCATIONS.set(0);
     COUNTING.set(true);
-    let result = samples
-        .into_iter()
-        .try_for_each(|position| bound.apply_automation(0, &clip.curve, &mapping, position));
+    for (colors, ticks) in observed
+        .iter_mut()
+        .zip([0, 250_000, 500_000, 750_000, 1_000_000])
+    {
+        colors.copy_from_slice(playback.evaluate(SampleTime::from_ticks(ticks)).colors());
+    }
     COUNTING.set(false);
-    result.unwrap();
-    assert_eq!(bound.enum_name(0).unwrap(), options[0].as_str());
-    assert_eq!(ALLOCATIONS.get(), 0, "enum automation allocated");
+    assert_eq!(ALLOCATIONS.get(), 0, "prepared enum automation allocated");
+    for (colors, red) in observed.into_iter().zip([0, 255, 0, 255, 0]) {
+        assert_eq!(
+            colors,
+            [Color {
+                red,
+                green: 0,
+                blue: 0
+            }; 2]
+        );
+    }
 
     let effect = donder_language::dsl::compile_effects(
         "effect Constants { color sample() {
@@ -227,8 +196,7 @@ fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
         } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let bound = effect
         .bind(&IndexMap::new(), &mut DslBindCache::default())
         .unwrap();
@@ -256,8 +224,7 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
         "fixtures/array-lifetimes.effect.donder"
     ))
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let mut workspace = donder_language::dsl::VmWorkspace::default();
     let mut counts = [0; 3];
     let mut peaks = [0; 3];
@@ -328,102 +295,18 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
 }
 
 #[test]
-fn retained_array_results_do_not_allocate_on_the_first_evaluation() {
-    use donder_language::dsl::{GeneratorContext, GeneratorInput, TargetValue, compile_effects};
-    use donder_language::values::{SampleDuration, SampleTime};
-
-    let generator = compile_effects(
-        "effect Parent { param float value; void generate() {
-            timeline.emit Child { start: 0.0, duration: 1.0, target: target,
-                value: [[value + seconds()], [value]] };
-        } }",
-    )
-    .unwrap()
-    .remove(0)
-    .effect;
-    let specialized = generator
-        .generator()
-        .unwrap()
-        .bind(&[GeneratorInput::Live])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        });
-    let child = compile_effects(
-        "effect Child { param array<array<float>> value; color sample() {
-        return rgb(value[0][0], value[1][0], (len(value) + len(value[0]) + len(value[1])) * 0.125);
-    } }",
-    )
-    .unwrap()
-    .remove(0)
-    .effect;
-    assert_eq!(specialized.calculations.len(), 1);
-    let mut playback = retained_playback(&generator, vec![Value::Float(0.25)], &child);
-    for time in [0, 500_000, 250_000, 0] {
-        ALLOCATIONS.set(0);
-        COUNTING.set(true);
-        let evaluated = playback.evaluate(SampleTime::from_ticks(time));
-        COUNTING.set(false);
-        assert_eq!(
-            ALLOCATIONS.get(),
-            0,
-            "retained array result allocated at {time}"
-        );
-        assert_eq!(
-            evaluated.colors(),
-            &[donder_runtime::Color {
-                red: ((0.25 + time as f32 / 1_000_000.0) * 255.0).round() as u8,
-                green: 64,
-                blue: 128,
-            }]
-        );
-    }
-}
-
-// Link the authored generator and child through ordinary playback preparation.
-fn retained_playback(
-    generator: &donder_language::dsl::CompiledEffect,
-    values: Vec<Value>,
-    child: &donder_language::dsl::CompiledEffect,
-) -> donder_runtime::SequencePlayback {
-    use donder_runtime::{PreparedAutomation, SampleDuration, SampleTime};
-    let automation = values
-        .iter()
-        .enumerate()
-        .map(|(index, value)| {
-            let Value::Float(value) = value else {
-                panic!("float live input")
-            };
-            PreparedAutomation {
-                start: SampleTime::from_ticks(0),
-                duration: SampleDuration::from_ticks(1_000_000),
-                curve: Curve {
-                    points: vec![CurvePoint {
-                        position: 0.0,
-                        value: *value,
-                    }],
-                }
-                .into(),
-                mapping: donder_runtime::AutomationMapping::Float { min: 0.0, max: 1.0 },
-                param_index: index as u16,
-            }
-        })
-        .collect();
-    let generator = playback::generator(generator, child, values, automation);
-    playback::generated(1, &generator).into_playback()
-}
-
-#[test]
 fn prepared_calculated_arrays_do_not_allocate_on_the_first_frame() {
     let effect = donder_language::dsl::compile_effects(include_str!(
         "fixtures/array-lifetimes.effect.donder"
     ))
     .unwrap()
-    .remove(0)
-    .effect;
-    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    .remove(0);
+    let params = donder_language::dsl::bind_params(
+        effect.params(),
+        &IndexMap::new(),
+        &mut donder_runtime::DslBindCache::default(),
+    )
+    .unwrap();
     let show = playback::show(200, &playback::sample(&effect, &params), 4);
     let mut workspace = show.into_playback();
     let mut buffers = [vec![0; 600]];
@@ -457,8 +340,7 @@ fn enum_local_assignment_and_constant_loads_do_not_allocate() {
     }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let bound = effect
         .bind(&IndexMap::new(), &mut DslBindCache::default())
         .unwrap();
@@ -489,9 +371,13 @@ fn many_signal_times_use_fixed_storage_from_the_first_frame() {
         "effect Ramp { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    .remove(0);
+    let params = donder_language::dsl::bind_params(
+        effect.params(),
+        &IndexMap::new(),
+        &mut donder_runtime::DslBindCache::default(),
+    )
+    .unwrap();
     let sample = playback::sample(&effect, &params);
     let expected = playback::show(2, &sample, 1);
     let operator = donder_language::dsl::compile_operators(
@@ -578,13 +464,16 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
     use donder_runtime::PreparedAutomation;
     use donder_runtime::{SampleDuration, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
+    let Some(Value::Curve(curve)) = params.iter_values().next() else {
+        panic!("first uniform resource must be a curve");
+    };
     for recursive in [false, true] {
         let invocation = playback::sample(&effect, &params)
             .with_automation(
                 vec![PreparedAutomation {
                     start: SampleTime::from_ticks(0),
                     duration: SampleDuration::from_ticks(8_000_000),
-                    curve: params.curve(0).unwrap(),
+                    curve: curve.clone(),
                     mapping: donder_runtime::AutomationMapping::Curve { min: 0.0, max: 1.0 },
                     param_index: 0,
                 }]
@@ -636,8 +525,7 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
         "../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let curve = Curve {
         points: vec![
             CurvePoint {
@@ -654,9 +542,9 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
             },
         ],
     };
-    let params = BoundParams::bind_pairs(
+    let params = donder_language::dsl::bind_params(
         pulse.params(),
-        &[
+        [
             (
                 Identifier::new("gradient".into()).unwrap(),
                 Value::Gradient(
@@ -677,7 +565,10 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
                 Identifier::new("pulse_shape".into()).unwrap(),
                 Value::Curve(curve.clone().into()),
             ),
-        ],
+        ]
+        .iter()
+        .map(|(name, value)| (name, value)),
+        &mut donder_runtime::DslBindCache::default(),
     )
     .unwrap();
     let invocation = playback::sample(&pulse, &params)
@@ -727,9 +618,13 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
         "effect Ramp { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    .remove(0);
+    let params = donder_language::dsl::bind_params(
+        effect.params(),
+        &IndexMap::new(),
+        &mut donder_runtime::DslBindCache::default(),
+    )
+    .unwrap();
     let sample = playback::sample(&effect, &params);
     let reference = playback::show(2, &sample, 1);
     let operator = donder_language::dsl::compile_operators(playback::IDENTITY_SOURCE)
@@ -778,13 +673,14 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
 fn empty_curve_automation_preserves_missingness_without_allocating() {
     use donder_runtime::PreparedAutomation;
     use donder_runtime::{Curve, SampleDuration, SampleTime};
-    let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0).effect;
-    let params = BoundParams::bind(
+    let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0);
+    let params = donder_language::dsl::bind_params(
         effect.params(),
         &IndexMap::from([(
             donder_language::dsl::Identifier::new("shape".into()).unwrap(),
             donder_language::dsl::Value::Curve(Curve { points: vec![] }.into()),
         )]),
+        &mut donder_runtime::DslBindCache::default(),
     )
     .unwrap();
     let invocation = playback::sample(&effect, &params)
@@ -812,47 +708,4 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
     COUNTING.set(false);
     assert!(buffers[0].iter().all(|&value| value == 0));
     assert_eq!(ALLOCATIONS.get(), 0, "empty automation window allocated");
-}
-
-#[test]
-fn retained_nested_array_results_forward_without_first_or_repeated_sample_allocations() {
-    use donder_language::dsl::{GeneratorBinding, GeneratorContext, TargetValue, compile_effects};
-    use donder_language::values::{SampleDuration, SampleTime};
-    let parent = compile_effects("effect Parent { void generate() { timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } }").unwrap()
-        .remove(0).effect;
-    let generator = parent
-        .generator()
-        .unwrap()
-        .clone()
-        .bind(&[])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        });
-    let GeneratorBinding::Calculation { index, output } = generator.children[0].params[0].1 else {
-        panic!("live calculation")
-    };
-    let calculation = &generator.calculations[index];
-    assert!(calculation.inputs.is_empty());
-    assert_eq!(output, 0);
-    let child = compile_effects("effect Child { param array<array<float>> values; color sample() { return rgb(values[0][0], values[0][1] * 0.25, values[1][0] * 0.25); } }").unwrap().remove(0).effect;
-    let mut playback = retained_playback(&parent, vec![], &child);
-    for tick in [0, 750_000, 250_000, 999_999, 0] {
-        ALLOCATIONS.set(0);
-        COUNTING.set(true);
-        let result = playback.evaluate(SampleTime::from_ticks(tick));
-        COUNTING.set(false);
-        assert_eq!(ALLOCATIONS.get(), 0);
-        let seconds = tick as f32 / 1_000_000.0;
-        assert_eq!(
-            result.colors(),
-            &[donder_runtime::Color {
-                red: (seconds * 255.0).round() as u8,
-                green: ((seconds + 1.0) * 0.25 * 255.0).round() as u8,
-                blue: 128,
-            }]
-        );
-    }
 }

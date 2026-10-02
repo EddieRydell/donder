@@ -1,4 +1,4 @@
-use crate::{ExportReport, ProjectSession, SourceDocumentKind, SourceProject};
+use crate::{ExportReport, ProjectSession, SourceProject};
 use camino::Utf8Path;
 use donder_language::identity::DocumentId;
 use donder_language::imports::ImportSource;
@@ -34,30 +34,6 @@ pub(crate) fn remap_documents(
                         .map(|target| target.path().to_path_buf())
                         .collect(),
                 };
-            }
-        }
-        if let SourceDocumentKind::Effect { source: text } = &mut document.kind {
-            let imports = donder_language::dsl::effect_source_imports(text)
-                .map_err(|errors| format!("Cannot remap effect imports: {errors:?}"))?;
-            for import in imports.into_iter().rev() {
-                let rewritten = document
-                    .imports
-                    .iter()
-                    .find(|edge| edge.declaration.alias == import.declaration.alias)
-                    .ok_or("Effect import is missing from source metadata.")?;
-                if rewritten.declaration.source == import.declaration.source {
-                    continue;
-                }
-                let ImportSource::LocalDocuments { documents: paths } =
-                    &rewritten.declaration.source;
-                if paths.len() != import.source_spans.len() {
-                    return Err("Effect import target count changed.".into());
-                }
-                for (path, span) in paths.iter().zip(import.source_spans).rev() {
-                    let quoted =
-                        serde_json::to_string(path.as_str()).map_err(|error| error.to_string())?;
-                    text.replace_range(span.start..span.end, &quoted);
-                }
             }
         }
         if documents.insert(next_id, document).is_some() {

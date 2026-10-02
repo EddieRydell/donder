@@ -7,14 +7,8 @@ mod geometry;
 mod inputs;
 mod parameters;
 mod patch;
-use donder_runtime::{GeneratorPlayback, OperatorInvocation, SampleInvocation};
-use inputs::Execution;
+use donder_runtime::{OperatorInvocation, SampleInvocation};
 pub(super) use inputs::ProjectInputs;
-
-pub enum EffectExecution<'a> {
-    Sample(&'a SampleInvocation),
-    Generator(&'a GeneratorPlayback),
-}
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
 #[derive(Clone, Copy)]
@@ -27,7 +21,7 @@ pub struct AcceptedSequence<'a> {
 #[derive(Clone, Copy)]
 pub struct AcceptedEffectInputs<'a> {
     instance: &'a EffectInst,
-    execution: &'a Execution,
+    execution: &'a SampleInvocation,
 }
 
 #[derive(Clone, Copy)]
@@ -116,11 +110,8 @@ impl<'a> AcceptedSequence<'a> {
 }
 
 impl<'a> AcceptedEffectInputs<'a> {
-    pub fn execution(self) -> EffectExecution<'a> {
-        match self.execution {
-            Execution::Sample(program) => EffectExecution::Sample(program),
-            Execution::Generator(invocation) => EffectExecution::Generator(invocation),
-        }
+    pub fn execution(self) -> &'a SampleInvocation {
+        self.execution
     }
 
     pub fn instance(self) -> &'a EffectInst {

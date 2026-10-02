@@ -156,104 +156,6 @@ effect MarkPulse {
   fixed param int sections_per_mark = 3;
   fixed param float seed = 0.0;
 
-  void generate() {
-    TargetItems items = sections(target, section_width_pixels);
-    int section_count = count(items);
-    if (section_count > 0) {
-      for (int mark in beats) {
-        float hit_time = mark_at(beats, mark);
-        for (int section in range(sections_per_mark, 10000)) {
-          float choice = floor(rand(seed + hit_time * 1000.0, section) * section_count);
-          timeline.emit Pulse {
-            start: hit_time + offset_seconds,
-            duration: max(0.000000001, decay_seconds),
-            target: pick(items, choice),
-            gradient: accent,
-            pulse_shape: pulse_shape
-          };
-        }
-      }
-    }
-  }
-}
-
-effect MarkChase {
-  fixed param marks beats;
-  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
-  fixed param array<gradient> gradients;
-  fixed param float offset_seconds = 0.0;
-  fixed param float chase_seconds = 0.5;
-  param float pulse_overlap = 8.0;
-  param int section_width_pixels = 5;
-  fixed param array<curve> chase_positions;
-  param curve pulse_shape;
-
-  void generate() {
-    int gradient_count = len(gradients);
-    int position_count = len(chase_positions);
-    if (gradient_count > 0 && position_count > 0) {
-      for (int mark in beats) {
-        float hit_time = mark_at(beats, mark);
-        timeline.emit Chase {
-          start: hit_time + offset_seconds,
-          duration: max(0.000000001, chase_seconds),
-          target: target,
-          gradient: gradients[mark % gradient_count],
-          gradient_mode: gradient_mode,
-          pulse_overlap: pulse_overlap,
-          section_width_pixels: section_width_pixels,
-          chase_position: chase_positions[mark % position_count],
-          pulse_shape: pulse_shape
-        };
-      }
-    }
-  }
-}
-
-effect MarkWipe {
-  fixed param marks beats;
-  param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
-  fixed param array<gradient> gradients;
-  fixed param float offset_seconds = 0.0;
-  fixed param float wipe_seconds = 0.5;
-  param float pulse_width = 0.15;
-  // Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
-  fixed param curve direction_angle;
-  fixed param array<curve> wipe_positions;
-  param curve pulse_shape;
-
-  void generate() {
-    int gradient_count = len(gradients);
-    int position_count = len(wipe_positions);
-    if (gradient_count > 0 && position_count > 0) {
-      for (int mark in beats) {
-        float hit_time = mark_at(beats, mark);
-        timeline.emit Wipe {
-          start: hit_time + offset_seconds,
-          duration: max(0.000000001, wipe_seconds),
-          target: target,
-          gradient: gradients[mark % gradient_count],
-          gradient_mode: gradient_mode,
-          pulse_width: pulse_width,
-          direction_angle: 360.0 * direction_angle[clamp(hit_time / duration, 0.0, 1.0)],
-          wipe_position: wipe_positions[mark % position_count],
-          pulse_shape: pulse_shape
-        };
-      }
-    }
-  }
-}
-
-effect MarkPulseSample {
-  fixed param marks beats;
-  param gradient accent;
-  param curve pulse_shape;
-  fixed param float offset_seconds = 0.0;
-  fixed param float decay_seconds = 0.18;
-  fixed param int section_width_pixels = 5;
-  fixed param int sections_per_mark = 3;
-  fixed param float seed = 0.0;
-
   // Prepared section queries preserve fixture boundaries and short final sections.
   // A new mark retriggers the entire selection, discarding every older pulse.
   color sample() {
@@ -269,7 +171,7 @@ effect MarkPulseSample {
     if (total_sections <= 0 || current_section < 0) { return rgb(0.0, 0.0, 0.0); }
     for (int section in range(sections_per_mark, 10000)) {
       float choice = floor(rand(seed + hit_time * 1000.0, section) * total_sections);
-      // Match pick(items, choice), including its clamped index contract.
+      // Keep the random choice inside the available section range.
       choice = clamp(choice, 0.0, total_sections - 1.0);
       if (choice == current_section) {
         float child_progress = age / child_duration;
@@ -280,7 +182,7 @@ effect MarkPulseSample {
   }
 }
 
-effect MarkChaseSample {
+effect MarkChase {
   fixed param marks beats;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
   fixed param array<gradient> gradients;
@@ -321,7 +223,7 @@ effect MarkChaseSample {
   }
 }
 
-effect MarkWipeSample {
+effect MarkWipe {
   fixed param marks beats;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
   fixed param array<gradient> gradients;
@@ -333,7 +235,7 @@ effect MarkWipeSample {
   fixed param array<curve> wipe_positions;
   param curve pulse_shape;
 
-  // Direction is captured at the mark, matching the generated Wipe.
+  // Direction is sampled at the mark's time.
   color sample() {
     int mark = mark_last_index(beats, seconds() - offset_seconds);
     float hit_time = mark_at(beats, mark);

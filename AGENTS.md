@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Rust workspace. Domain types and DSL compilation live in `crates/donder-language`; project parsing, import/source ownership, diagnostics, and serialization live in `crates/donder-project-io`; host-side generator expansion and preparation live in `crates/donder-elaboration`; portable prepared-sequence evaluation lives in `crates/donder-runtime`. The desktop service and UI state live under `apps/desktop/src`; ESP32 firmware lives in `firmware/esp32`. `examples/starter` is the single maintained example project. Keep synthetic and invalid fixtures beside their owning tests or create them in temporary test directories; do not add scratch projects under `examples/`.
+This is a Rust workspace. Domain types and DSL compilation live in `crates/donder-language`; project parsing, import/source ownership, diagnostics, and serialization live in `crates/donder-project-io`; host-side preparation lives in `crates/donder-elaboration`; portable prepared-sequence evaluation lives in `crates/donder-runtime`. The desktop service and UI state live under `apps/desktop/src`; ESP32 firmware lives in `firmware/esp32`. `examples/starter` is the single maintained example project. Keep synthetic and invalid fixtures beside their owning tests or create them in temporary test directories; do not add scratch projects under `examples/`.
 
 The typed `DonderProject` is authoritative after loading. `SourceProject` records document ownership, imports, original source needed for non-YAML DSL documents, and referenced assets. Saving derives YAML directly from typed state; do not add a synchronization or typed-to-YAML mutation phase.
 The preservation contract is semantic, not lossless YAML editing: preserve typed meaning, meaningful list order, imports, document/object identity, ownership, and asset references. Comments, whitespace, quoting, mapping key order, and original YAML spelling are not requirements. Do not add CST round-tripping or per-scalar provenance without a concrete new requirement. See `docs/sequence_as_code.md` for the contract and current limitations.
@@ -10,9 +10,7 @@ Project/source metadata and ownership live in `crates/donder-project-io/src/sour
 
 Desktop state orchestration is split by workflow under `apps/desktop/src/desktop_state`, and typed GUI behavior is split into projection, editing, selection, and model conversion under `apps/desktop/src/gui`. Keep new behavior with the owning workflow instead of growing the module roots.
 Mutual Donder document imports are valid. The loader indexes a document's local objects before following imports; do not reject an in-progress document as a cycle error.
-Generator cross-file references use explicit imports in the effect document itself, resolved through the shared local import graph before elaboration. They never inherit the calling YAML document's scope. Keep import identity and path remapping out of per-frame evaluation.
-Generated events carry only a numeric child slot. Elaboration indexes the definition's ordered linked target table for local, imported, and built-in children; it must not reconstruct identities or look up names.
-DSL local imports use `from ["..."]` with a non-empty project-root-relative document list; YAML uses `from: { documents: [...] }`. Both use the shared identifier alias policy.
+Keep import identity and path remapping in project loading and editing, never in per-frame evaluation. YAML imports use `from: { documents: [...] }` with the shared identifier alias policy.
 
 ## Testing Guidelines
 

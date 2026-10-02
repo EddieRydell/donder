@@ -123,7 +123,6 @@ pub(super) fn lower_arrays(code: &mut [Instruction], operands: &mut Vec<ValueSlo
             | Instruction::LoopRangeStart { .. }
             | Instruction::LoopMarksStart { .. }
             | Instruction::LoopEnd { .. }
-            | Instruction::ReturnValues(_)
             | Instruction::ReturnColor(_) => arrays.clear(),
             _ => {}
         }

@@ -16,12 +16,7 @@ use alloc::vec::Vec;
 /// Archive admission checks it before publishing immutable playback state.
 /// The private executable graph substitutes admitted programs and binding plans.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct PreparedSignalGraph<
-    P = Box<[BytecodeProgram]>,
-    E = crate::bindings::PreparedParameterEnvironment,
-    A = Box<[PreparedAutomation]>,
-> {
-    pub parameter_environments: Box<[E]>,
+pub(crate) struct PreparedSignalGraph<P = Box<[BytecodeProgram]>, A = Box<[PreparedAutomation]>> {
     pub frame_rate: u32,
     pub frame_count: u32,
     #[rkyv(with = crate::wire::Microseconds)]
@@ -30,7 +25,7 @@ pub(crate) struct PreparedSignalGraph<
     pub fixture_pixel_offsets: Box<[usize]>,
     pub pixel_count: usize,
     pub effects: Box<[PreparedEffect<A>]>,
-    /// Authored clip groups, including children expanded from generators.
+    /// Authored clip identities and their playback effects.
     pub clips: Box<[PreparedClip]>,
     pub programs: P,
     pub targets: Box<[PreparedTarget]>,
@@ -41,7 +36,7 @@ pub(crate) struct PreparedSignalGraph<
     pub plan: SignalPlan<A>,
 }
 
-/// A borrowed graph whose executable programs and environments were admitted together.
+/// A borrowed graph whose executable programs and parameters were admitted together.
 #[derive(Clone, Copy)]
 pub(crate) struct SignalGraph<'a> {
     pub(crate) data: &'a ExecutableGraph,
@@ -59,12 +54,7 @@ impl core::ops::Deref for SignalGraph<'_> {
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedClip {
     pub id: u32,
-    #[rkyv(with = crate::wire::Microseconds)]
-    pub start_time: SampleTime,
-    #[rkyv(with = crate::wire::Microseconds)]
-    pub duration: SampleDuration,
-    pub target: usize,
-    pub effects: Box<[usize]>,
+    pub effect: usize,
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -80,7 +70,8 @@ pub(crate) struct PreparedEffect<A = Box<[PreparedAutomation]>> {
     #[rkyv(with = crate::wire::Microseconds)]
     pub duration: SampleDuration,
     pub target: usize,
-    pub implementation: PreparedEffectImplementation,
+    pub program: usize,
+    pub bound_params: BoundParams,
     pub automation: Option<Box<PreparedEffectAutomation<A>>>,
 }
 
@@ -104,26 +95,6 @@ impl<A> PreparedEffect<A> {
             .checked_duration_since(self.start_time)
             .map_or(0, |duration| duration.as_ticks());
         (elapsed as f32 / self.duration.as_ticks() as f32).clamp(0.0, 1.0)
-    }
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) enum PreparedEffectImplementation {
-    Bound {
-        environment: usize,
-        program: usize,
-    },
-    Dsl {
-        program: usize,
-        bound_params: BoundParams,
-    },
-}
-
-impl PreparedEffectImplementation {
-    pub(crate) fn dsl_program(&self) -> usize {
-        match self {
-            Self::Dsl { program, .. } | Self::Bound { program, .. } => *program,
-        }
     }
 }
 
@@ -197,15 +168,10 @@ pub(crate) enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) enum PreparedOperator {
-    Dsl(usize),
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedOperatorNode {
     /// Dense index among automated graph nodes; unused without bindings.
     pub automation_slot: usize,
-    pub implementation: PreparedOperator,
+    pub program: usize,
     pub params: BoundParams,
 }
 
@@ -218,7 +184,7 @@ pub(crate) struct PreparedTarget {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedPixel {
+pub(crate) struct PreparedPixel {
     pub fixture_index: usize,
     pub fixture_pixel_index: u32,
     pub pixel_index: usize,
@@ -227,7 +193,8 @@ pub struct PreparedPixel {
 }
 
 impl PreparedPixel {
-    pub fn try_new(
+    #[cfg(test)]
+    pub(crate) fn try_new(
         fixture_index: usize,
         fixture_pixel_index: usize,
         pixel_index: usize,
@@ -243,26 +210,25 @@ impl PreparedPixel {
         })
     }
 
-    pub fn fixture_index(&self) -> usize {
+    pub(crate) fn fixture_index(&self) -> usize {
         self.fixture_index
     }
 
-    pub fn fixture_pixel_index(&self) -> usize {
+    pub(crate) fn fixture_pixel_index(&self) -> usize {
         self.fixture_pixel_index as usize
     }
 
-    pub fn pixel_index(&self) -> usize {
+    pub(crate) fn pixel_index(&self) -> usize {
         self.pixel_index
     }
 
-    pub fn pixel_count(&self) -> usize {
+    pub(crate) fn pixel_count(&self) -> usize {
         self.pixel_count
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct EvaluationWorkspace {
-    pub(crate) parameters: crate::bindings::ParameterWorkspace,
     pub(crate) effect_vm: VmWorkspace,
     pub(crate) effect_vm_sample: Option<(CachedVmSample, SampleDuration, Color)>,
     pub(crate) operator_vm: Vec<(VmWorkspace, Option<CachedVmSample>)>,
@@ -320,35 +286,6 @@ impl EffectAutomationWorkspace {
 }
 
 impl PreparedSignalGraph {
-    /// Keep independent temporal query sites resident while visiting pixels.
-    /// Looping sites can replace their own old requested times in this bounded
-    /// cache; identities always include the exact requested SampleTime.
-    pub(crate) fn parameter_time_slots(&self) -> Result<usize, crate::wire::LoadError> {
-        if self.parameter_environments.is_empty() {
-            return Ok(0);
-        }
-        let mut slots = 1usize;
-        for node in &self.plan.nodes {
-            if let PreparedSignalKind::Operator { operator, .. } = &node.kind {
-                slots = slots.saturating_add(match operator.implementation {
-                    PreparedOperator::Dsl(program) => self
-                        .programs
-                        .get(program)
-                        .ok_or(crate::wire::LoadError::InvalidSequence)?
-                        .instructions
-                        .iter()
-                        .filter(|instruction| {
-                            matches!(
-                                instruction,
-                                crate::dsl::bytecode::Instruction::SignalSample { .. }
-                            )
-                        })
-                        .count(),
-                });
-            }
-        }
-        Ok(slots)
-    }
     /// Maximum number of temporary frames held by nested whole-frame sampling.
     /// DSL frame caches own their storage separately, but may sample operators.
     pub(crate) fn frame_scratch_count(&self) -> usize {
@@ -356,44 +293,13 @@ impl PreparedSignalGraph {
     }
 }
 
-impl
-    PreparedSignalGraph<
-        crate::sequence::programs::AdmittedPrograms,
-        crate::bindings::ExecutableEnvironment,
-        AutomationPlan,
-    >
-{
+impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, AutomationPlan> {
     pub(crate) fn sample_program(&self, index: usize) -> &SampleProgram {
         self.programs.sample(index)
     }
 
     pub(crate) fn operator_program(&self, index: usize) -> &OperatorProgram {
         self.programs.operator(index)
-    }
-
-    pub(crate) fn parameter_time_slots(&self) -> usize {
-        if self.parameter_environments.is_empty() {
-            return 0;
-        }
-        self.plan.nodes.iter().fold(1usize, |slots, node| {
-            let PreparedSignalKind::Operator { operator, .. } = &node.kind else {
-                return slots;
-            };
-            let PreparedOperator::Dsl(program) = operator.implementation;
-            slots.saturating_add(
-                self.operator_program(program)
-                    .bytecode()
-                    .instructions
-                    .iter()
-                    .filter(|instruction| {
-                        matches!(
-                            instruction,
-                            crate::dsl::bytecode::Instruction::SignalSample { .. }
-                        )
-                    })
-                    .count(),
-            )
-        })
     }
 
     pub(crate) fn frame_scratch_count(&self) -> usize {
@@ -408,11 +314,7 @@ impl
         let mut operator_frame_counts = vec![0usize; self.plan.vm_workspace_count];
         for node in &self.plan.nodes {
             let PreparedSignalKind::Operator {
-                operator:
-                    PreparedOperatorNode {
-                        implementation: PreparedOperator::Dsl(program),
-                        ..
-                    },
+                operator: PreparedOperatorNode { program, .. },
                 vm_slot,
                 ..
             } = &node.kind
@@ -423,10 +325,6 @@ impl
             operator_frame_counts[*vm_slot] = operator_frame_counts[*vm_slot].max(count);
         }
         let mut workspace = EvaluationWorkspace {
-            parameters: crate::bindings::ParameterWorkspace::new(
-                &self.parameter_environments,
-                self.parameter_time_slots(),
-            ),
             effect_vm: VmWorkspace::default(),
             frame_scratch: (0..self.frame_scratch_count())
                 .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
@@ -517,18 +415,14 @@ impl
                 .collect(),
         };
         for effect in self.effects.iter() {
-            let program = effect.implementation.dsl_program();
+            let program = effect.program;
             workspace
                 .effect_vm
                 .reserve(self.sample_program(program).bytecode());
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {
-                operator:
-                    PreparedOperatorNode {
-                        implementation: PreparedOperator::Dsl(program),
-                        ..
-                    },
+                operator: PreparedOperatorNode { program, .. },
                 vm_slot,
                 ..
             } = &node.kind
@@ -543,16 +437,12 @@ impl
     }
 }
 
-impl<P, E, A> PreparedSignalGraph<P, E, A> {
-    /// Replace the two storage banks without cloning graph metadata.
-    pub(crate) fn map_storage<Q, F>(
-        self,
-        map: impl FnOnce(P, Box<[E]>) -> (Q, Box<[F]>),
-    ) -> PreparedSignalGraph<Q, F, A> {
-        let (programs, parameter_environments) = map(self.programs, self.parameter_environments);
+impl<P, A> PreparedSignalGraph<P, A> {
+    /// Replace the program bank without cloning graph metadata.
+    pub(crate) fn map_storage<Q>(self, map: impl FnOnce(P) -> Q) -> PreparedSignalGraph<Q, A> {
+        let programs = map(self.programs);
         PreparedSignalGraph {
             programs,
-            parameter_environments,
             frame_rate: self.frame_rate,
             frame_count: self.frame_count,
             duration: self.duration,
@@ -575,7 +465,7 @@ impl<P, E, A> PreparedSignalGraph<P, E, A> {
         self,
         mut effect: impl FnMut(PreparedEffect<A>) -> Result<PreparedEffect<B>, X>,
         mut node: impl FnMut(PreparedSignalNode<A>) -> Result<PreparedSignalNode<B>, X>,
-    ) -> Result<PreparedSignalGraph<P, E, B>, X> {
+    ) -> Result<PreparedSignalGraph<P, B>, X> {
         let effects = self
             .effects
             .into_vec()
@@ -599,7 +489,6 @@ impl<P, E, A> PreparedSignalGraph<P, E, A> {
         };
         Ok(PreparedSignalGraph {
             programs: self.programs,
-            parameter_environments: self.parameter_environments,
             frame_rate: self.frame_rate,
             frame_count: self.frame_count,
             duration: self.duration,
@@ -619,9 +508,9 @@ impl<P, E, A> PreparedSignalGraph<P, E, A> {
 
     fn frame_scratch_count_with(&self, frame_cache_count: impl Fn(usize) -> usize) -> usize {
         let samples_frames = |node: &PreparedSignalNode<A>| match &node.kind {
-            PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
-                PreparedOperator::Dsl(program) => frame_cache_count(program) != 0,
-            },
+            PreparedSignalKind::Operator { operator, .. } => {
+                frame_cache_count(operator.program) != 0
+            }
             _ => false,
         };
         if !self.plan.nodes.iter().any(samples_frames) {

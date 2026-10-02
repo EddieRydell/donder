@@ -8,7 +8,6 @@ mod routing;
 use crate::selection::Selection;
 use donder_language::effect::EffectScope;
 use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind};
-use donder_language::model::EffectExecution;
 use donder_runtime::{FixtureHandle, PreparedSequence, TargetScope};
 use indexmap::IndexMap;
 
@@ -36,30 +35,9 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                 EffectScope::WholeTarget => TargetScope::WholeTarget,
             };
             let target = builder.target(fixtures.iter().copied(), scope);
-            let effects = match accepted.execution() {
-                EffectExecution::Sample(invocation) => {
-                    vec![builder.sample(invocation, window, target)]
-                }
-                EffectExecution::Generator(invocation) => {
-                    let mut generated = Vec::new();
-                    match effect.scope {
-                        EffectScope::WholeTarget => {
-                            generated.extend(builder.generator(invocation, window, target))
-                        }
-                        EffectScope::PerFixture => {
-                            for fixture in fixtures {
-                                let target = builder.target([*fixture], TargetScope::PerFixture);
-                                if builder.target_pixel_count(target) != 0 {
-                                    generated.extend(builder.generator(invocation, window, target));
-                                }
-                            }
-                        }
-                    }
-                    generated.into_iter().map(|child| child.effect).collect()
-                }
-            };
-            builder.clip(effect.id.0, window, target, effects.iter().copied());
-            layer_effects[&effect.layer_id].extend(effects);
+            let prepared = builder.sample(accepted.execution(), window, target);
+            builder.clip(effect.id.0, prepared);
+            layer_effects[&effect.layer_id].push(prepared);
         }
         let layers = sequence
             .layers

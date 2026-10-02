@@ -5,28 +5,13 @@ const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
 };
 
 use donder_language::dsl::{
-    Color, GeneratedEffectSlot, GeneratorBinding, GeneratorContext, GeneratorInput, Identifier,
-    OperatorRunContext, RuntimeError, SignalSampler, TargetItemValue, TargetValue, Value,
-    VmWorkspace, compile_effects, compile_operators,
+    Color, Identifier, OperatorRunContext, RuntimeError, SignalSampler, Value, VmWorkspace,
+    compile_effects, compile_operators,
 };
 use donder_language::values::{Marks, SampleDuration, SampleTime};
 use donder_runtime::{Instruction, SignalPixel};
 use indexmap::IndexMap;
 
-#[test]
-fn context_only_types_cannot_be_nested_in_parameters() {
-    for ty in ["Timeline", "Target", "TargetItems", "TargetItem"] {
-        for nested in [format!("array<{ty}>"), format!("array<array<{ty}>>")] {
-            let source = format!(
-                "effect Invalid {{ param {nested} stored; color sample() {{ return rgb(0.0, 0.0, 0.0); }} }}"
-            );
-            assert!(
-                compile_effects(&source).is_err(),
-                "accepted context-only parameter {nested}"
-            );
-        }
-    }
-}
 use std::sync::Arc;
 
 #[test]
@@ -53,8 +38,7 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
     }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -95,8 +79,7 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let context = OperatorRunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -159,8 +142,7 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::from([(
@@ -189,71 +171,6 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
 }
 
 #[test]
-fn generator_target_selection_is_total_for_empty_and_outside_indices() {
-    let effect = compile_effects(
-        "effect Select { void generate() {
-            TargetItems items = pixels(target);
-            timeline.emit Child { start: 0.0, duration: 1.0, target: pick(items, -1.0) };
-            timeline.emit Child { start: 0.0, duration: 1.0, target: pick(items, 99.0) };
-        } }",
-    )
-    .unwrap()
-    .remove(0)
-    .effect
-    .generator()
-    .unwrap()
-    .clone();
-    let target = Arc::new(TargetValue {
-        groups: vec![Arc::new(TargetItemValue {
-            pixels: Arc::from([
-                donder_runtime::PreparedPixel {
-                    fixture_index: 0,
-                    fixture_pixel_index: 0,
-                    pixel_index: 0,
-                    pixel_count: 2,
-                    pixel_fraction: 0.0,
-                },
-                donder_runtime::PreparedPixel {
-                    fixture_index: 0,
-                    fixture_pixel_index: 1,
-                    pixel_index: 1,
-                    pixel_count: 2,
-                    pixel_fraction: 1.0,
-                },
-            ]),
-        })],
-    });
-    let generated = effect
-        .bind(&[])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target,
-        })
-        .children;
-    assert_eq!(
-        generated
-            .iter()
-            .map(|child| child.target.pixels[0].pixel_index)
-            .collect::<Vec<_>>(),
-        vec![0, 1]
-    );
-
-    let generated = effect
-        .bind(&[])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        })
-        .children;
-    assert_eq!(generated.len(), 2);
-    assert!(generated.iter().all(|child| child.target.pixels.is_empty()));
-}
-
-#[test]
 fn integer_comparisons_do_not_round_through_float() {
     let effect = compile_effects(
         "effect Exact {
@@ -268,8 +185,7 @@ fn integer_comparisons_do_not_round_through_float() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -328,8 +244,7 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
         } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let context = OperatorRunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -395,8 +310,7 @@ fn nested_counted_loops_reset_their_private_iteration_state() {
         } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let context = OperatorRunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -430,13 +344,9 @@ fn compiler_tracks_pixel_dependency_including_branches_and_signal_samples() {
         ("rgb(section_position(4.0), 0.0, 0.0)", true),
     ] {
         let source = format!("effect Dependency {{ color sample() {{ return {expression}; }} }}");
-        let effect = compile_effects(&source).unwrap().remove(0).effect;
+        let effect = compile_effects(&source).unwrap().remove(0);
         assert_eq!(
-            effect
-                .sample_program()
-                .unwrap()
-                .bytecode()
-                .uses_pixel_context,
+            effect.sample_program().bytecode().uses_pixel_context,
             expected,
             "{expression}"
         );
@@ -445,14 +355,8 @@ fn compiler_tracks_pixel_dependency_including_branches_and_signal_samples() {
         .unwrap().remove(0);
     assert!(operator.bytecode().uses_pixel_context);
     let effect = compile_effects("effect Branch { color sample() { if (progress() > 0.5) { return rgb(pixel_index(), 0.0, 0.0); } return #000000; } }")
-        .unwrap().remove(0).effect;
-    assert!(
-        effect
-            .sample_program()
-            .unwrap()
-            .bytecode()
-            .uses_pixel_context
-    );
+        .unwrap().remove(0);
+    assert!(effect.sample_program().bytecode().uses_pixel_context);
 }
 
 #[test]
@@ -521,8 +425,7 @@ fn constant_and_calculated_arrays_preserve_nested_values_and_assignment() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -565,12 +468,10 @@ fn operator_requires_a_signal_input() {
 fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
     let effect = compile_effects(include_str!("fixtures/array-lifetimes.effect.donder"))
         .unwrap()
-        .remove(0)
-        .effect;
+        .remove(0);
     let small = compile_effects("effect Small { color sample() { return rgb(0.0, 0.0, 0.0); } }")
         .unwrap()
-        .remove(0)
-        .effect;
+        .remove(0);
     let small_params = small
         .bind(
             &IndexMap::new(),
@@ -679,7 +580,7 @@ fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
                     return rgb(0.25, 0.5, 0.75);
                 }}
             }}"
-        )).unwrap().remove(0).effect;
+        )).unwrap().remove(0);
         let params = effect
             .bind(
                 &IndexMap::new(),
@@ -696,70 +597,6 @@ fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
                 }
             );
         }
-    }
-}
-
-#[test]
-fn generator_emitted_arrays_and_enums_outlive_specialization() {
-    let effect = compile_effects(
-        "effect EmitValues {
-            param enum mode { alpha, beta } = beta;
-            void generate() {
-                for (int i = 0; i < 3; i = i + 1) {
-                    timeline.emit Child {
-                        start: 0.0, duration: 1.0, target: target,
-                        mode: mode, values: [[i], [i + 1, i + 2]]
-                    };
-                    mode = alpha;
-                }
-            }
-        }",
-    )
-    .unwrap()
-    .remove(0);
-    let params = donder_runtime::BoundParams::bind(effect.effect.params(), &IndexMap::new())
-        .unwrap()
-        .iter_values()
-        .map(GeneratorInput::Fixed)
-        .collect::<Vec<_>>();
-    let generator = effect.effect.generator().unwrap().clone();
-    let context = GeneratorContext {
-        start_time: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(1_000_000),
-        target: Arc::new(TargetValue { groups: Vec::new() }),
-    };
-    let first = generator
-        .bind(&params)
-        .unwrap()
-        .specialize(&context)
-        .children;
-    let second = generator
-        .bind(&params)
-        .unwrap()
-        .specialize(&context)
-        .children;
-    assert_eq!(first, second);
-    assert_eq!(first.len(), 3);
-    for (index, child) in first.iter().enumerate() {
-        let index = index as i32;
-        assert_eq!(
-            child.params,
-            vec![
-                (
-                    Identifier::new("mode".into()).unwrap(),
-                    GeneratorBinding::Constant(Value::Enum(
-                        Identifier::new(if index == 0 { "beta" } else { "alpha" }.into()).unwrap()
-                    ))
-                ),
-                (
-                    Identifier::new("values".into()).unwrap(),
-                    GeneratorBinding::Constant(Value::Array(Arc::from([
-                        Value::Array(Arc::from([Value::Int(index)])),
-                        Value::Array(Arc::from([Value::Int(index + 1), Value::Int(index + 2)])),
-                    ])))
-                ),
-            ]
-        );
     }
 }
 
@@ -835,247 +672,6 @@ fn signal_sampling_and_color_operations_execute() {
 }
 
 #[test]
-fn generator_emit_events_carry_only_ordered_numeric_slots() {
-    let effect = compile_effects(
-        "effect EmitAll {
-          void generate() {
-            timeline.emit Pulse { start: 0.0, duration: 1.0, target: target };
-            timeline.emit Chase { start: 0.0, duration: 1.0, target: target };
-            timeline.emit Spin { start: 0.0, duration: 1.0, target: target };
-            timeline.emit MarkPulse { start: 0.0, duration: 1.0, target: target };
-            timeline.emit MarkChase { start: 0.0, duration: 1.0, target: target };
-            timeline.emit LocalChild { start: 0.0, duration: 1.0, target: target };
-          }
-        }",
-    )
-    .expect("generator compiles")
-    .into_iter()
-    .next()
-    .expect("one effect")
-    .effect
-    .generator()
-    .unwrap()
-    .clone();
-    let generated = effect
-        .bind(&[])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(2_000_000),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        })
-        .children;
-
-    assert_eq!(
-        generated
-            .iter()
-            .map(|effect| effect.definition)
-            .collect::<Vec<_>>(),
-        vec![
-            GeneratedEffectSlot(0),
-            GeneratedEffectSlot(1),
-            GeneratedEffectSlot(2),
-            GeneratedEffectSlot(3),
-            GeneratedEffectSlot(4),
-            GeneratedEffectSlot(5),
-        ]
-    );
-    assert!(
-        generated.iter().all(|effect| {
-            effect.start_time == SampleTime::from_ticks(2_000_000)
-                && effect.duration == SampleDuration::from_ticks(1_000_000)
-        }),
-        "emitted timing should be converted once to the portable clock"
-    );
-}
-
-#[test]
-fn emitted_reference_spans_do_not_change_semantics_or_bytecode_hashes() {
-    use std::hash::Hasher;
-    let source = "effect Parent { void generate() { timeline.emit Local { start: 0.0, duration: 1.0, target: target }; } }";
-    let first = compile_effects(source).unwrap().remove(0);
-    let second = compile_effects(&format!("\n// diagnostic-only displacement\n{source}"))
-        .unwrap()
-        .remove(0);
-    assert_ne!(
-        first.emitted_references[0].span,
-        second.emitted_references[0].span
-    );
-    assert_eq!(first, second);
-    let hash = |effect| {
-        let mut state = std::collections::hash_map::DefaultHasher::new();
-        donder_language::dsl::hash_compiled_effect(effect, &mut state);
-        state.finish()
-    };
-    assert_eq!(hash(&first.effect), hash(&second.effect));
-    let document = format!("import fx from [\"child.effect.donder\"];\n{source}");
-    let first = donder_language::dsl::compile_effect_document(&document).unwrap();
-    let second = donder_language::dsl::compile_effect_document(&format!("\n{document}")).unwrap();
-    assert_ne!(first.imports[0].span, second.imports[0].span);
-    assert_eq!(first, second);
-}
-
-#[test]
-fn generators_have_no_sampling_bytecode() {
-    let effect = compile_effects("effect Parent { void generate() { timeline.emit Local { start: 0.0, duration: 1.0, target: target }; } }").unwrap().remove(0).effect;
-    assert!(effect.sample_program().is_none());
-    assert!(effect.generator().is_some());
-}
-
-#[test]
-fn generator_child_slots_follow_source_order_across_control_flow() {
-    use donder_language::imports::SourceReference;
-    let compiled = compile_effects(
-        "effect Parent {
-        fixed param bool choose = true;
-        void generate() {
-            for (int i = 0; i < 2; i = i + 1) {
-                if (choose) {
-                    timeline.emit First { start: 0.0, duration: 1.0, target: target };
-                } else {
-                    timeline.emit Second { start: 0.0, duration: 1.0, target: target };
-                }
-            }
-            timeline.emit Last { start: 0.0, duration: 1.0, target: target };
-        }
-    }",
-    )
-    .unwrap()
-    .remove(0);
-    assert_eq!(
-        compiled
-            .emitted_references
-            .iter()
-            .map(|reference| &reference.reference)
-            .collect::<Vec<_>>(),
-        ["First", "Second", "Last"]
-            .map(|name| SourceReference::Local(Identifier::new(name.into()).unwrap()))
-            .iter()
-            .collect::<Vec<_>>()
-    );
-    let context = GeneratorContext {
-        start_time: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(1_000_000),
-        target: Arc::new(TargetValue { groups: Vec::new() }),
-    };
-    for (choose, slots) in [(true, [0, 0, 2]), (false, [1, 1, 2])] {
-        let result = compiled
-            .effect
-            .generator()
-            .unwrap()
-            .bind(&[GeneratorInput::Fixed(Value::Bool(choose))])
-            .unwrap()
-            .specialize(&context);
-        assert_eq!(
-            result
-                .children
-                .iter()
-                .map(|child| child.definition.0)
-                .collect::<Vec<_>>(),
-            slots
-        );
-    }
-}
-
-#[test]
-fn generator_hash_tracks_the_specialization_program() {
-    use std::hash::Hasher;
-    let source = "effect Parent {
-        fixed param bool choose = true;
-        param float level = 0.5;
-        void generate() {
-            float result = level + 1.0;
-            for (int i = 0; i < 2; i = i + 1) {
-                if (choose) {
-                    timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: result + i };
-                } else {
-                    timeline.emit Child { start: 0.0, duration: 2.0, target: target, value: level };
-                }
-            }
-        }
-    }";
-    let hash = |source: &str| {
-        let effect = compile_effects(source).unwrap().remove(0).effect;
-        let mut state = std::collections::hash_map::DefaultHasher::new();
-        donder_language::dsl::hash_compiled_effect(&effect, &mut state);
-        state.finish()
-    };
-    let original = hash(source);
-    assert_eq!(original, hash(&format!("\n{source}\n")));
-    for (old, new) in [
-        ("level + 1.0", "level + 2.0"),
-        ("i < 2", "i < 3"),
-        ("if (choose)", "if (!choose)"),
-        ("duration: 2.0", "duration: 3.0"),
-        ("value: result + i", "value: result - i"),
-        ("value: level", "alternate: level"),
-    ] {
-        assert_ne!(original, hash(&source.replace(old, new)), "{old} -> {new}");
-    }
-}
-
-#[test]
-fn qualified_generator_emit_references_report_specific_diagnostics() {
-    for reference in ["builtins.invert.extra", "fx.Child.extra"] {
-        let expected = "generated effect reference must contain exactly two segments";
-        let source = format!(
-            "effect Bad {{ void generate() {{ timeline.emit {reference} {{ start: 0.0, duration: 1.0, target: target }}; }} }}"
-        );
-        let diagnostics = compile_effects(&source).expect_err("invalid reference must fail");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(expected)),
-            "missing `{expected}` in {diagnostics:?}"
-        );
-    }
-}
-
-#[test]
-fn effect_document_compilation_retains_explicit_imports_and_source_spans() {
-    use donder_language::dsl::compile_effect_document;
-    let source = "import bursts from [\"effects/child.effect.donder\"];\nimport library from [\"effects/library.effect.donder\"];\neffect Parent { void generate() { timeline.emit bursts.Child { start: 0.0, duration: 1.0, target: target }; } }";
-    let compiled = compile_effect_document(source).unwrap();
-    let donder_language::imports::ImportSource::LocalDocuments { documents } =
-        &compiled.imports[0].declaration.source;
-    assert_eq!(documents[0], "effects/child.effect.donder");
-    let span = compiled.imports[0].source_spans[0];
-    assert_eq!(
-        &source[span.start..span.end],
-        "\"effects/child.effect.donder\""
-    );
-    assert_eq!(
-        compiled.imports[1].declaration.source,
-        donder_language::imports::ImportSource::LocalDocuments {
-            documents: vec!["effects/library.effect.donder".into()]
-        }
-    );
-    assert_eq!(
-        compiled.effects[0].emitted_references[0].reference,
-        donder_language::imports::SourceReference::Qualified {
-            alias: donder_language::imports::ImportAlias::new("bursts").unwrap(),
-            name: Identifier::new("Child".into()).unwrap(),
-        }
-    );
-    assert!(
-        compile_effects(source).is_err(),
-        "standalone callers cannot discard imports"
-    );
-    for invalid in [
-        source.replace("import bursts", "import builtins"),
-        format!("import bursts from [];{source}"),
-        format!("{source}\nimport late from [\"other.effect.donder\"];"),
-        source.replace(
-            "[\"effects/child.effect.donder\"]",
-            "\"effects/child.effect.donder\"",
-        ),
-    ] {
-        assert!(compile_effect_document(&invalid).is_err());
-    }
-    assert!(compile_operators("import effects from [\"child.effect.donder\"]; operator Gain { input Signal source; color sample() { return source.at(seconds()); } }").is_err());
-}
-
-#[test]
 fn source_numeric_overflow_and_integer_division_report_diagnostics() {
     let integer_overflow = compile_effects(
         "effect Bad { color sample() { int value = 999999999999999999999999999999; return #000000; } }",
@@ -1101,7 +697,7 @@ fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
     .expect("effect compiles")
     .into_iter()
     .next()
-    .expect("one effect").effect;
+    .expect("one effect");
     let missing = effect
         .bind(
             &IndexMap::new(),
@@ -1157,7 +753,7 @@ fn integer_arithmetic_wraps_and_remainder_is_total() {
                 }}
             }}"
         );
-        let effect = compile_effects(&source).unwrap().remove(0).effect;
+        let effect = compile_effects(&source).unwrap().remove(0);
         let params = effect
             .bind(
                 &IndexMap::from([

@@ -1,4 +1,4 @@
-use crate::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};
+use crate::dsl::{BoundParams, DslBindCache, Type, Value};
 use crate::sampling::{multiply_colors, sample_curve, sample_gradient};
 use crate::{Color, Curve, CurvePoint, Gradient, GradientStop};
 use alloc::vec;
@@ -62,14 +62,10 @@ fn gradient_parameter_and_direct_sampling_agree_at_steps_and_boundaries() {
         .map(|(position, color)| GradientStop { position, color })
         .collect(),
     };
-    let params = BoundParams::bind(
-        &[ParamDecl {
-            fixed: false,
-            name: Identifier::new("gradient".into()).unwrap(),
-            ty: Type::Gradient,
-            default: Some(Value::Gradient(gradient.clone().into())),
-        }],
-        core::iter::empty(),
+    let params = BoundParams::bind_values(
+        &[Type::Gradient],
+        vec![Value::Gradient(gradient.clone().into())],
+        &mut DslBindCache::default(),
     )
     .unwrap();
     for position in [-1.0, 0.0, 0.25, 0.499, 0.5, 0.501, 0.75, 1.0, 2.0] {

@@ -1,4 +1,4 @@
-//! Declaration-based preparation dependencies over the checked program.
+//! Prevent live values from being assigned back into fixed parameters.
 use super::checked::{CheckedBlock, CheckedExpr, CheckedExprKind, CheckedStmt};
 use super::{Diagnostic, Identifier, ParamDecl};
 use indexmap::IndexMap;
@@ -11,28 +11,9 @@ struct Binding {
 }
 type Environment = IndexMap<Identifier, Binding>;
 
-/// Controls that assign a preparation-time value. Lowering must not bundle
-/// those assignments with live outputs in one retained calculation.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct PreparationControls(std::collections::BTreeSet<(usize, usize)>);
-
-impl PreparationControls {
-    pub(crate) fn contains(&self, expression: &CheckedExpr) -> bool {
-        self.0
-            .contains(&(expression.span.start, expression.span.end))
-    }
-}
-
-pub(super) fn check(
-    params: &[ParamDecl],
-    body: &mut CheckedBlock,
-    generator: bool,
-) -> Result<PreparationControls, Vec<Diagnostic>> {
+pub(super) fn check(params: &[ParamDecl], body: &CheckedBlock) -> Result<(), Vec<Diagnostic>> {
     let mut checker = Checker {
-        generator,
         diagnostics: Vec::new(),
-        emitted: IndexMap::new(),
-        control_outputs: IndexMap::new(),
     };
     let mut env = params
         .iter()
@@ -47,25 +28,15 @@ pub(super) fn check(
         })
         .collect();
     checker.block(body, &mut env, &None);
-    annotate(body, &checker.emitted);
     if checker.diagnostics.is_empty() {
-        Ok(PreparationControls(
-            checker
-                .control_outputs
-                .into_iter()
-                .filter_map(|(span, outputs)| outputs.values().any(Option::is_none).then_some(span))
-                .collect(),
-        ))
+        Ok(())
     } else {
         Err(checker.diagnostics)
     }
 }
 
 struct Checker {
-    generator: bool,
     diagnostics: Vec<Diagnostic>,
-    emitted: IndexMap<(usize, usize), Dependency>,
-    control_outputs: IndexMap<(usize, usize), IndexMap<Identifier, Dependency>>,
 }
 
 impl Checker {
@@ -104,8 +75,7 @@ impl Checker {
                 let index = self.expr(index, env);
                 target.or(index)
             }
-            CheckedExprKind::Member { target, .. }
-            | CheckedExprKind::Unary { expr: target, .. } => self.expr(target, env),
+            CheckedExprKind::Unary { expr: target, .. } => self.expr(target, env),
             CheckedExprKind::Call { callee, args } => {
                 let mut dependency = match &callee.kind {
                     CheckedExprKind::Variable(name) => match name.as_str() {
@@ -113,18 +83,7 @@ impl Checker {
                         "pixel_index" | "pixel_count" | "pixel_fraction" | "pixel_x"
                         | "pixel_y" | "target_min_x" | "target_min_y" | "target_max_x"
                         | "target_max_y" | "section_position" | "section_count"
-                        | "section_index" => {
-                            if self.generator {
-                                let diagnostic = Diagnostic::new(
-                                    expr.span,
-                                    "generator calculations cannot read pixel context; move this calculation into a child sample effect",
-                                );
-                                if !self.diagnostics.contains(&diagnostic) {
-                                    self.diagnostics.push(diagnostic);
-                                }
-                            }
-                            Some(name.clone())
-                        }
+                        | "section_index" => Some(name.clone()),
                         _ => None,
                     },
                     _ => self.expr(callee, env),
@@ -198,15 +157,6 @@ impl Checker {
                 else_block,
             } => {
                 let dependency = self.expr(condition, env).or_else(|| control.clone());
-                if self.generator
-                    && (contains_emit(then_block) || else_block.as_ref().is_some_and(contains_emit))
-                {
-                    self.require_fixed(
-                        condition,
-                        &dependency,
-                        "control flow determining child emission",
-                    );
-                }
                 let mut left = env.clone();
                 let mut right = env.clone();
                 self.block(then_block, &mut left, &dependency);
@@ -233,13 +183,6 @@ impl Checker {
                 loop {
                     let before = loop_env.clone();
                     let dependency = self.expr(condition, &loop_env).or_else(|| control.clone());
-                    if self.generator && contains_emit(body) {
-                        self.require_fixed(
-                            condition,
-                            &dependency,
-                            "loop controlling child emission",
-                        );
-                    }
                     self.block(body, &mut loop_env, &dependency);
                     self.statement(update, &mut loop_env, &dependency);
                     for (name, value) in loop_env.iter_mut() {
@@ -279,13 +222,6 @@ impl Checker {
                 ..
             } => {
                 let dependency = self.expr(collection, env).or_else(|| control.clone());
-                if self.generator && contains_emit(body) {
-                    self.require_fixed(
-                        collection,
-                        &dependency,
-                        "collection controlling child emission",
-                    );
-                }
                 let mut loop_env = env.clone();
                 loop_env.insert(
                     index.clone(),
@@ -315,89 +251,6 @@ impl Checker {
                     });
                 }
             }
-            CheckedStmt::Emit { fields, .. } => {
-                for (name, expr) in fields {
-                    let dependency = self.expr(expr, env).or_else(|| control.clone());
-                    let stored = self
-                        .emitted
-                        .entry((expr.span.start, expr.span.end))
-                        .or_default();
-                    *stored = stored.clone().or_else(|| dependency.clone());
-                    if matches!(name.as_str(), "start" | "duration" | "target") {
-                        self.require_fixed(expr, &dependency, &format!("emit `{}`", name.as_str()));
-                    }
-                }
-            }
-        }
-        if self.generator {
-            let control = match statement {
-                CheckedStmt::If { condition, .. } | CheckedStmt::For { condition, .. } => condition,
-                CheckedStmt::ForMarks { marks, .. } => marks,
-                CheckedStmt::ForRange { count, .. } => count,
-                _ => return,
-            };
-            let outputs = self
-                .control_outputs
-                .entry((control.span.start, control.span.end))
-                .or_default();
-            for name in statement.assigned_names() {
-                if let Some(binding) = env.get(&name) {
-                    // A loop may revisit the same statement with more live
-                    // dependencies. Preserve those until the fixed point settles.
-                    let dependency = outputs.entry(name).or_default();
-                    *dependency = dependency.clone().or_else(|| binding.dependency.clone());
-                }
-            }
-        }
-    }
-}
-
-pub(super) fn contains_emit(block: &CheckedBlock) -> bool {
-    block.statements.iter().any(|statement| match statement {
-        CheckedStmt::Emit { .. } => true,
-        CheckedStmt::If {
-            then_block,
-            else_block,
-            ..
-        } => contains_emit(then_block) || else_block.as_ref().is_some_and(contains_emit),
-        CheckedStmt::For { body, .. }
-        | CheckedStmt::ForMarks { body, .. }
-        | CheckedStmt::ForRange { body, .. } => contains_emit(body),
-        _ => false,
-    })
-}
-
-fn annotate(block: &mut CheckedBlock, emitted: &IndexMap<(usize, usize), Dependency>) {
-    for statement in &mut block.statements {
-        match statement {
-            CheckedStmt::Emit { effect, fields } => {
-                effect.arguments = fields
-                    .iter()
-                    .map(|(name, expr)| super::EmittedArgument {
-                        name: name.clone(),
-                        ty: expr.ty.clone(),
-                        span: expr.span,
-                        live_dependency: emitted
-                            .get(&(expr.span.start, expr.span.end))
-                            .cloned()
-                            .flatten(),
-                    })
-                    .collect();
-            }
-            CheckedStmt::If {
-                then_block,
-                else_block,
-                ..
-            } => {
-                annotate(then_block, emitted);
-                if let Some(block) = else_block {
-                    annotate(block, emitted);
-                }
-            }
-            CheckedStmt::For { body, .. }
-            | CheckedStmt::ForMarks { body, .. }
-            | CheckedStmt::ForRange { body, .. } => annotate(body, emitted),
-            _ => {}
         }
     }
 }

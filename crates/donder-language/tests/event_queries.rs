@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 
 fn sample(parameters: &str, body: &str, values: &[(&str, Value)]) -> Color {
     let source = format!("effect Query {{ {parameters} color sample() {{ {body} }} }}");
-    let effect = compile_effects(&source).unwrap().remove(0).effect;
+    let effect = compile_effects(&source).unwrap().remove(0);
     let values = values
         .iter()
         .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))

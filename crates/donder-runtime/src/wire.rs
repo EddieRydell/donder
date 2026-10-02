@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 37;
+pub const FORMAT_VERSION: u32 = 38;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -181,15 +181,13 @@ fn validate_signal_graph(
     signal: &crate::signal::PreparedSignalGraph,
     limits: Option<LoadLimits>,
 ) -> Result<usize, LoadError> {
-    use crate::dsl::bytecode::{ParameterKind, ProgramContext};
+    use crate::dsl::bytecode::ProgramContext;
     use crate::dsl::{AutomationPlan, VmWorkspace};
     use crate::signal::{
         CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
         EffectAutomationWorkspace,
     };
-    use crate::signal::{
-        PreparedEffectImplementation, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
-    };
+    use crate::signal::{PreparedOperatorNode, PreparedSignalKind};
     use crate::values::Color;
     let bad = LoadError::InvalidSequence;
     let plan = &signal.plan;
@@ -237,16 +235,6 @@ fn validate_signal_graph(
         }
         Ok(())
     };
-    crate::bindings::PreparedParameterEnvironment::validate_all(&signal.parameter_environments)
-        .map_err(|_| bad)?;
-    reserve(
-        1,
-        crate::bindings::ParameterWorkspace::storage_estimate(
-            &signal.parameter_environments,
-            signal.parameter_time_slots()?,
-        )
-        .ok_or(LoadError::Limit)?,
-    )?;
     reserve(
         signal.pixel_count,
         plan.frame_buffer_count * size_of::<Color>(),
@@ -254,7 +242,7 @@ fn validate_signal_graph(
     // All VM slots reserve the component-wise largest layouts they can execute.
     // Budgeting that maximum for every slot also covers a program reused by
     // several operators, and array capacity/width maxima from different programs.
-    let mut registers = [0usize; 12];
+    let mut registers = [0usize; 9];
     let mut array_capacity = 0usize;
     let mut array_width = 0usize;
     let mut loop_count = 0usize;
@@ -272,9 +260,6 @@ fn validate_signal_graph(
             layout.marks,
             layout.curves,
             layout.gradients,
-            layout.targets,
-            layout.target_lists,
-            layout.target_items,
             layout.enums,
         ]) {
             *maximum = (*maximum).max(count as usize);
@@ -289,11 +274,7 @@ fn validate_signal_graph(
     let mut operator_frame_counts = vec![0usize; plan.vm_workspace_count];
     for node in &plan.nodes {
         let PreparedSignalKind::Operator {
-            operator:
-                PreparedOperatorNode {
-                    implementation: PreparedOperator::Dsl(program),
-                    ..
-                },
+            operator: PreparedOperatorNode { program, .. },
             vm_slot,
             ..
         } = &node.kind
@@ -370,7 +351,7 @@ fn validate_signal_graph(
         let PreparedSignalKind::Operator { operator, .. } = &node.kind else {
             return false;
         };
-        let PreparedOperator::Dsl(program) = operator.implementation;
+        let program = operator.program;
         signal.programs.get(program).is_some_and(|program| {
             program.instructions.iter().any(|instruction| {
                 matches!(
@@ -404,17 +385,7 @@ fn validate_signal_graph(
         size_of::<CachedEffectSample>(),
     )?;
     for clip in &signal.clips {
-        if clip.target >= signal.targets.len()
-            || clip.duration.as_ticks() == 0
-            || clip
-                .start_time
-                .checked_add_duration(clip.duration)
-                .is_none_or(|end| end.as_ticks() > signal.duration.as_ticks())
-            || clip
-                .effects
-                .iter()
-                .any(|&effect| effect >= signal.effects.len())
-        {
+        if clip.effect >= signal.effects.len() {
             return Err(bad);
         }
     }
@@ -429,71 +400,31 @@ fn validate_signal_graph(
         {
             return Err(bad);
         }
-        if signal
-            .programs
-            .get(effect.implementation.dsl_program())
-            .is_some_and(|program| {
-                program.instructions.iter().any(|instruction| {
-                    matches!(
-                        instruction,
-                        crate::dsl::bytecode::Instruction::SectionQuery { .. }
-                    )
-                })
+        if signal.programs.get(effect.program).is_some_and(|program| {
+            program.instructions.iter().any(|instruction| {
+                matches!(
+                    instruction,
+                    crate::dsl::bytecode::Instruction::SectionQuery { .. }
+                )
             })
-            && signal.targets[effect.target].sections.pixels.len()
-                != signal.targets[effect.target].pixels.len()
+        }) && signal.targets[effect.target].sections.pixels.len()
+            != signal.targets[effect.target].pixels.len()
         {
             return Err(bad);
         }
-        match &effect.implementation {
-            PreparedEffectImplementation::Dsl {
-                program,
-                bound_params,
-            } => {
-                if !bound_params.is_frozen()
-                    || signal.programs.get(*program).is_none_or(|program| {
-                        !program.has_valid_context(ProgramContext::Effect)
-                            || !program.has_valid_parameter_reads(|index| {
-                                bound_params.parameter_kind(index)
-                            })
-                            || !program.has_valid_reference_parameter_reads(|index, expected| {
-                                bound_params.parameter_accepts_type(index, expected)
-                            })
+        let program = effect.program;
+        let bound_params = &effect.bound_params;
+        if !bound_params.is_frozen()
+            || signal.programs.get(program).is_none_or(|program| {
+                !program.has_valid_context(ProgramContext::Effect)
+                    || !program
+                        .has_valid_parameter_reads(|index| bound_params.parameter_kind(index))
+                    || !program.has_valid_reference_parameter_reads(|index, expected| {
+                        bound_params.parameter_accepts_type(index, expected)
                     })
-                {
-                    return Err(bad);
-                }
-            }
-            PreparedEffectImplementation::Bound {
-                environment,
-                program,
-            } => {
-                if effect.automation.is_some()
-                    || signal
-                        .parameter_environments
-                        .get(*environment)
-                        .zip(signal.programs.get(*program))
-                        .is_none_or(|(environment, program)| {
-                            !program.has_valid_context(ProgramContext::Effect)
-                                || !program.has_valid_parameter_reads(|index| {
-                                    environment
-                                        .output_types()
-                                        .get(index)
-                                        .map(ParameterKind::for_type)
-                                })
-                                || !program.has_valid_reference_parameter_reads(
-                                    |index, expected| {
-                                        environment
-                                            .output_types()
-                                            .get(index)
-                                            .is_some_and(|actual| expected.accepts(actual))
-                                    },
-                                )
-                        })
-                {
-                    return Err(bad);
-                }
-            }
+            })
+        {
+            return Err(bad);
         }
         if let Some(automation) = &effect.automation {
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
@@ -501,20 +432,15 @@ fn validate_signal_graph(
                 1,
                 AutomationPlan::storage_estimate(&automation.bindings).ok_or(LoadError::Limit)?,
             )?;
-            match &effect.implementation {
-                PreparedEffectImplementation::Dsl { bound_params, .. } => {
-                    if !bound_params.has_valid_automation(&automation.bindings) {
-                        return Err(bad);
-                    }
-                    reserve(
-                        1,
-                        bound_params
-                            .automation_storage_estimate(&automation.bindings)
-                            .ok_or(LoadError::Limit)?,
-                    )?;
-                }
-                _ => return Err(bad),
+            if !bound_params.has_valid_automation(&automation.bindings) {
+                return Err(bad);
             }
+            reserve(
+                1,
+                bound_params
+                    .automation_storage_estimate(&automation.bindings)
+                    .ok_or(LoadError::Limit)?,
+            )?;
             if automation.workspace_slot != automation_slot {
                 return Err(bad);
             }
@@ -551,7 +477,7 @@ fn validate_signal_graph(
                 if *vm_slot >= plan.vm_workspace_count {
                     return Err(bad);
                 }
-                let PreparedOperator::Dsl(program) = operator.implementation;
+                let program = operator.program;
                 if program >= signal.programs.len() {
                     return Err(bad);
                 }

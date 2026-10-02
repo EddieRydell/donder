@@ -6,8 +6,6 @@ use donder_runtime::Instruction;
 #[allow(dead_code)]
 #[path = "../../crates/donder-language/benches/fixtures/mod.rs"]
 mod fixtures;
-#[path = "src/generator_workload.rs"]
-mod generator_workload;
 #[path = "src/mark_workload.rs"]
 mod mark_workload;
 #[path = "src/workload.rs"]
@@ -31,7 +29,6 @@ fn main() {
     println!("cargo:rerun-if-changed=../../examples/starter/operators");
     println!("cargo:rerun-if-changed=src/workload.rs");
     println!("cargo:rerun-if-changed=src/mark_workload.rs");
-    println!("cargo:rerun-if-changed=src/generator_workload.rs");
     println!(
         "cargo:rerun-if-changed=../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"
     );
@@ -39,8 +36,8 @@ fn main() {
         "use alloc::{boxed::Box, vec};\n\
          #[cfg(not(feature = \"i2s-output\"))] use alloc::rc::Rc as Arc;\n\
          #[cfg(feature = \"i2s-output\")] use alloc::sync::Arc;\n\
-         use donder_runtime::{BoundParams, Identifier, ParamDecl, SampleProgram, Type, Value};\n\
-         use donder_runtime::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, CalculationRead, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, TargetItemSlot, TargetItemsOp, TargetItemsSlot, TargetMember, TargetSlot, TargetSource, ValueSlot};\n\
+         use donder_runtime::{BoundParams, DslBindCache, Identifier, SampleProgram, Type, Value};\n\
+         use donder_runtime::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, ValueSlot};\n\
          use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
     );
     let mut golden = Vec::new();
@@ -77,9 +74,7 @@ fn main() {
     ))
     .unwrap()
     .remove(0)
-    .effect
     .sample_program()
-    .unwrap()
     .clone();
     let pulse_params = indexmap::IndexMap::from([
         (
@@ -137,24 +132,24 @@ fn main() {
         .enumerate()
     {
         names.push(name);
-        let compilation = compile_effects(source).unwrap().remove(0);
-        assert!(
-            compilation.emitted_references.is_empty(),
-            "firmware benchmark fixtures cannot emit child effects"
-        );
-        let effect = compilation.effect;
+        let effect = compile_effects(source).unwrap().remove(0);
         assert_eq!(effect.name().as_str(), name);
         if name == "ArrayLifetimes" {
             assert!(
-                effect.sample_program().unwrap().bytecode().array_capacity > 0,
+                effect.sample_program().bytecode().array_capacity > 0,
                 "board array-storage coverage was optimized away"
             );
         }
-        let bound = donder_runtime::BoundParams::bind(effect.params(), &params).unwrap();
+        let bound = donder_language::dsl::bind_params(
+            effect.params(),
+            &params,
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
         let invocation = effect
             .bind(&params, &mut donder_runtime::DslBindCache::default())
             .unwrap();
-        let bytecode = effect.sample_program().unwrap().clone().into_parts().0;
+        let bytecode = effect.sample_program().clone().into_parts().0;
         writeln!(
             generated,
             "fn case_{case}() -> (SampleProgram, BoundParams) {{"
@@ -164,63 +159,33 @@ fn main() {
         for instruction in &bytecode.instructions {
             writeln!(generated, "{},", instruction_source(instruction)).unwrap();
         }
-        writeln!(generated, "]; let program = BytecodeProgram {{ instructions: code.into_boxed_slice(), curves: vec![{}].into_boxed_slice(), gradients: vec![{}].into_boxed_slice(), targets: vec![{}].into_boxed_slice(), target_lists: vec![{}].into_boxed_slice(), target_items: vec![{}].into_boxed_slice(), array_constants: vec![{}].into_boxed_slice(), enums: vec![{}].into_boxed_slice(), enum_types: vec![{}].into_boxed_slice(), value_operands: vec![{}].into_boxed_slice(), array_types: vec![{}].into_boxed_slice(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }};",
+        writeln!(generated, "]; let program = BytecodeProgram {{ instructions: code.into_boxed_slice(), curves: vec![{}].into_boxed_slice(), gradients: vec![{}].into_boxed_slice(), array_constants: vec![{}].into_boxed_slice(), enums: vec![{}].into_boxed_slice(), enum_types: vec![{}].into_boxed_slice(), value_operands: vec![{}].into_boxed_slice(), array_types: vec![{}].into_boxed_slice(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }};",
             bytecode.curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
             bytecode.gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
-            bytecode.targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
-            bytecode.target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
-            bytecode.target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
             bytecode.array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
             bytecode.enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
             bytecode.enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
             bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
             bytecode.array_types.iter().map(type_source).collect::<Vec<_>>().join(","),
             bytecode.layout, bytecode.uses_pixel_context, bytecode.pixel_entry, bytecode.array_capacity, bytecode.array_width, bytecode.loop_count).unwrap();
-        writeln!(generated, "let declarations = [").unwrap();
+        writeln!(generated, "let types = vec![").unwrap();
         for param in effect.params() {
-            writeln!(
-                generated,
-                "ParamDecl {{ fixed: {}, name: Identifier::new({:?}.into()).unwrap(), ty: {}, default: {} }},",
-                param.fixed,
-                param.name.as_str(),
-                type_source(&param.ty),
-                param
-                    .default
-                    .as_ref()
-                    .map_or("None".into(), |v| format!("Some({})", value_source(v)))
-            )
-            .unwrap();
+            writeln!(generated, "{},", type_source(&param.ty)).unwrap();
         }
-        writeln!(generated, "]; let params = [").unwrap();
-        for (key, value) in &params {
-            writeln!(
-                generated,
-                "(Identifier::new({:?}.into()).unwrap(), {}),",
-                key.as_str(),
-                value_source(value)
-            )
-            .unwrap();
+        writeln!(generated, "]; let values = vec![").unwrap();
+        for value in bound.iter_values() {
+            writeln!(generated, "{},", value_source(&value)).unwrap();
         }
         writeln!(
             generated,
-            "]; let program = SampleProgram::admit(program, declarations.iter().map(|param: &ParamDecl| param.ty.clone()).collect()).unwrap(); (program, BoundParams::bind_pairs(&declarations, &params).unwrap()) }}"
-        )
-        .unwrap();
+            "]; let params = BoundParams::bind_values(&types, values, &mut DslBindCache::default()).unwrap(); let program = SampleProgram::admit(program, types.into_boxed_slice()).unwrap(); (program, params) }}"
+        ).unwrap();
         let mut case_golden = Vec::new();
         for count in workload::COUNTS {
             let show = if case < 4 || name == "ArrayLifetimes" {
-                workload::show(
-                    count,
-                    effect.sample_program().unwrap().clone(),
-                    bound.clone(),
-                )
+                workload::show(count, effect.sample_program().clone(), bound.clone())
             } else {
-                workload::layered_show(
-                    count,
-                    effect.sample_program().unwrap().clone(),
-                    bound.clone(),
-                    16,
-                )
+                workload::layered_show(count, effect.sample_program().clone(), bound.clone(), 16)
             };
             let mut show = show.prepare().into_playback();
             let mut vm = donder_language::dsl::VmWorkspace::default();
@@ -253,11 +218,8 @@ fn main() {
                 }
             }
             if case == workload::GAMMA_CASE {
-                let mut mixed = workload::show(
-                    count,
-                    effect.sample_program().unwrap().clone(),
-                    bound.clone(),
-                );
+                let mut mixed =
+                    workload::show(count, effect.sample_program().clone(), bound.clone());
                 workload::apply_operator(
                     &mut mixed,
                     identity.program().clone().into_parts().0,
@@ -285,11 +247,8 @@ fn main() {
                 mixed_golden.push(mixed_frames);
                 let mut depths = Vec::new();
                 for depth in workload::OPERATOR_DEPTHS {
-                    let mut nested = workload::show(
-                        count,
-                        effect.sample_program().unwrap().clone(),
-                        bound.clone(),
-                    );
+                    let mut nested =
+                        workload::show(count, effect.sample_program().clone(), bound.clone());
                     workload::apply_operator(
                         &mut nested,
                         operator.program().clone().into_parts().0,
@@ -298,11 +257,8 @@ fn main() {
                     workload::nest_operator(&mut nested, depth);
                     let nested_fixture = nested;
                     let mut nested = nested_fixture.clone().prepare().into_playback();
-                    let mut full_nested = workload::show(
-                        count,
-                        effect.sample_program().unwrap().clone(),
-                        bound.clone(),
-                    );
+                    let mut full_nested =
+                        workload::show(count, effect.sample_program().clone(), bound.clone());
                     workload::apply_operator(
                         &mut full_nested,
                         operator.program().clone().into_parts().0,
@@ -331,11 +287,8 @@ fn main() {
                     (false, &mut pulse_automation_golden),
                     (true, &mut empty_golden),
                 ] {
-                    let mut automated = workload::show(
-                        count,
-                        effect.sample_program().unwrap().clone(),
-                        bound.clone(),
-                    );
+                    let mut automated =
+                        workload::show(count, effect.sample_program().clone(), bound.clone());
                     workload::apply_pulse_automation(&mut automated, pulse_program.clone(), empty);
                     let automated_fixture = automated;
                     let mut automated = automated_fixture.clone().prepare().into_playback();
@@ -364,11 +317,8 @@ fn main() {
                 ] {
                     let mut expected = None;
                     for (operator, reuse) in pair {
-                        let mut show = workload::show(
-                            count,
-                            effect.sample_program().unwrap().clone(),
-                            bound.clone(),
-                        );
+                        let mut show =
+                            workload::show(count, effect.sample_program().clone(), bound.clone());
                         workload::apply_operator(
                             &mut show,
                             operator.program().clone().into_parts().0,
@@ -392,7 +342,7 @@ fn main() {
                 {
                     let mut show = workload::layered_show(
                         count,
-                        effect.sample_program().unwrap().clone(),
+                        effect.sample_program().clone(),
                         bound.clone(),
                         1,
                     );
@@ -436,13 +386,10 @@ fn main() {
         ("alternating_program", &alternating),
     ] {
         let bytecode = operator.program().clone().into_parts().0;
-        writeln!(generated, "pub fn {name}() -> BytecodeProgram {{ BytecodeProgram {{ instructions: vec![{}].into(), curves: vec![{}].into(), gradients: vec![{}].into(), targets: vec![{}].into(), target_lists: vec![{}].into(), target_items: vec![{}].into(), array_constants: vec![{}].into(), enums: vec![{}].into(), enum_types: vec![{}].into(), value_operands: vec![{}].into(), array_types: vec![{}].into(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }} }}",
+        writeln!(generated, "pub fn {name}() -> BytecodeProgram {{ BytecodeProgram {{ instructions: vec![{}].into(), curves: vec![{}].into(), gradients: vec![{}].into(), array_constants: vec![{}].into(), enums: vec![{}].into(), enum_types: vec![{}].into(), value_operands: vec![{}].into(), array_types: vec![{}].into(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }} }}",
         bytecode.instructions.iter().map(instruction_source).collect::<Vec<_>>().join(","),
         bytecode.curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
         bytecode.gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
-        bytecode.targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
-        bytecode.target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
-        bytecode.target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
         bytecode.array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
         bytecode.enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
         bytecode.enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
@@ -551,46 +498,6 @@ fn main() {
         .unwrap();
     }
     writeln!(generated, "];").unwrap();
-    let generator_golden = generator_workload::CASES.map(|(case, name)| {
-        let show = generator_workload::show(200, case, true, true);
-        let reference = generator_workload::show(200, case, false, true);
-        let golden = export_fixture(name, &show);
-        let mut reference = reference.prepare().into_playback();
-        for (frame, expected) in golden.iter().enumerate() {
-            let rendered = reference.evaluate(workload::time(frame));
-            let output = rendered.outputs().next().unwrap().bytes;
-            assert_eq!(workload::checksum(output), *expected, "{name}/{frame}");
-        }
-        golden
-    });
-    writeln!(
-        generated,
-        "#[allow(dead_code)] pub const GENERATOR_GOLDEN: [[u32; {}]; {}] = {generator_golden:?};",
-        workload::FRAMES,
-        generator_workload::CASES.len()
-    )
-    .unwrap();
-    let generator_names = generator_workload::CASES.map(|(_, name)| name);
-    writeln!(
-        generated,
-        "#[allow(dead_code)] pub const GENERATOR_NAMES: [&str; {}] = {generator_names:?};",
-        generator_names.len()
-    )
-    .unwrap();
-    writeln!(
-        generated,
-        "#[allow(dead_code)] pub const GENERATOR_SEQUENCES: [&[u8]; {}] = [",
-        generator_names.len()
-    )
-    .unwrap();
-    for name in generator_names {
-        writeln!(
-            generated,
-            "include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}.donderseq\")),"
-        )
-        .unwrap();
-    }
-    writeln!(generated, "];").unwrap();
     fs::write(
         PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("fixtures.rs"),
         generated,
@@ -605,7 +512,8 @@ fn export_fixture(name: &str, show: &workload::Workload) -> [u32; workload::FRAM
     let decoded = donder_runtime::decode_sequence(&bytes, Default::default()).unwrap();
     fs::write(directory.join(format!("{name}.donderseq")), bytes).unwrap();
     assert_eq!(
-        show.outputs()
+        prepared
+            .outputs()
             .iter()
             .map(|output| output.width)
             .collect::<Vec<_>>(),
@@ -678,38 +586,7 @@ fn value_source(value: &Value) -> String {
         Value::Void | Value::Int(_) | Value::Float(_) | Value::Bool(_) | Value::Color(_) => {
             format!("Value::{value:?}")
         }
-        Value::Target(v) => format!("Value::Target({})", target_source(v)),
-        Value::TargetItems(v) => format!("Value::TargetItems({})", target_items_source(v)),
-        Value::TargetItem(v) => format!("Value::TargetItem({})", target_item_source(v)),
     }
-}
-
-fn target_source(value: &donder_runtime::TargetValue) -> String {
-    let groups = value
-        .groups
-        .iter()
-        .map(|item| target_item_source(item))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("Arc::new(donder_runtime::TargetValue {{ groups: vec![{groups}] }})")
-}
-
-fn target_items_source(value: &donder_runtime::TargetItemsValue) -> String {
-    let groups = value
-        .groups
-        .iter()
-        .map(|item| target_item_source(item))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("Arc::new(donder_runtime::TargetItemsValue {{ groups: vec![{groups}] }})")
-}
-
-fn target_item_source(value: &donder_runtime::TargetItemValue) -> String {
-    let pixels = value.pixels.iter().map(|pixel| format!(
-        "donder_runtime::PreparedPixel {{ fixture_index: {}, fixture_pixel_index: {}, pixel_index: {}, pixel_count: {}, pixel_fraction: f32::from_bits({}) }}",
-        pixel.fixture_index, pixel.fixture_pixel_index, pixel.pixel_index, pixel.pixel_count, pixel.pixel_fraction.to_bits()
-    )).collect::<Vec<_>>().join(",");
-    format!("Arc::new(donder_runtime::TargetItemValue {{ pixels: Arc::from(vec![{pixels}]) }})")
 }
 
 fn curve_source(value: &donder_runtime::Curve) -> String {
@@ -744,18 +621,7 @@ fn instruction_source(instruction: &Instruction) -> String {
     }
     let mut source = format!("Instruction::{instruction:?}");
     for slot in [
-        "Int",
-        "Float",
-        "Bool",
-        "Color",
-        "Array",
-        "Marks",
-        "Curve",
-        "Gradient",
-        "Target",
-        "TargetItems",
-        "TargetItem",
-        "Enum",
+        "Int", "Float", "Bool", "Color", "Array", "Marks", "Curve", "Gradient", "Enum",
     ] {
         for prefix in [" ", "("] {
             source = source.replace(
@@ -779,15 +645,6 @@ fn instruction_source(instruction: &Instruction) -> String {
     if matches!(instruction, Instruction::ContextRead { .. }) {
         source = source.replace("dst: ValueSlot::", "dst: NumberSlot::");
     }
-    if matches!(instruction, Instruction::TargetItems { .. }) {
-        source = source
-            .replace(
-                "source: ValueSlot::Target(",
-                "source: TargetSource::Target(",
-            )
-            .replace("source: Items(", "source: TargetSource::Items(")
-            .replace("source: Item(", "source: TargetSource::Item(");
-    }
     let op_type = match instruction {
         Instruction::FloatArithmetic { .. } | Instruction::FloatArithmeticConst { .. } => {
             Some("ArithmeticOp")
@@ -803,7 +660,6 @@ fn instruction_source(instruction: &Instruction) -> String {
         Instruction::ColorBinary { .. } => Some("ColorBinary"),
         Instruction::ColorComponent { .. } => Some("ColorComponent"),
         Instruction::Mark { .. } => Some("MarkOp"),
-        Instruction::TargetItems { .. } => Some("TargetItemsOp"),
         _ => None,
     };
     if let Some(op_type) = op_type {
@@ -812,6 +668,5 @@ fn instruction_source(instruction: &Instruction) -> String {
     source
         .replace("dst: Void", "dst: ValueSlot::Void")
         .replace("read: ", "read: ContextRead::")
-        .replace("member: ", "member: TargetMember::")
         .replace("pixel: ", "pixel: SignalPixel::")
 }

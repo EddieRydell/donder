@@ -38,125 +38,41 @@ automation eligibility (float, int, bool, enum, and curve). Fixed parameters
 cannot receive active automation, including through detached rebinding. The
 editor labels them as requiring preparation and keeps their values editable.
 
-Generator timing, target selection, and control flow determining emission must
-depend only on fixed parameters and preparation context. Dependency checking
-follows locals, arrays, assignments, branches, and loop-carried values. Generator
-pixel-context reads are rejected. Linked child argument types and live-to-fixed
-arguments are checked even in unused branches.
+## Sampling and bounded loops
 
-Preparation expands structural branches and loops into concrete children. It also
-expands control blocks that assign fixed values, even when they contain no emission;
-a fixed timing or target value must not become live merely because that block also
-computes a rendering parameter. Live-only control blocks remain VM calculations. Child
-parameters retain constants, numeric parent-parameter references, or typed VM
-calculations. Fixed locals, including loop indices, are captured at each emission.
-Generator expansion has one host-side implementation in `GeneratorProgram::specialize`.
-`CompiledEffect` belongs to the language crate and contains exactly one program:
-sample bytecode or a host generator program. Compiling a generator does not create
-a second, unused bytecode program. Its semantic hash includes the specialization
-statements and their calculation programs.
-The portable VM evaluates sample programs and retained calculations; it does not
-emit children or carry a generator context. Captured target selections and duration
-enter calculations as typed parameters.
-Pure live arithmetic, resource selection, arrays, branches, and bounded loops can
-compute rendering parameters. The existing VM execution and array limits apply.
-Unchanged projects without automation or time dependencies keep constant bindings
-and the static playback path.
+Every effect declares `color sample()`; operators sample their connected input
+signals. Compilation produces typed sample or operator programs, and preparation
+binds their parameters and resolves their target pixels. Mark-triggered behavior
+is expressed using event queries in the same sample programs.
 
 `for (int mark in beats) { ... }` visits the zero-based indices of a `marks`
 value in order. The iterable is captured once on entry, and the iteration index
-cannot be assigned in the body. An empty marks value executes the body zero
-times. Generator specialization expands this form during preparation.
+cannot be assigned in the body. An empty marks value executes the body zero times.
 
 `for (int i in range(count, cap)) { ... }` evaluates the integer `count` once
 and runs `max(0, min(count, cap))` iterations with indices starting at zero.
 The cap must be a positive integer literal at most 10,000, and the index cannot
-be assigned in the body. This form allows GUI-controlled counts without a
-playback iteration-limit error. C-style `for` loops are accepted only when the
-compiler proves a constant trip count from a literal integer start and bound,
-a wrapping integer update, and no body assignment to the index. Dynamic
-C-style loops are rejected during compilation.
+be assigned in the body. C-style `for` loops require a statically proven constant
+trip count; dynamic C-style loops are rejected during compilation.
 
-Retained expressions use their declaring generator's `seconds()` and `progress()`
-at the exact requested time. Nested forwarding preserves that clock; each child's
-`sample()` uses its own clock. Bindings remain available when children outlive
-their parents. Existing automation positioning and endpoint rules apply during
-ordinary frames, temporal/spatial queries, and backward seeks. Parameter and
-resource workspaces are reserved during preparation, with exact-time caches
-shared across pixels. Resource references are forwarded without rebuilding them.
+Parameters and VM registers use typed banks. Binding validates authored values;
+bytecode admission validates register addresses, operand spans, control flow,
+array types, and loop state before evaluation. Scalars copy directly between
+matching banks; integer values accepted for float declarations widen at binding.
+Curves, gradients, and marks share their resources rather than rebuilding them
+for each pixel. Automation uses prepared storage.
 
-Bound scalar parameters and VM registers use separate integer, float, boolean,
-and color banks. Compilation records each scalar load's bank address; admission
-checks it against declaration order before execution. Retained-result workspaces
-reserve their layout from the declared output types, including forwarded inputs
-whose values arrive later. Scalar loads copy directly between matching banks,
-without per-load value-kind checks or numeric conversion. Integer values accepted
-for float declarations are converted during binding. Marks, curves, and gradients
-also have typed parameter and register banks. Their queries read those banks
-directly; copied values share the original resources. Curve and gradient
-constants have typed pools. Curve parameters retain their prepared crossing data,
-and automation updates their detached, preallocated curve windows. Targets,
-target collections, and target items also use typed banks and constant pools;
-selection and regrouping preserve the original global pixel records. Member
-reads have separate integer and fractional instructions. Enums have a dedicated
-identifier bank and constant pool; compiled slot metadata supplies a valid
-initial value from each declaration. Enum loads and equality do not inspect
-dynamic value tags. Empty-array results are compiled into ordinary typed slots;
-indexing copies from the destination's bank instead of converting a tagged
-default at runtime. Array parameters, constants, and registers have dedicated
-storage; `void` occupies no register. Array views distinguish authored values,
-VM-calculated storage, and forwarded parameter storage. Each workspace and
-parameter bank owns its array arena, empty when unused; array views never need
-to check for a missing arena. Empty arenas allocate no buffers. Bytecode admission
-bounds calculated-array width and live storage, including one construction slot;
-VM construction uses that reservation directly. Copying into caller-sized result
-buffers still checks their capacity and width. Elements inside those
-arrays retain value tags, but writing an indexed element does not repeat a type
-check: binding validates authored elements, and bytecode admission validates
-calculated-array inputs and the receiving register's type. Tags select the
-destination bank, with int-to-float widening where the declaration permits it.
-Control-flow destinations, operand spans, and loop-state IDs are also checked
-at admission rather than reported as per-instruction execution errors.
-
-Host calculations use the same instruction schema and interpreter as playback,
-but their admitted instruction type permits only clock-context reads and has an
-uninhabited signal capability. `CalculationProgram::bind` checks external inputs
-against the program's declaration. The resulting `BoundCalculation::evaluate`
-returns owned values directly, without a runtime-error branch. Converting a
-retained calculation back to portable bytecode changes its instruction domain,
-not its operations or register addresses. Rendering still uses its existing
-fallible context and signal-sampling contract.
-
-Structural generator expressions select a sealed typed output projection while
-the generator is compiled: booleans for branches, integers for ranges, marks for
-collection iteration, numbers for timing, and target items for emission. These
-projections read the admitted result registers directly; specialization does not
-downcast their evaluated values. Target and target-list projections concatenate
-their existing groups without changing pixel identities. Structural calculations
-also carry fixed-input references created after staging analysis. Lexical values
-and symbolic playback references have separate storage, so those reads do not
-recheck whether a binding is fixed. Declarations initialize locals before any
-read; assigning a playback reference releases the previous constant value.
-Single generator expressions also have a one-value projection, rather than a
-possibly empty result vector. Multi-assignment calculations retain their ordered
-output vectors. When a calculation is retained for playback, projection metadata
-restores its original output slots without recompiling or revalidating the program.
-`GeneratorProgram::bind` admits external argument counts, fixed/live kinds, and
-value types (including unused parameters) before expansion. Its `BoundGenerator`
-borrows both the program and its inputs, preventing either from being replaced
-during that invocation. Expansion still checks calculation argument types when
-binding captured lexical values; these checks have not yet been eliminated.
+## Standard effects
 
 The editable `effects/standard.effect.donder` document defines Pulse, Chase,
-Spin, Wipe, MarkPulse, MarkChase, and MarkWipe. MarkPulse emits Pulse children for selected
-sections, and MarkChase emits Chase children for each mark. Neither mark effect
-adds hue shifting or a separate sampler. Their structural parameters are fixed;
-the emitted children's rendering parameters use ordinary retained bindings.
-Resource validity checks still apply, including nonempty MarkChase collections.
+Spin, Wipe, MarkPulse, MarkChase, and MarkWipe. New projects also include
+ImpactBurst and MarkImpactBurst in separate effect documents.
+
 Spin samples `chase_position` as a position on a strand extended by
 `revolutions`, then wraps that position onto the real strand with modulo. Its
 pulse shape is sampled by spatial distance behind the head; evaluation does not
 loop over revolutions or require a monotonic chase curve.
+
 Wipe projects layout-space pixel positions onto `direction_angle` in degrees:
 0 travels toward +X, 90 toward +Y, and 180 toward -X. It traverses the projected
 XY bounding rectangle of the selected scope, independent of pixel ordering.
@@ -165,14 +81,6 @@ XY bounding rectangle of the selected scope, independent of pixel ordering.
 follow Chase's timing semantics. A scope with no extent along the direction
 pulses simultaneously. The angle is fixed for the lifetime of a Wipe.
 
-MarkWipe emits Wipe children, cycling `gradients` and `wipe_positions` like
-MarkChase. Its fixed `direction_angle` curve uses turns: 0 is 0 degrees,
-0.25 is 90 degrees, and 1 is 360 degrees. It is sampled at each mark's local
-time divided by the generator duration, then converted to degrees before
-applying `offset_seconds`. Each child's angle is captured during preparation, so overlapping
-wipes keep their individual directions. The curve remains editable but cannot
-receive live automation.
-
 The sample DSL exposes `pixel_x()`, `pixel_y()`, `target_min_x()`,
 `target_min_y()`, `target_max_x()`, and `target_max_y()` in layout meters.
 Elaboration uses the shared fixture geometry expansion and transforms; runtime
@@ -180,35 +88,29 @@ and clip rasters consume the same spatial contexts. Device fragments preserve
 the original scope bounds. Projects without spatial programs omit spatial data
 from their prepared runtime payload.
 
-MarkImpactBurst's gradient collection is fixed because its emptiness determines
-whether a child is emitted.
+MarkPulse, MarkWipe, and MarkImpactBurst retrigger from the latest eligible mark,
+discarding older pulses. MarkPulse selects fixture-aware sections using
+`section_count` and `section_index`. MarkWipe cycles `gradients` and
+`wipe_positions` by mark index and uses the latest curve crossing, including on
+nonmonotonic curves. Its fixed `direction_angle` curve uses turns: 0 is 0 degrees,
+0.25 is 90 degrees, and 1 is 360 degrees. The angle is sampled at the mark's
+local time divided by the clip duration, before applying `offset_seconds`.
 
-`MarkPulseSample`, `MarkChaseSample`, `MarkWipeSample`, and
-`MarkImpactBurstSample` are non-generator counterparts. Pulse, Wipe, and
-ImpactBurst retain their generator parameters and retrigger from the latest
-eligible mark, discarding older pulses. Wipe uses the latest curve crossing,
-including on nonmonotonic curves.
-`MarkChaseSample` instead takes one fixed `chase_position` curve, shared by every
-mark, rather than a `chase_positions` array. Its first crossing at each pixel
-defines that pixel's travel delay. The mark lookup subtracts this delay, so a
-new mark replaces the older pulse only when the new chase reaches that pixel.
-Increasing and decreasing trajectories work alike; repeated crossings in a
-nonmonotonic trajectory do not create additional arrivals. Gradients still
-alternate by the selected mark's index. This effect has no mark-iteration loop.
-Their output is confined to the parent clip, unlike generated children whose
-tails can continue outside it. A negative would-be emitted start contributes
-nothing, matching omission of an invalid negative-start child. These are
-comparison alternatives, not visually equivalent replacements when overlapping
-pulses, repeated curve crossings, or tails beyond the parent clip matter.
+MarkChase takes one fixed `chase_position` curve shared by every mark. Its first
+crossing at each pixel defines that pixel's travel delay. The mark lookup
+subtracts this delay, so a new mark replaces the older pulse only when the new
+chase reaches that pixel. Increasing and decreasing trajectories work alike;
+repeated crossings in a nonmonotonic trajectory do not create additional arrivals.
+Gradients alternate by the selected mark's index. This effect has no mark loop.
+
+Mark effects stop at their clip boundary and when the selected pulse's duration
+has elapsed. Marks whose offset would start a pulse before the clip contribute
+nothing. Empty mark or gradient collections produce black.
 
 Declaration metadata governs automation even when an instance has no active
-automation. Fixed child arguments and assignments cannot receive live values;
-structural branches are rejected conservatively, including branches that appear
-to emit equivalent children. Imported and unused emissions undergo the same
-type, required-argument, and fixed/live checks before expansion. Authored active
-automation targeting a fixed parameter is an error. Definition replacement keeps
-the explicit detached-binding workflow; detached bindings cannot activate against
-a fixed parameter.
+automation. Authored active automation targeting a fixed parameter is an error.
+Definition replacement keeps the explicit detached-binding workflow; detached
+bindings cannot activate against a fixed parameter.
 
 ## Project-local standard operators
 
@@ -403,14 +305,7 @@ the entire edit. Source pickers offer named objects in loaded local documents; i
   dictionary keys, but their values are parsed strictly. Arbitrary metadata is
   not retained or silently discarded.
 - Saving retained DSL text does not project edits to compiled effect/operator
-  definitions back into source. Generated child effects are derived preparation
-  output, not independently editable source objects. Editing generated output
-  back into arbitrary generator code is outside this contract.
-- A generator's unqualified `timeline.emit Child` resolves `Child` in the
-  generator definition's document, not in the calling YAML document's import
-  group. Cross-file children require an explicit effect-document import (below).
-  Imports do not re-export imported names, and operator documents do not support
-  imports: operators currently have no corresponding cross-file call construct.
+  definitions back into source. Edit the DSL source to change these definitions.
 - Project save writes loaded local documents. Unreferenced files are left alone.
 - Semantic round-tripping is not byte-identical round-tripping. The separate
   source-text write API writes supplied text exactly; that does not imply that a
@@ -426,71 +321,26 @@ unknown-key rejection, unused-object preservation, missing-import diagnostics,
 and refusal to save inconsistent inventories without touching files.
 `crates/donder-project-io/tests/roundtrip.rs` additionally checks same-named definitions in different files
 through save/reload and insertion of a sequence in a new nested file.
-`crates/donder-elaboration/tests/generator_source_scope.rs` checks cross-document
-and local generator children, mutual imports, rejection of caller-scope lookup,
-and actual starter generator emission with nonempty marks/gradients.
 `crates/donder-project-io/tests/path_refactor.rs` covers import-path moves and
 object identity through save/reload, directory moves, and audio path updates.
 
 These are focused IO/preparation checks, not an exhaustive GUI action matrix,
 proof for every schema field, or a rendered-output equivalence benchmark.
 
-## Generator imports
+## Document imports
 
-Effect imports precede declarations and use the local document import
-resolver. Local paths are **project-root relative**, just like YAML imports, not
-relative to the effect file. Local DSL imports use the shared non-empty
-document-list form:
+YAML imports use project-root-relative document paths and explicit aliases.
+Aliases use letters, digits, and underscores, with a non-digit first character;
+keywords and `builtins` are reserved. An import can contain several documents
+with unique object names. Imports expose only their targets' own objects, not
+transitively imported names.
 
-```text
-import bursts from ["effects/impact-burst.effect.donder"];
-
-effect Hits {
-  param gradient palette;
-  param curve intensity;
-
-  void generate() {
-    timeline.emit bursts.ImpactBurst {
-      start: 0.0,
-      duration: 0.45,
-      target: target,
-      gradient: palette,
-      intensity: intensity
-    };
-  }
-}
-```
-
-Local aliases use letters, digits, and underscores, with a non-digit first
-character; keywords and `builtins` are reserved. An import can contain several
-documents with unique object names. Imports are explicit, not transitive. Duplicate
-aliases, duplicate target documents, unsafe/missing paths, unresolved children,
-and child references to non-effect objects are errors.
-
-Local declarations are indexed before following imports, so mutual document
-imports are valid. Every compiled emitted child reference is checked during
-loading, even if that emission would never execute. Cyclic generated-effect
-references are rejected at project admission; finite expansion has no arbitrary
-depth or generated-effect-count budget.
-
-Language compilation retains symbolic emitted references and diagnostic spans
-separately from portable bytecode. Project IO links every emitted child into an
-ordered target table, including local and built-in children. The VM returns only
-a typed numeric slot; elaboration indexes the linked table directly. Diagnostic
-spans do not affect semantic equality or compilation/cache signatures.
-
-Import declarations and aliases have one language-owned representation. Project
-IO builds scopes after all reachable local inventories are available and uses
-the same lookup for YAML references and emitted children. Imports expose only
-their targets' own objects. Same-document GUI references need no import; other
-local selections reuse an import or create deterministic aliases such as
-`effects_2`.
-
-Prepared playback bytecode does not retain generator import
-tables, and no per-frame path or name resolution is introduced. Structural path
-edits update explicit DSL import-path tokens and resolved identities; ordinary
-saves retain the DSL text. This narrow source edit is not general AST-to-DSL
-serialization.
+The loader indexes local declarations before following imports, so mutual
+document imports are valid. Project IO owns scopes and reference resolution.
+Same-document GUI references need no import; other local selections reuse an
+import or create a deterministic alias such as `effects_2`. Effect and operator
+DSL documents contain declarations, not cross-document calls or imports.
+Prepared playback never resolves document paths or symbolic object names.
 
 ## Validity
 
@@ -586,10 +436,7 @@ element. Indexing an empty array returns the element type's default value;
 array to a local variable. Mark lookup is different from array indexing:
 `mark_at(marks, index)` takes an integer index and returns NaN for a negative or
 out-of-range index, rather than selecting a different event.
-`pick(items, index)` clamps to the first or last target item when the collection
-is nonempty. An empty collection yields an empty `TargetItem`, whose integer
-members read as zero and `pixel_fraction` reads as `0.0`. Collection counts
-above the DSL integer range report `i32::MAX`.
+Collection counts above the DSL integer range report `i32::MAX`.
 Sampling a gradient at NaN or sampling an empty gradient returns black;
 these rules apply to direct and parameter sampling alike. Authored gradient
 stops must have finite positions in `[0, 1]` and be nondecreasing; an empty
@@ -673,8 +520,7 @@ convert units explicitly if the pulse duration is expressed in seconds.
 `section_count(width)` returns the number of sections in the current sample
 target, and `section_index(width)` returns the zero-based section containing
 the sampled pixel. Both take an integer width and return an integer. They use
-the same section ordering and fixture boundaries as generator
-`sections(target, width)`: a short final section belongs to its fixture rather
+fixture boundaries: a short final section belongs to its fixture rather
 than being joined to the next fixture's first pixels. Per-fixture effects query
 their own fixture; whole-target effects query the ordered sections across the
 target's fixtures.
@@ -682,24 +528,20 @@ target's fixtures.
 Widths below one are treated as one. An empty sample target has count zero and
 index `-1`; results beyond the DSL integer range saturate at `i32::MAX`. These
 queries are available in effect and operator sampling contexts, using the
-current sample target's fixture membership. They are not available in generators
-or retained calculations, which cannot read pixel context. Generators use
-`sections(target, width)` to obtain the actual target items.
+current sample target's fixture membership.
 
 For example, two 113-pixel fixtures with width 7 have 17 sections each and 34
 sections in total. The second fixture starts at section index 17. Dividing a
 flattened global pixel index by 7 would give a different answer and must not be
-used as a substitute when matching generator selections.
+used as a substitute for fixture-aware section queries.
 
 ## Runtime budgets
 
 The renderer limits a prepared sequence to 250,000 frames. C-style loops are
 admitted only when each loop is proven to finish within 10,000 iterations;
 dynamic `range` loops clamp their count to the authored cap. Marks iteration
-uses the collection's length. Generator child counts and nesting depth have no
-arbitrary preparation budgets; project validation rejects cyclic generated
-effect references. Preparation constructs runtime-owned storage from accepted
-inputs; evaluation uses the admitted programs and prebound parameter transfers.
+uses the collection's length. Preparation constructs runtime-owned storage from
+accepted inputs; evaluation uses admitted programs and bound parameters.
 Neither operation returns an ordinary execution error. Memory exhaustion and
 system resource failures remain outside that contract. Portable archive loading
 may impose device-specific resource limits before accepting untrusted data.

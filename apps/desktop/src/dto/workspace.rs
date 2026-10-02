@@ -232,13 +232,6 @@ pub enum SequenceEffectScope {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum SequenceEffectDefinitionKind {
-    Sample,
-    Generator,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub enum SequenceResizeEdge {
     Left,
     Right,

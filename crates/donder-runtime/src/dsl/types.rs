@@ -63,10 +63,6 @@ pub enum Type {
     Color,
     Signal,
     Marks,
-    Timeline,
-    Target,
-    TargetItems,
-    TargetItem,
     Curve,
     Gradient,
     Array(#[rkyv(omit_bounds)] Box<Type>),
@@ -84,9 +80,6 @@ pub enum Value {
     Bool(bool),
     Color(Color),
     Marks(Arc<Marks>),
-    Target(Arc<TargetValue>),
-    TargetItems(Arc<TargetItemsValue>),
-    TargetItem(Arc<TargetItemValue>),
     Curve(Arc<Curve>),
     Gradient(Arc<Gradient>),
     Array(#[rkyv(omit_bounds)] Arc<[Value]>),
@@ -98,9 +91,7 @@ impl Type {
     /// parameter declarations, including when nested inside arrays.
     pub fn is_context_only(&self) -> bool {
         match self {
-            Self::Signal | Self::Timeline | Self::Target | Self::TargetItems | Self::TargetItem => {
-                true
-            }
+            Self::Signal => true,
             Self::Array(item) => item.is_context_only(),
             _ => false,
         }
@@ -126,9 +117,6 @@ impl Type {
             | (Self::Bool, Value::Bool(_))
             | (Self::Color, Value::Color(_))
             | (Self::Marks, Value::Marks(_))
-            | (Self::Target, Value::Target(_))
-            | (Self::TargetItems, Value::TargetItems(_))
-            | (Self::TargetItem, Value::TargetItem(_))
             | (Self::Curve, Value::Curve(_))
             | (Self::Gradient, Value::Gradient(_)) => true,
             (Self::Enum(options), Value::Enum(value)) => options.contains(value),
@@ -145,7 +133,7 @@ impl Type {
 
     pub fn default_value(&self) -> Value {
         match self {
-            Self::Void | Self::Signal | Self::Timeline => Value::Void,
+            Self::Void | Self::Signal => Value::Void,
             Self::Int => Value::Int(0),
             Self::Float => Value::Float(0.0),
             Self::Bool => Value::Bool(false),
@@ -155,51 +143,11 @@ impl Type {
                 blue: 0,
             }),
             Self::Marks => Value::Marks(Arc::new(Marks { marks: Vec::new() })),
-            Self::Target => Value::Target(Arc::new(TargetValue { groups: Vec::new() })),
-            Self::TargetItems => {
-                Value::TargetItems(Arc::new(TargetItemsValue { groups: Vec::new() }))
-            }
-            Self::TargetItem => Value::TargetItem(Arc::new(TargetItemValue {
-                pixels: Arc::from([]),
-            })),
             Self::Curve => Value::Curve(Arc::new(Curve { points: Vec::new() })),
             Self::Gradient => Value::Gradient(Arc::new(Gradient { stops: Vec::new() })),
             Self::Array(_) => Value::Array(Arc::from([])),
             Self::Enum(options) => Value::Enum(options[0].clone()),
         }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct TargetValue {
-    pub groups: Vec<Arc<TargetItemValue>>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct TargetItemsValue {
-    pub groups: Vec<Arc<TargetItemValue>>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct TargetItemValue {
-    /// Generator selection only regroups existing records. Their physical
-    /// addresses and sampling coordinates retain the prepared representation.
-    pub pixels: Arc<[crate::signal::PreparedPixel]>,
-}
-
-impl TargetItemValue {
-    /// Flatten selected groups without changing pixel addresses, sample context,
-    /// or order. A single group can keep its existing shared storage.
-    pub fn from_groups(groups: &[Arc<Self>]) -> Arc<Self> {
-        if let [group] = groups {
-            return Arc::clone(group);
-        }
-        Arc::new(Self {
-            pixels: groups
-                .iter()
-                .flat_map(|group| group.pixels.iter().copied())
-                .collect(),
-        })
     }
 }
 

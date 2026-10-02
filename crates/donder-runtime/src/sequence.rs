@@ -7,10 +7,10 @@ mod builder;
 mod compact;
 pub(crate) mod programs;
 pub use builder::{
-    EffectHandle, FixtureGeometry, FixtureHandle, GeneratedEffect, GeneratorPlayback, LookupHandle,
-    OperatorDefinition, OperatorInvocation, OutputEncoding, OutputHandle, RgbOrder,
-    SampleDefinition, SampleInvocation, SequenceBuilder, SequenceRoot, SequenceTiming,
-    SequenceWindow, SignalHandle, TargetHandle, TargetScope, WhitePosition, WindowHandle,
+    EffectHandle, FixtureGeometry, FixtureHandle, LookupHandle, OperatorDefinition,
+    OperatorInvocation, OutputEncoding, OutputHandle, RgbOrder, SampleDefinition, SampleInvocation,
+    SequenceBuilder, SequenceRoot, SequenceTiming, SequenceWindow, SignalHandle, TargetHandle,
+    TargetScope, WhitePosition, WindowHandle,
 };
 use programs::AdmittedPrograms;
 
@@ -25,19 +25,14 @@ pub struct PreparedSequence {
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct SequenceData<
     P = Box<[crate::dsl::bytecode::BytecodeProgram]>,
-    E = crate::bindings::PreparedParameterEnvironment,
     A = Box<[crate::signal::PreparedAutomation]>,
 > {
-    pub(crate) signals: PreparedSignalGraph<P, E, A>,
+    pub(crate) signals: PreparedSignalGraph<P, A>,
     pub(crate) patch: PreparedPatch,
     pub(crate) outputs: Box<[PreparedOutput]>,
 }
 
-pub(crate) type ExecutableSequenceData = SequenceData<
-    AdmittedPrograms,
-    crate::bindings::ExecutableEnvironment,
-    crate::dsl::AutomationPlan,
->;
+pub(crate) type ExecutableSequenceData = SequenceData<AdmittedPrograms, crate::dsl::AutomationPlan>;
 
 /// One output buffer. Controller indices refer to the active setup's controller
 /// order; authored document identities and network protocols stay on the host.
@@ -158,7 +153,7 @@ impl PreparedSequence {
         self.data.signals.effects.len()
     }
 
-    /// Start and duration of each retained effect, including generated children.
+    /// Start and duration of each retained effect.
     pub fn effect_windows(
         &self,
     ) -> impl ExactSizeIterator<Item = (SampleTime, SampleDuration)> + '_ {
@@ -190,8 +185,7 @@ impl PreparedSequence {
         self.data.signals.duration
     }
 
-    /// Resolve an authored clip within this prepared sequence, including all of
-    /// its generator children. No source project or second preparation is needed.
+    /// Resolve an authored clip without loading or preparing its source again.
     pub fn clip(&self, id: u32) -> Option<crate::clip::SequenceClip<'_>> {
         self.data
             .signals
@@ -275,9 +269,7 @@ mod tests {
 
     #[test]
     fn builder_nested_operators_keep_temporal_queries_and_clip_identity() {
-        use crate::dsl::{
-            CompiledOperator, DslBindCache, Identifier, OperatorInputDecl, SampleProgram,
-        };
+        use crate::dsl::{DslBindCache, OperatorProgram, SampleProgram};
         use core::num::NonZeroU32;
         let raw = queried_sequence(crate::dsl::bytecode::SignalPixel::Current)
             .archive_data()
@@ -286,15 +278,7 @@ mod tests {
         let sample =
             SampleDefinition::new(SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap());
         let operator = OperatorDefinition::new(
-            CompiledOperator::admit(
-                Identifier::new("query".into()).unwrap(),
-                vec![OperatorInputDecl {
-                    name: Identifier::new("source".into()).unwrap(),
-                }],
-                vec![],
-                raw[2].clone(),
-            )
-            .unwrap(),
+            OperatorProgram::admit(raw[2].clone(), 1, Box::new([])).unwrap(),
         );
         let mut cache = DslBindCache::default();
         let sample = sample.bind(vec![], &mut cache).unwrap();
@@ -320,7 +304,7 @@ mod tests {
             let target = builder.target([fixture], TargetScope::PerFixture);
             let window = builder.windows().next().unwrap();
             let effect = builder.sample(&sample, window, target);
-            builder.clip(7, window, target, [effect]);
+            builder.clip(7, effect);
             let layer = builder.layer(true, [effect]);
             let inner = builder.operator(&operator, |input| {
                 assert_eq!(input, 0);
@@ -448,8 +432,7 @@ mod tests {
         use crate::dsl::bytecode::{BytecodeProgram, ColorSlot, Instruction, SlotLayout};
         use crate::patch::{PixelEncoding, PreparedPixelRoute};
         use crate::signal::{
-            PreparedClip, PreparedEffect, PreparedEffectImplementation, PreparedFixture,
-            PreparedLayer, PreparedPixel,
+            PreparedClip, PreparedEffect, PreparedFixture, PreparedLayer, PreparedPixel,
         };
 
         let mut data = empty_sequence().archive_data();
@@ -490,9 +473,6 @@ mod tests {
             enums: Box::new([]),
             enum_types: Box::new([]),
             curves: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             gradients: Box::new([]),
             value_operands: Box::new([]),
             array_types: Box::new([]),
@@ -511,21 +491,12 @@ mod tests {
             start_time: SampleTime::from_ticks(200_000),
             duration: SampleDuration::from_ticks(600_000),
             target: 0,
-            implementation: PreparedEffectImplementation::Dsl {
-                program: 0,
-                bound_params: BoundParams::default(),
-            },
+            program: 0,
+            bound_params: BoundParams::default(),
             automation: None,
         }]
         .into();
-        data.signals.clips = vec![PreparedClip {
-            id: 7,
-            start_time: SampleTime::from_ticks(200_000),
-            duration: SampleDuration::from_ticks(600_000),
-            target: 0,
-            effects: vec![0].into(),
-        }]
-        .into();
+        data.signals.clips = vec![PreparedClip { id: 7, effect: 0 }].into();
         data.signals.effects_by_layer = vec![vec![0].into_boxed_slice()].into();
         data.signals.layers = vec![PreparedLayer { enabled: true }].into();
         data.signals.plan = SignalPlan {
@@ -563,7 +534,6 @@ mod tests {
         admit_fixture(
             PreparedSignalGraph {
                 clips: Box::new([]),
-                parameter_environments: Box::new([]),
                 frame_rate: 60,
                 frame_count: 60,
                 duration: SampleDuration::from_ticks(1_000_000),
@@ -613,7 +583,7 @@ mod tests {
 
     fn queried_sequence(pixel: crate::dsl::bytecode::SignalPixel<i32>) -> PreparedSequence {
         use crate::dsl::bytecode::{ColorSlot, FloatSlot, Instruction, IntSlot};
-        use crate::signal::{PreparedOperator, PreparedOperatorNode};
+        use crate::signal::PreparedOperatorNode;
         let mut data = timed_sequence().archive_data();
         let mut programs = data.signals.programs.into_vec();
         let mut second = programs[0].clone();
@@ -671,10 +641,8 @@ mod tests {
         effects[0].target = 1;
         let mut second = effects[0].clone();
         second.target = 2;
-        second.implementation = crate::signal::PreparedEffectImplementation::Dsl {
-            program: 1,
-            bound_params: crate::dsl::BoundParams::default(),
-        };
+        second.program = 1;
+        second.bound_params = crate::dsl::BoundParams::default();
         effects.push(second);
         data.signals.effects = effects.into();
         data.signals.effects_by_layer[0] = vec![0, 1].into();
@@ -689,7 +657,7 @@ mod tests {
                     kind: PreparedSignalKind::Operator {
                         operator: PreparedOperatorNode {
                             automation_slot: 0,
-                            implementation: PreparedOperator::Dsl(2),
+                            program: 2,
                             params: crate::dsl::BoundParams::default(),
                         },
                         inputs: vec![0].into(),

@@ -71,15 +71,8 @@ fn sequence(
     )
     .unwrap();
     let operator = operator.then(|| {
-        let operator = CompiledOperator::admit(
-            Identifier::new("SectionQueries".into()).unwrap(),
-            vec![OperatorInputDecl {
-                name: Identifier::new("source".into()).unwrap(),
-            }],
-            vec![],
-            sample.clone().into_parts().0,
-        )
-        .unwrap();
+        let operator =
+            OperatorProgram::admit(sample.clone().into_parts().0, 1, Box::new([])).unwrap();
         OperatorDefinition::new(operator)
             .bind(vec![], &mut DslBindCache::default())
             .unwrap()
@@ -110,7 +103,7 @@ fn sequence(
         let target = builder.target([fixtures[1], fixtures[0]], scope);
         let window = builder.whole_sequence();
         let effect = builder.sample(&invocation, window, target);
-        builder.clip(7, window, target, [effect]);
+        builder.clip(7, effect);
         let layer = builder.layer(true, [effect]);
         let layer = operator
             .as_ref()

@@ -1,6 +1,6 @@
 use donder_language::dsl::{compile_effects, compile_operators};
 use donder_runtime::{
-    Color, CompiledOperator, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition,
+    Color, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition, OperatorProgram,
     PreparedSequence, SampleDefinition, SampleTime, SequenceTiming, TargetScope,
 };
 use std::num::NonZeroU32;
@@ -12,9 +12,8 @@ fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
         } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    let sample = SampleDefinition::new(effect.sample_program().unwrap().clone())
+    .remove(0);
+    let sample = SampleDefinition::new(effect.sample_program().clone())
         .bind(vec![], &mut DslBindCache::default())
         .unwrap();
     let operator = query.map(|(query, cached)| {
@@ -23,8 +22,8 @@ fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
         ))
         .unwrap()
         .remove(0);
-        let compiled = if cached {
-            compiled
+        let program = if cached {
+            compiled.program().clone()
         } else {
             let mut bytecode = compiled.program().clone().into_parts().0;
             for instruction in &mut bytecode.instructions {
@@ -32,15 +31,18 @@ fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
                     *frame_cache = u32::MAX;
                 }
             }
-            CompiledOperator::admit(
-                compiled.name().clone(),
-                compiled.inputs().to_vec(),
-                compiled.params().to_vec(),
+            OperatorProgram::admit(
                 bytecode,
+                compiled.inputs().len(),
+                compiled
+                    .params()
+                    .iter()
+                    .map(|param| param.ty.clone())
+                    .collect(),
             )
             .unwrap()
         };
-        OperatorDefinition::new(compiled)
+        OperatorDefinition::new(program)
             .bind(vec![], &mut DslBindCache::default())
             .unwrap()
     });

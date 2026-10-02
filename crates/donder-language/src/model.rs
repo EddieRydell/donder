@@ -13,9 +13,7 @@ use std::sync::Arc;
 mod editing;
 pub use editing::ProjectEdit;
 mod accepted;
-pub use accepted::{
-    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedSequence, EffectExecution,
-};
+pub use accepted::{AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedSequence};
 
 /// Unvalidated input assembled by the loader. Admission consumes this value;
 /// accepted projects never expose a mutable assembly view.

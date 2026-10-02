@@ -722,13 +722,10 @@ export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { ty
 
 export type SequenceEffectDefinition = {
 	name: string,
-	kind: SequenceEffectDefinitionKind,
 	effect: SequenceEffectReference,
 	import: string | null,
 	params: SequenceEffectDefinitionParam[],
 };
-
-export type SequenceEffectDefinitionKind = "sample" | "generator";
 
 export type SequenceEffectDefinitionParam = {
 	fixed: boolean,

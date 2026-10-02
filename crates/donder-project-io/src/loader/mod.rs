@@ -71,7 +71,6 @@ impl Loader {
         let entrypoint = self.entrypoint.clone();
         self.load_document(&entrypoint)?;
         self.build_document_scopes()?;
-        self.link_generated_effects()?;
         let mut project = self.resolve_project(&entrypoint)?;
         self.resolve_loaded_objects(&mut project)?;
         let project =
@@ -267,8 +266,8 @@ impl Loader {
         if let Ok(path) = absolute.strip_prefix(&self.workspace.root) {
             self.checked_dsl_documents.insert(path.to_path_buf());
         }
-        let compiled = compile_effect_document(&source).map_err(|diagnostics| {
-            LoadProjectError::InvalidEffect {
+        let compiled =
+            compile_effects(&source).map_err(|diagnostics| LoadProjectError::InvalidEffect {
                 path: relative.to_path_buf(),
                 diagnostics: diagnostics
                     .into_iter()
@@ -281,33 +280,11 @@ impl Loader {
                         )
                     })
                     .collect(),
-            }
-        })?;
+            })?;
         let mut visible = IndexMap::new();
         let mut objects = Vec::new();
-        let imports: Vec<_> = compiled
-            .imports
-            .iter()
-            .map(|import| crate::imports::ParsedImport {
-                declaration: import.declaration.clone(),
-                range: Some(crate::diagnostics::byte_range(
-                    &source,
-                    import.span.start,
-                    import.span.end,
-                )),
-                source_ranges: import
-                    .source_spans
-                    .iter()
-                    .map(|span| {
-                        Some(crate::diagnostics::byte_range(
-                            &source, span.start, span.end,
-                        ))
-                    })
-                    .collect(),
-            })
-            .collect();
-        for effect in compiled.effects {
-            let name = effect.effect.name().as_str().to_string();
+        for effect in compiled {
+            let name = effect.name().as_str().to_string();
             let id = EffectDefinitionId(self.source_identity(document_id, name.clone()));
             self.definitions
                 .effects
@@ -329,14 +306,15 @@ impl Loader {
             );
         }
         self.visible_objects.insert(document_id.clone(), visible);
-        let import_edges = self.load_imports(document_id, &imports)?;
         let document =
-            SourceDocument::new(import_edges, objects, SourceDocumentKind::Effect { source })
+            SourceDocument::new(Vec::new(), objects, SourceDocumentKind::Effect { source })
                 .map_err(|message| LoadProjectError::InvalidDocument {
                     path: relative.to_path_buf(),
                     range: None,
                     message,
                 })?;
+        self.import_locations
+            .insert(document_id.clone(), Vec::new());
         self.documents.insert(document_id.clone(), document);
         Ok(())
     }
@@ -712,7 +690,7 @@ use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::controller::ControllerId;
-use donder_language::dsl::{Identifier, compile_effect_document, compile_operators};
+use donder_language::dsl::{Identifier, compile_effects, compile_operators};
 use donder_language::effect::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
 };

@@ -64,8 +64,6 @@ impl<'source> Lexer<'source> {
 
         let text = &self.source[start..self.cursor];
         let kind = match text {
-            "import" => TokenKind::Keyword(Keyword::Import),
-            "from" => TokenKind::Keyword(Keyword::From),
             "effect" => TokenKind::Keyword(Keyword::Effect),
             "operator" => TokenKind::Keyword(Keyword::Operator),
             "input" => TokenKind::Keyword(Keyword::Input),
@@ -341,8 +339,6 @@ pub enum TokenKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Keyword {
-    Import,
-    From,
     Effect,
     Operator,
     Input,

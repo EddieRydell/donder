@@ -25,7 +25,7 @@ pub(crate) fn parse_yaml_value(path: &Utf8Path, text: &str) -> Result<Value, Loa
 }
 
 pub(crate) fn effect_diagnostics(path: &Utf8Path, text: &str) -> Vec<IoDiagnostic> {
-    match compile_effect_document(text) {
+    match compile_effects(text) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics
             .into_iter()
@@ -381,9 +381,7 @@ pub(crate) fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
     }
 }
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::dsl::{
-    Diagnostic as DslDiagnostic, compile_effect_document, compile_operators,
-};
+use donder_language::dsl::{Diagnostic as DslDiagnostic, compile_effects, compile_operators};
 use indexmap::{IndexMap, IndexSet};
 use marked_yaml::{LoadError as MarkedYamlError, Marker, Node};
 use std::cell::RefCell;

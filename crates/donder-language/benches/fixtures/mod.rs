@@ -64,7 +64,12 @@ pub fn prepared_effect(
     params: IndexMap<Identifier, Value>,
 ) -> (CompiledEffect, BoundParams) {
     let effect = sample_effect(effect_name, source);
-    let bound = donder_runtime::BoundParams::bind(effect.params(), &params).expect("valid params");
+    let bound = donder_language::dsl::bind_params(
+        effect.params(),
+        &params,
+        &mut donder_runtime::DslBindCache::default(),
+    )
+    .expect("valid params");
     (effect, bound)
 }
 
@@ -86,9 +91,8 @@ fn sample_effect(effect_name: &str, source: &str) -> CompiledEffect {
     compile_effects(source)
         .expect("effect source should compile")
         .into_iter()
-        .find(|effect| effect.effect.name().as_str() == effect_name)
+        .find(|effect| effect.name().as_str() == effect_name)
         .expect("compiled effect should exist")
-        .effect
 }
 
 fn sample_context() -> RunContext {

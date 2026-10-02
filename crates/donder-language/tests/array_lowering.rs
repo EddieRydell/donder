@@ -31,30 +31,18 @@ fn fixed_array_syntax_compiles_to_the_same_program_as_scalar_syntax() {
     } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let scalar = compile_effects(
         "effect Scalar { color sample() {
         return rgb(pixel_fraction(), progress(), 0.25);
     } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    assert_eq!(
-        array.sample_program().unwrap(),
-        scalar.sample_program().unwrap()
-    );
-    assert_eq!(array.sample_program().unwrap().bytecode().layout.arrays, 0);
-    assert_eq!(array.sample_program().unwrap().bytecode().layout.ints, 0);
-    assert!(
-        array
-            .sample_program()
-            .unwrap()
-            .bytecode()
-            .value_operands
-            .is_empty()
-    );
+    .remove(0);
+    assert_eq!(array.sample_program(), scalar.sample_program());
+    assert_eq!(array.sample_program().bytecode().layout.arrays, 0);
+    assert_eq!(array.sample_program().bytecode().layout.ints, 0);
+    assert!(array.sample_program().bytecode().value_operands.is_empty());
 }
 
 #[test]
@@ -71,13 +59,12 @@ fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
         if (index == 1) { selected = pixel_index() + 1; }
         return rgb(pixel_index() + 1, selected, pixel_index() + 1);
     } }";
-    let array = compile_effects(source).unwrap().remove(0).effect;
-    let scalar = compile_effects(scalar).unwrap().remove(0).effect;
-    assert_eq!(array.sample_program().unwrap().bytecode().array_capacity, 0);
+    let array = compile_effects(source).unwrap().remove(0);
+    let scalar = compile_effects(scalar).unwrap().remove(0);
+    assert_eq!(array.sample_program().bytecode().array_capacity, 0);
     assert!(
         array
             .sample_program()
-            .unwrap()
             .bytecode()
             .instructions
             .iter()
@@ -86,7 +73,6 @@ fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
     assert!(
         array
             .sample_program()
-            .unwrap()
             .bytecode()
             .instructions
             .iter()
@@ -135,8 +121,7 @@ fn reference_sampling_keeps_integer_and_float_index_semantics() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let curve = Curve {
         points: vec![
             CurvePoint {
@@ -207,12 +192,8 @@ fn unused_arrays_with_total_items_need_no_storage() {
     } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    assert_eq!(
-        effect.sample_program().unwrap().bytecode().array_capacity,
-        0
-    );
+    .remove(0);
+    assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -234,16 +215,11 @@ fn fixed_indices_and_aliases_need_no_calculated_array_storage() {
     } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
-    assert_eq!(
-        effect.sample_program().unwrap().bytecode().array_capacity,
-        0
-    );
+    .remove(0);
+    assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
     assert!(
         !effect
             .sample_program()
-            .unwrap()
             .bytecode()
             .instructions
             .iter()
@@ -324,8 +300,7 @@ fn mutable_values_branches_and_backedges_preserve_array_snapshots() {
             "effect Snapshot {{ color sample() {{ {body} }} }}"
         ))
         .unwrap()
-        .remove(0)
-        .effect;
+        .remove(0);
         let params = effect
             .bind(
                 &IndexMap::new(),
@@ -361,16 +336,11 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
         }} }}"
         ))
         .unwrap()
-        .remove(0)
-        .effect;
-        assert_eq!(
-            effect.sample_program().unwrap().bytecode().array_capacity,
-            0
-        );
+        .remove(0);
+        assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
         assert!(
             effect
                 .sample_program()
-                .unwrap()
                 .bytecode()
                 .instructions
                 .iter()
@@ -397,8 +367,7 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
         } }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -415,8 +384,7 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
         }",
     )
     .unwrap()
-    .remove(0)
-    .effect;
+    .remove(0);
     let params = effect
         .bind(
             &IndexMap::new(),
@@ -438,7 +406,7 @@ fn dynamic_selection_preserves_aliases_and_typed_values() {
          return rgb(values[pixel_index()][0], 0.0, 0.0);",
     ] {
         let effect = compile_effects(&format!("effect Select {{ color sample() {{ {body} }} }}"))
-            .unwrap().remove(0).effect;
+            .unwrap().remove(0);
         let params = effect.bind(&IndexMap::new(), &mut donder_runtime::DslBindCache::default()).unwrap();
         let mut vm = VmWorkspace::default();
         for progress in [0.0, 0.5, 1.0, 0.0] {

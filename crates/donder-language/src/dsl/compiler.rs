@@ -3,21 +3,20 @@ use super::bytecode::{
     ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot,
     CompareOp, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary,
     GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot,
-    ParamId, PoolSpan, SlotLayout, Target, TargetItemSlot, TargetItemsOp, TargetItemsSlot,
-    TargetMember, TargetSlot, TargetSource, ValueSlot,
+    ParamId, PoolSpan, SlotLayout, Target, ValueSlot,
 };
 use super::checked::{
     CheckedBlock, CheckedEffectDecl, CheckedExpr, CheckedExprKind, CheckedModule,
     CheckedOperatorDecl, CheckedStmt,
 };
 use super::types::{Identifier, Type, Value};
-use super::{CompiledEffect, CompiledOperator, EffectKind, EffectProgram};
+use super::{CompiledEffect, CompiledOperator};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) fn compile_checked_effects(
     module: CheckedModule,
-) -> Result<Vec<super::EffectCompilation>, super::Diagnostic> {
+) -> Result<Vec<CompiledEffect>, super::Diagnostic> {
     module.effects.into_iter().map(compile_effect).collect()
 }
 
@@ -27,90 +26,19 @@ pub(crate) fn compile_checked_operators(
     module.operators.into_iter().map(compile_operator).collect()
 }
 
-pub(super) fn compile_value(
-    params: &[super::ParamDecl],
-    statements: Vec<CheckedStmt>,
-    outputs: Vec<CheckedExpr>,
-) -> Result<super::CalculationProgram, super::Diagnostic> {
-    check_parameter_count(params)?;
-    if outputs.len() > usize::from(u16::MAX) + 1 {
-        return Err(super::Diagnostic::new(
-            super::lexer::TextSpan { start: 0, end: 0 },
-            "generator calculation exceeds the parameter output slot space",
-        ));
-    }
-    let output_types = outputs.iter().map(|output| output.ty.clone()).collect();
-    let program = FunctionCompiler::new(params, EffectKind::Generator)
-        .compile_with_outputs(CheckedBlock { statements }, Some(outputs))?;
-    super::CalculationProgram::new(
-        program,
-        params.iter().map(|param| param.ty.clone()).collect(),
-        output_types,
-    )
-    .ok_or_else(invalid_compiled_program)
-}
-
-fn compile_effect(
-    effect: CheckedEffectDecl,
-) -> Result<super::EffectCompilation, super::Diagnostic> {
+fn compile_effect(effect: CheckedEffectDecl) -> Result<CompiledEffect, super::Diagnostic> {
     check_parameter_count(&effect.params)?;
-    let kind = if effect.entrypoint.name.as_str() == "generate" {
-        EffectKind::Generator
-    } else {
-        EffectKind::Sample
-    };
-    let mut emitted_references = Vec::new();
-    let program = match kind {
-        EffectKind::Generator => {
-            collect_emissions(&effect.body, &mut emitted_references);
-            EffectProgram::Generator(std::sync::Arc::new(super::specialization::compile(
-                effect.params.clone(),
-                effect.body,
-                emitted_references.clone(),
-                &effect.preparation_controls,
-            )?))
-        }
-        EffectKind::Sample => {
-            let bytecode = FunctionCompiler::new(&effect.params, kind).compile(effect.body)?;
-            let program = super::SampleProgram::admit(
-                bytecode,
-                effect.params.iter().map(|param| param.ty.clone()).collect(),
-            )
-            .ok_or_else(invalid_compiled_program)?;
-            EffectProgram::Sample(std::sync::Arc::new(program))
-        }
-    };
-    Ok(super::EffectCompilation {
-        effect: CompiledEffect {
-            name: effect.name,
-            params: effect.params,
-            program,
-        },
-        emitted_references: emitted_references.into_boxed_slice(),
+    let bytecode = FunctionCompiler::new(&effect.params).compile(effect.body)?;
+    let program = super::SampleProgram::admit(
+        bytecode,
+        effect.params.iter().map(|param| param.ty.clone()).collect(),
+    )
+    .ok_or_else(invalid_compiled_program)?;
+    Ok(CompiledEffect {
+        name: effect.name,
+        params: effect.params,
+        program: std::sync::Arc::new(program),
     })
-}
-
-/// Linker slots follow authored statement order, independent of specialization.
-fn collect_emissions(block: &CheckedBlock, emissions: &mut Vec<super::EmittedReference>) {
-    for statement in &block.statements {
-        match statement {
-            CheckedStmt::Emit { effect, .. } => emissions.push(effect.clone()),
-            CheckedStmt::If {
-                then_block,
-                else_block,
-                ..
-            } => {
-                collect_emissions(then_block, emissions);
-                if let Some(block) = else_block {
-                    collect_emissions(block, emissions);
-                }
-            }
-            CheckedStmt::For { body, .. }
-            | CheckedStmt::ForMarks { body, .. }
-            | CheckedStmt::ForRange { body, .. } => collect_emissions(body, emissions),
-            _ => {}
-        }
-    }
 }
 
 fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, super::Diagnostic> {
@@ -128,7 +56,7 @@ fn invalid_compiled_program() -> super::Diagnostic {
     )
 }
 
-/// Prepared automation and retained bindings address declaration slots with u16.
+/// Prepared automation addresses declaration slots with u16.
 /// The declaration fixes this count; parameter values never change it.
 fn check_parameter_count(params: &[super::ParamDecl]) -> Result<(), super::Diagnostic> {
     if params.len() > usize::from(u16::MAX) + 1 {
@@ -162,9 +90,6 @@ struct FunctionCompiler {
     array_constants: Vec<std::sync::Arc<[Value]>>,
     enums: Vec<Identifier>,
     enum_types: Vec<Type>,
-    target_items: Vec<std::sync::Arc<super::types::TargetItemValue>>,
-    target_lists: Vec<std::sync::Arc<super::types::TargetItemsValue>>,
-    targets: Vec<std::sync::Arc<super::types::TargetValue>>,
     curves: Vec<std::sync::Arc<crate::values::Curve>>,
     gradients: Vec<std::sync::Arc<crate::values::Gradient>>,
     value_operands: Vec<ValueSlot>,
@@ -172,14 +97,12 @@ struct FunctionCompiler {
     param_types: Vec<Type>,
     layout: SlotLayout,
     array_types: Vec<Type>,
-    kind: EffectKind,
     signal_inputs: IndexMap<Identifier, usize>,
     assigned_names: HashSet<Identifier>,
     context_reads: HashMap<ContextRead, ValueSlot>,
     param_reads: HashMap<ParamId, ValueSlot>,
     loop_count: u32,
     invalid_loop: bool,
-    invalid_emission: Option<super::lexer::TextSpan>,
 }
 
 fn constant_array_item(expr: &CheckedExpr) -> Option<Value> {
@@ -234,10 +157,7 @@ fn collect_statement_assigned_names(statement: &CheckedStmt, assigned: &mut Hash
         CheckedStmt::ForMarks { body, .. } | CheckedStmt::ForRange { body, .. } => {
             collect_assigned_names(body, assigned)
         }
-        CheckedStmt::Local { .. }
-        | CheckedStmt::Expr(_)
-        | CheckedStmt::Emit { .. }
-        | CheckedStmt::Return(_) => {}
+        CheckedStmt::Local { .. } | CheckedStmt::Expr(_) | CheckedStmt::Return(_) => {}
     }
 }
 
@@ -304,7 +224,7 @@ fn numeric_literal_argument(args: &[CheckedExpr]) -> Option<(usize, f32)> {
 }
 
 impl FunctionCompiler {
-    fn new(params: &[super::ast::ParamDecl], kind: EffectKind) -> Self {
+    fn new(params: &[super::ast::ParamDecl]) -> Self {
         let mut param_scope = IndexMap::new();
         for (index, param) in params.iter().enumerate() {
             param_scope.insert(param.name.clone(), Binding::Param(index));
@@ -314,9 +234,6 @@ impl FunctionCompiler {
             array_constants: Vec::new(),
             enums: Vec::new(),
             enum_types: Vec::new(),
-            target_items: Vec::new(),
-            target_lists: Vec::new(),
-            targets: Vec::new(),
             curves: Vec::new(),
             gradients: Vec::new(),
             value_operands: Vec::new(),
@@ -324,14 +241,12 @@ impl FunctionCompiler {
             param_types: params.iter().map(|param| param.ty.clone()).collect(),
             layout: SlotLayout::default(),
             array_types: Vec::new(),
-            kind,
             signal_inputs: IndexMap::new(),
             assigned_names: HashSet::new(),
             context_reads: HashMap::new(),
             param_reads: HashMap::new(),
             loop_count: 0,
             invalid_loop: false,
-            invalid_emission: None,
         }
     }
 
@@ -339,7 +254,7 @@ impl FunctionCompiler {
         params: &[super::ast::ParamDecl],
         inputs: &[super::ast::OperatorInputDecl],
     ) -> Self {
-        let mut compiler = Self::new(params, EffectKind::Sample);
+        let mut compiler = Self::new(params);
         compiler.signal_inputs = inputs
             .iter()
             .enumerate()
@@ -349,14 +264,6 @@ impl FunctionCompiler {
     }
 
     fn compile(&mut self, block: CheckedBlock) -> Result<BytecodeProgram, super::Diagnostic> {
-        self.compile_with_outputs(block, None)
-    }
-
-    fn compile_with_outputs(
-        &mut self,
-        block: CheckedBlock,
-        outputs: Option<Vec<CheckedExpr>>,
-    ) -> Result<BytecodeProgram, super::Diagnostic> {
         collect_assigned_names(&block, &mut self.assigned_names);
         // Parameters are immutable inputs. Assignment uses an ordinary local,
         // initialized once on entry, including assignments inside branches/loops.
@@ -378,23 +285,7 @@ impl FunctionCompiler {
         for statement in block.statements {
             self.compile_statement(statement);
         }
-        if let Some(outputs) = outputs {
-            // Calculations return a declared list of registers, not an erased
-            // array<void> whose shape must be reconstructed during execution.
-            let values = outputs
-                .into_iter()
-                .map(|output| self.compile_expr(output))
-                .collect();
-            let outputs = self.add_value_operands(values);
-            self.emit(Instruction::ReturnValues(outputs));
-        }
         let _ = self.scopes.pop();
-        if let Some(span) = self.invalid_emission {
-            return Err(super::Diagnostic::new(
-                span,
-                "generator emissions belong to specialization, not calculation bytecode",
-            ));
-        }
         if self.invalid_loop {
             return Err(super::Diagnostic::new(
                 super::lexer::TextSpan { start: 0, end: 0 },
@@ -416,11 +307,8 @@ impl FunctionCompiler {
             &mut self.array_types,
             &mut self.enum_types,
         );
-        let pixel_entry = if self.kind == EffectKind::Sample {
-            super::optimize::hoist_uniform(&mut self.instructions, &mut self.value_operands)
-        } else {
-            0
-        };
+        let pixel_entry =
+            super::optimize::hoist_uniform(&mut self.instructions, &mut self.value_operands);
         let mut program = BytecodeProgram {
             pixel_entry,
             array_capacity: 0,
@@ -446,9 +334,6 @@ impl FunctionCompiler {
                 )
             }),
             instructions: std::mem::take(&mut self.instructions).into_boxed_slice(),
-            targets: std::mem::take(&mut self.targets).into_boxed_slice(),
-            target_lists: std::mem::take(&mut self.target_lists).into_boxed_slice(),
-            target_items: std::mem::take(&mut self.target_items).into_boxed_slice(),
             array_constants: std::mem::take(&mut self.array_constants).into_boxed_slice(),
             enums: std::mem::take(&mut self.enums).into_boxed_slice(),
             enum_types: std::mem::take(&mut self.enum_types)
@@ -676,9 +561,6 @@ impl FunctionCompiler {
                 self.param_reads = dominating_param_reads;
                 let _ = self.scopes.pop();
             }
-            CheckedStmt::Emit { effect, .. } => {
-                self.invalid_emission = Some(effect.span);
-            }
             CheckedStmt::Return(expr) => {
                 let value = self.compile_expr(expr);
                 self.emit(Instruction::ReturnColor(self.color_slot(value)));
@@ -771,13 +653,6 @@ impl FunctionCompiler {
                     let index = self.compile_expr(*index);
                     let dst = self.allocate_slot(&result_ty);
                     match target {
-                        ValueSlot::TargetItems(source) => {
-                            self.emit(Instruction::TargetPick {
-                                dst: self.target_item_slot(dst),
-                                source,
-                                index: Self::number_slot(index),
-                            });
-                        }
                         ValueSlot::Curve(curve) => {
                             let position = self.float_slot(index);
                             let dst = self.float_slot(dst);
@@ -809,22 +684,6 @@ impl FunctionCompiler {
                     }
                     dst
                 }
-            }
-            CheckedExprKind::Member { target, member } => {
-                let target = self.compile_expr(*target);
-                let target = self.target_item_slot(target);
-                let dst = self.allocate_slot(&result_ty);
-                if member.as_str() == "pixel_fraction" {
-                    let dst = self.float_slot(dst);
-                    self.emit(Instruction::MemberFraction { dst, target });
-                } else {
-                    self.emit(Instruction::MemberInt {
-                        dst: self.int_slot(dst),
-                        target,
-                        member: target_member(&member),
-                    });
-                }
-                dst
             }
             CheckedExprKind::Call { callee, args } => {
                 let CheckedExprKind::Variable(name) = callee.kind else {
@@ -1380,36 +1239,6 @@ impl FunctionCompiler {
                 };
                 self.emit(Instruction::Mark { marks, op });
             }
-            "count" => {
-                let args = self.compile_args(args);
-                self.emit(Instruction::TargetCount {
-                    dst: self.int_slot(dst),
-                    source: self.target_items_slot(args[0]),
-                });
-            }
-            "pick" => {
-                let args = self.compile_args(args);
-                self.emit(Instruction::TargetPick {
-                    dst: self.target_item_slot(dst),
-                    source: self.target_items_slot(args[0]),
-                    index: Self::number_slot(args[1]),
-                });
-            }
-            "fixtures" | "pixels" | "sections" => {
-                let args = self.compile_args(args);
-                let source = Self::target_source(args[0]);
-                let dst = self.target_items_slot(dst);
-                let op = match name.as_str() {
-                    "fixtures" => TargetItemsOp::Fixtures { dst },
-                    "pixels" => TargetItemsOp::Pixels { dst },
-                    "sections" => TargetItemsOp::Sections {
-                        dst,
-                        width: Self::number_slot(args[1]),
-                    },
-                    _ => unreachable!("matched target builtin"),
-                };
-                self.emit(Instruction::TargetItems { source, op });
-            }
             _ => self.emit_default(dst, &Type::Void),
         }
         dst
@@ -1433,21 +1262,6 @@ impl FunctionCompiler {
     fn emit_load_param(&mut self, dst: ValueSlot, param: ParamId) {
         let source = self.parameter_bank_index(param);
         match dst {
-            ValueSlot::Target(dst) => self.emit(Instruction::LoadTargetParam {
-                dst,
-                param,
-                source: TargetSlot(source),
-            }),
-            ValueSlot::TargetItems(dst) => self.emit(Instruction::LoadTargetItemsParam {
-                dst,
-                param,
-                source: TargetItemsSlot(source),
-            }),
-            ValueSlot::TargetItem(dst) => self.emit(Instruction::LoadTargetItemParam {
-                dst,
-                param,
-                source: TargetItemSlot(source),
-            }),
             ValueSlot::Curve(dst) => self.emit(Instruction::LoadCurveParam {
                 dst,
                 param,
@@ -1765,33 +1579,10 @@ impl FunctionCompiler {
         }
     }
 
-    fn target_items_slot(&self, slot: ValueSlot) -> TargetItemsSlot {
-        match slot {
-            ValueSlot::TargetItems(slot) => slot,
-            _ => unreachable!("checked target collection"),
-        }
-    }
-
-    fn target_item_slot(&self, slot: ValueSlot) -> TargetItemSlot {
-        match slot {
-            ValueSlot::TargetItem(slot) => slot,
-            _ => unreachable!("checked target item"),
-        }
-    }
-
-    fn target_source(slot: ValueSlot) -> TargetSource {
-        match slot {
-            ValueSlot::Target(slot) => TargetSource::Target(slot),
-            ValueSlot::TargetItems(slot) => TargetSource::Items(slot),
-            ValueSlot::TargetItem(slot) => TargetSource::Item(slot),
-            _ => unreachable!("checked target operand"),
-        }
-    }
-
     fn marks_slot(&self, slot: ValueSlot) -> MarksSlot {
         match slot {
             ValueSlot::Marks(slot) => slot,
-            _ => unreachable!("checked marks operand"),
+            _ => unreachable!("checked expression has marks type"),
         }
     }
 
@@ -1830,21 +1621,6 @@ impl FunctionCompiler {
             return;
         }
         let instruction = match (dst, value) {
-            (ValueSlot::TargetItem(dst), Value::TargetItem(value)) => {
-                let constant = self.target_items.len();
-                self.target_items.push(value);
-                Instruction::LoadTargetItemConst { dst, constant }
-            }
-            (ValueSlot::TargetItems(dst), Value::TargetItems(value)) => {
-                let constant = self.target_lists.len();
-                self.target_lists.push(value);
-                Instruction::LoadTargetItemsConst { dst, constant }
-            }
-            (ValueSlot::Target(dst), Value::Target(value)) => {
-                let constant = self.targets.len();
-                self.targets.push(value);
-                Instruction::LoadTargetConst { dst, constant }
-            }
             (ValueSlot::Curve(dst), Value::Curve(value)) => {
                 let constant = self.curves.len();
                 self.curves.push(value);
@@ -1975,16 +1751,6 @@ fn pool_span(start: usize, len: usize) -> PoolSpan {
     PoolSpan {
         start: start as u32,
         len: len as u32,
-    }
-}
-
-fn target_member(member: &Identifier) -> TargetMember {
-    match member.as_str() {
-        "fixture_index" => TargetMember::FixtureIndex,
-        "fixture_pixel_index" => TargetMember::FixturePixelIndex,
-        "pixel_index" => TargetMember::PixelIndex,
-        "pixel_count" => TargetMember::PixelCount,
-        _ => unreachable!("checked TargetItem member is known"),
     }
 }
 

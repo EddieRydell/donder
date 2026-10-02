@@ -351,12 +351,7 @@ pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceEffectParamKind> {
             Type::Gradient => SequenceEffectParamKind::GradientArray,
             _ => SequenceEffectParamKind::FloatArray,
         },
-        Type::Void
-        | Type::Signal
-        | Type::Timeline
-        | Type::Target
-        | Type::TargetItems
-        | Type::TargetItem => {
+        Type::Void | Type::Signal => {
             return None;
         }
     })
@@ -463,10 +458,7 @@ pub(in crate::gui) fn default_param_value(
                 .collect::<Option<Vec<_>>>()?;
             array_param_from_sequence_values(&converted, inner)
         }
-        EffectValue::Void
-        | EffectValue::Target(_)
-        | EffectValue::TargetItems(_)
-        | EffectValue::TargetItem(_) => return None,
+        EffectValue::Void => return None,
     })
 }
 

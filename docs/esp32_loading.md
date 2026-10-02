@@ -1,7 +1,7 @@
 # Prepared sequence loading on ESP32
 
 The ESP32 loader runs `donder-runtime`; it is not a second interpreter. The host
-loads and validates source, elaborates generators and targets, selects controller
+loads and validates source, prepares targets and effects, selects controller
 ports, and writes a `.donderseq` archive. The device validates and decodes that
 prepared representation before replacing its active immutable sequence.
 
@@ -61,12 +61,11 @@ previous committed archive remains saved. Concurrent uploads are rejected.
 The new slot is committed only after admission; interrupted staging cannot
 supersede the previous saved archive. Reboot restores the newest committed slot
 and leaves playback stopped. Explicit saved-data erase clears both partitions.
-Prepared-content admission also checks sample, operator, and retained-parameter
-bytecode register references, operand spans, constants, jump targets,
+Prepared-content admission also checks sample and operator bytecode register references, operand spans, constants, jump targets,
 parameter-read types, and reachable return paths before the VM can execute an
-upload. Generator emission is host-only and has no portable bytecode instruction.
+upload.
 Admission rejects signal reads outside an operator's connected input table and
-return instructions that do not match the program's sample or calculation context.
+return instructions that do not match the program's effect or operator context.
 
 The current admission limits are 96 KiB of archive payload, 1,600 pixels, 128
 graph nodes, and 96 KiB of estimated workspace. They are conservative policy,

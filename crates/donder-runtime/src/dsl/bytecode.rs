@@ -7,18 +7,15 @@ use alloc::{boxed::Box, collections::BTreeSet, vec, vec::Vec};
 
 fn slot_key(slot: ValueSlot) -> (u8, u32) {
     match slot {
-        ValueSlot::Void => (12, 0),
+        ValueSlot::Void => (9, 0),
         ValueSlot::Int(slot) => (0, slot.0),
         ValueSlot::Float(slot) => (1, slot.0),
         ValueSlot::Bool(slot) => (2, slot.0),
         ValueSlot::Color(slot) => (3, slot.0),
         ValueSlot::Array(slot) => (4, slot.0),
-        ValueSlot::Enum(slot) => (11, slot.0),
+        ValueSlot::Enum(slot) => (8, slot.0),
         ValueSlot::Marks(slot) => (5, slot.0),
         ValueSlot::Curve(slot) => (6, slot.0),
-        ValueSlot::Target(slot) => (8, slot.0),
-        ValueSlot::TargetItems(slot) => (9, slot.0),
-        ValueSlot::TargetItem(slot) => (10, slot.0),
         ValueSlot::Gradient(slot) => (7, slot.0),
     }
 }
@@ -38,9 +35,6 @@ pub enum ParameterKind {
     Marks,
     Curve,
     Gradient,
-    Target,
-    TargetItems,
-    TargetItem,
     Enum,
     Array,
 }
@@ -49,7 +43,6 @@ pub enum ParameterKind {
 pub(crate) enum ProgramContext {
     Effect,
     Operator { inputs: usize },
-    Calculation,
 }
 
 impl ParameterKind {
@@ -62,12 +55,9 @@ impl ParameterKind {
             Type::Color => Self::Color,
             Type::Marks => Self::Marks,
             Type::Curve => Self::Curve,
-            Type::Target => Self::Target,
-            Type::TargetItems => Self::TargetItems,
-            Type::TargetItem => Self::TargetItem,
             Type::Gradient => Self::Gradient,
             Type::Enum(_) => Self::Enum,
-            Type::Signal | Type::Timeline => Self::Void,
+            Type::Signal => Self::Void,
             Type::Array(_) => Self::Array,
         }
     }
@@ -102,17 +92,14 @@ impl<T> SignalPixel<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct BytecodeProgram<C = ContextRead, S = (), A = ColorSlot, B = PoolSpan> {
-    pub instructions: Box<[Instruction<C, S, A, B>]>,
+pub struct BytecodeProgram<C = ContextRead, S = (), A = ColorSlot> {
+    pub instructions: Box<[Instruction<C, S, A>]>,
     pub array_constants: Box<[Arc<[Value]>]>,
     pub enums: Box<[Identifier]>,
     pub enum_types: Box<[EnumSlotType]>,
     /// Typed resource pools let constant loads preserve ownership without
     /// inspecting a dynamically tagged Value during execution.
     pub curves: Box<[Arc<crate::values::Curve>]>,
-    pub targets: Box<[Arc<super::types::TargetValue>]>,
-    pub target_lists: Box<[Arc<super::types::TargetItemsValue>]>,
-    pub target_items: Box<[Arc<super::types::TargetItemValue>]>,
     pub gradients: Box<[Arc<crate::values::Gradient>]>,
     pub value_operands: Box<[ValueSlot]>,
     /// Compiler-owned type of each array register, in register order.
@@ -129,21 +116,18 @@ pub struct BytecodeProgram<C = ContextRead, S = (), A = ColorSlot, B = PoolSpan>
     pub loop_count: u32,
 }
 
-impl<C, S, A, B> BytecodeProgram<C, S, A, B> {
-    pub(super) fn try_map_execution<R, T, U, V, E>(
+impl<C, S, A> BytecodeProgram<C, S, A> {
+    pub(super) fn try_map_execution<R, T, U, E>(
         self,
         mut read: impl FnMut(C) -> Result<R, E>,
         mut signal: impl FnMut(S) -> Result<T, E>,
         mut color: impl FnMut(A) -> Result<U, E>,
-        mut values: impl FnMut(B) -> Result<V, E>,
-    ) -> Result<BytecodeProgram<R, T, U, V>, E> {
+    ) -> Result<BytecodeProgram<R, T, U>, E> {
         let instructions = self
             .instructions
             .into_vec()
             .into_iter()
-            .map(|instruction| {
-                instruction.try_map_execution(&mut read, &mut signal, &mut color, &mut values)
-            })
+            .map(|instruction| instruction.try_map_execution(&mut read, &mut signal, &mut color))
             .collect::<Result<_, _>>()?;
         Ok(BytecodeProgram {
             instructions,
@@ -151,9 +135,6 @@ impl<C, S, A, B> BytecodeProgram<C, S, A, B> {
             enums: self.enums,
             enum_types: self.enum_types,
             curves: self.curves,
-            targets: self.targets,
-            target_lists: self.target_lists,
-            target_items: self.target_items,
             gradients: self.gradients,
             value_operands: self.value_operands,
             array_types: self.array_types,
@@ -177,75 +158,18 @@ impl BytecodeProgram {
                         return false;
                     }
                 }
-                Instruction::ReturnValues(_) => {
-                    if context != ProgramContext::Calculation {
-                        return false;
-                    }
-                    has_return = true;
-                }
                 Instruction::ReturnColor(_) => {
-                    if context == ProgramContext::Calculation {
-                        return false;
-                    }
                     has_return = true;
                 }
                 _ => {}
             }
         }
-        has_return && (context != ProgramContext::Calculation || !self.uses_pixel_context)
-    }
-
-    /// The final instruction names calculation output registers in schema order.
-    pub fn calculation_outputs(&self) -> Option<&[ValueSlot]> {
-        let Instruction::ReturnValues(outputs) = self.instructions.last()? else {
-            return None;
-        };
-        self.value_operands(*outputs)
-    }
-
-    /// Check the declared output schema against those registers. Calculation
-    /// outputs are not arrays and cannot be read through a DSL array operation.
-    pub(crate) fn has_valid_calculation_outputs(&self, outputs: &[Type]) -> bool {
-        let Some(slots) = self.calculation_outputs() else {
-            return false;
-        };
-        let return_ip = self.instructions.len() - 1;
-        if self.instructions[..return_ip].iter().any(|instruction| {
-            matches!(
-                instruction,
-                Instruction::ReturnColor(_) | Instruction::ReturnValues(_)
-            )
-        }) {
-            return false;
-        }
-        slots.len() == outputs.len()
-            && slots.iter().zip(outputs).all(|(slot, expected)| {
-                self.slot_type(*slot)
-                    .is_some_and(|actual| expected.accepts(actual))
-            })
-    }
-
-    fn slot_type(&self, slot: ValueSlot) -> Option<&Type> {
-        match slot {
-            ValueSlot::Void => Some(&Type::Void),
-            ValueSlot::Int(_) => Some(&Type::Int),
-            ValueSlot::Float(_) => Some(&Type::Float),
-            ValueSlot::Bool(_) => Some(&Type::Bool),
-            ValueSlot::Color(_) => Some(&Type::Color),
-            ValueSlot::Marks(_) => Some(&Type::Marks),
-            ValueSlot::Curve(_) => Some(&Type::Curve),
-            ValueSlot::Target(_) => Some(&Type::Target),
-            ValueSlot::TargetItems(_) => Some(&Type::TargetItems),
-            ValueSlot::TargetItem(_) => Some(&Type::TargetItem),
-            ValueSlot::Gradient(_) => Some(&Type::Gradient),
-            ValueSlot::Array(slot) => self.array_types.get(slot.0 as usize),
-            ValueSlot::Enum(slot) => self.enum_types.get(slot.0 as usize).map(EnumSlotType::ty),
-        }
+        has_return
     }
 
     /// Check every parameter opcode against the invocation's parameter kinds.
     /// The caller supplies authored types during compilation and admitted bound
-    /// values or retained-environment types when loading portable bytecode.
+    /// values when loading portable bytecode.
     pub fn has_valid_parameter_reads(
         &self,
         kind_at: impl Fn(ParamId) -> Option<ParameterKind>,
@@ -260,15 +184,6 @@ impl BytecodeProgram {
         self.instructions.iter().all(|instruction| {
             use Instruction::*;
             match instruction {
-                LoadTargetParam { param, source, .. } => {
-                    scalar(*param, source.0 as usize, ParameterKind::Target)
-                }
-                LoadTargetItemsParam { param, source, .. } => {
-                    scalar(*param, source.0 as usize, ParameterKind::TargetItems)
-                }
-                LoadTargetItemParam { param, source, .. } => {
-                    scalar(*param, source.0 as usize, ParameterKind::TargetItem)
-                }
                 LoadIntParam { param, source, .. } => {
                     scalar(*param, source.0 as usize, ParameterKind::Int)
                 }
@@ -340,9 +255,6 @@ impl BytecodeProgram {
             ValueSlot::Enum(slot) => slot.0 < self.layout.enums,
             ValueSlot::Marks(slot) => slot.0 < self.layout.marks,
             ValueSlot::Curve(slot) => slot.0 < self.layout.curves,
-            ValueSlot::Target(slot) => slot.0 < self.layout.targets,
-            ValueSlot::TargetItems(slot) => slot.0 < self.layout.target_lists,
-            ValueSlot::TargetItem(slot) => slot.0 < self.layout.target_items,
             ValueSlot::Gradient(slot) => slot.0 < self.layout.gradients,
         };
         let valid_pool = |span: PoolSpan| {
@@ -412,20 +324,6 @@ impl BytecodeProgram {
                             && valid_slot(ValueSlot::Gradient(*gradient))
                             && valid_slot(ValueSlot::Float(*position))
                     }
-                    LoadTargetConst { dst, constant } => {
-                        valid_slot(ValueSlot::Target(*dst)) && self.targets.get(*constant).is_some()
-                    }
-                    LoadTargetParam { dst, .. } => valid_slot(ValueSlot::Target(*dst)),
-                    LoadTargetItemsConst { dst, constant } => {
-                        valid_slot(ValueSlot::TargetItems(*dst))
-                            && self.target_lists.get(*constant).is_some()
-                    }
-                    LoadTargetItemsParam { dst, .. } => valid_slot(ValueSlot::TargetItems(*dst)),
-                    LoadTargetItemConst { dst, constant } => {
-                        valid_slot(ValueSlot::TargetItem(*dst))
-                            && self.target_items.get(*constant).is_some()
-                    }
-                    LoadTargetItemParam { dst, .. } => valid_slot(ValueSlot::TargetItem(*dst)),
                     LoadIntConst { dst, .. } => valid_slot(ValueSlot::Int(*dst)),
                     LoadFloatConst { dst, .. } => valid_slot(ValueSlot::Float(*dst)),
                     LoadBoolConst { dst, .. } => valid_slot(ValueSlot::Bool(*dst)),
@@ -498,23 +396,6 @@ impl BytecodeProgram {
                                 .is_none_or(|slot| valid_slot(ValueSlot::Int(*slot)))
                             && (*frame_cache == u32::MAX
                                 || (*frame_cache as usize) < self.instructions.len())
-                    }
-                    MemberInt { dst, target, .. } => {
-                        valid_slot(ValueSlot::Int(*dst))
-                            && valid_slot(ValueSlot::TargetItem(*target))
-                    }
-                    MemberFraction { dst, target } => {
-                        valid_slot(ValueSlot::Float(*dst))
-                            && valid_slot(ValueSlot::TargetItem(*target))
-                    }
-                    TargetCount { dst, source } => {
-                        valid_slot(ValueSlot::Int(*dst))
-                            && valid_slot(ValueSlot::TargetItems(*source))
-                    }
-                    TargetPick { dst, source, index } => {
-                        valid_slot(ValueSlot::TargetItem(*dst))
-                            && valid_slot(ValueSlot::TargetItems(*source))
-                            && valid_slot(index.value_slot())
                     }
                     IntToFloat { dst, src } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Int(*src))
@@ -773,12 +654,6 @@ impl BytecodeProgram {
                                 .flatten()
                                 .all(|slot| valid_slot(slot.value_slot()))
                     }
-                    TargetItems { source, op } => {
-                        valid_slot(source.value_slot())
-                            && valid_slot(op.output())
-                            && op.input().is_none_or(|slot| valid_slot(slot.value_slot()))
-                    }
-                    ReturnValues(outputs) => valid_pool(*outputs),
                     ReturnColor(slot) => valid_slot(ValueSlot::Color(*slot)),
                 }
             });
@@ -1080,15 +955,6 @@ impl BytecodeProgram {
         for slot in (0..self.layout.arrays)
             .map(|slot| ValueSlot::Array(ArraySlot(slot)))
             .chain((0..self.layout.enums).map(|slot| ValueSlot::Enum(EnumSlot(slot))))
-            .chain((0..self.layout.targets).map(|slot| ValueSlot::Target(TargetSlot(slot))))
-            .chain(
-                (0..self.layout.target_lists)
-                    .map(|slot| ValueSlot::TargetItems(TargetItemsSlot(slot))),
-            )
-            .chain(
-                (0..self.layout.target_items)
-                    .map(|slot| ValueSlot::TargetItem(TargetItemSlot(slot))),
-            )
             .chain((0..self.layout.marks).map(|slot| ValueSlot::Marks(MarksSlot(slot))))
             .chain((0..self.layout.curves).map(|slot| ValueSlot::Curve(CurveSlot(slot))))
             .chain((0..self.layout.gradients).map(|slot| ValueSlot::Gradient(GradientSlot(slot))))
@@ -1108,7 +974,7 @@ impl BytecodeProgram {
                     continue;
                 }
                 match instruction {
-                    Instruction::ReturnColor(_) | Instruction::ReturnValues(_) => {}
+                    Instruction::ReturnColor(_) => {}
                     Instruction::Jump(target) => pending.push(*target),
                     Instruction::JumpIfFalse { target, .. }
                     | Instruction::JumpIfTrue { target, .. } => {
@@ -1139,9 +1005,7 @@ impl BytecodeProgram {
         };
         match instruction {
             Instruction::Move { dst, src } => is_ref(dst.with_index(*src)),
-            Instruction::MakeArray { items, .. } | Instruction::ReturnValues(items) => {
-                pool_reads(*items)
-            }
+            Instruction::MakeArray { items, .. } => pool_reads(*items),
             Instruction::Select {
                 dst,
                 items,
@@ -1154,12 +1018,6 @@ impl BytecodeProgram {
                 default,
                 ..
             } => is_ref(ValueSlot::Array(*target)) || is_ref(dst.with_index(*default)),
-            Instruction::MemberInt { target, .. } | Instruction::MemberFraction { target, .. } => {
-                is_ref(ValueSlot::TargetItem(*target))
-            }
-            Instruction::TargetCount { source, .. } | Instruction::TargetPick { source, .. } => {
-                is_ref(ValueSlot::TargetItems(*source))
-            }
             Instruction::ValueEqual { left, right, .. } => is_ref(*left) || is_ref(*right),
             Instruction::CurveFloatClamped { curve, .. }
             | Instruction::CurveSample { curve, .. }
@@ -1171,7 +1029,6 @@ impl BytecodeProgram {
             Instruction::Len { value, .. } => is_ref(ValueSlot::Array(*value)),
             Instruction::LoopMarksStart { marks, .. } => is_ref(ValueSlot::Marks(*marks)),
             Instruction::Mark { marks, .. } => is_ref(ValueSlot::Marks(*marks)),
-            Instruction::TargetItems { source, .. } => is_ref(source.value_slot()),
             _ => false,
         }
     }
@@ -1182,8 +1039,6 @@ impl BytecodeProgram {
             Instruction::Move { dst, .. }
             | Instruction::Index { dst, .. }
             | Instruction::Select { dst, .. } => is_ref(*dst),
-            Instruction::TargetPick { dst, .. } => is_ref(ValueSlot::TargetItem(*dst)),
-            Instruction::TargetItems { op, .. } => is_ref(op.output()),
             Instruction::LoadEnumConst { dst, .. } | Instruction::LoadEnumParam { dst, .. } => {
                 is_ref(ValueSlot::Enum(*dst))
             }
@@ -1195,13 +1050,6 @@ impl BytecodeProgram {
             }
             Instruction::LoadGradientConst { dst, .. }
             | Instruction::LoadGradientParam { dst, .. } => is_ref(ValueSlot::Gradient(*dst)),
-            Instruction::LoadTargetConst { dst, .. } | Instruction::LoadTargetParam { dst, .. } => {
-                is_ref(ValueSlot::Target(*dst))
-            }
-            Instruction::LoadTargetItemsConst { dst, .. }
-            | Instruction::LoadTargetItemsParam { dst, .. } => is_ref(ValueSlot::TargetItems(*dst)),
-            Instruction::LoadTargetItemConst { dst, .. }
-            | Instruction::LoadTargetItemParam { dst, .. } => is_ref(ValueSlot::TargetItem(*dst)),
             Instruction::LoadMarksConst { dst, .. } | Instruction::LoadMarksParam { dst, .. } => {
                 is_ref(ValueSlot::Marks(*dst))
             }
@@ -1226,9 +1074,6 @@ impl BytecodeProgram {
             ValueSlot::Color(_) => Some(&Type::Color),
             ValueSlot::Marks(_) => Some(&Type::Marks),
             ValueSlot::Curve(_) => Some(&Type::Curve),
-            ValueSlot::Target(_) => Some(&Type::Target),
-            ValueSlot::TargetItems(_) => Some(&Type::TargetItems),
-            ValueSlot::TargetItem(_) => Some(&Type::TargetItem),
             ValueSlot::Gradient(_) => Some(&Type::Gradient),
             ValueSlot::Array(slot) => ref_type(slot),
             ValueSlot::Enum(slot) => self.enum_types.get(slot.0 as usize).map(EnumSlotType::ty),
@@ -1342,7 +1187,7 @@ impl BytecodeProgram {
             }
             visited[ip] = true;
             match instruction {
-                Instruction::ReturnColor(_) | Instruction::ReturnValues(_) => {}
+                Instruction::ReturnColor(_) => {}
                 Instruction::Jump(target) => pending.push(*target),
                 Instruction::JumpIfFalse { target, .. }
                 | Instruction::JumpIfTrue { target, .. } => {
@@ -1401,7 +1246,7 @@ impl BytecodeProgram {
 
 fn well_formed_ref_type(ty: &Type) -> bool {
     match ty {
-        Type::Void | Type::Signal | Type::Timeline => false,
+        Type::Void | Type::Signal => false,
         Type::Array(item) => match item.as_ref() {
             Type::Enum(options) => !options.is_empty(),
             Type::Array(_) => well_formed_ref_type(item),
@@ -1414,10 +1259,7 @@ fn well_formed_ref_type(ty: &Type) -> bool {
         | Type::Color
         | Type::Marks
         | Type::Curve
-        | Type::Gradient
-        | Type::Target
-        | Type::TargetItems
-        | Type::TargetItem => false,
+        | Type::Gradient => false,
     }
 }
 
@@ -1465,9 +1307,6 @@ pub struct SlotLayout {
     pub enums: u32,
     pub marks: u32,
     pub curves: u32,
-    pub targets: u32,
-    pub target_lists: u32,
-    pub target_items: u32,
     pub gradients: u32,
 }
 
@@ -1546,21 +1385,6 @@ pub struct GradientSlot(pub u32);
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
-pub struct TargetItemSlot(pub u32);
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub struct TargetItemsSlot(pub u32);
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub struct TargetSlot(pub u32);
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
 pub enum ValueSlot {
     Void,
     Int(IntSlot),
@@ -1572,9 +1396,6 @@ pub enum ValueSlot {
     Marks(MarksSlot),
     Curve(CurveSlot),
     Gradient(GradientSlot),
-    TargetItem(TargetItemSlot),
-    TargetItems(TargetItemsSlot),
-    Target(TargetSlot),
 }
 
 impl ValueSlot {
@@ -1590,9 +1411,6 @@ impl ValueSlot {
             Self::Enum(slot) => slot.0,
             Self::Marks(slot) => slot.0,
             Self::Curve(slot) => slot.0,
-            Self::Target(slot) => slot.0,
-            Self::TargetItems(slot) => slot.0,
-            Self::TargetItem(slot) => slot.0,
             Self::Gradient(slot) => slot.0,
         }
     }
@@ -1610,9 +1428,6 @@ impl ValueSlot {
             Self::Enum(_) => Self::Enum(EnumSlot(index)),
             Self::Marks(_) => Self::Marks(MarksSlot(index)),
             Self::Curve(_) => Self::Curve(CurveSlot(index)),
-            Self::Target(_) => Self::Target(TargetSlot(index)),
-            Self::TargetItems(_) => Self::TargetItems(TargetItemsSlot(index)),
-            Self::TargetItem(_) => Self::TargetItem(TargetItemSlot(index)),
             Self::Gradient(_) => Self::Gradient(GradientSlot(index)),
         }
     }
@@ -1654,27 +1469,12 @@ impl ValueSlot {
                 layout.gradients += 1;
                 Self::Gradient(slot)
             }
-            Type::Target => {
-                let slot = TargetSlot(layout.targets);
-                layout.targets += 1;
-                Self::Target(slot)
-            }
-            Type::TargetItems => {
-                let slot = TargetItemsSlot(layout.target_lists);
-                layout.target_lists += 1;
-                Self::TargetItems(slot)
-            }
-            Type::TargetItem => {
-                let slot = TargetItemSlot(layout.target_items);
-                layout.target_items += 1;
-                Self::TargetItem(slot)
-            }
             Type::Enum(_) => {
                 let slot = EnumSlot(layout.enums);
                 layout.enums += 1;
                 Self::Enum(slot)
             }
-            Type::Void | Type::Signal | Type::Timeline => Self::Void,
+            Type::Void | Type::Signal => Self::Void,
             Type::Array(_) => {
                 let slot = ArraySlot(layout.arrays);
                 layout.arrays += 1;
@@ -1684,9 +1484,8 @@ impl ValueSlot {
     }
 }
 
-// One instruction schema serves rendering and host calculations. Context,
-// signal and return capabilities change during admission; the other operations and
-// their interpreter remain identical. The macro generates that mechanical map.
+// Signal capabilities change during admission; samples cannot query signals.
+// The macro keeps that mechanical map alongside the instruction schema.
 macro_rules! instructions {
     ($(
         $(#[$attr:meta])*
@@ -1695,7 +1494,7 @@ macro_rules! instructions {
         $(($value:ident: $tuple_ty:ty))?,
     )*) => {
         #[derive(Clone, Debug, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-        pub enum Instruction<C = ContextRead, S = (), A = ColorSlot, B = PoolSpan> {
+        pub enum Instruction<C = ContextRead, S = (), A = ColorSlot> {
             $(
                 $(#[$attr])*
                 $variant
@@ -1703,8 +1502,6 @@ macro_rules! instructions {
                 $(($tuple_ty))?,
             )*
             ReturnColor(A),
-            /// Finish a calculation with schema-ordered typed register outputs.
-            ReturnValues(B),
             ContextRead { dst: NumberSlot, read: C },
             SignalSample {
                 dst: ColorSlot,
@@ -1716,17 +1513,15 @@ macro_rules! instructions {
             },
         }
 
-        impl<C, S, A, B> Instruction<C, S, A, B> {
-            fn try_map_execution<R, T, U, V, E>(
+        impl<C, S, A> Instruction<C, S, A> {
+            fn try_map_execution<R, T, U, E>(
                 self,
                 read: impl FnOnce(C) -> Result<R, E>,
                 signal: impl FnOnce(S) -> Result<T, E>,
                 color: impl FnOnce(A) -> Result<U, E>,
-                values: impl FnOnce(B) -> Result<V, E>,
-            ) -> Result<Instruction<R, T, U, V>, E> {
+            ) -> Result<Instruction<R, T, U>, E> {
                 Ok(match self {
                     Self::ReturnColor(value) => Instruction::ReturnColor(color(value)?),
-                    Self::ReturnValues(value) => Instruction::ReturnValues(values(value)?),
                     Self::ContextRead { dst, read: value } =>
                         Instruction::ContextRead { dst, read: read(value)? },
                     Self::SignalSample { dst, input, seconds, pixel, frame_cache, capability } =>
@@ -1743,33 +1538,6 @@ macro_rules! instructions {
 }
 
 instructions! {
-    LoadTargetItemConst {
-        dst: TargetItemSlot,
-        constant: ConstantId,
-    },
-    LoadTargetItemParam {
-        dst: TargetItemSlot,
-        param: ParamId,
-        source: TargetItemSlot,
-    },
-    LoadTargetItemsConst {
-        dst: TargetItemsSlot,
-        constant: ConstantId,
-    },
-    LoadTargetItemsParam {
-        dst: TargetItemsSlot,
-        param: ParamId,
-        source: TargetItemsSlot,
-    },
-    LoadTargetConst {
-        dst: TargetSlot,
-        constant: ConstantId,
-    },
-    LoadTargetParam {
-        dst: TargetSlot,
-        param: ParamId,
-        source: TargetSlot,
-    },
     LoadCurveConst {
         dst: CurveSlot,
         constant: ConstantId,
@@ -1898,24 +1666,6 @@ instructions! {
         param: ParamId,
         source: GradientSlot,
         position: FloatSlot,
-    },
-    MemberInt {
-        dst: IntSlot,
-        target: TargetItemSlot,
-        member: TargetMember,
-    },
-    MemberFraction {
-        dst: FloatSlot,
-        target: TargetItemSlot,
-    },
-    TargetCount {
-        dst: IntSlot,
-        source: TargetItemsSlot,
-    },
-    TargetPick {
-        dst: TargetItemSlot,
-        source: TargetItemsSlot,
-        index: NumberSlot,
     },
     IntToFloat {
         dst: FloatSlot,
@@ -2155,23 +1905,12 @@ instructions! {
         marks: MarksSlot,
         op: MarkOp,
     },
-    TargetItems {
-        source: TargetSource,
-        op: TargetItemsOp,
-    },
 }
 
 impl Instruction {
     fn written_slot(&self) -> Option<ValueSlot> {
         use Instruction::*;
         Some(match self {
-            LoadTargetItemConst { dst, .. } | LoadTargetItemParam { dst, .. } => {
-                ValueSlot::TargetItem(*dst)
-            }
-            LoadTargetItemsConst { dst, .. } | LoadTargetItemsParam { dst, .. } => {
-                ValueSlot::TargetItems(*dst)
-            }
-            LoadTargetConst { dst, .. } | LoadTargetParam { dst, .. } => ValueSlot::Target(*dst),
             LoadCurveConst { dst, .. } | LoadCurveParam { dst, .. } => ValueSlot::Curve(*dst),
             LoadGradientConst { dst, .. } | LoadGradientParam { dst, .. } => {
                 ValueSlot::Gradient(*dst)
@@ -2179,13 +1918,9 @@ impl Instruction {
             CurveSample { dst, .. } => ValueSlot::Float(*dst),
             GradientSample { dst, .. } => ValueSlot::Color(*dst),
             Move { dst, .. } | Index { dst, .. } | Select { dst, .. } => *dst,
-            MemberInt { dst, .. } | TargetCount { dst, .. } => ValueSlot::Int(*dst),
-            MemberFraction { dst, .. } => ValueSlot::Float(*dst),
-            TargetPick { dst, .. } => ValueSlot::TargetItem(*dst),
             ContextRead { dst, .. } => dst.value_slot(),
             LoadMarksConst { dst, .. } | LoadMarksParam { dst, .. } => ValueSlot::Marks(*dst),
             Mark { op, .. } => op.output(),
-            TargetItems { op, .. } => op.output(),
             LoadIntConst { dst, .. }
             | LoadIntParam { dst, .. }
             | NegInt { dst, .. }
@@ -2243,20 +1978,9 @@ impl Instruction {
             | LoopRangeStart { .. }
             | LoopMarksStart { .. }
             | LoopEnd { .. }
-            | ReturnValues(_)
             | ReturnColor(_) => return None,
         })
     }
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum TargetMember {
-    FixtureIndex,
-    FixturePixelIndex,
-    PixelIndex,
-    PixelCount,
 }
 
 #[cfg(test)]
@@ -2270,7 +1994,7 @@ mod representation_tests {
     #[test]
     fn bytecode_headers_stay_compact() {
         assert!(size_of::<Instruction>() <= 32);
-        // Eight register banks and typed curve/gradient constant pools.
+        // Nine register banks and typed curve/gradient constant pools.
         assert!(
             size_of::<BytecodeProgram>() <= 256,
             "{}",
@@ -2284,9 +2008,6 @@ mod representation_tests {
             instructions: vec![Instruction::ReturnColor(ColorSlot(0))].into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2400,9 +2121,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2471,9 +2189,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2523,9 +2238,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![vec![Value::Int(3)].into()].into_boxed_slice(),
@@ -2603,9 +2315,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2667,129 +2376,6 @@ mod representation_tests {
     }
 
     #[test]
-    fn calculation_outputs_require_the_declared_type_and_initialized_arrays() {
-        use super::{ArraySlot, FloatSlot, Type};
-
-        let mut program = BytecodeProgram {
-            instructions: vec![
-                Instruction::LoadFloatConst {
-                    dst: FloatSlot(0),
-                    bits: 1.0f32.to_bits(),
-                },
-                Instruction::MakeArray {
-                    dst: ArraySlot(0),
-                    items: PoolSpan { start: 0, len: 1 },
-                },
-                Instruction::ReturnValues(PoolSpan { start: 1, len: 1 }),
-            ]
-            .into_boxed_slice(),
-            curves: Box::new([]),
-            gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
-            enums: Box::new([]),
-            enum_types: Box::new([]),
-            array_constants: vec![].into_boxed_slice(),
-            value_operands: vec![
-                ValueSlot::Float(FloatSlot(0)),
-                ValueSlot::Array(ArraySlot(0)),
-            ]
-            .into_boxed_slice(),
-            array_types: vec![Type::array(Type::Float)].into_boxed_slice(),
-            layout: SlotLayout {
-                floats: 1,
-                arrays: 1,
-                ..SlotLayout::default()
-            },
-            uses_pixel_context: false,
-            pixel_entry: 0,
-            array_capacity: 2,
-            array_width: 1,
-            loop_count: 0,
-        };
-        assert!(program.has_valid_structure());
-        program.array_capacity = 1;
-        assert!(!program.has_valid_structure());
-        program.array_capacity = 3;
-        assert!(!program.has_valid_structure());
-        program.array_capacity = 2;
-        program.array_width = 0;
-        assert!(!program.has_valid_structure());
-        program.array_width = 2;
-        assert!(!program.has_valid_structure());
-        program.array_width = 1;
-        assert!(program.has_valid_context(ProgramContext::Calculation));
-        assert!(program.has_valid_calculation_outputs(&[Type::array(Type::Float)]));
-        assert!(!program.has_valid_calculation_outputs(&[Type::Int]));
-        assert!(!program.has_valid_calculation_outputs(&[]));
-
-        program.instructions[0] = Instruction::Jump(2);
-        assert!(!program.has_valid_structure());
-        // Matching a schema alone does not prove the returned register was initialized.
-        assert!(program.has_valid_calculation_outputs(&[Type::array(Type::Float)]));
-    }
-
-    #[test]
-    fn arrays_cannot_chain_arrays_at_the_same_depth() {
-        use super::{ArraySlot, IntSlot, Type};
-
-        let program = BytecodeProgram {
-            instructions: vec![
-                Instruction::LoadIntConst {
-                    dst: IntSlot(0),
-                    value: 10,
-                },
-                Instruction::MakeArray {
-                    dst: ArraySlot(0),
-                    items: PoolSpan { start: 0, len: 1 },
-                },
-                Instruction::LoopRangeStart {
-                    id: 0,
-                    count: IntSlot(0),
-                    cap: 10,
-                    end: 5,
-                },
-                Instruction::MakeArray {
-                    dst: ArraySlot(1),
-                    items: PoolSpan { start: 1, len: 1 },
-                },
-                Instruction::Move {
-                    dst: ValueSlot::Array(ArraySlot(0)),
-                    src: 1,
-                },
-                Instruction::LoopEnd { id: 0, start: 3 },
-                Instruction::ReturnValues(PoolSpan { start: 0, len: 1 }),
-            ]
-            .into_boxed_slice(),
-            curves: Box::new([]),
-            gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
-            enums: Box::new([]),
-            enum_types: Box::new([]),
-            array_constants: vec![].into_boxed_slice(),
-            value_operands: vec![ValueSlot::Int(IntSlot(0)), ValueSlot::Array(ArraySlot(0))]
-                .into_boxed_slice(),
-            array_types: vec![Type::array(Type::Int); 2].into_boxed_slice(),
-            layout: SlotLayout {
-                ints: 1,
-                arrays: 2,
-                ..SlotLayout::default()
-            },
-            uses_pixel_context: false,
-            pixel_entry: 0,
-            array_capacity: 3,
-            array_width: 1,
-            loop_count: 1,
-        };
-        assert!(!program.has_valid_structure());
-        assert!(program.has_valid_context(ProgramContext::Calculation));
-        assert!(program.has_valid_calculation_outputs(&[Type::Int]));
-    }
-
-    #[test]
     fn only_paired_counted_loops_can_jump_backward() {
         let mut program = BytecodeProgram {
             instructions: vec![
@@ -2809,9 +2395,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2881,9 +2464,6 @@ mod representation_tests {
             .into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2914,9 +2494,6 @@ mod representation_tests {
             instructions: vec![Instruction::ReturnColor(ColorSlot(0))].into_boxed_slice(),
             curves: Box::new([]),
             gradients: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             enums: Box::new([]),
             enum_types: Box::new([]),
             array_constants: vec![].into_boxed_slice(),
@@ -2934,7 +2511,6 @@ mod representation_tests {
             loop_count: 0,
         };
         assert!(program.has_valid_context(ProgramContext::Effect));
-        assert!(!program.has_valid_context(ProgramContext::Calculation));
 
         program.instructions = vec![
             Instruction::SignalSample {
@@ -2973,36 +2549,6 @@ pub enum ContextRead {
     PixelIndex,
     PixelCount,
     PixelFraction,
-}
-
-/// Context available to a host calculation. Pixel and signal queries cannot be
-/// represented in an admitted calculation instruction.
-#[derive(Clone, Copy, Debug, Hash, PartialEq)]
-pub enum CalculationRead {
-    Progress,
-    Seconds,
-    Duration,
-}
-
-impl CalculationRead {
-    pub(super) fn admit(read: ContextRead) -> Option<Self> {
-        match read {
-            ContextRead::Progress => Some(Self::Progress),
-            ContextRead::Seconds => Some(Self::Seconds),
-            ContextRead::Duration => Some(Self::Duration),
-            _ => None,
-        }
-    }
-}
-
-impl From<CalculationRead> for ContextRead {
-    fn from(read: CalculationRead) -> Self {
-        match read {
-            CalculationRead::Progress => Self::Progress,
-            CalculationRead::Seconds => Self::Seconds,
-            CalculationRead::Duration => Self::Duration,
-        }
-    }
 }
 
 #[derive(
@@ -3118,58 +2664,6 @@ impl NumberSlot {
         match self {
             Self::Int(slot) => ValueSlot::Int(slot),
             Self::Float(slot) => ValueSlot::Float(slot),
-        }
-    }
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum TargetItemsOp {
-    Fixtures {
-        dst: TargetItemsSlot,
-    },
-    Pixels {
-        dst: TargetItemsSlot,
-    },
-    Sections {
-        dst: TargetItemsSlot,
-        width: NumberSlot,
-    },
-}
-
-impl TargetItemsOp {
-    fn output(self) -> ValueSlot {
-        match self {
-            Self::Fixtures { dst } | Self::Pixels { dst } | Self::Sections { dst, .. } => {
-                ValueSlot::TargetItems(dst)
-            }
-        }
-    }
-
-    fn input(self) -> Option<NumberSlot> {
-        match self {
-            Self::Sections { width, .. } => Some(width),
-            Self::Fixtures { .. } | Self::Pixels { .. } => None,
-        }
-    }
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum TargetSource {
-    Target(TargetSlot),
-    Items(TargetItemsSlot),
-    Item(TargetItemSlot),
-}
-
-impl TargetSource {
-    pub fn value_slot(self) -> ValueSlot {
-        match self {
-            Self::Target(slot) => ValueSlot::Target(slot),
-            Self::Items(slot) => ValueSlot::TargetItems(slot),
-            Self::Item(slot) => ValueSlot::TargetItem(slot),
         }
     }
 }

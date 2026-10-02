@@ -65,8 +65,7 @@ Effect DSL APIs:
 
 The VM suite samples ScanSweep, ImpactBurst, SparkleComet, and ShimmerField over 512 pixels each.
 Binding occurs outside the timed sampling loop and pairs parameters with an admitted
-program. Generator expansion is not a VM benchmark entry point; renderer fixtures
-exercise generator binding and expansion separately from per-pixel execution.
+program. Renderer fixtures exercise preparation separately from per-pixel execution.
 
 The renderer benches live in `crates/donder-elaboration/benches/render_bench.rs`. They load
 `examples/starter/project.donder`, benchmark preparation, and check representative frames
@@ -143,7 +142,7 @@ bindings.
 
 ### Rendering And Output Runtime
 
-Risk: renderer refactors change output colors, active effect indexing, generated child expansion,
+Risk: renderer refactors change output colors, active effect indexing,
 target preparation, timeline buckets, bytecode preparation, or frame timing.
 
 Current coverage:
@@ -151,7 +150,7 @@ Current coverage:
 - `pnpm check`
 - `pnpm bench:effect-vm:quick`
 - Criterion render checksums and active effect counts
-- Criterion Effect DSL VM sample and generator assertions
+- Criterion Effect DSL VM sample assertions
 
 Treat checksum or active-effect-count changes as behavior changes unless deliberately explained.
 Treat benchmark timing as a signal to investigate, not as a hard failure.

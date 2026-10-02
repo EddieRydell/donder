@@ -1,16 +1,14 @@
 //! Invariant-preserving host construction. Checked authored inputs enter before
 //! `build`; graph references and storage addresses are issued only by its owner.
 use super::{ExecutableSequenceData, PreparedOutput, SequenceData, programs::AdmittedPrograms};
-use crate::bindings::ExecutableEnvironment;
 use crate::dsl::{
-    AutomationPlan, BoundParams, CompiledOperator, DslBindCache, RuntimeError, SampleProgram,
+    AutomationPlan, BoundParams, DslBindCache, OperatorProgram, RuntimeError, SampleProgram,
     SpatialContext, Value,
 };
 use crate::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 use crate::signal::{
-    PreparedAutomation, PreparedClip, PreparedEffect, PreparedEffectAutomation,
-    PreparedEffectImplementation, PreparedFixture, PreparedLayer, PreparedOperator,
-    PreparedOperatorNode, PreparedPixel, PreparedSignalGraph, PreparedSignalKind,
+    PreparedAutomation, PreparedClip, PreparedEffect, PreparedEffectAutomation, PreparedFixture,
+    PreparedLayer, PreparedOperatorNode, PreparedPixel, PreparedSignalGraph, PreparedSignalKind,
     PreparedSignalNode, PreparedTarget,
 };
 use crate::values::{SampleDuration, SampleTime};
@@ -18,11 +16,11 @@ use crate::values::{SampleDuration, SampleTime};
 use alloc::rc::Rc as Shared;
 #[cfg(feature = "atomic")]
 use alloc::sync::Arc as Shared;
-use alloc::{boxed::Box, collections::BTreeSet, vec, vec::Vec};
+#[cfg(test)]
+use alloc::vec;
+use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use core::{marker::PhantomData, num::NonZeroU32};
 
-mod generator;
-pub use generator::{GeneratedEffect, GeneratorPlayback};
 #[cfg(test)]
 mod tests;
 
@@ -54,7 +52,7 @@ pub struct SequenceWindow {
     pub duration: NonZeroU32,
 }
 
-/// An accepted sequence clock and its authored/generated effect intervals.
+/// An accepted sequence clock and its authored effect intervals.
 /// Cache this at project admission so host construction cannot fail on timing.
 #[derive(Clone, Debug)]
 pub struct SequenceTiming {
@@ -133,8 +131,7 @@ impl SampleDefinition {
         values: Vec<Value>,
         cache: &mut DslBindCache,
     ) -> Result<SampleInvocation, RuntimeError> {
-        let slots: Vec<_> = values.into_iter().map(Some).collect();
-        let params = BoundParams::bind_slots(self.0.input_types(), &slots, cache)?;
+        let params = BoundParams::bind_values(self.0.input_types(), values, cache)?;
         let automation = AutomationPlan::admit(&params, &[]).ok_or_else(|| RuntimeError {
             message: "invalid sample automation layout".into(),
         })?;
@@ -185,10 +182,10 @@ impl SampleInvocation {
 }
 
 #[derive(Clone, Debug)]
-pub struct OperatorDefinition(Shared<CompiledOperator>);
+pub struct OperatorDefinition(Shared<OperatorProgram>);
 
 impl OperatorDefinition {
-    pub fn new(program: impl Into<Shared<CompiledOperator>>) -> Self {
+    pub fn new(program: impl Into<Shared<OperatorProgram>>) -> Self {
         Self(program.into())
     }
 
@@ -197,14 +194,7 @@ impl OperatorDefinition {
         values: Vec<Value>,
         cache: &mut DslBindCache,
     ) -> Result<OperatorInvocation, RuntimeError> {
-        let types: Vec<_> = self
-            .0
-            .params()
-            .iter()
-            .map(|param| param.ty.clone())
-            .collect();
-        let slots: Vec<_> = values.into_iter().map(Some).collect();
-        let params = BoundParams::bind_slots(&types, &slots, cache)?;
+        let params = BoundParams::bind_values(self.0.parameter_types(), values, cache)?;
         let automation = AutomationPlan::admit(&params, &[]).ok_or_else(|| RuntimeError {
             message: "invalid operator automation layout".into(),
         })?;
@@ -234,11 +224,9 @@ impl OperatorInvocation {
             || automation.iter().any(|binding| {
                 self.definition
                     .0
-                    .params()
+                    .parameter_types()
                     .get(usize::from(binding.param_index))
-                    .is_none_or(|param| {
-                        !param.supports_automation() || !binding.mapping.accepts_type(&param.ty)
-                    })
+                    .is_none_or(|ty| !binding.mapping.accepts_type(ty))
             })
         {
             return Err(RuntimeError {
@@ -381,7 +369,6 @@ pub struct SequenceBuilder<'id> {
     targets: Vec<Target>,
     sample_programs: Vec<SampleDefinition>,
     operator_programs: Vec<OperatorDefinition>,
-    environments: Vec<ExecutableEnvironment>,
     effects: Vec<PreparedEffect<AutomationPlan>>,
     clips: Vec<PreparedClip>,
     effect_automation_count: usize,
@@ -407,7 +394,6 @@ impl<'id> SequenceBuilder<'id> {
             targets: Vec::new(),
             sample_programs: Vec::new(),
             operator_programs: Vec::new(),
-            environments: Vec::new(),
             effects: Vec::new(),
             clips: Vec::new(),
             effect_automation_count: 0,
@@ -535,7 +521,7 @@ impl<'id> SequenceBuilder<'id> {
 
     /// Intersect a range with the target's physical pixel order. Out-of-domain
     /// endpoints and reversed ranges select no extra pixels. Logical indices,
-    /// counts, fractions, spatial scope and generator selection order survive.
+    /// counts, fractions, spatial scope and selection order survive.
     pub fn target_slice(
         &mut self,
         target: TargetHandle<'id>,
@@ -612,29 +598,18 @@ impl<'id> SequenceBuilder<'id> {
             start_time: window.start,
             duration: window.duration,
             target: target.index,
-            implementation: PreparedEffectImplementation::Dsl {
-                program,
-                bound_params: invocation.params.clone(),
-            },
+            program,
+            bound_params: invocation.params.clone(),
             automation,
         });
         EffectHandle::new(index)
     }
 
-    /// Register authored clip identity independently from generated effect order.
-    pub fn clip(
-        &mut self,
-        id: u32,
-        window: WindowHandle<'id>,
-        target: TargetHandle<'id>,
-        effects: impl IntoIterator<Item = EffectHandle<'id>>,
-    ) {
+    /// Register authored clip identity independently from storage order.
+    pub fn clip(&mut self, id: u32, effect: EffectHandle<'id>) {
         self.clips.push(PreparedClip {
             id,
-            start_time: window.start,
-            duration: window.duration,
-            target: target.index,
-            effects: effects.into_iter().map(|effect| effect.index).collect(),
+            effect: effect.index,
         });
     }
 
@@ -657,7 +632,7 @@ impl<'id> SequenceBuilder<'id> {
                 index
             }
         };
-        let inputs = (0..invocation.definition.0.inputs().len())
+        let inputs = (0..invocation.definition.0.input_count())
             .map(|index| input(index).index)
             .collect();
         let index = self.nodes.len();
@@ -669,7 +644,7 @@ impl<'id> SequenceBuilder<'id> {
             kind: PreparedSignalKind::Operator {
                 operator: PreparedOperatorNode {
                     automation_slot,
-                    implementation: PreparedOperator::Dsl(program),
+                    program,
                     params: invocation.params.clone(),
                 },
                 inputs,
@@ -790,7 +765,7 @@ impl<'id> SequenceBuilder<'id> {
             || self
                 .operator_programs
                 .iter()
-                .any(|program| program.0.program().uses_spatial_context());
+                .any(|program| program.0.uses_spatial_context());
         let mut target_pixels = Vec::new();
         let needs_sections = self
             .sample_programs
@@ -799,7 +774,7 @@ impl<'id> SequenceBuilder<'id> {
             || self
                 .operator_programs
                 .iter()
-                .any(|program| program.0.program().uses_sections());
+                .any(|program| program.0.uses_sections());
         let mut spatial_contexts = Vec::new();
         let targets = self
             .targets
@@ -846,7 +821,6 @@ impl<'id> SequenceBuilder<'id> {
             .collect();
         let mut data = SequenceData {
             signals: PreparedSignalGraph {
-                parameter_environments: self.environments.into(),
                 frame_rate: self.timing.frame_rate.get(),
                 frame_count: self.timing.frame_count,
                 duration: SampleDuration::from_ticks(self.timing.duration.get()),
@@ -862,7 +836,7 @@ impl<'id> SequenceBuilder<'id> {
                         .collect(),
                     self.operator_programs
                         .into_iter()
-                        .map(|program| program.0.program().clone())
+                        .map(|program| program.0.as_ref().clone())
                         .collect(),
                 ),
                 targets,
@@ -880,11 +854,6 @@ impl<'id> SequenceBuilder<'id> {
         };
         if self.compact_outputs {
             super::compact::compact(&mut data.signals, &mut data.patch);
-        } else {
-            super::compact::retain_environments(
-                &mut data.signals.parameter_environments,
-                &mut data.signals.effects,
-            );
         }
         data
     }

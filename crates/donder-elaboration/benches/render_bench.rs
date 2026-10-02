@@ -12,9 +12,6 @@ use std::time::Duration;
 #[path = "../../donder-language/benches/fixtures/mod.rs"]
 mod effect_fixtures;
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/generator_workload.rs"]
-mod generator_workload;
-#[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/mark_workload.rs"]
 mod mark_workload;
 #[allow(dead_code)]
@@ -188,8 +185,8 @@ fn bench_mark_playback(c: &mut Criterion) {
             .unwrap()
             .clone();
         let mut source = project.sequence(&id).unwrap().clone();
-        let mut generator = source.effects[0].clone();
-        let gradient = generator.param_overrides.get("gradient").unwrap().clone();
+        let mut effect = source.effects[0].clone();
+        let gradient = effect.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
             name: "profile_beats".into(),
         };
@@ -211,11 +208,11 @@ fn bench_mark_playback(c: &mut Criterion) {
             .expect("standard mark effect must be imported")
             .0
             .clone();
-        generator.definition = EffectRef::Custom(definition_id);
-        generator.start = DonderTime(Duration::ZERO);
-        generator.duration = DonderDuration(Duration::from_secs(8));
-        generator.layer_id = source.layers[0].id.clone();
-        generator.param_overrides.clear();
+        effect.definition = EffectRef::Custom(definition_id);
+        effect.start = DonderTime(Duration::ZERO);
+        effect.duration = DonderDuration(Duration::from_secs(8));
+        effect.layer_id = source.layers[0].id.clone();
+        effect.param_overrides.clear();
         let ramp = EffectParamValue::Curve(CurveSource::Inline(Curve {
             points: vec![
                 CurvePoint {
@@ -250,20 +247,17 @@ fn bench_mark_playback(c: &mut Criterion) {
         } else {
             values.extend([
                 ("gradients", EffectParamValue::Array(vec![gradient])),
-                (
-                    "chase_positions",
-                    EffectParamValue::Array(vec![ramp.clone()]),
-                ),
+                ("chase_position", ramp),
                 ("pulse_shape", falloff),
                 ("chase_seconds", EffectParamValue::Float(1.2)),
             ]);
         }
-        generator.param_overrides.extend(
+        effect.param_overrides.extend(
             values
                 .into_iter()
                 .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value)),
         );
-        source.effects = vec![generator];
+        source.effects = vec![effect];
         source.automation_clips.clear();
         project.replace_sequence(&id, source).unwrap();
         let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
@@ -271,12 +265,9 @@ fn bench_mark_playback(c: &mut Criterion) {
         let (_, duration) = prepared
             .effect_windows()
             .next()
-            .expect("constructed fixture must contain DSL mark children");
+            .expect("constructed fixture must contain a mark effect");
         assert!(duration.as_ticks() > 0);
-        assert!(
-            prepared.effect_count() >= 32,
-            "marks must expand into actual children"
-        );
+        assert_eq!(prepared.effect_count(), 1);
         let start = 3_000_000;
         let mut workspace = prepared.clone().into_playback();
         let black = Color {
@@ -361,60 +352,13 @@ fn bench_chase_pulse(c: &mut Criterion) {
     }
 }
 
-fn bench_generator_bindings(c: &mut Criterion) {
-    pin_benchmark_thread();
-    for (case, name) in generator_workload::CASES {
-        for count in [200, 800] {
-            for (mode, generator, automated) in [
-                ("ordinary", false, true),
-                ("live", true, true),
-                ("constant", true, false),
-            ] {
-                let show = generator_workload::show(count, case, generator, automated);
-                let reference = generator_workload::show(count, case, false, automated);
-                let mut workspace = show.clone().prepare().into_playback();
-                let mut reference_workspace = reference.clone().prepare().into_playback();
-                let mut output = [vec![0u8; count * 3]];
-                let mut expected = output.clone();
-                for frame in 0..workload::FRAMES {
-                    for (snapshot, output) in output
-                        .iter_mut()
-                        .zip(workspace.evaluate(workload::time(frame)).outputs())
-                    {
-                        snapshot.copy_from_slice(output.bytes);
-                    }
-                    for (snapshot, output) in expected.iter_mut().zip(
-                        reference_workspace
-                            .evaluate(workload::time(frame))
-                            .outputs(),
-                    ) {
-                        snapshot.copy_from_slice(output.bytes);
-                    }
-                    assert_eq!(output, expected, "{name}/{mode}/{count}/{frame}");
-                }
-                let mut frame = 0;
-                c.bench_function(&format!("generator_bindings/{name}/{mode}/{count}"), |b| {
-                    b.iter(|| {
-                        frame = (frame + 1) % workload::FRAMES;
-                        black_box(workspace.evaluate(black_box(workload::time(frame))));
-                    })
-                });
-            }
-        }
-    }
-}
-
 fn bench_layers(c: &mut Criterion) {
     pin_benchmark_thread();
     for (name, source, params) in effect_fixtures::layer_cases() {
         let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
         for layers in [1, 4, 16] {
-            let show = workload::layered_show(
-                200,
-                effect.sample_program().unwrap().clone(),
-                bound.clone(),
-                layers,
-            );
+            let show =
+                workload::layered_show(200, effect.sample_program().clone(), bound.clone(), layers);
             let mut workspace = show.clone().prepare().into_playback();
             let mut frame = 0;
             c.bench_function(&format!("prepared_layers/{name}/{layers}"), |b| {
@@ -453,11 +397,8 @@ fn bench_operators(c: &mut Criterion) {
                 let operator = donder_language::dsl::compile_operators(source)
                     .unwrap()
                     .remove(0);
-                let mut show = workload::show(
-                    count,
-                    effect.sample_program().unwrap().clone(),
-                    bound.clone(),
-                );
+                let mut show =
+                    workload::show(count, effect.sample_program().clone(), bound.clone());
                 workload::apply_operator(
                     &mut show,
                     operator.program().clone().into_parts().0,
@@ -558,7 +499,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
     let (effect, params) = effect_fixtures::uniform_resources();
     let mut expected = None;
     for (name, reuse) in [("full", false), ("reuse", true)] {
-        let (mut program, types) = effect.sample_program().unwrap().clone().into_parts();
+        let (mut program, types) = effect.sample_program().clone().into_parts();
         if !reuse {
             program.pixel_entry = 0;
         }
@@ -597,24 +538,14 @@ fn bench_uniform_upstream(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().next().unwrap();
     let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
-    assert!(
-        !effect
-            .sample_program()
-            .unwrap()
-            .bytecode()
-            .uses_pixel_context
-    );
+    assert!(!effect.sample_program().bytecode().uses_pixel_context);
     let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     for count in [200, 1600] {
         let mut expected = None;
         for reuse in [false, true] {
-            let mut show = workload::show(
-                count,
-                effect.sample_program().unwrap().clone(),
-                bound.clone(),
-            );
+            let mut show = workload::show(count, effect.sample_program().clone(), bound.clone());
             workload::set_uniform_upstream(&mut show, reuse);
             workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
             let mut workspace = show.clone().prepare().into_playback();
@@ -651,12 +582,8 @@ fn bench_gamma(c: &mut Criterion) {
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
     let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
     for count in workload::COUNTS {
-        let mut show = workload::layered_show(
-            count,
-            effect.sample_program().unwrap().clone(),
-            bound.clone(),
-            1,
-        );
+        let mut show =
+            workload::layered_show(count, effect.sample_program().clone(), bound.clone(), 1);
         workload::apply_gamma(&mut show, workload::gamma_lookup());
         let mut workspace = show.clone().prepare().into_playback();
         let mut frame = 0;
@@ -783,6 +710,6 @@ fn criterion_config() -> Criterion {
 criterion_group! {
     name = benches;
     config = criterion_config();
-    targets = bench_render, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream, bench_generator_bindings
+    targets = bench_render, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream
 }
 criterion_main!(benches);

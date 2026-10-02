@@ -1,5 +1,5 @@
 use crate::dsl::types::Identifier;
-use crate::dsl::{CompiledEffect, EffectKind, ParamDecl, Type};
+use crate::dsl::{CompiledEffect, ParamDecl, Type};
 use crate::identity::SourceIdentity;
 use crate::layout::FixtureTarget;
 use crate::sequence::{MarkCollectionKey, SequenceLayerId};
@@ -79,13 +79,7 @@ impl EffectParamValue {
                 Some(Self::Array(vec![Self::initial_for_type(element, color)?]))
             }
             Type::Enum(options) => options.first().cloned().map(Self::Enum),
-            Type::Void
-            | Type::Signal
-            | Type::Timeline
-            | Type::Marks
-            | Type::Target
-            | Type::TargetItems
-            | Type::TargetItem => None,
+            Type::Void | Type::Signal | Type::Marks => None,
         }
     }
 }
@@ -95,14 +89,9 @@ pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectDefinition {
-    /// Statically linked generator child targets, in the same order as the
-    /// compiled effect's emitted-child slots.
-    pub(crate) generated_effect_targets: Box<[EffectRef]>,
-    pub(crate) emitted_references: Box<[crate::dsl::EmittedReference]>,
     pub(crate) id: EffectRef,
     pub source_name: String,
     pub display_name: String,
-    pub(crate) kind: EffectKind,
     pub(crate) params: Vec<ParamDecl>,
     pub(crate) implementation: EffectImplementation,
 }
@@ -116,44 +105,17 @@ impl EffectDefinition {
     pub fn id(&self) -> &EffectRef {
         &self.id
     }
-    pub fn kind(&self) -> EffectKind {
-        self.kind
-    }
     pub fn params(&self) -> &[ParamDecl] {
         &self.params
     }
     pub fn implementation(&self) -> &EffectImplementation {
         &self.implementation
     }
-    pub fn emitted_references(&self) -> &[crate::dsl::EmittedReference] {
-        &self.emitted_references
-    }
-    pub fn generated_effect_targets(&self) -> &[EffectRef] {
-        &self.generated_effect_targets
-    }
-
-    /// Resolve the compiler's child slots while assembling a definition. Project
-    /// admission subsequently checks target existence, signatures, and cycles.
-    pub fn link_generated_effect_targets(
-        &mut self,
-        targets: Box<[EffectRef]>,
-    ) -> Result<(), String> {
-        if targets.len() != self.emitted_references.len() {
-            return Err("Generator child targets do not match its emitted slots.".into());
-        }
-        self.generated_effect_targets = targets;
-        Ok(())
-    }
-
-    pub fn custom(id: EffectDefinitionId, compilation: crate::dsl::EffectCompilation) -> Self {
-        let compiled = compilation.effect;
+    pub fn custom(id: EffectDefinitionId, compiled: CompiledEffect) -> Self {
         Self {
-            generated_effect_targets: Box::new([]),
-            emitted_references: compilation.emitted_references,
             id: EffectRef::Custom(id),
             source_name: compiled.name().as_str().to_string(),
             display_name: compiled.name().as_str().to_string(),
-            kind: compiled.kind(),
             params: compiled.params().to_vec(),
             implementation: EffectImplementation::Dsl(compiled),
         }

@@ -163,9 +163,6 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
         });
     for definition in project.definitions.effects.definitions.values_mut() {
         remap_effect_ref(&mut definition.id, remaps);
-        for target in &mut definition.generated_effect_targets {
-            remap_effect_ref(target, remaps);
-        }
     }
 
     project.definitions.fixtures.definitions =

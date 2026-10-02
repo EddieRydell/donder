@@ -1,13 +1,12 @@
 extern crate alloc;
 
-use alloc::{vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 use core::num::NonZeroU32;
 use donder_runtime::{
-    BoundParams, BytecodeProgram, CompiledOperator, DslBindCache, FixtureGeometry,
-    GeneratorPlayback, Identifier, Instruction, OperatorDefinition, OperatorInputDecl,
-    OperatorInvocation, OutputEncoding, PreparedAutomation, PreparedSequence, RgbOrder, RunContext,
-    SampleDefinition, SampleDuration, SampleProgram, SampleTime, SequenceBuilder, SequenceRoot,
-    SequenceTiming, SequenceWindow, SignalHandle, TargetScope,
+    BoundParams, BytecodeProgram, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition,
+    OperatorInvocation, OperatorProgram, OutputEncoding, PreparedAutomation, PreparedSequence,
+    RgbOrder, RunContext, SampleDefinition, SampleDuration, SampleProgram, SampleTime,
+    SequenceBuilder, SequenceRoot, SequenceTiming, SequenceWindow, SignalHandle, TargetScope,
 };
 
 #[derive(Clone)]
@@ -24,7 +23,6 @@ pub struct SampleFixture {
 pub struct Workload {
     count: usize,
     layers: Vec<Vec<SampleFixture>>,
-    generator: Option<GeneratorPlayback>,
     operators: Vec<OperatorInvocation>,
     lookup: Option<[u8; 256]>,
 }
@@ -34,18 +32,6 @@ impl Workload {
         Self {
             count,
             layers,
-            generator: None,
-            operators: vec![],
-            lookup: None,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn generator(count: usize, generator: GeneratorPlayback) -> Self {
-        Self {
-            count,
-            layers: vec![],
-            generator: Some(generator),
             operators: vec![],
             lookup: None,
         }
@@ -118,10 +104,6 @@ impl Workload {
                     .collect();
                 layers.push(builder.layer(true, effects));
             }
-            if let Some(generator) = &self.generator {
-                let effects = builder.generator(generator, builder.whole_sequence(), target);
-                layers.push(builder.layer(true, effects.into_iter().map(|child| child.effect)));
-            }
             // Operator fixtures measure Layer 0 -> operator chain, including
             // the four-layer Chase/Pulse source used by the Echo cases.
             // Preserve that input selection; layer-only cases mix every layer.
@@ -159,7 +141,7 @@ pub const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("MarkChase20
 #[cfg(not(target_arch = "xtensa"))]
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
 pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
-    use donder_language::dsl::compile_effects;
+    use donder_language::dsl::{bind_params, compile_effects};
     use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
     use donder_runtime::{Identifier, Value};
     let definitions = compile_effects(include_str!(
@@ -168,11 +150,11 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
     .unwrap();
     let chase = definitions
         .iter()
-        .find(|definition| definition.effect.name().as_str() == "Chase")
+        .find(|definition| definition.name().as_str() == "Chase")
         .unwrap();
     let pulse = definitions
         .iter()
-        .find(|definition| definition.effect.name().as_str() == "Pulse")
+        .find(|definition| definition.name().as_str() == "Pulse")
         .unwrap();
     let mut effects = vec::Vec::new();
     let shape: Value = Value::Curve(
@@ -246,21 +228,18 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
             .into_iter()
             .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value))
             .collect::<vec::Vec<_>>();
-        let params = BoundParams::bind_pairs(
+        let params = bind_params(
             if chasing {
-                chase.effect.params()
+                chase.params()
             } else {
-                pulse.effect.params()
+                pulse.params()
             },
-            &overrides,
+            overrides.iter().map(|(name, value)| (name, value)),
+            &mut DslBindCache::default(),
         )
         .unwrap();
         effects.push(SampleFixture {
-            program: if chasing { chase } else { pulse }
-                .effect
-                .sample_program()
-                .unwrap()
-                .clone(),
+            program: if chasing { chase } else { pulse }.sample_program().clone(),
             params,
             start: SampleTime::from_ticks(index as u32 * 43_000),
             duration: SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000),
@@ -286,24 +265,25 @@ pub fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
 }
 
 fn operator_invocation(program: BytecodeProgram) -> OperatorInvocation {
-    let operator = CompiledOperator::admit(
-        Identifier::new("fixture".into()).unwrap(),
-        vec![OperatorInputDecl {
-            name: Identifier::new("source".into()).unwrap(),
-        }],
-        vec![],
-        program,
-    )
-    .unwrap();
+    let operator = OperatorProgram::admit(program, 1, Box::new([])).unwrap();
     OperatorDefinition::new(operator)
         .bind(vec![], &mut DslBindCache::default())
         .unwrap()
 }
 
-pub fn apply_compiled_operator(show: &mut Workload, operator: CompiledOperator) {
-    let params = BoundParams::bind_pairs(operator.params(), &[]).unwrap();
+#[cfg(not(target_arch = "xtensa"))]
+pub fn apply_compiled_operator(
+    show: &mut Workload,
+    operator: donder_language::dsl::CompiledOperator,
+) {
+    let params = donder_language::dsl::bind_params(
+        operator.params(),
+        core::iter::empty(),
+        &mut DslBindCache::default(),
+    )
+    .unwrap();
     show.operators = vec![
-        OperatorDefinition::new(operator)
+        OperatorDefinition::new(operator.program().clone())
             .bind(params.iter_values().collect(), &mut DslBindCache::default())
             .unwrap(),
     ];
@@ -362,7 +342,7 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
 
 pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty: bool) {
     use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    use donder_runtime::{Identifier, ParamDecl, Type, Value};
+    use donder_runtime::{Type, Value};
     let mut curve = Curve {
         points: vec![
             CurvePoint {
@@ -384,7 +364,6 @@ pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty
     }
     let values = [
         (
-            "gradient",
             Type::Gradient,
             Value::Gradient(
                 Gradient {
@@ -400,19 +379,14 @@ pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty
                 .into(),
             ),
         ),
-        (
-            "pulse_shape",
-            Type::Curve,
-            Value::Curve(curve.clone().into()),
-        ),
+        (Type::Curve, Value::Curve(curve.clone().into())),
     ];
-    let declarations = values.map(|(name, ty, value)| ParamDecl {
-        fixed: false,
-        name: Identifier::new(name.into()).unwrap(),
-        ty,
-        default: Some(value),
-    });
-    let params = BoundParams::bind_pairs(&declarations, &[]).unwrap();
+    let params = BoundParams::bind_values(
+        &values.iter().map(|(ty, _)| ty.clone()).collect::<Vec<_>>(),
+        values.into_iter().map(|(_, value)| value).collect(),
+        &mut DslBindCache::default(),
+    )
+    .unwrap();
     show.layers[0][0] = SampleFixture {
         program,
         params,
@@ -496,45 +470,4 @@ pub fn layered_show(
         automation: vec![],
     };
     Workload::samples(count, vec![vec![effect]; layers])
-}
-
-/// Link the local declarations of a self-contained benchmark effect document.
-#[cfg(not(target_arch = "xtensa"))]
-pub fn link_generator(
-    definitions: &[donder_language::dsl::EffectCompilation],
-    name: &str,
-) -> alloc::sync::Arc<donder_runtime::LinkedGenerator> {
-    use donder_language::imports::SourceReference;
-    use donder_runtime::{GeneratorTarget, LinkedGenerator};
-    let definition = definitions
-        .iter()
-        .find(|item| item.effect.name().as_str() == name)
-        .unwrap();
-    let children = definition
-        .emitted_references
-        .iter()
-        .map(|emission| {
-            let SourceReference::Local(name) = &emission.reference else {
-                panic!("fixture children must use local effects");
-            };
-            let child = definitions
-                .iter()
-                .find(|item| item.effect.name() == name)
-                .unwrap();
-            donder_language::dsl::validate_emission(emission, child.effect.params()).unwrap();
-            if let Some(program) = child.effect.sample_program() {
-                GeneratorTarget::Sample {
-                    program: program.clone().into(),
-                    params: child.effect.params().into(),
-                }
-            } else {
-                GeneratorTarget::Generator(link_generator(definitions, name.as_str()))
-            }
-        })
-        .collect();
-    LinkedGenerator::link(
-        definition.effect.generator().unwrap().clone().into(),
-        children,
-    )
-    .unwrap()
 }

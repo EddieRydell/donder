@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::bytecode::{
     ColorSlot, FloatSlot, Instruction, IntSlot, MarkOp, NumberSlot, SignalPixel, SlotLayout,
-    TargetItemsOp, TargetSource, ValueSlot,
+    ValueSlot,
 };
 use super::types::{Type, Value};
 
@@ -59,12 +59,7 @@ pub(super) fn hoist_uniform(code: &mut Vec<Instruction>, operands: &mut [ValueSl
                 | Instruction::NegFloat { .. } => true,
                 _ => false,
             };
-            if jump_target(op).is_some()
-                || matches!(
-                    op,
-                    Instruction::ReturnColor(_) | Instruction::ReturnValues(_)
-                )
-            {
+            if jump_target(op).is_some() || matches!(op, Instruction::ReturnColor(_)) {
                 entry_block = false;
             }
             let mut dst = None;
@@ -221,12 +216,7 @@ pub(super) fn cleanup(
         {
             copies.insert(*dst, dst.with_index(*src));
         }
-        if jump_target(op).is_some()
-            || matches!(
-                op,
-                Instruction::ReturnColor(_) | Instruction::ReturnValues(_)
-            )
-        {
+        if jump_target(op).is_some() || matches!(op, Instruction::ReturnColor(_)) {
             copies.clear();
             samples.clear();
         }
@@ -318,7 +308,6 @@ pub(super) fn cleanup(
                 });
             }
             Instruction::MakeArray { items: span, .. }
-            | Instruction::ReturnValues(span)
             | Instruction::Select { items: span, .. } => {
                 let values = &old_operands[span.start as usize..(span.start + span.len) as usize];
                 span.start = operands.len() as u32;
@@ -337,9 +326,6 @@ pub(super) fn cleanup(
                         ValueSlot::Marks(_) => Type::Marks,
                         ValueSlot::Curve(_) => Type::Curve,
                         ValueSlot::Gradient(_) => Type::Gradient,
-                        ValueSlot::TargetItem(_) => Type::TargetItem,
-                        ValueSlot::TargetItems(_) => Type::TargetItems,
-                        ValueSlot::Target(_) => Type::Target,
                         ValueSlot::Array(slot) => old_ref_types[slot.0 as usize].clone(),
                         ValueSlot::Void => Type::Void,
                         ValueSlot::Enum(slot) => old_enum_types[slot.0 as usize].clone(),
@@ -416,13 +402,6 @@ fn slots(
             typed!(false, Float, position);
             typed!(true, Color, dst);
         }
-        Instruction::LoadTargetConst { dst, .. } | Instruction::LoadTargetParam { dst, .. } => {
-            typed!(true, Target, dst)
-        }
-        Instruction::LoadTargetItemsConst { dst, .. }
-        | Instruction::LoadTargetItemsParam { dst, .. } => typed!(true, TargetItems, dst),
-        Instruction::LoadTargetItemConst { dst, .. }
-        | Instruction::LoadTargetItemParam { dst, .. } => typed!(true, TargetItem, dst),
         Instruction::ContextRead { dst, .. } => match dst {
             NumberSlot::Int(slot) => typed!(true, Int, slot),
             NumberSlot::Float(slot) => typed!(true, Float, slot),
@@ -483,23 +462,6 @@ fn slots(
             }
             number!(index);
             *dst = visit(*dst, true);
-        }
-        Instruction::MemberInt { dst, target, .. } => {
-            typed!(false, TargetItem, target);
-            typed!(true, Int, dst);
-        }
-        Instruction::MemberFraction { dst, target } => {
-            typed!(false, TargetItem, target);
-            typed!(true, Float, dst);
-        }
-        Instruction::TargetCount { dst, source } => {
-            typed!(false, TargetItems, source);
-            typed!(true, Int, dst);
-        }
-        Instruction::TargetPick { dst, source, index } => {
-            typed!(false, TargetItems, source);
-            number!(index);
-            typed!(true, TargetItem, dst);
         }
         Instruction::CurveParamSample { dst, position, .. } => {
             typed!(false, Float, position);
@@ -757,29 +719,6 @@ fn slots(
                     typed!(false, Float, seconds);
                     typed!(true, Int, dst);
                 }
-            }
-        }
-        Instruction::TargetItems { source, op } => {
-            match source {
-                TargetSource::Target(slot) => typed!(false, Target, slot),
-                TargetSource::Items(slot) => typed!(false, TargetItems, slot),
-                TargetSource::Item(slot) => typed!(false, TargetItem, slot),
-            }
-            match op {
-                TargetItemsOp::Fixtures { dst } | TargetItemsOp::Pixels { dst } => {
-                    typed!(true, TargetItems, dst)
-                }
-                TargetItemsOp::Sections { dst, width } => {
-                    number!(width);
-                    typed!(true, TargetItems, dst);
-                }
-            }
-        }
-        Instruction::ReturnValues(outputs) => {
-            for value in
-                &mut operands[outputs.start as usize..(outputs.start + outputs.len) as usize]
-            {
-                *value = visit(*value, false);
             }
         }
         Instruction::ReturnColor(value) => typed!(false, Color, value),

@@ -126,6 +126,16 @@ fn ensure_document_imports_target(
             reference: reference.to_string(),
             message: "source document is missing from the source project".to_string(),
         })?;
+    if !matches!(
+        document.kind,
+        crate::source::SourceDocumentKind::Donder { .. }
+    ) {
+        return Err(ExportProjectError::InvalidReference {
+            path: from_path.to_path_buf(),
+            reference: reference.to_string(),
+            message: "Only YAML documents can declare imports.".into(),
+        });
+    }
     if document
         .imports
         .iter()
@@ -284,76 +294,6 @@ pub(crate) fn write_source_reference(
 }
 
 impl Loader {
-    pub(crate) fn link_generated_effects(&mut self) -> Result<(), LoadProjectError> {
-        for (id, definition) in &mut self.definitions.effects.definitions {
-            let mut targets = Vec::with_capacity(definition.emitted_references().len());
-            for occurrence in definition.emitted_references() {
-                let range = self.documents.get(id.0.document_id()).and_then(|document| {
-                    if let crate::source::SourceDocumentKind::Effect { source } = &document.kind {
-                        Some(crate::diagnostics::byte_range(
-                            source,
-                            occurrence.span.start,
-                            occurrence.span.end,
-                        ))
-                    } else {
-                        None
-                    }
-                });
-                let target = lookup_effect_reference(&self.visible_objects, id.0.document_id(), &occurrence.reference)
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: id.0.document().to_path_buf(), range,
-                        message: format!("generated child reference `{}` must resolve to an effect definition in the generator document's scope", occurrence.reference),
-                    })?;
-                targets.push(target);
-            }
-            definition
-                .link_generated_effect_targets(targets.into_boxed_slice())
-                .map_err(|message| LoadProjectError::InvalidDocument {
-                    path: id.0.document().to_path_buf(),
-                    range: None,
-                    message,
-                })?;
-        }
-        for (id, definition) in &self.definitions.effects.definitions {
-            for (emission, target) in definition
-                .emitted_references()
-                .iter()
-                .zip(definition.generated_effect_targets())
-            {
-                let child = self.definitions.effects.resolve(target).ok_or_else(|| {
-                    LoadProjectError::InvalidDocument {
-                        path: id.0.document().to_path_buf(),
-                        range: None,
-                        message: "linked generated child definition is missing".to_string(),
-                    }
-                })?;
-                donder_language::dsl::validate_emission(emission, child.params()).map_err(
-                    |error| {
-                        let range = self.documents.get(id.0.document_id()).and_then(|document| {
-                            if let crate::source::SourceDocumentKind::Effect { source } =
-                                &document.kind
-                            {
-                                Some(crate::diagnostics::byte_range(
-                                    source,
-                                    error.span.start,
-                                    error.span.end,
-                                ))
-                            } else {
-                                None
-                            }
-                        });
-                        LoadProjectError::InvalidDocument {
-                            path: id.0.document().to_path_buf(),
-                            range,
-                            message: error.message,
-                        }
-                    },
-                )?;
-            }
-        }
-        Ok(())
-    }
-
     pub(crate) fn resolve_reference(
         &self,
         document_id: &DocumentId,

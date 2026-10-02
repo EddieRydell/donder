@@ -15,7 +15,7 @@ pub struct SignalAccess(());
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorProgram {
-    bytecode: BytecodeProgram<ContextRead, SignalAccess, ColorSlot, Infallible>,
+    bytecode: BytecodeProgram<ContextRead, SignalAccess, ColorSlot>,
     inputs: usize,
     parameters: Box<[Type]>,
     uses_spatial_context: bool,
@@ -24,8 +24,8 @@ pub struct OperatorProgram {
 
 /// One admitted operator paired with its immutable, schema-checked parameters.
 pub struct BoundOperator<'a> {
-    pub(super) program: &'a OperatorProgram,
-    pub(super) params: BoundParams,
+    program: &'a OperatorProgram,
+    params: BoundParams,
 }
 
 impl OperatorProgram {
@@ -72,12 +72,7 @@ impl OperatorProgram {
             )
         });
         let bytecode = bytecode
-            .try_map_execution(
-                Ok,
-                |()| Ok(SignalAccess(())),
-                Ok,
-                |_| Err::<Infallible, _>(()),
-            )
+            .try_map_execution(Ok::<_, Infallible>, |()| Ok(SignalAccess(())), Ok)
             .ok()?;
         Some(Self {
             bytecode,
@@ -88,7 +83,7 @@ impl OperatorProgram {
         })
     }
 
-    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, SignalAccess, ColorSlot, Infallible> {
+    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, SignalAccess, ColorSlot> {
         &self.bytecode
     }
 
@@ -131,12 +126,10 @@ impl OperatorProgram {
     }
 
     pub fn into_parts(self) -> (BytecodeProgram, usize, Box<[Type]>) {
-        let bytecode = match self.bytecode.try_map_execution(
-            Ok::<_, Infallible>,
-            |_| Ok(()),
-            Ok,
-            |never| match never {},
-        ) {
+        let bytecode = match self
+            .bytecode
+            .try_map_execution(Ok::<_, Infallible>, |_| Ok(()), Ok)
+        {
             Ok(bytecode) => bytecode,
             Err(never) => match never {},
         };

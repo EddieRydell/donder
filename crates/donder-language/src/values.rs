@@ -1,9 +1,8 @@
 pub use donder_runtime::{
-    Color, Curve, CurvePoint, CurveValidationError, Distance, DistanceSpan, Gradient, GradientStop,
-    GradientValidationError, MICROS_PER_SECOND, Marks, Point3, Rotation3, SampleDuration,
-    SampleTime, SampleTimeError, Scale3, sample_duration_from_seconds_f32,
-    sample_duration_seconds_f32, sample_time_from_frame, sample_time_from_seconds_f32,
-    sample_time_seconds_f32, sample_time_with_seconds_offset,
+    Color, Curve, CurvePoint, CurveValidationError, Gradient, GradientStop,
+    GradientValidationError, MICROS_PER_SECOND, Marks, SampleDuration, SampleTime, SampleTimeError,
+    sample_duration_from_seconds_f32, sample_duration_seconds_f32, sample_time_from_frame,
+    sample_time_from_seconds_f32, sample_time_seconds_f32, sample_time_with_seconds_offset,
 };
 
 use core::time::Duration;
@@ -107,4 +106,93 @@ pub fn sample_duration_from_donder_duration(
     Ok(SampleDuration::from_ticks(
         u32::try_from(duration.as_micros_rounded()).map_err(|_| SampleTimeError::OutOfRange)?,
     ))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Distance {
+    pub micrometers: i32,
+}
+
+impl Distance {
+    pub const ZERO: Self = Self { micrometers: 0 };
+
+    pub fn from_meters(value: f32) -> Self {
+        Self {
+            micrometers: (value * 1_000_000.0).round() as i32,
+        }
+    }
+
+    pub fn as_meters_f32(self) -> f32 {
+        self.micrometers as f32 / 1_000_000.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DistanceSpan {
+    pub micrometers: u32,
+}
+
+impl DistanceSpan {
+    pub const ZERO: Self = Self { micrometers: 0 };
+
+    pub fn from_meters(value: f32) -> Self {
+        Self {
+            micrometers: (value * 1_000_000.0).round() as u32,
+        }
+    }
+
+    pub fn as_meters_f32(self) -> f32 {
+        self.micrometers as f32 / 1_000_000.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Point3 {
+    pub x: Distance,
+    pub y: Distance,
+    pub z: Distance,
+}
+
+impl Default for Point3 {
+    fn default() -> Self {
+        Self {
+            x: Distance::ZERO,
+            y: Distance::ZERO,
+            z: Distance::ZERO,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rotation3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+impl Default for Rotation3 {
+    fn default() -> Self {
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Scale3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+impl Default for Scale3 {
+    fn default() -> Self {
+        Self {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        }
+    }
 }

@@ -1,14 +1,10 @@
 //! Selected-output storage compaction over admitted programs and binding plans.
 //! Sampling coordinates survive; only physical storage addresses are remapped.
 use super::programs::{AdmittedPrograms, ExecutableGraph};
-use crate::bindings::ExecutableEnvironment;
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::{Instruction, SignalPixel};
 use crate::patch::PreparedPatch;
-use crate::signal::{
-    PreparedEffectImplementation, PreparedOperator, PreparedSignalKind, PreparedSignalNode,
-    PreparedTarget, SignalPlan,
-};
+use crate::signal::{PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan};
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
@@ -49,7 +45,7 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
                 for &input in inputs {
                     reachable[input] = true;
                 }
-                let PreparedOperator::Dsl(program) = operator.implementation;
+                let program = operator.program;
                 for instruction in &signal.programs.operator(program).bytecode().instructions {
                     if let Instruction::SignalSample { pixel, .. } = instruction {
                         local |= matches!(pixel, SignalPixel::Local(_));
@@ -231,24 +227,17 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
     let clips = signal
         .clips
         .iter()
-        .map(|clip| {
-            let mut clip = clip.clone();
-            clip.target = retain_target(clip.target);
-            clip.effects = clip
-                .effects
-                .iter()
-                .filter_map(|&effect| effect_map[effect])
-                .collect();
-            clip
+        .filter_map(|clip| {
+            effect_map[clip.effect].map(|effect| crate::signal::PreparedClip {
+                id: clip.id,
+                effect,
+            })
         })
         .collect();
     let mut samples = Vec::new();
     let mut sample_map = BTreeMap::new();
     for effect in &mut effects {
-        let program = match &mut effect.implementation {
-            PreparedEffectImplementation::Dsl { program, .. }
-            | PreparedEffectImplementation::Bound { program, .. } => program,
-        };
+        let program = &mut effect.program;
         *program = *sample_map.entry(*program).or_insert_with(|| {
             let index = samples.len();
             samples.push(signal.programs.sample(*program).clone());
@@ -259,7 +248,7 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
     let mut operator_map = BTreeMap::new();
     for node in &mut nodes {
         if let PreparedSignalKind::Operator { operator, .. } = &mut node.kind {
-            let PreparedOperator::Dsl(program) = &mut operator.implementation;
+            let program = &mut operator.program;
             *program = *operator_map.entry(*program).or_insert_with(|| {
                 let index = operators.len();
                 operators.push(signal.programs.operator(*program).clone());
@@ -267,7 +256,6 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
             });
         }
     }
-    retain_environments(&mut signal.parameter_environments, &mut effects);
     signal.plan = finish_plan(nodes, node_map[signal.plan.output_index], target);
     signal.fixtures = fixtures.into();
     signal.fixture_pixel_offsets = offsets.into();
@@ -280,50 +268,6 @@ pub(super) fn compact(signal: &mut ExecutableGraph, patch: &mut PreparedPatch) {
     signal.targets = targets.into();
     signal.target_pixels = pixels.into();
     signal.spatial_contexts = spatial.into();
-}
-
-/// Retain only transitive dependencies of live sample environments. This is
-/// needed for full builds too: constant specializations leave no retained work.
-pub(super) fn retain_environments(
-    environments: &mut Box<[ExecutableEnvironment]>,
-    effects: &mut [crate::signal::PreparedEffect<AutomationPlan>],
-) {
-    let mut required = vec![false; environments.len()];
-    for effect in effects.iter() {
-        if let PreparedEffectImplementation::Bound { environment, .. } = effect.implementation {
-            required[environment] = true;
-        }
-    }
-    for index in (0..required.len()).rev() {
-        if required[index] {
-            for binding in &environments[index].bindings {
-                required[binding.source_environment()] = true;
-            }
-        }
-    }
-    let mut environment_map = vec![0; required.len()];
-    let mut retained = Vec::new();
-    for (index, mut environment) in core::mem::take(environments)
-        .into_vec()
-        .into_iter()
-        .enumerate()
-    {
-        if !required[index] {
-            continue;
-        }
-        environment_map[index] = retained.len();
-        for binding in &mut environment.bindings {
-            binding.remap_environment(environment_map[binding.source_environment()]);
-        }
-        retained.push(environment);
-    }
-    for effect in effects {
-        if let PreparedEffectImplementation::Bound { environment, .. } = &mut effect.implementation
-        {
-            *environment = environment_map[*environment];
-        }
-    }
-    *environments = retained.into();
 }
 
 pub(super) fn finish_plan(
@@ -426,9 +370,7 @@ mod tests {
     use crate::dsl::bytecode::{
         BytecodeProgram, ColorSlot, ContextRead, FloatSlot, IntSlot, NumberSlot, SlotLayout,
     };
-    use crate::dsl::{
-        CompiledOperator, DslBindCache, Identifier, OperatorInputDecl, SampleProgram,
-    };
+    use crate::dsl::{DslBindCache, OperatorProgram, SampleProgram};
     use crate::sequence::{
         FixtureGeometry, OperatorDefinition, OutputEncoding, PreparedSequence, RgbOrder,
         SampleDefinition, SequenceTiming, SequenceWindow, TargetScope,
@@ -476,9 +418,6 @@ mod tests {
             enums: Box::new([]),
             enum_types: Box::new([]),
             curves: Box::new([]),
-            targets: Box::new([]),
-            target_lists: Box::new([]),
-            target_items: Box::new([]),
             gradients: Box::new([]),
             value_operands: Box::new([]),
             array_types: Box::new([]),
@@ -529,12 +468,7 @@ mod tests {
             SignalPixel::Current => 0,
             SignalPixel::Local(index) | SignalPixel::Global(index) => index,
         };
-        let operator = CompiledOperator::admit(
-            Identifier::new("query".into()).unwrap(),
-            vec![OperatorInputDecl {
-                name: Identifier::new("source".into()).unwrap(),
-            }],
-            vec![],
+        let operator = OperatorProgram::admit(
             program(
                 vec![
                     Instruction::LoadFloatConst {
@@ -563,6 +497,8 @@ mod tests {
                 },
                 2,
             ),
+            1,
+            Box::new([]),
         )
         .unwrap();
         let mut cache = DslBindCache::default();
@@ -597,7 +533,7 @@ mod tests {
             let target = builder.target([b, a], TargetScope::WholeTarget);
             let window = builder.windows().next().unwrap();
             let effect = builder.sample(&sample, window, target);
-            builder.clip(7, window, target, [effect]);
+            builder.clip(7, effect);
             builder.layer(false, [effect]);
             let layer = builder.layer(true, [effect]);
             let inner = builder.operator(&operator, |_| layer);
@@ -694,7 +630,6 @@ mod tests {
         assert!(raw.fixture_pixel_offsets.is_empty());
         assert!(raw.programs.is_empty());
         assert!(raw.effects.is_empty());
-        assert!(raw.parameter_environments.is_empty());
         assert!(raw.target_pixels.is_empty());
         assert_eq!(raw.plan.nodes.len(), 1);
         assert!(

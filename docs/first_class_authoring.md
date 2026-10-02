@@ -16,7 +16,7 @@ state is then shared with history, persistence, rendering, and waveform work.
   project configuration from `project_config.rs`, project edits and
   save/export from `project_edit.rs`, and diagnostics/source indexing from
   `diagnostics.rs`. YAML serialization stays in `serialization/`.
-- `donder-elaboration` expands generators, resolves targets, and prepares the
+- `donder-elaboration` resolves targets, and prepares the
   portable runtime representation.
 - `donder-runtime` evaluates prepared sequences. It does not resolve source names,
   imports, layouts, or device selection per frame.
@@ -61,8 +61,7 @@ and flip actions explain and confirm unlinking through the same dialog.
 
 Mutual document
 imports are valid because the loader indexes local objects before following
-imports. DSL generators declare their own imports and never inherit the caller's
-YAML scope.
+imports. YAML references use the consuming document's explicit import scope.
 
 Each GUI edit deep-clones the session once, applies the mutation to that
 candidate, validates the edit contract, and publishes the accepted immutable
@@ -72,11 +71,9 @@ mutable session clone or reload YAML to validate a GUI mutation.
 
 ## Playback boundary
 
-Compilation assigns numeric slots to generator emission sites, and project loading
-links their symbolic child references in the defining document's import scope.
-Elaboration flattens fixture definitions, expands generators, and resolves each
-emitted slot through that linked table. It prepares concrete sample effects and
-retained parameter calculations; playback has no generator emission instructions.
+Compilation produces sample and operator programs. Project loading resolves source
+references and validates typed parameters. Elaboration prepares fixture geometry,
+targets, bound sample invocations, automation, and signal/output routing.
 Runtime evaluation uses flat buffers and direct output routes; it must not
 reconstruct source identity or repeat import, target, or fixture traversal.
 

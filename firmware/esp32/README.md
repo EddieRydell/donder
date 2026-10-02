@@ -7,7 +7,7 @@ breaking the host workspace. Its local `crates/donder-device-storage` crate owns
 LittleFS credential storage and two contiguous flash slots for prepared archives.
 
 The firmware consumes `donder-runtime` prepared sequences. Source parsing,
-imports, generator expansion, target resolution, and controller selection remain
+imports, target resolution, and controller selection remain
 host concerns. See [prepared sequence loading](../../docs/esp32_loading.md) for
 the archive, transport, install, and verification workflow.
 

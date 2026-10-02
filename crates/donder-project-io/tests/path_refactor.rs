@@ -98,38 +98,6 @@ fn moves_directories_with_documents_and_referenced_audio() {
 }
 
 #[test]
-fn grouped_dsl_path_moves_replace_each_token_and_preserve_all_other_text() {
-    let (_temporary, root) = starter_copy();
-    let path = root.join("effects/mark-impact-burst.effect.donder");
-    let original = fs::read_to_string(&path).unwrap();
-    fs::write(
-        root.join("effects/extra.effect.donder"),
-        "effect Extra { color sample() { return hsv(0.0, 1.0, 1.0); } }",
-    )
-    .unwrap();
-    let grouped = original.replace(
-        "[\"effects/impact-burst.effect.donder\"]",
-        "[ /* first */ \"effects/impact-burst.effect.donder\",\n  \"effects/extra.effect.donder\" /* second */ ]",
-    );
-    assert_ne!(original, grouped);
-    fs::write(&path, &grouped).unwrap();
-    let session = load_project(&root).unwrap();
-    donder_project_io::save_project(&session).unwrap();
-    assert_eq!(fs::read_to_string(&path).unwrap(), grouped);
-    let moved = move_path(&session, "effects", "renamed-effects");
-    let expected = grouped.replace("\"effects/", "\"renamed-effects/");
-    assert_eq!(
-        fs::read_to_string(root.join("renamed-effects/mark-impact-burst.effect.donder")).unwrap(),
-        expected
-    );
-    let reloaded = load_project(&root).unwrap();
-    assert_eq!(moved.project, reloaded.project);
-    for (id, document) in &moved.source.documents {
-        assert_eq!(document.imports(), reloaded.source.documents[id].imports());
-    }
-}
-
-#[test]
 fn rejects_collisions_root_escapes_and_descendant_moves() {
     let (_temporary, root) = starter_copy();
     let session = load_project(&root).expect("load");

@@ -106,7 +106,7 @@ main:
     - 87.838997s
     - 87.938866s
     - 88.109901s
-    - 88.327644s
+    - 88.302643s
     - 88.543388s
     - 89.086739s
     - 89.192604s
@@ -260,24 +260,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -362,24 +361,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -620,24 +618,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -686,24 +683,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 1.0
-            - position: 0.2070000022649765
-              value: 0.5289999842643738
-            - position: 0.4009999930858612
-              value: 0.2809999883174896
-            - position: 0.5789999961853027
-              value: 0.12600000202655792
-            - position: 0.777999997138977
-              value: 0.03700000047683716
-            - position: 1.0
-              value: 0.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 1.0
+          - position: 0.2070000022649765
+            value: 0.5289999842643738
+          - position: 0.4009999930858612
+            value: 0.2809999883174896
+          - position: 0.5789999961853027
+            value: 0.12600000202655792
+          - position: 0.777999997138977
+            value: 0.03700000047683716
+          - position: 1.0
+            value: 0.0
       pulse_shape:
         type: curve
         curve:
@@ -752,24 +748,23 @@ main:
               color: '#ff0000'
             - position: 0.3709999918937683
               color: '#ff4b00'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -1104,24 +1099,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -1206,24 +1200,23 @@ main:
               color: '#ffffff'
             - position: 0.11999999731779099
               color: '#9c00ff'
-      chase_positions:
-        type: array
-        values:
-        - curve:
-            type: curve
-            points:
-            - position: 0.0
-              value: 0.0
-            - position: 0.2070000022649765
-              value: 0.47099998593330383
-            - position: 0.4009999930858612
-              value: 0.718999981880188
-            - position: 0.5789999961853027
-              value: 0.8740000128746033
-            - position: 0.777999997138977
-              value: 0.9629999995231628
-            - position: 1.0
-              value: 1.0
+      chase_position:
+        type: curve
+        curve:
+          type: curve
+          points:
+          - position: 0.0
+            value: 0.0
+          - position: 0.2070000022649765
+            value: 0.47099998593330383
+          - position: 0.4009999930858612
+            value: 0.718999981880188
+          - position: 0.5789999961853027
+            value: 0.8740000128746033
+          - position: 0.777999997138977
+            value: 0.9629999995231628
+          - position: 1.0
+            value: 1.0
       pulse_shape:
         type: curve
         curve:
@@ -1791,7 +1784,7 @@ main:
   - id: 43
     layer_id: 2
     start: 74.380547s
-    duration: 19.85618s
+    duration: 6.476666s
     target:
       layout: layouts.main
       fixture: 4
@@ -1806,6 +1799,25 @@ main:
             color: '#ff00d6'
           - position: 1.0
             color: '#6aff00'
+    effect: effects.Gradient
+  - id: 44
+    layer_id: 2
+    start: 80.822891s
+    duration: 13.161526s
+    target:
+      layout: layouts.main
+      fixture: 4
+    scope: whole_target
+    params:
+      gradient:
+        type: gradient
+        gradient:
+          type: gradient
+          stops:
+          - position: 0.0
+            color: '#ff0000'
+          - position: 1.0
+            color: '#ff00c3'
     effect: effects.Gradient
   composition_graph:
     nodes:

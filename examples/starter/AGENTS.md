@@ -19,17 +19,16 @@ in `project.donder` or under `sequences/`, demonstrate how definitions are used.
 
 Effects declare typed parameters and produce colors in `color sample()`.
 Operators declare signal inputs and sample them to transform or combine output.
-Generators emit child effects during preparation. Ordinary parameters can vary
-during playback where their types support automation; `fixed param` values are
-resolved during preparation. Generator structure and emission timing must depend
-only on fixed values and preparation context.
+Ordinary parameters can vary during playback where their types support
+automation; `fixed param` values are resolved during preparation. Mark-driven
+effects query marks and curves directly in `sample()`.
 
 Imports are explicit and scoped to the consuming document, not inherited from
 the root or caller. Paths are relative to the project root and must stay inside
-it. YAML uses `from: { documents: [...] }` with an alias; DSL uses
-`import alias from ["effects/file.effect.donder"];`. A generator imports its own
-child definitions. Downloaded resources are ordinary editable local files;
-there is no dependency installation or automatic import resolution.
+it. YAML uses `from: { documents: [...] }` with an alias. Effect and operator
+DSL files declare their own programs; they do not import other DSL definitions.
+Downloaded resources are ordinary editable local files; there is no dependency
+installation or automatic import resolution.
 
 ## CLI and validation
 

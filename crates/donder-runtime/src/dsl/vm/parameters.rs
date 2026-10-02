@@ -1,27 +1,15 @@
 use super::arrays::ArrayParameter;
-use super::targets::TargetRegister;
 use super::{
-    Arc, ArrayStorage, BoundParamValue, Color, Curve, Gradient, Identifier, Marks, PreparedCurve,
-    RuntimeError, RuntimeValue, Type,
+    Arc, BoundParamValue, Color, Curve, Gradient, Identifier, Marks, PreparedCurve, RuntimeValue,
+    Type,
 };
-use super::{TargetItemValue, TargetItemsValue, TargetValue};
 use alloc::vec::Vec;
 
 /// Declaration order is metadata; dedicated value kinds live only in their typed bank.
-/// A retained calculation reserves its complete layout before playback, including
-/// inputs that will be supplied by another environment on each frame.
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) struct ParameterValues {
-    /// Calculated arrays live with their parameter handles. Frozen parameters
-    /// have an empty arena and no calculated handles.
-    #[rkyv(with = rkyv::with::Skip)]
-    pub(super) arrays: ArrayStorage,
     pub(super) slots: Vec<ParameterAddress>,
     pub(super) types: Vec<Type>,
-    pub(super) target_items: Vec<TargetRegister<TargetItemValue>>,
-    pub(super) target_lists: Vec<TargetRegister<TargetItemsValue>>,
-    pub(super) targets: Vec<TargetRegister<TargetValue>>,
-    pub(super) initialized: Vec<bool>,
     pub(super) ints: Vec<i32>,
     pub(super) floats: Vec<f32>,
     pub(super) bools: Vec<bool>,
@@ -44,9 +32,6 @@ pub(super) enum ParameterAddress {
     Enum(usize),
     Marks(usize),
     Curve(usize),
-    Target(usize),
-    TargetItems(usize),
-    TargetItem(usize),
     Gradient(usize),
 }
 
@@ -166,10 +151,10 @@ impl<'a> FromIterator<(&'a Type, BoundParamValue)> for ParameterValues {
 
 impl ParameterValues {
     pub(super) fn has_valid_layout(&self) -> bool {
-        if self.slots.len() != self.initialized.len() || self.slots.len() != self.types.len() {
+        if self.slots.len() != self.types.len() {
             return false;
         }
-        let mut lengths = [0; 12];
+        let mut lengths = [0; 9];
         for address in &self.slots {
             let (bank, index) = match *address {
                 ParameterAddress::Void => continue,
@@ -178,13 +163,10 @@ impl ParameterValues {
                 ParameterAddress::Bool(index) => (2, index),
                 ParameterAddress::Color(index) => (3, index),
                 ParameterAddress::Array(index) => (4, index),
-                ParameterAddress::Enum(index) => (11, index),
+                ParameterAddress::Enum(index) => (8, index),
                 ParameterAddress::Marks(index) => (5, index),
                 ParameterAddress::Curve(index) => (6, index),
                 ParameterAddress::Gradient(index) => (7, index),
-                ParameterAddress::TargetItem(index) => (10, index),
-                ParameterAddress::TargetItems(index) => (9, index),
-                ParameterAddress::Target(index) => (8, index),
             };
             if index != lengths[bank] {
                 return false;
@@ -201,9 +183,6 @@ impl ParameterValues {
                 self.marks.len(),
                 self.curves.len(),
                 self.gradients.len(),
-                self.targets.len(),
-                self.target_lists.len(),
-                self.target_items.len(),
                 self.enums.len(),
             ]
     }
@@ -212,38 +191,16 @@ impl ParameterValues {
         self.slots.len()
     }
 
-    pub(super) fn is_empty(&self) -> bool {
-        self.slots.is_empty()
-    }
-
     pub(super) fn push(&mut self, ty: &Type, value: BoundParamValue) {
         self.types.push(ty.clone());
-        // Void is an unresolved forwarded input, not its eventual storage type.
-        let initialized = !matches!(value, BoundParamValue::Void);
         let address = match value {
             BoundParamValue::Array(values) => {
                 self.array_values.push(ArrayParameter::Shared(values));
                 ParameterAddress::Array(self.array_values.len() - 1)
             }
-            BoundParamValue::CalculatedArray(index) => {
-                self.array_values.push(ArrayParameter::Calculated(index));
-                ParameterAddress::Array(self.array_values.len() - 1)
-            }
             BoundParamValue::Enum(value) => {
                 self.enums.push(value);
                 ParameterAddress::Enum(self.enums.len() - 1)
-            }
-            BoundParamValue::TargetItem(value) => {
-                self.target_items.push(TargetRegister::Shared(value));
-                ParameterAddress::TargetItem(self.target_items.len() - 1)
-            }
-            BoundParamValue::TargetItems(value) => {
-                self.target_lists.push(TargetRegister::Shared(value));
-                ParameterAddress::TargetItems(self.target_lists.len() - 1)
-            }
-            BoundParamValue::Target(value) => {
-                self.targets.push(TargetRegister::Shared(value));
-                ParameterAddress::Target(self.targets.len() - 1)
             }
             BoundParamValue::Curve(value) => {
                 self.curves.push(CurveRegister::Prepared(value));
@@ -277,82 +234,18 @@ impl ParameterValues {
                 self.colors.push(value);
                 ParameterAddress::Color(self.colors.len() - 1)
             }
-            BoundParamValue::Void => match ty {
-                Type::Enum(options) => {
-                    self.enums.push(options[0].clone());
-                    ParameterAddress::Enum(self.enums.len() - 1)
-                }
-                Type::TargetItem => {
-                    self.target_items.push(TargetRegister::Empty);
-                    ParameterAddress::TargetItem(self.target_items.len() - 1)
-                }
-                Type::TargetItems => {
-                    self.target_lists.push(TargetRegister::Empty);
-                    ParameterAddress::TargetItems(self.target_lists.len() - 1)
-                }
-                Type::Target => {
-                    self.targets.push(TargetRegister::Empty);
-                    ParameterAddress::Target(self.targets.len() - 1)
-                }
-                Type::Curve => {
-                    self.curves.push(CurveRegister::Empty);
-                    ParameterAddress::Curve(self.curves.len() - 1)
-                }
-                Type::Gradient => {
-                    self.gradients.push(GradientRegister::Empty);
-                    ParameterAddress::Gradient(self.gradients.len() - 1)
-                }
-                Type::Marks => {
-                    self.marks.push(MarksRegister::Empty);
-                    ParameterAddress::Marks(self.marks.len() - 1)
-                }
-                Type::Int => {
-                    self.ints.push(0);
-                    ParameterAddress::Int(self.ints.len() - 1)
-                }
-                Type::Float => {
-                    self.floats.push(0.0);
-                    ParameterAddress::Float(self.floats.len() - 1)
-                }
-                Type::Bool => {
-                    self.bools.push(false);
-                    ParameterAddress::Bool(self.bools.len() - 1)
-                }
-                Type::Color => {
-                    self.colors.push(Color::BLACK);
-                    ParameterAddress::Color(self.colors.len() - 1)
-                }
-                Type::Array(_) => {
-                    self.array_values.push(ArrayParameter::Empty);
-                    ParameterAddress::Array(self.array_values.len() - 1)
-                }
-                Type::Void | Type::Signal | Type::Timeline => ParameterAddress::Void,
-            },
+            BoundParamValue::Void => ParameterAddress::Void,
         };
         self.slots.push(address);
-        self.initialized.push(initialized);
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = BoundParamValue> + '_ {
-        self.slots.iter().enumerate().map(|(index, address)| {
-            if self.initialized[index] {
-                self.read(*address)
-            } else {
-                BoundParamValue::Void
-            }
-        })
+        self.slots.iter().map(|address| self.read(*address))
     }
 
     fn read(&self, address: ParameterAddress) -> BoundParamValue {
         match address {
             ParameterAddress::Void => BoundParamValue::Void,
-            ParameterAddress::TargetItem(index) => {
-                BoundParamValue::TargetItem(self.target_items[index].owned())
-            }
-            ParameterAddress::TargetItems(index) => {
-                BoundParamValue::TargetItems(self.target_lists[index].owned())
-            }
-            ParameterAddress::Target(index) => BoundParamValue::Target(self.targets[index].owned()),
             ParameterAddress::Int(index) => BoundParamValue::Int(self.ints[index]),
             ParameterAddress::Float(index) => BoundParamValue::Float(self.floats[index]),
             ParameterAddress::Bool(index) => BoundParamValue::Bool(self.bools[index]),
@@ -368,188 +261,14 @@ impl ParameterValues {
     }
 
     pub(super) fn get(&self, index: usize) -> Option<BoundParamValue> {
-        self.slots.get(index).map(|address| {
-            if self.initialized[index] {
-                self.read(*address)
-            } else {
-                BoundParamValue::Void
-            }
-        })
+        self.slots.get(index).map(|address| self.read(*address))
     }
 
-    pub(super) fn runtime(&self, index: usize) -> Option<RuntimeValue> {
-        let address = self.slots.get(index)?;
-        Some(if !self.initialized[index] {
-            RuntimeValue::Void
-        } else {
-            match *address {
-                ParameterAddress::Void => RuntimeValue::Void,
-                ParameterAddress::TargetItem(index) => {
-                    RuntimeValue::TargetItem(self.target_items[index].owned())
-                }
-                ParameterAddress::TargetItems(index) => {
-                    RuntimeValue::TargetItems(self.target_lists[index].owned())
-                }
-                ParameterAddress::Target(index) => {
-                    RuntimeValue::Target(self.targets[index].owned())
-                }
-                ParameterAddress::Int(index) => RuntimeValue::Int(self.ints[index]),
-                ParameterAddress::Float(index) => RuntimeValue::Float(self.floats[index]),
-                ParameterAddress::Bool(index) => RuntimeValue::Bool(self.bools[index]),
-                ParameterAddress::Color(index) => RuntimeValue::Color(self.colors[index]),
-                ParameterAddress::Array(index) => self.array_values[index].register().runtime(),
-                ParameterAddress::Enum(index) => RuntimeValue::Enum(self.enums[index].clone()),
-                ParameterAddress::Marks(index) => RuntimeValue::Marks(self.marks[index].owned()),
-                ParameterAddress::Curve(index) => self.curves[index].runtime(),
-                ParameterAddress::Gradient(index) => {
-                    RuntimeValue::Gradient(self.gradients[index].owned())
-                }
-            }
-        })
-    }
-
-    pub(super) fn array_parameter(&self, index: usize) -> Option<&ArrayParameter> {
-        match self.slots.get(index)? {
-            ParameterAddress::Array(index) => self.array_values.get(*index),
-            _ => None,
-        }
-    }
-
-    pub(super) fn curve(&self, index: usize) -> Option<&CurveRegister> {
-        match self.slots.get(index)? {
-            ParameterAddress::Curve(slot) if self.initialized[index] => self.curves.get(*slot),
-            _ => None,
-        }
-    }
-
-    pub(super) fn curve_mut(&mut self, index: usize) -> Option<&mut CurveRegister> {
-        match self.slots.get(index)? {
-            ParameterAddress::Curve(slot) if self.initialized[index] => self.curves.get_mut(*slot),
-            _ => None,
-        }
-    }
-
+    #[cfg(test)]
     pub(super) fn gradient(&self, index: usize) -> Option<&GradientRegister> {
         match self.slots.get(index)? {
-            ParameterAddress::Gradient(slot) if self.initialized[index] => {
-                self.gradients.get(*slot)
-            }
+            ParameterAddress::Gradient(slot) => self.gradients.get(*slot),
             _ => None,
         }
-    }
-
-    pub(super) fn enum_value(&self, index: usize) -> Option<&Identifier> {
-        match self.slots.get(index)? {
-            ParameterAddress::Enum(slot) if self.initialized[index] => self.enums.get(*slot),
-            _ => None,
-        }
-    }
-
-    pub(super) fn enum_value_mut(&mut self, index: usize) -> Option<&mut Identifier> {
-        match self.slots.get(index)? {
-            ParameterAddress::Enum(slot) if self.initialized[index] => self.enums.get_mut(*slot),
-            _ => None,
-        }
-    }
-
-    pub(super) fn clear_slot(&mut self, index: usize) -> BoundParamValue {
-        self.initialized[index] = false;
-        match self.slots[index] {
-            ParameterAddress::TargetItem(index) => {
-                self.target_items[index] = TargetRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::TargetItems(index) => {
-                self.target_lists[index] = TargetRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::Target(index) => {
-                self.targets[index] = TargetRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::Curve(index) => {
-                self.curves[index] = CurveRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::Gradient(index) => {
-                self.gradients[index] = GradientRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::Marks(index) => {
-                self.marks[index] = MarksRegister::Empty;
-                BoundParamValue::Void
-            }
-            ParameterAddress::Array(index) => {
-                match core::mem::take(&mut self.array_values[index]) {
-                    ArrayParameter::Calculated(slot) => BoundParamValue::CalculatedArray(slot),
-                    ArrayParameter::Empty | ArrayParameter::Shared(_) => BoundParamValue::Void,
-                }
-            }
-            _ => BoundParamValue::Void,
-        }
-    }
-
-    pub(super) fn write(
-        &mut self,
-        index: usize,
-        value: BoundParamValue,
-    ) -> Result<(), RuntimeError> {
-        let address = self
-            .slots
-            .get(index)
-            .ok_or_else(|| RuntimeError::new("invalid parameter binding destination"))?;
-        match (*address, value) {
-            (ParameterAddress::Enum(index), BoundParamValue::Enum(value)) => {
-                self.enums[index] = value
-            }
-            (ParameterAddress::TargetItem(index), BoundParamValue::TargetItem(value)) => {
-                self.target_items[index] = TargetRegister::Shared(value)
-            }
-            (ParameterAddress::TargetItems(index), BoundParamValue::TargetItems(value)) => {
-                self.target_lists[index] = TargetRegister::Shared(value)
-            }
-            (ParameterAddress::Target(index), BoundParamValue::Target(value)) => {
-                self.targets[index] = TargetRegister::Shared(value)
-            }
-            (ParameterAddress::Curve(index), BoundParamValue::Curve(value)) => {
-                self.curves[index] = CurveRegister::Prepared(value)
-            }
-            (ParameterAddress::Curve(index), BoundParamValue::RawCurve(value)) => {
-                self.curves[index] = CurveRegister::Raw(value)
-            }
-            (ParameterAddress::Gradient(index), BoundParamValue::Gradient(value)) => {
-                self.gradients[index] = GradientRegister::Shared(value)
-            }
-            (ParameterAddress::Marks(index), BoundParamValue::Marks(value)) => {
-                self.marks[index] = MarksRegister::Shared(value)
-            }
-            (ParameterAddress::Int(index), BoundParamValue::Int(value)) => self.ints[index] = value,
-            (ParameterAddress::Float(index), BoundParamValue::Float(value)) => {
-                self.floats[index] = value
-            }
-            (ParameterAddress::Bool(index), BoundParamValue::Bool(value)) => {
-                self.bools[index] = value
-            }
-            (ParameterAddress::Color(index), BoundParamValue::Color(value)) => {
-                self.colors[index] = value
-            }
-            (ParameterAddress::Array(index), BoundParamValue::Array(values)) => {
-                self.array_values[index] = ArrayParameter::Shared(values)
-            }
-            (ParameterAddress::Array(index), BoundParamValue::CalculatedArray(slot)) => {
-                self.array_values[index] = ArrayParameter::Calculated(slot)
-            }
-            (_, BoundParamValue::Void) => {
-                self.initialized[index] = false;
-                return Ok(());
-            }
-            _ => {
-                return Err(RuntimeError::new(
-                    "parameter value does not match its storage type",
-                ));
-            }
-        }
-        self.initialized[index] = true;
-        Ok(())
     }
 }

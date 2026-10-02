@@ -1,11 +1,10 @@
 //! Executable program banks. Raw addresses are translated once at admission;
 //! playback stores only the role-specific admitted instruction representations.
-use crate::bindings::{ExecutableEnvironment, admit_environments};
 use crate::dsl::AutomationPlan;
 use crate::dsl::{OperatorProgram, SampleProgram};
 use crate::signal::{
-    PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation, PreparedOperator,
-    PreparedSignalGraph, PreparedSignalKind, PreparedSignalNode,
+    PreparedEffect, PreparedEffectAutomation, PreparedSignalGraph, PreparedSignalKind,
+    PreparedSignalNode,
 };
 use crate::wire::LoadError;
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -31,8 +30,7 @@ impl AdmittedPrograms {
     }
 }
 
-pub(crate) type ExecutableGraph =
-    PreparedSignalGraph<AdmittedPrograms, ExecutableEnvironment, AutomationPlan>;
+pub(crate) type ExecutableGraph = PreparedSignalGraph<AdmittedPrograms, AutomationPlan>;
 
 /// The raw graph's references, timing, and bindings have already passed wire admission.
 /// The additional DSL admission converts each used program to its executable role.
@@ -43,31 +41,21 @@ pub(super) fn admit_graph(mut graph: PreparedSignalGraph) -> Result<ExecutableGr
     let mut sample_indices = vec![None; graph.programs.len()];
     let mut operator_indices: Vec<Vec<(usize, usize)>> = vec![Vec::new(); graph.programs.len()];
     for effect in &mut graph.effects {
-        let index = effect.implementation.dsl_program();
+        let index = effect.program;
         let bytecode = graph.programs.get(index).ok_or(bad)?;
         let mapped = match sample_indices[index] {
             Some(index) => index,
             None => {
-                let sample = match &effect.implementation {
-                    PreparedEffectImplementation::Dsl { bound_params, .. } => {
-                        SampleProgram::admit_bound(bytecode.clone(), bound_params)
-                    }
-                    PreparedEffectImplementation::Bound { environment, .. } => {
-                        let types = graph.parameter_environments.get(*environment).ok_or(bad)?;
-                        SampleProgram::admit(bytecode.clone(), types.output_types().into())
-                    }
-                }
-                .ok_or(bad)?;
+                let bound_params = &effect.bound_params;
+                let sample =
+                    SampleProgram::admit_bound(bytecode.clone(), bound_params).ok_or(bad)?;
                 let mapped = samples.len();
                 samples.push(sample);
                 sample_indices[index] = Some(mapped);
                 mapped
             }
         };
-        match &mut effect.implementation {
-            PreparedEffectImplementation::Dsl { program, .. }
-            | PreparedEffectImplementation::Bound { program, .. } => *program = mapped,
-        }
+        effect.program = mapped;
     }
     for node in &mut graph.plan.nodes {
         let PreparedSignalKind::Operator {
@@ -76,7 +64,7 @@ pub(super) fn admit_graph(mut graph: PreparedSignalGraph) -> Result<ExecutableGr
         else {
             continue;
         };
-        let PreparedOperator::Dsl(index) = &mut operator.implementation;
+        let index = &mut operator.program;
         let bytecode = graph.programs.get(*index).ok_or(bad)?;
         let mapped = match operator_indices[*index]
             .iter()
@@ -95,16 +83,8 @@ pub(super) fn admit_graph(mut graph: PreparedSignalGraph) -> Result<ExecutableGr
         };
         *index = mapped;
     }
-    let environments =
-        admit_environments(core::mem::take(&mut graph.parameter_environments).into_vec())
-            .map_err(|_| bad)?;
     let graph = graph.try_map_automation(admit_effect, admit_node)?;
-    Ok(graph.map_storage(|_, _| {
-        (
-            AdmittedPrograms::new(samples.into(), operators.into()),
-            environments,
-        )
-    }))
+    Ok(graph.map_storage(|_| AdmittedPrograms::new(samples.into(), operators.into())))
 }
 
 impl ExecutableGraph {
@@ -114,7 +94,7 @@ impl ExecutableGraph {
         let sample_count = graph.programs.samples.len();
         for node in &mut graph.plan.nodes {
             if let PreparedSignalKind::Operator { operator, .. } = &mut node.kind {
-                let PreparedOperator::Dsl(index) = &mut operator.implementation;
+                let index = &mut operator.program;
                 *index += sample_count;
             }
         }
@@ -133,8 +113,8 @@ impl ExecutableGraph {
             Ok(graph) => graph,
             Err(never) => match never {},
         };
-        graph.map_storage(|programs, environments| {
-            let programs = programs
+        graph.map_storage(|programs| {
+            programs
                 .samples
                 .into_vec()
                 .into_iter()
@@ -146,25 +126,14 @@ impl ExecutableGraph {
                         .into_iter()
                         .map(|program| program.into_parts().0),
                 )
-                .collect();
-            let environments = environments
-                .iter()
-                .map(ExecutableEnvironment::to_raw)
-                .collect();
-            (programs, environments)
+                .collect()
         })
     }
 }
 
 fn admit_effect(effect: PreparedEffect) -> Result<PreparedEffect<AutomationPlan>, LoadError> {
-    map_effect(effect, |implementation, bindings| {
-        match implementation {
-            PreparedEffectImplementation::Dsl { bound_params, .. } => {
-                AutomationPlan::admit(bound_params, &bindings).ok_or(LoadError::InvalidSequence)
-            }
-            // Bound effects use their environment's admitted automation.
-            PreparedEffectImplementation::Bound { .. } => Err(LoadError::InvalidSequence),
-        }
+    map_effect(effect, |params, bindings| {
+        AutomationPlan::admit(params, &bindings).ok_or(LoadError::InvalidSequence)
     })
 }
 
@@ -176,12 +145,12 @@ fn admit_node(node: PreparedSignalNode) -> Result<PreparedSignalNode<AutomationP
 
 fn map_effect<A, B, X>(
     effect: PreparedEffect<A>,
-    map: impl FnOnce(&PreparedEffectImplementation, A) -> Result<B, X>,
+    map: impl FnOnce(&crate::dsl::BoundParams, A) -> Result<B, X>,
 ) -> Result<PreparedEffect<B>, X> {
     let automation = match effect.automation {
         Some(automation) => Some(Box::new(PreparedEffectAutomation {
             workspace_slot: automation.workspace_slot,
-            bindings: map(&effect.implementation, automation.bindings)?,
+            bindings: map(&effect.bound_params, automation.bindings)?,
         })),
         None => None,
     };
@@ -189,7 +158,8 @@ fn map_effect<A, B, X>(
         start_time: effect.start_time,
         duration: effect.duration,
         target: effect.target,
-        implementation: effect.implementation,
+        program: effect.program,
+        bound_params: effect.bound_params,
         automation,
     })
 }

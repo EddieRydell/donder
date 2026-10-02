@@ -2,20 +2,18 @@
 //! authored state; they cannot be edited independently afterwards.
 use super::parameters::{EffectParamTiming, prepare_params};
 use super::*;
-use crate::dsl::{EffectProgram, ParamDecl, Value};
-use crate::effect::{EffectDefinitionId, EffectImplementation, EffectParamValue, EffectRef};
+use crate::dsl::{ParamDecl, Value};
+use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
 use crate::operator::OperatorImplementation;
 use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
 use crate::validation::ProjectValidationError;
 use crate::values::{SampleDuration, SampleTime};
 use donder_runtime::DslBindCache;
-use donder_runtime::SampleProgram;
 use donder_runtime::{
-    GeneratorPlayback, OperatorDefinition as RuntimeOperatorDefinition, OperatorInvocation,
-    SampleDefinition, SampleInvocation, SequenceTiming, SequenceWindow,
+    OperatorDefinition as RuntimeOperatorDefinition, OperatorInvocation, SampleDefinition,
+    SampleInvocation, SequenceTiming, SequenceWindow,
 };
-use donder_runtime::{GeneratorTarget, LinkedGenerator};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -30,20 +28,8 @@ pub(in crate::model) struct ProjectInputs {
 #[derive(Debug)]
 pub(super) struct SequenceInputs {
     pub(super) timing: SequenceTiming,
-    pub(super) effects: Box<[Execution]>,
+    pub(super) effects: Box<[SampleInvocation]>,
     pub(super) operators: IndexMap<CompositionGraphNodeId, OperatorInvocation>,
-}
-
-#[derive(Debug)]
-pub(super) enum Execution {
-    Sample(SampleInvocation),
-    Generator(GeneratorPlayback),
-}
-
-#[derive(Clone)]
-enum Definition {
-    Sample(Arc<SampleProgram>),
-    Generator(Arc<LinkedGenerator>),
 }
 
 impl ProjectInputs {
@@ -51,10 +37,19 @@ impl ProjectInputs {
         project: &DonderProject,
         previous: Option<&DonderProject>,
     ) -> Result<Self, ProjectValidationError> {
-        let mut definitions = IndexMap::new();
-        for id in project.definitions().effects.definitions.keys() {
-            link(project, id, &mut definitions)?;
-        }
+        let definitions: IndexMap<_, _> = project
+            .definitions()
+            .effects
+            .definitions
+            .iter()
+            .map(|(id, definition)| {
+                let EffectImplementation::Dsl(compiled) = definition.implementation();
+                (
+                    id,
+                    SampleDefinition::new(Arc::clone(compiled.shared_sample_program())),
+                )
+            })
+            .collect();
         let operator_definitions: IndexMap<_, _> = project
             .definitions()
             .operators
@@ -64,7 +59,7 @@ impl ProjectInputs {
                 let OperatorImplementation::Dsl(compiled) = definition.implementation();
                 (
                     id,
-                    RuntimeOperatorDefinition::new(compiled.as_ref().clone()),
+                    RuntimeOperatorDefinition::new(Arc::clone(compiled.shared_program())),
                 )
             })
             .collect();
@@ -87,37 +82,16 @@ impl ProjectInputs {
                         ),
                     },
                 )?;
-                let execution = match &definitions[id] {
-                    Definition::Sample(program) => {
-                        let automation = super::automation::admit(
-                            sequence,
-                            definition.params(),
-                            |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
-                        )?;
-                        let invocation = SampleDefinition::new(Arc::clone(program))
-                            .bind(values.into_vec(), &mut bind_cache)
-                            .and_then(|invocation| invocation.with_automation(automation))
-                            .map_err(|error| invalid(error.message))?;
-                        Execution::Sample(invocation)
-                    }
-                    Definition::Generator(generator) => {
-                        let automation = super::automation::admit(
-                            sequence,
-                            definition.params(),
-                            |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
-                        )?;
-                        Execution::Generator(
-                            GeneratorPlayback::admit(
-                                Arc::clone(generator),
-                                values.into_vec(),
-                                automation,
-                                &mut bind_cache,
-                            )
-                            .map_err(|error| invalid(error.message))?,
-                        )
-                    }
-                };
-                effects.push(execution);
+                let automation = super::automation::admit(
+                    sequence,
+                    definition.params(),
+                    |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
+                )?;
+                let invocation = definitions[id]
+                    .bind(values.into_vec(), &mut bind_cache)
+                    .and_then(|invocation| invocation.with_automation(automation))
+                    .map_err(|error| invalid(error.message))?;
+                effects.push(invocation);
             }
             let mut operators = IndexMap::new();
             for node in &sequence.composition_graph.nodes {
@@ -208,49 +182,6 @@ fn resolve(
                 .ok_or_else(|| invalid(format!("Missing parameter `{}`", param.name.as_str())))
         })
         .collect()
-}
-
-fn link(
-    project: &DonderProject,
-    id: &EffectDefinitionId,
-    definitions: &mut IndexMap<EffectDefinitionId, Definition>,
-) -> Result<Definition, ProjectValidationError> {
-    if let Some(definition) = definitions.get(id) {
-        return Ok(definition.clone());
-    }
-    let definition = &project.definitions().effects.definitions[id];
-    let EffectImplementation::Dsl(compiled) = definition.implementation();
-    let linked = match compiled.program() {
-        EffectProgram::Sample(program) => Definition::Sample(Arc::clone(program)),
-        EffectProgram::Generator(program) => {
-            let targets = definition
-                .generated_effect_targets()
-                .iter()
-                .map(|target| {
-                    let EffectRef::Custom(id) = target;
-                    Ok(match link(project, id, definitions)? {
-                        Definition::Sample(program) => GeneratorTarget::Sample {
-                            program,
-                            params: project.definitions().effects.definitions[id]
-                                .params()
-                                .into(),
-                        },
-                        Definition::Generator(generator) => GeneratorTarget::Generator(generator),
-                    })
-                })
-                .collect::<Result<_, ProjectValidationError>>()?;
-            Definition::Generator(
-                LinkedGenerator::link(Arc::clone(program), targets).ok_or_else(|| {
-                    invalid(format!(
-                        "Invalid compiled child bindings in `{}`",
-                        id.0.object()
-                    ))
-                })?,
-            )
-        }
-    };
-    definitions.insert(id.clone(), linked.clone());
-    Ok(linked)
 }
 
 fn invalid(message: String) -> ProjectValidationError {

@@ -55,15 +55,15 @@ fn hsv_intrinsics_require_exactly_one_color() {
 #[test]
 fn hsv_components_execute_and_hoist_uniform_color_reads() {
     let effect = compile_effects("effect Components { param color c; color sample() { return rgb(hue(c), saturation(c), intensity(c)); } }")
-        .unwrap().remove(0).effect;
+        .unwrap().remove(0);
     for expected in [
         ColorComponent::Hue,
         ColorComponent::Saturation,
         ColorComponent::Intensity,
     ] {
         assert!(
-            effect.sample_program().unwrap().bytecode().instructions
-                [..effect.sample_program().unwrap().bytecode().pixel_entry as usize]
+            effect.sample_program().bytecode().instructions
+                [..effect.sample_program().bytecode().pixel_entry as usize]
                 .iter()
                 .any(|op| {
                     matches!(op, Instruction::ColorComponent { op, .. } if *op == expected)

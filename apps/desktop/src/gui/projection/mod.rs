@@ -266,10 +266,6 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
             let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
             SequenceEffectDefinition {
                 name: definition.display_name.clone(),
-                kind: match definition.kind() {
-                    EffectKind::Sample => SequenceEffectDefinitionKind::Sample,
-                    EffectKind::Generator => SequenceEffectDefinitionKind::Generator,
-                },
                 effect: source,
                 import_path: Some(id.0.document().to_string()),
                 params: definition
@@ -288,7 +284,6 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
         })
         .collect()
 }
-use donder_language::dsl::EffectKind;
 use donder_language::effect::{EffectRef, EffectScope};
 use donder_language::layout::{FixtureTarget as DomainFixtureTarget, Layout};
 use donder_language::operator::OperatorRef;
@@ -301,8 +296,8 @@ use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
     SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectDefinitionKind, SequenceEffectDefinitionParam,
-    SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument,
-    SequenceLane, SequenceLayer, SequenceMarkCollection, SequenceTimelineClipKind,
+    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectReference,
+    SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLayer,
+    SequenceMarkCollection, SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

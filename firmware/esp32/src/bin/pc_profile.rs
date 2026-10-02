@@ -89,10 +89,8 @@ fn main() -> ! {
     while attach.elapsed().as_millis() < 3000 {}
 
     println!("DONDER PC BEGIN cpu_mhz=240 core=1 stack_samples=false");
-    for case in 0..fixtures::NAMES.len()
-        + workload::CHASE_PULSE_CASES.len()
-        + workload::MARK_CASES.len()
-        + fixtures::GENERATOR_NAMES.len()
+    for case in
+        0..fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() + workload::MARK_CASES.len()
     {
         let (name, show, golden) = if case < fixtures::NAMES.len() {
             let (program, params) = fixtures::case(case);
@@ -113,9 +111,7 @@ fn main() -> ! {
                 .unwrap(),
                 &fixtures::CHASE_PULSE_GOLDEN[index],
             )
-        } else if case
-            < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() + workload::MARK_CASES.len()
-        {
+        } else {
             let index = case - fixtures::NAMES.len() - workload::CHASE_PULSE_CASES.len();
             let (name, _) = workload::MARK_CASES[index];
             (
@@ -126,20 +122,6 @@ fn main() -> ! {
                 )
                 .unwrap(),
                 &fixtures::MARK_GOLDEN[index],
-            )
-        } else {
-            let index = case
-                - fixtures::NAMES.len()
-                - workload::CHASE_PULSE_CASES.len()
-                - workload::MARK_CASES.len();
-            (
-                fixtures::GENERATOR_NAMES[index],
-                donder_runtime::decode_sequence(
-                    fixtures::GENERATOR_SEQUENCES[index],
-                    Default::default(),
-                )
-                .unwrap(),
-                &fixtures::GENERATOR_GOLDEN[index],
             )
         };
         let mut show = show.into_playback();

@@ -264,6 +264,9 @@ impl SourceDocument {
         objects: Vec<SourceObjectId>,
         kind: SourceDocumentKind,
     ) -> Result<Self, String> {
+        if !imports.is_empty() && !matches!(kind, SourceDocumentKind::Donder { .. }) {
+            return Err("Only YAML documents can declare imports.".into());
+        }
         let mut object_ids = IndexSet::new();
         for object in &objects {
             if Identifier::new(object.id.clone()).is_err() {

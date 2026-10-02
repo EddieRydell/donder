@@ -14,7 +14,7 @@ use std::sync::{
 use std::thread;
 
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::dsl::{EffectKind, hash_compiled_effect};
+use donder_language::dsl::hash_compiled_effect;
 use donder_language::effect::{
     CurveDefinition, CurveId, CurveSource, EffectDefinition, EffectInst, EffectInstId,
     EffectParamValue, EffectScope, GradientDefinition, GradientId, GradientSource,

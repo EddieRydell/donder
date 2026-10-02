@@ -4,11 +4,10 @@ const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
     max: [0.0; 2],
 };
 
-use donder_language::dsl::compile_operators;
+use donder_language::dsl::{CompiledOperator, compile_operators};
 use donder_runtime::{Color, SampleDuration, SampleTime};
 use donder_runtime::{
-    CompiledOperator, Identifier, OperatorRunContext, RuntimeError, SignalPixel, SignalSampler,
-    Value, VmWorkspace,
+    Identifier, OperatorRunContext, RuntimeError, SignalPixel, SignalSampler, Value, VmWorkspace,
 };
 
 fn rgb(red: u8, green: u8, blue: u8) -> Color {

@@ -72,12 +72,7 @@ fn selected_sequence(compacted: bool, selection: Selection, invert: bool) -> Pre
         .bind(vec![], &mut cache)
         .unwrap();
     let invert = invert.then(|| {
-        let operator = CompiledOperator::admit(
-            Identifier::new("Invert".into()).unwrap(),
-            vec![OperatorInputDecl {
-                name: Identifier::new("source".into()).unwrap(),
-            }],
-            vec![],
+        let operator = OperatorProgram::admit(
             program(
                 vec![
                     Instruction::ContextRead {
@@ -105,6 +100,8 @@ fn selected_sequence(compacted: bool, selection: Selection, invert: bool) -> Pre
                 },
                 1,
             ),
+            1,
+            Box::new([]),
         )
         .unwrap();
         OperatorDefinition::new(operator)
@@ -274,10 +271,7 @@ fn pruning_upstream_samples_keeps_invert_program_and_white_output() {
         })
         .collect();
     assert_eq!(operators.len(), 1);
-    assert!(matches!(
-        operators[0].0.implementation,
-        PreparedOperator::Dsl(0)
-    ));
+    assert_eq!(operators[0].0.program, 0);
     assert_eq!(operators[0].1.len(), 1);
     assert!(matches!(
         after.plan.nodes[operators[0].1[0]].kind,

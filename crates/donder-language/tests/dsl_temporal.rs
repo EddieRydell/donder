@@ -8,7 +8,8 @@ mod playback;
 #[path = "../../../firmware/esp32/src/workload.rs"]
 mod workload;
 
-use donder_runtime::{BoundParams, CompiledOperator, Instruction, Value};
+use donder_language::dsl::CompiledOperator;
+use donder_runtime::{BoundParams, Instruction, Value};
 
 #[test]
 fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
@@ -45,7 +46,12 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
                 Some((param.name.clone(), value))
             })
             .collect::<Vec<_>>();
-        let temporal_params = BoundParams::bind_pairs(declaration.params(), &overrides).unwrap();
+        let temporal_params = donder_language::dsl::bind_params(
+            declaration.params(),
+            overrides.iter().map(|(name, value)| (name, value)),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
         assert!([compiled("Invert"), declaration, compiled("Multiply")].iter().any(
             |operator| operator.bytecode().instructions.iter().any(
                 |instruction| matches!(instruction, Instruction::SignalSample { frame_cache, .. } if *frame_cache != u32::MAX)
@@ -54,7 +60,7 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
         let prepare = |cached| {
             let variant = |operator: &CompiledOperator| {
                 if cached {
-                    operator.clone()
+                    operator.program().clone()
                 } else {
                     playback::map_operator_bytecode(operator, |program| {
                         for instruction in &mut program.instructions {
@@ -65,10 +71,11 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
                     })
                 }
             };
-            let invert = playback::operator(&variant(compiled("Invert")), &BoundParams::default());
-            let temporal = playback::operator(&variant(declaration), &temporal_params);
+            let invert =
+                playback::operator_program(&variant(compiled("Invert")), &BoundParams::default());
+            let temporal = playback::operator_program(&variant(declaration), &temporal_params);
             let multiply =
-                playback::operator(&variant(compiled("Multiply")), &BoundParams::default());
+                playback::operator_program(&variant(compiled("Multiply")), &BoundParams::default());
             base.clone()
                 .prepare_with(|builder, layers, _signal| {
                     // The original fixture queries layer zero, including when the

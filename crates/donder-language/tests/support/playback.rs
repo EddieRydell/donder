@@ -1,11 +1,10 @@
-use donder_language::dsl::CompiledEffect;
+use donder_language::dsl::{CompiledEffect, CompiledOperator};
 use donder_runtime::{
-    BoundParams, CompiledOperator, DslBindCache, FixtureGeometry, GeneratorPlayback,
-    GeneratorTarget, LinkedGenerator, OperatorDefinition, OperatorInvocation, OutputEncoding,
-    PreparedAutomation, PreparedSequence, RgbOrder, SampleDefinition, SampleInvocation, SampleTime,
-    SequenceBuilder, SequenceRoot, SequenceTiming, TargetHandle, TargetScope, Value,
+    BoundParams, DslBindCache, FixtureGeometry, OperatorDefinition, OperatorInvocation,
+    OutputEncoding, PreparedSequence, RgbOrder, SampleDefinition, SampleInvocation, SampleTime,
+    SequenceBuilder, SequenceRoot, SequenceTiming, TargetHandle, TargetScope,
 };
-use std::{num::NonZeroU32, sync::Arc};
+use std::num::NonZeroU32;
 
 pub const IDENTITY_SOURCE: &str =
     "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }";
@@ -38,12 +37,19 @@ pub fn build(
 }
 
 pub fn sample(effect: &CompiledEffect, params: &BoundParams) -> SampleInvocation {
-    SampleDefinition::new(effect.sample_program().unwrap().clone())
+    SampleDefinition::new(effect.sample_program().clone())
         .bind(params.iter_values().collect(), &mut DslBindCache::default())
         .unwrap()
 }
 
 pub fn operator(operator: &CompiledOperator, params: &BoundParams) -> OperatorInvocation {
+    operator_program(operator.program(), params)
+}
+
+pub fn operator_program(
+    operator: &donder_runtime::OperatorProgram,
+    params: &BoundParams,
+) -> OperatorInvocation {
     OperatorDefinition::new(operator.clone())
         .bind(params.iter_values().collect(), &mut DslBindCache::default())
         .unwrap()
@@ -52,16 +58,10 @@ pub fn operator(operator: &CompiledOperator, params: &BoundParams) -> OperatorIn
 pub fn map_operator_bytecode(
     operator: &CompiledOperator,
     edit: impl FnOnce(&mut donder_runtime::BytecodeProgram),
-) -> CompiledOperator {
-    let mut bytecode = operator.program().clone().into_parts().0;
+) -> donder_runtime::OperatorProgram {
+    let (mut bytecode, inputs, parameters) = operator.program().clone().into_parts();
     edit(&mut bytecode);
-    CompiledOperator::admit(
-        operator.name().clone(),
-        operator.inputs().to_vec(),
-        operator.params().to_vec(),
-        bytecode,
-    )
-    .unwrap()
+    donder_runtime::OperatorProgram::admit(bytecode, inputs, parameters).unwrap()
 }
 
 pub fn show(count: usize, invocation: &SampleInvocation, layers: usize) -> PreparedSequence {
@@ -87,32 +87,6 @@ pub fn chain(
             signal = builder.operator(operator, |_| signal);
         }
         builder.output([signal])
-    })
-}
-
-pub fn generator(
-    parent: &CompiledEffect,
-    child: &CompiledEffect,
-    values: Vec<Value>,
-    automation: Box<[PreparedAutomation]>,
-) -> GeneratorPlayback {
-    let linked = LinkedGenerator::link(
-        Arc::new(parent.generator().unwrap().clone()),
-        vec![GeneratorTarget::Sample {
-            program: Arc::new(child.sample_program().unwrap().clone()),
-            params: child.params().into(),
-        }]
-        .into(),
-    )
-    .unwrap();
-    GeneratorPlayback::admit(linked, values, automation, &mut DslBindCache::default()).unwrap()
-}
-
-pub fn generated(count: usize, generator: &GeneratorPlayback) -> PreparedSequence {
-    build(count, timing(1_000_000), |builder, target| {
-        let generated = builder.generator(generator, builder.whole_sequence(), target);
-        let layer = builder.layer(true, generated.into_iter().map(|child| child.effect));
-        builder.output([layer])
     })
 }
 

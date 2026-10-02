@@ -3,8 +3,7 @@ use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{BoundParams, OperatorRunContext, RunContext, SignalSampler, VmWorkspace};
 use crate::signal::{
     CachedSignal, CachedSignalFrame, CachedVmSample, EffectAutomationWorkspace,
-    EvaluationWorkspace, PreparedEffect, PreparedEffectImplementation, PreparedOperator,
-    PreparedOperatorNode, PreparedSignalKind, SignalGraph,
+    EvaluationWorkspace, PreparedEffect, PreparedOperatorNode, PreparedSignalKind, SignalGraph,
 };
 use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
@@ -40,7 +39,7 @@ impl PreparedEffect<AutomationPlan> {
         params: &BoundParams,
         run: impl FnOnce(&mut EffectSampler<'_>) -> R,
     ) -> R {
-        let program = graph.sample_program(self.implementation.dsl_program());
+        let program = graph.sample_program(self.program);
         let mut sampler = EffectSampler {
             program,
             params,
@@ -62,9 +61,7 @@ impl PreparedEffect<AutomationPlan> {
 
     pub(crate) fn automation_workspace(&self) -> Option<EffectAutomationWorkspace> {
         let automation = self.automation.as_ref()?;
-        let PreparedEffectImplementation::Dsl { bound_params, .. } = &self.implementation else {
-            return None;
-        };
+        let bound_params = &self.bound_params;
         let params = bound_params.clone();
         Some(EffectAutomationWorkspace {
             plan: automation.bindings.clone(),
@@ -74,19 +71,13 @@ impl PreparedEffect<AutomationPlan> {
     }
     pub(crate) fn resolve_params<'a>(
         &'a self,
-        graph: SignalGraph<'_>,
         sample_time: SampleTime,
-        parameters: &'a mut crate::bindings::ParameterWorkspace,
         automation: impl FnOnce(usize) -> &'a mut EffectAutomationWorkspace,
     ) -> &'a BoundParams {
-        match &self.implementation {
-            PreparedEffectImplementation::Bound { environment, .. } => {
-                parameters.resolve(&graph.parameter_environments, *environment, sample_time)
-            }
-            PreparedEffectImplementation::Dsl { bound_params, .. } => match &self.automation {
-                None => bound_params,
-                Some(binding) => automation(binding.workspace_slot).params_at(sample_time),
-            },
+        let bound_params = &self.bound_params;
+        match &self.automation {
+            None => bound_params,
+            Some(binding) => automation(binding.workspace_slot).params_at(sample_time),
         }
     }
 }
@@ -279,9 +270,7 @@ fn sample_layer_frame(
             sample.pixel_count = 0;
         }
         let params =
-            effect.resolve_params(renderer, sample_time, &mut workspace.parameters, |slot| {
-                &mut workspace.effect_automation[slot]
-            });
+            effect.resolve_params(sample_time, |slot| &mut workspace.effect_automation[slot]);
         effect.with_sampler(renderer, sample_time, params, |sampler| {
             let uniform = sampler.uniform();
             let target = renderer.target(effect.target);
@@ -353,7 +342,7 @@ fn sample_operator_frame(
     vm_workspace: &mut VmWorkspace,
     operator_automation: &mut [EffectAutomationWorkspace],
 ) {
-    let PreparedOperator::Dsl(program) = &operator.implementation;
+    let program = &operator.program;
     let compiled = renderer.operator_program(*program);
     let duration = renderer.duration;
     let progress = if duration.as_ticks() == 0 {
@@ -566,7 +555,7 @@ fn sample_layer_pixel(
                 .filter(|(sample, ..)| sample.index == *effect_index && sample.time == sample_time);
             if let Some((_, _, color)) = cached
                 && !renderer
-                    .sample_program(effect.implementation.dsl_program())
+                    .sample_program(effect.program)
                     .bytecode()
                     .uses_pixel_context
             {
@@ -581,9 +570,7 @@ fn sample_layer_pixel(
                 |(sample, local_time, _)| (sample.progress, local_time),
             );
             let params =
-                effect.resolve_params(renderer, sample_time, &mut workspace.parameters, |slot| {
-                    &mut workspace.effect_automation[slot]
-                });
+                effect.resolve_params(sample_time, |slot| &mut workspace.effect_automation[slot]);
             let color = effect.with_sampler(renderer, sample_time, params, |sampler| {
                 sampler.context.progress = progress;
                 sampler.context.time = local_time;
@@ -630,7 +617,7 @@ fn sample_operator_pixel(
     scope: SamplingScope,
     operator_automation: &mut [EffectAutomationWorkspace],
 ) -> Color {
-    let PreparedOperator::Dsl(program) = &operator.implementation;
+    let program = &operator.program;
     let compiled = renderer.operator_program(*program);
     let pixel = &renderer.target(renderer.plan.target)[flat_pixel_index];
     let duration = renderer.duration;

@@ -4,28 +4,21 @@ mod bytecode;
 mod checked;
 mod compiled_effect;
 mod compiler;
-pub use compiled_effect::{CompiledEffect, EffectKind, EffectProgram};
+pub use compiled_effect::CompiledEffect;
+mod declarations;
+pub use declarations::{CompiledOperator, OperatorInputDecl, ParamDecl, bind_params};
 mod diagnostic;
-mod emission;
+mod fixed_params;
 mod loop_bounds;
 mod optimize;
 mod parser;
-mod specialization;
-mod staging;
-pub use specialization::{
-    BoundGenerator, GeneratedEffectSlot, GeneratorBinding, GeneratorCalculation, GeneratorContext,
-    GeneratorInput, GeneratorProgram, SpecializedChild, SpecializedGenerator,
-};
 mod typecheck;
-pub use emission::validate_emission;
 
-use crate::imports::ImportDeclaration;
 use compiler::{compile_checked_effects, compile_checked_operators};
 pub use diagnostic::Diagnostic;
 pub use donder_runtime::{
-    BoundCalculation, BoundOperator, BoundParams, BoundSample, BytecodeProgram, CalculationOutput,
-    CalculationProgram, CompiledOperator, DslBindCache, OperatorInputDecl, OperatorRunContext,
-    ParamDecl, RunContext, RuntimeError, SampleProgram, SignalPixel, SignalSampler, SpatialContext,
+    BoundOperator, BoundParams, BoundSample, BytecodeProgram, DslBindCache, OperatorRunContext,
+    RunContext, RuntimeError, SampleProgram, SignalPixel, SignalSampler, SpatialContext,
     VmWorkspace,
 };
 use parser::parse_module;
@@ -36,72 +29,10 @@ pub(crate) mod lexer;
 pub mod types;
 
 pub use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
-pub use types::{Identifier, TargetItemValue, TargetItemsValue, TargetValue, Type, Value};
+pub use types::{Identifier, Type, Value};
 
-#[derive(Clone, Debug)]
-pub struct EffectImport {
-    pub declaration: ImportDeclaration,
-    pub span: lexer::TextSpan,
-    pub source_spans: Vec<lexer::TextSpan>,
-}
-
-impl PartialEq for EffectImport {
-    fn eq(&self, other: &Self) -> bool {
-        self.declaration == other.declaration
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompiledEffectDocument {
-    pub imports: Vec<EffectImport>,
-    pub effects: Vec<EffectCompilation>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct EffectCompilation {
-    pub effect: CompiledEffect,
-    pub emitted_references: Box<[EmittedReference]>,
-}
-
-#[derive(Clone, Debug)]
-pub struct EmittedReference {
-    pub arguments: Vec<EmittedArgument>,
-    pub reference: crate::imports::SourceReference,
-    pub span: lexer::TextSpan,
-}
-
-impl PartialEq for EmittedReference {
-    fn eq(&self, other: &Self) -> bool {
-        self.reference == other.reference && self.arguments == other.arguments
-    }
-}
-
-impl EmittedReference {
-    pub(crate) fn parameters(&self) -> impl Iterator<Item = &EmittedArgument> {
-        self.arguments
-            .iter()
-            .filter(|argument| !matches!(argument.name.as_str(), "start" | "duration" | "target"))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct EmittedArgument {
-    pub name: Identifier,
-    pub ty: Type,
-    pub live_dependency: Option<Identifier>,
-    pub span: lexer::TextSpan,
-}
-
-impl PartialEq for EmittedArgument {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-            && self.ty == other.ty
-            && self.live_dependency == other.live_dependency
-    }
-}
-
-/// Compile a source document, retaining imports for the project linker.
-pub fn compile_effect_document(source: &str) -> Result<CompiledEffectDocument, Vec<Diagnostic>> {
+/// Compile sample effect declarations from a DSL source.
+pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnostic>> {
     let module = parse_module(source)?;
     if !module.operators.is_empty() {
         return Err(vec![Diagnostic::new(
@@ -109,37 +40,11 @@ pub fn compile_effect_document(source: &str) -> Result<CompiledEffectDocument, V
             "operator declarations are not allowed in effect sources",
         )]);
     }
-    let imports = module.imports.clone();
-    let module = check_module(module)?;
-    let effects = compile_checked_effects(module).map_err(|error| vec![error])?;
-    Ok(CompiledEffectDocument { imports, effects })
-}
-
-/// Standalone compilation has no project context to resolve imports.
-pub fn compile_effects(source: &str) -> Result<Vec<EffectCompilation>, Vec<Diagnostic>> {
-    let document = compile_effect_document(source)?;
-    if let Some(import) = document.imports.first() {
-        return Err(vec![Diagnostic::new(
-            import.span,
-            "effect imports require document compilation and project linking",
-        )]);
-    }
-    Ok(document.effects)
-}
-
-/// Parse import spans for structural path edits without recompiling bytecode.
-pub fn effect_source_imports(source: &str) -> Result<Vec<EffectImport>, Vec<Diagnostic>> {
-    Ok(parse_module(source)?.imports)
+    compile_checked_effects(check_module(module)?).map_err(|error| vec![error])
 }
 
 pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diagnostic>> {
     let module = parse_module(source)?;
-    if let Some(import) = module.imports.first() {
-        return Err(vec![Diagnostic::new(
-            import.span,
-            "imports are only supported in effect documents",
-        )]);
-    }
     if !module.effects.is_empty() {
         return Err(vec![Diagnostic::new(
             lexer::TextSpan { start: 0, end: 0 },
@@ -153,15 +58,11 @@ pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diag
 pub fn hash_compiled_effect<H: Hasher>(effect: &CompiledEffect, state: &mut H) {
     effect.name.hash(state);
     hash_param_decls(&effect.params, state);
-    effect.kind().hash(state);
-    match &effect.program {
-        EffectProgram::Sample(program) => hash_bytecode(program.bytecode(), state),
-        EffectProgram::Generator(program) => specialization::hash_semantics(program, state),
-    }
+    hash_bytecode(effect.program.bytecode(), state);
 }
 
-fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash, B: Hash>(
-    bytecode: &BytecodeProgram<C, S, A, B>,
+fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash>(
+    bytecode: &BytecodeProgram<C, S, A>,
     state: &mut H,
 ) {
     bytecode.instructions.hash(state);
@@ -169,18 +70,6 @@ fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash, B: Hash>(
     bytecode.enum_types.len().hash(state);
     for ty in &bytecode.enum_types {
         ty.ty().hash(state);
-    }
-    bytecode.targets.len().hash(state);
-    for target in &bytecode.targets {
-        hash_target_items(&target.groups, state);
-    }
-    bytecode.target_lists.len().hash(state);
-    for target in &bytecode.target_lists {
-        hash_target_items(&target.groups, state);
-    }
-    bytecode.target_items.len().hash(state);
-    for target in &bytecode.target_items {
-        hash_target_pixels(&target.pixels, state);
     }
     bytecode.array_constants.len().hash(state);
     for values in &bytecode.array_constants {
@@ -257,18 +146,6 @@ fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
                 mark.as_ticks().hash(state);
             }
         }
-        Value::Target(value) => {
-            6u8.hash(state);
-            hash_target_items(&value.groups, state);
-        }
-        Value::TargetItems(value) => {
-            7u8.hash(state);
-            hash_target_items(&value.groups, state);
-        }
-        Value::TargetItem(value) => {
-            8u8.hash(state);
-            hash_target_pixels(&value.pixels, state);
-        }
         Value::Curve(value) => {
             9u8.hash(state);
             hash_curve(value, state);
@@ -285,24 +162,6 @@ fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
             12u8.hash(state);
             value.hash(state);
         }
-    }
-}
-
-fn hash_target_items<H: Hasher>(items: &[std::sync::Arc<TargetItemValue>], state: &mut H) {
-    items.len().hash(state);
-    for item in items {
-        hash_target_pixels(&item.pixels, state);
-    }
-}
-
-fn hash_target_pixels<H: Hasher>(pixels: &[donder_runtime::PreparedPixel], state: &mut H) {
-    pixels.len().hash(state);
-    for pixel in pixels {
-        pixel.fixture_index.hash(state);
-        pixel.fixture_pixel_index.hash(state);
-        pixel.pixel_index.hash(state);
-        pixel.pixel_count.hash(state);
-        pixel.pixel_fraction.to_bits().hash(state);
     }
 }
 

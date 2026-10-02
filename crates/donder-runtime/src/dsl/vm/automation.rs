@@ -146,7 +146,6 @@ impl AutomationPlan {
             if binding.duration.as_ticks() == 0
                 || binding.curve.validate().is_err()
                 || !binding.mapping.is_well_formed()
-                || !*values.initialized.get(parameter)?
             {
                 return None;
             }
@@ -275,7 +274,6 @@ impl AutomationPlan {
                     values.curves[window.slot] = CurveRegister::Prepared(Arc::clone(&window.curve));
                 }
             }
-            values.initialized[usize::from(binding.parameter)] = true;
         }
     }
 }

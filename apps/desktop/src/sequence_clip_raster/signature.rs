@@ -13,10 +13,6 @@ pub(super) struct RenderInputSignatureData {
     sequence_duration: donder_language::values::DonderDuration,
     automation_clips: Vec<AutomationInputSignature>,
     definition: Option<EffectDefinition>,
-    generator_definitions: Vec<(
-        donder_language::effect::EffectDefinitionId,
-        EffectDefinition,
-    )>,
     curve_references: Vec<(CurveId, Option<CurveDefinition>)>,
     gradient_references: Vec<(GradientId, Option<GradientDefinition>)>,
     mark_references: Vec<(MarkCollectionKey, Option<Vec<DonderTime>>)>,
@@ -68,20 +64,6 @@ pub(super) fn render_signature(
         .effects
         .resolve(&effect.definition)
         .cloned();
-    let generator_definitions = if definition
-        .as_ref()
-        .is_some_and(|definition| definition.kind() == EffectKind::Generator)
-    {
-        project
-            .definitions()
-            .effects
-            .definitions
-            .iter()
-            .map(|(id, definition)| (id.clone(), definition.clone()))
-            .collect()
-    } else {
-        Vec::new()
-    };
     let mut curve_references = Vec::new();
     let mut gradient_references = Vec::new();
     let mut mark_references = Vec::new();
@@ -125,7 +107,6 @@ pub(super) fn render_signature(
             sequence_duration: sequence.duration.clone(),
             automation_clips,
             definition,
-            generator_definitions,
             curve_references,
             gradient_references,
             mark_references,
@@ -215,11 +196,6 @@ pub(super) fn hash_render_signature<H: Hasher>(signature: &RenderInputSignature,
                 hash_automation_input_signature(clip, state);
             }
             hash_optional_effect_definition(&data.definition, state);
-            data.generator_definitions.len().hash(state);
-            for (id, definition) in &data.generator_definitions {
-                id.hash(state);
-                hash_effect_definition(definition, state);
-            }
             data.curve_references.len().hash(state);
             for (id, definition) in &data.curve_references {
                 id.hash(state);
@@ -412,10 +388,6 @@ pub(super) fn hash_optional_effect_definition<H: Hasher>(
 }
 
 pub(super) fn hash_effect_definition<H: Hasher>(definition: &EffectDefinition, state: &mut H) {
-    definition.generated_effect_targets().len().hash(state);
-    for target in definition.generated_effect_targets() {
-        target.hash(state);
-    }
     let donder_language::effect::EffectImplementation::Dsl(compiled) = definition.implementation();
     hash_compiled_effect(compiled, state);
 }

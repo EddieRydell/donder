@@ -382,7 +382,6 @@ pub enum SequenceEffectParamValue {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinition {
     pub name: String,
-    pub kind: SequenceEffectDefinitionKind,
     pub effect: SequenceEffectReference,
     #[serde(rename = "import")]
     pub import_path: Option<String>,

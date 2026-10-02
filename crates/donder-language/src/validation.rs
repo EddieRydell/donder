@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashSet;
 
 use crate::dsl::Type;
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
@@ -69,7 +69,6 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
             ))
         })?;
     }
-    validate_generated_effects(project)?;
     if project.setup(project.root.setup.id()).is_none() {
         return Err(ProjectValidationError::MissingSetup);
     }
@@ -105,7 +104,6 @@ fn validate_definition_schemas(project: &DonderProject) -> Result<(), ProjectVal
         let crate::effect::EffectImplementation::Dsl(compiled) = &definition.implementation;
         if definition.id != crate::effect::EffectRef::Custom(id.clone())
             || definition.params != compiled.params()
-            || definition.kind != compiled.kind()
         {
             return Err(ProjectValidationError::InvalidRelationship(format!(
                 "Effect `{}` does not match its compiled declaration.",
@@ -134,65 +132,6 @@ fn validate_definition_schemas(project: &DonderProject) -> Result<(), ProjectVal
                 id.0.object()
             )));
         }
-    }
-    Ok(())
-}
-
-fn validate_generated_effects(project: &DonderProject) -> Result<(), ProjectValidationError> {
-    let definitions = &project.definitions.effects.definitions;
-    let indices = definitions
-        .keys()
-        .enumerate()
-        .map(|(index, id)| (id, index))
-        .collect::<HashMap<_, _>>();
-    let mut children = vec![Vec::new(); definitions.len()];
-    let mut incoming = vec![0usize; definitions.len()];
-    for (id, definition) in definitions {
-        if definition.emitted_references.len() != definition.generated_effect_targets.len() {
-            return Err(ProjectValidationError::InvalidRelationship(format!(
-                "Generator `{}` has unlinked child references.",
-                id.0.object()
-            )));
-        }
-        let parent = indices[id];
-        for (emission, target) in definition
-            .emitted_references
-            .iter()
-            .zip(definition.generated_effect_targets.iter())
-        {
-            let crate::effect::EffectRef::Custom(child_id) = target;
-            let Some(&child) = indices.get(child_id) else {
-                return Err(ProjectValidationError::InvalidRelationship(format!(
-                    "Generator `{}` references a missing child effect.",
-                    id.0.object()
-                )));
-            };
-            crate::dsl::validate_emission(emission, &definitions[child_id].params).map_err(
-                |diagnostic| ProjectValidationError::InvalidRelationship(diagnostic.message),
-            )?;
-            children[parent].push(child);
-            incoming[child] += 1;
-        }
-    }
-    let mut ready = incoming
-        .iter()
-        .enumerate()
-        .filter_map(|(index, count)| (*count == 0).then_some(index))
-        .collect::<VecDeque<_>>();
-    let mut visited = 0usize;
-    while let Some(parent) = ready.pop_front() {
-        visited += 1;
-        for &child in &children[parent] {
-            incoming[child] -= 1;
-            if incoming[child] == 0 {
-                ready.push_back(child);
-            }
-        }
-    }
-    if visited != definitions.len() {
-        return Err(ProjectValidationError::InvalidRelationship(
-            "Generated effect references form a cycle.".into(),
-        ));
     }
     Ok(())
 }

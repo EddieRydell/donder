@@ -5,6 +5,7 @@ imports:
 - from:
     documents:
     - effects/standard.effect.donder
+    - effects/impact-burst.effect.donder
     - effects/mark-impact-burst.effect.donder
   as: effects
 - from:

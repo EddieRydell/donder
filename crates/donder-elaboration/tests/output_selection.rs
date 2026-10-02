@@ -14,69 +14,6 @@ fn starter() -> DonderProject {
     load_project(&root).unwrap().project
 }
 
-#[test]
-fn controller_fragments_retain_nested_generator_parameter_dependencies() {
-    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut sources = donder_project_io::project_source_texts(&root).unwrap();
-    sources.insert(
-        "effects/mark-impact-burst.effect.donder".into(),
-        r#"
-        effect MarkImpactBurst {
-            void generate() {
-                timeline.emit Inner { start: 0.0, duration: duration(), target: target, value: progress() };
-            }
-        }
-        effect Inner {
-            param float value;
-            void generate() {
-                timeline.emit Leaf { start: 0.0, duration: duration(), target: target, value: value * 0.5 + progress() * 0.5 };
-            }
-        }
-        effect Leaf {
-            param float value;
-            color sample() { return rgb(value, 0.0, 0.0); }
-        }
-        "#.into(),
-    );
-    let report = donder_project_io::check_project_with_overrides(&root, &sources);
-    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
-    let mut project = report.session.unwrap().project;
-    let generator = project
-        .definitions()
-        .effects
-        .definitions
-        .keys()
-        .find(|id| id.0.object() == "MarkImpactBurst")
-        .unwrap()
-        .clone();
-    let edits = project
-        .reusable_sequences()
-        .values()
-        .cloned()
-        .map(|mut sequence| {
-            sequence.automation_clips.clear();
-            for effect in &mut sequence.effects {
-                effect.definition = donder_language::effect::EffectRef::Custom(generator.clone());
-                effect.param_overrides.clear();
-            }
-            ProjectEdit::ReplaceSequence {
-                id: sequence.id.clone(),
-                value: sequence,
-            }
-        })
-        .collect::<Vec<_>>();
-    project.apply_edits(edits).unwrap();
-    let ports = ports(&project);
-    let mut retained = false;
-    for id in project.reusable_sequences().keys() {
-        let fragment = compare(&project, id, &ports[..1]);
-        retained |= fragment.effect_count() > 0;
-        let bytes = donder_runtime::encode_sequence(&fragment).unwrap();
-        donder_runtime::decode_sequence(&bytes, donder_runtime::LoadLimits::default()).unwrap();
-    }
-    assert!(retained);
-}
-
 fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
     project.reusable_setups()[project.root().setup.id()]
         .controllers

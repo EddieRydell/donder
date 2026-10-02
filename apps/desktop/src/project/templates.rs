@@ -29,6 +29,7 @@ pub(crate) fn new_project_files(
 - from:
     documents:
     - effects/standard.effect.donder
+    - effects/impact-burst.effect.donder
     - effects/mark-impact-burst.effect.donder
   as: effects
 - from:
@@ -233,6 +234,24 @@ mod tests {
             session.project.definitions().operators.definitions.len(),
             10
         );
+        for name in [
+            "MarkPulse",
+            "MarkChase",
+            "MarkWipe",
+            "MarkImpactBurst",
+            "ImpactBurst",
+        ] {
+            assert!(
+                session
+                    .project
+                    .definitions()
+                    .effects
+                    .definitions
+                    .keys()
+                    .any(|id| id.0.object() == name),
+                "bundled effect {name} must be reachable from the new project"
+            );
+        }
         fs::remove_dir_all(&root).unwrap();
     }
 

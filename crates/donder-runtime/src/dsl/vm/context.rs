@@ -1,7 +1,6 @@
-//! Execution capabilities. Calculations have a clock but no pixel or signal
-//! access; their capability error is uninhabited, not a discarded runtime error.
+//! Execution capabilities for samples and signal operators.
 use super::{Color, RunContext, SignalSampler, SpatialContext};
-use crate::dsl::bytecode::{CalculationRead, ContextRead, SignalPixel};
+use crate::dsl::bytecode::{ContextRead, SignalPixel};
 use crate::values::{SampleTime, sample_duration_seconds_f32};
 use core::convert::Infallible;
 
@@ -13,18 +12,6 @@ pub(super) enum Number {
 pub(super) trait ReadContext: Copy {
     type Spatial;
     fn read(self, context: &RunContext, spatial: &Self::Spatial) -> Number;
-}
-
-impl ReadContext for CalculationRead {
-    type Spatial = ();
-
-    fn read(self, context: &RunContext, _: &()) -> Number {
-        Number::Float(match self {
-            Self::Progress => context.progress,
-            Self::Seconds => sample_duration_seconds_f32(context.time),
-            Self::Duration => sample_duration_seconds_f32(context.duration),
-        })
-    }
 }
 
 impl ReadContext for ContextRead {
