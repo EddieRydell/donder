@@ -1,4 +1,7 @@
-use donder_runtime::sampling::deterministic_random_seed;
+extern crate std;
+
+use crate::sampling::deterministic_random_seed;
+use std::eprintln;
 
 #[test]
 fn random_is_repeatable_bounded_and_distributed() {

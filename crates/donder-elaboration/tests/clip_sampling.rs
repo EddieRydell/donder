@@ -1,9 +1,9 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::dsl::EffectKind;
-use donder_runtime::signal::{PreparedLayer, PreparedSignalKind, PreparedSignalNode};
-use donder_runtime::values::{Color, SampleTime};
-use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::SampleTime;
+use donder_runtime::{LoadError, LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::{PreparedLayer, PreparedSignalKind, PreparedSignalNode};
 
 #[test]
 fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
@@ -18,7 +18,7 @@ fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
     let mut sample_checked = false;
     let mut generator_checked = false;
     for sequence in project
-        .root
+        .root()
         .sequences
         .iter()
         .map(|source| project.sequence(source.id()).unwrap())
@@ -28,11 +28,11 @@ fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
         for kind in [EffectKind::Sample, EffectKind::Generator] {
             let Some(authored) = sequence.effects.iter().find(|effect| {
                 project
-                    .definitions
+                    .definitions()
                     .effects
                     .resolve(&effect.definition)
                     .unwrap()
-                    .kind
+                    .kind()
                     == kind
             }) else {
                 continue;
@@ -42,12 +42,13 @@ fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
                 EffectKind::Generator => generator_checked = true,
             }
             let descriptor = prepared
-                .signals()
+                .to_raw_signals()
                 .clips
                 .iter()
                 .find(|clip| clip.id == authored.id.0)
+                .cloned()
                 .unwrap();
-            let mut reference = prepared.signals().clone();
+            let mut reference = prepared.to_raw_signals();
             let mut effects = descriptor.effects.to_vec();
             effects.sort_by_key(|&index| reference.effects[index].start_time);
             reference.layers = vec![PreparedLayer { enabled: true }].into();
@@ -61,20 +62,28 @@ fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
             reference.plan.frame_nodes = vec![0].into();
             reference.plan.frame_slots = vec![0].into();
             reference.plan.frame_buffer_count = 1;
-            let mut workspace = reference.workspace().unwrap();
+            let mut workspace = donder_runtime::PreparedSequence::admit(
+                reference.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback();
             let clip = decoded.clip(authored.id.0).unwrap();
-            let target = prepared.signals().target(descriptor.target);
+            let target = reference.target(descriptor.target);
             for row_limit in [1, 17, target.len()] {
                 let rows = row_limit.min(target.len());
                 let mut sampler = clip.sampler(rows);
-                let mut actual = vec![Color::BLACK; rows];
                 for fraction in [0.75, 0.0, 0.25, 0.75] {
                     let time = SampleTime::from_ticks(
                         descriptor.start_time.as_ticks()
                             + (descriptor.duration.as_ticks() as f64 * fraction) as u32,
                     );
-                    let expected = reference.evaluate(time, &mut workspace).unwrap();
-                    sampler.evaluate(time, &mut actual).unwrap();
+                    let expected = workspace.evaluate(time).colors();
+                    let actual = sampler.evaluate(time);
                     for (row, color) in actual.iter().enumerate() {
                         let index = if rows == 1 {
                             0
@@ -94,20 +103,17 @@ fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
             }
         }
         assert!(prepared.clip(u32::MAX).is_none());
-        let mut invalid = prepared.signals().clone();
+        let mut invalid = prepared.to_raw_signals();
         let Some(clip) = invalid.clips.first_mut() else {
             continue;
         };
         clip.target = usize::MAX;
-        let invalid = donder_runtime::sequence::PreparedSequence::new(
+        let invalid = donder_runtime::PreparedSequence::admit(
             invalid,
             prepared.patch().clone(),
             prepared.outputs().into(),
         );
-        assert!(matches!(
-            decode_sequence(&encode_sequence(&invalid).unwrap(), limits),
-            Err(LoadError::InvalidSequence)
-        ));
+        assert!(matches!(invalid, Err(LoadError::InvalidSequence)));
     }
     assert!(sample_checked && generator_checked);
 }

@@ -4,7 +4,6 @@
 
 extern crate alloc;
 
-use alloc::vec;
 use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
 use esp_hal::{
     clock::CpuClock,
@@ -99,7 +98,9 @@ fn main() -> ! {
             let (program, params) = fixtures::case(case);
             (
                 fixtures::NAMES[case],
-                workload::show(200, program, params),
+                workload::show(200, program.into_parts().0, params)
+                    .prepare()
+                    .unwrap(),
                 &fixtures::GOLDEN[case][0],
             )
         } else if case < fixtures::NAMES.len() + workload::CHASE_PULSE_CASES.len() {
@@ -107,7 +108,7 @@ fn main() -> ! {
             let (name, _) = workload::CHASE_PULSE_CASES[index];
             (
                 name,
-                donder_runtime::wire::decode_sequence(
+                donder_runtime::decode_sequence(
                     fixtures::CHASE_PULSE_SEQUENCES[index],
                     Default::default(),
                 )
@@ -121,7 +122,7 @@ fn main() -> ! {
             let (name, _) = workload::MARK_CASES[index];
             (
                 name,
-                donder_runtime::wire::decode_sequence(
+                donder_runtime::decode_sequence(
                     fixtures::MARK_SEQUENCES[index],
                     Default::default(),
                 )
@@ -135,7 +136,7 @@ fn main() -> ! {
                 - workload::MARK_CASES.len();
             (
                 fixtures::GENERATOR_NAMES[index],
-                donder_runtime::wire::decode_sequence(
+                donder_runtime::decode_sequence(
                     fixtures::GENERATOR_SEQUENCES[index],
                     Default::default(),
                 )
@@ -143,10 +144,8 @@ fn main() -> ! {
                 &fixtures::GENERATOR_GOLDEN[index],
             )
         };
-        let mut workspace = show.workspace().unwrap();
-        let mut output = [vec![0; 600]];
-        show.evaluate(workload::time(0), &mut output, &mut workspace)
-            .unwrap();
+        let mut show = show.into_playback();
+        show.evaluate(workload::time(0));
         // Baseline and two sampling periods in one image. Report cycles of work,
         // not only sample counts; periodic aliasing and ISR overhead remain visible.
         for period_us in [0, 997, 1999, 0] {
@@ -167,8 +166,8 @@ fn main() -> ! {
                 // Every window has the same mixture of show times, including
                 // slow mark frames. Read the wall clock only between full cycles.
                 for frame in 0..workload::FRAMES {
-                    show.evaluate(workload::time(frame), &mut output, &mut workspace)
-                        .unwrap();
+                    let rendered = show.evaluate(workload::time(frame));
+                    let output = rendered.outputs().next().unwrap().bytes;
                     core::hint::black_box(&output);
                     frames += 1;
                 }
@@ -185,7 +184,7 @@ fn main() -> ! {
             // Outside timing/sampling: check the frame actually produced while
             // the ISR was active, rather than merely replaying with it disabled.
             assert_eq!(
-                workload::checksum(&output[0]),
+                workload::checksum(show.outputs().next().unwrap().bytes),
                 golden[(frames as usize - 1) % workload::FRAMES],
                 "profiled frame differs from host output"
             );

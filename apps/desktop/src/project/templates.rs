@@ -184,13 +184,13 @@ mod tests {
         let session = donder_project_io::load_project(&root).unwrap();
         let setup = session
             .project
-            .setup(session.project.root.setup.id())
+            .setup(session.project.root().setup.id())
             .unwrap();
-        assert!(session.project.setups.is_empty());
-        assert!(session.project.layouts.is_empty());
-        assert!(session.project.patches.is_empty());
-        assert!(session.project.sequences.is_empty());
-        assert_eq!(session.project.root.sequences.len(), 1);
+        assert!(session.project.reusable_setups().is_empty());
+        assert!(session.project.reusable_layouts().is_empty());
+        assert!(session.project.reusable_patches().is_empty());
+        assert!(session.project.reusable_sequences().is_empty());
+        assert_eq!(session.project.root().sequences.len(), 1);
         assert!(
             session
                 .project
@@ -208,8 +208,18 @@ mod tests {
                 .is_empty()
         );
         assert!(setup.controllers.is_empty());
-        assert!(session.project.definitions.fixtures.definitions.is_empty());
-        assert_eq!(session.project.definitions.operators.definitions.len(), 10);
+        assert!(
+            session
+                .project
+                .definitions()
+                .fixtures
+                .definitions
+                .is_empty()
+        );
+        assert_eq!(
+            session.project.definitions().operators.definitions.len(),
+            10
+        );
         fs::remove_dir_all(&root).unwrap();
     }
 
@@ -266,14 +276,14 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{name}: {error:?}"));
             let definition = session
                 .project
-                .definitions
+                .definitions()
                 .operators
                 .definitions
                 .values()
                 .find(|definition| definition.declaration_name == name)
                 .unwrap();
             if name == "HueShift" {
-                let shift = &definition.params[0];
+                let shift = &definition.params()[0];
                 assert_eq!(shift.name.as_str(), "shift");
                 assert_eq!(shift.ty, donder_language::dsl::Type::Float);
                 assert!(!shift.fixed);
@@ -296,10 +306,10 @@ mod tests {
             assert_eq!(
                 stanford
                     .iter()
-                    .find(|operator| operator.name == definition.name),
+                    .find(|operator| operator.name() == definition.name()),
                 Some(&definition),
                 "operator {} differs from the stock definition",
-                definition.name.as_str()
+                definition.name().as_str()
             );
         }
     }

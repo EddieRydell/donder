@@ -524,7 +524,7 @@ impl DesktopState {
     ) -> Result<crate::dto::NewSequenceResult, String> {
         let _authoring = self.settled_authoring();
         let project = self.project_session().ok_or("No project is loaded.")?;
-        let owner = &project.project.root.id.0;
+        let owner = &project.project.root().id.0;
         let target = crate::dto::GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: self.snapshot().project_revision,

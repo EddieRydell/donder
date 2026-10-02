@@ -1,0 +1,281 @@
+//! Automation admitted against a fixed parameter-bank layout.
+//!
+//! Keep a plan with the parameter workspace it was admitted for. Curve windows
+//! belong to the plan, not to a tagged parameter value supplied during playback.
+
+use super::{Arc, BoundParams, CurveRegister, Identifier, ParameterAddress, PreparedCurve};
+use crate::automation::AutomationMapping;
+use crate::sampling::sample_curve;
+use crate::signal::PreparedAutomation;
+use crate::values::{Curve, SampleDuration, SampleTime};
+use alloc::{boxed::Box, vec::Vec};
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AutomationPlan {
+    bindings: Box<[Binding]>,
+    windows: Box<[Window]>,
+}
+
+#[derive(Clone, Debug)]
+struct Binding {
+    parameter: u16,
+    start: SampleTime,
+    duration: SampleDuration,
+    curve: Arc<Curve>,
+    destination: Destination,
+}
+
+#[derive(Clone, Debug)]
+enum Destination {
+    Float {
+        slot: usize,
+        min: f32,
+        max: f32,
+    },
+    Int {
+        slot: usize,
+        min: i32,
+        max: i32,
+    },
+    Bool {
+        slot: usize,
+    },
+    Enum {
+        slot: usize,
+        first: Identifier,
+        rest: Box<[Identifier]>,
+    },
+    Curve {
+        window: usize,
+        min: f32,
+        max: f32,
+    },
+}
+
+#[derive(Debug)]
+struct Window {
+    slot: usize,
+    curve: Arc<PreparedCurve>,
+    point_capacity: usize,
+}
+
+impl Clone for Window {
+    fn clone(&self) -> Self {
+        let mut curve = self.curve.detached_clone();
+        // Vec::clone need not retain spare capacity. A cloned playback plan
+        // must still accommodate every authored window without growing.
+        curve.reserve_window_capacity(self.point_capacity);
+        Self {
+            slot: self.slot,
+            curve: Arc::new(curve),
+            point_capacity: self.point_capacity,
+        }
+    }
+}
+
+impl AutomationPlan {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bindings.is_empty()
+    }
+
+    /// Metadata retained by one plan. Shared authored curves/identifiers retain
+    /// only handles here; their backing allocations belong to the raw data.
+    /// Detached curve allocations are budgeted by `automation_storage_estimate`.
+    pub(crate) fn storage_estimate(bindings: &[PreparedAutomation]) -> Option<usize> {
+        let mut bytes =
+            size_of::<Self>().checked_add(bindings.len().checked_mul(size_of::<Binding>())?)?;
+        for binding in bindings {
+            let extra = match &binding.mapping {
+                AutomationMapping::Enum { values } => values
+                    .iter()
+                    .skip(1)
+                    .len()
+                    .checked_mul(size_of::<Identifier>())?,
+                // Admission shares a window for repeated curve destinations.
+                // Counting one per binding is a conservative allocation bound.
+                AutomationMapping::Curve { .. } => size_of::<Window>(),
+                _ => 0,
+            };
+            bytes = bytes.checked_add(extra)?;
+        }
+        Some(bytes)
+    }
+
+    /// Reconstruct authored bindings, not the current contents of mutable windows.
+    pub(crate) fn to_raw(&self) -> Box<[PreparedAutomation]> {
+        self.bindings
+            .iter()
+            .map(|binding| PreparedAutomation {
+                param_index: binding.parameter,
+                start: binding.start,
+                duration: binding.duration,
+                curve: Arc::clone(&binding.curve),
+                mapping: match &binding.destination {
+                    Destination::Float { min, max, .. } => AutomationMapping::Float {
+                        min: *min,
+                        max: *max,
+                    },
+                    Destination::Int { min, max, .. } => AutomationMapping::Int {
+                        min: *min,
+                        max: *max,
+                    },
+                    Destination::Bool { .. } => AutomationMapping::Bool,
+                    Destination::Enum { first, rest, .. } => AutomationMapping::Enum {
+                        values: core::iter::once(first)
+                            .chain(rest.iter())
+                            .cloned()
+                            .collect(),
+                    },
+                    Destination::Curve { min, max, .. } => AutomationMapping::Curve {
+                        min: *min,
+                        max: *max,
+                    },
+                },
+            })
+            .collect()
+    }
+
+    /// Resolve declaration slots into typed bank addresses once. This is an
+    /// admission boundary: mismatched mappings and malformed curves are rejected.
+    pub(crate) fn admit(params: &BoundParams, bindings: &[PreparedAutomation]) -> Option<Self> {
+        let values = &params.values;
+        let mut admitted = Vec::with_capacity(bindings.len());
+        let mut windows: Vec<Window> = Vec::new();
+        for binding in bindings {
+            let parameter = usize::from(binding.param_index);
+            if binding.duration.as_ticks() == 0
+                || binding.curve.validate().is_err()
+                || !binding.mapping.is_well_formed()
+                || !*values.initialized.get(parameter)?
+            {
+                return None;
+            }
+            let address = *values.slots.get(parameter)?;
+            let destination = match (address, &binding.mapping) {
+                (ParameterAddress::Float(slot), AutomationMapping::Float { min, max }) => {
+                    values.floats.get(slot)?;
+                    Destination::Float {
+                        slot,
+                        min: *min,
+                        max: *max,
+                    }
+                }
+                (ParameterAddress::Int(slot), AutomationMapping::Int { min, max }) => {
+                    values.ints.get(slot)?;
+                    Destination::Int {
+                        slot,
+                        min: *min,
+                        max: *max,
+                    }
+                }
+                (ParameterAddress::Bool(slot), AutomationMapping::Bool) => {
+                    values.bools.get(slot)?;
+                    Destination::Bool { slot }
+                }
+                (ParameterAddress::Enum(slot), AutomationMapping::Enum { values: options }) => {
+                    values.enums.get(slot)?;
+                    let (first, rest) = options.split_first()?;
+                    Destination::Enum {
+                        slot,
+                        first: first.clone(),
+                        rest: rest.into(),
+                    }
+                }
+                (ParameterAddress::Curve(slot), AutomationMapping::Curve { min, max }) => {
+                    let CurveRegister::Prepared(curve) = values.curves.get(slot)? else {
+                        return None;
+                    };
+                    let point_capacity = binding.curve.points.len().max(1);
+                    let window = match windows.iter().position(|window| window.slot == slot) {
+                        Some(index) => {
+                            let window = &mut windows[index];
+                            window.point_capacity = window.point_capacity.max(point_capacity);
+                            Arc::make_mut(&mut window.curve)
+                                .reserve_window_capacity(window.point_capacity);
+                            index
+                        }
+                        None => {
+                            let mut curve = curve.detached_clone();
+                            curve.reserve_window_capacity(point_capacity);
+                            let index = windows.len();
+                            windows.push(Window {
+                                slot,
+                                curve: Arc::new(curve),
+                                point_capacity,
+                            });
+                            index
+                        }
+                    };
+                    Destination::Curve {
+                        window,
+                        min: *min,
+                        max: *max,
+                    }
+                }
+                _ => return None,
+            };
+            admitted.push(Binding {
+                parameter: binding.param_index,
+                start: binding.start,
+                duration: binding.duration,
+                curve: Arc::clone(&binding.curve),
+                destination,
+            });
+        }
+        Some(Self {
+            bindings: admitted.into(),
+            windows: windows.into(),
+        })
+    }
+
+    /// Apply in authored order, preserving last-binding-wins behavior.
+    ///
+    /// The owner must retain the admitted parameter layout and release forwarded
+    /// descendant/VM curve handles before updating an ancestor, as it does for
+    /// other prepared curve updates. Plan cloning detaches all mutable windows.
+    pub(crate) fn apply(&mut self, params: &mut BoundParams, time: SampleTime) {
+        let values = &mut params.values;
+        for binding in &self.bindings {
+            let elapsed = time.as_ticks().saturating_sub(binding.start.as_ticks());
+            let position = (elapsed as f32 / binding.duration.as_ticks() as f32).clamp(0.0, 1.0);
+            match &binding.destination {
+                Destination::Float { slot, min, max } => {
+                    let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);
+                    values.floats[*slot] = min + (max - min) * amount;
+                }
+                Destination::Int { slot, min, max } => {
+                    let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);
+                    let min = *min as f32;
+                    let max = *max as f32;
+                    values.ints[*slot] = libm::roundf(min + (max - min) * amount) as i32;
+                }
+                Destination::Bool { slot } => {
+                    let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);
+                    values.bools[*slot] = amount >= 0.5;
+                }
+                Destination::Enum { slot, first, rest } => {
+                    let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);
+                    let index =
+                        (libm::floorf(amount * (rest.len() + 1) as f32) as usize).min(rest.len());
+                    let selected = if index == 0 { first } else { &rest[index - 1] };
+                    values.enums[*slot].clone_from(selected);
+                }
+                Destination::Curve { window, min, max } => {
+                    let window = &mut self.windows[*window];
+                    // Release the previous published handle before mutating the
+                    // plan-owned window. This is resource lifetime management,
+                    // not a recovery path for an unexpected parameter tag.
+                    values.curves[window.slot] = CurveRegister::Empty;
+                    Arc::make_mut(&mut window.curve).update_window(
+                        &binding.curve,
+                        *min,
+                        *max,
+                        position,
+                    );
+                    values.curves[window.slot] = CurveRegister::Prepared(Arc::clone(&window.curve));
+                }
+            }
+            values.initialized[usize::from(binding.parameter)] = true;
+        }
+    }
+}

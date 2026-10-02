@@ -1,9 +1,15 @@
-use donder_language::dsl::compile_operators;
-use donder_runtime::dsl::{
-    BoundParams, CompiledOperator, Identifier, OperatorRunContext, RuntimeError, SignalPixel,
-    SignalSampler, Value, VmWorkspace,
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
 };
-use donder_runtime::values::{Color, SampleDuration, SampleTime};
+
+use donder_language::dsl::compile_operators;
+use donder_runtime::{Color, SampleDuration, SampleTime};
+use donder_runtime::{
+    CompiledOperator, Identifier, OperatorRunContext, RuntimeError, SignalPixel, SignalSampler,
+    Value, VmWorkspace,
+};
 
 fn rgb(red: u8, green: u8, blue: u8) -> Color {
     Color { red, green, blue }
@@ -19,7 +25,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let root = camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut project = donder_project_io::load_project(&root).unwrap().project;
     let id = project
-        .root
+        .root()
         .sequences
         .iter()
         .map(|source| source.id())
@@ -29,8 +35,8 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let baseline =
         donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
             .unwrap();
-    let baseline = baseline.signals();
-    let definitions = &project.definitions.operators;
+    let baseline = baseline.to_raw_signals();
+    let definitions = &project.definitions().operators;
     let make_node = |id, name| CompositionGraphNode {
         id: CompositionGraphNodeId(id),
         position: GraphNodePosition { x: 100.0, y: 100.0 },
@@ -40,7 +46,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
                 .values()
                 .find(|d| d.declaration_name == name)
                 .unwrap()
-                .id
+                .id()
                 .clone(),
             params: Default::default(),
         }),
@@ -51,7 +57,8 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         to: CompositionGraphNodeId(to),
         to_port: GraphPortId(port.into()),
     };
-    let graph = &mut project.sequences.get_mut(&id).unwrap().composition_graph;
+    let mut sequence = project.sequence(&id).unwrap().clone();
+    let graph = &mut sequence.composition_graph;
     graph
         .nodes
         .extend([make_node(8000, "Add"), make_node(8001, "HueShift")]);
@@ -76,33 +83,44 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         validate_composition_graph(&invalid, definitions).is_err(),
         "unknown port accepted"
     );
+    project.replace_sequence(&id, sequence.clone()).unwrap();
     let disconnected =
         donder_elaboration::prepare(&project, &id, donder_elaboration::PrepareOutputs::All)
             .unwrap();
-    let disconnected = disconnected.signals();
+    let disconnected = disconnected.to_raw_signals();
     assert_eq!(baseline.plan.nodes.len(), disconnected.plan.nodes.len());
     assert_eq!(baseline.programs.len(), disconnected.programs.len());
-    let mut before = baseline.workspace().unwrap();
-    let mut after = disconnected.workspace().unwrap();
+    let mut before = donder_runtime::PreparedSequence::admit(
+        baseline.clone(),
+        donder_runtime::PreparedPatch {
+            routes: Box::new([]),
+            lookups: Box::new([]),
+        },
+        Box::new([]),
+    )
+    .unwrap()
+    .into_playback();
+    let mut after = donder_runtime::PreparedSequence::admit(
+        disconnected.clone(),
+        donder_runtime::PreparedPatch {
+            routes: Box::new([]),
+            lookups: Box::new([]),
+        },
+        Box::new([]),
+    )
+    .unwrap()
+    .into_playback();
     for ticks in [0, 1_000_000, 3_000_000] {
-        let expected = baseline
-            .evaluate(SampleTime::from_ticks(ticks), &mut before)
-            .unwrap();
-        let actual = disconnected
-            .evaluate(SampleTime::from_ticks(ticks), &mut after)
-            .unwrap();
+        let expected = before.evaluate(SampleTime::from_ticks(ticks)).colors();
+        let actual = after.evaluate(SampleTime::from_ticks(ticks)).colors();
         assert_eq!(actual, expected);
     }
-    project
-        .sequences
-        .get_mut(&id)
-        .unwrap()
+    sequence
         .composition_graph
         .edges
         .push(edge(8001, output, "input"));
     assert!(
-        donder_language::validation::validate_sequence(&project, project.sequence(&id).unwrap())
-            .is_err(),
+        project.replace_sequence(&id, sequence).is_err(),
         "incomplete branch contributing to output accepted"
     );
 }
@@ -147,14 +165,18 @@ fn sample(
         .iter()
         .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))
         .collect::<Vec<_>>();
-    let params = BoundParams::bind_pairs(operator.params(), &overrides).unwrap();
+    let invocation = operator
+        .bind(
+            overrides.iter().map(|(name, value)| (name, value)),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let mut inputs = Inputs {
         sample: source,
         times: Vec::new(),
     };
-    let color = operator
-        .sample_bound(
-            &params,
+    let color = invocation
+        .evaluate(
             &OperatorRunContext {
                 progress: time as f32 / 10_000_000.0,
                 time: SampleDuration::from_ticks(time),
@@ -163,6 +185,7 @@ fn sample(
                 pixel_count: 1,
                 pixel_fraction: 0.0,
             },
+            &SPATIAL,
             &mut inputs,
             &mut VmWorkspace::default(),
         )

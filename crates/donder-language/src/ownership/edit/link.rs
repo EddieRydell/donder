@@ -1,9 +1,17 @@
 use super::*;
 use crate::controller::ControllerId;
 
-/// Replace a membership with a reusable source. Typed validation at the caller's
-/// transaction boundary rejects incompatible routing or dangling external targets.
+/// Replace a membership with a reusable source, rejecting incompatible routing
+/// or dangling targets without changing the accepted project.
 pub fn use_existing(
+    project: &mut DonderProject,
+    site: &OwnershipSite,
+    source: SourceIdentity,
+) -> Result<(), String> {
+    project.checked_edit(|project| use_existing_candidate(project, site, source))
+}
+
+fn use_existing_candidate(
     project: &mut DonderProject,
     site: &OwnershipSite,
     source: SourceIdentity,

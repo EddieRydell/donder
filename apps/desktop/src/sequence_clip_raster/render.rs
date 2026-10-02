@@ -66,20 +66,14 @@ pub(super) fn render_effect_raster(
         .min(display_row_count as usize)
         .min(settings.max_rows.max(1) as usize);
     let mut sampler = renderer.sampler(rows);
-    let mut colors = vec![donder_language::values::Color::BLACK; rows];
     let mut pixels_rgba = vec![0u8; rows * columns * 4];
     for column in 0..columns {
         if !should_continue() {
             return Err(RasterRenderFailure::Cancelled);
         }
         let time = raster_column_time(&renderer, column, columns)?;
-        sampler
-            .evaluate(time, &mut colors)
-            .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
-        for row in 0..rows {
-            let Some(color) = colors.get(row) else {
-                continue;
-            };
+        let colors = sampler.evaluate(time);
+        for (row, color) in colors.iter().enumerate() {
             let offset = (row * columns + column) * 4;
             pixels_rgba[offset] = color.red;
             pixels_rgba[offset + 1] = color.green;
@@ -110,7 +104,7 @@ pub(super) enum RasterRenderFailure {
 }
 
 fn raster_column_time(
-    clip: &donder_runtime::clip::SequenceClip<'_>,
+    clip: &donder_runtime::SequenceClip<'_>,
     column: usize,
     columns: usize,
 ) -> Result<donder_language::values::SampleTime, RasterRenderFailure> {

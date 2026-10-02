@@ -1,7 +1,7 @@
 //! Portable prepared-sequence archives. The format uses 32-bit little-endian
 //! fields; rkyv owns pointer relocation, sharing, and archive validation.
 
-use crate::sequence::PreparedSequence;
+use crate::sequence::{PreparedSequence, SequenceData};
 use crate::values::{SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec, vec::Vec};
 use rkyv::rancor::Fallible;
@@ -11,7 +11,7 @@ use rkyv::{Archive, Archived, Place};
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 35;
+pub const FORMAT_VERSION: u32 = 36;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -47,8 +47,8 @@ impl Default for LoadLimits {
 }
 
 pub fn encode_sequence(sequence: &PreparedSequence) -> Result<Vec<u8>, LoadError> {
-    let payload =
-        rkyv::to_bytes::<rkyv::rancor::Failure>(sequence).map_err(|_| LoadError::Archive)?;
+    let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(&sequence.archive_data())
+        .map_err(|_| LoadError::Archive)?;
     let length = u32::try_from(payload.len()).map_err(|_| LoadError::Limit)?;
     let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len());
     bytes.extend_from_slice(&MAGIC);
@@ -87,7 +87,7 @@ pub fn payload_length(header: &[u8], limits: LoadLimits) -> Result<usize, LoadEr
 fn validate_archive(
     bytes: &[u8],
     limits: LoadLimits,
-) -> Result<&Archived<PreparedSequence>, LoadError> {
+) -> Result<&Archived<SequenceData>, LoadError> {
     use rkyv::validation::{Validator, archive::ArchiveValidator, shared::SharedValidator};
     let header = bytes.get(..HEADER_BYTES).ok_or(LoadError::Header)?;
     let length = payload_length(header, limits)?;
@@ -102,12 +102,12 @@ fn validate_archive(
         ArchiveValidator::with_max_depth(payload, core::num::NonZeroUsize::new(64)),
         SharedValidator::new(),
     );
-    let archived = rkyv::api::access_with_context::<
-        Archived<PreparedSequence>,
-        _,
-        rkyv::rancor::Failure,
-    >(payload, &mut validator)
-    .map_err(|_| LoadError::Archive)?;
+    let archived =
+        rkyv::api::access_with_context::<Archived<SequenceData>, _, rkyv::rancor::Failure>(
+            payload,
+            &mut validator,
+        )
+        .map_err(|_| LoadError::Archive)?;
     if archived.signals.pixel_count.to_native() as usize > limits.pixels
         || archived.signals.plan.nodes.len() > limits.graph_nodes
         || archived.signals.plan.vm_workspace_count.to_native() as usize
@@ -123,20 +123,13 @@ fn validate_archive(
 
 pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSequence, LoadError> {
     let archived = validate_archive(bytes, limits)?;
-    let sequence = rkyv::deserialize::<PreparedSequence, rkyv::rancor::Failure>(archived)
+    let data = rkyv::deserialize::<SequenceData, rkyv::rancor::Failure>(archived)
         .map_err(|_| LoadError::Archive)?;
-    validate_sequence(&sequence, Some(limits))?;
-    Ok(sequence)
+    PreparedSequence::admit_data(data, Some(limits))
 }
 
-/// Check a host-prepared sequence before a workspace is constructed. Upload
-/// memory and graph-depth budgets are enforced separately by `decode_sequence`.
-pub fn validate_prepared_sequence(sequence: &PreparedSequence) -> Result<(), LoadError> {
-    validate_sequence(sequence, None)
-}
-
-fn validate_sequence(
-    sequence: &PreparedSequence,
+pub(crate) fn validate_sequence(
+    sequence: &SequenceData,
     limits: Option<LoadLimits>,
 ) -> Result<(), LoadError> {
     let signal = &sequence.signals;
@@ -150,9 +143,10 @@ fn validate_sequence(
         }
         Ok(())
     };
-    reserve(1, size_of::<crate::sequence::SequenceWorkspace>())?;
+    reserve(1, size_of::<crate::signal::EvaluationWorkspace>())?;
+    reserve(sequence.outputs.len(), size_of::<Box<[u8]>>())?;
     for output in &sequence.outputs {
-        reserve(output.width as usize, 1)?;
+        reserve(output.width, 1)?;
     }
     let bad = LoadError::InvalidSequence;
     for route in &sequence.patch.routes {
@@ -175,7 +169,7 @@ fn validate_sequence(
         if sequence
             .outputs
             .get(route.frame)
-            .is_none_or(|output| end > output.width as usize)
+            .is_none_or(|output| end > output.width)
         {
             return Err(bad);
         }
@@ -183,19 +177,12 @@ fn validate_sequence(
     Ok(())
 }
 
-/// Admit a bare graph for host preview and elaboration without upload budgets.
-pub fn validate_prepared_signal_graph(
-    signal: &crate::signal::PreparedSignalGraph,
-) -> Result<(), LoadError> {
-    validate_signal_graph(signal, None).map(|_| ())
-}
-
 fn validate_signal_graph(
     signal: &crate::signal::PreparedSignalGraph,
     limits: Option<LoadLimits>,
 ) -> Result<usize, LoadError> {
     use crate::dsl::bytecode::{ParameterKind, ProgramContext};
-    use crate::dsl::{BoundParams, VmWorkspace};
+    use crate::dsl::{AutomationPlan, VmWorkspace};
     use crate::signal::{
         CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
         EffectAutomationWorkspace,
@@ -219,10 +206,11 @@ fn validate_signal_graph(
     {
         return Err(bad);
     }
-    if signal
-        .programs
-        .iter()
-        .any(|program| program.uses_spatial_context())
+    if (!signal.spatial_contexts.is_empty()
+        || signal
+            .programs
+            .iter()
+            .any(|program| program.uses_spatial_context()))
         && signal.spatial_contexts.len() != signal.target_pixels.len()
     {
         return Err(bad);
@@ -255,7 +243,7 @@ fn validate_signal_graph(
         1,
         crate::bindings::ParameterWorkspace::storage_estimate(
             &signal.parameter_environments,
-            signal.parameter_time_slots(),
+            signal.parameter_time_slots()?,
         )
         .ok_or(LoadError::Limit)?,
     )?;
@@ -375,6 +363,34 @@ fn validate_signal_graph(
     if signal.target(plan.target).len() != signal.pixel_count {
         return Err(bad);
     }
+    let samples_local_pixels = plan.nodes.iter().any(|node| {
+        let PreparedSignalKind::Operator { operator, .. } = &node.kind else {
+            return false;
+        };
+        let PreparedOperator::Dsl(program) = operator.implementation;
+        signal.programs.get(program).is_some_and(|program| {
+            program.instructions.iter().any(|instruction| {
+                matches!(
+                    instruction,
+                    crate::dsl::bytecode::Instruction::SignalSample {
+                        pixel: crate::dsl::bytecode::SignalPixel::Local(_),
+                        ..
+                    }
+                )
+            })
+        })
+    });
+    // Local queries translate fixture-relative coordinates into flat storage.
+    // Compaction may preserve sparse authored coordinates only when no operator
+    // can issue such a query; otherwise the whole fixture must remain resident.
+    if samples_local_pixels
+        && signal.target(plan.target).iter().any(|pixel| {
+            pixel.pixel_index != pixel.fixture_pixel_index as usize
+                || pixel.pixel_count != signal.fixtures[pixel.fixture_index].pixel_count
+        })
+    {
+        return Err(bad);
+    }
     reserve(
         signal
             .targets
@@ -462,6 +478,10 @@ fn validate_signal_graph(
         }
         if let Some(automation) = &effect.automation {
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
+            reserve(
+                1,
+                AutomationPlan::storage_estimate(&automation.bindings).ok_or(LoadError::Limit)?,
+            )?;
             match &effect.implementation {
                 PreparedEffectImplementation::Dsl { bound_params, .. } => {
                     if !bound_params.has_valid_automation(&automation.bindings) {
@@ -532,7 +552,11 @@ fn validate_signal_graph(
                     if !operator.params.has_valid_automation(automation) {
                         return Err(bad);
                     }
-                    reserve(1, size_of::<(BoundParams, Option<SampleTime>)>())?;
+                    reserve(1, size_of::<EffectAutomationWorkspace>())?;
+                    reserve(
+                        1,
+                        AutomationPlan::storage_estimate(automation).ok_or(LoadError::Limit)?,
+                    )?;
                     reserve(
                         1,
                         operator

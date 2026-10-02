@@ -93,7 +93,7 @@ impl RequestHandlerService<LoaderState> for Control {
                             p.transport
                                 .sample(
                                     clock.master_at(now),
-                                    p.sequence.signals().duration.as_ticks(),
+                                    p.show.sequence().duration().as_ticks(),
                                 )
                                 .0
                                 == transport::Mode::Playing
@@ -136,7 +136,7 @@ impl RequestHandlerService<LoaderState> for Control {
                     Some(p) if p.archive_crc != archive_crc || p.archive_bytes != archive_bytes => {
                         Err("Sequence changed before scheduling")
                     }
-                    Some(p) if position_micros > p.sequence.signals().duration.as_ticks() => {
+                    Some(p) if position_micros > p.show.sequence().duration().as_ticks() => {
                         Err("Position exceeds sequence duration")
                     }
                     Some(_)

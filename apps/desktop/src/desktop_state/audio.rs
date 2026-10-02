@@ -244,7 +244,7 @@ mod tests {
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
         let loaded = state.project_session().unwrap();
-        let imported = loaded.project.root.sequences[0].id().clone();
+        let imported = loaded.project.root().sequences[0].id().clone();
         assert!(loaded.source.is_project_owned(imported.0.document_id()));
         let request = state
             .resolve_gui_source(
@@ -265,7 +265,7 @@ mod tests {
         let transport = state.load_sequence_audio(request.clone()).audio_transport;
         assert_eq!(
             transport.duration_seconds,
-            loaded.project.sequences[&imported]
+            loaded.project.reusable_sequences()[&imported]
                 .duration
                 .as_seconds_f32()
         );
@@ -282,11 +282,11 @@ mod tests {
         let frame = state.render_current_sequence_frame().unwrap();
         assert_eq!(
             lock_unpoisoned(&state.sequence_render).active_target(),
-            Some((loaded.project.root.setup.id().clone(), imported.clone()))
+            Some((loaded.project.root().setup.id().clone(), imported.clone()))
         );
         assert_eq!(
             frame.frame.frame_rate,
-            loaded.project.sequences[&imported].frame_rate
+            loaded.project.reusable_sequences()[&imported].frame_rate
         );
         assert!(state.active_preview_render_identity().unwrap().frame_count > 0);
         state.unload_audio();

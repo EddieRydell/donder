@@ -13,7 +13,7 @@ pub(in crate::gui) fn project_fixture(
         [] => {
             let Some(value) = session
                 .project
-                .definitions
+                .definitions()
                 .fixtures
                 .definitions
                 .get(&FixtureDefinitionId(resolved.identity.clone()))
@@ -105,7 +105,7 @@ pub(in crate::gui) fn project_layout(
     else {
         return blocked("Layout was not found.", Vec::new());
     };
-    let definitions = PreparedFixtureDefinitions::prepare(&session.project.definitions.fixtures);
+    let definitions = PreparedFixtureDefinitions::prepare(&session.project.definitions().fixtures);
     let prepared = definitions.prepare_layout(layout);
     let mut pixels = Vec::new();
     for instance in prepared.instances {

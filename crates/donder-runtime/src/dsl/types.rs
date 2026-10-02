@@ -94,6 +94,18 @@ pub enum Value {
 }
 
 impl Type {
+    /// Context values belong to the current invocation, never to authored
+    /// parameter declarations, including when nested inside arrays.
+    pub fn is_context_only(&self) -> bool {
+        match self {
+            Self::Signal | Self::Timeline | Self::Target | Self::TargetItems | Self::TargetItem => {
+                true
+            }
+            Self::Array(item) => item.is_context_only(),
+            _ => false,
+        }
+    }
+
     pub fn accepts(&self, actual: &Self) -> bool {
         self == actual
             || matches!((self, actual), (Self::Float, Self::Int))

@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_runtime::values::{SampleTime, sample_time_from_frame};
-use donder_runtime::wire::{LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::{LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::{SampleTime, sample_time_from_frame};
 
 fn main() {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
@@ -13,7 +13,7 @@ fn main() {
         .unwrap()
         .project;
     let id = project
-        .root
+        .root()
         .sequences
         .iter()
         .map(|source| source.id())
@@ -21,8 +21,8 @@ fn main() {
             id.0.source()
                 .is_some_and(|source| source.object() == "layer_test")
         })
-        .unwrap_or(project.root.sequences[0].id());
-    let setup = project.setup(project.root.setup.id()).unwrap();
+        .unwrap_or(project.root().sequences[0].id());
+    let setup = project.setup(project.root().setup.id()).unwrap();
     let controller = setup.controllers[0].id();
     let ports = project
         .controller(controller)
@@ -33,34 +33,25 @@ fn main() {
         .map(|port| (controller.clone(), port.id))
         .collect::<Vec<_>>();
     let prepared = prepare(&project, id, PrepareOutputs::Ports(&ports)).unwrap();
-    let sequence = &prepared;
-    let bytes = encode_sequence(sequence).unwrap();
+    let bytes = encode_sequence(&prepared).unwrap();
     let decoded = decode_sequence(&bytes, LoadLimits::default()).unwrap();
-    let mut source_workspace = sequence.workspace().unwrap();
-    let mut workspace = decoded.workspace().unwrap();
-    let mut source = sequence
-        .outputs()
-        .iter()
-        .map(|output| vec![0; output.width as usize])
-        .collect::<Vec<_>>();
-    let mut output = source.clone();
     let mut checksums = String::new();
     let mut times = [0, 7150, 7151, 8398, 8450, 8494, 9504, 15000]
-        .map(|frame| sample_time_from_frame(frame, sequence.signals().frame_rate).unwrap())
+        .map(|frame| sample_time_from_frame(frame, prepared.frame_rate()).unwrap())
         .to_vec();
     times.extend([
-        SampleTime::from_ticks(sequence.signals().duration.as_ticks()),
+        SampleTime::from_ticks(prepared.duration().as_ticks()),
         SampleTime::from_ticks(0),
     ]);
+    let mut source_playback = prepared.into_playback();
+    let mut playback = decoded.into_playback();
     for time in times {
-        sequence
-            .evaluate(time, &mut source, &mut source_workspace)
-            .unwrap();
-        decoded.evaluate(time, &mut output, &mut workspace).unwrap();
-        assert_eq!(source, output);
+        let source = source_playback.evaluate(time);
+        let output = playback.evaluate(time);
+        assert!(source.outputs().eq(output.outputs()));
         let mut crc = crc32fast::Hasher::new();
-        for bytes in &output {
-            crc.update(bytes);
+        for port in output.outputs() {
+            crc.update(port.bytes);
         }
         checksums.push_str(&format!("{} {}\n", time.as_ticks(), crc.finalize()));
     }
@@ -70,8 +61,8 @@ fn main() {
         "sequence={} ports={} pixels={} effects={} payload_bytes={}",
         id.0.root_source().object(),
         ports.len(),
-        sequence.signals().pixel_count,
-        sequence.signals().effects.len(),
+        source_playback.sequence().pixel_count(),
+        source_playback.sequence().effect_count(),
         bytes.len()
     );
 }

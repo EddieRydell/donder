@@ -19,7 +19,7 @@ type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 #[path = "../ws281x_parallel.rs"]
 mod ws281x_parallel;
 
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec};
 #[cfg(feature = "i2s-output")]
 use core::sync::atomic::AtomicBool;
 use core::{
@@ -27,11 +27,9 @@ use core::{
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
 #[cfg(feature = "i2s-output")]
-use donder_runtime::values::sample_time_from_frame;
+use donder_runtime::sample_time_from_frame;
 use donder_runtime::{
-    sequence::SequencePlayback,
-    values::SampleTime,
-    wire::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence},
+    SequencePlayback, SampleTime, HEADER_BYTES, LoadError, LoadLimits, decode_sequence,
 };
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -111,7 +109,6 @@ fn local_micros() -> u64 {
 
 struct Playback {
     show: SequencePlayback,
-    buffers: Vec<Vec<u8>>,
     #[cfg(feature = "i2s-output")]
     transport: transport::Transport,
     #[cfg(feature = "i2s-output")]
@@ -122,27 +119,16 @@ struct Playback {
 
 #[cfg(feature = "i2s-output")]
 impl Playback {
-    fn render(&mut self, display_time: u64) {
-        let (mode, position) = self.transport.sample(
-            display_time,
-            self.show.sequence().signals().duration.as_ticks(),
-        );
+    fn render(&mut self, display_time: u64) -> Option<donder_runtime::SequenceFrame<'_>> {
+        let (mode, position) = self
+            .transport
+            .sample(display_time, self.show.sequence().duration().as_ticks());
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
-            for buffer in &mut self.buffers {
-                buffer.fill(0);
-            }
-            return;
+            return None;
         }
         let frame = (u64::from(position) * u64::from(OUTPUT_FRAME_RATE) / 1_000_000) as u32;
         let time = sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap();
-        self.show.evaluate(time, &mut self.buffers).unwrap();
-        #[cfg(feature = "dig-quad")]
-        for buffer in &mut self.buffers {
-            for channel in buffer {
-                *channel = (u16::from(*channel) * u16::from(dig_quad::MAX_CHANNEL_VALUE)
-                    / u16::from(u8::MAX)) as u8;
-            }
-        }
+        Some(self.show.evaluate(time))
     }
 }
 type SharedPlayback = Mutex<CriticalSectionRawMutex, Option<Playback>>;
@@ -238,25 +224,18 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
         || sequence
             .outputs()
             .iter()
-            .any(|output| output.width as usize > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
+            .any(|output| output.width > OUTPUT_PIXELS * 3 || output.width % 3 != 0)
     {
         return Err(LoadError::Limit);
     }
-    let show = sequence.into_playback()?;
+    let show = sequence.into_playback();
     println!("LOAD workspace heap_free={}", esp_alloc::HEAP.free());
-    let buffers = show
-        .sequence()
-        .outputs()
-        .iter()
-        .map(|output| vec![0; output.width as usize])
-        .collect();
     Ok(Playback {
         #[cfg(feature = "i2s-output")]
         archive_crc: u32::from_le_bytes(bytes[12..16].try_into().unwrap()),
         #[cfg(feature = "i2s-output")]
         archive_bytes: bytes.len() as u32,
         show,
-        buffers,
         #[cfg(feature = "i2s-output")]
         transport: transport::Transport::new(),
     })
@@ -346,7 +325,7 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
                 .await;
         }
         let capabilities = Capabilities {
-            sequence_format: donder_runtime::wire::FORMAT_VERSION,
+            sequence_format: donder_runtime::FORMAT_VERSION,
             max_payload_bytes: LIMITS.payload_bytes,
             max_pixels: LIMITS.pixels,
             max_graph_nodes: LIMITS.graph_nodes,
@@ -509,7 +488,7 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
         let start = Instant::now();
         match load(bytes) {
             Ok(playback) => {
-                let pixels = playback.show.sequence().signals().pixel_count;
+                let pixels = playback.show.sequence().pixel_count();
                 let heap = free.saturating_sub(esp_alloc::HEAP.free());
                 let elapsed = start.elapsed().as_micros();
                 if show_slots::commit(&mut storage.shows(), slot).is_err() {
@@ -591,7 +570,7 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
 
         let ticks = u32::from_le_bytes(ticks);
         let mut active = state.playback.lock().await;
-        let Some(Playback { show, buffers, .. }) = active.as_mut() else {
+        let Some(Playback { show, .. }) = active.as_mut() else {
             drop(active);
             return (StatusCode::CONFLICT, "REJECT NoSequence\n")
                 .write_to(connection, response_writer)
@@ -605,22 +584,15 @@ impl RequestHandlerService<LoaderState> for EvaluateFrame {
             Relaxed,
         );
         let start = Instant::now();
-        let result = show.evaluate(SampleTime::from_ticks(ticks), buffers);
+        let rendered = show.evaluate(SampleTime::from_ticks(ticks));
         let elapsed = start.elapsed().as_micros();
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_allocations = EVALUATION_ALLOCATIONS.load(Relaxed) - evaluation_allocations;
         let allocations = ALLOCATIONS.load(Relaxed) - allocations;
 
-        if result.is_err() {
-            drop(active);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "REJECT Evaluation\n")
-                .write_to(connection, response_writer)
-                .await;
-        }
-
         let mut crc = crc32fast::Hasher::new();
-        for buffer in buffers {
-            crc.update(buffer);
+        for output in rendered.outputs() {
+            crc.update(output.bytes);
         }
         let crc = crc.finalize();
         drop(active);
@@ -710,7 +682,7 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             } else {
                 playback
                     .transport
-                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
+                    .sample(now, playback.show.sequence().duration().as_ticks())
                     .1
             };
             playback.transport.apply(mode, position, now, true);
@@ -719,13 +691,13 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
             playback: active.as_ref().map(|playback| PlaybackStatus {
                 mode: playback
                     .transport
-                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
+                    .sample(now, playback.show.sequence().duration().as_ticks())
                     .0,
                 position_micros: playback
                     .transport
-                    .sample(now, playback.show.sequence().signals().duration.as_ticks())
+                    .sample(now, playback.show.sequence().duration().as_ticks())
                     .1,
-                duration_micros: playback.show.sequence().signals().duration.as_ticks(),
+                duration_micros: playback.show.sequence().duration().as_ticks(),
                 archive_crc: playback.archive_crc,
                 archive_bytes: playback.archive_bytes,
                 pending_command: playback.transport.pending.map(|command| command.id),
@@ -896,8 +868,7 @@ async fn render_outputs(
     mut ready_buffer: DmaTxBuf,
     mut spare_buffer: DmaTxBuf,
 ) -> ! {
-    let black = core::array::from_fn::<_, OUTPUT_LANES, _>(|_| Vec::new());
-    ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+    encode_frame(None, ready_buffer.as_mut_slice());
     let mut frames = 0;
     let mut missed = 0;
     let mut evaluation_sum = 0;
@@ -917,7 +888,7 @@ async fn render_outputs(
     let mut ready_display_time = 0;
     loop {
         if storage::flash_requested() {
-            ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+            encode_frame(None, ready_buffer.as_mut_slice());
             let mut transfer = match output.send(ready_buffer) {
                 Ok(transfer) => transfer,
                 Err((error, _, _)) => panic!("I2S DMA start failed: {error:?}"),
@@ -937,10 +908,10 @@ async fn render_outputs(
             .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
         if signature != ready_signature {
             if let Some(p) = current.as_mut() {
-                p.render(ready_display_time);
-                ws281x_parallel::encode(&p.buffers, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+                let rendered = p.render(ready_display_time);
+                encode_frame(rendered, ready_buffer.as_mut_slice());
             } else {
-                ws281x_parallel::encode(&black, OUTPUT_PIXELS, ready_buffer.as_mut_slice());
+                encode_frame(None, ready_buffer.as_mut_slice());
             }
         }
         let mut transfer = match output.send(ready_buffer) {
@@ -968,26 +939,19 @@ async fn render_outputs(
             esp_radio_rtos_driver::current_task().as_ptr() as u32,
             Relaxed,
         );
-        if let Some(playback) = active.as_mut() {
-            playback.transport.refresh(
-                master_now,
-                playback.show.sequence().signals().duration.as_ticks(),
-            );
-            playback.render(next_latch);
-        }
+        let rendered = if let Some(playback) = active.as_mut() {
+            playback
+                .transport
+                .refresh(master_now, playback.show.sequence().duration().as_ticks());
+            playback.render(next_latch)
+        } else {
+            None
+        };
         EVALUATION_TASK.store(0, Relaxed);
         let evaluation_us = u32::try_from(evaluation_start.elapsed().as_micros()).unwrap();
 
         let encoding_start = Instant::now();
-        if let Some(playback) = active.as_ref() {
-            ws281x_parallel::encode(
-                &playback.buffers,
-                OUTPUT_PIXELS,
-                spare_buffer.as_mut_slice(),
-            );
-        } else {
-            ws281x_parallel::encode(&black, OUTPUT_PIXELS, spare_buffer.as_mut_slice());
-        }
+        encode_frame(rendered, spare_buffer.as_mut_slice());
         ready_signature = active
             .as_ref()
             .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
@@ -1375,4 +1339,23 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     loop {
         Timer::after_secs(60).await;
     }
+}
+#[cfg(feature = "i2s-output")]
+fn encode_frame(frame: Option<donder_runtime::SequenceFrame<'_>>, buffer: &mut [u8]) {
+    let mut lanes: [&[u8]; OUTPUT_LANES] = [&[]; OUTPUT_LANES];
+    let count = match frame {
+        Some(frame) => {
+            let count = frame.outputs().len();
+            for (lane, output) in lanes.iter_mut().zip(frame.outputs()) {
+                *lane = output.bytes;
+            }
+            count
+        }
+        None => OUTPUT_LANES,
+    };
+    #[cfg(feature = "dig-quad")]
+    let brightness = dig_quad::MAX_CHANNEL_VALUE;
+    #[cfg(not(feature = "dig-quad"))]
+    let brightness = u8::MAX;
+    ws281x_parallel::encode(&lanes[..count], OUTPUT_PIXELS, buffer, brightness);
 }

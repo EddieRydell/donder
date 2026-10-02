@@ -13,7 +13,7 @@ pub(super) fn edit(
     slot: GuiOwnershipSlot,
     edit: GuiOwnershipEdit,
 ) -> Result<(), GuiMutationError> {
-    if owner.kind == SourceObjectKind::Project && owner.identity != session.project.root.id.0 {
+    if owner.kind == SourceObjectKind::Project && owner.identity != session.project.root().id.0 {
         return Err(GuiMutationError::Invalid(
             "The requested project is not the active project.".into(),
         ));

@@ -1,12 +1,11 @@
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::controller::ControllerPortId;
+use donder_language::controller::{ControllerId, ControllerPortId};
 use donder_language::model::DonderProject;
 use donder_language::sequence::SequenceId;
 use donder_language::setup::SetupId;
 use donder_output::ControllerPortFrame;
-use donder_runtime::sequence::{SequenceError, SequencePlayback};
-use donder_runtime::signal::RenderedFixture;
-use donder_runtime::values::{SampleTime, SampleTimeError, sample_time_from_seconds_f32};
+use donder_runtime::SequencePlayback;
+use donder_runtime::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
 
 use crate::dto::{AudioTransportSnapshot, AudioTransportState};
 
@@ -16,13 +15,19 @@ pub(crate) struct SequenceRenderService {
 }
 
 /// Desktop ownership around portable playback: document identities, network
-/// output buffers, and an audio-generation cache are not elaboration concerns.
+/// output identities and an audio-generation cache are not elaboration concerns.
 pub(crate) struct PreparedRenderSession {
     setup_id: SetupId,
     sequence_id: SequenceId,
     playback: SequencePlayback,
-    controller_frames: Vec<ControllerPortFrame>,
+    controllers: Vec<ControllerId>,
     cached: Option<AudioClockRenderedFrame>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct RenderedFixture {
+    pub fixture_id: u32,
+    pub pixels: Vec<Color>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -60,14 +65,12 @@ pub(crate) struct EncodedPreviewSequence {
 #[derive(Debug)]
 pub(crate) enum RenderSessionPrepareError {
     SelectionUnavailable,
-    Playback(donder_runtime::wire::LoadError),
 }
 
 impl std::fmt::Display for RenderSessionPrepareError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SelectionUnavailable => formatter.write_str("sequence selection is unavailable"),
-            Self::Playback(error) => write!(formatter, "playback admission failed: {error:?}"),
         }
     }
 }
@@ -77,7 +80,6 @@ pub(crate) enum SequenceRenderError {
     NoSequenceRenderSession,
     ClockUnavailable { state: AudioTransportState },
     InvalidClock(SampleTimeError),
-    Render(SequenceError),
 }
 
 impl SequenceRenderService {
@@ -130,10 +132,13 @@ impl SequenceRenderService {
             .as_mut()
             .ok_or(SequenceRenderError::NoSequenceRenderSession)?;
         require_audio_clock(audio)?;
-        let signals = session.playback.sequence().signals();
-        let frame_rate = signals.frame_rate;
-        let frame_index =
-            frame_index_for_audio_seconds(audio.position_seconds, frame_rate, signals.frame_count);
+        let sequence = session.playback.sequence();
+        let frame_rate = sequence.frame_rate();
+        let frame_index = frame_index_for_audio_seconds(
+            audio.position_seconds,
+            frame_rate,
+            sequence.frame_count(),
+        );
         if let Some(cached) = &session.cached
             && cached.audio_generation == audio.generation
             && cached.frame.frame_index == frame_index
@@ -142,21 +147,29 @@ impl SequenceRenderService {
         }
         let sample_time = sample_time_from_seconds_f32(audio.position_seconds)
             .map_err(SequenceRenderError::InvalidClock)?;
-        session
-            .playback
-            .evaluate(sample_time, &mut session.controller_frames)
-            .map_err(SequenceRenderError::Render)?;
+        let rendered = session.playback.evaluate(sample_time);
         let frame = AudioClockRenderedFrame {
             audio_generation: audio.generation,
             frame: RenderedSequenceFrame {
                 frame_index,
                 frame_rate,
                 sample_time,
-                fixtures: session
-                    .playback
-                    .rendered_fixtures()
-                    .map_err(SequenceRenderError::Render)?,
-                controller_frames: session.controller_frames.clone(),
+                fixtures: rendered
+                    .fixtures()
+                    .map(|fixture| RenderedFixture {
+                        fixture_id: fixture.fixture_id,
+                        pixels: fixture.pixels.to_vec(),
+                    })
+                    .collect(),
+                controller_frames: rendered
+                    .outputs()
+                    .map(|output| ControllerPortFrame {
+                        controller: session.controllers[output.output.controller_index as usize]
+                            .clone(),
+                        port: ControllerPortId(output.output.port),
+                        slots: output.bytes.to_vec(),
+                    })
+                    .collect(),
             },
         };
         session.cached = Some(frame.clone());
@@ -173,18 +186,18 @@ impl SequenceRenderService {
             .as_ref()
             .ok_or(SequenceRenderError::NoSequenceRenderSession)?;
         require_audio_clock(audio)?;
-        let signals = session.playback.sequence().signals();
+        let sequence = session.playback.sequence();
         Ok(AudioClockRenderIdentity {
             session_generation: self.session_generation,
             audio_generation: audio.generation,
             audio_state: audio.state.clone(),
             position_seconds: audio.position_seconds,
-            frame_rate: signals.frame_rate,
-            frame_count: signals.frame_count,
+            frame_rate: sequence.frame_rate(),
+            frame_count: sequence.frame_count(),
             frame_index: frame_index_for_audio_seconds(
                 audio.position_seconds,
-                signals.frame_rate,
-                signals.frame_count,
+                sequence.frame_rate(),
+                sequence.frame_count(),
             ),
         })
     }
@@ -205,11 +218,10 @@ impl SequenceRenderService {
             .map(|session| {
                 let sequence = session.playback.sequence();
                 Ok(EncodedPreviewSequence {
-                    bytes: donder_runtime::wire::encode_sequence(sequence)
+                    bytes: donder_runtime::encode_sequence(sequence)
                         .map_err(|error| format!("{error:?}"))?,
                     fixtures: sequence
-                        .signals()
-                        .fixtures
+                        .fixtures()
                         .iter()
                         .map(|fixture| (fixture.id, fixture.pixel_count))
                         .collect(),
@@ -233,24 +245,18 @@ pub(crate) fn prepare_render_session(
     let sequence = prepare(project, sequence_id, PrepareOutputs::All)
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
     let setup = project
-        .setup(project.root.setup.id())
+        .setup(project.root().setup.id())
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
-    let controller_frames = sequence
-        .outputs()
+    let controllers = setup
+        .controllers
         .iter()
-        .map(|output| ControllerPortFrame {
-            controller: setup.controllers[output.controller_index].id().clone(),
-            port: ControllerPortId(output.port),
-            slots: vec![0; output.width as usize],
-        })
+        .map(|source| source.id().clone())
         .collect();
     Ok(PreparedRenderSession {
         setup_id: setup.id.clone(),
         sequence_id: sequence_id.clone(),
-        playback: sequence
-            .into_playback()
-            .map_err(RenderSessionPrepareError::Playback)?,
-        controller_frames,
+        playback: sequence.into_playback(),
+        controllers,
         cached: None,
     })
 }

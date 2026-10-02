@@ -97,14 +97,14 @@ pub type GradientSource = crate::ownership::ValueSource<Gradient, GradientId>;
 pub struct EffectDefinition {
     /// Statically linked generator child targets, in the same order as the
     /// compiled effect's emitted-child slots.
-    pub generated_effect_targets: Box<[EffectRef]>,
-    pub emitted_references: Box<[crate::dsl::EmittedReference]>,
-    pub id: EffectRef,
+    pub(crate) generated_effect_targets: Box<[EffectRef]>,
+    pub(crate) emitted_references: Box<[crate::dsl::EmittedReference]>,
+    pub(crate) id: EffectRef,
     pub source_name: String,
     pub display_name: String,
-    pub kind: EffectKind,
-    pub params: Vec<ParamDecl>,
-    pub implementation: EffectImplementation,
+    pub(crate) kind: EffectKind,
+    pub(crate) params: Vec<ParamDecl>,
+    pub(crate) implementation: EffectImplementation,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +113,38 @@ pub enum EffectImplementation {
 }
 
 impl EffectDefinition {
+    pub fn id(&self) -> &EffectRef {
+        &self.id
+    }
+    pub fn kind(&self) -> EffectKind {
+        self.kind
+    }
+    pub fn params(&self) -> &[ParamDecl] {
+        &self.params
+    }
+    pub fn implementation(&self) -> &EffectImplementation {
+        &self.implementation
+    }
+    pub fn emitted_references(&self) -> &[crate::dsl::EmittedReference] {
+        &self.emitted_references
+    }
+    pub fn generated_effect_targets(&self) -> &[EffectRef] {
+        &self.generated_effect_targets
+    }
+
+    /// Resolve the compiler's child slots while assembling a definition. Project
+    /// admission subsequently checks target existence, signatures, and cycles.
+    pub fn link_generated_effect_targets(
+        &mut self,
+        targets: Box<[EffectRef]>,
+    ) -> Result<(), String> {
+        if targets.len() != self.emitted_references.len() {
+            return Err("Generator child targets do not match its emitted slots.".into());
+        }
+        self.generated_effect_targets = targets;
+        Ok(())
+    }
+
     pub fn custom(id: EffectDefinitionId, compilation: crate::dsl::EffectCompilation) -> Self {
         let compiled = compilation.effect;
         Self {

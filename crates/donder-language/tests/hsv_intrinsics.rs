@@ -1,9 +1,15 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 use donder_language::dsl::{
     Color, Identifier, OperatorRunContext, RuntimeError, SignalSampler, Value, VmWorkspace,
     compile_effects, compile_operators,
 };
 use donder_language::values::{SampleDuration, SampleTime};
-use donder_runtime::dsl::bytecode::{ColorComponent, Instruction, SignalPixel};
+use donder_runtime::{ColorComponent, Instruction, SignalPixel};
 use indexmap::IndexMap;
 
 fn color([red, green, blue]: [u8; 3]) -> Color {
@@ -56,8 +62,8 @@ fn hsv_components_execute_and_hoist_uniform_color_reads() {
         ColorComponent::Intensity,
     ] {
         assert!(
-            effect.sample_program().unwrap().instructions
-                [..effect.sample_program().unwrap().pixel_entry as usize]
+            effect.sample_program().unwrap().bytecode().instructions
+                [..effect.sample_program().unwrap().bytecode().pixel_entry as usize]
                 .iter()
                 .any(|op| {
                     matches!(op, Instruction::ColorComponent { op, .. } if *op == expected)
@@ -77,15 +83,16 @@ fn hsv_components_execute_and_hoist_uniform_color_reads() {
         ([0, 0, 0], [0, 0, 0]),
     ] {
         let params = effect
-            .bind_params(&IndexMap::from([(
-                Identifier::new("c".into()).unwrap(),
-                Value::Color(color(input)),
-            )]))
+            .bind(
+                &IndexMap::from([(
+                    Identifier::new("c".into()).unwrap(),
+                    Value::Color(color(input)),
+                )]),
+                &mut donder_runtime::DslBindCache::default(),
+            )
             .unwrap();
         assert_eq!(
-            effect
-                .sample_bound(&params, &context(), &mut workspace)
-                .unwrap(),
+            params.evaluate(&context(), &SPATIAL, &mut workspace),
             color(output)
         );
     }
@@ -98,7 +105,7 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
     ))
     .unwrap()
     .into_iter()
-    .find(|op| op.name.as_str() == "HueShift")
+    .find(|op| op.name().as_str() == "HueShift")
     .unwrap();
     let mut workspace = VmWorkspace::default();
     for (input, shift, output) in [
@@ -116,15 +123,18 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
         ([17, 93, 201], -1.0, [17, 93, 201]),
     ] {
         let params = operator
-            .bind_params(&IndexMap::from([(
-                Identifier::new("shift".into()).unwrap(),
-                Value::Float(shift),
-            )]))
+            .bind(
+                &IndexMap::from([(
+                    Identifier::new("shift".into()).unwrap(),
+                    Value::Float(shift),
+                )]),
+                &mut donder_runtime::DslBindCache::default(),
+            )
             .unwrap();
-        let actual = operator
-            .sample_bound(
-                &params,
+        let actual = params
+            .evaluate(
                 &context(),
+                &SPATIAL,
                 &mut ConstantSignal(color(input)),
                 &mut workspace,
             )

@@ -8,7 +8,7 @@ use donder_language::ownership::ValueSource;
 use donder_language::patch::*;
 pub(super) struct DomainResolver<'a> {
     pub(super) loader: &'a mut Loader,
-    pub(super) project: &'a mut DonderProject,
+    pub(super) project: &'a mut donder_language::model::ProjectData,
 }
 
 impl DomainResolver<'_> {
@@ -1228,7 +1228,6 @@ use donder_language::effect::{
     CurveId, CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue,
     EffectRef, GradientSource,
 };
-use donder_language::model::DonderProject;
 use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
 use donder_language::sequence::{
     AssetId, AutomationClip, AutomationClipId, CompositionGraphNode, CompositionGraphNodeId,

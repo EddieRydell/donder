@@ -3,12 +3,13 @@ use super::{Calculation, Expression, GeneratorProgram, Statement};
 use crate::dsl::{hash_bytecode, hash_param_decls, hash_value};
 use std::hash::{Hash, Hasher};
 
-impl GeneratorProgram {
-    pub(in crate::dsl) fn hash_semantics(&self, state: &mut impl Hasher) {
-        hash_param_decls(&self.params, state);
-        self.slot_count.hash(state);
-        block(&self.body, state);
+pub(in crate::dsl) fn hash_semantics(program: &GeneratorProgram, state: &mut impl Hasher) {
+    hash_param_decls(program.params(), state);
+    program.slot_count().hash(state);
+    for emission in program.emissions() {
+        hash_param_decls(emission, state);
     }
+    block(program.body(), state);
 }
 
 fn calculation<O: crate::dsl::CalculationOutput, I: Hash>(

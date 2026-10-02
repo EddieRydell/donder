@@ -8,8 +8,8 @@ mod mark_workload;
 #[path = "../../../firmware/esp32/src/workload.rs"]
 mod workload;
 
-use donder_runtime::dsl::{BoundParams, Value};
-use donder_runtime::signal::{
+use donder_runtime::{BoundParams, Value};
+use donder_runtime::{
     PreparedOperator, PreparedOperatorNode, PreparedSignalKind, PreparedSignalNode,
 };
 
@@ -55,13 +55,13 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
         let multiply = invert + 2;
         let mut programs = graph.programs.to_vec();
         programs.extend([
-            compiled("Invert").bytecode.clone(),
-            declaration.bytecode.clone(),
-            compiled("Multiply").bytecode.clone(),
+            compiled("Invert").program().clone().into_parts().0,
+            declaration.program().clone().into_parts().0,
+            compiled("Multiply").program().clone().into_parts().0,
         ]);
         graph.programs = programs.into();
         assert!(graph.programs.iter().any(|program| program.instructions.iter().any(
-            |instruction| matches!(instruction, donder_runtime::dsl::bytecode::Instruction::SignalSample { frame_cache, .. } if *frame_cache != u32::MAX)
+            |instruction| matches!(instruction, donder_runtime::Instruction::SignalSample { frame_cache, .. } if *frame_cache != u32::MAX)
         )));
         let node = |program, params, inputs: Vec<usize>, vm_slot| PreparedSignalNode {
             kind: PreparedSignalKind::Operator {
@@ -71,7 +71,7 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
                     automation_slot: 0,
                 },
                 inputs: inputs.into(),
-                automation: Box::new([]),
+                automation: Vec::new().into_boxed_slice(),
                 vm_slot,
             },
         };
@@ -94,25 +94,26 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
         let mut scalar = graph.clone();
         for program in &mut scalar.programs {
             for instruction in &mut program.instructions {
-                if let donder_runtime::dsl::bytecode::Instruction::SignalSample {
-                    frame_cache,
-                    ..
-                } = instruction
-                {
+                if let donder_runtime::Instruction::SignalSample { frame_cache, .. } = instruction {
                     *frame_cache = u32::MAX;
                 }
             }
         }
-        let mut workspace = graph.workspace().unwrap();
-        let mut scalar_workspace = scalar.workspace().unwrap();
+        let playback = |label, graph| {
+            donder_runtime::PreparedSequence::admit(
+                graph,
+                base.patch().clone(),
+                base.outputs().into(),
+            )
+            .unwrap_or_else(|error| panic!("{name} {label}: {error:?}"))
+            .into_playback()
+        };
+        let mut graph = playback("cached", graph);
+        let mut scalar = playback("scalar", scalar);
         for frame in [0, 1, 4, 31, 12, 4, 0, 31] {
-            let actual = graph
-                .evaluate(workload::time(frame), &mut workspace)
-                .unwrap();
-            let expected = scalar
-                .evaluate(workload::time(frame), &mut scalar_workspace)
-                .unwrap();
-            assert_eq!(actual, expected, "{name} frame {frame}");
+            let actual = graph.evaluate(workload::time(frame));
+            let expected = scalar.evaluate(workload::time(frame));
+            assert_eq!(actual.colors(), expected.colors(), "{name} frame {frame}");
         }
     }
 }

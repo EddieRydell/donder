@@ -1,7 +1,7 @@
 use super::EmittedReference;
 use super::lexer::TextSpan;
 use super::types::{Identifier, Type, Value};
-pub use donder_runtime::dsl::{OperatorInputDecl, ParamDecl};
+pub use donder_runtime::{OperatorInputDecl, ParamDecl};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Module {

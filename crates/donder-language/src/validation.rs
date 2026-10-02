@@ -52,6 +52,7 @@ pub struct SequenceValidationError {
 
 pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
     crate::ownership::validate_ownership(project)?;
+    validate_definition_schemas(project)?;
     for (id, definition) in &project.definitions.curves.definitions {
         definition.curve.validate().map_err(|error| {
             ProjectValidationError::InvalidRelationship(format!(
@@ -95,6 +96,44 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
     }
     for sequence in project.sequences() {
         validate_sequence(project, sequence).map_err(ProjectValidationError::Sequence)?;
+    }
+    Ok(())
+}
+
+fn validate_definition_schemas(project: &DonderProject) -> Result<(), ProjectValidationError> {
+    for (id, definition) in &project.definitions.effects.definitions {
+        let crate::effect::EffectImplementation::Dsl(compiled) = &definition.implementation;
+        if definition.id != crate::effect::EffectRef::Custom(id.clone())
+            || definition.params != compiled.params()
+            || definition.kind != compiled.kind()
+        {
+            return Err(ProjectValidationError::InvalidRelationship(format!(
+                "Effect `{}` does not match its compiled declaration.",
+                id.0.object()
+            )));
+        }
+    }
+    for (id, definition) in &project.definitions.operators.definitions {
+        let crate::operator::OperatorImplementation::Dsl(compiled) = &definition.implementation;
+        if definition.id != crate::operator::OperatorRef::Custom(id.clone())
+            || definition.params != compiled.params()
+            || definition.inputs.len() != compiled.inputs().len()
+            || definition
+                .inputs
+                .iter()
+                .zip(compiled.inputs())
+                .any(|(port, input)| {
+                    port.source_name != input.name.as_str()
+                        || port.cardinality != crate::operator::OperatorPortCardinality::One
+                })
+            || definition.output.source_name != "output"
+            || definition.output.cardinality != crate::operator::OperatorPortCardinality::Many
+        {
+            return Err(ProjectValidationError::InvalidRelationship(format!(
+                "Operator `{}` does not match its compiled declaration.",
+                id.0.object()
+            )));
+        }
     }
     Ok(())
 }
@@ -251,6 +290,11 @@ fn validate_setup(
     project: &DonderProject,
     setup: &crate::setup::Setup,
 ) -> Result<(), ProjectValidationError> {
+    if setup.controllers.len() as u128 > u128::from(u32::MAX) + 1 {
+        return Err(ProjectValidationError::InvalidRelationship(
+            "Setup controller indices exceed the portable output address range.".into(),
+        ));
+    }
     if project.layout(setup.layout.id()).is_none() {
         return Err(ProjectValidationError::MissingLayout);
     }

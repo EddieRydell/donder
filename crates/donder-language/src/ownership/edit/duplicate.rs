@@ -7,6 +7,14 @@ pub fn duplicate_layout_fixture(
     layout_id: &LayoutId,
     fixture_id: FixtureInstanceId,
 ) -> Result<FixtureInstanceId, String> {
+    project.checked_edit(|project| duplicate_candidate(project, layout_id, fixture_id))
+}
+
+fn duplicate_candidate(
+    project: &mut DonderProject,
+    layout_id: &LayoutId,
+    fixture_id: FixtureInstanceId,
+) -> Result<FixtureInstanceId, String> {
     let layout = project.layout(layout_id).ok_or("Layout was not found.")?;
     let mut copy = layout
         .fixture(fixture_id)

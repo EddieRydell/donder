@@ -1,41 +1,27 @@
 use crate::automation::AutomationMapping;
+use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::BytecodeProgram;
-use crate::dsl::{BoundParams, RuntimeError, VmWorkspace};
-use crate::values::{
-    Color, Curve, SampleDuration, SampleTime, SampleTimeError, sample_time_from_frame,
-};
+use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, VmWorkspace};
+use crate::sequence::programs::ExecutableGraph;
+use crate::values::{Color, Curve, SampleDuration, SampleTime};
 use alloc::boxed::Box;
 #[cfg(not(feature = "atomic"))]
 use alloc::rc::Rc as Arc;
-use alloc::string::String;
 #[cfg(feature = "atomic")]
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-pub use crate::evaluation::{EffectSampler, apply_bound_automation};
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EvaluationError {
-    InvalidTiming { reason: String },
-    InvalidGraph { message: String },
-    Vm { message: String },
-    InvalidWorkspace,
-}
-
-impl From<RuntimeError> for EvaluationError {
-    fn from(error: RuntimeError) -> Self {
-        Self::Vm {
-            message: error.message,
-        }
-    }
-}
-
-/// Frozen effects, operators, targets, and execution plan; evaluates logical colors.
+/// Raw construction/archive data. This representation is not executable by itself:
+/// `PreparedSequence::admit` checks it before publishing immutable playback state.
+/// The private executable graph substitutes admitted programs and binding plans.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedSignalGraph {
-    pub parameter_environments: Box<[crate::bindings::PreparedParameterEnvironment]>,
-    pub workspace_key: u32,
+pub struct PreparedSignalGraph<
+    P = Box<[BytecodeProgram]>,
+    E = crate::bindings::PreparedParameterEnvironment,
+    A = Box<[PreparedAutomation]>,
+> {
+    pub parameter_environments: Box<[E]>,
     pub frame_rate: u32,
     pub frame_count: u32,
     #[rkyv(with = crate::wire::Microseconds)]
@@ -43,16 +29,29 @@ pub struct PreparedSignalGraph {
     pub fixtures: Box<[PreparedFixture]>,
     pub fixture_pixel_offsets: Box<[usize]>,
     pub pixel_count: usize,
-    pub effects: Box<[PreparedEffect]>,
+    pub effects: Box<[PreparedEffect<A>]>,
     /// Authored clip groups, including children expanded from generators.
     pub clips: Box<[PreparedClip]>,
-    pub programs: Box<[BytecodeProgram]>,
+    pub programs: P,
     pub targets: Box<[PreparedTarget]>,
     pub target_pixels: Box<[PreparedPixel]>,
     pub spatial_contexts: Box<[crate::dsl::SpatialContext]>,
     pub effects_by_layer: Box<[Box<[usize]>]>,
     pub layers: Box<[PreparedLayer]>,
-    pub plan: SignalPlan,
+    pub plan: SignalPlan<A>,
+}
+
+/// A borrowed graph whose executable programs and environments were admitted together.
+#[derive(Clone, Copy)]
+pub(crate) struct SignalGraph<'a> {
+    pub(crate) data: &'a ExecutableGraph,
+}
+
+impl core::ops::Deref for SignalGraph<'_> {
+    type Target = ExecutableGraph;
+    fn deref(&self) -> &Self::Target {
+        self.data
+    }
 }
 
 /// Numeric source identity and sampling domain for an authored timeline clip.
@@ -74,32 +73,18 @@ pub struct PreparedFixture {
     pub pixel_count: usize,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct EvaluatedFrame {
-    pub frame_index: u32,
-    pub frame_rate: u32,
-    pub sample_time: SampleTime,
-    pub fixtures: Vec<RenderedFixture>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RenderedFixture {
-    pub fixture_id: u32,
-    pub pixels: Vec<Color>,
-}
-
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedEffect {
+pub struct PreparedEffect<A = Box<[PreparedAutomation]>> {
     #[rkyv(with = crate::wire::Microseconds)]
     pub start_time: SampleTime,
     #[rkyv(with = crate::wire::Microseconds)]
     pub duration: SampleDuration,
     pub target: usize,
     pub implementation: PreparedEffectImplementation,
-    pub automation: Option<Box<PreparedEffectAutomation>>,
+    pub automation: Option<Box<PreparedEffectAutomation<A>>>,
 }
 
-impl PreparedEffect {
+impl<A> PreparedEffect<A> {
     pub fn is_active(&self, sample_time: SampleTime) -> bool {
         sample_time >= self.start_time
             && self
@@ -148,10 +133,10 @@ pub struct PreparedLayer {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedEffectAutomation {
+pub struct PreparedEffectAutomation<A = Box<[PreparedAutomation]>> {
     /// Dense index in automated-effect order, assigned by elaboration.
     pub workspace_slot: usize,
-    pub bindings: Box<[PreparedAutomation]>,
+    pub bindings: A,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -180,10 +165,10 @@ impl PreparedAutomation {
 
 /// Graph connections and the buffer/VM schedule assigned during elaboration.
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct SignalPlan {
+pub struct SignalPlan<A = Box<[PreparedAutomation]>> {
     pub output_index: usize,
     pub target: usize,
-    pub nodes: Box<[PreparedSignalNode]>,
+    pub nodes: Box<[PreparedSignalNode<A>]>,
     pub vm_workspace_count: usize,
     pub frame_nodes: Box<[usize]>,
     pub frame_slots: Box<[usize]>,
@@ -191,19 +176,19 @@ pub struct SignalPlan {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedSignalNode {
-    pub kind: PreparedSignalKind,
+pub struct PreparedSignalNode<A = Box<[PreparedAutomation]>> {
+    pub kind: PreparedSignalKind<A>,
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum PreparedSignalKind {
+pub enum PreparedSignalKind<A = Box<[PreparedAutomation]>> {
     Layer {
         layer_index: usize,
     },
     Operator {
         operator: PreparedOperatorNode,
         inputs: Box<[usize]>,
-        automation: Box<[PreparedAutomation]>,
+        automation: A,
         vm_slot: usize,
     },
     Output {
@@ -275,7 +260,7 @@ impl PreparedPixel {
 }
 
 #[derive(Debug)]
-pub struct EvaluationWorkspace {
+pub(crate) struct EvaluationWorkspace {
     pub(crate) parameters: crate::bindings::ParameterWorkspace,
     pub(crate) effect_vm: VmWorkspace,
     pub(crate) effect_vm_sample: Option<(CachedVmSample, SampleDuration, Color)>,
@@ -284,10 +269,10 @@ pub struct EvaluationWorkspace {
     pub(crate) signal_cache: Box<[Option<CachedSignal>]>,
     pub(crate) signal_buffers: Box<[Color]>,
     pub(crate) frame_scratch: Vec<Box<[Color]>>,
+    pub(crate) frame_scratch_used: usize,
     pub(crate) effect_samples: Vec<CachedEffectSample>,
     pub(crate) effect_automation: Vec<EffectAutomationWorkspace>,
-    pub(crate) operator_automation: Vec<(BoundParams, Option<SampleTime>)>,
-    pub(crate) workspace_key: Option<u32>,
+    pub(crate) operator_automation: Vec<EffectAutomationWorkspace>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -317,104 +302,108 @@ pub(crate) struct CachedEffectSample {
 }
 
 #[derive(Debug, Default)]
-pub struct EffectAutomationWorkspace {
-    pub(crate) params: Option<BoundParams>,
+pub(crate) struct EffectAutomationWorkspace {
+    pub(crate) plan: AutomationPlan,
+    pub(crate) params: BoundParams,
     pub(crate) sample_time: Option<SampleTime>,
+}
+
+impl EffectAutomationWorkspace {
+    pub(crate) fn params_at(&mut self, time: SampleTime) -> &BoundParams {
+        if self.sample_time != Some(time) {
+            self.plan.apply(&mut self.params, time);
+            self.sample_time = Some(time);
+        }
+        &self.params
+    }
 }
 
 impl PreparedSignalGraph {
     /// Keep independent temporal query sites resident while visiting pixels.
     /// Looping sites can replace their own old requested times in this bounded
     /// cache; identities always include the exact requested SampleTime.
-    pub(crate) fn parameter_time_slots(&self) -> usize {
+    pub(crate) fn parameter_time_slots(&self) -> Result<usize, crate::wire::LoadError> {
         if self.parameter_environments.is_empty() {
-            return 0;
+            return Ok(0);
         }
         let mut slots = 1usize;
         for node in &self.plan.nodes {
             if let PreparedSignalKind::Operator { operator, .. } = &node.kind {
                 slots = slots.saturating_add(match operator.implementation {
-                    PreparedOperator::Dsl(program) => {
-                        self.programs.get(program).map_or(0, |program| {
-                            program
-                                .instructions
-                                .iter()
-                                .filter(|instruction| {
-                                    matches!(
-                                        instruction,
-                                        crate::dsl::bytecode::Instruction::SignalSample { .. }
-                                    )
-                                })
-                                .count()
+                    PreparedOperator::Dsl(program) => self
+                        .programs
+                        .get(program)
+                        .ok_or(crate::wire::LoadError::InvalidSequence)?
+                        .instructions
+                        .iter()
+                        .filter(|instruction| {
+                            matches!(
+                                instruction,
+                                crate::dsl::bytecode::Instruction::SignalSample { .. }
+                            )
                         })
-                    }
+                        .count(),
                 });
             }
         }
-        slots
+        Ok(slots)
     }
     /// Maximum number of temporary frames held by nested whole-frame sampling.
     /// DSL frame caches own their storage separately, but may sample operators.
     pub(crate) fn frame_scratch_count(&self) -> usize {
-        let samples_frames = |node: &PreparedSignalNode| match &node.kind {
-            PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
-                PreparedOperator::Dsl(program) => self.programs[program].frame_cache_count() != 0,
-            },
-            _ => false,
-        };
-        if !self.plan.nodes.iter().any(samples_frames) {
+        self.frame_scratch_count_with(|program| self.programs[program].frame_cache_count())
+    }
+}
+
+impl
+    PreparedSignalGraph<
+        crate::sequence::programs::AdmittedPrograms,
+        crate::bindings::ExecutableEnvironment,
+        AutomationPlan,
+    >
+{
+    pub(crate) fn sample_program(&self, index: usize) -> &SampleProgram {
+        self.programs.sample(index)
+    }
+
+    pub(crate) fn operator_program(&self, index: usize) -> &OperatorProgram {
+        self.programs.operator(index)
+    }
+
+    pub(crate) fn parameter_time_slots(&self) -> usize {
+        if self.parameter_environments.is_empty() {
             return 0;
         }
-        let mut depths = Vec::with_capacity(self.plan.nodes.len());
-        let mut required = 0;
-        for node in &self.plan.nodes {
-            let (inputs, extra) = match &node.kind {
-                PreparedSignalKind::Layer { .. } => (&[][..], 0),
-                PreparedSignalKind::Operator { inputs, .. } => (&inputs[..], 0),
-                PreparedSignalKind::Output { inputs } => {
-                    (&inputs[..], usize::from(inputs.len() > 1))
-                }
+        self.plan.nodes.iter().fold(1usize, |slots, node| {
+            let PreparedSignalKind::Operator { operator, .. } = &node.kind else {
+                return slots;
             };
-            let depth = inputs.iter().map(|&index| depths[index]).max().unwrap_or(0) + extra;
-            depths.push(depth);
-            if samples_frames(node) {
-                required = required.max(depth);
-            }
-        }
-        required
+            let PreparedOperator::Dsl(program) = operator.implementation;
+            slots.saturating_add(
+                self.operator_program(program)
+                    .bytecode()
+                    .instructions
+                    .iter()
+                    .filter(|instruction| {
+                        matches!(
+                            instruction,
+                            crate::dsl::bytecode::Instruction::SignalSample { .. }
+                        )
+                    })
+                    .count(),
+            )
+        })
     }
 
-    pub fn target(&self, index: usize) -> &[PreparedPixel] {
-        let range = &self.targets[index].pixels;
-        &self.target_pixels[range.start..range.end]
-    }
-
-    pub fn frame_count(&self) -> u32 {
-        self.frame_count
-    }
-
-    pub fn frame_rate(&self) -> u32 {
-        self.frame_rate
-    }
-
-    pub fn pixel_count(&self) -> usize {
-        self.pixel_count
-    }
-
-    pub fn duration(&self) -> SampleDuration {
-        self.duration
-    }
-
-    /// Validate mutable prepared data before any unchecked workspace indexing.
-    /// A previously admitted graph may have been changed by its Rust owner.
-    pub fn workspace(&self) -> Result<EvaluationWorkspace, crate::wire::LoadError> {
-        crate::wire::validate_prepared_signal_graph(self)?;
-        Ok(self.workspace_unchecked())
+    pub(crate) fn frame_scratch_count(&self) -> usize {
+        self.frame_scratch_count_with(|program| {
+            operator_frame_cache_count(self.operator_program(program))
+        })
     }
 
     /// Preallocates frame buffers, VM registers, calculated-array slots,
     /// and automation storage after admission.
-    pub(crate) fn workspace_unchecked(&self) -> EvaluationWorkspace {
+    pub(crate) fn create_workspace(&self) -> EvaluationWorkspace {
         let mut operator_frame_counts = vec![0usize; self.plan.vm_workspace_count];
         for node in &self.plan.nodes {
             let PreparedSignalKind::Operator {
@@ -429,7 +418,7 @@ impl PreparedSignalGraph {
             else {
                 continue;
             };
-            let count = self.programs[*program].frame_cache_count();
+            let count = operator_frame_cache_count(self.operator_program(*program));
             operator_frame_counts[*vm_slot] = operator_frame_counts[*vm_slot].max(count);
         }
         let mut workspace = EvaluationWorkspace {
@@ -441,6 +430,7 @@ impl PreparedSignalGraph {
             frame_scratch: (0..self.frame_scratch_count())
                 .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
                 .collect(),
+            frame_scratch_used: 0,
             effect_vm_sample: None,
             operator_vm: (0..self.plan.vm_workspace_count)
                 .map(|_| (VmWorkspace::default(), None))
@@ -516,17 +506,20 @@ impl PreparedSignalGraph {
                         operator,
                         automation,
                         ..
-                    } if !automation.is_empty() => {
-                        Some((automation_params(&operator.params, automation), None))
-                    }
+                    } if !automation.is_empty() => Some(EffectAutomationWorkspace {
+                        params: operator.params.clone(),
+                        plan: automation.clone(),
+                        sample_time: None,
+                    }),
                     _ => None,
                 })
                 .collect(),
-            workspace_key: Some(self.workspace_key),
         };
         for effect in self.effects.iter() {
             let program = effect.implementation.dsl_program();
-            workspace.effect_vm.reserve(&self.programs[program]);
+            workspace
+                .effect_vm
+                .reserve(self.sample_program(program).bytecode());
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {
@@ -543,91 +536,134 @@ impl PreparedSignalGraph {
             };
             workspace.operator_vm[*vm_slot]
                 .0
-                .reserve(&self.programs[*program]);
+                .reserve(self.operator_program(*program).bytecode());
         }
         workspace
     }
+}
 
-    /// Returns the rendered colors in the workspace, valid until its next evaluation.
-    pub fn evaluate<'a>(
-        &self,
-        sample_time: SampleTime,
-        workspace: &'a mut EvaluationWorkspace,
-    ) -> Result<&'a [Color], EvaluationError> {
-        if workspace.workspace_key != Some(self.workspace_key) {
-            return Err(EvaluationError::InvalidWorkspace);
-        }
-        if sample_time.as_ticks() >= self.duration.as_ticks() {
-            let range = crate::evaluation::frame_range(self, self.plan.output_index)?;
-            let output = &mut workspace.signal_buffers[range];
-            output.fill(Color {
-                red: 0,
-                green: 0,
-                blue: 0,
-            });
-            return Ok(output);
-        }
-        crate::evaluation::sample_signal_graph(self, sample_time, workspace)
-    }
-
-    pub fn evaluate_frame(&self, frame_index: u32) -> Result<EvaluatedFrame, EvaluationError> {
-        let mut workspace = self
-            .workspace()
-            .map_err(|error| EvaluationError::InvalidGraph {
-                message: alloc::format!("invalid prepared signal graph: {error:?}"),
-            })?;
-        self.evaluate_frame_with_workspace(frame_index, &mut workspace)
-    }
-
-    pub fn evaluate_frame_with_workspace(
-        &self,
-        frame_index: u32,
-        workspace: &mut EvaluationWorkspace,
-    ) -> Result<EvaluatedFrame, EvaluationError> {
-        let sample_time =
-            sample_time_from_frame(frame_index, self.frame_rate).map_err(sample_time_error)?;
-        self.evaluate_fixtures(frame_index, sample_time, workspace)
-    }
-
-    fn evaluate_fixtures(
-        &self,
-        frame_index: u32,
-        sample_time: SampleTime,
-        workspace: &mut EvaluationWorkspace,
-    ) -> Result<EvaluatedFrame, EvaluationError> {
-        self.evaluate(sample_time, workspace)?;
-        let fixtures = self.snapshot(workspace)?;
-        Ok(EvaluatedFrame {
-            frame_index,
+impl<P, E, A> PreparedSignalGraph<P, E, A> {
+    /// Replace the two storage banks without cloning graph metadata.
+    pub(crate) fn map_storage<Q, F>(
+        self,
+        map: impl FnOnce(P, Box<[E]>) -> (Q, Box<[F]>),
+    ) -> PreparedSignalGraph<Q, F, A> {
+        let (programs, parameter_environments) = map(self.programs, self.parameter_environments);
+        PreparedSignalGraph {
+            programs,
+            parameter_environments,
             frame_rate: self.frame_rate,
-            sample_time,
-            fixtures,
+            frame_count: self.frame_count,
+            duration: self.duration,
+            fixtures: self.fixtures,
+            fixture_pixel_offsets: self.fixture_pixel_offsets,
+            pixel_count: self.pixel_count,
+            effects: self.effects,
+            clips: self.clips,
+            targets: self.targets,
+            target_pixels: self.target_pixels,
+            spatial_contexts: self.spatial_contexts,
+            effects_by_layer: self.effects_by_layer,
+            layers: self.layers,
+            plan: self.plan,
+        }
+    }
+
+    /// Consume raw/typed automation once while retaining the other graph banks.
+    pub(crate) fn try_map_automation<B, X>(
+        self,
+        mut effect: impl FnMut(PreparedEffect<A>) -> Result<PreparedEffect<B>, X>,
+        mut node: impl FnMut(PreparedSignalNode<A>) -> Result<PreparedSignalNode<B>, X>,
+    ) -> Result<PreparedSignalGraph<P, E, B>, X> {
+        let effects = self
+            .effects
+            .into_vec()
+            .into_iter()
+            .map(&mut effect)
+            .collect::<Result<_, _>>()?;
+        let plan = SignalPlan {
+            nodes: self
+                .plan
+                .nodes
+                .into_vec()
+                .into_iter()
+                .map(&mut node)
+                .collect::<Result<_, _>>()?,
+            output_index: self.plan.output_index,
+            target: self.plan.target,
+            vm_workspace_count: self.plan.vm_workspace_count,
+            frame_nodes: self.plan.frame_nodes,
+            frame_slots: self.plan.frame_slots,
+            frame_buffer_count: self.plan.frame_buffer_count,
+        };
+        Ok(PreparedSignalGraph {
+            programs: self.programs,
+            parameter_environments: self.parameter_environments,
+            frame_rate: self.frame_rate,
+            frame_count: self.frame_count,
+            duration: self.duration,
+            fixtures: self.fixtures,
+            fixture_pixel_offsets: self.fixture_pixel_offsets,
+            pixel_count: self.pixel_count,
+            effects,
+            clips: self.clips,
+            targets: self.targets,
+            target_pixels: self.target_pixels,
+            spatial_contexts: self.spatial_contexts,
+            effects_by_layer: self.effects_by_layer,
+            layers: self.layers,
+            plan,
         })
     }
 
-    pub fn snapshot(
-        &self,
-        workspace: &EvaluationWorkspace,
-    ) -> Result<Vec<RenderedFixture>, EvaluationError> {
-        if workspace.workspace_key != Some(self.workspace_key) {
-            return Err(EvaluationError::InvalidWorkspace);
+    fn frame_scratch_count_with(&self, frame_cache_count: impl Fn(usize) -> usize) -> usize {
+        let samples_frames = |node: &PreparedSignalNode<A>| match &node.kind {
+            PreparedSignalKind::Operator { operator, .. } => match operator.implementation {
+                PreparedOperator::Dsl(program) => frame_cache_count(program) != 0,
+            },
+            _ => false,
+        };
+        if !self.plan.nodes.iter().any(samples_frames) {
+            return 0;
         }
-        let range = crate::evaluation::frame_range(self, self.plan.output_index)?;
-        let colors = &workspace.signal_buffers[range];
-        let mut offset = 0;
-        Ok(self
-            .fixtures
-            .iter()
-            .map(|fixture| {
-                let end = offset + fixture.pixel_count;
-                let pixels = colors[offset..end].to_vec();
-                offset = end;
-                RenderedFixture {
-                    fixture_id: fixture.id,
-                    pixels,
+        let mut depths = Vec::with_capacity(self.plan.nodes.len());
+        let mut required = 0;
+        for node in &self.plan.nodes {
+            let (inputs, extra) = match &node.kind {
+                PreparedSignalKind::Layer { .. } => (&[][..], 0),
+                PreparedSignalKind::Operator { inputs, .. } => (&inputs[..], 0),
+                PreparedSignalKind::Output { inputs } => {
+                    (&inputs[..], usize::from(inputs.len() > 1))
                 }
-            })
-            .collect())
+            };
+            let depth = inputs.iter().map(|&index| depths[index]).max().unwrap_or(0) + extra;
+            depths.push(depth);
+            if samples_frames(node) {
+                required = required.max(depth);
+            }
+        }
+        required
+    }
+
+    pub fn target(&self, index: usize) -> &[PreparedPixel] {
+        let range = &self.targets[index].pixels;
+        &self.target_pixels[range.start..range.end]
+    }
+
+    pub fn frame_count(&self) -> u32 {
+        self.frame_count
+    }
+
+    pub fn frame_rate(&self) -> u32 {
+        self.frame_rate
+    }
+
+    pub fn pixel_count(&self) -> usize {
+        self.pixel_count
+    }
+
+    pub fn duration(&self) -> SampleDuration {
+        self.duration
     }
 
     pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {
@@ -636,31 +672,59 @@ impl PreparedSignalGraph {
             .filter(|effect| effect.is_active(sample_time))
             .count()
     }
+}
 
-    pub fn active_effect_count_at_frame(&self, frame_index: u32) -> usize {
-        sample_time_from_frame(frame_index, self.frame_rate)
-            .map(|time| self.active_effect_count(time))
-            .unwrap_or(0)
+impl SignalGraph<'_> {
+    pub(crate) fn spatial_context(
+        &self,
+        uses_spatial: bool,
+        pixel: usize,
+    ) -> &crate::dsl::SpatialContext {
+        // Admission proves this capability cannot read geometry. This value is
+        // only the unused argument required by the VM's uniform execution ABI.
+        const UNUSED: crate::dsl::SpatialContext = crate::dsl::SpatialContext {
+            position: [0.0; 2],
+            min: [0.0; 2],
+            max: [0.0; 2],
+        };
+        if uses_spatial {
+            &self.data.spatial_contexts[pixel]
+        } else {
+            &UNUSED
+        }
+    }
+
+    /// Returns the rendered colors in the owned workspace until its next evaluation.
+    pub(crate) fn evaluate<'a>(
+        &self,
+        sample_time: SampleTime,
+        workspace: &'a mut EvaluationWorkspace,
+    ) -> &'a [Color] {
+        if sample_time.as_ticks() >= self.duration.as_ticks() {
+            let range = crate::evaluation::frame_range(*self, self.plan.output_index);
+            let output = &mut workspace.signal_buffers[range];
+            output.fill(Color {
+                red: 0,
+                green: 0,
+                blue: 0,
+            });
+            return output;
+        }
+        crate::evaluation::sample_signal_graph(*self, sample_time, workspace)
     }
 }
 
-pub(crate) fn automation_params(
-    params: &BoundParams,
-    automation: &[PreparedAutomation],
-) -> BoundParams {
-    let mut params = params.clone_for_automation();
-    for binding in automation {
-        params.reserve_automation(
-            usize::from(binding.param_index),
-            &binding.curve,
-            &binding.mapping,
-        );
-    }
-    params
-}
-
-fn sample_time_error(error: SampleTimeError) -> EvaluationError {
-    EvaluationError::InvalidTiming {
-        reason: alloc::format!("invalid sample time: {error:?}"),
-    }
+fn operator_frame_cache_count(program: &OperatorProgram) -> usize {
+    program
+        .bytecode()
+        .instructions
+        .iter()
+        .fold(0, |count, instruction| match instruction {
+            crate::dsl::bytecode::Instruction::SignalSample { frame_cache, .. }
+                if *frame_cache != u32::MAX =>
+            {
+                count.max(*frame_cache as usize + 1)
+            }
+            _ => count,
+        })
 }

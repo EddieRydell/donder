@@ -1,9 +1,6 @@
 use super::{
     GuiMutationError,
-    model::{
-        domain_point3_meters, fixture_definition_mut, rotation3_degrees, scale3,
-        source_identity_from_gui,
-    },
+    model::{domain_point3_meters, rotation3_degrees, scale3, source_identity_from_gui},
 };
 use crate::dto::*;
 use donder_language::fixture::*;
@@ -16,16 +13,37 @@ pub(super) fn edit_fixture(
     resolved: &super::ResolvedGuiObject,
     edit: FixtureGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let fixture = match resolved.owned_path.as_slice() {
-        [] => fixture_definition_mut(session, &resolved.identity)?,
+    match resolved.owned_path.as_slice() {
+        [] => {
+            let id = FixtureDefinitionId(resolved.identity.clone());
+            let mut fixture = session
+                .project
+                .definitions()
+                .fixtures
+                .definitions
+                .get(&id)
+                .cloned()
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Fixture definition was not loaded.".into())
+                })?;
+            edit_geometry(&mut fixture, edit)?;
+            session
+                .project
+                .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+                    id,
+                    value: fixture,
+                }])
+                .map_err(GuiMutationError::Invalid)
+        }
         [parent @ .., crate::dto::GuiOwnedStep::Fixture { id }] => {
             let parent = parent.iter().fold(
                 donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
                 |address, step| address.owned(step.into()),
             );
-            let layout = session
+            let mut layout = session
                 .project
-                .layout_mut(&donder_language::layout::LayoutId(parent))
+                .layout(&donder_language::layout::LayoutId(parent))
+                .cloned()
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
             let placement = super::layout::find_fixture_mut(
                 &mut layout.fixtures,
@@ -41,14 +59,22 @@ pub(super) fn edit_fixture(
                     "Fixture is not owned inline.".into(),
                 ));
             };
-            value
+            edit_geometry(value, edit)?;
+            session
+                .project
+                .replace_layout(&layout.id.clone(), layout)
+                .map_err(GuiMutationError::Invalid)
         }
-        _ => {
-            return Err(GuiMutationError::Invalid(
-                "Unsupported owned fixture path.".into(),
-            ));
-        }
-    };
+        _ => Err(GuiMutationError::Invalid(
+            "Unsupported owned fixture path.".into(),
+        )),
+    }
+}
+
+fn edit_geometry(
+    fixture: &mut FixtureDefinition,
+    edit: FixtureGuiEdit,
+) -> Result<(), GuiMutationError> {
     match edit {
         FixtureGuiEdit::SetElements { elements } => {
             fixture.elements = elements
@@ -411,7 +437,7 @@ pub(super) fn reference_definition(
     let id = FixtureDefinitionId(identity);
     if !session
         .project
-        .definitions
+        .definitions()
         .fixtures
         .definitions
         .contains_key(&id)

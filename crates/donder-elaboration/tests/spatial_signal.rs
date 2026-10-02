@@ -3,13 +3,13 @@
 mod workload;
 
 use donder_language::dsl::{compile_effects, compile_operators};
-use donder_runtime::dsl::BoundParams;
-use donder_runtime::dsl::bytecode::Instruction;
-use donder_runtime::signal::{
+use donder_runtime::BoundParams;
+use donder_runtime::Instruction;
+use donder_runtime::{Color, SampleTime};
+use donder_runtime::{
     PreparedFixture, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
     PreparedSignalNode, PreparedTarget,
 };
-use donder_runtime::values::{Color, SampleTime};
 
 #[test]
 fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() {
@@ -23,7 +23,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     .effect;
     let mut base = workload::show(
         8,
-        effect.sample_program().unwrap().clone(),
+        effect.sample_program().unwrap().clone().into_parts().0,
         BoundParams::default(),
     )
     .signals()
@@ -53,6 +53,11 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
     }
     pixels.extend(effect_pixels);
     base.target_pixels = pixels.into();
+    // The output and effect targets address the same physical pixels. Keep
+    // their parallel geometry entries aligned when duplicating target pixels.
+    let mut spatial_contexts = base.spatial_contexts.to_vec();
+    spatial_contexts.extend_from_within(..);
+    base.spatial_contexts = spatial_contexts.into();
     base.targets = vec![
         PreparedTarget {
             pixels: 0..8,
@@ -120,7 +125,10 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             ))
             .unwrap()
             .remove(0)
-            .bytecode;
+            .program()
+            .clone()
+            .into_parts()
+            .0;
             if !cached {
                 for op in &mut program.instructions {
                     if let Instruction::SignalSample { frame_cache, .. } = op {
@@ -148,11 +156,29 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
             graph.plan.frame_nodes = vec![1].into();
             graph.plan.frame_slots = vec![usize::MAX, 0].into();
             graph.plan.frame_buffer_count = 1;
-            let mut workspace = graph.workspace().unwrap();
-            let mut source_workspace = base.workspace().unwrap();
+            let mut workspace = donder_runtime::PreparedSequence::admit(
+                graph.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback();
+            let mut source_workspace = donder_runtime::PreparedSequence::admit(
+                base.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback();
             for ticks in [0, 500000, 2000000, 100000, 0] {
                 let time = SampleTime::from_ticks(ticks);
-                let source = base.evaluate(time, &mut source_workspace).unwrap();
+                let source = source_workspace.evaluate(time).colors();
                 let expected = indices
                     .iter()
                     .map(|index| {
@@ -164,7 +190,7 @@ fn spatial_queries_match_explicit_source_pixels_with_and_without_frame_caches() 
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(
-                    graph.evaluate(time, &mut workspace).unwrap(),
+                    workspace.evaluate(time).colors(),
                     expected,
                     "{query}, cached={cached}, time={ticks}"
                 );

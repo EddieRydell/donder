@@ -1,3 +1,9 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 #[allow(dead_code)]
 mod fixtures;
 
@@ -10,18 +16,27 @@ fn bench_effect_vm(c: &mut Criterion) {
     pin_benchmark_thread();
     let effects = fixtures::cases()
         .map(|(name, source, params)| fixtures::prepared_effect(name, source, params));
+    let invocations = effects
+        .iter()
+        .map(|(effect, params)| {
+            effect
+                .sample_program()
+                .unwrap()
+                .bind(
+                    params.iter_values().collect(),
+                    &mut donder_runtime::DslBindCache::default(),
+                )
+                .expect("valid benchmark invocation")
+        })
+        .collect::<Vec<_>>();
     let contexts = fixtures::sample_contexts();
     let mut workspacees = std::array::from_fn::<_, 4, _>(|_| VmWorkspace::default());
 
     c.bench_function("dsl_effect_suite_4x512_pixels", |b| {
         b.iter(|| {
-            for ((effect, bound), workspace) in effects.iter().zip(&mut workspacees) {
+            for (invocation, workspace) in invocations.iter().zip(&mut workspacees) {
                 for context in &contexts {
-                    black_box(
-                        effect
-                            .sample_bound(black_box(bound), black_box(context), workspace)
-                            .expect("sample benchmark effect should run"),
-                    );
+                    black_box(invocation.evaluate(black_box(context), &SPATIAL, workspace));
                 }
             }
         });

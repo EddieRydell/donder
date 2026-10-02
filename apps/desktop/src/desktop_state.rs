@@ -291,7 +291,7 @@ impl DesktopState {
             let project = self.project_session().ok_or("No project is loaded.")?;
             let active = project
                 .project
-                .setup(project.project.root.setup.id())
+                .setup(project.project.root().setup.id())
                 .map(|setup| {
                     setup
                         .controllers

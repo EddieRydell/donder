@@ -84,7 +84,7 @@ mod tests {
             .project_session()
             .unwrap()
             .project
-            .root
+            .root()
             .setup
             .id()
             .clone();

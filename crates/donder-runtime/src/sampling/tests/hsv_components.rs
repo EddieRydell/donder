@@ -1,5 +1,5 @@
-use donder_runtime::sampling::{color_hue, color_intensity, color_saturation, hsv};
-use donder_runtime::values::Color;
+use crate::Color;
+use crate::sampling::{color_hue, color_intensity, color_saturation, hsv};
 
 fn color([red, green, blue]: [u8; 3]) -> Color {
     Color { red, green, blue }

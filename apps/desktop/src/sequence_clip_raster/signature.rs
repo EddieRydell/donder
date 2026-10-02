@@ -45,7 +45,7 @@ pub(super) fn render_signature(
         .layout(setup.layout.id())
         .ok_or_else(|| "raster layout selection is unavailable".to_string())?;
     let geometry = donder_language::geometry::PreparedFixtureDefinitions::prepare(
-        &project.definitions.fixtures,
+        &project.definitions().fixtures,
     )
     .prepare_layout(layout);
     let target_pixels = geometry
@@ -64,16 +64,16 @@ pub(super) fn render_signature(
         })
         .collect();
     let definition = project
-        .definitions
+        .definitions()
         .effects
         .resolve(&effect.definition)
         .cloned();
     let generator_definitions = if definition
         .as_ref()
-        .is_some_and(|definition| definition.kind == EffectKind::Generator)
+        .is_some_and(|definition| definition.kind() == EffectKind::Generator)
     {
         project
-            .definitions
+            .definitions()
             .effects
             .definitions
             .iter()
@@ -144,10 +144,11 @@ pub(super) fn collect_param_references(
 ) {
     match value {
         EffectParamValue::Curve(CurveSource::Reference(id)) => {
-            curve_references.push((id.clone(), project.definitions.curves.get(id).cloned()));
+            curve_references.push((id.clone(), project.definitions().curves.get(id).cloned()));
         }
         EffectParamValue::Gradient(GradientSource::Reference(id)) => {
-            gradient_references.push((id.clone(), project.definitions.gradients.get(id).cloned()));
+            gradient_references
+                .push((id.clone(), project.definitions().gradients.get(id).cloned()));
         }
         EffectParamValue::Marks(key) => {
             let marks = sequence
@@ -411,11 +412,11 @@ pub(super) fn hash_optional_effect_definition<H: Hasher>(
 }
 
 pub(super) fn hash_effect_definition<H: Hasher>(definition: &EffectDefinition, state: &mut H) {
-    definition.generated_effect_targets.len().hash(state);
-    for target in &definition.generated_effect_targets {
+    definition.generated_effect_targets().len().hash(state);
+    for target in definition.generated_effect_targets() {
         target.hash(state);
     }
-    let donder_language::effect::EffectImplementation::Dsl(compiled) = &definition.implementation;
+    let donder_language::effect::EffectImplementation::Dsl(compiled) = definition.implementation();
     hash_compiled_effect(compiled, state);
 }
 

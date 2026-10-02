@@ -39,14 +39,32 @@ pub enum OperatorImplementation {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorDefinition {
-    pub id: OperatorRef,
+    pub(crate) id: OperatorRef,
     pub source_name: String,
     pub declaration_name: String,
     pub display_name: String,
-    pub inputs: Vec<OperatorPortDefinition>,
-    pub output: OperatorPortDefinition,
-    pub params: Vec<ParamDecl>,
-    pub implementation: OperatorImplementation,
+    pub(crate) inputs: Vec<OperatorPortDefinition>,
+    pub(crate) output: OperatorPortDefinition,
+    pub(crate) params: Vec<ParamDecl>,
+    pub(crate) implementation: OperatorImplementation,
+}
+
+impl OperatorDefinition {
+    pub fn id(&self) -> &OperatorRef {
+        &self.id
+    }
+    pub fn inputs(&self) -> &[OperatorPortDefinition] {
+        &self.inputs
+    }
+    pub fn output(&self) -> &OperatorPortDefinition {
+        &self.output
+    }
+    pub fn params(&self) -> &[ParamDecl] {
+        &self.params
+    }
+    pub fn implementation(&self) -> &OperatorImplementation {
+        &self.implementation
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

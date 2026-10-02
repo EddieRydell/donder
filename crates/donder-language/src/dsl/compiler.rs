@@ -63,19 +63,21 @@ fn compile_effect(
     let program = match kind {
         EffectKind::Generator => {
             collect_emissions(&effect.body, &mut emitted_references);
-            EffectProgram::Generator(super::GeneratorProgram::new(
+            EffectProgram::Generator(std::sync::Arc::new(super::specialization::compile(
                 effect.params.clone(),
                 effect.body,
                 emitted_references.clone(),
                 &effect.preparation_controls,
-            )?)
+            )?))
         }
         EffectKind::Sample => {
             let bytecode = FunctionCompiler::new(&effect.params, kind).compile(effect.body)?;
-            if !bytecode.has_valid_context(super::bytecode::ProgramContext::Effect) {
-                return Err(invalid_compiled_program());
-            }
-            EffectProgram::Sample(bytecode)
+            let program = super::SampleProgram::admit(
+                bytecode,
+                effect.params.iter().map(|param| param.ty.clone()).collect(),
+            )
+            .ok_or_else(invalid_compiled_program)?;
+            EffectProgram::Sample(std::sync::Arc::new(program))
         }
     };
     Ok(super::EffectCompilation {
@@ -115,17 +117,8 @@ fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, s
     check_parameter_count(&operator.params)?;
     let bytecode = FunctionCompiler::new_operator(&operator.params, &operator.inputs)
         .compile(operator.body)?;
-    if !bytecode.has_valid_context(super::bytecode::ProgramContext::Operator {
-        inputs: operator.inputs.len(),
-    }) {
-        return Err(invalid_compiled_program());
-    }
-    Ok(CompiledOperator {
-        name: operator.name,
-        inputs: operator.inputs,
-        params: operator.params,
-        bytecode,
-    })
+    CompiledOperator::admit(operator.name, operator.inputs, operator.params, bytecode)
+        .ok_or_else(invalid_compiled_program)
 }
 
 fn invalid_compiled_program() -> super::Diagnostic {
@@ -600,8 +593,8 @@ impl FunctionCompiler {
                 self.compile_statement(*initializer);
                 let count = self.allocate_slot(&Type::Int);
                 self.emit_constant(count, Value::Int(iterations as i32));
-                let Some((id, loop_start)) = self
-                    .emit_range_start(count, donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS as i32)
+                let Some((id, loop_start)) =
+                    self.emit_range_start(count, donder_runtime::MAX_DSL_LOOP_ITERATIONS as i32)
                 else {
                     return;
                 };
@@ -1917,7 +1910,7 @@ impl FunctionCompiler {
     }
 
     fn emit_range_start(&mut self, count: ValueSlot, cap: i32) -> Option<(u32, usize)> {
-        if cap <= 0 || cap as usize > donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS {
+        if cap <= 0 || cap as usize > donder_runtime::MAX_DSL_LOOP_ITERATIONS {
             self.invalid_loop = true;
             return None;
         }

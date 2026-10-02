@@ -22,10 +22,11 @@ pub use emission::validate_emission;
 use crate::imports::ImportDeclaration;
 use compiler::{compile_checked_effects, compile_checked_operators};
 pub use diagnostic::Diagnostic;
-pub use donder_runtime::dsl::{
-    BoundCalculation, BoundParams, CalculationOutput, CalculationProgram, CompiledOperator,
-    DslBindCache, OperatorInputDecl, OperatorRunContext, ParamDecl, RunContext, RuntimeError,
-    SignalPixel, SignalSampler, VmWorkspace, bytecode::BytecodeProgram,
+pub use donder_runtime::{
+    BoundCalculation, BoundOperator, BoundParams, BoundSample, BytecodeProgram, CalculationOutput,
+    CalculationProgram, CompiledOperator, DslBindCache, OperatorInputDecl, OperatorRunContext,
+    ParamDecl, RunContext, RuntimeError, SampleProgram, SignalPixel, SignalSampler, SpatialContext,
+    VmWorkspace,
 };
 use parser::parse_module;
 use std::hash::{Hash, Hasher};
@@ -72,6 +73,14 @@ pub struct EmittedReference {
 impl PartialEq for EmittedReference {
     fn eq(&self, other: &Self) -> bool {
         self.reference == other.reference && self.arguments == other.arguments
+    }
+}
+
+impl EmittedReference {
+    pub(crate) fn parameters(&self) -> impl Iterator<Item = &EmittedArgument> {
+        self.arguments
+            .iter()
+            .filter(|argument| !matches!(argument.name.as_str(), "start" | "duration" | "target"))
     }
 }
 
@@ -146,12 +155,15 @@ pub fn hash_compiled_effect<H: Hasher>(effect: &CompiledEffect, state: &mut H) {
     hash_param_decls(&effect.params, state);
     effect.kind().hash(state);
     match &effect.program {
-        EffectProgram::Sample(program) => hash_bytecode(program, state),
-        EffectProgram::Generator(program) => program.hash_semantics(state),
+        EffectProgram::Sample(program) => hash_bytecode(program.bytecode(), state),
+        EffectProgram::Generator(program) => specialization::hash_semantics(program, state),
     }
 }
 
-fn hash_bytecode<H: Hasher, C: Hash, S: Hash>(bytecode: &BytecodeProgram<C, S>, state: &mut H) {
+fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash, B: Hash>(
+    bytecode: &BytecodeProgram<C, S, A, B>,
+    state: &mut H,
+) {
     bytecode.instructions.hash(state);
     bytecode.enums.hash(state);
     bytecode.enum_types.len().hash(state);
@@ -283,7 +295,7 @@ fn hash_target_items<H: Hasher>(items: &[std::sync::Arc<TargetItemValue>], state
     }
 }
 
-fn hash_target_pixels<H: Hasher>(pixels: &[donder_runtime::signal::PreparedPixel], state: &mut H) {
+fn hash_target_pixels<H: Hasher>(pixels: &[donder_runtime::PreparedPixel], state: &mut H) {
     pixels.len().hash(state);
     for pixel in pixels {
         pixel.fixture_index.hash(state);

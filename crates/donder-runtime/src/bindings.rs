@@ -1,12 +1,17 @@
 //! Retained generator parameter environments. Structural expansion belongs to
 //! the host; playback executes only numeric bindings and typed VM calculations.
+use crate::dsl::RuntimeError;
 use crate::dsl::{
-    BoundParams, RunContext, Type, VmWorkspace,
+    AutomationPlan, BoundParams, CalculationProgram, ParameterTransfer, RunContext, Type,
+    VmWorkspace,
     bytecode::{BytecodeProgram, ParameterKind, ProgramContext},
 };
-use crate::signal::{EvaluationError, PreparedAutomation, apply_bound_automation};
+use crate::signal::PreparedAutomation;
 use crate::values::{SampleDuration, SampleTime};
 use alloc::{boxed::Box, string::ToString, vec::Vec};
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct ParameterSource {
@@ -27,18 +32,148 @@ pub struct PreparedParameterCalculation {
 }
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedParameterEnvironment {
+pub struct PreparedParameterEnvironment<
+    C = PreparedParameterCalculation,
+    B = PreparedParameterBinding,
+    A = Box<[PreparedAutomation]>,
+> {
     #[rkyv(with = crate::wire::Microseconds)]
     pub start_time: SampleTime,
     #[rkyv(with = crate::wire::Microseconds)]
     pub duration: SampleDuration,
     pub params: BoundParams,
     pub types: Box<[Type]>,
-    pub bindings: Box<[PreparedParameterBinding]>,
-    pub automation: Box<[PreparedAutomation]>,
-    pub calculation: Option<PreparedParameterCalculation>,
+    pub bindings: Box<[B]>,
+    pub automation: A,
+    pub calculation: Option<C>,
     pub array_capacity: usize,
     pub array_width: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ResolvedParameterBinding {
+    binding: PreparedParameterBinding,
+    transfer: ParameterTransfer,
+}
+
+impl ResolvedParameterBinding {
+    pub(crate) fn source_environment(&self) -> usize {
+        self.binding.source.environment
+    }
+
+    /// Compaction preserves the source's bank layout and only changes its owner slot.
+    pub(crate) fn remap_environment(&mut self, environment: usize) {
+        self.binding.source.environment = environment;
+    }
+
+    pub(crate) fn from_linked(
+        binding: PreparedParameterBinding,
+        transfer: ParameterTransfer,
+    ) -> Self {
+        Self { binding, transfer }
+    }
+}
+
+pub(crate) type ExecutableEnvironment =
+    PreparedParameterEnvironment<CalculationProgram, ResolvedParameterBinding, AutomationPlan>;
+
+impl ExecutableEnvironment {
+    /// A plain forwarding edge, not an evaluated value or an automated slot.
+    /// Lowering may bypass it when source and destination types are identical;
+    /// conversions must retain their declared intermediate layout.
+    pub(crate) fn forwarded_source(&self, parameter: u16) -> Option<ParameterSource> {
+        if self.calculation.is_some() || !self.automation.is_empty() {
+            return None;
+        }
+        self.bindings
+            .iter()
+            .find(|binding| binding.binding.parameter == parameter)
+            .map(|binding| binding.binding.source)
+    }
+
+    pub(crate) fn output_types(&self) -> &[Type] {
+        self.calculation
+            .as_ref()
+            .map_or(&self.types, CalculationProgram::output_types)
+    }
+
+    pub(crate) fn to_raw(&self) -> PreparedParameterEnvironment {
+        PreparedParameterEnvironment {
+            start_time: self.start_time,
+            duration: self.duration,
+            params: self.params.clone(),
+            types: self.types.clone(),
+            bindings: self
+                .bindings
+                .iter()
+                .map(|binding| binding.binding)
+                .collect(),
+            automation: self.automation.to_raw(),
+            calculation: self.calculation.as_ref().map(|calculation| {
+                let (program, _, outputs) = calculation.clone().into_parts();
+                PreparedParameterCalculation { program, outputs }
+            }),
+            array_capacity: self.array_capacity,
+            array_width: self.array_width,
+        }
+    }
+}
+
+/// Raw archives and externally assembled graphs are checked before the graph
+/// publishes these immutable execution plans.
+pub(crate) fn admit_environments(
+    environments: Vec<PreparedParameterEnvironment>,
+) -> Result<Box<[ExecutableEnvironment]>, RuntimeError> {
+    PreparedParameterEnvironment::validate_all(&environments)?;
+    let outputs: Vec<_> = environments
+        .iter()
+        .map(|environment| BoundParams::result_workspace(environment.output_types(), 0, 0))
+        .collect();
+    environments
+        .into_iter()
+        .map(|environment| {
+            let automation = AutomationPlan::admit(&environment.params, &environment.automation)
+                .ok_or_else(|| invalid("invalid parameter automation"))?;
+            let bindings = environment
+                .bindings
+                .iter()
+                .map(|binding| {
+                    Ok(ResolvedParameterBinding {
+                        binding: *binding,
+                        transfer: ParameterTransfer::admit(
+                            &outputs[binding.source.environment],
+                            &environment.params,
+                            usize::from(binding.source.parameter),
+                            usize::from(binding.parameter),
+                        )
+                        .ok_or_else(|| invalid("invalid parameter transfer"))?,
+                    })
+                })
+                .collect::<Result<_, RuntimeError>>()?;
+            let calculation = environment
+                .calculation
+                .map(|calculation| {
+                    CalculationProgram::new(
+                        calculation.program,
+                        environment.types.clone(),
+                        calculation.outputs,
+                    )
+                    .ok_or_else(|| invalid("invalid retained calculation"))
+                })
+                .transpose()?;
+            Ok(PreparedParameterEnvironment {
+                start_time: environment.start_time,
+                duration: environment.duration,
+                params: environment.params,
+                types: environment.types,
+                bindings,
+                automation,
+                calculation,
+                array_capacity: environment.array_capacity,
+                array_width: environment.array_width,
+            })
+        })
+        .collect()
 }
 
 impl PreparedParameterEnvironment {
@@ -75,7 +210,7 @@ impl PreparedParameterEnvironment {
         (capacity, width)
     }
 
-    pub fn validate_all(environments: &[Self]) -> Result<(), EvaluationError> {
+    pub(crate) fn validate_all(environments: &[Self]) -> Result<(), RuntimeError> {
         for (index, environment) in environments.iter().enumerate() {
             if environment.duration.as_ticks() == 0
                 || environment.params.len() != environment.types.len()
@@ -175,12 +310,13 @@ struct EnvironmentWorkspace {
     params: BoundParams,
     outputs: BoundParams,
     vm: VmWorkspace,
+    automation: AutomationPlan,
     ready: bool,
     needed: bool,
 }
 
 impl EnvironmentWorkspace {
-    fn output(&self, environment: &PreparedParameterEnvironment) -> &BoundParams {
+    fn output(&self, environment: &ExecutableEnvironment) -> &BoundParams {
         if environment.calculation.is_some() {
             &self.outputs
         } else {
@@ -196,14 +332,14 @@ struct ParameterTimeWorkspace {
 }
 
 #[derive(Debug, Default)]
-pub struct ParameterWorkspace {
+pub(crate) struct ParameterWorkspace {
     times: Vec<ParameterTimeWorkspace>,
     recency: Vec<u64>,
     request: u64,
 }
 
 impl ParameterWorkspace {
-    pub fn new(environments: &[PreparedParameterEnvironment], time_slots: usize) -> Self {
+    pub(crate) fn new(environments: &[ExecutableEnvironment], time_slots: usize) -> Self {
         Self {
             times: (0..time_slots)
                 .map(|_| ParameterTimeWorkspace::new(environments))
@@ -222,32 +358,33 @@ impl ParameterWorkspace {
             .checked_mul(time_slots)
     }
 
-    pub fn resolve(
+    pub(crate) fn resolve(
         &mut self,
-        environments: &[PreparedParameterEnvironment],
+        environments: &[ExecutableEnvironment],
         index: usize,
         time: SampleTime,
-    ) -> Result<&BoundParams, EvaluationError> {
+    ) -> &BoundParams {
         let slot = self
             .times
             .iter()
             .position(|state| state.sample_time == Some(time))
-            .or_else(|| {
-                self.recency
-                    .iter()
-                    .enumerate()
-                    .min_by_key(|(_, used)| *used)
-                    .map(|(index, _)| index)
-            })
-            .ok_or(EvaluationError::InvalidWorkspace)?;
+            .unwrap_or_else(|| {
+                (1..self.recency.len()).fold(0, |oldest, index| {
+                    if self.recency[index] < self.recency[oldest] {
+                        index
+                    } else {
+                        oldest
+                    }
+                })
+            });
         self.request = self.request.wrapping_add(1);
         self.recency[slot] = self.request;
         self.times[slot].resolve(environments, index, time)
     }
 }
 
-fn invalid(message: &str) -> EvaluationError {
-    EvaluationError::InvalidGraph {
+fn invalid(message: &str) -> RuntimeError {
+    RuntimeError {
         message: message.to_string(),
     }
 }
@@ -264,6 +401,7 @@ impl ParameterTimeWorkspace {
                         .params
                         .automation_storage_estimate(&environment.automation)?,
                 )?
+                .checked_add(AutomationPlan::storage_estimate(&environment.automation)?)?
                 .checked_add(BoundParams::result_storage_estimate(
                     0,
                     environment.array_capacity,
@@ -306,31 +444,24 @@ impl ParameterTimeWorkspace {
         Some(bytes)
     }
 
-    fn new(environments: &[PreparedParameterEnvironment]) -> Self {
+    fn new(environments: &[ExecutableEnvironment]) -> Self {
         Self {
             environments: environments
                 .iter()
                 .map(|environment| {
-                    let mut params = environment.params.clone_for_automation();
+                    let mut params = environment.params.clone();
                     params
                         .reserve_result_arrays(environment.array_capacity, environment.array_width);
-                    for binding in &environment.automation {
-                        params.reserve_automation(
-                            usize::from(binding.param_index),
-                            &binding.curve,
-                            &binding.mapping,
-                        );
-                    }
                     let (outputs, vm) = environment.calculation.as_ref().map_or_else(
                         || (BoundParams::default(), VmWorkspace::default()),
                         |calculation| {
                             (
                                 BoundParams::result_workspace(
-                                    &calculation.outputs,
+                                    calculation.output_types(),
                                     environment.array_capacity,
                                     environment.array_width,
                                 ),
-                                VmWorkspace::for_program(&calculation.program),
+                                VmWorkspace::for_program(calculation.bytecode()),
                             )
                         },
                     );
@@ -338,6 +469,7 @@ impl ParameterTimeWorkspace {
                         params,
                         outputs,
                         vm,
+                        automation: environment.automation.clone(),
                         ready: false,
                         needed: false,
                     }
@@ -349,27 +481,26 @@ impl ParameterTimeWorkspace {
 
     fn resolve(
         &mut self,
-        environments: &[PreparedParameterEnvironment],
+        environments: &[ExecutableEnvironment],
         index: usize,
         time: SampleTime,
-    ) -> Result<&BoundParams, EvaluationError> {
-        if self.environments.len() != environments.len() || index >= environments.len() {
-            return Err(EvaluationError::InvalidWorkspace);
-        }
+    ) -> &BoundParams {
         if self.sample_time != Some(time) {
             // All descendant references must be gone before any root curve is
             // updated. Otherwise its copy-on-write update would allocate.
             for (state, environment) in self.environments.iter_mut().zip(environments).rev() {
                 state.outputs.clear_results();
                 for binding in &environment.bindings {
-                    state.params.clear_parameter(usize::from(binding.parameter));
+                    state
+                        .params
+                        .clear_parameter(usize::from(binding.binding.parameter));
                 }
                 state.ready = false;
             }
             self.sample_time = Some(time);
         }
         if self.environments[index].ready {
-            return Ok(self.environments[index].output(&environments[index]));
+            return self.environments[index].output(&environments[index]);
         }
         for state in &mut self.environments {
             state.needed = false;
@@ -380,39 +511,32 @@ impl ParameterTimeWorkspace {
                 continue;
             }
             for binding in &environments[dependency].bindings {
-                self.environments[binding.source.environment].needed = true;
+                self.environments[binding.binding.source.environment].needed = true;
             }
         }
         for dependency in 0..=index {
             if self.environments[dependency].needed {
-                self.evaluate(environments, dependency, time)?;
+                self.evaluate(environments, dependency, time);
             }
         }
-        Ok(self.environments[index].output(&environments[index]))
+        self.environments[index].output(&environments[index])
     }
 
-    fn evaluate(
-        &mut self,
-        environments: &[PreparedParameterEnvironment],
-        index: usize,
-        time: SampleTime,
-    ) -> Result<(), EvaluationError> {
+    fn evaluate(&mut self, environments: &[ExecutableEnvironment], index: usize, time: SampleTime) {
         if self.environments[index].ready {
-            return Ok(());
+            return;
         }
         let environment = &environments[index];
         let (ancestors, current) = self.environments.split_at_mut(index);
         let state = &mut current[0];
         for binding in &environment.bindings {
-            let source = binding.source.environment;
-            state.params.copy_parameter(
-                usize::from(binding.parameter),
+            let source = binding.binding.source.environment;
+            binding.transfer.apply(
                 ancestors[source].output(&environments[source]),
-                usize::from(binding.source.parameter),
-                &environment.types[usize::from(binding.parameter)],
-            )?;
+                &mut state.params,
+            );
         }
-        apply_bound_automation(&mut state.params, &environment.automation, time)?;
+        state.automation.apply(&mut state.params, time);
         if let Some(calculation) = &environment.calculation {
             let elapsed = time
                 .checked_duration_since(environment.start_time)
@@ -426,15 +550,13 @@ impl ParameterTimeWorkspace {
                 pixel_count: 0,
                 pixel_fraction: 0.0,
             };
-            calculation.program.evaluate_bindings(
+            calculation.evaluate_retained(
                 &state.params,
                 &context,
                 &mut state.vm,
                 &mut state.outputs,
-                &calculation.outputs,
-            )?;
+            );
         }
         state.ready = true;
-        Ok(())
     }
 }

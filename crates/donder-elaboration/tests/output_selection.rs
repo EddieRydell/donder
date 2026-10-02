@@ -2,12 +2,12 @@ use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::controller::{ControllerId, ControllerPortId};
 use donder_language::layout::FixtureInstanceId;
-use donder_language::model::DonderProject;
+use donder_language::model::{DonderProject, ProjectEdit};
 use donder_language::patch::PixelSpan;
 use donder_language::sequence::SequenceId;
 use donder_project_io::load_project;
-use donder_runtime::sequence::PreparedSequence;
-use donder_runtime::values::{Color, SampleTime, sample_time_from_frame};
+use donder_runtime::PreparedSequence;
+use donder_runtime::{Color, SampleTime, sample_time_from_frame};
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
@@ -42,39 +42,48 @@ fn controller_fragments_retain_nested_generator_parameter_dependencies() {
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let mut project = report.session.unwrap().project;
     let generator = project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()
         .find(|id| id.0.object() == "MarkImpactBurst")
         .unwrap()
         .clone();
-    for sequence in project.sequences.values_mut() {
-        sequence.automation_clips.clear();
-        for effect in &mut sequence.effects {
-            effect.definition = donder_language::effect::EffectRef::Custom(generator.clone());
-            effect.param_overrides.clear();
-        }
-    }
+    let edits = project
+        .reusable_sequences()
+        .values()
+        .cloned()
+        .map(|mut sequence| {
+            sequence.automation_clips.clear();
+            for effect in &mut sequence.effects {
+                effect.definition = donder_language::effect::EffectRef::Custom(generator.clone());
+                effect.param_overrides.clear();
+            }
+            ProjectEdit::ReplaceSequence {
+                id: sequence.id.clone(),
+                value: sequence,
+            }
+        })
+        .collect::<Vec<_>>();
+    project.apply_edits(edits).unwrap();
     let ports = ports(&project);
     let mut retained = false;
-    for id in project.sequences.keys() {
+    for id in project.reusable_sequences().keys() {
         let fragment = compare(&project, id, &ports[..1]);
-        retained |= !fragment.signals().parameter_environments.is_empty();
-        let bytes = donder_runtime::wire::encode_sequence(&fragment).unwrap();
-        donder_runtime::wire::decode_sequence(&bytes, donder_runtime::wire::LoadLimits::default())
-            .unwrap();
+        retained |= !fragment.to_raw_signals().parameter_environments.is_empty();
+        let bytes = donder_runtime::encode_sequence(&fragment).unwrap();
+        donder_runtime::decode_sequence(&bytes, donder_runtime::LoadLimits::default()).unwrap();
     }
     assert!(retained);
 }
 
 fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
-    project.setups[project.root.setup.id()]
+    project.reusable_setups()[project.root().setup.id()]
         .controllers
         .iter()
         .flat_map(|source| {
             let id = source.id();
-            project.controllers[id]
+            project.reusable_controllers()[id]
                 .ports
                 .iter()
                 .map(|port| (id.clone(), port.id))
@@ -89,28 +98,42 @@ fn compare(
 ) -> PreparedSequence {
     let full = prepare(project, id, PrepareOutputs::All).unwrap();
     let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
-    let mut full_workspace = full.workspace().unwrap();
-    let mut workspace = fragment.workspace().unwrap();
+    let mut full_workspace = donder_runtime::PreparedSequence::admit(
+        full.to_raw_signals(),
+        full.patch().clone(),
+        full.outputs().into(),
+    )
+    .unwrap()
+    .into_playback();
+    let mut workspace = donder_runtime::PreparedSequence::admit(
+        fragment.to_raw_signals(),
+        fragment.patch().clone(),
+        fragment.outputs().into(),
+    )
+    .unwrap()
+    .into_playback();
     let buffers = |sequence: &PreparedSequence| {
         sequence
             .outputs()
             .iter()
-            .map(|output| vec![0; output.width as usize])
+            .map(|output| vec![0; output.width])
             .collect::<Vec<_>>()
     };
     let mut expected = buffers(&full);
     let mut actual = buffers(&fragment);
-    let setup = project.setup(project.root.setup.id()).unwrap();
-    let identity = |output: &donder_runtime::sequence::PreparedOutput| {
+    let setup = project.setup(project.root().setup.id()).unwrap();
+    let identity = |output: &donder_runtime::PreparedOutput| {
         (
-            setup.controllers[output.controller_index].id().clone(),
+            setup.controllers[output.controller_index as usize]
+                .id()
+                .clone(),
             ControllerPortId(output.port),
         )
     };
     let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
-        .map(|frame| sample_time_from_frame(frame, full.signals().frame_rate).unwrap())
+        .map(|frame| sample_time_from_frame(frame, full.frame_rate()).unwrap())
         .to_vec();
-    times.extend(full.signals().effects.iter().flat_map(|effect| {
+    times.extend(full.to_raw_signals().effects.iter().flat_map(|effect| {
         [
             Some(effect.start_time),
             effect.start_time.checked_add_duration(effect.duration),
@@ -119,15 +142,19 @@ fn compare(
         .flatten()
     }));
     times.extend([
-        SampleTime::from_ticks(full.signals().duration.as_ticks()),
+        SampleTime::from_ticks(full.duration().as_ticks()),
         SampleTime::from_ticks(0),
     ]);
     for time in times {
-        full.evaluate(time, &mut expected, &mut full_workspace)
-            .unwrap();
-        fragment
-            .evaluate(time, &mut actual, &mut workspace)
-            .unwrap();
+        for (snapshot, output) in expected
+            .iter_mut()
+            .zip(full_workspace.evaluate(time).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
+        for (snapshot, output) in actual.iter_mut().zip(workspace.evaluate(time).outputs()) {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(actual.len(), selected.len());
         for ((frame, output), selected) in actual.iter().zip(fragment.outputs()).zip(selected) {
             assert_eq!(&identity(output), selected);
@@ -152,33 +179,38 @@ fn compare(
 fn every_starter_port_matches_the_full_sequence_across_seeks() {
     let project = starter();
     let ports = ports(&project);
-    for id in project.root.sequences.iter().map(|source| source.id()) {
+    for id in project.root().sequences.iter().map(|source| source.id()) {
         let full = prepare(&project, id, PrepareOutputs::All).unwrap();
         for port in &ports {
             let fragment = compare(&project, id, std::slice::from_ref(port));
-            assert_eq!(fragment.signals().fixtures.len(), 1);
-            assert_eq!(fragment.signals().pixel_count, 113);
-            assert!(fragment.signals().effects.len() <= full.signals().effects.len());
-            assert!(fragment.signals().programs.len() <= full.signals().programs.len());
-            assert!(fragment.signals().target_pixels.len() < full.signals().target_pixels.len());
+            assert_eq!(fragment.to_raw_signals().fixtures.len(), 1);
+            assert_eq!(fragment.pixel_count(), 113);
+            assert!(fragment.to_raw_signals().effects.len() <= full.to_raw_signals().effects.len());
+            assert!(
+                fragment.to_raw_signals().programs.len() <= full.to_raw_signals().programs.len()
+            );
+            assert!(
+                fragment.to_raw_signals().target_pixels.len()
+                    < full.to_raw_signals().target_pixels.len()
+            );
         }
         let fragment = compare(&project, id, &ports[0..1]);
         let frame_bytes = |sequence: &PreparedSequence| {
-            sequence.signals().pixel_count
-                * sequence.signals().plan.frame_buffer_count
+            sequence.pixel_count()
+                * sequence.to_raw_signals().plan.frame_buffer_count
                 * size_of::<Color>()
         };
         println!(
             "{}: pixels {} -> {}; target records {} -> {}; effects {} -> {}; programs {} -> {}; pixel routes {} -> {}; graph buffer bytes {} -> {}",
             id.0.root_source().object(),
-            full.signals().pixel_count,
-            fragment.signals().pixel_count,
-            full.signals().target_pixels.len(),
-            fragment.signals().target_pixels.len(),
-            full.signals().effects.len(),
-            fragment.signals().effects.len(),
-            full.signals().programs.len(),
-            fragment.signals().programs.len(),
+            full.pixel_count(),
+            fragment.pixel_count(),
+            full.to_raw_signals().target_pixels.len(),
+            fragment.to_raw_signals().target_pixels.len(),
+            full.to_raw_signals().effects.len(),
+            fragment.to_raw_signals().effects.len(),
+            full.to_raw_signals().programs.len(),
+            fragment.to_raw_signals().programs.len(),
             full.patch().routes.len(),
             fragment.patch().routes.len(),
             frame_bytes(&full),
@@ -192,8 +224,11 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
 #[test]
 fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     let mut project = starter();
-    let patch_id = project.setups[project.root.setup.id()].patch.id().clone();
-    let patch = project.patches.get_mut(&patch_id).unwrap();
+    let patch_id = project.reusable_setups()[project.root().setup.id()]
+        .patch
+        .id()
+        .clone();
+    let mut patch = project.patch(&patch_id).unwrap().clone();
     // Two ports wire disjoint spans of one fixture, preserving authored effect coordinates.
     for (index, start) in [(0, 0), (1, 76)] {
         let route = &mut patch.routes[index];
@@ -201,29 +236,41 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         route.pixels = Some(PixelSpan { start, count: 37 });
         route.start_slot = 7;
     }
+    project.replace_patch(&patch_id, patch).unwrap();
     let ports = ports(&project);
-    for id in project.root.sequences.iter().map(|source| source.id()) {
+    for id in project.root().sequences.iter().map(|source| source.id()) {
         let fragment = compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
-        assert_eq!(fragment.signals().fixtures.len(), 1);
-        assert_eq!(fragment.signals().pixel_count, 74);
-        let target = fragment.signals().target(fragment.signals().plan.target);
+        assert_eq!(fragment.to_raw_signals().fixtures.len(), 1);
+        assert_eq!(fragment.pixel_count(), 74);
+        let signals = fragment.to_raw_signals();
+        let target = signals.target(signals.plan.target);
         assert_eq!(target[37].fixture_pixel_index, 37);
         assert_eq!(target[37].pixel_index, 76);
         assert_eq!(target[37].pixel_count, 113);
         compare(&project, id, &ports[1..2]);
     }
     // Whole-target effects use different context from per-fixture effects.
-    for sequence in project.sequences.values_mut() {
-        for effect in &mut sequence.effects {
-            effect.scope = donder_language::effect::EffectScope::WholeTarget;
-        }
-        for collection in &mut sequence.mark_collections {
-            collection.marks = [58_000_000, 59_000_000, 60_000_000]
-                .map(donder_language::values::DonderTime::from_micros)
-                .to_vec();
-        }
-    }
-    for id in project.root.sequences.iter().map(|source| source.id()) {
+    let edits = project
+        .reusable_sequences()
+        .values()
+        .cloned()
+        .map(|mut sequence| {
+            for effect in &mut sequence.effects {
+                effect.scope = donder_language::effect::EffectScope::WholeTarget;
+            }
+            for collection in &mut sequence.mark_collections {
+                collection.marks = [58_000_000, 59_000_000, 60_000_000]
+                    .map(donder_language::values::DonderTime::from_micros)
+                    .to_vec();
+            }
+            ProjectEdit::ReplaceSequence {
+                id: sequence.id.clone(),
+                value: sequence,
+            }
+        })
+        .collect::<Vec<_>>();
+    project.apply_edits(edits).unwrap();
+    for id in project.root().sequences.iter().map(|source| source.id()) {
         compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
     }
     // Spatial reads must not see the compacted 37-pixel output domain. Local
@@ -242,47 +289,75 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         let compiled = donder_language::dsl::compile_operators(&format!(
             "operator TimeWarp {{ input Signal source; param float offset_seconds = 0.0; color sample() {{ return {query}; }} }}"
         )).unwrap().remove(0);
-        let definition = project
-            .definitions
+        let definition_id = project
+            .definitions()
             .operators
             .definitions
-            .values_mut()
-            .find(|definition| definition.declaration_name == "TimeWarp")
+            .iter()
+            .find(|(_, definition)| definition.declaration_name == "TimeWarp")
+            .unwrap()
+            .0
+            .clone();
+        let definition =
+            donder_language::operator::custom_operator_definition(definition_id.clone(), compiled);
+        project
+            .apply_edits(
+                [donder_language::model::ProjectEdit::SetOperatorDefinition {
+                    id: definition_id,
+                    value: definition,
+                }],
+            )
             .unwrap();
-        definition.implementation =
-            donder_language::operator::OperatorImplementation::Dsl(Box::new(compiled));
         let id = project
-            .root
+            .root()
             .sequences
             .iter()
             .map(|source| source.id())
             .find(|id| id.0.root_source().object() == "layer_test")
             .unwrap();
         let fragment = compare(&project, id, &ports[1..2]);
-        assert_eq!(fragment.signals().pixel_count, expected_pixels, "{query}");
+        assert_eq!(fragment.pixel_count(), expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
-        let encoded = donder_runtime::wire::encode_sequence(&fragment).unwrap();
-        let decoded = donder_runtime::wire::decode_sequence(
+        let encoded = donder_runtime::encode_sequence(&fragment).unwrap();
+        let decoded = donder_runtime::decode_sequence(
             &encoded,
-            donder_runtime::wire::LoadLimits {
+            donder_runtime::LoadLimits {
                 // This tests fragment round-tripping, not the device upload size limit.
-                payload_bytes: encoded.len() - donder_runtime::wire::HEADER_BYTES,
+                payload_bytes: encoded.len() - donder_runtime::HEADER_BYTES,
                 workspace_bytes: 4 * 1024 * 1024,
                 ..Default::default()
             },
         )
         .unwrap();
-        let mut original_workspace = fragment.workspace().unwrap();
-        let mut decoded_workspace = decoded.workspace().unwrap();
-        let mut original = vec![vec![0; fragment.outputs()[0].width as usize]];
+        let mut original_workspace = donder_runtime::PreparedSequence::admit(
+            fragment.to_raw_signals(),
+            fragment.patch().clone(),
+            fragment.outputs().into(),
+        )
+        .unwrap()
+        .into_playback();
+        let mut decoded_workspace = donder_runtime::PreparedSequence::admit(
+            decoded.to_raw_signals(),
+            decoded.patch().clone(),
+            decoded.outputs().into(),
+        )
+        .unwrap()
+        .into_playback();
+        let mut original = vec![vec![0; fragment.outputs()[0].width]];
         let mut restored = original.clone();
         let time = SampleTime::from_ticks(59_000_000);
-        fragment
-            .evaluate(time, &mut original, &mut original_workspace)
-            .unwrap();
-        decoded
-            .evaluate(time, &mut restored, &mut decoded_workspace)
-            .unwrap();
+        for (snapshot, output) in original
+            .iter_mut()
+            .zip(original_workspace.evaluate(time).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
+        for (snapshot, output) in restored
+            .iter_mut()
+            .zip(decoded_workspace.evaluate(time).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(restored, original);
     }
 }
@@ -300,29 +375,41 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
         )
         .into(),
     );
-    let mut other = project.controllers[&original_id].clone();
+    let mut other = project.reusable_controllers()[&original_id].clone();
     other.id = other_id.clone();
-    project.controllers.insert(other_id.clone(), other);
-    let setup = project.setups.get_mut(project.root.setup.id()).unwrap();
+    let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
     setup
         .controllers
         .push(donder_language::ownership::ValueSource::Reference(
             other_id.clone(),
         ));
-    let patch = project.patches.get_mut(setup.patch.id()).unwrap();
+    let mut patch = project.patch(setup.patch.id()).unwrap().clone();
     patch.routes[1].controller = other_id.clone();
     patch.routes[1].target = patch.routes[0].target.clone();
-    for id in project.root.sequences.iter().map(|source| source.id()) {
+    project
+        .apply_edits([
+            ProjectEdit::InsertController(other),
+            ProjectEdit::ReplaceSetup {
+                id: setup.id.clone(),
+                value: setup,
+            },
+            ProjectEdit::ReplacePatch {
+                id: patch.id.clone(),
+                value: patch,
+            },
+        ])
+        .unwrap();
+    for id in project.root().sequences.iter().map(|source| source.id()) {
         let fragment = compare(
             &project,
             id,
             &[(other_id.clone(), selected[1].1), selected[0].clone()],
         );
-        assert_eq!(fragment.signals().fixtures.len(), 1);
+        assert_eq!(fragment.to_raw_signals().fixtures.len(), 1);
         assert_eq!(fragment.patch().routes.len(), 2);
-        assert_eq!(fragment.signals().pixel_count, 113);
+        assert_eq!(fragment.pixel_count(), 113);
         let unpatched = compare(&project, id, &selected[1..2]);
-        assert!(unpatched.signals().fixtures.is_empty());
+        assert!(unpatched.to_raw_signals().fixtures.is_empty());
         assert!(unpatched.patch().routes.is_empty());
     }
 }
@@ -336,24 +423,24 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
     };
     let mut project = starter();
     let invert = project
-        .definitions
+        .definitions()
         .operators
         .definitions
         .values()
         .find(|definition| definition.declaration_name == "Invert")
         .unwrap()
-        .id
+        .id()
         .clone();
     let ports = ports(&project);
     let id = project
-        .root
+        .root()
         .sequences
         .iter()
         .map(|source| source.id())
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap()
         .clone();
-    let sequence = project.sequences.get_mut(&id).unwrap();
+    let mut sequence = project.sequence(&id).unwrap().clone();
     sequence.automation_clips.clear();
     // Effects target the second port; the first must still receive inverted black.
     for effect in &mut sequence.effects {
@@ -402,18 +489,35 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
             params: Default::default(),
         }),
     });
+    project.replace_sequence(&id, sequence).unwrap();
     let fragment = compare(&project, &id, &ports[0..1]);
-    assert!(fragment.signals().effects.is_empty());
-    assert_eq!(fragment.signals().programs.len(), 1);
-    assert!(fragment.signals().plan.nodes.iter().any(|node| matches!(
-        node.kind,
-        donder_runtime::signal::PreparedSignalKind::Operator { .. }
-    )));
-    let mut workspace = fragment.workspace().unwrap();
-    let mut buffers = vec![vec![0; fragment.outputs()[0].width as usize]];
-    fragment
-        .evaluate(SampleTime::from_ticks(0), &mut buffers, &mut workspace)
-        .unwrap();
+    assert!(fragment.to_raw_signals().effects.is_empty());
+    assert_eq!(fragment.to_raw_signals().programs.len(), 1);
+    assert!(
+        fragment
+            .to_raw_signals()
+            .plan
+            .nodes
+            .iter()
+            .any(|node| matches!(
+                node.kind,
+                donder_runtime::PreparedSignalKind::Operator { .. }
+            ))
+    );
+    let mut workspace = donder_runtime::PreparedSequence::admit(
+        fragment.to_raw_signals(),
+        fragment.patch().clone(),
+        fragment.outputs().into(),
+    )
+    .unwrap()
+    .into_playback();
+    let mut buffers = [vec![0; fragment.outputs()[0].width]];
+    for (snapshot, output) in buffers
+        .iter_mut()
+        .zip(workspace.evaluate(SampleTime::from_ticks(0)).outputs())
+    {
+        snapshot.copy_from_slice(output.bytes);
+    }
     assert!(buffers[0].iter().all(|&value| value == u8::MAX));
 }
 
@@ -421,12 +525,12 @@ fn operators_keep_empty_inputs_and_unused_programs_are_removed() {
 fn empty_and_unknown_selections_are_explicit() {
     let project = starter();
     let ports = ports(&project);
-    let id = project.root.sequences[0].id();
+    let id = project.root().sequences[0].id();
     let empty = compare(&project, id, &[]);
-    assert!(empty.signals().fixtures.is_empty());
-    assert!(empty.signals().effects.is_empty());
-    assert!(empty.signals().programs.is_empty());
-    assert!(empty.signals().target_pixels.is_empty());
+    assert!(empty.to_raw_signals().fixtures.is_empty());
+    assert!(empty.to_raw_signals().effects.is_empty());
+    assert!(empty.to_raw_signals().programs.is_empty());
+    assert!(empty.to_raw_signals().target_pixels.is_empty());
     assert!(empty.patch().routes.is_empty());
     let duplicate = prepare(
         &project,

@@ -1,13 +1,3 @@
-pub(super) fn sequence_mut<'a>(
-    session: &'a mut ProjectSession,
-    id: &SequenceId,
-) -> Result<&'a mut donder_language::sequence::Sequence, GuiMutationError> {
-    session
-        .project
-        .sequence_mut(id)
-        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))
-}
-
 pub(super) fn register_sequence_audio_asset(
     session: &mut ProjectSession,
     document: &donder_language::identity::DocumentId,
@@ -62,20 +52,6 @@ pub(super) fn register_sequence_audio_asset(
         referenced_by: std::collections::BTreeSet::from([document.clone()]),
     });
     Ok(id)
-}
-
-pub(super) fn fixture_definition_mut<'a>(
-    session: &'a mut ProjectSession,
-    identity: &SourceIdentity,
-) -> Result<&'a mut donder_language::fixture::FixtureDefinition, GuiMutationError> {
-    let id = FixtureDefinitionId(identity.clone());
-    session
-        .project
-        .definitions
-        .fixtures
-        .definitions
-        .get_mut(&id)
-        .ok_or_else(|| GuiMutationError::Invalid("Fixture definition was not loaded.".to_string()))
 }
 
 pub(super) fn effect_mut(
@@ -140,7 +116,7 @@ pub(super) fn graph_input_cardinality(
         CompositionGraphNodeKind::Layer { .. } => None,
         CompositionGraphNodeKind::Operator(operator) => definitions
             .resolve(&operator.operator)?
-            .inputs
+            .inputs()
             .iter()
             .find(|port| port.source_name == source_name)
             .map(|port| port.cardinality.clone()),
@@ -162,14 +138,12 @@ pub(super) fn next_composition_node_id(sequence: &donder_language::sequence::Seq
 }
 
 pub(super) fn create_sequence_layer(
-    session: &mut ProjectSession,
-    sequence_id: &SequenceId,
+    sequence: &mut donder_language::sequence::Sequence,
     name: String,
     color: String,
     position: Option<(f32, f32)>,
     connect_to_output: bool,
 ) -> Result<(), GuiMutationError> {
-    let sequence = sequence_mut(session, sequence_id)?;
     let next_layer_id = sequence
         .layers
         .iter()
@@ -524,14 +498,13 @@ use donder_language::dsl::Identifier;
 use donder_language::effect::{
     CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
 };
-use donder_language::fixture::FixtureDefinitionId;
 use donder_language::identity::SourceIdentity;
 use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_language::operator::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
 use donder_language::sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationMapping, AutomationValue,
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-    GraphNodePosition, GraphPortId, MarkCollection, MarkCollectionKey, SequenceId, SequenceLayerId,
+    GraphNodePosition, GraphPortId, MarkCollection, MarkCollectionKey, SequenceLayerId,
     automation_value_at,
 };
 use donder_language::values::{

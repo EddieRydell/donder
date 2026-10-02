@@ -664,7 +664,7 @@ mod tests {
                     .project_session()
                     .unwrap()
                     .project
-                    .sequences
+                    .reusable_sequences()
                     .values()
                     .next()
                     .unwrap()
@@ -893,7 +893,7 @@ mod tests {
         let request = crate::state_tasks::RenderRefreshPayload {
             project_epoch: snapshot.project_epoch,
             project_revision: snapshot.project_revision,
-            setup_id: project.project.root.setup.id().clone(),
+            setup_id: project.project.root().setup.id().clone(),
             sequence_id,
             project,
         };

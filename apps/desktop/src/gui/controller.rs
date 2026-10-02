@@ -61,12 +61,10 @@ pub(super) fn edit(
     ports: Vec<SetupControllerPort>,
 ) -> Result<(), GuiMutationError> {
     let controller = domain_controller(ControllerId(resolved.object_identity()), config, ports)?;
-    let target = session
+    session
         .project
-        .controller_mut(&ControllerId(resolved.object_identity()))
-        .ok_or_else(|| GuiMutationError::Invalid("Controller was not found.".into()))?;
-    *target = controller;
-    Ok(())
+        .replace_controller(&controller.id.clone(), controller)
+        .map_err(GuiMutationError::Invalid)
 }
 
 pub(super) fn domain_controller(

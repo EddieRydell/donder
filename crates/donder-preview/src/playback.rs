@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
-use donder_runtime::sequence::SequencePlayback;
-use donder_runtime::values::sample_time_from_seconds_f32;
-use donder_runtime::wire::{LoadError, LoadLimits, decode_sequence};
+use donder_runtime::SequencePlayback;
+use donder_runtime::sample_time_from_seconds_f32;
+use donder_runtime::{LoadError, LoadLimits, decode_sequence};
 
 use crate::PreviewColor;
 
@@ -91,17 +91,14 @@ impl PreviewPlayback {
             .transpose()
             .map_err(PreviewPlaybackError::Decode)?;
         if let Some(sequence) = sequence.as_ref()
-            && sequence.signals().pixel_count() != instance_count
+            && sequence.pixel_count() != instance_count
         {
             return Err(PreviewPlaybackError::PixelCount {
-                sequence: sequence.signals().pixel_count(),
+                sequence: sequence.pixel_count(),
                 scene: instance_count,
             });
         }
-        self.sequence = sequence
-            .map(|sequence| sequence.into_playback())
-            .transpose()
-            .map_err(PreviewPlaybackError::Decode)?;
+        self.sequence = sequence.map(|sequence| sequence.into_playback());
         self.colors.clear();
         self.colors.resize(instance_count, self.unlit);
         self.last_frame = None;
@@ -127,8 +124,8 @@ impl PreviewPlayback {
             return Ok(changed);
         }
         let position = self.clock.position_at(now).max(0.0);
-        let frame_rate = sequence.sequence().signals().frame_rate();
-        let frame_count = sequence.sequence().signals().frame_count();
+        let frame_rate = sequence.sequence().frame_rate();
+        let frame_count = sequence.sequence().frame_count();
         let frame = frame_at_position(position, frame_rate, frame_count);
         let key = (self.clock.snapshot.generation, frame);
         if self.last_frame == Some(key) {
@@ -136,10 +133,8 @@ impl PreviewPlayback {
         }
         let sample_time = sample_time_from_seconds_f32(position)
             .map_err(|_| PreviewPlaybackError::ClockPosition)?;
-        let evaluated = sequence
-            .evaluate_signals(sample_time)
-            .map_err(|_| PreviewPlaybackError::Evaluation)?;
-        for (target, color) in self.colors.iter_mut().zip(evaluated) {
+        let evaluated = sequence.evaluate(sample_time);
+        for (target, color) in self.colors.iter_mut().zip(evaluated.colors()) {
             *target = PreviewColor::opaque([color.red, color.green, color.blue]);
         }
         self.last_frame = Some(key);
@@ -155,7 +150,7 @@ impl PreviewPlayback {
         if self.clock.snapshot.state != PreviewPlaybackState::Playing {
             return None;
         }
-        let frame_rate = sequence.sequence().signals().frame_rate();
+        let frame_rate = sequence.sequence().frame_rate();
         if frame_rate == 0 {
             return None;
         }
@@ -191,5 +186,4 @@ pub enum PreviewPlaybackError {
     Decode(LoadError),
     PixelCount { sequence: usize, scene: usize },
     ClockPosition,
-    Evaluation,
 }

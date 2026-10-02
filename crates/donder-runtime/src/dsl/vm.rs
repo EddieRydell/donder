@@ -3,8 +3,12 @@ mod context;
 use super::bytecode::CalculationRead;
 use context::{ReadContext, SampleSignal};
 use core::convert::Infallible;
+mod automation;
 mod parameters;
+pub(crate) use automation::AutomationPlan;
+mod transfers;
 use arrays::{ArrayParameter, ArrayRegister, ArrayView};
+pub(crate) use transfers::{CalculationTransfer, ParameterLink, ParameterTransfer};
 mod targets;
 use super::bytecode::{TargetItemSlot, TargetItemsSlot, TargetSlot, TargetSource};
 use targets::{TargetRegister, TargetView};
@@ -13,15 +17,15 @@ use parameters::{
     CurveRegister, GradientRegister, MarksRegister, ParameterAddress, ParameterValues,
 };
 
+use super::ParamDecl;
 use super::bytecode::{
     ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot,
     CompareOp, ContextRead, CurveSlot, EnumSlot, FloatBinary, FloatSlot, FloatUnary, GradientSlot,
-    Instruction, IntArithmeticOp, IntSlot, MarkOp, MarksSlot, NumberSlot, ParameterKind,
+    Instruction, IntArithmeticOp, IntSlot, MarkOp, MarksSlot, NumberSlot, ParameterKind, PoolSpan,
     SignalPixel, SlotLayout, TargetItemsOp, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
 use super::types::{TargetItemValue, TargetItemsValue, TargetValue};
-use super::{CompiledOperator, ParamDecl};
 use crate::automation::{AutomationMapping, AutomationValue, automation_value_at_position};
 use crate::sampling::{
     add_colors, color_hue, color_intensity, color_saturation, invert_color, max_colors, mix_colors,
@@ -59,18 +63,25 @@ pub struct SpatialContext {
     pub max: [f32; 2],
 }
 
+#[cfg(test)]
+const TEST_SPATIAL_CONTEXT: SpatialContext = SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 pub type OperatorRunContext = RunContext;
 
 /// Samples an immutable signal. Identical input/time/pixel
 /// queries must produce the same result; compilation and evaluation may reuse it.
-pub trait SignalSampler {
+pub trait SignalSampler<E = RuntimeError> {
     fn sample_signal(
         &mut self,
         input: usize,
         sample_time: SampleTime,
         pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
-    ) -> Result<Color, RuntimeError>;
+    ) -> Result<Color, E>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -274,11 +285,16 @@ impl BoundParams {
 
     pub(crate) fn is_frozen(&self) -> bool {
         self.values.has_valid_layout()
+            && self.has_type_layout(&self.values.types)
             && self.values.arrays.references.is_empty()
             && self
                 .values
                 .iter()
                 .all(|value| !matches!(value, BoundParamValue::CalculatedArray(_)))
+    }
+
+    pub(crate) fn types(&self) -> &[Type] {
+        &self.values.types
     }
 
     pub(crate) fn has_type_layout(&self, types: &[Type]) -> bool {
@@ -424,31 +440,6 @@ impl BoundParams {
             bytes = bytes.checked_add(extra)?;
         }
         Some(bytes)
-    }
-
-    pub(crate) fn clone_for_automation(&self) -> Self {
-        let mut values = self.values.clone();
-        for value in &mut values.curves {
-            if let CurveRegister::Prepared(curve) = value {
-                *curve = Arc::new(curve.detached_clone());
-            }
-        }
-        Self { values }
-    }
-
-    pub(crate) fn reserve_automation(
-        &mut self,
-        param_index: usize,
-        curve: &Curve,
-        mapping: &AutomationMapping,
-    ) {
-        let Some(value) = self.values.curve_mut(param_index) else {
-            return;
-        };
-        if let (CurveRegister::Prepared(value), AutomationMapping::Curve { .. }) = (value, mapping)
-        {
-            Arc::make_mut(value).reserve_window_capacity(curve.points.len());
-        }
     }
 
     pub fn bind<'a, P>(declarations: &[ParamDecl], params: P) -> Result<Self, RuntimeError>
@@ -830,7 +821,7 @@ pub struct VmWorkspace {
 }
 
 impl VmWorkspace {
-    pub fn for_program<C, S>(program: &BytecodeProgram<C, S>) -> Self {
+    pub fn for_program<C, S, A, B>(program: &BytecodeProgram<C, S, A, B>) -> Self {
         let mut workspace = Self::default();
         workspace.reserve(program);
         workspace
@@ -873,7 +864,7 @@ impl VmWorkspace {
         Some(bytes)
     }
 
-    pub fn reserve<C, S>(&mut self, bytecode: &BytecodeProgram<C, S>) {
+    pub fn reserve<C, S, A, B>(&mut self, bytecode: &BytecodeProgram<C, S, A, B>) {
         self.registers.reserve(bytecode.layout);
         self.reserve_arrays(bytecode);
         self.loop_remaining.resize(
@@ -882,7 +873,7 @@ impl VmWorkspace {
         );
     }
 
-    fn reserve_arrays<C, S>(&mut self, bytecode: &BytecodeProgram<C, S>) {
+    fn reserve_arrays<C, S, A, B>(&mut self, bytecode: &BytecodeProgram<C, S, A, B>) {
         if bytecode.array_capacity == 0 {
             return;
         }
@@ -923,6 +914,43 @@ impl core::fmt::Debug for ArrayStorage {
 }
 
 impl ArrayStorage {
+    /// Copy into the arena whose capacity was derived from all contributing
+    /// source arenas. Shared-node memoization preserves that capacity proof.
+    fn copy_admitted(&mut self, value: &ArrayRegister, arrays: &Self, parameters: &Self) -> usize {
+        let copied = match value {
+            ArrayRegister::Local(index) => self.copied_arrays[*index],
+            ArrayRegister::Parameter(index) => self.copied_parameters[*index],
+            _ => usize::MAX,
+        };
+        if copied != usize::MAX {
+            self.retain(&RuntimeValue::ArraySlot(copied));
+            return copied;
+        }
+        let view = value.view(arrays, parameters);
+        let slot = self.allocate(view.len());
+        for (index, value) in view.iter().enumerate() {
+            let value =
+                match value {
+                    RuntimeValue::ArraySlot(index) => RuntimeValue::ArraySlot(self.copy_admitted(
+                        &ArrayRegister::Local(index),
+                        arrays,
+                        parameters,
+                    )),
+                    RuntimeValue::ParameterArray(index) => RuntimeValue::ArraySlot(
+                        self.copy_admitted(&ArrayRegister::Parameter(index), arrays, parameters),
+                    ),
+                    value => value,
+                };
+            self.values[slot * self.width + index] = value;
+        }
+        match value {
+            ArrayRegister::Local(index) => self.copied_arrays[*index] = slot,
+            ArrayRegister::Parameter(index) => self.copied_parameters[*index] = slot,
+            _ => {}
+        }
+        slot
+    }
+
     fn copy_array(
         &mut self,
         value: &ArrayRegister,
@@ -1082,7 +1110,7 @@ impl VmRegisters {
         reserve(&mut self.gradients, layout.gradients as usize);
     }
 
-    fn prepare<C, S>(&mut self, bytecode: &BytecodeProgram<C, S>) {
+    fn prepare<C, S, A, B>(&mut self, bytecode: &BytecodeProgram<C, S, A, B>) {
         if self.ints.len() == bytecode.layout.ints as usize
             && self.floats.len() == bytecode.layout.floats as usize
             && self.bools.len() == bytecode.layout.bools as usize
@@ -1231,10 +1259,19 @@ mod workspace_capacity_tests {
         };
         let params = BoundParams::default();
         let mut workspace = VmWorkspace::for_program(&program);
+        let admitted = super::super::SampleProgram::admit(program.clone(), Box::new([])).unwrap();
         // Reusing the workspace must preserve the same values too.
         for _ in 0..2 {
-            let mut vm = Vm::new(&program, &params, &context, &mut workspace, None, 0);
-            assert_eq!(vm.run_color().unwrap(), color);
+            let mut vm = Vm::new(
+                admitted.bytecode(),
+                &params,
+                &context,
+                &TEST_SPATIAL_CONTEXT,
+                &mut workspace,
+                (),
+                0,
+            );
+            assert_eq!(vm.run::<Color>().unwrap(), color);
             assert_eq!(vm.workspace.registers.ints, ints);
             assert_eq!(vm.workspace.registers.bools, [false, true]);
             for (actual, expected) in vm.workspace.registers.floats.iter().zip(floats) {
@@ -1326,13 +1363,14 @@ mod workspace_capacity_tests {
             min: [-1.0, -2.0],
             max: [1.0, 2.0],
         };
-        let params = BoundParams::default();
-        let mut workspace = VmWorkspace::for_program(&program);
-        let mut vm = Vm::new(&program, &params, &context, &mut workspace, None, 0);
-        vm.spatial = Some(&spatial);
-        vm.run_color().unwrap();
+        let program = super::super::SampleProgram::admit(program, Box::new([])).unwrap();
+        let params = program
+            .bind(Vec::new(), &mut DslBindCache::default())
+            .unwrap();
+        let mut workspace = VmWorkspace::for_program(program.bytecode());
+        params.evaluate(&context, &spatial, &mut workspace);
         assert_eq!(
-            vm.workspace.registers.ints,
+            workspace.registers.ints,
             [context.pixel_index, context.pixel_count]
         );
         let expected = [
@@ -1349,7 +1387,7 @@ mod workspace_capacity_tests {
             spatial.max[0],
             spatial.max[1],
         ];
-        for (actual, expected) in vm.workspace.registers.floats.iter().zip(expected) {
+        for (actual, expected) in workspace.registers.floats.iter().zip(expected) {
             assert_eq!(actual.to_bits(), expected.to_bits());
         }
     }
@@ -1439,14 +1477,20 @@ mod workspace_capacity_tests {
     fn collection_countdown_does_not_narrow_to_the_visible_integer_index() {
         let program = BytecodeProgram {
             instructions: Box::new([
+                Instruction::LoadMarksConst {
+                    dst: MarksSlot(0),
+                    value: Arc::new(Marks {
+                        marks: vec![SampleDuration::from_ticks(0)],
+                    }),
+                },
                 Instruction::LoopMarksStart {
                     id: 0,
                     marks: MarksSlot(0),
-                    end: 3,
+                    end: 4,
                 },
                 Instruction::JumpIfTrue {
                     condition: BoolSlot(0),
-                    target: 4,
+                    target: 5,
                 },
                 Instruction::IntArithmetic {
                     dst: IntSlot(0),
@@ -1454,7 +1498,7 @@ mod workspace_capacity_tests {
                     left: IntSlot(0),
                     right: IntSlot(1),
                 },
-                Instruction::LoopEnd { id: 0, start: 1 },
+                Instruction::LoopEnd { id: 0, start: 2 },
                 Instruction::ReturnColor(ColorSlot(0)),
             ]),
             curves: Box::new([]),
@@ -1499,14 +1543,23 @@ mod workspace_capacity_tests {
         // Resume one loop tail with a native-sized countdown. The next body
         // returns immediately, so this needs neither billions of marks nor
         // billions of iterations to test the boundary.
+        let admitted = super::super::SampleProgram::admit(program.clone(), Box::new([])).unwrap();
         for remaining in [0, 1, 2, i32::MAX as usize + 2, usize::MAX] {
             let mut workspace = VmWorkspace::default();
             workspace.registers.prepare(&program);
             workspace.registers.ints.copy_from_slice(&[i32::MAX, 1]);
             workspace.registers.bools[0] = true;
             workspace.loop_remaining.push(remaining);
-            let mut vm = Vm::new(&program, &params, &context, &mut workspace, None, 2);
-            assert_eq!(vm.run_color().unwrap(), Color::BLACK);
+            let mut vm = Vm::new(
+                admitted.bytecode(),
+                &params,
+                &context,
+                &TEST_SPATIAL_CONTEXT,
+                &mut workspace,
+                (),
+                3,
+            );
+            assert_eq!(vm.run::<Color>().unwrap(), Color::BLACK);
             assert_eq!(vm.workspace.registers.ints[0], i32::MIN);
             assert_eq!(vm.workspace.loop_remaining[0], remaining.saturating_sub(1));
         }
@@ -1530,46 +1583,68 @@ fn bind_values(
     Ok(())
 }
 
-pub(super) fn run_sample_program(
-    bytecode: &BytecodeProgram,
+pub(super) fn evaluate_sample(
+    program: &BytecodeProgram<ContextRead, Infallible, ColorSlot, Infallible>,
     params: &BoundParams,
     context: &RunContext,
+    spatial: &SpatialContext,
     workspace: &mut VmWorkspace,
     entry: usize,
-) -> Result<Color, RuntimeError> {
-    run_spatial_sample_program(bytecode, params, context, workspace, entry, None)
-}
-
-pub(super) fn run_spatial_sample_program(
-    bytecode: &BytecodeProgram,
-    params: &BoundParams,
-    context: &RunContext,
-    workspace: &mut VmWorkspace,
-    entry: usize,
-    spatial: Option<&SpatialContext>,
-) -> Result<Color, RuntimeError> {
-    let mut vm = Vm::new(bytecode, params, context, workspace, None, entry);
-    vm.spatial = spatial;
-    vm.run_color()
+) -> Color {
+    let mut vm = Vm::new(program, params, context, spatial, workspace, (), entry);
+    match vm.run::<Color>() {
+        Ok(color) => color,
+        Err(never) => match never {},
+    }
 }
 
 pub(super) fn evaluate_calculation<O: super::calculation::CalculationOutput>(
-    program: &BytecodeProgram<CalculationRead, Infallible>,
+    program: &BytecodeProgram<CalculationRead, Infallible, Infallible>,
     results: &O::Slots,
     params: &BoundParams,
     context: &RunContext,
     workspace: &mut VmWorkspace,
 ) -> O {
-    let mut vm = Vm::new(program, params, context, workspace, None, 0);
-    match vm.run() {
+    let mut vm = Vm::new(program, params, context, &(), workspace, (), 0);
+    match vm.run::<()>() {
         Ok(_) => {}
         Err(never) => match never {},
     }
     O::read(&CalculationValues { vm: &vm }, results)
 }
 
+pub(super) fn evaluate_retained(
+    program: &BytecodeProgram<CalculationRead, Infallible, Infallible>,
+    transfer: &CalculationTransfer,
+    params: &BoundParams,
+    context: &RunContext,
+    workspace: &mut VmWorkspace,
+    output: &mut BoundParams,
+) {
+    output.clear_results();
+    let mut vm = Vm::new(program, params, context, &(), workspace, (), 0);
+    match vm.run::<()>() {
+        Ok(()) => transfer.apply(vm.workspace, params, output),
+        Err(never) => match never {},
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn evaluate_operator<E>(
+    program: &BytecodeProgram<ContextRead, super::operator::SignalAccess, ColorSlot, Infallible>,
+    params: &BoundParams,
+    context: &RunContext,
+    spatial: &SpatialContext,
+    sampler: &mut dyn SignalSampler<E>,
+    workspace: &mut VmWorkspace,
+    entry: usize,
+) -> Result<Color, E> {
+    let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
+    vm.run::<Color>()
+}
+
 pub struct CalculationValues<'a, 'b> {
-    vm: &'a Vm<'b, CalculationRead, Infallible>,
+    vm: &'a Vm<'b, CalculationRead, Infallible, Infallible, PoolSpan, ()>,
 }
 
 impl CalculationValues<'_, '_> {
@@ -1606,39 +1681,6 @@ impl CalculationValues<'_, '_> {
     }
 }
 
-pub(crate) fn run_operator(
-    operator: &CompiledOperator,
-    params: &BoundParams,
-    context: &OperatorRunContext,
-    sampler: &mut dyn SignalSampler,
-    workspace: &mut VmWorkspace,
-) -> Result<Color, RuntimeError> {
-    run_operator_program(
-        &operator.bytecode,
-        params,
-        context,
-        sampler,
-        workspace,
-        0,
-        None,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_operator_program(
-    bytecode: &BytecodeProgram,
-    params: &BoundParams,
-    context: &OperatorRunContext,
-    sampler: &mut dyn SignalSampler,
-    workspace: &mut VmWorkspace,
-    entry: usize,
-    spatial: Option<&SpatialContext>,
-) -> Result<Color, RuntimeError> {
-    let mut vm = Vm::new(bytecode, params, context, workspace, Some(sampler), entry);
-    vm.spatial = spatial;
-    vm.run_color()
-}
-
 #[derive(Clone, Debug)]
 enum RuntimeValue {
     Void,
@@ -1658,6 +1700,38 @@ enum RuntimeValue {
     /// Borrowed from the invocation's immutable parameter arena.
     ParameterArray(usize),
     Enum(Identifier),
+}
+
+// Return capabilities are selected at admission. Sample programs cannot contain
+// calculation returns, and calculations cannot contain sample returns.
+trait ColorReturn<R> {
+    fn finish(&self, registers: &VmRegisters) -> R;
+}
+
+impl ColorReturn<Color> for ColorSlot {
+    fn finish(&self, registers: &VmRegisters) -> Color {
+        registers.colors[self.0 as usize]
+    }
+}
+
+impl<R> ColorReturn<R> for Infallible {
+    fn finish(&self, _: &VmRegisters) -> R {
+        match *self {}
+    }
+}
+
+trait ValuesReturn<R> {
+    fn finish(&self) -> R;
+}
+
+impl ValuesReturn<()> for PoolSpan {
+    fn finish(&self) {}
+}
+
+impl<R> ValuesReturn<R> for Infallible {
+    fn finish(&self) -> R {
+        match *self {}
+    }
 }
 
 impl RuntimeValue {
@@ -1701,34 +1775,6 @@ fn clone_runtime(value: &RuntimeValue) -> RuntimeValue {
     }
 }
 
-pub(super) fn evaluate_bindings(
-    program: &BytecodeProgram,
-    params: &BoundParams,
-    context: &RunContext,
-    workspace: &mut VmWorkspace,
-    output: &mut BoundParams,
-    types: &[Type],
-) -> Result<(), RuntimeError> {
-    output.clear_results();
-    let mut vm = Vm::new(program, params, context, workspace, None, 0);
-    vm.run()?;
-    let arrays = &vm.workspace.arrays;
-    let parameter_arrays = &params.values.arrays;
-    let results = program
-        .calculation_outputs()
-        .ok_or_else(|| RuntimeError::new("program has no calculation outputs"))?;
-    if output.len() != types.len() || results.len() != types.len() {
-        return Err(RuntimeError::new(
-            "parameter calculation returned an invalid output count",
-        ));
-    }
-    output.values.arrays.begin_copy(arrays, parameter_arrays);
-    for (index, (ty, slot)) in types.iter().zip(results).enumerate() {
-        output.write_result(index, vm.value(*slot), ty, arrays, parameter_arrays)?;
-    }
-    Ok(())
-}
-
 fn parameter_array_value(value: &RuntimeValue) -> RuntimeValue {
     match value {
         RuntimeValue::ArraySlot(index) => RuntimeValue::ParameterArray(*index),
@@ -1763,17 +1809,17 @@ fn array_item(
         .ok_or_else(|| RuntimeError::new("array index out of bounds"))
 }
 
-struct Vm<'a, C = ContextRead, S = ()> {
-    bytecode: &'a BytecodeProgram<C, S>,
+struct Vm<'a, C: ReadContext, S, A, B, P> {
+    bytecode: &'a BytecodeProgram<C, S, A, B>,
     params: &'a BoundParams,
     context: &'a RunContext,
-    spatial: Option<&'a SpatialContext>,
+    spatial: &'a C::Spatial,
     workspace: &'a mut VmWorkspace,
     ip: usize,
-    signal_sampler: Option<&'a mut (dyn SignalSampler + 'a)>,
+    signal_sampler: P,
 }
 
-impl<C, S> Drop for Vm<'_, C, S> {
+impl<C: ReadContext, S, A, B, P> Drop for Vm<'_, C, S, A, B, P> {
     fn drop(&mut self) {
         // Local values must not keep parameter resources shared between invocations:
         // the next automation update needs exclusive access to its prepared curves.
@@ -1804,13 +1850,15 @@ impl<C, S> Drop for Vm<'_, C, S> {
     }
 }
 
-impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
+impl<'a, C: ReadContext, S: Copy, A, B, P: SampleSignal<S>> Vm<'a, C, S, A, B, P> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
-        bytecode: &'a BytecodeProgram<C, S>,
+        bytecode: &'a BytecodeProgram<C, S, A, B>,
         params: &'a BoundParams,
         context: &'a RunContext,
+        spatial: &'a C::Spatial,
         workspace: &'a mut VmWorkspace,
-        signal_sampler: Option<&'a mut (dyn SignalSampler + 'a)>,
+        signal_sampler: P,
         entry: usize,
     ) -> Self {
         // A nonzero entry resumes a frame's initialized program/workspace.
@@ -1833,14 +1881,18 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
             bytecode,
             params,
             context,
-            spatial: None,
+            spatial,
             workspace,
             ip: entry,
             signal_sampler,
         }
     }
 
-    fn run(&mut self) -> Result<RuntimeValue, C::Error> {
+    fn run<R>(&mut self) -> Result<R, P::Error>
+    where
+        A: ColorReturn<R>,
+        B: ValuesReturn<R>,
+    {
         loop {
             // Admission checks every control-flow edge and rejects fallthrough.
             let instruction = &self.bytecode.instructions[self.ip];
@@ -2026,10 +2078,8 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
                         SignalPixel::Global(index) => SignalPixel::Global(self.int(index)),
                     };
                     let color = match crate::values::sample_time_from_seconds_f32(seconds) {
-                        Ok(sample_time) => capability.sample(
-                            self.signal_sampler
-                                .as_mut()
-                                .map(|sampler| &mut **sampler as &mut dyn SignalSampler),
+                        Ok(sample_time) => self.signal_sampler.sample(
+                            *capability,
                             *input,
                             sample_time,
                             pixel,
@@ -2258,7 +2308,7 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
                     }
                 }
                 Instruction::ContextRead { dst, read } => {
-                    self.context_read(*dst, *read)?;
+                    self.context_read(*dst, *read);
                 }
                 Instruction::SectionPosition { dst, width } => {
                     let width = self.float(*width).max(1.0);
@@ -2587,8 +2637,10 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
                     };
                     self.set_target_items(dst, TargetRegister::Shared(Arc::new(value)));
                 }
-                Instruction::ReturnValues(_) => return Ok(RuntimeValue::Void),
-                Instruction::ReturnColor(src) => return Ok(RuntimeValue::Color(self.color(*src))),
+                Instruction::ReturnValues(value) => return Ok(value.finish()),
+                Instruction::ReturnColor(value) => {
+                    return Ok(value.finish(&self.workspace.registers));
+                }
             }
         }
     }
@@ -2851,12 +2903,11 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
         }
     }
 
-    fn context_read(&mut self, dst: NumberSlot, read: C) -> Result<(), C::Error> {
-        match read.read(self.context, self.spatial)? {
+    fn context_read(&mut self, dst: NumberSlot, read: C) {
+        match read.read(self.context, self.spatial) {
             context::Number::Int(value) => self.set_context_int(dst, value),
             context::Number::Float(value) => self.set_context_float(dst, value),
         }
-        Ok(())
     }
 
     fn set_context_float(&mut self, dst: NumberSlot, value: f32) {
@@ -2909,17 +2960,6 @@ impl<'a, C: ReadContext, S: SampleSignal<Error = C::Error>> Vm<'a, C, S> {
                 let right = self.value(right);
                 runtime_refs_equal(&left, &right)
             }
-        }
-    }
-}
-
-impl Vm<'_> {
-    fn run_color(&mut self) -> Result<Color, RuntimeError> {
-        match self.run()? {
-            RuntimeValue::Color(color) => Ok(color),
-            other => Err(RuntimeError::new(format!(
-                "`sample` returned non-color value {other:?}"
-            ))),
         }
     }
 }

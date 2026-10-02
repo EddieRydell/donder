@@ -1,14 +1,14 @@
 //! Host-prepared mark fixtures using the same editable effects as projects.
+use super::workload::Workload;
 use donder_language::dsl::{GeneratorBinding, GeneratorContext, GeneratorInput, compile_effects};
-use donder_runtime::dsl::{BoundParams, Identifier, TargetItemValue, TargetValue, Value};
-use donder_runtime::sequence::PreparedSequence;
-use donder_runtime::signal::*;
-use donder_runtime::values::{
+use donder_runtime::{BoundParams, Identifier, TargetItemValue, TargetValue, Value};
+use donder_runtime::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
+use donder_runtime::{PreparedEffect, PreparedEffectImplementation, PreparedTarget};
 
 #[allow(dead_code)] // Shared device-profile and host benchmark fixture.
-pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
+pub fn mark_show(count: usize, pulse: bool) -> Workload {
     let definitions = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
@@ -17,11 +17,11 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
     let child_name = if pulse { "Pulse" } else { "Chase" };
     let generator = definitions
         .iter()
-        .find(|definition| definition.effect.name.as_str() == generator_name)
+        .find(|definition| definition.effect.name().as_str() == generator_name)
         .unwrap();
     let child = definitions
         .iter()
-        .find(|definition| definition.effect.name.as_str() == child_name)
+        .find(|definition| definition.effect.name().as_str() == child_name)
         .unwrap();
     assert!(generator.emitted_references.iter().all(|emission| {
         emission.reference
@@ -31,7 +31,13 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
     }));
     let show = super::workload::show(
         count,
-        child.effect.sample_program().unwrap().clone(),
+        child
+            .effect
+            .sample_program()
+            .unwrap()
+            .clone()
+            .into_parts()
+            .0,
         BoundParams::default(),
     );
     let mut signals = show.signals().clone();
@@ -115,7 +121,8 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
             ),
         ]);
     }
-    let params = generator.effect.bind_params_pairs(&overrides).unwrap();
+    let params =
+        donder_runtime::BoundParams::bind_pairs(generator.effect.params(), &overrides).unwrap();
     let context = GeneratorContext {
         start_time: SampleTime::from_ticks(0),
         duration: signals.duration,
@@ -140,12 +147,12 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
                 .collect::<Vec<_>>(),
         )
         .unwrap()
-        .specialize(&context)
-        .unwrap();
+        .specialize(&context);
     // These fixtures supply fixed inputs and use no live clock expressions.
     assert!(generated.calculations.is_empty());
     assert!(generated.children.len() >= 32);
     let mut pixels = signals.target_pixels.to_vec();
+    let mut spatial_contexts = signals.spatial_contexts.to_vec();
     let mut targets = signals.targets.to_vec();
     signals.effects = generated
         .children
@@ -157,6 +164,25 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
             } else {
                 let index = targets.len();
                 let start = pixels.len();
+                // Each emitted section has its own spatial scope on the fixture line.
+                let positions = emission
+                    .target
+                    .pixels
+                    .iter()
+                    .map(|pixel| pixel.fixture_pixel_index as f32);
+                if let Some((min, max)) = positions
+                    .clone()
+                    .map(|position| (position, position))
+                    .reduce(|(min, max), (position, _)| (min.min(position), max.max(position)))
+                {
+                    spatial_contexts.extend(positions.map(|position| {
+                        donder_runtime::SpatialContext {
+                            position: [position, 0.0],
+                            min: [min, 0.0],
+                            max: [max, 0.0],
+                        }
+                    }));
+                }
                 pixels.extend_from_slice(&emission.target.pixels);
                 targets.push(PreparedTarget {
                     pixels: start..pixels.len(),
@@ -180,7 +206,11 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
                 target,
                 implementation: PreparedEffectImplementation::Dsl {
                     program: 0,
-                    bound_params: child.effect.bind_params_pairs(&params).unwrap(),
+                    bound_params: donder_runtime::BoundParams::bind_pairs(
+                        child.effect.params(),
+                        &params,
+                    )
+                    .unwrap(),
                 },
                 automation: None,
             }
@@ -188,6 +218,7 @@ pub fn mark_show(count: usize, pulse: bool) -> PreparedSequence {
         .collect();
     signals.targets = targets.into();
     signals.target_pixels = pixels.into();
+    signals.spatial_contexts = spatial_contexts.into();
     signals.effects_by_layer = vec![(0..signals.effects.len()).collect()].into();
-    PreparedSequence::new(signals, show.patch().clone(), show.outputs().into())
+    Workload::new(signals, show.patch().clone(), show.outputs().into())
 }

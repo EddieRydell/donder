@@ -201,14 +201,7 @@ impl Checker {
                 ),
             );
         }
-        let mut item_type = &param.ty;
-        while let Type::Array(inner) = item_type {
-            item_type = inner;
-        }
-        if matches!(
-            item_type,
-            Type::Signal | Type::Timeline | Type::Target | Type::TargetItems | Type::TargetItem
-        ) {
+        if param.ty.is_context_only() {
             self.error(
                 TextSpan { start: 0, end: 0 },
                 format!(
@@ -399,7 +392,7 @@ impl Checker {
                 self.require_assignable(&Type::Int, &count.ty, count.span);
                 let cap = self.check_expr(cap, env, Some(&Type::Int));
                 self.require_assignable(&Type::Int, &cap.ty, cap.span);
-                if !matches!(&cap.kind, CheckedExprKind::Literal(Value::Int(value)) if *value > 0 && (*value as usize) <= donder_runtime::dsl::MAX_DSL_LOOP_ITERATIONS)
+                if !matches!(&cap.kind, CheckedExprKind::Literal(Value::Int(value)) if *value > 0 && (*value as usize) <= donder_runtime::MAX_DSL_LOOP_ITERATIONS)
                 {
                     self.error(
                         cap.span,

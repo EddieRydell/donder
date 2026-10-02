@@ -129,14 +129,14 @@ fn yaml_and_dsl_grouped_declarations_have_identical_ordered_targets() {
         );
         let definition = session
             .project
-            .definitions
+            .definitions()
             .effects
             .definitions
             .values()
             .find(|definition| definition.source_name == "MarkImpactBurst")
             .unwrap();
         assert!(
-            matches!(&definition.generated_effect_targets[0], EffectRef::Custom(id) if id.0.document() == CHILD)
+            matches!(&definition.generated_effect_targets()[0], EffectRef::Custom(id) if id.0.document() == CHILD)
         );
     }
 }
@@ -399,13 +399,13 @@ fn linked_target_slots_include_local_and_imported_children_in_source_order() {
         let session = report.session.unwrap();
         let definition = session
             .project
-            .definitions
+            .definitions()
             .effects
             .definitions
             .values()
             .find(|definition| definition.source_name == "MarkImpactBurst")
             .unwrap();
-        let targets = &definition.generated_effect_targets;
+        let targets = definition.generated_effect_targets();
         assert_eq!(targets.len(), 4);
         assert!(
             matches!(&targets[0], EffectRef::Custom(id) if id.0.document() == GENERATOR && id.0.object() == "Local")
@@ -423,7 +423,7 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
     let mut session = donder_project_io::load_project(&root()).unwrap();
     let module = session.source.project_module_id();
     let from = DocumentId::new(module, GENERATOR.into());
-    let definitions = &session.project.definitions.effects.definitions;
+    let definitions = &session.project.definitions().effects.definitions;
     let own = definitions
         .keys()
         .find(|id| id.0.document_id() == &from)
@@ -470,7 +470,7 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
     assert_eq!(session.source.documents[&from].imports().len(), count + 1);
     let another = session
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()

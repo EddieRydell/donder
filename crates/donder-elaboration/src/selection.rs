@@ -3,21 +3,29 @@
 use crate::PrepareOutputs;
 use donder_language::controller::{ControllerId, ControllerPort};
 use donder_language::layout::Layout;
-use donder_language::model::DonderProject;
+use donder_language::model::{AcceptedSequence, DonderProject};
 use donder_language::patch::Patch;
-use donder_language::sequence::{Sequence, SequenceId};
+use donder_language::sequence::SequenceId;
 use indexmap::IndexSet;
 
 pub(crate) struct SelectedPort<'a> {
-    pub(crate) controller_index: usize,
+    pub(crate) controller_index: u32,
     pub(crate) controller: &'a ControllerId,
     pub(crate) port: &'a ControllerPort,
 }
 
 pub(crate) struct Selection<'a> {
-    pub(crate) sequence: &'a Sequence,
+    pub(crate) sequence: AcceptedSequence<'a>,
     pub(crate) layout: &'a Layout,
+    pub(crate) geometry: &'a [(
+        donder_language::layout::FixtureInstanceId,
+        donder_runtime::FixtureGeometry,
+    )],
     pub(crate) patch: &'a Patch,
+    pub(crate) encodings: &'a indexmap::IndexMap<
+        donder_language::patch::PixelRouteId,
+        donder_runtime::OutputEncoding,
+    >,
     pub(crate) ports: Vec<SelectedPort<'a>>,
 }
 
@@ -26,10 +34,13 @@ pub(crate) fn resolve<'a>(
     sequence: &SequenceId,
     outputs: PrepareOutputs<'_>,
 ) -> Option<Selection<'a>> {
-    let sequence = project.sequence(sequence)?;
-    let setup = project.setup(project.root.setup.id())?;
+    let accepted = project.accepted_sequence(sequence)?;
+    let sequence = accepted.sequence();
+    let setup = project.setup(project.root().setup.id())?;
     let layout = project.layout(setup.layout.id())?;
+    let geometry = project.playback_geometry(&layout.id)?;
     let patch = project.patch(setup.patch.id())?;
+    let encodings = project.playback_patch_encodings(&patch.id)?;
     // Reusable sequences may belong to another layout. They remain authorable,
     // but cannot be played against this project's active setup.
     if sequence
@@ -46,12 +57,18 @@ pub(crate) fn resolve<'a>(
     let controllers = setup
         .controllers
         .iter()
-        .map(|source| project.controller(source.id()))
+        .enumerate()
+        .map(|(index, source)| {
+            // Project admission proves every setup controller index fits u32.
+            project
+                .controller(source.id())
+                .map(|controller| (index as u32, controller))
+        })
         .collect::<Option<Vec<_>>>()?;
     let mut ports = Vec::new();
     match outputs {
         PrepareOutputs::All => {
-            for (controller_index, controller) in controllers.into_iter().enumerate() {
+            for (controller_index, controller) in controllers {
                 ports.extend(controller.ports.iter().map(|port| SelectedPort {
                     controller_index,
                     controller: &controller.id,
@@ -67,7 +84,7 @@ pub(crate) fn resolve<'a>(
                 }
                 let (controller_index, controller) = controllers
                     .iter()
-                    .enumerate()
+                    .copied()
                     .find(|(_, controller)| &controller.id == id)?;
                 ports.extend(controller.ports.iter().map(|port| SelectedPort {
                     controller_index,
@@ -84,7 +101,7 @@ pub(crate) fn resolve<'a>(
                 }
                 let (controller_index, controller) = controllers
                     .iter()
-                    .enumerate()
+                    .copied()
                     .find(|(_, controller)| &controller.id == id)?;
                 let port = controller.ports.iter().find(|port| port.id == *port_id)?;
                 ports.push(SelectedPort {
@@ -96,9 +113,11 @@ pub(crate) fn resolve<'a>(
         }
     }
     Some(Selection {
-        sequence,
+        sequence: accepted,
         layout,
+        geometry,
         patch,
+        encodings,
         ports,
     })
 }
@@ -114,7 +133,7 @@ mod tests {
         donder_project_io::load_project(&path).unwrap().project
     }
 
-    fn addresses(selection: &Selection<'_>) -> Vec<(usize, u32)> {
+    fn addresses(selection: &Selection<'_>) -> Vec<(u32, u32)> {
         selection
             .ports
             .iter()
@@ -125,8 +144,8 @@ mod tests {
     #[test]
     fn controller_selection_preserves_requested_order_and_original_indices() {
         let project = starter();
-        let sequence = project.root.sequences[0].id();
-        let setup = project.setup(project.root.setup.id()).unwrap();
+        let sequence = project.root().sequences[0].id();
+        let setup = project.setup(project.root().setup.id()).unwrap();
         let mut controllers = setup
             .controllers
             .iter()
@@ -143,6 +162,7 @@ mod tests {
         let all = resolve(&project, sequence, PrepareOutputs::All).unwrap();
         let expected = (0..setup.controllers.len())
             .rev()
+            .map(|index| index as u32)
             .flat_map(|index| {
                 all.ports
                     .iter()
@@ -156,7 +176,7 @@ mod tests {
     #[test]
     fn port_selection_is_a_stable_set_and_unknown_ports_reject_the_whole_selection() {
         let project = starter();
-        let sequence = project.root.sequences[0].id();
+        let sequence = project.root().sequences[0].id();
         let all = resolve(&project, sequence, PrepareOutputs::All).unwrap();
         let first = &all.ports[0];
         let last = all.ports.last().unwrap();
@@ -180,8 +200,8 @@ mod tests {
     #[test]
     fn an_unknown_controller_is_not_silently_omitted() {
         let project = starter();
-        let sequence = project.root.sequences[0].id();
-        let setup = project.setup(project.root.setup.id()).unwrap();
+        let sequence = project.root().sequences[0].id();
+        let setup = project.setup(project.root().setup.id()).unwrap();
         let first = setup.controllers[0].id();
         let missing = ControllerId(
             SourceIdentity::from_document(
@@ -203,7 +223,7 @@ mod tests {
     #[test]
     fn empty_output_lists_are_valid_but_absent_sequences_are_not_selected() {
         let mut project = starter();
-        let sequence = project.root.sequences[0].id().clone();
+        let sequence = project.root().sequences[0].id().clone();
         for outputs in [PrepareOutputs::Controllers(&[]), PrepareOutputs::Ports(&[])] {
             assert!(
                 resolve(&project, &sequence, outputs)
@@ -212,8 +232,16 @@ mod tests {
                     .is_empty()
             );
         }
-        project.root.sequences.clear();
-        project.sequences.clear();
+        let mut root = project.root().clone();
+        root.sequences.clear();
+        let mut edits = project
+            .reusable_sequences()
+            .keys()
+            .cloned()
+            .map(donder_language::model::ProjectEdit::RemoveSequence)
+            .collect::<Vec<_>>();
+        edits.push(donder_language::model::ProjectEdit::ReplaceRoot(root));
+        project.apply_edits(edits).unwrap();
         assert!(resolve(&project, &sequence, PrepareOutputs::All).is_none());
     }
 }

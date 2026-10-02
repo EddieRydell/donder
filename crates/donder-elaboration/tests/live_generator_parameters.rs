@@ -1,3 +1,9 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare as prepare_sequence};
 use donder_language::dsl::{Identifier, RunContext, VmWorkspace, compile_effects};
@@ -8,8 +14,8 @@ use donder_language::sequence::{
 use donder_language::values::{
     Curve, CurvePoint, DonderDuration, DonderTime, SampleDuration, SampleTime,
 };
-use donder_runtime::signal::PreparedEffectImplementation;
-use donder_runtime::wire::{LoadLimits, decode_sequence, encode_sequence};
+use donder_runtime::PreparedEffectImplementation;
+use donder_runtime::{LoadLimits, decode_sequence, encode_sequence};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::time::Duration;
@@ -26,7 +32,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequence {
     let mut session = report.session.unwrap();
     let generator = session
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()
@@ -35,18 +41,18 @@ fn prepare(source: &str, automated: bool) -> PreparedSequence {
         .clone();
     let declarations = session
         .project
-        .definitions
+        .definitions()
         .effects
         .get(&generator)
         .unwrap()
-        .params
-        .clone();
-    let sequence = session
+        .params()
+        .to_vec();
+    let mut sequence = session
         .project
-        .sequences
-        .values_mut()
+        .sequences()
         .find(|sequence| !sequence.effects.is_empty())
-        .unwrap();
+        .unwrap()
+        .clone();
     sequence.effects.truncate(1);
     sequence.automation_clips.clear();
     let effect = &mut sequence.effects[0];
@@ -80,7 +86,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequence {
                 GradientSource::Inline(donder_language::values::Gradient {
                     stops: vec![donder_language::values::GradientStop {
                         position: 0.0,
-                        color: donder_runtime::sampling::hsv(0.3, 1.0, 1.0),
+                        color: donder_runtime::hsv(0.3, 1.0, 1.0),
                     }],
                 }),
             ),
@@ -119,6 +125,7 @@ fn prepare(source: &str, automated: bool) -> PreparedSequence {
         });
     }
     let id = sequence.id.clone();
+    session.project.replace_sequence(&id, sequence).unwrap();
     prepare_sequence(&session.project, &id, PrepareOutputs::All).unwrap()
 }
 
@@ -139,10 +146,10 @@ fn generated_children_outside_the_sequence_are_omitted_before_wire_admission() {
         effect Leaf { color sample() { return #ff0000; } }",
         false,
     );
-    assert!(!prepared.signals().effects.is_empty());
+    assert!(!prepared.to_raw_signals().effects.is_empty());
     assert_eq!(
-        prepared.signals().effects.len(),
-        valid_only.signals().effects.len()
+        prepared.to_raw_signals().effects.len(),
+        valid_only.to_raw_signals().effects.len()
     );
     let bytes = encode_sequence(&prepared).unwrap();
     assert!(decode_sequence(&bytes, LoadLimits::default()).is_ok());
@@ -172,7 +179,7 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
     "#,
         true,
     );
-    let signal = &prepared.signals();
+    let signal = prepared.to_raw_signals();
     assert!(!signal.parameter_environments.is_empty());
     assert!(signal.effects.iter().all(|effect| matches!(
         effect.implementation,
@@ -189,40 +196,64 @@ fn nested_expressions_keep_parent_clocks_after_parent_lifetimes_and_across_wire_
     )
     .unwrap();
     let reference = compile_effects("effect Reference { color sample() { return rgb((seconds() + 0.5) / 4.0 + min(seconds() + 0.5, 1.0) * 0.25 + (seconds() + 0.25) / 4.0, seconds() / 4.0, progress()); } }").unwrap().remove(0).effect;
-    let params = reference.bind_params_pairs(&[]).unwrap();
-    let mut workspace = signal.workspace().unwrap();
-    let mut decoded_workspace = decoded.signals().workspace().unwrap();
+    let params = reference
+        .bind(
+            [].iter().map(|(name, value)| (name, value)),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
+    let mut workspace = donder_runtime::PreparedSequence::admit(
+        signal.clone(),
+        donder_runtime::PreparedPatch {
+            routes: Box::new([]),
+            lookups: Box::new([]),
+        },
+        Box::new([]),
+    )
+    .unwrap()
+    .into_playback();
+    let mut decoded_workspace = donder_runtime::PreparedSequence::admit(
+        decoded.to_raw_signals(),
+        donder_runtime::PreparedPatch {
+            routes: Box::new([]),
+            lookups: Box::new([]),
+        },
+        Box::new([]),
+    )
+    .unwrap()
+    .into_playback();
     for tick in [1_500_000, 1_750_000, 2_500_000, 1_500_000, 3_000_000] {
         let time = SampleTime::from_ticks(tick);
-        let actual = signal.evaluate(time, &mut workspace).unwrap().to_vec();
+        let actual = workspace.evaluate(time).colors().to_vec();
         assert_eq!(
             actual,
-            signal
-                .evaluate(time, &mut signal.workspace().unwrap())
-                .unwrap()
-        );
-        assert_eq!(
-            actual,
-            decoded
-                .signals()
-                .evaluate(time, &mut decoded_workspace)
-                .unwrap()
-        );
-        let elapsed = tick - 1_500_000;
-        let expected = reference
-            .sample_bound(
-                &params,
-                &RunContext {
-                    progress: elapsed as f32 / 2_000_000.0,
-                    time: SampleDuration::from_ticks(elapsed),
-                    duration: SampleDuration::from_ticks(2_000_000),
-                    pixel_index: 0,
-                    pixel_count: 1,
-                    pixel_fraction: 0.0,
+            donder_runtime::PreparedSequence::admit(
+                signal.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([])
                 },
-                &mut VmWorkspace::default(),
+                Box::new([])
             )
-            .unwrap();
+            .unwrap()
+            .into_playback()
+            .evaluate(time)
+            .colors()
+        );
+        assert_eq!(actual, decoded_workspace.evaluate(time).colors());
+        let elapsed = tick - 1_500_000;
+        let expected = params.evaluate(
+            &RunContext {
+                progress: elapsed as f32 / 2_000_000.0,
+                time: SampleDuration::from_ticks(elapsed),
+                duration: SampleDuration::from_ticks(2_000_000),
+                pixel_index: 0,
+                pixel_count: 1,
+                pixel_fraction: 0.0,
+            },
+            &SPATIAL,
+            &mut VmWorkspace::default(),
+        );
         assert!(
             actual.contains(&expected),
             "time {tick}: expected {expected:?}, first {:?}",
@@ -237,19 +268,25 @@ fn unchanged_constant_generator_keeps_static_playback_path() {
         "effect MarkImpactBurst { param float level = 0.2; void generate() { timeline.emit Leaf { start: 0.0, duration: 1.0, target: target, value: level * 0.5 }; } } effect Leaf { param float value; color sample() { return rgb(value, value, value); } }",
         false,
     );
-    assert!(prepared.signals().parameter_environments.is_empty());
-    assert!(prepared.signals().effects.iter().all(|effect| matches!(
-        effect.implementation,
-        PreparedEffectImplementation::Dsl { .. }
-    )));
+    assert!(prepared.to_raw_signals().parameter_environments.is_empty());
+    assert!(
+        prepared
+            .to_raw_signals()
+            .effects
+            .iter()
+            .all(|effect| matches!(
+                effect.implementation,
+                PreparedEffectImplementation::Dsl { .. }
+            ))
+    );
 }
 
 fn query_graph(
-    base: &donder_runtime::signal::PreparedSignalGraph,
+    base: &donder_runtime::PreparedSignalGraph,
     expression: &str,
     cached: bool,
-) -> donder_runtime::signal::PreparedSignalGraph {
-    use donder_runtime::signal::{
+) -> donder_runtime::PreparedSignalGraph {
+    use donder_runtime::{
         PreparedOperator, PreparedOperatorNode, PreparedSignalKind, PreparedSignalNode,
     };
     let mut graph = base.clone();
@@ -258,13 +295,13 @@ fn query_graph(
     ))
     .unwrap()
     .remove(0)
-    .bytecode;
+    .program()
+    .clone()
+    .into_parts()
+    .0;
     if !cached {
         for instruction in &mut operator.instructions {
-            if let donder_runtime::dsl::bytecode::Instruction::SignalSample {
-                frame_cache, ..
-            } = instruction
-            {
+            if let donder_runtime::Instruction::SignalSample { frame_cache, .. } = instruction {
                 *frame_cache = u32::MAX;
             }
         }
@@ -302,7 +339,7 @@ fn temporal_and_spatial_queries_share_live_bindings_in_recursive_frames_and_pixe
         "effect MarkImpactBurst { param float level = 0.2; void generate() { timeline.emit Leaf { start: 0.0, duration: 3.0, target: target, value: level * 0.5 + seconds() * 0.1 }; } } effect Leaf { param float value; color sample() { return rgb(value, pixel_fraction() * 0.5, progress()); } }",
         true,
     );
-    let base = &prepared.signals();
+    let base = &prepared.to_raw_signals();
     for expression in [
         "source.at(seconds() - 0.125)",
         "max(source.at(seconds()), source.at(seconds() - 0.125))",
@@ -310,19 +347,46 @@ fn temporal_and_spatial_queries_share_live_bindings_in_recursive_frames_and_pixe
     ] {
         let framed = query_graph(base, expression, true);
         let scalar = query_graph(base, expression, false);
-        let mut frames = framed.workspace().unwrap();
-        let mut pixels = scalar.workspace().unwrap();
+        let mut frames = donder_runtime::PreparedSequence::admit(
+            framed.clone(),
+            donder_runtime::PreparedPatch {
+                routes: Box::new([]),
+                lookups: Box::new([]),
+            },
+            Box::new([]),
+        )
+        .unwrap()
+        .into_playback();
+        let mut pixels = donder_runtime::PreparedSequence::admit(
+            scalar.clone(),
+            donder_runtime::PreparedPatch {
+                routes: Box::new([]),
+                lookups: Box::new([]),
+            },
+            Box::new([]),
+        )
+        .unwrap()
+        .into_playback();
         for tick in [1_250_000, 1_750_000, 2_500_000, 1_250_000] {
             let time = SampleTime::from_ticks(tick);
-            let actual = framed.evaluate(time, &mut frames).unwrap();
-            let expected = scalar.evaluate(time, &mut pixels).unwrap();
+            let actual = frames.evaluate(time).colors();
+            let expected = pixels.evaluate(time).colors();
             for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
                 assert_eq!(actual, expected, "{expression} at {tick} pixel {index}");
             }
-            let fresh = framed
-                .evaluate(time, &mut framed.workspace().unwrap())
-                .unwrap()
-                .to_vec();
+            let fresh = donder_runtime::PreparedSequence::admit(
+                framed.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback()
+            .evaluate(time)
+            .colors()
+            .to_vec();
             assert!(actual.iter().eq(fresh.iter()));
         }
     }
@@ -404,24 +468,30 @@ fn generator_workloads_match_ordinary_samples_and_allocate_nothing_during_playba
                     reference.signals().effects.len()
                 );
                 assert_eq!(show.signals().parameter_environments.is_empty(), !automated);
-                let mut workspace = show.workspace().unwrap();
-                let mut reference_workspace = reference.workspace().unwrap();
+                let mut workspace = show.clone().prepare().unwrap().into_playback();
+                let mut reference_workspace = reference.clone().prepare().unwrap().into_playback();
                 let mut buffers = show
                     .outputs()
                     .iter()
-                    .map(|output| vec![0u8; output.width as usize])
+                    .map(|output| vec![0u8; output.width])
                     .collect::<Vec<_>>();
                 let mut expected = buffers.clone();
                 for frame in [0, 1, 31, 12, 0] {
                     let time = workload::time(frame);
-                    reference
-                        .evaluate(time, &mut expected, &mut reference_workspace)
-                        .unwrap();
+                    for (snapshot, output) in expected
+                        .iter_mut()
+                        .zip(reference_workspace.evaluate(time).outputs())
+                    {
+                        snapshot.copy_from_slice(output.bytes);
+                    }
                     ALLOCATIONS.set(0);
                     COUNTING.set(true);
-                    let result = show.evaluate(time, &mut buffers, &mut workspace);
+                    for (snapshot, output) in
+                        buffers.iter_mut().zip(workspace.evaluate(time).outputs())
+                    {
+                        snapshot.copy_from_slice(output.bytes);
+                    }
                     COUNTING.set(false);
-                    result.unwrap();
                     assert_eq!(
                         ALLOCATIONS.get(),
                         0,
@@ -448,18 +518,35 @@ fn alternating_query_times_keep_forwarded_curves_current_without_allocations() {
         let reference = generator_workload::show(200, case, false, true);
         for cached in [true, false] {
             let expression = "max(source.at(seconds()), source.at(seconds() - 0.125))";
-            let graph = query_graph(&show.signals(), expression, cached);
-            let reference = query_graph(&reference.signals(), expression, cached);
-            let mut workspace = graph.workspace().unwrap();
-            let mut reference_workspace = reference.workspace().unwrap();
+            let graph = query_graph(show.signals(), expression, cached);
+            let reference = query_graph(reference.signals(), expression, cached);
+            let mut workspace = donder_runtime::PreparedSequence::admit(
+                graph.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback();
+            let mut reference_workspace = donder_runtime::PreparedSequence::admit(
+                reference.clone(),
+                donder_runtime::PreparedPatch {
+                    routes: Box::new([]),
+                    lookups: Box::new([]),
+                },
+                Box::new([]),
+            )
+            .unwrap()
+            .into_playback();
             for frame in [0, 31, 12, 0] {
                 let time = workload::time(frame);
-                let expected = reference.evaluate(time, &mut reference_workspace).unwrap();
+                let expected = reference_workspace.evaluate(time).colors();
                 ALLOCATIONS.set(0);
                 COUNTING.set(true);
-                let actual = graph.evaluate(time, &mut workspace);
+                let actual = workspace.evaluate(time).colors();
                 COUNTING.set(false);
-                let actual = actual.unwrap();
                 assert_eq!(
                     ALLOCATIONS.get(),
                     0,
@@ -475,8 +562,8 @@ fn alternating_query_times_keep_forwarded_curves_current_without_allocations() {
 }
 
 #[test]
-fn wire_rejects_malformed_environment_bindings_before_workspace_creation() {
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_malformed_environment_bindings_before_workspace_creation() {
+    use donder_runtime::LoadError;
     enum Invalid {
         SourceEnvironment,
         SourceSlot,
@@ -516,17 +603,14 @@ fn wire_rejects_malformed_environment_bindings_before_workspace_creation() {
                 *environment = usize::MAX;
             }
         }
-        let bytes = encode_modified(&show, signals.clone());
-        assert!(matches!(
-            decode_sequence(&bytes, LoadLimits::default()),
-            Err(LoadError::InvalidSequence)
-        ));
+        let admitted = admit_modified(signals.clone(), show.patch(), show.outputs());
+        assert!(matches!(admitted, Err(LoadError::InvalidSequence)));
     }
 }
 
 #[test]
-fn wire_rejects_automation_that_would_fail_during_playback() {
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_automation_that_would_fail_during_playback() {
+    use donder_runtime::LoadError;
 
     for generator in [false, true] {
         for mapping in [
@@ -557,12 +641,9 @@ fn wire_rejects_automation_that_would_fail_during_playback() {
                     .expect("sample automation")
             };
             binding.mapping = mapping.clone();
-            let bytes = encode_modified(&show, signals.clone());
+            let admitted = admit_modified(signals.clone(), show.patch(), show.outputs());
             assert!(
-                matches!(
-                    decode_sequence(&bytes, LoadLimits::default()),
-                    Err(LoadError::InvalidSequence)
-                ),
+                matches!(admitted, Err(LoadError::InvalidSequence)),
                 "generator={generator} mapping={mapping:?}"
             );
         }
@@ -570,10 +651,10 @@ fn wire_rejects_automation_that_would_fail_during_playback() {
 }
 
 #[test]
-fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
-    use donder_runtime::dsl::BoundParams;
-    use donder_runtime::signal::{PreparedAutomation, PreparedSignalKind};
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_operator_automation_with_the_wrong_parameter_type() {
+    use donder_runtime::BoundParams;
+    use donder_runtime::LoadError;
+    use donder_runtime::{PreparedAutomation, PreparedSignalKind};
     use std::sync::Arc;
 
     let show = generator_workload::show(8, generator_workload::Case::Forward, false, false);
@@ -584,7 +665,7 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
     )
     .unwrap()
     .remove(0);
-    *signals.programs.last_mut().unwrap() = compiled.bytecode;
+    *signals.programs.last_mut().unwrap() = compiled.program().clone().into_parts().0;
     {
         let PreparedSignalKind::Operator {
             operator,
@@ -594,7 +675,7 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
         else {
             panic!("query node is an operator")
         };
-        operator.params = BoundParams::bind_pairs(&compiled.params, &[]).unwrap();
+        operator.params = BoundParams::bind_pairs(compiled.params(), &[]).unwrap();
         *automation = vec![PreparedAutomation {
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(1_000_000),
@@ -615,13 +696,7 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
         }]
         .into();
     }
-    assert!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        )
-        .is_ok()
-    );
+    assert!(admit_modified(signals.clone(), show.patch(), show.outputs()).is_ok());
 
     let PreparedSignalKind::Operator { automation, .. } =
         &mut signals.plan.nodes.last_mut().unwrap().kind
@@ -630,23 +705,20 @@ fn wire_rejects_operator_automation_with_the_wrong_parameter_type() {
     };
     automation[0].mapping = AutomationMapping::Bool;
     assert!(matches!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        ),
+        admit_modified(signals.clone(), show.patch(), show.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
 #[test]
-fn wire_rejects_undersized_retained_array_arena() {
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_undersized_retained_array_arena() {
+    use donder_runtime::LoadError;
 
     let prepared = prepare(
         "effect MarkImpactBurst { void generate() { timeline.emit Leaf { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } } effect Leaf { param array<array<float>> values; color sample() { return rgb(values[0][0], 0.0, 0.0); } }",
         false,
     );
-    let mut signals = prepared.signals().clone();
+    let mut signals = prepared.to_raw_signals();
     let environment = signals
         .parameter_environments
         .iter_mut()
@@ -654,15 +726,15 @@ fn wire_rejects_undersized_retained_array_arena() {
         .expect("calculated nested arrays require a retained arena");
     environment.array_capacity -= 1;
     assert!(matches!(
-        decode_sequence(&encode_modified(&prepared, signals), LoadLimits::default()),
+        admit_modified(signals, prepared.patch(), prepared.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
 #[test]
-fn wire_rejects_malformed_retained_calculation_bytecode() {
-    use donder_runtime::dsl::bytecode::{ColorSlot, Instruction};
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_malformed_retained_calculation_bytecode() {
+    use donder_runtime::LoadError;
+    use donder_runtime::{ColorSlot, Instruction};
 
     let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
     let mut signals = show.signals().clone();
@@ -674,18 +746,15 @@ fn wire_rejects_malformed_retained_calculation_bytecode() {
     calculation.program.instructions[0] = Instruction::ReturnColor(ColorSlot(u32::MAX));
 
     assert!(matches!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        ),
+        admit_modified(signals.clone(), show.patch(), show.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
 #[test]
-fn wire_rejects_retained_calculation_with_invalid_parameter_read() {
-    use donder_runtime::dsl::bytecode::Instruction;
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_retained_calculation_with_invalid_parameter_read() {
+    use donder_runtime::Instruction;
+    use donder_runtime::LoadError;
 
     let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
     let mut signals = show.signals().clone();
@@ -706,18 +775,15 @@ fn wire_rejects_retained_calculation_with_invalid_parameter_read() {
     *param = usize::MAX;
 
     assert!(matches!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        ),
+        admit_modified(signals.clone(), show.patch(), show.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
 #[test]
-fn wire_rejects_retained_calculation_with_mismatched_tuple_type() {
+fn admission_rejects_retained_calculation_with_mismatched_tuple_type() {
     use donder_language::dsl::Type;
-    use donder_runtime::wire::LoadError;
+    use donder_runtime::LoadError;
 
     let show = generator_workload::show(8, generator_workload::Case::Derived, true, true);
     let mut signals = show.signals().clone();
@@ -737,18 +803,15 @@ fn wire_rejects_retained_calculation_with_mismatched_tuple_type() {
     };
 
     assert!(matches!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        ),
+        admit_modified(signals.clone(), show.patch(), show.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
 #[test]
-fn wire_rejects_sample_program_with_invalid_parameter_read() {
-    use donder_runtime::dsl::bytecode::Instruction;
-    use donder_runtime::wire::LoadError;
+fn admission_rejects_sample_program_with_invalid_parameter_read() {
+    use donder_runtime::Instruction;
+    use donder_runtime::LoadError;
 
     let show = generator_workload::show(8, generator_workload::Case::Derived, false, false);
     let mut signals = show.signals().clone();
@@ -756,7 +819,7 @@ fn wire_rejects_sample_program_with_invalid_parameter_read() {
         .effects
         .iter()
         .find_map(|effect| match &effect.implementation {
-            PreparedEffectImplementation::Dsl { program, .. } => Some(*program as usize),
+            PreparedEffectImplementation::Dsl { program, .. } => Some(*program),
             _ => None,
         })
         .expect("ordinary effect has a sample program");
@@ -771,23 +834,16 @@ fn wire_rejects_sample_program_with_invalid_parameter_read() {
     *param = usize::MAX;
 
     assert!(matches!(
-        decode_sequence(
-            &encode_modified(&show, signals.clone()),
-            LoadLimits::default()
-        ),
+        admit_modified(signals.clone(), show.patch(), show.outputs()),
         Err(LoadError::InvalidSequence)
     ));
 }
 
-// Malformed-wire tests edit the construction data, never an admitted sequence.
-fn encode_modified(
-    original: &PreparedSequence,
-    signals: donder_runtime::signal::PreparedSignalGraph,
-) -> Vec<u8> {
-    encode_sequence(&PreparedSequence::new(
-        signals,
-        original.patch().clone(),
-        original.outputs().to_vec().into(),
-    ))
-    .unwrap()
+// Malformed fixtures are rejected before becoming admitted sequences.
+fn admit_modified(
+    signals: donder_runtime::PreparedSignalGraph,
+    patch: &donder_runtime::PreparedPatch,
+    outputs: &[donder_runtime::PreparedOutput],
+) -> Result<PreparedSequence, donder_runtime::LoadError> {
+    PreparedSequence::admit(signals, patch.clone(), outputs.into())
 }

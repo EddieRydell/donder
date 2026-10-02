@@ -20,9 +20,9 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
             references.entry(from.clone()).or_default().insert(target);
         }
     };
-    let owner = project.root.id.0.document_id();
-    add(owner, project.root.setup.id().0.clone());
-    for source in &project.root.sequences {
+    let owner = project.root().id.0.document_id();
+    add(owner, project.root().setup.id().0.clone());
+    for source in &project.root().sequences {
         add(owner, source.id().0.clone());
     }
     for setup in project.setups() {

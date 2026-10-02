@@ -1,5 +1,6 @@
-use donder_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
-use donder_runtime::values::Color;
+use super::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
+use crate::values::Color;
+use alloc::{vec, vec::Vec};
 
 #[test]
 fn rgbw_extraction_channel_order_and_lookup_are_applied_exactly() {
@@ -10,7 +11,7 @@ fn rgbw_extraction_channel_order_and_lookup_are_applied_exactly() {
             blue: red / 2,
         })
         .collect();
-    let lookup = std::array::from_fn(|index| 255 - index as u8);
+    let lookup = core::array::from_fn(|index| 255 - index as u8);
     let patch = PreparedPatch {
         routes: vec![
             PreparedPixelRoute {
@@ -34,7 +35,7 @@ fn rgbw_extraction_channel_order_and_lookup_are_applied_exactly() {
         lookups: vec![lookup].into_boxed_slice(),
     };
     let mut buffers = vec![vec![77; 1028], vec![77; 768]];
-    patch.evaluate(&colors, &mut buffers).unwrap();
+    patch.evaluate(&colors, &mut buffers);
     assert_eq!(&buffers[0][..2], [0, 0]);
     assert_eq!(&buffers[0][1026..], [0, 0]);
     for (index, color) in colors.iter().enumerate() {

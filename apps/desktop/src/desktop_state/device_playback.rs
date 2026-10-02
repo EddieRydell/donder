@@ -89,7 +89,7 @@ impl DesktopState {
                 )
                 .ok_or("The sequence or a connected device output is unavailable.")?;
                 Ok((
-                    donder_runtime::wire::encode_sequence(&prepared)
+                    donder_runtime::encode_sequence(&prepared)
                         .map_err(|error| format!("Could not encode device sequence: {error:?}"))?,
                     widths,
                 ))
@@ -213,7 +213,7 @@ mod tests {
         let state = DesktopState::new(|_| {});
         state.open_project_path(&project);
         let session = state.project_session().unwrap();
-        let sequence = session.project.root.sequences[0].id();
+        let sequence = session.project.root().sequences[0].id();
         let request = state
             .resolve_gui_source(
                 &sequence.0.module_id().to_string(),

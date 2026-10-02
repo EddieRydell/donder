@@ -286,8 +286,8 @@ pub(crate) fn write_source_reference(
 impl Loader {
     pub(crate) fn link_generated_effects(&mut self) -> Result<(), LoadProjectError> {
         for (id, definition) in &mut self.definitions.effects.definitions {
-            let mut targets = Vec::with_capacity(definition.emitted_references.len());
-            for occurrence in &definition.emitted_references {
+            let mut targets = Vec::with_capacity(definition.emitted_references().len());
+            for occurrence in definition.emitted_references() {
                 let range = self.documents.get(id.0.document_id()).and_then(|document| {
                     if let crate::source::SourceDocumentKind::Effect { source } = &document.kind {
                         Some(crate::diagnostics::byte_range(
@@ -306,13 +306,19 @@ impl Loader {
                     })?;
                 targets.push(target);
             }
-            definition.generated_effect_targets = targets.into_boxed_slice();
+            definition
+                .link_generated_effect_targets(targets.into_boxed_slice())
+                .map_err(|message| LoadProjectError::InvalidDocument {
+                    path: id.0.document().to_path_buf(),
+                    range: None,
+                    message,
+                })?;
         }
         for (id, definition) in &self.definitions.effects.definitions {
             for (emission, target) in definition
-                .emitted_references
+                .emitted_references()
                 .iter()
-                .zip(&definition.generated_effect_targets)
+                .zip(definition.generated_effect_targets())
             {
                 let child = self.definitions.effects.resolve(target).ok_or_else(|| {
                     LoadProjectError::InvalidDocument {
@@ -321,7 +327,7 @@ impl Loader {
                         message: "linked generated child definition is missing".to_string(),
                     }
                 })?;
-                donder_language::dsl::validate_emission(emission, &child.params).map_err(
+                donder_language::dsl::validate_emission(emission, child.params()).map_err(
                     |error| {
                         let range = self.documents.get(id.0.document_id()).and_then(|document| {
                             if let crate::source::SourceDocumentKind::Effect { source } =

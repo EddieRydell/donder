@@ -46,7 +46,7 @@ pub enum ParameterKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProgramContext {
+pub(crate) enum ProgramContext {
     Effect,
     Operator { inputs: usize },
     Calculation,
@@ -102,8 +102,8 @@ impl<T> SignalPixel<T> {
 }
 
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct BytecodeProgram<C = ContextRead, S = ()> {
-    pub instructions: Box<[Instruction<C, S>]>,
+pub struct BytecodeProgram<C = ContextRead, S = (), A = ColorSlot, B = PoolSpan> {
+    pub instructions: Box<[Instruction<C, S, A, B>]>,
     pub array_constants: Box<[Arc<[Value]>]>,
     pub enums: Box<[Identifier]>,
     pub enum_types: Box<[EnumSlotType]>,
@@ -129,17 +129,21 @@ pub struct BytecodeProgram<C = ContextRead, S = ()> {
     pub loop_count: u32,
 }
 
-impl<C, S> BytecodeProgram<C, S> {
-    pub(super) fn try_map_context<R, T, E>(
+impl<C, S, A, B> BytecodeProgram<C, S, A, B> {
+    pub(super) fn try_map_execution<R, T, U, V, E>(
         self,
         mut read: impl FnMut(C) -> Result<R, E>,
         mut signal: impl FnMut(S) -> Result<T, E>,
-    ) -> Result<BytecodeProgram<R, T>, E> {
+        mut color: impl FnMut(A) -> Result<U, E>,
+        mut values: impl FnMut(B) -> Result<V, E>,
+    ) -> Result<BytecodeProgram<R, T, U, V>, E> {
         let instructions = self
             .instructions
             .into_vec()
             .into_iter()
-            .map(|instruction| instruction.try_map_context(&mut read, &mut signal))
+            .map(|instruction| {
+                instruction.try_map_execution(&mut read, &mut signal, &mut color, &mut values)
+            })
             .collect::<Result<_, _>>()?;
         Ok(BytecodeProgram {
             instructions,
@@ -164,7 +168,7 @@ impl<C, S> BytecodeProgram<C, S> {
 }
 
 impl BytecodeProgram {
-    pub fn has_valid_context(&self, context: ProgramContext) -> bool {
+    pub(crate) fn has_valid_context(&self, context: ProgramContext) -> bool {
         let mut has_return = false;
         for instruction in &self.instructions {
             match instruction {
@@ -1362,18 +1366,6 @@ impl BytecodeProgram {
         true
     }
 
-    /// Evaluate retained generator calculations into preallocated typed slots.
-    pub fn evaluate_bindings(
-        &self,
-        params: &super::BoundParams,
-        context: &super::RunContext,
-        workspace: &mut super::VmWorkspace,
-        output: &mut super::BoundParams,
-        types: &[Type],
-    ) -> Result<(), super::RuntimeError> {
-        super::vm::evaluate_bindings(self, params, context, workspace, output, types)
-    }
-
     pub(crate) fn frame_cache_count(&self) -> usize {
         self.instructions
             .iter()
@@ -1406,92 +1398,6 @@ impl BytecodeProgram {
                 }
             )
         })
-    }
-
-    pub fn sample_effect(
-        &self,
-        params: &super::BoundParams,
-        context: &super::RunContext,
-        workspace: &mut super::VmWorkspace,
-    ) -> Result<crate::values::Color, super::RuntimeError> {
-        self.sample_effect_from(params, context, workspace, false)
-    }
-
-    pub(crate) fn sample_effect_from(
-        &self,
-        params: &super::BoundParams,
-        context: &super::RunContext,
-        workspace: &mut super::VmWorkspace,
-        reuse_uniform: bool,
-    ) -> Result<crate::values::Color, super::RuntimeError> {
-        super::vm::run_sample_program(
-            self,
-            params,
-            context,
-            workspace,
-            if reuse_uniform {
-                self.pixel_entry as usize
-            } else {
-                0
-            },
-        )
-    }
-
-    pub fn sample_spatial_effect(
-        &self,
-        params: &super::BoundParams,
-        context: &super::RunContext,
-        spatial: Option<&super::SpatialContext>,
-        workspace: &mut super::VmWorkspace,
-        reuse_uniform: bool,
-    ) -> Result<crate::values::Color, super::RuntimeError> {
-        super::vm::run_spatial_sample_program(
-            self,
-            params,
-            context,
-            workspace,
-            if reuse_uniform {
-                self.pixel_entry as usize
-            } else {
-                0
-            },
-            spatial,
-        )
-    }
-
-    pub fn sample_operator(
-        &self,
-        params: &super::BoundParams,
-        context: &super::OperatorRunContext,
-        sampler: &mut dyn super::SignalSampler,
-        workspace: &mut super::VmWorkspace,
-    ) -> Result<crate::values::Color, super::RuntimeError> {
-        self.sample_operator_from(params, context, sampler, workspace, false, None)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn sample_operator_from(
-        &self,
-        params: &super::BoundParams,
-        context: &super::OperatorRunContext,
-        sampler: &mut dyn super::SignalSampler,
-        workspace: &mut super::VmWorkspace,
-        reuse_uniform: bool,
-        spatial: Option<&super::SpatialContext>,
-    ) -> Result<crate::values::Color, super::RuntimeError> {
-        super::vm::run_operator_program(
-            self,
-            params,
-            context,
-            sampler,
-            workspace,
-            if reuse_uniform {
-                self.pixel_entry as usize
-            } else {
-                0
-            },
-            spatial,
-        )
     }
 }
 
@@ -1780,8 +1686,8 @@ impl ValueSlot {
     }
 }
 
-// One instruction schema serves rendering and host calculations. Only context
-// reads and signal capability change during admission; the other operations and
+// One instruction schema serves rendering and host calculations. Context,
+// signal and return capabilities change during admission; the other operations and
 // their interpreter remain identical. The macro generates that mechanical map.
 macro_rules! instructions {
     ($(
@@ -1791,13 +1697,16 @@ macro_rules! instructions {
         $(($value:ident: $tuple_ty:ty))?,
     )*) => {
         #[derive(Clone, Debug, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-        pub enum Instruction<C = ContextRead, S = ()> {
+        pub enum Instruction<C = ContextRead, S = (), A = ColorSlot, B = PoolSpan> {
             $(
                 $(#[$attr])*
                 $variant
                 $({ $($(#[$field_attr])* $field: $ty),* })?
                 $(($tuple_ty))?,
             )*
+            ReturnColor(A),
+            /// Finish a calculation with schema-ordered typed register outputs.
+            ReturnValues(B),
             ContextRead { dst: NumberSlot, read: C },
             SignalSample {
                 dst: ColorSlot,
@@ -1809,13 +1718,17 @@ macro_rules! instructions {
             },
         }
 
-        impl<C, S> Instruction<C, S> {
-            fn try_map_context<R, T, E>(
+        impl<C, S, A, B> Instruction<C, S, A, B> {
+            fn try_map_execution<R, T, U, V, E>(
                 self,
                 read: impl FnOnce(C) -> Result<R, E>,
                 signal: impl FnOnce(S) -> Result<T, E>,
-            ) -> Result<Instruction<R, T>, E> {
+                color: impl FnOnce(A) -> Result<U, E>,
+                values: impl FnOnce(B) -> Result<V, E>,
+            ) -> Result<Instruction<R, T, U, V>, E> {
                 Ok(match self {
+                    Self::ReturnColor(value) => Instruction::ReturnColor(color(value)?),
+                    Self::ReturnValues(value) => Instruction::ReturnValues(values(value)?),
                     Self::ContextRead { dst, read: value } =>
                         Instruction::ContextRead { dst, read: read(value)? },
                     Self::SignalSample { dst, input, seconds, pixel, frame_cache, capability } =>
@@ -2239,9 +2152,6 @@ instructions! {
         source: TargetSource,
         op: TargetItemsOp,
     },
-    ReturnColor(value: ColorSlot),
-    /// Finish a calculation with a schema-ordered list of typed registers.
-    ReturnValues(value: PoolSpan),
 }
 
 impl Instruction {

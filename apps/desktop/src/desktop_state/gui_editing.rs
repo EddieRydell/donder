@@ -89,7 +89,7 @@ impl DesktopState {
             .flatten();
         let setup_id = project
             .as_ref()
-            .map(|project| project.project.root.setup.id().clone());
+            .map(|project| project.project.root().setup.id().clone());
         let sequence_id = self.resolve_sequence_id(&request.document);
         lock_unpoisoned(&self.sequence_clip_raster).request(
             project_revision,
@@ -157,8 +157,6 @@ impl DesktopState {
         let mut edited = (*before).clone();
         let value = mutate(&mut edited)?;
         affected_paths.extend(crate::gui::affected_paths(&edited, request)?);
-        donder_language::validation::validate_project(&edited.project)
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
         let generated_text =
             generated_source_texts(&edited, &affected_paths).map_err(GuiMutationError::Invalid)?;
         let edited = Arc::new(edited);
@@ -371,7 +369,7 @@ mod fixed_parameter_tests {
         let initial = state.project_session().unwrap();
         let sequence = initial
             .project
-            .sequences
+            .reusable_sequences()
             .values()
             .find(|sequence| !sequence.effects.is_empty())
             .unwrap();
@@ -415,7 +413,11 @@ mod fixed_parameter_tests {
         assert!(matches!(result.document, GuiDocument::Sequence { .. }));
         let level = donder_language::dsl::Identifier::new("level".into()).unwrap();
         let current_level = || {
-            state.project_session().unwrap().project.sequences[&sequence_id]
+            state
+                .project_session()
+                .unwrap()
+                .project
+                .reusable_sequences()[&sequence_id]
                 .effects
                 .iter()
                 .find(|effect| effect.id.0 == effect_id)
@@ -462,7 +464,11 @@ mod fixed_parameter_tests {
             .document,
             GuiDocument::Sequence { .. }
         ));
-        let clip_id = state.project_session().unwrap().project.sequences[&sequence_id]
+        let clip_id = state
+            .project_session()
+            .unwrap()
+            .project
+            .reusable_sequences()[&sequence_id]
             .automation_clips
             .iter()
             .find(|clip| {
@@ -485,7 +491,7 @@ mod fixed_parameter_tests {
             GuiDocument::Sequence { .. }
         ));
         let detached = state.project_session().unwrap();
-        let clip = detached.project.sequences[&sequence_id]
+        let clip = detached.project.reusable_sequences()[&sequence_id]
             .automation_clips
             .iter()
             .find(|clip| clip.id.0 == clip_id)
@@ -504,7 +510,11 @@ mod fixed_parameter_tests {
         assert!(Arc::ptr_eq(&detached, &state.project_session().unwrap()));
         state.undo_active_edit();
         assert_eq!(
-            state.project_session().unwrap().project.sequences[&sequence_id]
+            state
+                .project_session()
+                .unwrap()
+                .project
+                .reusable_sequences()[&sequence_id]
                 .automation_clips
                 .iter()
                 .find(|clip| clip.id.0 == clip_id)

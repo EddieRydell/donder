@@ -24,7 +24,7 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
         let original = state.project_session().unwrap();
-        let setup = original.project.root.setup.id().clone();
+        let setup = original.project.root().setup.id().clone();
         state.open_file_path(setup.0.document().as_str());
         let result = super::authoring_acceptance::edit_layout(
             &state,

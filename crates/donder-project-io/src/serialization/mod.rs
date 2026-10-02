@@ -174,40 +174,40 @@ pub(super) fn validate_source_inventory(
     session: &ProjectSession,
 ) -> Result<(), ExportProjectError> {
     let project = &session.project;
-    let identities = std::iter::once((SourceObjectKind::Project, &project.root.id.0))
+    let identities = std::iter::once((SourceObjectKind::Project, &project.root().id.0))
         .chain(
             project
-                .setups
+                .reusable_setups()
                 .keys()
                 .map(|id| (SourceObjectKind::Setup, id.0.root_source())),
         )
         .chain(
             project
-                .controllers
+                .reusable_controllers()
                 .keys()
                 .map(|id| (SourceObjectKind::Controller, id.0.root_source())),
         )
         .chain(
             project
-                .layouts
+                .reusable_layouts()
                 .keys()
                 .map(|id| (SourceObjectKind::Layout, id.0.root_source())),
         )
         .chain(
             project
-                .patches
+                .reusable_patches()
                 .keys()
                 .map(|id| (SourceObjectKind::Patch, id.0.root_source())),
         )
         .chain(
             project
-                .sequences
+                .reusable_sequences()
                 .keys()
                 .map(|id| (SourceObjectKind::Sequence, id.0.root_source())),
         )
         .chain(
             project
-                .definitions
+                .definitions()
                 .fixtures
                 .definitions
                 .keys()
@@ -215,7 +215,7 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
-                .definitions
+                .definitions()
                 .curves
                 .definitions
                 .keys()
@@ -223,7 +223,7 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
-                .definitions
+                .definitions()
                 .gradients
                 .definitions
                 .keys()
@@ -231,7 +231,7 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
-                .definitions
+                .definitions()
                 .effects
                 .definitions
                 .keys()
@@ -239,7 +239,7 @@ pub(super) fn validate_source_inventory(
         )
         .chain(
             project
-                .definitions
+                .definitions()
                 .operators
                 .definitions
                 .keys()
@@ -298,7 +298,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let setup = session
                 .project
-                .setups
+                .reusable_setups()
                 .get(&SetupId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             setup_value(session, from_document, setup)
@@ -308,7 +308,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let controller = session
                 .project
-                .controllers
+                .reusable_controllers()
                 .get(&ControllerId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             controller_value(controller)
@@ -318,7 +318,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let layout = session
                 .project
-                .layouts
+                .reusable_layouts()
                 .get(&LayoutId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             layout_value(session, from_document, layout)
@@ -328,7 +328,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let patch = session
                 .project
-                .patches
+                .reusable_patches()
                 .get(&PatchId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             patch_value(session, from_document, patch)
@@ -338,7 +338,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let definition = session
                 .project
-                .definitions
+                .definitions()
                 .fixtures
                 .definitions
                 .get(&FixtureDefinitionId(identity))
@@ -350,7 +350,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let curve = session
                 .project
-                .definitions
+                .definitions()
                 .curves
                 .definitions
                 .get(&CurveId(identity))
@@ -362,7 +362,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let gradient = session
                 .project
-                .definitions
+                .definitions()
                 .gradients
                 .definitions
                 .get(&GradientId(identity))
@@ -374,7 +374,7 @@ pub(super) fn serialize_source_object(
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             let sequence = session
                 .project
-                .sequences
+                .reusable_sequences()
                 .get(&SequenceId(identity.into()))
                 .ok_or_else(|| missing_typed_object(from_document, id))?;
             sequence_value(session, from_document, sequence)
@@ -442,7 +442,7 @@ pub(super) fn project_root_value(
             session,
             from_document,
             SourceObjectKind::Setup,
-            &session.project.root.setup,
+            &session.project.root().setup,
             |setup| setup_value(session, from_document, setup),
         )?,
     );
@@ -451,7 +451,7 @@ pub(super) fn project_root_value(
         Value::Sequence(
             session
                 .project
-                .root
+                .root()
                 .sequences
                 .iter()
                 .map(|source| {

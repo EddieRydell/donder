@@ -1,4 +1,5 @@
 //! Host-built generator fixtures, archived for the same portable device evaluator.
+use super::workload::Workload;
 use donder_language::dsl::{Identifier, compile_effects, validate_emission};
 use donder_language::effect::*;
 use donder_language::fixture::*;
@@ -9,7 +10,6 @@ use donder_language::model::*;
 use donder_language::sequence::*;
 use donder_language::setup::*;
 use donder_language::values::*;
-use donder_runtime::sequence::PreparedSequence;
 use indexmap::IndexMap;
 use std::time::Duration;
 
@@ -32,7 +32,7 @@ pub const CASES: [(Case, &str); 6] = [
     (Case::Curve, "GeneratorCurve"),
 ];
 
-pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> PreparedSequence {
+pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Workload {
     let leaf = "effect Leaf { param float value; color sample() { return rgb(value, pixel_fraction() * value, value * 0.25); } }";
     let params = "param float level = 0.5;";
     let resources = "param array<gradient> ramps; param array<curve> shapes;";
@@ -96,7 +96,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         include_str!("../../../examples/starter/effects/standard.effect.donder")
     );
     for compilation in compile_effects(&source).unwrap() {
-        let id = EffectDefinitionId(identity(compilation.effect.name.as_str()));
+        let id = EffectDefinitionId(identity(compilation.effect.name().as_str()));
         definitions
             .effects
             .insert(id.clone(), EffectDefinition::custom(id, compilation));
@@ -107,7 +107,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         .iter()
         .map(|(id, definition)| {
             let references = definition
-                .emitted_references
+                .emitted_references()
                 .iter()
                 .map(|emission| {
                     let reference = match &emission.reference {
@@ -123,7 +123,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                     };
                     validate_emission(
                         emission,
-                        &definitions.effects.resolve(&reference).unwrap().params,
+                        definitions.effects.resolve(&reference).unwrap().params(),
                     )
                     .unwrap();
                     reference
@@ -138,7 +138,8 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
             .definitions
             .get_mut(&id)
             .unwrap()
-            .generated_effect_targets = references;
+            .link_generated_effect_targets(references)
+            .unwrap();
     }
     let effect_count = if !generator && matches!(case, Case::Overlap) {
         4
@@ -211,7 +212,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                     EffectParamValue::Gradient(GradientSource::Inline(Gradient {
                         stops: vec![GradientStop {
                             position: 0.0,
-                            color: donder_runtime::sampling::hsv(index as f32 * 0.6, 1.0, 1.0),
+                            color: donder_runtime::hsv(index as f32 * 0.6, 1.0, 1.0),
                         }],
                     }))
                 })
@@ -322,7 +323,7 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
                 .collect(),
         },
     );
-    let project = DonderProject {
+    let project = DonderProject::try_new(donder_language::model::ProjectData {
         root: ProjectRoot {
             id: ProjectId(identity("project")),
             setup: donder_language::ownership::ValueSource::Reference(setup_id.clone()),
@@ -370,12 +371,13 @@ pub fn show(count: usize, case: Case, generator: bool, automated: bool) -> Prepa
         controllers: IndexMap::new(),
         sequences: [(sequence_id.clone(), sequence)].into(),
         definitions,
-    };
+    })
+    .unwrap();
     let prepared = donder_elaboration::prepare(
         &project,
         &sequence_id,
         donder_elaboration::PrepareOutputs::All,
     )
     .unwrap();
-    super::workload::rgb_output(prepared.signals().clone())
+    super::workload::rgb_output(prepared.to_raw_signals())
 }

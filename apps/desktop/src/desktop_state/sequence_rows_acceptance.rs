@@ -122,7 +122,7 @@ impl Timeline {
         let session = state.project_session().unwrap();
         let sequence = session
             .project
-            .sequences
+            .reusable_sequences()
             .values()
             .find(|sequence| !sequence.effects.is_empty())
             .unwrap();
@@ -210,7 +210,7 @@ impl Timeline {
         let session = self.state.project_session().unwrap();
         let setup = session
             .project
-            .setup(session.project.root.setup.id())
+            .setup(session.project.root().setup.id())
             .unwrap();
         session
             .project
@@ -303,7 +303,7 @@ fn automation_row_placement_survives_target_reorder_and_history_without_rebindin
     let session = timeline.state.project_session().unwrap();
     let setup = session
         .project
-        .setup(session.project.root.setup.id())
+        .setup(session.project.root().setup.id())
         .unwrap();
     let layout = session.project.layout(setup.layout.id()).unwrap();
     let root_group = layout.fixtures[0].id.0;

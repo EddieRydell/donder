@@ -18,16 +18,17 @@ impl<T: output::Projection> CalculationOutput for T {}
 /// output registers have been checked together. There is no mutable bytecode accessor.
 ///
 /// ```compile_fail
-/// fn mutate(program: &mut donder_runtime::dsl::CalculationProgram) {
+/// fn mutate(program: &mut donder_runtime::CalculationProgram) {
 ///     program.bytecode.instructions = Box::new([]);
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalculationProgram<O: CalculationOutput = Vec<Value>> {
-    bytecode: BytecodeProgram<CalculationRead, Infallible>,
+    bytecode: BytecodeProgram<CalculationRead, Infallible, Infallible>,
     inputs: Box<[Type]>,
     outputs: Box<[Type]>,
     results: O::Slots,
+    transfer: super::vm::CalculationTransfer,
     uses_time: bool,
 }
 
@@ -35,8 +36,8 @@ pub struct CalculationProgram<O: CalculationOutput = Vec<Value>> {
 /// the program nor its parameters can be replaced after binding.
 ///
 /// ```compile_fail
-/// fn replace_parameters(bound: &mut donder_runtime::dsl::BoundCalculation<'_>) {
-///     bound.params = donder_runtime::dsl::BoundParams::default();
+/// fn replace_parameters(bound: &mut donder_runtime::BoundCalculation<'_>) {
+///     bound.params = donder_runtime::BoundParams::default();
 /// }
 /// ```
 #[derive(Debug)]
@@ -66,7 +67,11 @@ impl CalculationProgram {
         {
             return None;
         }
-        let results = bytecode.calculation_outputs()?.into();
+        let results: Box<[ValueSlot]> = bytecode.calculation_outputs()?.into();
+        let transfer = super::vm::CalculationTransfer::admit(
+            &results,
+            &BoundParams::result_workspace(&outputs, 0, 0),
+        )?;
         let uses_time = bytecode
             .instructions
             .iter()
@@ -79,9 +84,11 @@ impl CalculationProgram {
                 _ => false,
             });
         let bytecode = bytecode
-            .try_map_context(
+            .try_map_execution(
                 |read| CalculationRead::admit(read).ok_or(()),
                 |()| Err::<Infallible, _>(()),
+                |_| Err::<Infallible, _>(()),
+                Ok,
             )
             .ok()?;
         Some(Self {
@@ -89,6 +96,7 @@ impl CalculationProgram {
             inputs,
             outputs,
             results,
+            transfer,
             uses_time,
         })
     }
@@ -101,6 +109,7 @@ impl CalculationProgram {
             inputs: self.inputs,
             outputs: self.outputs,
             results,
+            transfer: self.transfer,
             uses_time: self.uses_time,
         })
     }
@@ -116,6 +125,7 @@ impl<O: CalculationOutput> CalculationProgram<O> {
             inputs: self.inputs,
             outputs: self.outputs,
             results: O::into_slots(self.results),
+            transfer: self.transfer,
             uses_time: self.uses_time,
         }
     }
@@ -125,7 +135,7 @@ impl<O: CalculationOutput> CalculationProgram<O> {
     }
 
     /// Inspect the admitted program without permitting mutation of its contract.
-    pub fn bytecode(&self) -> &BytecodeProgram<CalculationRead, Infallible> {
+    pub fn bytecode(&self) -> &BytecodeProgram<CalculationRead, Infallible, Infallible> {
         &self.bytecode
     }
 
@@ -135,6 +145,25 @@ impl<O: CalculationOutput> CalculationProgram<O> {
 
     pub fn uses_time(&self) -> bool {
         self.uses_time
+    }
+
+    /// Runtime-owned environments reserve output storage from this program and
+    /// its admitted input arenas before evaluation.
+    pub(crate) fn evaluate_retained(
+        &self,
+        params: &BoundParams,
+        context: &RunContext,
+        workspace: &mut VmWorkspace,
+        output: &mut BoundParams,
+    ) {
+        super::vm::evaluate_retained(
+            &self.bytecode,
+            &self.transfer,
+            params,
+            context,
+            workspace,
+            output,
+        );
     }
 
     /// Admit an invocation before execution. Check the complete declaration,
@@ -161,18 +190,30 @@ impl<O: CalculationOutput> CalculationProgram<O> {
                 });
             }
         }
-        Ok(BoundCalculation {
+        Ok(self.bind_compiled(values, cache))
+    }
+
+    /// Only admitted generator plans use this path. Their entire lexical input
+    /// mapping and assignments were checked together, not supplied by callers.
+    pub(super) fn bind_compiled(
+        &self,
+        values: Vec<Value>,
+        cache: &mut DslBindCache,
+    ) -> BoundCalculation<'_, O> {
+        BoundCalculation {
             program: self,
             params: BoundParams::from_values(self.inputs.iter().zip(values), cache),
-        })
+        }
     }
 
     /// Consume the admitted program when placing it in the portable graph.
     /// The returned data is raw again; wire loading has its own admission step.
     pub fn into_parts(self) -> (BytecodeProgram, Box<[Type]>, Box<[Type]>) {
-        let bytecode = match self.bytecode.try_map_context(
+        let bytecode = match self.bytecode.try_map_execution(
             |read| Ok::<_, Infallible>(ContextRead::from(read)),
             |never| match never {},
+            |never| match never {},
+            Ok,
         ) {
             Ok(bytecode) => bytecode,
             Err(never) => match never {},

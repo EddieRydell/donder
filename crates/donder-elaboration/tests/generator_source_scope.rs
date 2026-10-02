@@ -70,27 +70,32 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
         let mut session = report.session.unwrap();
         let generator_id = session
             .project
-            .definitions
+            .definitions()
             .effects
             .definitions
             .keys()
             .find(|id| id.0.object() == "MarkImpactBurst")
             .unwrap()
             .clone();
-        let sequence = session
+        let mut sequence = session
             .project
-            .sequences
-            .values_mut()
+            .sequences()
             .find(|sequence| !sequence.effects.is_empty())
-            .unwrap();
+            .unwrap()
+            .clone();
         sequence.effects.truncate(1);
+        sequence.automation_clips.clear();
         sequence.effects[0].definition = EffectRef::Custom(generator_id);
         sequence.effects[0].param_overrides.clear();
         let sequence_id = sequence.id.clone();
+        session
+            .project
+            .replace_sequence(&sequence_id, sequence)
+            .unwrap();
         let prepared =
             prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
         assert!(
-            !prepared.signals().effects.is_empty(),
+            !prepared.to_raw_signals().effects.is_empty(),
             "the generator must actually emit"
         );
     }
@@ -100,7 +105,7 @@ fn explicit_generator_imports_and_local_children_prepare_but_callers_scope_is_no
 fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = donder_project_io::load_project(&root).unwrap();
-    let definitions = &session.project.definitions;
+    let definitions = &session.project.definitions();
     let generator_id = definitions
         .effects
         .definitions
@@ -122,15 +127,16 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
         .next()
         .unwrap()
         .clone();
-    let sequence = session
+    let mut sequence = session
         .project
-        .sequences
-        .values_mut()
+        .sequences()
         .find(|sequence| !sequence.effects.is_empty())
-        .unwrap();
+        .unwrap()
+        .clone();
     sequence.mark_collections[0].marks = vec![DonderTime(Duration::ZERO)];
     let marks = sequence.mark_collections[0].key.clone();
     sequence.effects.truncate(1);
+    sequence.automation_clips.clear();
     let effect = &mut sequence.effects[0];
     effect.start = DonderTime(Duration::ZERO);
     effect.definition = EffectRef::Custom(generator_id);
@@ -151,8 +157,12 @@ fn starter_mark_generator_emits_its_cross_file_child_with_nonempty_inputs() {
     .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value))
     .collect();
     let sequence_id = sequence.id.clone();
+    session
+        .project
+        .replace_sequence(&sequence_id, sequence)
+        .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(!prepared.signals().effects.is_empty());
+    assert!(!prepared.to_raw_signals().effects.is_empty());
 }
 
 #[test]
@@ -173,25 +183,30 @@ fn acyclic_generator_chain_can_exceed_four_levels() {
     let mut session = report.session.unwrap();
     let generator_id = session
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()
         .find(|id| id.0.object() == "Chain0")
         .unwrap()
         .clone();
-    let sequence = session
+    let mut sequence = session
         .project
-        .sequences
-        .values_mut()
+        .sequences()
         .find(|sequence| !sequence.effects.is_empty())
-        .unwrap();
+        .unwrap()
+        .clone();
     sequence.effects.truncate(1);
+    sequence.automation_clips.clear();
     sequence.effects[0].definition = EffectRef::Custom(generator_id);
     sequence.effects[0].param_overrides.clear();
     let sequence_id = sequence.id.clone();
+    session
+        .project
+        .replace_sequence(&sequence_id, sequence)
+        .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(!prepared.signals().effects.is_empty());
+    assert!(!prepared.to_raw_signals().effects.is_empty());
 }
 
 #[test]
@@ -207,22 +222,23 @@ fn prepared_generator_accepts_more_than_four_thousand_mark_children() {
     let mut session = report.session.unwrap();
     let generator_id = session
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()
         .find(|id| id.0.object() == "Many")
         .unwrap()
         .clone();
-    let sequence = session
+    let mut sequence = session
         .project
-        .sequences
-        .values_mut()
+        .sequences()
         .find(|sequence| !sequence.effects.is_empty())
-        .unwrap();
+        .unwrap()
+        .clone();
     sequence.mark_collections[0].marks = vec![DonderTime(Duration::ZERO); 137];
     let marks = sequence.mark_collections[0].key.clone();
     sequence.effects.truncate(1);
+    sequence.automation_clips.clear();
     let effect = &mut sequence.effects[0];
     effect.start = DonderTime(Duration::ZERO);
     effect.duration = DonderDuration(Duration::from_secs(1));
@@ -234,6 +250,10 @@ fn prepared_generator_accepts_more_than_four_thousand_mark_children() {
     .into_iter()
     .collect();
     let sequence_id = sequence.id.clone();
+    session
+        .project
+        .replace_sequence(&sequence_id, sequence)
+        .unwrap();
     let prepared = prepare_sequence(&session.project, &sequence_id, PrepareOutputs::All).unwrap();
-    assert!(prepared.signals().effects.len() > 4_096);
+    assert!(prepared.to_raw_signals().effects.len() > 4_096);
 }

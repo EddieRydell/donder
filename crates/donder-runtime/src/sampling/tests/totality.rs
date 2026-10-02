@@ -1,9 +1,10 @@
-use donder_runtime::automation::{
-    AutomationMapping, AutomationValue, automation_value_at_position,
+use crate::dsl::Type;
+use crate::sampling::{sample_curve, sample_gradient};
+use crate::{
+    AutomationMapping, AutomationValue, Color, Curve, CurvePoint, Gradient, GradientStop,
+    automation_value_at_position,
 };
-use donder_runtime::dsl::Type;
-use donder_runtime::sampling::{sample_curve, sample_gradient};
-use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use alloc::vec;
 
 #[test]
 fn single_point_resources_are_total_even_when_their_position_is_invalid() {

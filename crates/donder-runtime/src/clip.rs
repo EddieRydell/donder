@@ -2,16 +2,13 @@
 //! Raster dimensions, scheduling, image storage, and caching belong to the host.
 use crate::bindings::ParameterWorkspace;
 use crate::dsl::{SpatialContext, VmWorkspace};
-use crate::signal::{
-    EffectAutomationWorkspace, EvaluationError, PreparedClip, PreparedEffectImplementation,
-    PreparedSignalGraph,
-};
+use crate::signal::{EffectAutomationWorkspace, PreparedClip, SignalGraph};
 use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
 #[derive(Clone, Copy)]
 pub struct SequenceClip<'a> {
-    pub(crate) graph: &'a PreparedSignalGraph,
+    pub(crate) graph: SignalGraph<'a>,
     pub(crate) clip: &'a PreparedClip,
 }
 
@@ -47,13 +44,17 @@ impl<'a> SequenceClip<'a> {
                 .push(row);
         }
         let mut vm = VmWorkspace::default();
+        let mut automation = Vec::new();
         let effects = self
             .clip
             .effects
             .iter()
             .map(|&index| {
                 let effect = &self.graph.effects[index];
-                vm.reserve(&self.graph.programs[effect.implementation.dsl_program()]);
+                let program = self
+                    .graph
+                    .sample_program(effect.implementation.dsl_program());
+                vm.reserve(program.bytecode());
                 let mut groups = Vec::<SampleGroup>::new();
                 let mut group_by_context = BTreeMap::new();
                 let target_start = self.graph.targets[effect.target].pixels.start;
@@ -63,30 +64,27 @@ impl<'a> SequenceClip<'a> {
                     else {
                         continue;
                     };
-                    let spatial = (!self.graph.spatial_contexts.is_empty())
-                        .then(|| self.graph.spatial_contexts[target_start + local]);
+                    let spatial = *self
+                        .graph
+                        .spatial_context(program.uses_spatial_context(), target_start + local);
                     let context = SampleContext {
                         index: pixel.pixel_index,
                         count: pixel.pixel_count,
                         fraction: pixel.pixel_fraction,
                         spatial,
                     };
-                    let key = (
-                        context.index,
-                        context.count,
-                        context.fraction.to_bits(),
-                        spatial.map(|context| {
-                            [
-                                context.position[0],
-                                context.position[1],
-                                context.min[0],
-                                context.min[1],
-                                context.max[0],
-                                context.max[1],
-                            ]
-                            .map(f32::to_bits)
-                        }),
-                    );
+                    let key = (context.index, context.count, context.fraction.to_bits(), {
+                        let context = spatial;
+                        [
+                            context.position[0],
+                            context.position[1],
+                            context.min[0],
+                            context.min[1],
+                            context.max[0],
+                            context.max[1],
+                        ]
+                        .map(f32::to_bits)
+                    });
                     if let Some(&group) = group_by_context.get(&key) {
                         let group: &mut SampleGroup = &mut groups[group];
                         group.rows.extend(rows);
@@ -98,17 +96,22 @@ impl<'a> SequenceClip<'a> {
                         });
                     }
                 }
+                let automation_slot = automation.len();
+                if let Some(state) = effect.automation_workspace() {
+                    automation.push(state);
+                }
                 EffectSamples {
                     index,
                     groups,
-                    automation: effect.automation_workspace(),
+                    automation_slot,
                 }
             })
             .collect();
         ClipSampler {
             graph: self.graph,
-            row_count,
+            output: vec![Color::BLACK; row_count],
             effects,
+            automation,
             vm,
             parameters: ParameterWorkspace::new(
                 &self.graph.parameter_environments,
@@ -121,9 +124,10 @@ impl<'a> SequenceClip<'a> {
 /// Reusable sparse clip evaluator. Its borrowed graph cannot change underneath
 /// the prepared sample groups or parameter/automation storage.
 pub struct ClipSampler<'a> {
-    graph: &'a PreparedSignalGraph,
-    row_count: usize,
+    graph: SignalGraph<'a>,
+    output: Vec<Color>,
     effects: Vec<EffectSamples>,
+    automation: Vec<EffectAutomationWorkspace>,
     parameters: ParameterWorkspace,
     vm: VmWorkspace,
 }
@@ -131,7 +135,7 @@ pub struct ClipSampler<'a> {
 struct EffectSamples {
     index: usize,
     groups: Vec<SampleGroup>,
-    automation: Option<EffectAutomationWorkspace>,
+    automation_slot: usize,
 }
 struct SampleGroup {
     context: SampleContext,
@@ -142,61 +146,40 @@ struct SampleContext {
     index: usize,
     count: usize,
     fraction: f32,
-    spatial: Option<SpatialContext>,
+    spatial: SpatialContext,
 }
 
 impl ClipSampler<'_> {
-    pub fn evaluate(
-        &mut self,
-        time: SampleTime,
-        output: &mut [Color],
-    ) -> Result<(), EvaluationError> {
-        if output.len() != self.row_count {
-            return Err(EvaluationError::InvalidWorkspace);
-        }
-        output.fill(Color::BLACK);
+    pub fn evaluate(&mut self, time: SampleTime) -> &[Color] {
+        self.output.fill(Color::BLACK);
         for sampled in &mut self.effects {
             let effect = &self.graph.effects[sampled.index];
             if !effect.is_active(time) {
                 continue;
             }
-            let bound = match effect.implementation {
-                PreparedEffectImplementation::Bound { environment, .. } => {
-                    Some(self.parameters.resolve(
-                        &self.graph.parameter_environments,
-                        environment,
-                        time,
-                    )?)
-                }
-                _ => None,
-            };
-            effect.with_sampler(
-                &self.graph.programs,
-                time,
-                sampled.automation.as_mut(),
-                bound,
-                |sampler| {
-                    for group in &sampled.groups {
-                        let context = group.context;
-                        let color = sampler.sample_spatial_context(
-                            context.index,
-                            context.count,
-                            context.fraction,
-                            context.spatial.as_ref(),
-                            &mut self.vm,
-                        )?;
-                        for &row in &group.rows {
-                            let target = &mut output[row];
-                            target.red = target.red.max(color.red);
-                            target.green = target.green.max(color.green);
-                            target.blue = target.blue.max(color.blue);
-                        }
+            let params = effect.resolve_params(self.graph, time, &mut self.parameters, |_| {
+                &mut self.automation[sampled.automation_slot]
+            });
+            effect.with_sampler(self.graph, time, params, |sampler| {
+                for group in &sampled.groups {
+                    let context = group.context;
+                    let color = sampler.sample_spatial_context(
+                        context.index,
+                        context.count,
+                        context.fraction,
+                        &context.spatial,
+                        &mut self.vm,
+                    );
+                    for &row in &group.rows {
+                        let target = &mut self.output[row];
+                        target.red = target.red.max(color.red);
+                        target.green = target.green.max(color.green);
+                        target.blue = target.blue.max(color.blue);
                     }
-                    Ok(())
-                },
-            )?;
+                }
+            });
         }
-        Ok(())
+        &self.output
     }
 }
 

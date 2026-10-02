@@ -1,6 +1,7 @@
-use donder_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};
-use donder_runtime::sampling::{multiply_colors, sample_curve, sample_gradient};
-use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use crate::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};
+use crate::sampling::{multiply_colors, sample_curve, sample_gradient};
+use crate::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use alloc::vec;
 
 #[test]
 fn color_multiply_rounds_to_nearest_for_every_channel_pair() {

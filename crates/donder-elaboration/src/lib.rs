@@ -15,14 +15,13 @@
     )
 )]
 
-mod output;
 mod selection;
 mod sequence;
 
 use donder_language::controller::{ControllerId, ControllerPortId};
 use donder_language::model::DonderProject;
 use donder_language::sequence::SequenceId;
-pub use donder_runtime::sequence::PreparedSequence;
+pub use donder_runtime::PreparedSequence;
 
 /// Which physical outputs to retain. Explicit lists preserve first-occurrence
 /// order and treat repeated entries as a set. An empty list selects no outputs.
@@ -45,25 +44,9 @@ pub fn prepare(
     outputs: PrepareOutputs<'_>,
 ) -> Option<PreparedSequence> {
     let selected = selection::resolve(project, sequence, outputs)?;
-    let mut signals =
-        sequence::elaboration::prepare_sequence(project, selected.layout, selected.sequence);
-    let mut patch =
-        output::patch::prepare_patch(selected.layout, selected.patch, &signals, &selected.ports);
-    if !matches!(outputs, PrepareOutputs::All) {
-        output::fragment::compact(&mut signals, &mut patch);
-    }
-    Some(PreparedSequence::new(
-        signals,
-        patch,
-        selected
-            .ports
-            .iter()
-            .map(|port| donder_runtime::sequence::PreparedOutput {
-                controller_index: port.controller_index,
-                port: port.port.id.0,
-                width: u32::from(port.port.slot_count),
-            })
-            .collect(),
+    Some(sequence::prepare(
+        selected,
+        !matches!(outputs, PrepareOutputs::All),
     ))
 }
 

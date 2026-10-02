@@ -451,8 +451,9 @@ and child references to non-effect objects are errors.
 
 Local declarations are indexed before following imports, so mutual document
 imports are valid. Every compiled emitted child reference is checked during
-loading, even if that emission would never execute. Recursive *generation* is
-still subject to the preparation depth and generated-effect budgets.
+loading, even if that emission would never execute. Cyclic generated-effect
+references are rejected at project admission; finite expansion has no arbitrary
+depth or generated-effect-count budget.
 
 Language compilation retains symbolic emitted references and diagnostic spans
 separately from portable bytecode. Project IO links every emitted child into an
@@ -476,8 +477,9 @@ serialization.
 ## Validity
 
 The canonical validator is `donder_language::validation::validate_sequence`.
-Project loading and checking, accepted GUI edits, and runtime preparation all
-use that validator. A sequence must satisfy these rules:
+Project loading and checked GUI edits use that validator before publishing
+accepted state. Preparation consumes that state without repeating source
+validation. A sequence must satisfy these rules:
 
 - `duration` is finite, non-negative source input and is positive once loaded.
 - `frame_rate` is greater than zero, and `duration * frame_rate` cannot exceed
@@ -592,8 +594,11 @@ admitted only when each loop is proven to finish within 10,000 iterations;
 dynamic `range` loops clamp their count to the authored cap. Marks iteration
 uses the collection's length. Generator child counts and nesting depth have no
 arbitrary preparation budgets; project validation rejects cyclic generated
-effect references. Other resource budgets still return errors when exceeded;
-the total-preparation proof is not complete yet.
+effect references. Preparation constructs runtime-owned storage from accepted
+inputs; evaluation uses the admitted programs and prebound parameter transfers.
+Neither operation returns an ordinary execution error. Memory exhaustion and
+system resource failures remain outside that contract. Portable archive loading
+may impose device-specific resource limits before accepting untrusted data.
 Portable bytecode encodes loops as paired counted operations with private
 iteration state. Ordinary jumps must go forward, and malformed loop pairs or
 unguarded backward jumps are rejected before playback.

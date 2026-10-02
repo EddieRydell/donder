@@ -8,6 +8,14 @@ pub fn attach_controller(
     setup_id: &SetupId,
     controller: ControllerId,
 ) -> Result<(), String> {
+    project.checked_edit(|project| attach_controller_candidate(project, setup_id, controller))
+}
+
+fn attach_controller_candidate(
+    project: &mut DonderProject,
+    setup_id: &SetupId,
+    controller: ControllerId,
+) -> Result<(), String> {
     if !project.controllers.contains_key(&controller) {
         return Err("Controller was not found.".into());
     }
@@ -24,8 +32,19 @@ pub fn attach_controller(
 }
 
 /// Remove setup membership, retaining the reusable authored controller definition.
-/// The caller owns transactionality and checks ownership of any changed patch.
+/// Rejected requests leave both setup membership and patch outputs unchanged.
 pub fn detach_controller(
+    project: &mut DonderProject,
+    setup_id: &SetupId,
+    controller: &ControllerId,
+    remove_outputs: bool,
+) -> Result<(), String> {
+    project.checked_edit(|project| {
+        detach_controller_candidate(project, setup_id, controller, remove_outputs)
+    })
+}
+
+fn detach_controller_candidate(
     project: &mut DonderProject,
     setup_id: &SetupId,
     controller: &ControllerId,

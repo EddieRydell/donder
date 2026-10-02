@@ -123,7 +123,7 @@ pub(crate) mod tests {
     #[test]
     fn sequence_render_service_returns_shared_sequence_frame() {
         let session = starter();
-        let sequence = session.project.root.sequences.first().unwrap().id();
+        let sequence = session.project.root().sequences.first().unwrap().id();
         let mut service = crate::rendering::SequenceRenderService::new();
         service.prepare(&session.project, sequence).unwrap();
         let audio = crate::dto::AudioTransportSnapshot {

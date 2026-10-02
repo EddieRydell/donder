@@ -9,7 +9,7 @@ use crate::dto::{
 pub(super) fn project_curve(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
     let Some(definition) = session
         .project
-        .definitions
+        .definitions()
         .curves
         .get(&CurveId(resolved.identity.clone()))
     else {
@@ -30,7 +30,7 @@ pub(super) fn project_gradient(
 ) -> GuiDocument {
     let Some(definition) = session
         .project
-        .definitions
+        .definitions()
         .gradients
         .get(&GradientId(resolved.identity.clone()))
     else {
@@ -50,19 +50,26 @@ pub(super) fn edit_curve(
     resolved: &ResolvedGuiObject,
     points: Vec<SequenceCurvePoint>,
 ) -> Result<(), GuiMutationError> {
-    let definition = session
+    let mut definition = session
         .project
-        .definitions
+        .definitions()
         .curves
         .definitions
-        .get_mut(&CurveId(resolved.identity.clone()))
+        .get(&CurveId(resolved.identity.clone()))
+        .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Curve definition was not found.".into()))?;
     let curve = model::curve_from_points(points);
     curve
         .validate()
         .map_err(|error| GuiMutationError::Invalid(format!("Invalid curve: {error:?}")))?;
     definition.curve = curve;
-    Ok(())
+    session
+        .project
+        .apply_edits([donder_language::model::ProjectEdit::SetCurveDefinition {
+            id: CurveId(resolved.identity.clone()),
+            value: definition,
+        }])
+        .map_err(GuiMutationError::Invalid)
 }
 
 pub(super) fn edit_gradient(
@@ -70,17 +77,26 @@ pub(super) fn edit_gradient(
     resolved: &ResolvedGuiObject,
     stops: Vec<SequenceGradientStop>,
 ) -> Result<(), GuiMutationError> {
-    let definition = session
+    let mut definition = session
         .project
-        .definitions
+        .definitions()
         .gradients
         .definitions
-        .get_mut(&GradientId(resolved.identity.clone()))
+        .get(&GradientId(resolved.identity.clone()))
+        .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Gradient definition was not found.".into()))?;
     let gradient = model::gradient_from_stops(stops)?;
     gradient
         .validate()
         .map_err(|error| GuiMutationError::Invalid(format!("Invalid gradient: {error:?}")))?;
     definition.gradient = gradient;
-    Ok(())
+    session
+        .project
+        .apply_edits(
+            [donder_language::model::ProjectEdit::SetGradientDefinition {
+                id: GradientId(resolved.identity.clone()),
+                value: definition,
+            }],
+        )
+        .map_err(GuiMutationError::Invalid)
 }

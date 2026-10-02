@@ -22,7 +22,54 @@ use crate::setup::SetupId;
 pub fn remap_document_paths(
     project: &mut DonderProject,
     remaps: &BTreeMap<DocumentId, DocumentId>,
-) {
+) -> Result<(), String> {
+    project.checked_edit(|project| {
+        // Reject collisions before rebuilding maps; collecting colliding keys
+        // would otherwise silently discard an authored object.
+        let mut documents = std::collections::BTreeSet::new();
+        documents.insert(project.root.id.0.document_id().clone());
+        for setup in project.setups() {
+            documents.insert(setup.id.0.document_id().clone());
+        }
+        for layout in project.layouts() {
+            documents.insert(layout.id.0.document_id().clone());
+        }
+        for patch in project.patches() {
+            documents.insert(patch.id.0.document_id().clone());
+        }
+        for controller in project.controllers() {
+            documents.insert(controller.id.0.document_id().clone());
+        }
+        for sequence in project.sequences() {
+            documents.insert(sequence.id.0.document_id().clone());
+        }
+        for id in project.definitions.effects.definitions.keys() {
+            documents.insert(id.0.document_id().clone());
+        }
+        for id in project.definitions.operators.definitions.keys() {
+            documents.insert(id.0.document_id().clone());
+        }
+        for id in project.definitions.fixtures.definitions.keys() {
+            documents.insert(id.0.document_id().clone());
+        }
+        for id in project.definitions.curves.definitions.keys() {
+            documents.insert(id.0.document_id().clone());
+        }
+        for id in project.definitions.gradients.definitions.keys() {
+            documents.insert(id.0.document_id().clone());
+        }
+        let mut destinations = std::collections::BTreeSet::new();
+        for document in &documents {
+            if !destinations.insert(remaps.get(document).unwrap_or(document)) {
+                return Err("Document path remapping merges distinct documents.".into());
+            }
+        }
+        remap_candidate(project, remaps);
+        Ok(())
+    })
+}
+
+fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, DocumentId>) {
     if remaps.is_empty() {
         return;
     }
@@ -39,7 +86,8 @@ pub fn remap_document_paths(
 
     project.setups = remap_index_map(&project.setups, |id| {
         SetupId(remap_object_identity(&id.0, remaps))
-    });
+    })
+    .into();
     for setup in project.setups_mut() {
         setup.id.0 = remap_object_identity(&setup.id.0, remaps);
         if let ValueSource::Reference(id) = &mut setup.layout {
@@ -57,7 +105,8 @@ pub fn remap_document_paths(
 
     project.layouts = remap_index_map(&project.layouts, |id| {
         LayoutId(remap_object_identity(&id.0, remaps))
-    });
+    })
+    .into();
     for layout in project.layouts_mut() {
         layout.id.0 = remap_object_identity(&layout.id.0, remaps);
         remap_layout_fixtures(&mut layout.fixtures, remaps);
@@ -65,7 +114,8 @@ pub fn remap_document_paths(
 
     project.patches = remap_index_map(&project.patches, |id| {
         crate::patch::PatchId(remap_object_identity(&id.0, remaps))
-    });
+    })
+    .into();
     for patch in project.patches_mut() {
         patch.id.0 = remap_object_identity(&patch.id.0, remaps);
         for route in &mut patch.routes {
@@ -76,13 +126,15 @@ pub fn remap_document_paths(
 
     project.controllers = remap_index_map(&project.controllers, |id| {
         crate::controller::ControllerId(remap_object_identity(&id.0, remaps))
-    });
+    })
+    .into();
     for controller in project.controllers_mut() {
         controller.id.0 = remap_object_identity(&controller.id.0, remaps);
     }
     project.sequences = remap_index_map(&project.sequences, |id| {
         crate::sequence::SequenceId(remap_object_identity(&id.0, remaps))
-    });
+    })
+    .into();
     for sequence in project.sequences_mut() {
         sequence.id.0 = remap_object_identity(&sequence.id.0, remaps);
         for clip in &mut sequence.automation_clips {

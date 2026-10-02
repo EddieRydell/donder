@@ -1,3 +1,4 @@
+use donder_language::model::ProjectData;
 use donder_language::ownership::ValueSource;
 pub(crate) mod inspection;
 use inspection::string_field;
@@ -73,13 +74,12 @@ impl Loader {
         self.link_generated_effects()?;
         let mut project = self.resolve_project(&entrypoint)?;
         self.resolve_loaded_objects(&mut project)?;
-        donder_language::validation::validate_project(&project).map_err(|error| {
-            LoadProjectError::InvalidDocument {
+        let project =
+            DonderProject::try_new(project).map_err(|error| LoadProjectError::InvalidDocument {
                 path: entrypoint.path().to_path_buf(),
                 range: None,
                 message: format!("project validation failed: {error:?}"),
-            }
-        })?;
+            })?;
         Ok(ProjectSession {
             project,
             source: SourceProject {
@@ -93,7 +93,7 @@ impl Loader {
 
     fn resolve_loaded_objects(
         &mut self,
-        project: &mut DonderProject,
+        project: &mut ProjectData,
     ) -> Result<(), LoadProjectError> {
         // Every indexed object needs typed state, including unused objects in imported
         // documents. Saving never falls back to an unresolved original YAML value.
@@ -535,7 +535,7 @@ impl Loader {
     pub(super) fn resolve_project(
         &mut self,
         entrypoint: &donder_language::identity::DocumentId,
-    ) -> Result<DonderProject, LoadProjectError> {
+    ) -> Result<ProjectData, LoadProjectError> {
         let root_object = self.single_project_object(entrypoint)?;
         let root_id = ProjectId(
             self.source_identity(
@@ -552,7 +552,7 @@ impl Loader {
         );
         let (setup_ref, sequence_refs) =
             parse_project_fields(entrypoint.path(), root_object.value)?;
-        let mut project = DonderProject {
+        let mut project = ProjectData {
             root: ProjectRoot {
                 id: root_id.clone(),
                 setup: ValueSource::Reference(SetupId(

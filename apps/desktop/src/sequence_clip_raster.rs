@@ -26,7 +26,7 @@ use donder_language::sequence::{
 use donder_language::setup::SetupId;
 use donder_language::values::{Curve, DonderTime, Gradient};
 use donder_project_io::ProjectSession;
-use donder_runtime::sequence::PreparedSequence;
+use donder_runtime::PreparedSequence;
 
 use crate::dto::{
     EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,

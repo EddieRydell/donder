@@ -215,7 +215,7 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
     donder_language::source_remap::remap_document_paths(
         &mut candidate.project,
         &plan.document_remaps,
-    );
+    )?;
     crate::source_copy::remap_documents(&mut candidate.source, &plan.document_remaps)?;
 
     let root = candidate.source.project_root().to_owned();

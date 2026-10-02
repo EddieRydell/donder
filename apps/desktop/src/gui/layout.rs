@@ -17,15 +17,21 @@ pub(super) fn edit_layout(
             parent,
             before,
         } => {
-            session
+            let mut layout = session
                 .project
-                .layout_mut(&id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
+                .layout(&id)
+                .cloned()
+                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            layout
                 .reparent_fixture(
                     FixtureInstanceId(fixture_id),
                     parent.map(FixtureInstanceId),
                     before.map(FixtureInstanceId),
                 )
+                .map_err(GuiMutationError::Invalid)?;
+            session
+                .project
+                .replace_layout(&id, layout)
                 .map_err(GuiMutationError::Invalid)?;
         }
         LayoutGuiEdit::DuplicateFixture { id: fixture_id } => {
@@ -82,15 +88,19 @@ pub(super) fn edit_layout(
                         FixtureInstanceId(*fixture_id),
                     )
                     .map_err(GuiMutationError::Invalid)?;
-                    let layout = session
-                        .project
-                        .layout_mut(&id)
-                        .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+                    let mut layout =
+                        session.project.layout(&id).cloned().ok_or_else(|| {
+                            GuiMutationError::Invalid("Layout was not found.".into())
+                        })?;
                     let fixture =
                         find_fixture_mut(&mut layout.fixtures, copy).ok_or_else(|| {
                             GuiMutationError::Invalid("Copied fixture was not found.".into())
                         })?;
                     translate_fixture(fixture, &offset)?;
+                    session
+                        .project
+                        .replace_layout(&id, layout)
+                        .map_err(GuiMutationError::Invalid)?;
                 }
             }
         }
@@ -127,12 +137,15 @@ pub(super) fn edit_layout(
                         )?
                     };
                     let definition = donder_language::fixture::FixtureDefinitionId(identity);
-                    session.project.definitions.fixtures.definitions.insert(
-                        definition.clone(),
-                        FixtureDefinition {
-                            elements: Vec::new(),
-                        },
-                    );
+                    session
+                        .project
+                        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+                            id: definition.clone(),
+                            value: FixtureDefinition {
+                                elements: Vec::new(),
+                            },
+                        }])
+                        .map_err(GuiMutationError::Invalid)?;
                     donder_project_io::ensure_document_can_reference_source(
                         session,
                         resolved.identity.document_id(),
@@ -150,20 +163,26 @@ pub(super) fn edit_layout(
                 .into_iter()
                 .map(|fixture| domain_fixture(session, &id, fixture))
                 .collect::<Result<_, _>>()?;
+            let mut layout = session
+                .project
+                .layout(&id)
+                .cloned()
+                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
+            layout.fixtures = fixtures;
             session
                 .project
-                .layout_mut(&id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?
-                .fixtures = fixtures;
+                .replace_layout(&id, layout)
+                .map_err(GuiMutationError::Invalid)?;
         }
 
         LayoutGuiEdit::MoveFixture {
             id: fixture_id,
             delta,
         } => {
-            let layout = session
+            let mut layout = session
                 .project
-                .layout_mut(&id)
+                .layout(&id)
+                .cloned()
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
             let fixture = find_fixture_mut(&mut layout.fixtures, FixtureInstanceId(fixture_id))
                 .ok_or_else(|| {
@@ -182,6 +201,10 @@ pub(super) fn edit_layout(
                 y_meters: current.position.y.as_meters_f32() + delta.y_meters,
                 z_meters: current.position.z.as_meters_f32() + delta.z_meters,
             })?;
+            session
+                .project
+                .replace_layout(&id, layout)
+                .map_err(GuiMutationError::Invalid)?;
         }
     }
     Ok(())
@@ -245,9 +268,10 @@ fn add_instance(
     parent: Option<u32>,
     transform: crate::dto::Transform,
 ) -> Result<(), GuiMutationError> {
-    let layout = session
+    let mut layout = session
         .project
-        .layout_mut(layout_id)
+        .layout(layout_id)
+        .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
     let id = layout
         .iter_fixtures()
@@ -277,7 +301,10 @@ fn add_instance(
             transform: checked_transform(transform)?,
         },
     });
-    Ok(())
+    session
+        .project
+        .replace_layout(layout_id, layout)
+        .map_err(GuiMutationError::Invalid)
 }
 
 fn translate_fixture(

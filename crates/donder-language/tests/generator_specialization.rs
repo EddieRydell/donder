@@ -1,3 +1,9 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 use donder_language::dsl::{
     DslBindCache, GeneratorBinding, GeneratorContext, GeneratorInput, Identifier, RunContext,
     SpecializedGenerator, TargetValue, Value, VmWorkspace, compile_effects,
@@ -5,6 +11,10 @@ use donder_language::dsl::{
 use donder_language::values::Marks;
 use donder_language::values::{SampleDuration, SampleTime};
 use std::sync::Arc;
+
+#[allow(dead_code)]
+#[path = "../../../firmware/esp32/src/workload.rs"]
+mod workload;
 
 fn specialize(source: &str, inputs: &[GeneratorInput]) -> SpecializedGenerator {
     let mut compiled = compile_effects(source).unwrap();
@@ -21,7 +31,6 @@ fn specialize(source: &str, inputs: &[GeneratorInput]) -> SpecializedGenerator {
             duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
         })
-        .unwrap()
 }
 
 fn value(binding: &GeneratorBinding, params: &[Value], calculations: &[Vec<Value>]) -> Value {
@@ -213,10 +222,7 @@ fn implicit_generator_mark_time_is_independent_of_specialization() {
 
     // Raw calculation admission must also recognize implicit clock reads;
     // not every accepted program originated in this generator compiler.
-    use donder_runtime::dsl::{
-        CalculationProgram,
-        bytecode::{Instruction, MarkOp},
-    };
+    use donder_runtime::{CalculationProgram, Instruction, MarkOp};
     let context = RunContext {
         progress: 0.5,
         time: SampleDuration::from_ticks(500_000),
@@ -254,10 +260,7 @@ fn implicit_generator_mark_time_is_independent_of_specialization() {
 
 #[test]
 fn repeated_calculation_outputs_share_the_result_array() {
-    use donder_runtime::dsl::{
-        BoundParams, CalculationProgram,
-        bytecode::{Instruction, PoolSpan},
-    };
+    use donder_runtime::{CalculationProgram, Instruction, PoolSpan};
 
     let generator = specialize(
         "effect Parent { param float seed; void generate() {
@@ -276,18 +279,11 @@ fn repeated_calculation_outputs_share_the_result_array() {
         start,
         len: outputs.len() as u32,
     });
-    assert!(CalculationProgram::new(program.clone(), inputs.clone(), outputs.clone()).is_some());
-
-    let params = BoundParams::from_values(
-        inputs.iter().map(|ty| (ty, Value::Float(0.25))),
-        &mut DslBindCache::default(),
-    );
-    let mut result = BoundParams::result_workspace(
-        &outputs,
-        program.array_capacity as usize,
-        program.array_width as usize,
-    );
-    let mut workspace = VmWorkspace::for_program(&program);
+    let program = CalculationProgram::new(program, inputs, outputs).unwrap();
+    let invocation = program
+        .bind(vec![Value::Float(0.25)], &mut DslBindCache::default())
+        .unwrap();
+    let mut workspace = VmWorkspace::for_program(program.bytecode());
     for time in [0, 500_000, 0] {
         let context = RunContext {
             progress: time as f32 / 1_000_000.0,
@@ -297,21 +293,19 @@ fn repeated_calculation_outputs_share_the_result_array() {
             pixel_count: 0,
             pixel_fraction: 0.0,
         };
-        program
-            .evaluate_bindings(&params, &context, &mut workspace, &mut result, &outputs)
-            .unwrap();
+        let result = invocation.evaluate(&context, &mut workspace);
         let expected = Value::Array(vec![Value::Float(0.25 + time as f32 / 1_000_000.0)].into());
-        assert!(result.iter_values().all(|value| value == expected));
+        assert!(result.iter().all(|value| value == &expected));
     }
 }
 
 #[test]
 fn retained_array_copies_preserve_sharing_across_nested_calculations() {
-    use donder_runtime::bindings::{
-        ParameterSource, ParameterWorkspace, PreparedParameterBinding,
-        PreparedParameterCalculation, PreparedParameterEnvironment,
+    use donder_runtime::{BoundParams, Type};
+    use donder_runtime::{
+        ParameterSource, PreparedParameterBinding, PreparedParameterCalculation,
+        PreparedParameterEnvironment,
     };
-    use donder_runtime::dsl::{BoundParams, Type};
 
     let generator = specialize(
         "effect Parent { param float seed; void generate() {
@@ -325,7 +319,7 @@ fn retained_array_copies_preserve_sharing_across_nested_calculations() {
     assert_eq!(generator.calculations.len(), 3);
     let seed = Value::Float(0.25);
     let mut cache = DslBindCache::default();
-    let mut environments = vec![PreparedParameterEnvironment {
+    let mut environments: Vec<PreparedParameterEnvironment> = vec![PreparedParameterEnvironment {
         start_time: SampleTime::from_ticks(0),
         duration: SampleDuration::from_ticks(1_000_000),
         params: BoundParams::from_values([(&Type::Float, seed.clone())], &mut cache),
@@ -370,20 +364,40 @@ fn retained_array_copies_preserve_sharing_across_nested_calculations() {
             array_width,
         });
     }
-    PreparedParameterEnvironment::validate_all(&environments).unwrap();
-    let mut workspace = ParameterWorkspace::new(&environments, 1);
+    let sample = compile_effects("effect Child { param array<array<array<float>>> value; color sample() { return rgb(value[0][0][0], value[1][3][0], value[3][7][0]); } }")
+        .unwrap().remove(0).effect;
+    let base = workload::show(
+        2,
+        sample.sample_program().unwrap().clone().into_parts().0,
+        BoundParams::default(),
+    );
+    let mut graph = base.signals().clone();
+    graph.parameter_environments = environments.into();
+    graph.effects[0].implementation = donder_runtime::PreparedEffectImplementation::Bound {
+        program: 0,
+        environment: 3,
+    };
+    let mut playback =
+        donder_runtime::PreparedSequence::admit(graph, base.patch().clone(), base.outputs().into())
+            .unwrap()
+            .into_playback();
     for time in [0, 500_000, 200_000, 0] {
-        let expected = evaluate(&generator, core::slice::from_ref(&seed), time);
-        let output = workspace
-            .resolve(&environments, 3, SampleTime::from_ticks(time))
-            .unwrap();
-        assert_eq!(output.value(0).unwrap(), expected[0][0]);
+        let channel = ((0.25 + time as f32 / 1_000_000.0) * 255.0).round() as u8;
+        let output = playback.evaluate(SampleTime::from_ticks(time));
+        assert_eq!(
+            output.colors(),
+            &[donder_runtime::Color {
+                red: channel,
+                green: channel,
+                blue: channel,
+            }; 2]
+        );
     }
 }
 
 #[test]
 fn random_seed_lowering_matches_fixed_and_live_evaluation() {
-    use donder_runtime::sampling::deterministic_random;
+    use donder_runtime::deterministic_random;
 
     let source = "effect Parent { param float seed; void generate() {
         timeline.emit Child {
@@ -400,7 +414,14 @@ fn random_seed_lowering_matches_fixed_and_live_evaluation() {
     .unwrap()
     .remove(0)
     .effect;
-    assert!(sample.sample_program().unwrap().value_operands.is_empty());
+    assert!(
+        sample
+            .sample_program()
+            .unwrap()
+            .bytecode()
+            .value_operands
+            .is_empty()
+    );
     let context = RunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -445,13 +466,16 @@ fn random_seed_lowering_matches_fixed_and_live_evaluation() {
         );
 
         let bound = sample
-            .bind_params_pairs(&[(Identifier::new("seed".into()).unwrap(), params[0].clone())])
+            .bind(
+                [(Identifier::new("seed".into()).unwrap(), params[0].clone())]
+                    .iter()
+                    .map(|(name, value)| (name, value)),
+                &mut donder_runtime::DslBindCache::default(),
+            )
             .unwrap();
         let [red, green, blue] = expected.map(|value| (value * 255.0).round() as u8);
         assert_eq!(
-            sample
-                .sample_bound(&bound, &context, &mut workspace)
-                .unwrap(),
+            bound.evaluate(&context, &SPATIAL, &mut workspace),
             donder_language::dsl::Color { red, green, blue }
         );
     }
@@ -531,8 +555,7 @@ fn invalid_fixed_emission_timing_omits_only_that_child() {
             GeneratorInput::Fixed(Value::Float(0.0)),
         ])
         .unwrap()
-        .specialize(&context)
-        .unwrap();
+        .specialize(&context);
     assert_eq!(specialized.children.len(), 1);
     assert_eq!(specialized.children[0].start_time.as_ticks(), 2_500_000);
 }
@@ -578,8 +601,7 @@ fn specialization_obeys_portable_child_clock_rules() {
                         GeneratorInput::Fixed(Value::Float(length)),
                     ])
                     .unwrap()
-                    .specialize(&context)
-                    .unwrap();
+                    .specialize(&context);
                 let expected = donder_language::values::sample_time_with_seconds_offset(
                     context.start_time,
                     offset,
@@ -651,7 +673,7 @@ fn fixed_local_capture_does_not_follow_later_assignment() {
 
 #[test]
 fn calculation_admission_checks_code_and_signature_together() {
-    use donder_runtime::dsl::{CalculationProgram, Type, bytecode::Instruction};
+    use donder_runtime::{CalculationProgram, Instruction, Type};
     let generator = specialize(
         "effect Parent { param float level = 1.0; void generate() {
             timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: level + seconds() };
@@ -697,7 +719,7 @@ fn calculation_admission_checks_code_and_signature_together() {
 
 #[test]
 fn calculation_binding_checks_its_entire_signature_before_execution() {
-    use donder_runtime::dsl::{CalculationProgram, Type};
+    use donder_runtime::{CalculationProgram, Type};
     let generator = specialize(
         "effect Parent { param float level = 1.0; void generate() {
             timeline.emit Child { start: 0.0, duration: 1.0, target: target, value: level + seconds() };
@@ -757,7 +779,7 @@ fn calculation_binding_checks_its_entire_signature_before_execution() {
 
 #[test]
 fn calculation_outputs_keep_their_types_without_a_tuple_array() {
-    use donder_runtime::dsl::{Type, bytecode::Instruction};
+    use donder_runtime::{Instruction, Type};
     let generator = specialize(
         "effect Parent { param float level = 1.0; void generate() {
             float x = level;
@@ -789,9 +811,8 @@ fn calculation_outputs_keep_their_types_without_a_tuple_array() {
 
 #[test]
 fn typed_builtin_operand_addresses_are_checked_at_admission() {
-    use donder_runtime::dsl::{
-        CalculationProgram,
-        bytecode::{Instruction, IntSlot, MarkOp, NumberSlot, TargetItemsOp},
+    use donder_runtime::{
+        CalculationProgram, Instruction, IntSlot, MarkOp, NumberSlot, TargetItemsOp,
     };
     let generator = specialize(
         "effect Parent { fixed param marks beats; param float query = 0.0;
@@ -902,8 +923,7 @@ fn emission_scopes_resolve_shadows_once_and_preserve_outer_assignments() {
                     .clone()
                     .bind(&[GeneratorInput::Fixed(Value::Bool(choose)), input])
                     .unwrap()
-                    .specialize(&context)
-                    .unwrap();
+                    .specialize(&context);
                 assert_eq!(evaluate(&specialized, &arguments, 0), expected);
             }
         }
@@ -914,7 +934,7 @@ fn emission_scopes_resolve_shadows_once_and_preserve_outer_assignments() {
 fn generated_selection_preserves_native_pixel_addresses_and_sample_context() {
     // One record is enough to exercise large addresses: no huge fixture or
     // allocation is needed, and selecting a record must not narrow its fields.
-    let pixel = donder_runtime::signal::PreparedPixel {
+    let pixel = donder_runtime::PreparedPixel {
         fixture_index: i32::MAX as usize + 1,
         fixture_pixel_index: u32::MAX,
         pixel_index: i32::MAX as usize + 2,
@@ -949,8 +969,7 @@ fn generated_selection_preserves_native_pixel_addresses_and_sample_context() {
             .clone()
             .bind(&[])
             .unwrap()
-            .specialize(&context)
-            .unwrap();
+            .specialize(&context);
         assert_eq!(specialized.children.len(), 1);
         assert_eq!(specialized.children[0].target.pixels.as_ref(), &[pixel]);
     }

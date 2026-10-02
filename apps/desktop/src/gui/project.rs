@@ -5,7 +5,7 @@ use super::{ResolvedGuiObject, blocked};
 use crate::dto::{GuiDocument, ProjectGuiDocument};
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
-    if session.project.root.id.0 != resolved.identity {
+    if session.project.root().id.0 != resolved.identity {
         return blocked("The requested project is missing.", Vec::new());
     }
 
@@ -18,10 +18,13 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
             ),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
-            setup: object_ref(&session.project.root.setup.id().0, SourceObjectKind::Setup),
+            setup: object_ref(
+                &session.project.root().setup.id().0,
+                SourceObjectKind::Setup,
+            ),
             sequences: session
                 .project
-                .root
+                .root()
                 .sequences
                 .iter()
                 .map(|sequence| object_ref(&sequence.id().0, SourceObjectKind::Sequence))
@@ -43,7 +46,7 @@ pub(crate) fn create_sequence(
             GuiMutationError::Invalid("Sequence duration is outside the supported range.".into())
         })?;
     let color = super::model::parse_color(&request.initial_color)?;
-    let index = session.project.root.sequences.len();
+    let index = session.project.root().sequences.len();
     donder_language::ownership::edit::add_sequence(
         &mut session.project,
         donder_language::values::DonderDuration(duration),
@@ -67,7 +70,7 @@ pub(crate) fn create_sequence(
         )?;
     }
     Ok(super::patch::object_ref(
-        &session.project.root.sequences[index].id().0,
+        &session.project.root().sequences[index].id().0,
         donder_project_io::SourceObjectKind::Sequence,
     ))
 }

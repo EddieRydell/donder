@@ -1,3 +1,9 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 #[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/workload.rs"]
 mod workload;
@@ -15,17 +21,21 @@ use indexmap::IndexMap;
 
 #[test]
 fn host_mark_fixtures_preserve_children_and_rendered_frames() {
-    use donder_runtime::values::SampleTime;
+    use donder_runtime::SampleTime;
     let actual = [true, false].map(|pulse| {
         let show = mark_workload::mark_show(200, pulse);
-        let mut workspace = show.workspace().unwrap();
+        let mut workspace = show.clone().prepare().unwrap().into_playback();
         let mut output = [vec![0u8; 600]];
         let mut checksum = 0xcbf2_9ce4_8422_2325u64;
         for ticks in [
             1_999_999, 2_000_000, 2_050_000, 2_375_000, 3_125_000, 4_750_000, 2_375_000,
         ] {
-            show.evaluate(SampleTime::from_ticks(ticks), &mut output, &mut workspace)
-                .unwrap();
+            for (snapshot, output) in output
+                .iter_mut()
+                .zip(workspace.evaluate(SampleTime::from_ticks(ticks)).outputs())
+            {
+                snapshot.copy_from_slice(output.bytes);
+            }
             for byte in &output[0] {
                 checksum = (checksum ^ u64::from(*byte)).wrapping_mul(0x100_0000_01b3);
             }
@@ -45,13 +55,13 @@ fn host_mark_fixtures_preserve_children_and_rendered_frames() {
 
 #[test]
 fn effect_automation_slots_skip_unautomated_effects() {
-    use donder_runtime::automation::AutomationMapping;
-    use donder_runtime::signal::{PreparedAutomation, PreparedEffectAutomation};
-    use donder_runtime::values::{SampleDuration, SampleTime};
+    use donder_runtime::AutomationMapping;
+    use donder_runtime::{PreparedAutomation, PreparedEffectAutomation};
+    use donder_runtime::{SampleDuration, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
     let show = workload::show(
         200,
-        effect.sample_program().unwrap().clone(),
+        effect.sample_program().unwrap().clone().into_parts().0,
         params.clone(),
     );
     let mut signals = show.signals().clone();
@@ -80,7 +90,7 @@ fn effect_automation_slots_skip_unautomated_effects() {
     let singles = [1, 3].map(|index| {
         let mut single = workload::show(
             200,
-            effect.sample_program().unwrap().clone(),
+            effect.sample_program().unwrap().clone().into_parts().0,
             params.clone(),
         )
         .signals()
@@ -94,36 +104,44 @@ fn effect_automation_slots_skip_unautomated_effects() {
         workload::rgb_output(single)
     });
     let show = workload::rgb_output(signals);
-    let mut workspace = show.workspace().unwrap();
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 600]];
     let mut expected = vec![0; 600];
     let mut component = [vec![0; 600]];
     for frame in [0, 31, 4, 0] {
         expected.fill(0);
         for single in &singles {
-            single
-                .evaluate(
-                    workload::time(frame),
-                    &mut component,
-                    &mut single.workspace().unwrap(),
-                )
-                .unwrap();
+            for (snapshot, output) in component.iter_mut().zip(
+                single
+                    .clone()
+                    .prepare()
+                    .unwrap()
+                    .into_playback()
+                    .evaluate(workload::time(frame))
+                    .outputs(),
+            ) {
+                snapshot.copy_from_slice(output.bytes);
+            }
             for (expected, component) in expected.iter_mut().zip(&component[0]) {
                 *expected = (*expected).max(*component);
             }
         }
-        show.evaluate(workload::time(frame), &mut actual, &mut workspace)
-            .unwrap();
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(actual[0], expected);
     }
 }
 
 #[test]
 fn uniform_resource_samples_are_hoisted_without_retaining_references() {
-    use donder_runtime::dsl::bytecode::Instruction;
+    use donder_runtime::Instruction;
     let (effect, params) = fixtures::uniform_resources();
-    let prefix = &effect.sample_program().unwrap().instructions
-        [..effect.sample_program().unwrap().pixel_entry as usize];
+    let prefix = &effect.sample_program().unwrap().bytecode().instructions
+        [..effect.sample_program().unwrap().bytecode().pixel_entry as usize];
     assert!(
         prefix
             .iter()
@@ -136,19 +154,30 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
     );
     let show = workload::show(
         200,
-        effect.sample_program().unwrap().clone(),
+        effect.sample_program().unwrap().clone().into_parts().0,
         params.clone(),
     );
-    let mut workspace = show.workspace().unwrap();
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
     let mut output = [vec![0; 600]];
+    let invocation = effect
+        .sample_program()
+        .unwrap()
+        .bind(
+            params.iter_values().collect(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let mut vm = VmWorkspace::default();
     for frame in [0, 31, 4, 0] {
-        show.evaluate(workload::time(frame), &mut output, &mut workspace)
-            .unwrap();
+        for (snapshot, output) in output
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         for pixel in 0..200 {
-            let color = effect
-                .sample_bound(&params, &workload::context(200, pixel, frame), &mut vm)
-                .unwrap();
+            let color =
+                invocation.evaluate(&workload::context(200, pixel, frame), &SPATIAL, &mut vm);
             assert_eq!(
                 &output[0][pixel * 3..pixel * 3 + 3],
                 &[color.green, color.red, color.blue]
@@ -160,8 +189,8 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
 #[test]
 fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
     use donder_language::dsl::{Identifier, Value};
-    use donder_runtime::dsl::bytecode::Instruction;
-    use donder_runtime::values::Gradient;
+    use donder_runtime::Gradient;
+    use donder_runtime::Instruction;
     for (source, returns_black) in [
         (
             "effect Guarded { param gradient colors; color sample() { if (pixel_index() < 0) { return colors[progress()]; } return rgb(pixel_fraction(), progress(), 0.25); } }",
@@ -174,8 +203,8 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
     ] {
         let effect = compile_effects(source).unwrap().remove(0).effect;
         assert!(
-            !effect.sample_program().unwrap().instructions
-                [..effect.sample_program().unwrap().pixel_entry as usize]
+            !effect.sample_program().unwrap().bytecode().instructions
+                [..effect.sample_program().unwrap().bytecode().pixel_entry as usize]
                 .iter()
                 .any(|op| matches!(
                     op,
@@ -183,21 +212,29 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
                         | Instruction::GradientParamColorScaled { .. }
                 ))
         );
-        let params = effect
-            .bind_params(&IndexMap::from([(
+        let params = donder_runtime::BoundParams::bind(
+            effect.params(),
+            &IndexMap::from([(
                 Identifier::new("colors".into()).unwrap(),
                 Value::Gradient(Gradient { stops: vec![] }.into()),
-            )]))
-            .unwrap();
-        let result = effect.sample_bound(
-            &params,
-            &workload::context(200, 0, 0),
-            &mut VmWorkspace::default(),
-        );
+            )]),
+        )
+        .unwrap();
+        let result = effect
+            .sample_program()
+            .unwrap()
+            .bind(
+                params.iter_values().collect(),
+                &mut donder_runtime::DslBindCache::default(),
+            )
+            .unwrap()
+            .evaluate(
+                &workload::context(200, 0, 0),
+                &SPATIAL,
+                &mut VmWorkspace::default(),
+            );
         if returns_black {
-            assert_eq!(result.unwrap(), donder_runtime::values::Color::BLACK);
-        } else {
-            result.unwrap();
+            assert_eq!(result, donder_runtime::Color::BLACK);
         }
     }
 }
@@ -205,12 +242,12 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
 #[test]
 fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() {
     use donder_language::dsl::compile_operators;
-    use donder_runtime::automation::AutomationMapping;
-    use donder_runtime::signal::{
+    use donder_runtime::AutomationMapping;
+    use donder_runtime::{Curve, CurvePoint, SampleDuration, SampleTime};
+    use donder_runtime::{
         PreparedAutomation, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
         PreparedSignalNode,
     };
-    use donder_runtime::values::{Curve, CurvePoint, SampleDuration, SampleTime};
     let effect = compile_effects(
         "effect Source { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
     )
@@ -220,10 +257,10 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
     let gain = compile_operators("operator Gain { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds()) * gain; } }").unwrap().remove(0);
     let mut show = workload::show(
         200,
-        effect.sample_program().unwrap().clone(),
-        effect.bind_params(&IndexMap::new()).unwrap(),
+        effect.sample_program().unwrap().clone().into_parts().0,
+        donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap(),
     );
-    workload::apply_operator(&mut show, gain.bytecode.clone(), true);
+    workload::apply_operator(&mut show, gain.program().clone().into_parts().0, true);
     let mut signals = show.signals().clone();
     let PreparedSignalKind::Operator {
         operator,
@@ -233,7 +270,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
     else {
         panic!("operator")
     };
-    operator.params = gain.bind_params(&IndexMap::new()).unwrap();
+    operator.params = donder_runtime::BoundParams::bind(gain.params(), &IndexMap::new()).unwrap();
     *automation = vec![PreparedAutomation {
         start: SampleTime::from_ticks(0),
         duration: SampleDuration::from_ticks(8_000_000),
@@ -264,7 +301,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
         let outer = compile_operators(source).unwrap().remove(0);
         signals = reference.clone();
         let mut programs = signals.programs.to_vec();
-        programs.push(outer.bytecode.clone());
+        programs.push(outer.program().clone().into_parts().0);
         signals.programs = programs.into();
         let mut nodes = signals.plan.nodes.to_vec();
         nodes.push(PreparedSignalNode {
@@ -272,7 +309,8 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
                 operator: PreparedOperatorNode {
                     automation_slot: 0,
                     implementation: PreparedOperator::Dsl(2),
-                    params: outer.bind_params(&IndexMap::new()).unwrap(),
+                    params: donder_runtime::BoundParams::bind(outer.params(), &IndexMap::new())
+                        .unwrap(),
                 },
                 inputs: vec![1].into(),
                 automation: vec![].into(),
@@ -296,22 +334,37 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
             }
             let show = workload::rgb_output(signals.clone());
             let direct = workload::rgb_output(direct_signals.clone());
-            let mut workspace = show.workspace().unwrap();
+            let mut workspace = show.clone().prepare().unwrap().into_playback();
             for ticks in [3_000_000, 6_000_000, 1_000_000, 3_000_000] {
                 let time = SampleTime::from_ticks(ticks);
-                show.evaluate(time, &mut actual, &mut workspace).unwrap();
-                direct
-                    .evaluate(time, &mut expected, &mut direct.workspace().unwrap())
-                    .unwrap();
+                for (snapshot, output) in actual.iter_mut().zip(workspace.evaluate(time).outputs())
+                {
+                    snapshot.copy_from_slice(output.bytes);
+                }
+                for (snapshot, output) in expected.iter_mut().zip(
+                    direct
+                        .clone()
+                        .prepare()
+                        .unwrap()
+                        .into_playback()
+                        .evaluate(time)
+                        .outputs(),
+                ) {
+                    snapshot.copy_from_slice(output.bytes);
+                }
                 if source != workload::IDENTITY_SOURCE {
                     let mut past = [vec![0; 600]];
-                    direct
-                        .evaluate(
-                            SampleTime::from_ticks(ticks / 2),
-                            &mut past,
-                            &mut direct.workspace().unwrap(),
-                        )
-                        .unwrap();
+                    for (snapshot, output) in past.iter_mut().zip(
+                        direct
+                            .clone()
+                            .prepare()
+                            .unwrap()
+                            .into_playback()
+                            .evaluate(SampleTime::from_ticks(ticks / 2))
+                            .outputs(),
+                    ) {
+                        snapshot.copy_from_slice(output.bytes);
+                    }
                     for (now, past) in expected[0].iter_mut().zip(&past[0]) {
                         *now = (*now).max(*past);
                     }
@@ -326,9 +379,9 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
 #[test]
 fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
     use donder_language::dsl::compile_operators;
-    use donder_runtime::values::{SampleDuration, SampleTime};
+    use donder_runtime::{SampleDuration, SampleTime};
     let effect = compile_effects("effect Source { color sample() { float gain = sin(seconds() * 7.0) * 0.5 + 0.5; return rgb(pixel_fraction(), progress() * gain, gain); } }").unwrap().remove(0).effect;
-    assert!(effect.sample_program().unwrap().pixel_entry > 0);
+    assert!(effect.sample_program().unwrap().bytecode().pixel_entry > 0);
     let operators = [
         workload::IDENTITY_SOURCE,
         "operator Mix { input Signal source; color sample() { return max(source.at(seconds()), source.at(seconds() * 0.5)); } }",
@@ -340,8 +393,8 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
         let operator = compile_operators(source).unwrap().remove(0);
         let mut show = workload::show(
             200,
-            effect.sample_program().unwrap().clone(),
-            effect.bind_params(&IndexMap::new()).unwrap(),
+            effect.sample_program().unwrap().clone().into_parts().0,
+            donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap(),
         );
         let mut signals = show.signals().clone();
         if count == 2 {
@@ -352,21 +405,29 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
             signals.effects_by_layer[0] = vec![0, 1].into();
         }
         show = workload::rgb_output(signals);
-        workload::apply_operator(&mut show, operator.bytecode.clone(), true);
+        workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
         let mut full = show.signals().clone();
         for program in &mut full.programs {
             workload::disable_uniform_reuse(program);
         }
         let full = workload::rgb_output(full);
-        let mut workspace = show.workspace().unwrap();
-        let mut full_workspace = full.workspace().unwrap();
+        let mut workspace = show.clone().prepare().unwrap().into_playback();
+        let mut full_workspace = full.clone().prepare().unwrap().into_playback();
         let mut actual = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
         for frame in [0, 31, 4, 0] {
-            show.evaluate(workload::time(frame), &mut actual, &mut workspace)
-                .unwrap();
-            full.evaluate(workload::time(frame), &mut expected, &mut full_workspace)
-                .unwrap();
+            for (snapshot, output) in actual
+                .iter_mut()
+                .zip(workspace.evaluate(workload::time(frame)).outputs())
+            {
+                snapshot.copy_from_slice(output.bytes);
+            }
+            for (snapshot, output) in expected
+                .iter_mut()
+                .zip(full_workspace.evaluate(workload::time(frame)).outputs())
+            {
+                snapshot.copy_from_slice(output.bytes);
+            }
             assert_eq!(actual, expected, "effects={count} frame={frame}");
             assert!(actual[0].iter().any(|&byte| byte != 0));
         }
@@ -376,7 +437,7 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
 #[test]
 fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
     use donder_language::dsl::compile_operators;
-    use donder_runtime::signal::{
+    use donder_runtime::{
         PreparedOperator, PreparedOperatorNode, PreparedSignalKind, PreparedSignalNode,
     };
     let effect = compile_effects(
@@ -397,34 +458,40 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
         } }",
     ] {
         let operator = compile_operators(source).unwrap().remove(0);
-        assert!(operator.bytecode.pixel_entry > 0);
+        assert!(operator.bytecode().pixel_entry > 0);
         for depth in [1, 2, 8] {
             let show = workload::show(
                 200,
-                effect.sample_program().unwrap().clone(),
-                effect.bind_params(&IndexMap::new()).unwrap(),
+                effect.sample_program().unwrap().clone().into_parts().0,
+                donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap(),
             );
             let mut signals = show.signals().clone();
             signals.programs = vec![
-                effect.sample_program().unwrap().clone(),
-                operator.bytecode.clone(),
+                effect.sample_program().unwrap().clone().into_parts().0,
+                operator.program().clone().into_parts().0,
             ]
             .into();
             let graph = &mut signals.plan;
             graph.nodes = core::iter::once(PreparedSignalNode {
                 kind: PreparedSignalKind::Layer { layer_index: 0 },
             })
-            .chain((0..depth).map(|input| PreparedSignalNode {
-                kind: PreparedSignalKind::Operator {
-                    operator: PreparedOperatorNode {
-                        automation_slot: 0,
-                        implementation: PreparedOperator::Dsl(1),
-                        params: operator.bind_params(&IndexMap::new()).unwrap(),
+            .chain((0..depth).map(|input| {
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Operator {
+                        operator: PreparedOperatorNode {
+                            automation_slot: 0,
+                            implementation: PreparedOperator::Dsl(1),
+                            params: donder_runtime::BoundParams::bind(
+                                operator.params(),
+                                &IndexMap::new(),
+                            )
+                            .unwrap(),
+                        },
+                        inputs: vec![input].into(),
+                        automation: vec![].into(),
+                        vm_slot: input,
                     },
-                    inputs: vec![input].into(),
-                    automation: vec![].into(),
-                    vm_slot: input,
-                },
+                }
             }))
             .collect();
             graph.output_index = depth;
@@ -436,15 +503,23 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
             workload::disable_uniform_reuse(&mut full.programs[1]);
             let show = workload::rgb_output(signals);
             let full = workload::rgb_output(full);
-            let mut workspace = show.workspace().unwrap();
-            let mut full_workspace = full.workspace().unwrap();
+            let mut workspace = show.clone().prepare().unwrap().into_playback();
+            let mut full_workspace = full.clone().prepare().unwrap().into_playback();
             let mut actual = [vec![0; 600]];
             let mut expected = [vec![0; 600]];
             for frame in [0, 31, 4, 0] {
-                show.evaluate(workload::time(frame), &mut actual, &mut workspace)
-                    .unwrap();
-                full.evaluate(workload::time(frame), &mut expected, &mut full_workspace)
-                    .unwrap();
+                for (snapshot, output) in actual
+                    .iter_mut()
+                    .zip(workspace.evaluate(workload::time(frame)).outputs())
+                {
+                    snapshot.copy_from_slice(output.bytes);
+                }
+                for (snapshot, output) in expected
+                    .iter_mut()
+                    .zip(full_workspace.evaluate(workload::time(frame)).outputs())
+                {
+                    snapshot.copy_from_slice(output.bytes);
+                }
                 assert_eq!(actual, expected, "depth={depth} frame={frame} {source}");
                 // Repeated dimming can quantize the deeper chain to black.
                 if depth <= 2 {
@@ -458,12 +533,12 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
 #[test]
 fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     use donder_language::dsl::{Value, compile_operators};
-    use donder_runtime::automation::AutomationMapping;
-    use donder_runtime::signal::{
+    use donder_runtime::AutomationMapping;
+    use donder_runtime::{Curve, CurvePoint, SampleDuration, SampleTime};
+    use donder_runtime::{
         PreparedAutomation, PreparedOperator, PreparedOperatorNode, PreparedSignalKind,
         PreparedSignalNode,
     };
-    use donder_runtime::values::{Curve, CurvePoint, SampleDuration, SampleTime};
     let effect = compile_effects(
         "effect Source { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
     )
@@ -479,17 +554,17 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     )
     .unwrap()
     .remove(0);
-    assert!(gain.bytecode.pixel_entry > 0);
+    assert!(gain.bytecode().pixel_entry > 0);
     let show = workload::show(
         200,
-        effect.sample_program().unwrap().clone(),
-        effect.bind_params(&IndexMap::new()).unwrap(),
+        effect.sample_program().unwrap().clone().into_parts().0,
+        donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap(),
     );
     let mut signals = show.signals().clone();
     signals.programs = vec![
-        effect.sample_program().unwrap().clone(),
-        gain.bytecode.clone(),
-        mix.bytecode.clone(),
+        effect.sample_program().unwrap().clone().into_parts().0,
+        gain.program().clone().into_parts().0,
+        mix.program().clone().into_parts().0,
     ]
     .into();
     let mut nodes = vec![PreparedSignalNode {
@@ -501,12 +576,14 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
                 operator: PreparedOperatorNode {
                     automation_slot: nodes.len() - 1,
                     implementation: PreparedOperator::Dsl(1),
-                    params: gain
-                        .bind_params(&IndexMap::from([(
+                    params: donder_runtime::BoundParams::bind(
+                        gain.params(),
+                        &IndexMap::from([(
                             donder_language::dsl::Identifier::new("gain".into()).unwrap(),
                             Value::Float(value),
-                        )]))
-                        .unwrap(),
+                        )]),
+                    )
+                    .unwrap(),
                 },
                 inputs: vec![0].into(),
                 automation: vec![PreparedAutomation {
@@ -541,7 +618,7 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
             operator: PreparedOperatorNode {
                 automation_slot: 0,
                 implementation: PreparedOperator::Dsl(2),
-                params: mix.bind_params(&IndexMap::new()).unwrap(),
+                params: donder_runtime::BoundParams::bind(mix.params(), &IndexMap::new()).unwrap(),
             },
             inputs: vec![1, 2].into(),
             automation: vec![].into(),
@@ -561,15 +638,23 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     }
     let show = workload::rgb_output(signals);
     let full = workload::rgb_output(full);
-    let mut workspace = show.workspace().unwrap();
-    let mut full_workspace = full.workspace().unwrap();
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
+    let mut full_workspace = full.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 600]];
     let mut expected = [vec![0; 600]];
     for frame in [0, 31, 4, 0] {
-        show.evaluate(workload::time(frame), &mut actual, &mut workspace)
-            .unwrap();
-        full.evaluate(workload::time(frame), &mut expected, &mut full_workspace)
-            .unwrap();
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
+        for (snapshot, output) in expected
+            .iter_mut()
+            .zip(full_workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(actual, expected, "frame={frame}");
         assert!(actual[0].iter().any(|&value| value != 0));
     }
@@ -585,8 +670,14 @@ fn uniform_frames_match_individual_samples_when_seeking() {
     .unwrap()
     .remove(0)
     .effect;
-    assert!(!effect.sample_program().unwrap().uses_pixel_context);
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    assert!(
+        !effect
+            .sample_program()
+            .unwrap()
+            .bytecode()
+            .uses_pixel_context
+    );
+    let params = donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
     let identity = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
@@ -596,23 +687,34 @@ fn uniform_frames_match_individual_samples_when_seeking() {
     {
         let mut show = workload::layered_show(
             200,
-            effect.sample_program().unwrap().clone(),
+            effect.sample_program().unwrap().clone().into_parts().0,
             params.clone(),
             layers,
         );
         if wrapped {
-            workload::apply_operator(&mut show, identity.bytecode.clone(), true);
+            workload::apply_operator(&mut show, identity.program().clone().into_parts().0, true);
         }
-        let mut workspace = show.workspace().unwrap();
+        let mut workspace = show.clone().prepare().unwrap().into_playback();
         let mut buffers = [vec![0; 600]];
+        let invocation = effect
+            .sample_program()
+            .unwrap()
+            .bind(
+                params.iter_values().collect(),
+                &mut donder_runtime::DslBindCache::default(),
+            )
+            .unwrap();
         let mut vm = VmWorkspace::default();
         for frame in [0, 31, 4, 0] {
-            show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                .unwrap();
+            for (snapshot, output) in buffers
+                .iter_mut()
+                .zip(workspace.evaluate(workload::time(frame)).outputs())
+            {
+                snapshot.copy_from_slice(output.bytes);
+            }
             for pixel in 0..200 {
-                let color = effect
-                    .sample_bound(&params, &workload::context(200, pixel, frame), &mut vm)
-                    .unwrap();
+                let color =
+                    invocation.evaluate(&workload::context(200, pixel, frame), &SPATIAL, &mut vm);
                 assert_eq!(
                     &buffers[0][pixel * 3..pixel * 3 + 3],
                     &[color.green, color.red, color.blue]
@@ -625,33 +727,49 @@ fn uniform_frames_match_individual_samples_when_seeking() {
 #[test]
 fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     use donder_language::dsl::{Identifier, Value};
-    use donder_runtime::values::Gradient;
+    use donder_runtime::Gradient;
     let effect = compile_effects(
         "effect Uniform { param gradient colors; color sample() { return colors[progress()]; } }",
     )
     .unwrap()
     .remove(0)
     .effect;
-    assert!(!effect.sample_program().unwrap().uses_pixel_context);
-    let params = effect
-        .bind_params(&IndexMap::from([(
+    assert!(
+        !effect
+            .sample_program()
+            .unwrap()
+            .bytecode()
+            .uses_pixel_context
+    );
+    let params = donder_runtime::BoundParams::bind(
+        effect.params(),
+        &IndexMap::from([(
             Identifier::new("colors".into()).unwrap(),
             Value::Gradient(Gradient { stops: vec![] }.into()),
-        )]))
-        .unwrap();
-    let mut show = workload::show(200, effect.sample_program().unwrap().clone(), params);
-    let mut output = [vec![0; 600]];
-    show.evaluate(
-        workload::time(0),
-        &mut output,
-        &mut show.workspace().unwrap(),
+        )]),
     )
     .unwrap();
+    let mut show = workload::show(
+        200,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    );
+    let mut output = [vec![0; 600]];
+    for (snapshot, output) in output.iter_mut().zip(
+        show.clone()
+            .prepare()
+            .unwrap()
+            .into_playback()
+            .evaluate(workload::time(0))
+            .outputs(),
+    ) {
+        snapshot.copy_from_slice(output.bytes);
+    }
     assert!(output[0].iter().all(|&byte| byte == 0));
     let mut signals = show.signals().clone();
     signals.targets = vec![
         signals.targets[0].clone(),
-        donder_runtime::signal::PreparedTarget {
+        donder_runtime::PreparedTarget {
             pixels: 0..0,
             sample_count: 0,
         },
@@ -660,12 +778,16 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
     signals.effects[0].target = 1;
     show = workload::rgb_output(signals);
     output[0].fill(255);
-    show.evaluate(
-        workload::time(0),
-        &mut output,
-        &mut show.workspace().unwrap(),
-    )
-    .unwrap();
+    for (snapshot, output) in output.iter_mut().zip(
+        show.clone()
+            .prepare()
+            .unwrap()
+            .into_playback()
+            .evaluate(workload::time(0))
+            .outputs(),
+    ) {
+        snapshot.copy_from_slice(output.bytes);
+    }
     assert!(output[0].iter().all(|&byte| byte == 0));
 }
 
@@ -680,41 +802,43 @@ fn identical_target_routing_matches_address_search() {
     let operator = donder_language::dsl::compile_operators(workload::OPERATOR_SOURCE)
         .unwrap()
         .remove(0);
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let params = donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
     let mut direct = workload::show(
         200,
-        effect.sample_program().unwrap().clone(),
+        effect.sample_program().unwrap().clone().into_parts().0,
         params.clone(),
     );
-    workload::apply_operator(&mut direct, operator.bytecode, true);
+    workload::apply_operator(&mut direct, operator.program().clone().into_parts().0, true);
     let mut searched = direct.signals().clone();
     // Duplicate the target under another ID to exercise the general route with
     // exactly the same contexts. Production elaboration interns this duplicate.
     searched.targets = vec![direct.signals().targets[0].clone(); 2].into();
     searched.effects[0].target = 1;
     let searched = workload::rgb_output(searched);
-    let mut direct_workspace = direct.workspace().unwrap();
-    let mut searched_workspace = searched.workspace().unwrap();
+    let mut direct_workspace = direct.clone().prepare().unwrap().into_playback();
+    let mut searched_workspace = searched.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 600]];
     let mut expected = [vec![0; 600]];
     for frame in [0, 31, 4, 0] {
-        direct
-            .evaluate(workload::time(frame), &mut actual, &mut direct_workspace)
-            .unwrap();
-        searched
-            .evaluate(
-                workload::time(frame),
-                &mut expected,
-                &mut searched_workspace,
-            )
-            .unwrap();
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(direct_workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
+        for (snapshot, output) in expected
+            .iter_mut()
+            .zip(searched_workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(actual, expected);
     }
 }
 
 #[test]
 fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
-    use donder_runtime::dsl::bytecode::{FloatUnary, Instruction};
+    use donder_runtime::{FloatUnary, Instruction};
     for source in [
         "effect Mixed { color sample() {
             float phase = sin(seconds()) * 0.5 + 0.5;
@@ -752,10 +876,16 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
         } }",
     ] {
         let effect = compile_effects(source).unwrap().remove(0).effect;
-        assert!(effect.sample_program().unwrap().uses_pixel_context);
         assert!(
-            effect.sample_program().unwrap().instructions
-                [..effect.sample_program().unwrap().pixel_entry as usize]
+            effect
+                .sample_program()
+                .unwrap()
+                .bytecode()
+                .uses_pixel_context
+        );
+        assert!(
+            effect.sample_program().unwrap().bytecode().instructions
+                [..effect.sample_program().unwrap().bytecode().pixel_entry as usize]
                 .iter()
                 .any(|op| matches!(
                     op,
@@ -765,24 +895,38 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
                     }
                 ))
         );
-        let params = effect.bind_params(&IndexMap::new()).unwrap();
+        let params = donder_runtime::BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
         for layers in [1, 4, 16] {
             let show = workload::layered_show(
                 200,
-                effect.sample_program().unwrap().clone(),
+                effect.sample_program().unwrap().clone().into_parts().0,
                 params.clone(),
                 layers,
             );
-            let mut workspace = show.workspace().unwrap();
+            let mut workspace = show.clone().prepare().unwrap().into_playback();
             let mut output = [vec![0; 600]];
+            let invocation = effect
+                .sample_program()
+                .unwrap()
+                .bind(
+                    params.iter_values().collect(),
+                    &mut donder_runtime::DslBindCache::default(),
+                )
+                .unwrap();
             let mut vm = VmWorkspace::default();
             for frame in [0, 31, 4, 0] {
-                show.evaluate(workload::time(frame), &mut output, &mut workspace)
-                    .unwrap();
+                for (snapshot, output) in output
+                    .iter_mut()
+                    .zip(workspace.evaluate(workload::time(frame)).outputs())
+                {
+                    snapshot.copy_from_slice(output.bytes);
+                }
                 for pixel in 0..200 {
-                    let color = effect
-                        .sample_bound(&params, &workload::context(200, pixel, frame), &mut vm)
-                        .unwrap();
+                    let color = invocation.evaluate(
+                        &workload::context(200, pixel, frame),
+                        &SPATIAL,
+                        &mut vm,
+                    );
                     assert_eq!(
                         &output[0][pixel * 3..pixel * 3 + 3],
                         &[color.green, color.red, color.blue]

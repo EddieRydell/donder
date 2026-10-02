@@ -14,76 +14,17 @@ struct Symbol {
 type Environment = IndexMap<Identifier, Symbol>;
 
 struct CompileContext<'a> {
-    slot_count: usize,
+    slots: Vec<Type>,
     preparation_controls: &'a super::super::staging::PreparationControls,
 }
 
 impl CompileContext<'_> {
     fn declare(&mut self, env: &mut Environment, name: Identifier, ty: Type) -> BindingSlot {
-        let slot = BindingSlot(self.slot_count);
-        self.slot_count += 1;
+        let slot = BindingSlot(self.slots.len());
+        self.slots.push(ty.clone());
         env.insert(name, Symbol { ty, slot });
         slot
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct Calculation<O: super::super::CalculationOutput = Vec<Value>, I = BindingSlot> {
-    pub program: CalculationProgram<O>,
-    pub inputs: Box<[I]>,
-}
-
-pub(super) type FixedCalculation<O> = Calculation<O, FixedBindingSlot>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum Expression {
-    Constant(Value),
-    Read(BindingSlot),
-    Calculate(Box<Calculation<Value>>),
-}
-
-pub(super) type Block = Vec<Statement>;
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum Statement {
-    Assign {
-        slot: BindingSlot,
-        value: Expression,
-    },
-    Expression(Expression),
-    Branch {
-        condition: Box<FixedCalculation<bool>>,
-        then_block: Block,
-        else_block: Block,
-    },
-    For {
-        initializer: Box<Statement>,
-        iterations: usize,
-        update: Box<Statement>,
-        body: Block,
-    },
-    Marks {
-        index: BindingSlot,
-        marks: Box<FixedCalculation<Arc<super::super::Marks>>>,
-        body: Block,
-    },
-    Range {
-        index: BindingSlot,
-        count: Box<FixedCalculation<i32>>,
-        cap: i32,
-        body: Block,
-    },
-    Emit {
-        slot: GeneratedEffectSlot,
-        start: Box<FixedCalculation<f32>>,
-        duration: Box<FixedCalculation<f32>>,
-        target: Box<FixedCalculation<Arc<TargetItemValue>>>,
-        params: Vec<(Identifier, Expression)>,
-    },
-    Calculate {
-        assigned: Vec<BindingSlot>,
-        calculation: Box<Calculation>,
-    },
 }
 
 pub(super) fn compile(
@@ -91,10 +32,10 @@ pub(super) fn compile(
     body: CheckedBlock,
     emissions: &[EmittedReference],
     preparation_controls: &super::super::staging::PreparationControls,
-) -> Result<(Block, usize), Diagnostic> {
+) -> Result<(Block, Box<[Type]>), Diagnostic> {
     let mut env = Environment::new();
     let mut context = CompileContext {
-        slot_count: 0,
+        slots: Vec::new(),
         preparation_controls,
     };
     for param in params {
@@ -104,7 +45,7 @@ pub(super) fn compile(
     context.declare(&mut env, identifier("duration"), Type::Float);
     let body = block(&body, &env, emissions, &mut context)
         .map_err(|error| Diagnostic::new(span(), error.message))?;
-    Ok((body, context.slot_count))
+    Ok((body, context.slots.into()))
 }
 
 fn block(

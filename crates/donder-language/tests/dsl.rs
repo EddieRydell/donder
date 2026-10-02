@@ -1,10 +1,16 @@
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
+
 use donder_language::dsl::{
     Color, GeneratedEffectSlot, GeneratorBinding, GeneratorContext, GeneratorInput, Identifier,
     OperatorRunContext, RuntimeError, SignalSampler, TargetItemValue, TargetValue, Value,
     VmWorkspace, compile_effects, compile_operators,
 };
 use donder_language::values::{Marks, SampleDuration, SampleTime};
-use donder_runtime::dsl::bytecode::{Instruction, SignalPixel};
+use donder_runtime::{Instruction, SignalPixel};
 use indexmap::IndexMap;
 
 #[test]
@@ -49,7 +55,12 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let params = effect
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let mut workspace = VmWorkspace::default();
     for (progress, red) in [(0.0, 115), (1.0, 179), (0.0, 115)] {
         let context = OperatorRunContext {
@@ -61,9 +72,7 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
             pixel_fraction: 0.0,
         };
         assert_eq!(
-            effect
-                .sample_bound(&params, &context, &mut workspace)
-                .unwrap(),
+            params.evaluate(&context, &SPATIAL, &mut workspace),
             Color {
                 red,
                 green: 0,
@@ -106,11 +115,12 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
             ],
         })),
     );
-    let bound = effect.bind_params(&params).unwrap();
+    let bound = effect
+        .bind(&params, &mut donder_runtime::DslBindCache::default())
+        .unwrap();
     assert_eq!(
-        effect
-            .sample_bound(&bound, &context, &mut VmWorkspace::default())
-            .unwrap()
+        bound
+            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
             .red,
         77
     );
@@ -118,11 +128,11 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
         Identifier::new("beats".to_string()).unwrap(),
         Value::Marks(Arc::new(Marks { marks: Vec::new() })),
     );
-    let bound = effect.bind_params(&params).unwrap();
+    let bound = effect
+        .bind(&params, &mut donder_runtime::DslBindCache::default())
+        .unwrap();
     assert_eq!(
-        effect
-            .sample_bound(&bound, &context, &mut VmWorkspace::default())
-            .unwrap(),
+        bound.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
         Color::BLACK
     );
     assert!(
@@ -152,12 +162,15 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
     .remove(0)
     .effect;
     let params = effect
-        .bind_params(&IndexMap::from([(
-            Identifier::new("beats".to_string()).unwrap(),
-            Value::Marks(Arc::new(Marks {
-                marks: (0..10_001).map(SampleDuration::from_ticks).collect(),
-            })),
-        )]))
+        .bind(
+            &IndexMap::from([(
+                Identifier::new("beats".to_string()).unwrap(),
+                Value::Marks(Arc::new(Marks {
+                    marks: (0..10_001).map(SampleDuration::from_ticks).collect(),
+                })),
+            )]),
+            &mut donder_runtime::DslBindCache::default(),
+        )
         .unwrap();
     let context = OperatorRunContext {
         progress: 0.0,
@@ -168,9 +181,8 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
         pixel_fraction: 0.0,
     };
     assert_eq!(
-        effect
-            .sample_bound(&params, &context, &mut VmWorkspace::default())
-            .unwrap()
+        params
+            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
             .red,
         255
     );
@@ -194,14 +206,14 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
     let target = Arc::new(TargetValue {
         groups: vec![Arc::new(TargetItemValue {
             pixels: Arc::from([
-                donder_runtime::signal::PreparedPixel {
+                donder_runtime::PreparedPixel {
                     fixture_index: 0,
                     fixture_pixel_index: 0,
                     pixel_index: 0,
                     pixel_count: 2,
                     pixel_fraction: 0.0,
                 },
-                donder_runtime::signal::PreparedPixel {
+                donder_runtime::PreparedPixel {
                     fixture_index: 0,
                     fixture_pixel_index: 1,
                     pixel_index: 1,
@@ -219,7 +231,6 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
             duration: SampleDuration::from_ticks(1_000_000),
             target,
         })
-        .unwrap()
         .children;
     assert_eq!(
         generated
@@ -237,7 +248,6 @@ fn generator_target_selection_is_total_for_empty_and_outside_indices() {
             duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
         })
-        .unwrap()
         .children;
     assert_eq!(generated.len(), 2);
     assert!(generated.iter().all(|child| child.target.pixels.is_empty()));
@@ -260,7 +270,12 @@ fn integer_comparisons_do_not_round_through_float() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let params = effect
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let context = OperatorRunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -270,9 +285,7 @@ fn integer_comparisons_do_not_round_through_float() {
         pixel_fraction: 0.0,
     };
     assert_eq!(
-        effect
-            .sample_bound(&params, &context, &mut VmWorkspace::default())
-            .unwrap(),
+        params.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
         Color {
             red: 255,
             green: 255,
@@ -331,10 +344,11 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
             Identifier::new("count".to_string()).unwrap(),
             Value::Int(count),
         );
-        let params = capped.bind_params(&values).unwrap();
-        capped
-            .sample_bound(&params, &context, &mut VmWorkspace::default())
-            .unwrap()
+        let params = capped
+            .bind(&values, &mut donder_runtime::DslBindCache::default())
+            .unwrap();
+        params
+            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
             .red
     };
     assert_eq!(sample(-3), 0);
@@ -391,11 +405,14 @@ fn nested_counted_loops_reset_their_private_iteration_state() {
         pixel_count: 1,
         pixel_fraction: 0.0,
     };
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let params = effect
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     assert_eq!(
-        effect
-            .sample_bound(&params, &context, &mut VmWorkspace::default())
-            .unwrap(),
+        params.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
         Color {
             red: 255,
             green: 255,
@@ -415,17 +432,27 @@ fn compiler_tracks_pixel_dependency_including_branches_and_signal_samples() {
         let source = format!("effect Dependency {{ color sample() {{ return {expression}; }} }}");
         let effect = compile_effects(&source).unwrap().remove(0).effect;
         assert_eq!(
-            effect.sample_program().unwrap().uses_pixel_context,
+            effect
+                .sample_program()
+                .unwrap()
+                .bytecode()
+                .uses_pixel_context,
             expected,
             "{expression}"
         );
     }
     let operator = compile_operators("operator Identity { input Signal source; color sample() { return source.at(seconds()); } }")
         .unwrap().remove(0);
-    assert!(operator.bytecode.uses_pixel_context);
+    assert!(operator.bytecode().uses_pixel_context);
     let effect = compile_effects("effect Branch { color sample() { if (progress() > 0.5) { return rgb(pixel_index(), 0.0, 0.0); } return #000000; } }")
         .unwrap().remove(0).effect;
-    assert!(effect.sample_program().unwrap().uses_pixel_context);
+    assert!(
+        effect
+            .sample_program()
+            .unwrap()
+            .bytecode()
+            .uses_pixel_context
+    );
 }
 
 #[test]
@@ -435,7 +462,7 @@ fn compiler_marks_only_pixel_uniform_signal_times_for_frame_caching() {
     )
     .unwrap()
     .remove(0);
-    assert!(uniform.bytecode.instructions.iter().any(|instruction| {
+    assert!(uniform.bytecode().instructions.iter().any(|instruction| {
         matches!(
             instruction,
             Instruction::SignalSample { frame_cache: 0, .. }
@@ -449,7 +476,7 @@ fn compiler_marks_only_pixel_uniform_signal_times_for_frame_caching() {
     .remove(0);
     assert!(
         pixel_dependent
-            .bytecode
+            .bytecode()
             .instructions
             .iter()
             .any(|instruction| {
@@ -469,7 +496,7 @@ fn compiler_marks_only_pixel_uniform_signal_times_for_frame_caching() {
     .unwrap()
     .remove(0);
     let caches = independent_reads
-        .bytecode
+        .bytecode()
         .instructions
         .iter()
         .filter_map(|instruction| match instruction {
@@ -496,7 +523,12 @@ fn constant_and_calculated_arrays_preserve_nested_values_and_assignment() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let params = effect
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let context = OperatorRunContext {
         progress: 0.25,
         time: SampleDuration::from_ticks(250_000),
@@ -508,9 +540,7 @@ fn constant_and_calculated_arrays_preserve_nested_values_and_assignment() {
     let mut workspace = VmWorkspace::default();
     for _ in 0..3 {
         assert_eq!(
-            effect
-                .sample_bound(&params, &context, &mut workspace)
-                .unwrap(),
+            params.evaluate(&context, &SPATIAL, &mut workspace),
             Color {
                 red: 64,
                 green: 128,
@@ -541,7 +571,12 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
         .unwrap()
         .remove(0)
         .effect;
-    let small_params = small.bind_params(&IndexMap::new()).unwrap();
+    let small_params = small
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let mut workspace = VmWorkspace::default();
     for (progress, iterations, expected) in [
         (
@@ -587,26 +622,24 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
             ),
             (Identifier::new("fail".into()).unwrap(), Value::Bool(true)),
         ]);
-        let with_zero_remainder = effect.bind_params(&values).unwrap();
+        let with_zero_remainder = effect
+            .bind(&values, &mut donder_runtime::DslBindCache::default())
+            .unwrap();
         assert_eq!(
-            effect
-                .sample_bound(&with_zero_remainder, &context, &mut workspace)
-                .unwrap(),
+            with_zero_remainder.evaluate(&context, &SPATIAL, &mut workspace),
             expected
         );
         values.insert(Identifier::new("fail".into()).unwrap(), Value::Bool(false));
-        let params = effect.bind_params(&values).unwrap();
+        let params = effect
+            .bind(&values, &mut donder_runtime::DslBindCache::default())
+            .unwrap();
         // Reuse after a different branch, then after a program with a different register layout.
         assert_eq!(
-            effect
-                .sample_bound(&params, &context, &mut workspace)
-                .unwrap(),
+            params.evaluate(&context, &SPATIAL, &mut workspace),
             expected
         );
         assert_eq!(
-            small
-                .sample_bound(&small_params, &context, &mut workspace)
-                .unwrap(),
+            small_params.evaluate(&context, &SPATIAL, &mut workspace),
             Color {
                 red: 0,
                 green: 0,
@@ -614,9 +647,7 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
             }
         );
         assert_eq!(
-            effect
-                .sample_bound(&params, &context, &mut workspace)
-                .unwrap(),
+            params.evaluate(&context, &SPATIAL, &mut workspace),
             expected
         );
     }
@@ -649,12 +680,15 @@ fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
                 }}
             }}"
         )).unwrap().remove(0).effect;
-        let params = effect.bind_params(&IndexMap::new()).unwrap();
+        let params = effect
+            .bind(
+                &IndexMap::new(),
+                &mut donder_runtime::DslBindCache::default(),
+            )
+            .unwrap();
         for _ in 0..3 {
             assert_eq!(
-                effect
-                    .sample_bound(&params, &context, &mut workspace)
-                    .unwrap(),
+                params.evaluate(&context, &SPATIAL, &mut workspace),
                 Color {
                     red: 64,
                     green: 128,
@@ -683,9 +717,7 @@ fn generator_emitted_arrays_and_enums_outlive_specialization() {
     )
     .unwrap()
     .remove(0);
-    let params = effect
-        .effect
-        .bind_params(&IndexMap::new())
+    let params = donder_runtime::BoundParams::bind(effect.effect.params(), &IndexMap::new())
         .unwrap()
         .iter_values()
         .map(GeneratorInput::Fixed)
@@ -700,13 +732,11 @@ fn generator_emitted_arrays_and_enums_outlive_specialization() {
         .bind(&params)
         .unwrap()
         .specialize(&context)
-        .unwrap()
         .children;
     let second = generator
         .bind(&params)
         .unwrap()
         .specialize(&context)
-        .unwrap()
         .children;
     assert_eq!(first, second);
     assert_eq!(first.len(), 3);
@@ -767,7 +797,12 @@ fn signal_sampling_and_color_operations_execute() {
     .into_iter()
     .next()
     .expect("one operator");
-    let params = operator.bind_params(&IndexMap::new()).unwrap();
+    let params = operator
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let context = OperatorRunContext {
         progress: 0.25,
         time: SampleDuration::from_ticks(1_000_000),
@@ -781,8 +816,13 @@ fn signal_sampling_and_color_operations_execute() {
         green: 20,
         blue: 30,
     });
-    let color = operator
-        .sample_bound(&params, &context, &mut sampler, &mut VmWorkspace::default())
+    let color = params
+        .evaluate(
+            &context,
+            &SPATIAL,
+            &mut sampler,
+            &mut VmWorkspace::default(),
+        )
         .expect("operator samples");
     assert_eq!(
         color,
@@ -824,7 +864,6 @@ fn generator_emit_events_carry_only_ordered_numeric_slots() {
             duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
         })
-        .expect("generator specializes")
         .children;
 
     assert_eq!(
@@ -926,8 +965,7 @@ fn generator_child_slots_follow_source_order_across_control_flow() {
             .unwrap()
             .bind(&[GeneratorInput::Fixed(Value::Bool(choose))])
             .unwrap()
-            .specialize(&context)
-            .unwrap();
+            .specialize(&context);
         assert_eq!(
             result
                 .children
@@ -1065,8 +1103,12 @@ fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
     .next()
     .expect("one effect").effect;
     let missing = effect
-        .bind_params(&IndexMap::new())
-        .expect_err("required parameters must not synthesize a default");
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .err()
+        .expect("required parameters must not synthesize a default");
     assert!(
         missing
             .message
@@ -1078,22 +1120,20 @@ fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
         donder_language::dsl::Value::Float(1.0),
     )]);
     let bound = effect
-        .bind_params(&params)
+        .bind(&params, &mut donder_runtime::DslBindCache::default())
         .expect("required parameter binds");
-    let color = effect
-        .sample_bound(
-            &bound,
-            &donder_language::dsl::RunContext {
-                progress: 0.0,
-                time: SampleDuration::from_ticks(0),
-                duration: SampleDuration::from_ticks(1_000_000),
-                pixel_index: 0,
-                pixel_count: 1,
-                pixel_fraction: 0.0,
-            },
-            &mut VmWorkspace::default(),
-        )
-        .expect("integer remainder by zero returns zero");
+    let color = bound.evaluate(
+        &donder_language::dsl::RunContext {
+            progress: 0.0,
+            time: SampleDuration::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            pixel_index: 0,
+            pixel_count: 1,
+            pixel_fraction: 0.0,
+        },
+        &SPATIAL,
+        &mut VmWorkspace::default(),
+    );
     assert_eq!(color, Color::BLACK);
 }
 
@@ -1119,25 +1159,26 @@ fn integer_arithmetic_wraps_and_remainder_is_total() {
         );
         let effect = compile_effects(&source).unwrap().remove(0).effect;
         let params = effect
-            .bind_params(&IndexMap::from([
-                (Identifier::new("a".into()).unwrap(), Value::Int(left)),
-                (Identifier::new("b".into()).unwrap(), Value::Int(right)),
-            ]))
-            .unwrap();
-        let color = effect
-            .sample_bound(
-                &params,
-                &donder_language::dsl::RunContext {
-                    progress: 0.0,
-                    time: SampleDuration::from_ticks(0),
-                    duration: SampleDuration::from_ticks(1_000_000),
-                    pixel_index: 0,
-                    pixel_count: 1,
-                    pixel_fraction: 0.0,
-                },
-                &mut VmWorkspace::default(),
+            .bind(
+                &IndexMap::from([
+                    (Identifier::new("a".into()).unwrap(), Value::Int(left)),
+                    (Identifier::new("b".into()).unwrap(), Value::Int(right)),
+                ]),
+                &mut donder_runtime::DslBindCache::default(),
             )
             .unwrap();
+        let color = params.evaluate(
+            &donder_language::dsl::RunContext {
+                progress: 0.0,
+                time: SampleDuration::from_ticks(0),
+                duration: SampleDuration::from_ticks(1_000_000),
+                pixel_index: 0,
+                pixel_count: 1,
+                pixel_fraction: 0.0,
+            },
+            &SPATIAL,
+            &mut VmWorkspace::default(),
+        );
         assert_eq!(
             color,
             Color {
@@ -1185,15 +1226,18 @@ fn signal_sampling_outside_the_portable_clock_returns_black() {
         (f32::MAX, Color::BLACK),
     ] {
         let params = operator
-            .bind_params(&IndexMap::from([(
-                Identifier::new("query_seconds".into()).unwrap(),
-                Value::Float(seconds),
-            )]))
+            .bind(
+                &IndexMap::from([(
+                    Identifier::new("query_seconds".into()).unwrap(),
+                    Value::Float(seconds),
+                )]),
+                &mut donder_runtime::DslBindCache::default(),
+            )
             .unwrap();
-        let color = operator
-            .sample_bound(
-                &params,
+        let color = params
+            .evaluate(
                 &context,
+                &SPATIAL,
                 &mut ConstantSignal(source_color),
                 &mut VmWorkspace::default(),
             )
@@ -1240,7 +1284,12 @@ fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {
     )
     .unwrap()
     .remove(0);
-    let params = operator.bind_params(&IndexMap::new()).unwrap();
+    let params = operator
+        .bind(
+            &IndexMap::new(),
+            &mut donder_runtime::DslBindCache::default(),
+        )
+        .unwrap();
     let context = OperatorRunContext {
         progress: 0.25,
         time: SampleDuration::from_ticks(250000),
@@ -1250,8 +1299,13 @@ fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {
         pixel_fraction: 0.3,
     };
     let mut samples = Samples::default();
-    let result = operator
-        .sample_bound(&params, &context, &mut samples, &mut VmWorkspace::default())
+    let result = params
+        .evaluate(
+            &context,
+            &SPATIAL,
+            &mut samples,
+            &mut VmWorkspace::default(),
+        )
         .unwrap();
     assert_eq!(
         samples.0,
@@ -1333,7 +1387,12 @@ fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
         ),
     ] {
         let operator = compile_operators(&format!("operator Reads {{ input Signal source; input Signal other; color sample() {{ {body} }} }}")).unwrap().remove(0);
-        let params = operator.bind_params(&IndexMap::new()).unwrap();
+        let params = operator
+            .bind(
+                &IndexMap::new(),
+                &mut donder_runtime::DslBindCache::default(),
+            )
+            .unwrap();
         let context = OperatorRunContext {
             progress: 1.0,
             time: SampleDuration::from_ticks(250000),
@@ -1343,8 +1402,13 @@ fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
             pixel_fraction: 0.0,
         };
         let mut samples = Samples::default();
-        let color = operator
-            .sample_bound(&params, &context, &mut samples, &mut VmWorkspace::default())
+        let color = params
+            .evaluate(
+                &context,
+                &SPATIAL,
+                &mut samples,
+                &mut VmWorkspace::default(),
+            )
             .unwrap();
         assert_eq!(samples.0, calls, "{body}");
         assert_eq!(

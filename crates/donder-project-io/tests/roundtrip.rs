@@ -119,7 +119,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
     let loaded = load_local_project(&root);
     let identities = loaded
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .keys()
@@ -153,8 +153,15 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     write_workspace_metadata(&root);
     let mut session = load_local_project(&root);
 
-    let color = session.project.sequences.values().next().unwrap().layers[0].color;
-    let index = session.project.root.sequences.len();
+    let color = session
+        .project
+        .reusable_sequences()
+        .values()
+        .next()
+        .unwrap()
+        .layers[0]
+        .color;
+    let index = session.project.root().sequences.len();
     donder_language::ownership::edit::add_sequence(
         &mut session.project,
         DonderDuration(Duration::from_secs(30)),
@@ -180,15 +187,15 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
     )
     .unwrap();
     donder_project_io::maintain_ownership_sources(&mut session).unwrap();
-    let id = session.project.root.sequences[index].id().clone();
+    let id = session.project.root().sequences[index].id().clone();
     save_project(&session).unwrap();
 
     let reloaded = load_local_project(&root);
-    assert!(reloaded.project.sequences.contains_key(&id));
+    assert!(reloaded.project.reusable_sequences().contains_key(&id));
     assert!(
         reloaded
             .project
-            .root
+            .root()
             .sequences
             .iter()
             .any(|source| source.id() == &id)

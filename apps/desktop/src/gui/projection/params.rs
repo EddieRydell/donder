@@ -5,14 +5,14 @@ pub(in crate::gui) fn effect_params(
 ) -> Vec<SequenceEffectParam> {
     let Some(definition) = session
         .project
-        .definitions
+        .definitions()
         .effects
         .resolve(&effect.definition)
     else {
         return Vec::new();
     };
     definition
-        .params
+        .params()
         .iter()
         .filter_map(|param| {
             let kind = param_kind(&param.ty)?;
@@ -96,14 +96,14 @@ fn graph_operator_params(
 ) -> Vec<SequenceEffectParam> {
     let Some(definition) = session
         .project
-        .definitions
+        .definitions()
         .operators
         .resolve(&operator.operator)
     else {
         return Vec::new();
     };
     definition
-        .params
+        .params()
         .iter()
         .filter_map(|declaration| {
             let kind = param_kind(&declaration.ty)?;
@@ -148,10 +148,10 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
         operator: graph_operator_to_gui(&operator),
         source_name: definition.source_name.clone(),
         display_name: definition.display_name.clone(),
-        inputs: definition.inputs.iter().map(graph_port_to_gui).collect(),
-        outputs: vec![graph_port_to_gui(&definition.output)],
+        inputs: definition.inputs().iter().map(graph_port_to_gui).collect(),
+        outputs: vec![graph_port_to_gui(definition.output())],
         params: definition
-            .params
+            .params()
             .iter()
             .filter_map(|param| {
                 Some(crate::dto::SequenceEffectDefinitionParam {
@@ -184,11 +184,11 @@ fn graph_node_inputs(
         CompositionGraphNodeKind::Layer { .. } => vec![],
         CompositionGraphNodeKind::Operator(operator) => session
             .project
-            .definitions
+            .definitions()
             .operators
             .resolve(&operator.operator)
             .into_iter()
-            .flat_map(|definition| definition.inputs.iter())
+            .flat_map(|definition| definition.inputs().iter())
             .map(graph_port_to_gui)
             .collect(),
         CompositionGraphNodeKind::Output => vec![SequenceGraphPortDefinition {
@@ -213,10 +213,10 @@ fn graph_node_outputs(
         }
         CompositionGraphNodeKind::Operator(operator) => session
             .project
-            .definitions
+            .definitions()
             .operators
             .resolve(&operator.operator)
-            .map(|definition| vec![graph_port_to_gui(&definition.output)])
+            .map(|definition| vec![graph_port_to_gui(definition.output())])
             .unwrap_or_default(),
         CompositionGraphNodeKind::Output => vec![],
     }
@@ -291,7 +291,7 @@ pub(in crate::gui) fn curve_library(
     );
     session
         .project
-        .definitions
+        .definitions()
         .curves
         .definitions
         .iter()
@@ -317,7 +317,7 @@ pub(in crate::gui) fn gradient_library(
     );
     session
         .project
-        .definitions
+        .definitions()
         .gradients
         .definitions
         .iter()
@@ -397,7 +397,7 @@ pub(in crate::gui) fn effect_param_value(
                 points: curve_points(match source {
                     CurveSource::Inline(curve) => curve,
                     CurveSource::Reference(id) => {
-                        &session.project.definitions.curves.definitions[id].curve
+                        &session.project.definitions().curves.definitions[id].curve
                     }
                 }),
                 source: match source {
@@ -411,7 +411,7 @@ pub(in crate::gui) fn effect_param_value(
                 stops: gradient_stops(match source {
                     GradientSource::Inline(gradient) => gradient,
                     GradientSource::Reference(id) => {
-                        &session.project.definitions.gradients.definitions[id].gradient
+                        &session.project.definitions().gradients.definitions[id].gradient
                     }
                 }),
                 source: match source {

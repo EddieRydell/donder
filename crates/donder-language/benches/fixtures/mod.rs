@@ -64,7 +64,7 @@ pub fn prepared_effect(
     params: IndexMap<Identifier, Value>,
 ) -> (CompiledEffect, BoundParams) {
     let effect = sample_effect(effect_name, source);
-    let bound = effect.bind_params(&params).expect("valid params");
+    let bound = donder_runtime::BoundParams::bind(effect.params(), &params).expect("valid params");
     (effect, bound)
 }
 

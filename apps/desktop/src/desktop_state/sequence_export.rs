@@ -12,7 +12,7 @@ pub(super) fn outputs(
 ) -> Result<Vec<(ControllerId, ControllerPortId, u16)>, String> {
     let project = &session.project;
     let setup = project
-        .setup(project.root.setup.id())
+        .setup(project.root().setup.id())
         .ok_or("Project setup is missing.")?;
     let mut outputs = Vec::new();
     for source in &setup.controllers {
@@ -105,7 +105,7 @@ impl DesktopState {
             donder_elaboration::PrepareOutputs::Ports(&ports),
         )
         .ok_or("The sequence or selected output is unavailable.")?;
-        donder_runtime::wire::encode_sequence(&prepared)
+        donder_runtime::encode_sequence(&prepared)
             .map_err(|error| format!("Could not encode sequence: {error:?}"))
     }
 }

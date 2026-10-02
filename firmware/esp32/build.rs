@@ -1,7 +1,7 @@
 use std::{fmt::Write, fs, path::PathBuf};
 
 use donder_language::dsl::{Type, Value, compile_effects};
-use donder_runtime::dsl::bytecode::Instruction;
+use donder_runtime::Instruction;
 
 #[allow(dead_code)]
 #[path = "../../crates/donder-language/benches/fixtures/mod.rs"]
@@ -12,6 +12,12 @@ mod generator_workload;
 mod mark_workload;
 #[path = "src/workload.rs"]
 mod workload;
+
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 fn main() {
     println!("cargo:rustc-link-arg=-Tlinkall.x");
@@ -33,9 +39,9 @@ fn main() {
         "use alloc::{boxed::Box, vec};\n\
          #[cfg(not(feature = \"i2s-output\"))] use alloc::rc::Rc as Arc;\n\
          #[cfg(feature = \"i2s-output\")] use alloc::sync::Arc;\n\
-         use donder_runtime::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};\n\
-         use donder_runtime::dsl::bytecode::*;\n\
-         use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
+         use donder_runtime::{BoundParams, Identifier, ParamDecl, SampleProgram, Type, Value};\n\
+         use donder_runtime::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, CalculationRead, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, TargetItemSlot, TargetItemsOp, TargetItemsSlot, TargetMember, TargetSlot, TargetSource, ValueSlot};\n\
+         use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
     );
     let mut golden = Vec::new();
     let gamma_lookup = workload::gamma_lookup();
@@ -74,7 +80,9 @@ fn main() {
     .effect
     .sample_program()
     .unwrap()
-    .clone();
+    .clone()
+    .into_parts()
+    .0;
     let pulse_params = indexmap::IndexMap::from([
         (
             donder_language::dsl::Identifier::new("gradient".into()).unwrap(),
@@ -137,37 +145,41 @@ fn main() {
             "firmware benchmark fixtures cannot emit child effects"
         );
         let effect = compilation.effect;
-        assert_eq!(effect.name.as_str(), name);
+        assert_eq!(effect.name().as_str(), name);
         if name == "ArrayLifetimes" {
             assert!(
-                effect.sample_program().unwrap().array_capacity > 0,
+                effect.sample_program().unwrap().bytecode().array_capacity > 0,
                 "board array-storage coverage was optimized away"
             );
         }
-        let bound = effect.bind_params(&params).unwrap();
+        let bound = donder_runtime::BoundParams::bind(effect.params(), &params).unwrap();
+        let invocation = effect
+            .bind(&params, &mut donder_runtime::DslBindCache::default())
+            .unwrap();
+        let bytecode = effect.sample_program().unwrap().clone().into_parts().0;
         writeln!(
             generated,
-            "fn case_{case}() -> (BytecodeProgram, BoundParams) {{"
+            "fn case_{case}() -> (SampleProgram, BoundParams) {{"
         )
         .unwrap();
         writeln!(generated, "let code = vec![").unwrap();
-        for instruction in &effect.sample_program().unwrap().instructions {
+        for instruction in &bytecode.instructions {
             writeln!(generated, "{},", instruction_source(instruction)).unwrap();
         }
         writeln!(generated, "]; let program = BytecodeProgram {{ instructions: code.into_boxed_slice(), curves: vec![{}].into_boxed_slice(), gradients: vec![{}].into_boxed_slice(), targets: vec![{}].into_boxed_slice(), target_lists: vec![{}].into_boxed_slice(), target_items: vec![{}].into_boxed_slice(), array_constants: vec![{}].into_boxed_slice(), enums: vec![{}].into_boxed_slice(), enum_types: vec![{}].into_boxed_slice(), value_operands: vec![{}].into_boxed_slice(), array_types: vec![{}].into_boxed_slice(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }};",
-            effect.sample_program().unwrap().curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().array_types.iter().map(type_source).collect::<Vec<_>>().join(","),
-            effect.sample_program().unwrap().layout, effect.sample_program().unwrap().uses_pixel_context, effect.sample_program().unwrap().pixel_entry, effect.sample_program().unwrap().array_capacity, effect.sample_program().unwrap().array_width, effect.sample_program().unwrap().loop_count).unwrap();
+            bytecode.curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
+            bytecode.gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
+            bytecode.targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
+            bytecode.target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
+            bytecode.target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
+            bytecode.array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
+            bytecode.enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
+            bytecode.enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
+            bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
+            bytecode.array_types.iter().map(type_source).collect::<Vec<_>>().join(","),
+            bytecode.layout, bytecode.uses_pixel_context, bytecode.pixel_entry, bytecode.array_capacity, bytecode.array_width, bytecode.loop_count).unwrap();
         writeln!(generated, "let declarations = [").unwrap();
-        for param in &effect.params {
+        for param in effect.params() {
             writeln!(
                 generated,
                 "ParamDecl {{ fixed: {}, name: Identifier::new({:?}.into()).unwrap(), ty: {}, default: {} }},",
@@ -193,7 +205,7 @@ fn main() {
         }
         writeln!(
             generated,
-            "]; (program, BoundParams::bind_pairs(&declarations, &params).unwrap()) }}"
+            "]; let program = SampleProgram::admit(program, declarations.iter().map(|param: &ParamDecl| param.ty.clone()).collect()).unwrap(); (program, BoundParams::bind_pairs(&declarations, &params).unwrap()) }}"
         )
         .unwrap();
         let mut case_golden = Vec::new();
@@ -201,40 +213,41 @@ fn main() {
             let show = if case < 4 || name == "ArrayLifetimes" {
                 workload::show(
                     count,
-                    effect.sample_program().unwrap().clone(),
+                    effect.sample_program().unwrap().clone().into_parts().0,
                     bound.clone(),
                 )
             } else {
                 workload::layered_show(
                     count,
-                    effect.sample_program().unwrap().clone(),
+                    effect.sample_program().unwrap().clone().into_parts().0,
                     bound.clone(),
                     16,
                 )
             };
-            let mut workspace = show.workspace().unwrap();
-            let mut buffers = [vec![0; count * 3]];
+            let mut show = show.prepare().unwrap().into_playback();
             let mut vm = donder_language::dsl::VmWorkspace::default();
             let mut frames = Vec::new();
             let mut gamma_frames = Vec::new();
             for frame in 0..workload::FRAMES {
-                show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                    .unwrap();
+                let rendered = show.evaluate(workload::time(frame));
+                let buffers = rendered.outputs().next().unwrap().bytes;
                 // Independently compare patch output to direct VM sampling before
                 // using the host result as the on-device golden checksum.
                 for pixel in 0..count {
-                    let color = effect
-                        .sample_bound(&bound, &workload::context(count, pixel, frame), &mut vm)
-                        .unwrap();
+                    let color = invocation.evaluate(
+                        &workload::context(count, pixel, frame),
+                        &SPATIAL,
+                        &mut vm,
+                    );
                     assert_eq!(
-                        &buffers[0][pixel * 3..pixel * 3 + 3],
+                        &buffers[pixel * 3..pixel * 3 + 3],
                         &[color.green, color.red, color.blue]
                     );
                 }
-                frames.push(workload::checksum(&buffers[0]));
+                frames.push(workload::checksum(buffers));
                 if case == workload::GAMMA_CASE {
                     assert_eq!(name, "PixelRamp");
-                    let bytes = buffers[0]
+                    let bytes = buffers
                         .iter()
                         .map(|&value| gamma_lookup[value as usize])
                         .collect::<Vec<_>>();
@@ -244,65 +257,73 @@ fn main() {
             if case == workload::GAMMA_CASE {
                 let mut mixed = workload::show(
                     count,
-                    effect.sample_program().unwrap().clone(),
+                    effect.sample_program().unwrap().clone().into_parts().0,
                     bound.clone(),
                 );
-                workload::apply_operator(&mut mixed, identity.bytecode.clone(), true);
-                workload::insert_invert(&mut mixed, invert.bytecode.clone());
-                let mut workspace = mixed.workspace().unwrap();
+                workload::apply_operator(
+                    &mut mixed,
+                    identity.program().clone().into_parts().0,
+                    true,
+                );
+                workload::insert_invert(&mut mixed, invert.program().clone().into_parts().0);
+                let mut mixed = mixed.prepare().unwrap().into_playback();
                 let mut mixed_frames = Vec::new();
                 for frame in 0..workload::FRAMES {
-                    mixed
-                        .evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                        .unwrap();
+                    let rendered = mixed.evaluate(workload::time(frame));
+                    let buffers = rendered.outputs().next().unwrap().bytes;
                     for pixel in 0..count {
-                        let color = effect
-                            .sample_bound(&bound, &workload::context(count, pixel, frame), &mut vm)
-                            .unwrap();
+                        let color = invocation.evaluate(
+                            &workload::context(count, pixel, frame),
+                            &SPATIAL,
+                            &mut vm,
+                        );
                         assert_eq!(
-                            &buffers[0][pixel * 3..pixel * 3 + 3],
+                            &buffers[pixel * 3..pixel * 3 + 3],
                             &[255 - color.green, 255 - color.red, 255 - color.blue]
                         );
                     }
-                    mixed_frames.push(workload::checksum(&buffers[0]));
+                    mixed_frames.push(workload::checksum(buffers));
                 }
                 mixed_golden.push(mixed_frames);
                 let mut depths = Vec::new();
                 for depth in workload::OPERATOR_DEPTHS {
                     let mut nested = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone(),
+                        effect.sample_program().unwrap().clone().into_parts().0,
                         bound.clone(),
                     );
-                    workload::apply_operator(&mut nested, operator.bytecode.clone(), true);
+                    workload::apply_operator(
+                        &mut nested,
+                        operator.program().clone().into_parts().0,
+                        true,
+                    );
                     workload::nest_operator(&mut nested, depth);
-                    let mut workspace = nested.workspace().unwrap();
+                    let nested_fixture = nested;
+                    let mut nested = nested_fixture.clone().prepare().unwrap().into_playback();
                     let mut full_nested = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone(),
+                        effect.sample_program().unwrap().clone().into_parts().0,
                         bound.clone(),
                     );
-                    workload::apply_operator(&mut full_nested, operator.bytecode.clone(), false);
+                    workload::apply_operator(
+                        &mut full_nested,
+                        operator.program().clone().into_parts().0,
+                        false,
+                    );
                     workload::nest_operator(&mut full_nested, depth);
-                    let mut full_workspace = full_nested.workspace().unwrap();
+                    let mut full_nested = full_nested.prepare().unwrap().into_playback();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
-                        nested
-                            .evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                            .unwrap();
-                        let checksum = workload::checksum(&buffers[0]);
-                        nested
-                            .evaluate(
-                                workload::time(frame),
-                                &mut buffers,
-                                &mut nested.workspace().unwrap(),
-                            )
-                            .unwrap();
-                        assert_eq!(checksum, workload::checksum(&buffers[0]));
-                        full_nested
-                            .evaluate(workload::time(frame), &mut buffers, &mut full_workspace)
-                            .unwrap();
-                        assert_eq!(checksum, workload::checksum(&buffers[0]));
+                        let rendered = nested.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        let checksum = workload::checksum(buffers);
+                        let mut fresh = nested_fixture.clone().prepare().unwrap().into_playback();
+                        let rendered = fresh.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        assert_eq!(checksum, workload::checksum(buffers));
+                        let rendered = full_nested.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        assert_eq!(checksum, workload::checksum(buffers));
                         frames.push(checksum);
                     }
                     depths.push(frames);
@@ -314,25 +335,23 @@ fn main() {
                 ] {
                     let mut automated = workload::show(
                         count,
-                        effect.sample_program().unwrap().clone(),
+                        effect.sample_program().unwrap().clone().into_parts().0,
                         bound.clone(),
                     );
                     workload::apply_pulse_automation(&mut automated, pulse_program.clone(), empty);
-                    let mut workspace = automated.workspace().unwrap();
+                    let automated_fixture = automated;
+                    let mut automated =
+                        automated_fixture.clone().prepare().unwrap().into_playback();
                     let mut frames = Vec::new();
                     for frame in 0..workload::FRAMES {
-                        automated
-                            .evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                            .unwrap();
-                        let checksum = workload::checksum(&buffers[0]);
-                        automated
-                            .evaluate(
-                                workload::time(frame),
-                                &mut buffers,
-                                &mut automated.workspace().unwrap(),
-                            )
-                            .unwrap();
-                        assert_eq!(checksum, workload::checksum(&buffers[0]));
+                        let rendered = automated.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        let checksum = workload::checksum(buffers);
+                        let mut fresh =
+                            automated_fixture.clone().prepare().unwrap().into_playback();
+                        let rendered = fresh.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        assert_eq!(checksum, workload::checksum(buffers));
                         frames.push(checksum);
                     }
                     golden.push(frames);
@@ -351,16 +370,20 @@ fn main() {
                     for (operator, reuse) in pair {
                         let mut show = workload::show(
                             count,
-                            effect.sample_program().unwrap().clone(),
+                            effect.sample_program().unwrap().clone().into_parts().0,
                             bound.clone(),
                         );
-                        workload::apply_operator(&mut show, operator.bytecode.clone(), reuse);
-                        let mut workspace = show.workspace().unwrap();
+                        workload::apply_operator(
+                            &mut show,
+                            operator.program().clone().into_parts().0,
+                            reuse,
+                        );
+                        let mut show = show.prepare().unwrap().into_playback();
                         let mut frames = Vec::new();
                         for frame in 0..workload::FRAMES {
-                            show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                                .unwrap();
-                            frames.push(workload::checksum(&buffers[0]));
+                            let rendered = show.evaluate(workload::time(frame));
+                            let buffers = rendered.outputs().next().unwrap().bytes;
+                            frames.push(workload::checksum(buffers));
                         }
                         if let Some(expected) = &expected {
                             assert_eq!(&frames, expected);
@@ -373,16 +396,16 @@ fn main() {
                 {
                     let mut show = workload::layered_show(
                         count,
-                        effect.sample_program().unwrap().clone(),
+                        effect.sample_program().unwrap().clone().into_parts().0,
                         bound.clone(),
                         1,
                     );
                     workload::apply_gamma(&mut show, gamma_lookup);
-                    let mut workspace = show.workspace().unwrap();
+                    let mut show = show.prepare().unwrap().into_playback();
                     for (frame, expected) in gamma_frames.iter().enumerate() {
-                        show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                            .unwrap();
-                        assert_eq!(workload::checksum(&buffers[0]), *expected);
+                        let rendered = show.evaluate(workload::time(frame));
+                        let buffers = rendered.outputs().next().unwrap().bytes;
+                        assert_eq!(workload::checksum(buffers), *expected);
                     }
                 }
                 gamma_golden.push(gamma_frames);
@@ -416,19 +439,20 @@ fn main() {
         ("grouped_program", &grouped),
         ("alternating_program", &alternating),
     ] {
+        let bytecode = operator.program().clone().into_parts().0;
         writeln!(generated, "pub fn {name}() -> BytecodeProgram {{ BytecodeProgram {{ instructions: vec![{}].into(), curves: vec![{}].into(), gradients: vec![{}].into(), targets: vec![{}].into(), target_lists: vec![{}].into(), target_items: vec![{}].into(), array_constants: vec![{}].into(), enums: vec![{}].into(), enum_types: vec![{}].into(), value_operands: vec![{}].into(), array_types: vec![{}].into(), layout: {:?}, uses_pixel_context: {}, pixel_entry: {}, array_capacity: {}, array_width: {}, loop_count: {} }} }}",
-        operator.bytecode.instructions.iter().map(instruction_source).collect::<Vec<_>>().join(","),
-        operator.bytecode.curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
-        operator.bytecode.gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
-        operator.bytecode.targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
-        operator.bytecode.target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
-        operator.bytecode.target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
-        operator.bytecode.array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
-        operator.bytecode.enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
-        operator.bytecode.enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
-        operator.bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
-        operator.bytecode.array_types.iter().map(type_source).collect::<Vec<_>>().join(","),
-        operator.bytecode.layout, operator.bytecode.uses_pixel_context, operator.bytecode.pixel_entry, operator.bytecode.array_capacity, operator.bytecode.array_width, operator.bytecode.loop_count).unwrap();
+        bytecode.instructions.iter().map(instruction_source).collect::<Vec<_>>().join(","),
+        bytecode.curves.iter().map(|value| curve_source(value)).collect::<Vec<_>>().join(","),
+        bytecode.gradients.iter().map(|value| gradient_source(value)).collect::<Vec<_>>().join(","),
+        bytecode.targets.iter().map(|value| target_source(value)).collect::<Vec<_>>().join(","),
+        bytecode.target_lists.iter().map(|value| target_items_source(value)).collect::<Vec<_>>().join(","),
+        bytecode.target_items.iter().map(|value| target_item_source(value)).collect::<Vec<_>>().join(","),
+        bytecode.array_constants.iter().map(|values| array_source(values)).collect::<Vec<_>>().join(","),
+        bytecode.enums.iter().map(identifier_source).collect::<Vec<_>>().join(","),
+        bytecode.enum_types.iter().map(|ty| format!("EnumSlotType::new({}).unwrap()", type_source(ty.ty()))).collect::<Vec<_>>().join(","),
+        bytecode.value_operands.iter().map(|v| format!("ValueSlot::{v:?}")).collect::<Vec<_>>().join(","),
+        bytecode.array_types.iter().map(type_source).collect::<Vec<_>>().join(","),
+        bytecode.layout, bytecode.uses_pixel_context, bytecode.pixel_entry, bytecode.array_capacity, bytecode.array_width, bytecode.loop_count).unwrap();
     }
     writeln!(
         generated,
@@ -474,7 +498,7 @@ fn main() {
     .unwrap();
     writeln!(
         generated,
-        "pub fn case(index: usize) -> (BytecodeProgram, BoundParams) {{ match index {{"
+        "pub fn case(index: usize) -> (SampleProgram, BoundParams) {{ match index {{"
     )
     .unwrap();
     for case in 0..names.len() {
@@ -535,13 +559,11 @@ fn main() {
         let show = generator_workload::show(200, case, true, true);
         let reference = generator_workload::show(200, case, false, true);
         let golden = export_fixture(name, &show);
-        let mut workspace = reference.workspace().unwrap();
-        let mut output = [vec![0; 600]];
+        let mut reference = reference.prepare().unwrap().into_playback();
         for (frame, expected) in golden.iter().enumerate() {
-            reference
-                .evaluate(workload::time(frame), &mut output, &mut workspace)
-                .unwrap();
-            assert_eq!(workload::checksum(&output[0]), *expected, "{name}/{frame}");
+            let rendered = reference.evaluate(workload::time(frame));
+            let output = rendered.outputs().next().unwrap().bytes;
+            assert_eq!(workload::checksum(output), *expected, "{name}/{frame}");
         }
         golden
     });
@@ -580,13 +602,11 @@ fn main() {
     .unwrap();
 }
 
-fn export_fixture(
-    name: &str,
-    show: &donder_runtime::sequence::PreparedSequence,
-) -> [u32; workload::FRAMES] {
+fn export_fixture(name: &str, show: &workload::Workload) -> [u32; workload::FRAMES] {
     let directory = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
-    let bytes = donder_runtime::wire::encode_sequence(show).unwrap();
-    let decoded = donder_runtime::wire::decode_sequence(&bytes, Default::default()).unwrap();
+    let prepared = show.clone().prepare().unwrap();
+    let bytes = donder_runtime::encode_sequence(&prepared).unwrap();
+    let decoded = donder_runtime::decode_sequence(&bytes, Default::default()).unwrap();
     fs::write(directory.join(format!("{name}.donderseq")), bytes).unwrap();
     assert_eq!(
         show.outputs()
@@ -595,25 +615,19 @@ fn export_fixture(
             .collect::<Vec<_>>(),
         [600]
     );
-    let mut workspace = decoded.workspace().unwrap();
-    let mut output = [vec![0; 600]];
-    let mut reference = [vec![0; 600]];
+    let mut decoded = decoded.into_playback();
     let mut checksums = String::new();
     let golden = core::array::from_fn(|frame| {
         let time = workload::time(frame);
-        decoded.evaluate(time, &mut output, &mut workspace).unwrap();
-        show.evaluate(time, &mut reference, &mut show.workspace().unwrap())
-            .unwrap();
+        let rendered = decoded.evaluate(time);
+        let output = rendered.outputs().next().unwrap().bytes;
+        let mut fresh = show.clone().prepare().unwrap().into_playback();
+        let rendered_reference = fresh.evaluate(time);
+        let reference = rendered_reference.outputs().next().unwrap().bytes;
         assert_eq!(output, reference);
-        assert!(output[0].iter().any(|&byte| byte != 0));
-        writeln!(
-            checksums,
-            "{} {}",
-            time.as_ticks(),
-            crc32fast::hash(&output[0])
-        )
-        .unwrap();
-        workload::checksum(&output[0])
+        assert!(output.iter().any(|&byte| byte != 0));
+        writeln!(checksums, "{} {}", time.as_ticks(), crc32fast::hash(output)).unwrap();
+        workload::checksum(output)
     });
     fs::write(
         directory.join(format!("{name}.donderseq.checksums")),
@@ -640,7 +654,7 @@ fn type_source(ty: &Type) -> String {
     }
 }
 
-fn identifier_source(value: &donder_runtime::dsl::Identifier) -> String {
+fn identifier_source(value: &donder_runtime::Identifier) -> String {
     format!("Identifier::new({:?}.into()).unwrap()", value.as_str())
 }
 
@@ -674,57 +688,55 @@ fn value_source(value: &Value) -> String {
     }
 }
 
-fn target_source(value: &donder_runtime::dsl::types::TargetValue) -> String {
+fn target_source(value: &donder_runtime::TargetValue) -> String {
     let groups = value
         .groups
         .iter()
         .map(|item| target_item_source(item))
         .collect::<Vec<_>>()
         .join(",");
-    format!("Arc::new(donder_runtime::dsl::types::TargetValue {{ groups: vec![{groups}] }})")
+    format!("Arc::new(donder_runtime::TargetValue {{ groups: vec![{groups}] }})")
 }
 
-fn target_items_source(value: &donder_runtime::dsl::types::TargetItemsValue) -> String {
+fn target_items_source(value: &donder_runtime::TargetItemsValue) -> String {
     let groups = value
         .groups
         .iter()
         .map(|item| target_item_source(item))
         .collect::<Vec<_>>()
         .join(",");
-    format!("Arc::new(donder_runtime::dsl::types::TargetItemsValue {{ groups: vec![{groups}] }})")
+    format!("Arc::new(donder_runtime::TargetItemsValue {{ groups: vec![{groups}] }})")
 }
 
-fn target_item_source(value: &donder_runtime::dsl::types::TargetItemValue) -> String {
+fn target_item_source(value: &donder_runtime::TargetItemValue) -> String {
     let pixels = value.pixels.iter().map(|pixel| format!(
-        "donder_runtime::signal::PreparedPixel {{ fixture_index: {}, fixture_pixel_index: {}, pixel_index: {}, pixel_count: {}, pixel_fraction: f32::from_bits({}) }}",
+        "donder_runtime::PreparedPixel {{ fixture_index: {}, fixture_pixel_index: {}, pixel_index: {}, pixel_count: {}, pixel_fraction: f32::from_bits({}) }}",
         pixel.fixture_index, pixel.fixture_pixel_index, pixel.pixel_index, pixel.pixel_count, pixel.pixel_fraction.to_bits()
     )).collect::<Vec<_>>().join(",");
-    format!(
-        "Arc::new(donder_runtime::dsl::types::TargetItemValue {{ pixels: Arc::from(vec![{pixels}]) }})"
-    )
+    format!("Arc::new(donder_runtime::TargetItemValue {{ pixels: Arc::from(vec![{pixels}]) }})")
 }
 
-fn curve_source(value: &donder_runtime::values::Curve) -> String {
+fn curve_source(value: &donder_runtime::Curve) -> String {
     format!("Arc::new(Curve {{ points: vec!{:?} }})", value.points)
 }
 
-fn gradient_source(value: &donder_runtime::values::Gradient) -> String {
+fn gradient_source(value: &donder_runtime::Gradient) -> String {
     format!("Arc::new(Gradient {{ stops: vec!{:?} }})", value.stops)
 }
 
-fn marks_source(value: &donder_runtime::values::Marks) -> String {
+fn marks_source(value: &donder_runtime::Marks) -> String {
     let marks = value
         .marks
         .iter()
         .map(|mark| {
             format!(
-                "donder_runtime::values::SampleDuration::from_ticks({})",
+                "donder_runtime::SampleDuration::from_ticks({})",
                 mark.as_ticks()
             )
         })
         .collect::<Vec<_>>()
         .join(",");
-    format!("Arc::new(donder_runtime::values::Marks {{ marks: vec![{marks}] }})")
+    format!("Arc::new(donder_runtime::Marks {{ marks: vec![{marks}] }})")
 }
 
 fn instruction_source(instruction: &Instruction) -> String {

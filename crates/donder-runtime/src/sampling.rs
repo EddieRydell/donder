@@ -1,12 +1,15 @@
 use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
 
+#[cfg(test)]
+mod tests;
+
 #[inline(always)]
 pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
     sample_curve_points(&curve.points, position)
 }
 
 #[inline(always)]
-pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
+pub(crate) fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
     if position.is_nan() {
         return 0.0;
     }
@@ -32,7 +35,7 @@ pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
 }
 
 #[inline]
-pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
+pub(crate) fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
     let Some(first) = curve.points.first() else {
         return fallback;
     };
@@ -54,13 +57,13 @@ pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
 }
 
 #[inline]
-pub fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
+pub(crate) fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
     sample_gradient_stops(&gradient.stops, position)
 }
 
 /// Equal-position stops form a step: the last stop wins at the exact position.
 #[inline]
-pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Color {
+pub(crate) fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Color {
     if position.is_nan() {
         return Color::BLACK;
     }
@@ -100,7 +103,7 @@ fn unit_span_fraction(numerator: f32, span: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
+pub(crate) fn mix_colors(left: Color, right: Color, t: f32) -> Color {
     let channel = |left: u8, right: u8| {
         ((left as f32 + (right as f32 - left as f32) * t).clamp(0.0, 255.0) + 0.5) as u8
     };
@@ -112,7 +115,7 @@ pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
 }
 
 #[inline(always)]
-pub fn scale_color(color: Color, scale: f32) -> Color {
+pub(crate) fn scale_color(color: Color, scale: f32) -> Color {
     let channel = |value: u8| ((value as f32 * scale).clamp(0.0, 255.0) + 0.5) as u8;
     Color {
         red: channel(color.red),
@@ -122,7 +125,7 @@ pub fn scale_color(color: Color, scale: f32) -> Color {
 }
 
 #[inline(always)]
-pub fn add_colors(left: Color, right: Color) -> Color {
+pub(crate) fn add_colors(left: Color, right: Color) -> Color {
     Color {
         red: left.red.saturating_add(right.red),
         green: left.green.saturating_add(right.green),
@@ -131,7 +134,7 @@ pub fn add_colors(left: Color, right: Color) -> Color {
 }
 
 #[inline(always)]
-pub fn multiply_colors(left: Color, right: Color) -> Color {
+pub(crate) fn multiply_colors(left: Color, right: Color) -> Color {
     let channel = |a: u8, b: u8| ((u16::from(a) * u16::from(b) + 127) / 255) as u8;
     Color {
         red: channel(left.red, right.red),
@@ -141,7 +144,7 @@ pub fn multiply_colors(left: Color, right: Color) -> Color {
 }
 
 #[inline(always)]
-pub fn max_colors(left: Color, right: Color) -> Color {
+pub(crate) fn max_colors(left: Color, right: Color) -> Color {
     Color {
         red: left.red.max(right.red),
         green: left.green.max(right.green),
@@ -150,7 +153,7 @@ pub fn max_colors(left: Color, right: Color) -> Color {
 }
 
 #[inline(always)]
-pub fn invert_color(color: Color) -> Color {
+pub(crate) fn invert_color(color: Color) -> Color {
     Color {
         red: 255 - color.red,
         green: 255 - color.green,
@@ -159,13 +162,13 @@ pub fn invert_color(color: Color) -> Color {
 }
 
 #[inline(always)]
-pub fn color_intensity(color: Color) -> f32 {
+pub(crate) fn color_intensity(color: Color) -> f32 {
     f32::from(color.red.max(color.green).max(color.blue)) / 255.0
 }
 
 /// HSV hue in turns, in [0, 1). Achromatic colors have hue zero.
 #[inline]
-pub fn color_hue(color: Color) -> f32 {
+pub(crate) fn color_hue(color: Color) -> f32 {
     let r = f32::from(color.red);
     let g = f32::from(color.green);
     let b = f32::from(color.blue);
@@ -187,7 +190,7 @@ pub fn color_hue(color: Color) -> f32 {
 
 /// HSV saturation in [0, 1]. Black and grayscale have saturation zero.
 #[inline]
-pub fn color_saturation(color: Color) -> f32 {
+pub(crate) fn color_saturation(color: Color) -> f32 {
     let max = color.red.max(color.green).max(color.blue);
     let min = color.red.min(color.green).min(color.blue);
     if max == 0 {
@@ -232,7 +235,7 @@ pub fn deterministic_random(values: impl Iterator<Item = f32>) -> f32 {
 }
 
 #[inline(always)]
-pub fn deterministic_random_seed(seed: f32) -> f32 {
+pub(crate) fn deterministic_random_seed(seed: f32) -> f32 {
     // MurmurHash3's 32-bit avalanche finalizer. Hash the seed representation,
     // not its sine: this is stateless, allocation-free and uses no doubles.
     // Normalize signed zero so numerically equal zero seeds agree.

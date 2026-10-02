@@ -1,5 +1,5 @@
-//! Ownership edits operate on typed values. The caller owns transactionality and
-//! registers reusable source identities before promoting values.
+//! Ownership edits preserve accepted-project invariants. The caller registers
+//! reusable source identities before promoting values.
 mod duplicate;
 mod link;
 use super::ValueSource;
@@ -156,6 +156,14 @@ pub fn make_reusable(
     site: &OwnershipSite,
     destination: SourceIdentity,
 ) -> Result<(), String> {
+    project.checked_edit(|project| make_reusable_candidate(project, site, destination))
+}
+
+fn make_reusable_candidate(
+    project: &mut DonderProject,
+    site: &OwnershipSite,
+    destination: SourceIdentity,
+) -> Result<(), String> {
     let to = ObjectIdentity::from(destination.clone());
     let occupied = match site {
         OwnershipSite::ProjectSetup => project.setups.contains_key(&SetupId(to.clone())),
@@ -255,6 +263,13 @@ pub fn make_reusable(
 /// Copy linked values into their ownership slot. Related routes and active
 /// sequence targets follow a copied layout/controller without editing shared sources.
 pub fn make_independent(project: &mut DonderProject, site: &OwnershipSite) -> Result<(), String> {
+    project.checked_edit(|project| make_independent_candidate(project, site))
+}
+
+fn make_independent_candidate(
+    project: &mut DonderProject,
+    site: &OwnershipSite,
+) -> Result<(), String> {
     match site {
         OwnershipSite::ProjectSetup => {
             let ValueSource::Reference(id) = &project.root.setup else {
@@ -480,6 +495,15 @@ fn retarget_active_sequences(
 
 /// Add an independently owned sequence to the active project.
 pub fn add_sequence(
+    project: &mut DonderProject,
+    duration: crate::values::DonderDuration,
+    frame_rate: u32,
+    color: crate::values::Color,
+) -> Result<SequenceId, String> {
+    project.checked_edit(|project| add_sequence_candidate(project, duration, frame_rate, color))
+}
+
+fn add_sequence_candidate(
     project: &mut DonderProject,
     duration: crate::values::DonderDuration,
     frame_rate: u32,

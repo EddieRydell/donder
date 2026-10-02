@@ -111,7 +111,12 @@ pub(super) fn delete_sequence_selection(
     sequence_id: &SequenceId,
     selection: &SequenceSelection,
 ) -> Result<(), GuiMutationError> {
-    let sequence = sequence_mut(session, sequence_id)?;
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let sequence = &mut draft;
     match selection {
         SequenceSelection::Clips {
             effect_ids: ids,
@@ -140,6 +145,10 @@ pub(super) fn delete_sequence_selection(
             }
         }
     }
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
     Ok(())
 }
 
@@ -149,191 +158,209 @@ pub(super) fn paste_sequence_clipboard(
     anchor: SequencePasteAnchor,
     clipboard: Option<&SequenceClipboard>,
 ) -> Result<SequenceSelectionMutation, GuiMutationError> {
-    let clipboard = clipboard
-        .ok_or_else(|| GuiMutationError::Invalid("Copy clips or marks before pasting.".into()))?;
-    if !anchor.time_seconds.is_finite() || anchor.time_seconds < 0.0 {
-        return Err(GuiMutationError::Invalid(
-            "Paste time must be finite and nonnegative.".into(),
-        ));
-    }
-    match clipboard {
-        SequenceClipboard::Clips {
-            effects,
-            automation,
-            source,
-            cut,
-        } => {
-            let layout = active_layout(session)
-                .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
-            let targets = layout
-                .iter_fixtures()
-                .map(|fixture| FixtureTarget {
-                    layout: layout.id.clone(),
-                    fixture: fixture.id,
-                })
-                .collect::<Vec<_>>();
-            let anchor_target = anchor.target.as_ref().ok_or_else(|| {
-                GuiMutationError::Invalid("Select a target row before pasting clips.".into())
-            })?;
-            let anchor_lane = targets
-                .iter()
-                .position(|target| target.fixture.0 == anchor_target.fixture)
-                .ok_or_else(|| GuiMutationError::Invalid("Paste target is missing.".into()))?;
-            let min_start = effects
-                .iter()
-                .map(|effect| effect.start_seconds)
-                .chain(
-                    automation
-                        .iter()
-                        .map(|entry| entry.clip.start.as_seconds_f32()),
-                )
-                .fold(f32::INFINITY, f32::min);
-            let min_lane = effects
-                .iter()
-                .map(|effect| effect.lane_index)
-                .chain(automation.iter().map(|entry| entry.lane_index))
-                .min()
-                .ok_or_else(|| GuiMutationError::Invalid("Clipboard is empty.".into()))?;
-            let destination = |lane: usize| {
-                targets
-                    .get(anchor_lane + lane - min_lane)
-                    .cloned()
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid(
-                            "The copied clips do not fit below this target.".into(),
-                        )
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let result: Result<SequenceSelectionMutation, GuiMutationError> = {
+        let clipboard = clipboard.ok_or_else(|| {
+            GuiMutationError::Invalid("Copy clips or marks before pasting.".into())
+        })?;
+        if !anchor.time_seconds.is_finite() || anchor.time_seconds < 0.0 {
+            return Err(GuiMutationError::Invalid(
+                "Paste time must be finite and nonnegative.".into(),
+            ));
+        }
+        match clipboard {
+            SequenceClipboard::Clips {
+                effects,
+                automation,
+                source,
+                cut,
+            } => {
+                let layout = active_layout(session)
+                    .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
+                let targets = layout
+                    .iter_fixtures()
+                    .map(|fixture| FixtureTarget {
+                        layout: layout.id.clone(),
+                        fixture: fixture.id,
                     })
-            };
-            // Resolve every destination before mutation; never collapse distinct rows at the boundary.
-            let effect_targets = effects
-                .iter()
-                .map(|entry| destination(entry.lane_index))
-                .collect::<Result<Vec<_>, _>>()?;
-            let automation_targets = automation
-                .iter()
-                .map(|entry| destination(entry.lane_index))
-                .collect::<Result<Vec<_>, _>>()?;
-            donder_project_io::ensure_document_can_reference_object(
-                session,
-                sequence_id.0.document_id(),
-                &targets[anchor_lane].layout.0,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            let sequence = sequence_mut(session, sequence_id)?;
-            let mut next_id = sequence
-                .effects
-                .iter()
-                .map(|effect| effect.id.0)
-                .max()
-                .unwrap_or(0);
-            let mut effect_ids = Vec::new();
-            let mut id_map = BTreeMap::new();
-            for (entry, target) in effects.iter().zip(effect_targets) {
-                next_id = next_id
-                    .checked_add(1)
-                    .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
-                let mut effect = entry.effect.clone();
-                id_map.insert(effect.id.0, next_id);
-                effect.id = EffectInstId(next_id);
-                effect.start =
-                    super::checked_gui_time(anchor.time_seconds + entry.start_seconds - min_start)?;
-                effect.target = target;
-                sequence.effects.push(effect);
-                effect_ids.push(next_id);
-            }
-            let mut next_id = sequence
-                .automation_clips
-                .iter()
-                .map(|clip| clip.id.0)
-                .max()
-                .unwrap_or(0);
-            let mut automation_ids = Vec::new();
-            for (entry, target) in automation.iter().zip(automation_targets) {
-                next_id = next_id
-                    .checked_add(1)
-                    .ok_or_else(|| GuiMutationError::Invalid("Automation IDs exhausted.".into()))?;
-                let mut clip = entry.clip.clone();
-                clip.id = donder_language::sequence::AutomationClipId(next_id);
-                clip.row_target = target;
-                clip.start = super::checked_gui_time(
-                    anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
-                )?;
-                // Copy bindings only within the copied selection. Cut may retain existing bindings
-                // in the same sequence when no other clip has claimed them since the cut.
-                let remap = |target: &mut AutomationTarget| {
-                    if let AutomationTarget::EffectParam { effect_id, .. } = target
-                        && let Some(id) = id_map.get(&effect_id.0)
-                    {
-                        effect_id.0 = *id;
-                        return true;
-                    }
-                    *cut && source == sequence_id
-                        && !sequence.automation_clips.iter().any(|clip| {
-                            clip.bindings
-                                .iter()
-                                .any(|binding| &binding.target == target)
-                                || clip
-                                    .detached_bindings
-                                    .iter()
-                                    .any(|binding| &binding.target == target)
+                    .collect::<Vec<_>>();
+                let anchor_target = anchor.target.as_ref().ok_or_else(|| {
+                    GuiMutationError::Invalid("Select a target row before pasting clips.".into())
+                })?;
+                let anchor_lane = targets
+                    .iter()
+                    .position(|target| target.fixture.0 == anchor_target.fixture)
+                    .ok_or_else(|| GuiMutationError::Invalid("Paste target is missing.".into()))?;
+                let min_start = effects
+                    .iter()
+                    .map(|effect| effect.start_seconds)
+                    .chain(
+                        automation
+                            .iter()
+                            .map(|entry| entry.clip.start.as_seconds_f32()),
+                    )
+                    .fold(f32::INFINITY, f32::min);
+                let min_lane = effects
+                    .iter()
+                    .map(|effect| effect.lane_index)
+                    .chain(automation.iter().map(|entry| entry.lane_index))
+                    .min()
+                    .ok_or_else(|| GuiMutationError::Invalid("Clipboard is empty.".into()))?;
+                let destination = |lane: usize| {
+                    targets
+                        .get(anchor_lane + lane - min_lane)
+                        .cloned()
+                        .ok_or_else(|| {
+                            GuiMutationError::Invalid(
+                                "The copied clips do not fit below this target.".into(),
+                            )
                         })
                 };
-                clip.bindings
-                    .retain_mut(|binding| remap(&mut binding.target));
-                clip.detached_bindings
-                    .retain_mut(|binding| remap(&mut binding.target));
-                sequence.automation_clips.push(clip);
-                automation_ids.push(next_id);
-            }
-            donder_project_io::maintain_ownership_sources(session)
-                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
-            Ok(SequenceSelectionMutation {
-                selection: Some(SequenceSelection::Clips {
-                    effect_ids,
-                    automation_ids,
-                }),
-                copied_count: (effects.len() + automation.len()) as u32,
-                skipped_count: 0,
-            })
-        }
-        SequenceClipboard::Marks(marks) => {
-            let min_time = marks
-                .iter()
-                .map(|mark| mark.time_seconds)
-                .fold(f32::INFINITY, f32::min);
-            let mut pasted = Vec::new();
-            let mut skipped = 0u32;
-            let sequence = sequence_mut(session, sequence_id)?;
-            for mark in marks {
-                let collection = match mark_collection_mut(sequence, &mark.collection_key) {
-                    Ok(collection) => collection,
-                    Err(_) => {
-                        skipped = skipped.saturating_add(1);
-                        continue;
-                    }
-                };
-                let time_seconds = (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
-                collection
-                    .marks
-                    .push(super::checked_gui_time(time_seconds)?);
-                collection.marks.sort_by_key(|time| time.0);
-                let index = collection
-                    .marks
+                // Resolve every destination before mutation; never collapse distinct rows at the boundary.
+                let effect_targets = effects
                     .iter()
-                    .position(|value| (value.as_seconds_f32() - time_seconds).abs() < f32::EPSILON)
-                    .unwrap_or_else(|| collection.marks.len().saturating_sub(1));
-                pasted.push(SequenceMarkRef {
-                    collection_key: mark.collection_key.clone(),
-                    index: index as u32,
-                });
+                    .map(|entry| destination(entry.lane_index))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let automation_targets = automation
+                    .iter()
+                    .map(|entry| destination(entry.lane_index))
+                    .collect::<Result<Vec<_>, _>>()?;
+                donder_project_io::ensure_document_can_reference_object(
+                    session,
+                    sequence_id.0.document_id(),
+                    &targets[anchor_lane].layout.0,
+                )
+                .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+                let sequence = &mut draft;
+                let mut next_id = sequence
+                    .effects
+                    .iter()
+                    .map(|effect| effect.id.0)
+                    .max()
+                    .unwrap_or(0);
+                let mut effect_ids = Vec::new();
+                let mut id_map = BTreeMap::new();
+                for (entry, target) in effects.iter().zip(effect_targets) {
+                    next_id = next_id
+                        .checked_add(1)
+                        .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
+                    let mut effect = entry.effect.clone();
+                    id_map.insert(effect.id.0, next_id);
+                    effect.id = EffectInstId(next_id);
+                    effect.start = super::checked_gui_time(
+                        anchor.time_seconds + entry.start_seconds - min_start,
+                    )?;
+                    effect.target = target;
+                    sequence.effects.push(effect);
+                    effect_ids.push(next_id);
+                }
+                let mut next_id = sequence
+                    .automation_clips
+                    .iter()
+                    .map(|clip| clip.id.0)
+                    .max()
+                    .unwrap_or(0);
+                let mut automation_ids = Vec::new();
+                for (entry, target) in automation.iter().zip(automation_targets) {
+                    next_id = next_id.checked_add(1).ok_or_else(|| {
+                        GuiMutationError::Invalid("Automation IDs exhausted.".into())
+                    })?;
+                    let mut clip = entry.clip.clone();
+                    clip.id = donder_language::sequence::AutomationClipId(next_id);
+                    clip.row_target = target;
+                    clip.start = super::checked_gui_time(
+                        anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
+                    )?;
+                    // Copy bindings only within the copied selection. Cut may retain existing bindings
+                    // in the same sequence when no other clip has claimed them since the cut.
+                    let remap = |target: &mut AutomationTarget| {
+                        if let AutomationTarget::EffectParam { effect_id, .. } = target
+                            && let Some(id) = id_map.get(&effect_id.0)
+                        {
+                            effect_id.0 = *id;
+                            return true;
+                        }
+                        *cut && source == sequence_id
+                            && !sequence.automation_clips.iter().any(|clip| {
+                                clip.bindings
+                                    .iter()
+                                    .any(|binding| &binding.target == target)
+                                    || clip
+                                        .detached_bindings
+                                        .iter()
+                                        .any(|binding| &binding.target == target)
+                            })
+                    };
+                    clip.bindings
+                        .retain_mut(|binding| remap(&mut binding.target));
+                    clip.detached_bindings
+                        .retain_mut(|binding| remap(&mut binding.target));
+                    sequence.automation_clips.push(clip);
+                    automation_ids.push(next_id);
+                }
+                Ok(SequenceSelectionMutation {
+                    selection: Some(SequenceSelection::Clips {
+                        effect_ids,
+                        automation_ids,
+                    }),
+                    copied_count: (effects.len() + automation.len()) as u32,
+                    skipped_count: 0,
+                })
             }
-            Ok(SequenceSelectionMutation {
-                selection: Some(SequenceSelection::Marks { marks: pasted }),
-                copied_count: marks.len() as u32,
-                skipped_count: skipped,
-            })
+            SequenceClipboard::Marks(marks) => {
+                let min_time = marks
+                    .iter()
+                    .map(|mark| mark.time_seconds)
+                    .fold(f32::INFINITY, f32::min);
+                let mut pasted = Vec::new();
+                let mut skipped = 0u32;
+                let sequence = &mut draft;
+                for mark in marks {
+                    let collection = match mark_collection_mut(sequence, &mark.collection_key) {
+                        Ok(collection) => collection,
+                        Err(_) => {
+                            skipped = skipped.saturating_add(1);
+                            continue;
+                        }
+                    };
+                    let time_seconds =
+                        (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
+                    collection
+                        .marks
+                        .push(super::checked_gui_time(time_seconds)?);
+                    collection.marks.sort_by_key(|time| time.0);
+                    let index = collection
+                        .marks
+                        .iter()
+                        .position(|value| {
+                            (value.as_seconds_f32() - time_seconds).abs() < f32::EPSILON
+                        })
+                        .unwrap_or_else(|| collection.marks.len().saturating_sub(1));
+                    pasted.push(SequenceMarkRef {
+                        collection_key: mark.collection_key.clone(),
+                        index: index as u32,
+                    });
+                }
+                Ok(SequenceSelectionMutation {
+                    selection: Some(SequenceSelection::Marks { marks: pasted }),
+                    copied_count: marks.len() as u32,
+                    skipped_count: skipped,
+                })
+            }
         }
-    }
+    };
+    let result = result?;
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
+    donder_project_io::maintain_ownership_sources(session)
+        .map_err(|error| GuiMutationError::Invalid(error.to_string()))?;
+    Ok(result)
 }
 
 pub(super) fn edit_effect_selection(
@@ -343,6 +370,11 @@ pub(super) fn edit_effect_selection(
     effect_ids: &[u32],
     edit: SequenceEffectCommonEdit,
 ) -> Result<(), GuiMutationError> {
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     if effect_ids.is_empty() {
         return Err(GuiMutationError::Invalid(
             "At least one effect must be selected.".into(),
@@ -363,13 +395,13 @@ pub(super) fn edit_effect_selection(
                 .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
             let definition = session
                 .project
-                .definitions
+                .definitions()
                 .effects
                 .resolve(&effect.definition)
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Effect definition was not found.".into())
                 })?;
-            if !definition.params.iter().any(|param| param.name == name) {
+            if !definition.params().iter().any(|param| param.name == name) {
                 return Err(GuiMutationError::Invalid(format!(
                     "Effect {id} does not declare parameter `{}`.",
                     name.as_str()
@@ -401,14 +433,14 @@ pub(super) fn edit_effect_selection(
                 .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
             let definition = session
                 .project
-                .definitions
+                .definitions()
                 .effects
                 .resolve(&effect.definition)
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Effect definition was not found.".into())
                 })?;
             let declaration = definition
-                .params
+                .params()
                 .iter()
                 .find(|param| param.name == name)
                 .ok_or_else(|| {
@@ -426,7 +458,7 @@ pub(super) fn edit_effect_selection(
         None
     };
 
-    let sequence = sequence_mut(session, sequence_id)?;
+    let sequence = &mut draft;
     match edit {
         SequenceEffectCommonEdit::Layer { layer_id } => {
             if !sequence.layers.iter().any(|layer| layer.id.0 == layer_id) {
@@ -474,6 +506,10 @@ pub(super) fn edit_effect_selection(
             }
         }
     }
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
     Ok(())
 }
 
@@ -485,6 +521,11 @@ pub(super) fn move_clip_selection(
     time_delta_seconds: f32,
     lane_delta: i32,
 ) -> Result<(), GuiMutationError> {
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     let layout = active_layout(session)
         .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
     let targets = layout
@@ -508,7 +549,7 @@ pub(super) fn move_clip_selection(
                 GuiMutationError::Invalid("The selected clips do not fit at this target.".into())
             })
     };
-    let sequence = sequence_mut(session, sequence_id)?;
+    let sequence = &mut draft;
     for id in effect_ids {
         let effect = effect_mut(sequence, *id)?;
         effect.target = destination(&effect.target)?;
@@ -523,6 +564,10 @@ pub(super) fn move_clip_selection(
         clip.row_target = destination(&clip.row_target)?;
         clip.start = shifted_start(&clip.start, time_delta_seconds)?;
     }
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
     Ok(())
 }
 
@@ -544,6 +589,11 @@ pub(super) fn resize_clip_selection(
     edge: SequenceResizeEdge,
     time_delta_seconds: f32,
 ) -> Result<(), GuiMutationError> {
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     let resize =
         |start: &mut DonderTime, duration: &mut DonderDuration| -> Result<(), GuiMutationError> {
             let seconds = duration.as_seconds_f32()
@@ -562,7 +612,7 @@ pub(super) fn resize_clip_selection(
             *duration = super::checked_gui_duration(seconds)?;
             Ok(())
         };
-    let sequence = sequence_mut(session, sequence_id)?;
+    let sequence = &mut draft;
     for id in effect_ids {
         let effect = effect_mut(sequence, *id)?;
         resize(&mut effect.start, &mut effect.duration)?;
@@ -575,6 +625,10 @@ pub(super) fn resize_clip_selection(
             .ok_or_else(|| GuiMutationError::Invalid("Automation clip is missing.".into()))?;
         resize(&mut clip.start, &mut clip.duration)?;
     }
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
     Ok(())
 }
 
@@ -584,7 +638,12 @@ pub(super) fn move_mark_selection(
     marks: &[SequenceMarkRef],
     time_delta_seconds: f32,
 ) -> Result<Vec<SequenceMarkRef>, GuiMutationError> {
-    let sequence = sequence_mut(session, sequence_id)?;
+    let mut draft = session
+        .project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
+    let sequence = &mut draft;
     let mut moved = Vec::new();
     for (collection_key, indexes) in mark_indexes_by_collection(marks) {
         let mut moved_times = Vec::new();
@@ -611,6 +670,10 @@ pub(super) fn move_mark_selection(
             }
         }
     }
+    session
+        .project
+        .replace_sequence(sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)?;
     Ok(moved)
 }
 
@@ -685,12 +748,12 @@ pub(super) fn mark_param_names(
     };
     let definition = session
         .project
-        .definitions
+        .definitions()
         .effects
         .resolve(&reference)
         .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
     Ok(definition
-        .params
+        .params()
         .iter()
         .filter(|param| matches!(param.ty, Type::Marks))
         .map(|param| param.name.as_str().to_string())
@@ -709,7 +772,7 @@ use donder_project_io::ProjectSession;
 
 use super::model::{
     effect_mut, effect_param_value_from_gui, effect_scope, identifier, mark_collection_mut,
-    sequence_mut, source_identity_from_gui,
+    source_identity_from_gui,
 };
 use super::projection::active_layout;
 use super::{

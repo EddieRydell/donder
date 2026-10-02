@@ -1748,7 +1748,7 @@ main:
         value: 0.4000000059604645
     effect: effects.MarkWipe
   - id: 42
-    layer_id: 0
+    layer_id: 3
     start: 113.921364s
     duration: 8.391655s
     target:
@@ -1769,8 +1769,6 @@ main:
           type: curve
           points:
           - position: 0.0
-            value: 1.0
-          - position: 0.5040000081062317
             value: 0.0
           - position: 1.0
             value: 1.0
@@ -1783,7 +1781,13 @@ main:
             value: 1.0
           - position: 1.0
             value: 0.0
-    effect: effects.Chase
+      pulse_overlap:
+        type: float
+        value: 80.0
+      revolutions:
+        type: integer
+        value: 20
+    effect: effects.Spin
   - id: 43
     layer_id: 2
     start: 74.380547s

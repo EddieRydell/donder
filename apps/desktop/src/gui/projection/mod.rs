@@ -50,7 +50,7 @@ pub(super) fn project_sequence(
             },
             effect: session
                 .project
-                .definitions
+                .definitions()
                 .effects
                 .resolve(&effect.definition)
                 .map(|definition| definition.display_name.clone())
@@ -64,7 +64,7 @@ pub(super) fn project_sequence(
         id: 0,
         operator_catalog: session
             .project
-            .definitions
+            .definitions()
             .operators
             .definitions
             .iter()
@@ -201,7 +201,7 @@ fn automation_target_to_gui(target: &AutomationTarget) -> SequenceAutomationTarg
 pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
     session
         .project
-        .setup(session.project.root.setup.id())
+        .setup(session.project.root().setup.id())
         .and_then(|setup| session.project.layout(setup.layout.id()))
 }
 
@@ -258,7 +258,7 @@ fn effect_ref_to_gui(reference: &EffectRef) -> SequenceEffectReference {
 fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition> {
     session
         .project
-        .definitions
+        .definitions()
         .effects
         .definitions
         .iter()
@@ -266,14 +266,14 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
             let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
             SequenceEffectDefinition {
                 name: definition.display_name.clone(),
-                kind: match definition.kind {
+                kind: match definition.kind() {
                     EffectKind::Sample => SequenceEffectDefinitionKind::Sample,
                     EffectKind::Generator => SequenceEffectDefinitionKind::Generator,
                 },
                 effect: source,
                 import_path: Some(id.0.document().to_string()),
                 params: definition
-                    .params
+                    .params()
                     .iter()
                     .filter_map(|param| {
                         Some(SequenceEffectDefinitionParam {

@@ -17,6 +17,7 @@ pub(super) struct ParameterValues {
     #[rkyv(with = rkyv::with::Skip)]
     pub(super) arrays: ArrayStorage,
     pub(super) slots: Vec<ParameterAddress>,
+    pub(super) types: Vec<Type>,
     pub(super) target_items: Vec<TargetRegister<TargetItemValue>>,
     pub(super) target_lists: Vec<TargetRegister<TargetItemsValue>>,
     pub(super) targets: Vec<TargetRegister<TargetValue>>,
@@ -165,7 +166,7 @@ impl<'a> FromIterator<(&'a Type, BoundParamValue)> for ParameterValues {
 
 impl ParameterValues {
     pub(super) fn has_valid_layout(&self) -> bool {
-        if self.slots.len() != self.initialized.len() {
+        if self.slots.len() != self.initialized.len() || self.slots.len() != self.types.len() {
             return false;
         }
         let mut lengths = [0; 12];
@@ -216,6 +217,7 @@ impl ParameterValues {
     }
 
     pub(super) fn push(&mut self, ty: &Type, value: BoundParamValue) {
+        self.types.push(ty.clone());
         // Void is an unresolved forwarded input, not its eventual storage type.
         let initialized = !matches!(value, BoundParamValue::Void);
         let address = match value {

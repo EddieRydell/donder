@@ -1,8 +1,8 @@
-use donder_language::dsl::{Identifier, ParamDecl, Value};
-use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
-use donder_language::model::DonderProject;
-use donder_language::sequence::{MarkCollection, MarkCollectionKey, Sequence};
-use donder_language::values::{Marks, SampleDuration, SampleTime};
+use crate::dsl::{Identifier, ParamDecl, Value};
+use crate::effect::{CurveSource, EffectParamValue, GradientSource};
+use crate::model::DonderProject;
+use crate::sequence::{MarkCollection, MarkCollectionKey, Sequence};
+use crate::values::{Marks, SampleDuration, SampleTime};
 use indexmap::IndexMap;
 use std::sync::Arc;
 
@@ -74,11 +74,13 @@ fn prepare_param_value(
         }
         EffectParamValue::Curve(source) => Value::Curve(Arc::new(match source {
             CurveSource::Inline(curve) => curve.clone(),
-            CurveSource::Reference(id) => project.definitions.curves.definitions[id].curve.clone(),
+            CurveSource::Reference(id) => {
+                project.definitions().curves.definitions[id].curve.clone()
+            }
         })),
         EffectParamValue::Gradient(source) => Value::Gradient(Arc::new(match source {
             GradientSource::Inline(gradient) => gradient.clone(),
-            GradientSource::Reference(id) => project.definitions.gradients.definitions[id]
+            GradientSource::Reference(id) => project.definitions().gradients.definitions[id]
                 .gradient
                 .clone(),
         })),

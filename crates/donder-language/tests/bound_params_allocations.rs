@@ -2,10 +2,17 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::Arc;
 
-use donder_language::dsl::{BoundParams, Identifier, ParamDecl, Type, Value};
+use donder_language::dsl::{BoundParams, DslBindCache, Identifier, ParamDecl, Type, Value};
 use donder_language::sequence::{AutomationClip, AutomationClipId, AutomationMapping};
 use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
+use donder_runtime::SpatialContext;
 use indexmap::IndexMap;
+
+const SPATIAL: SpatialContext = SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 #[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/workload.rs"]
@@ -74,14 +81,22 @@ unsafe impl GlobalAlloc for CountingAllocator {
 
 #[test]
 fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
-    use donder_runtime::values::{Color, SampleTime};
+    use donder_runtime::{Color, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
-    let show = workload::show(200, effect.sample_program().unwrap().clone(), params);
+    let show = workload::show(
+        200,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    );
     let sequence = show.signals();
-    let mut workspace = sequence.workspace().unwrap();
-    let expected = sequence
-        .evaluate(workload::time(4), &mut sequence.workspace().unwrap())
+    let mut playback = show.clone().prepare().unwrap().into_playback();
+    let expected = show
+        .clone()
+        .prepare()
         .unwrap()
+        .into_playback()
+        .evaluate(workload::time(4))
+        .colors()
         .to_vec();
     let black = Color {
         red: 0,
@@ -97,9 +112,9 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
     ] {
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = sequence.evaluate(time, &mut workspace);
+        let result = playback.evaluate(time);
         COUNTING.set(false);
-        let colors = result.unwrap();
+        let colors = result.colors();
         assert_eq!(colors.len(), 200);
         assert_eq!(ALLOCATIONS.get(), 0);
         if time.as_ticks() >= sequence.duration.as_ticks() {
@@ -220,7 +235,9 @@ fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let bound = effect
+        .bind(&IndexMap::new(), &mut DslBindCache::default())
+        .unwrap();
     let mut workspace = donder_language::dsl::VmWorkspace::default();
     let context = donder_language::dsl::RunContext {
         progress: 0.0,
@@ -230,14 +247,12 @@ fn warmed_curve_enum_automation_and_constant_arrays_do_not_allocate() {
         pixel_count: 1,
         pixel_fraction: 0.0,
     };
-    let expected = effect
-        .sample_bound(&params, &context, &mut workspace)
-        .unwrap();
+    let expected = bound.evaluate(&context, &SPATIAL, &mut workspace);
     ALLOCATIONS.set(0);
     COUNTING.set(true);
-    let sampled = effect.sample_bound(&params, &context, &mut workspace);
+    let sampled = bound.evaluate(&context, &SPATIAL, &mut workspace);
     COUNTING.set(false);
-    assert_eq!(sampled.unwrap(), expected);
+    assert_eq!(sampled, expected);
     assert_eq!(ALLOCATIONS.get(), 0, "constant arrays allocated");
 }
 
@@ -253,11 +268,14 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
     let mut counts = [0; 3];
     let mut peaks = [0; 3];
     for (case, iterations) in [2, 64, 9_999].into_iter().enumerate() {
-        let params = effect
-            .bind_params(&IndexMap::from([(
-                Identifier::new("iterations".into()).unwrap(),
-                Value::Int(iterations),
-            )]))
+        let bound = effect
+            .bind(
+                &IndexMap::from([(
+                    Identifier::new("iterations".into()).unwrap(),
+                    Value::Int(iterations),
+                )]),
+                &mut DslBindCache::default(),
+            )
             .unwrap();
         let context = donder_language::dsl::RunContext {
             progress: 0.25,
@@ -267,22 +285,20 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
             pixel_count: 1,
             pixel_fraction: 0.0,
         };
-        effect
-            .sample_bound(&params, &context, &mut workspace)
-            .unwrap();
+        bound.evaluate(&context, &SPATIAL, &mut workspace);
         ALLOCATIONS.set(0);
-        // This fixture releases every calculated array before sample_bound returns.
+        // This fixture releases every calculated array before evaluation returns.
         // Count only new allocation payloads, excluding the already-warmed workspace.
         LIVE_BYTES.set(0);
         PEAK_BYTES.set(0);
         COUNTING.set(true);
         let results = [0.25, 0.5].map(|progress| {
-            effect.sample_bound(
-                &params,
+            bound.evaluate(
                 &donder_language::dsl::RunContext {
                     progress,
                     ..context.clone()
                 },
+                &SPATIAL,
                 &mut workspace,
             )
         });
@@ -295,7 +311,7 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
             "sample retained newly allocated storage"
         );
         assert_eq!(
-            results.map(Result::unwrap),
+            results,
             [
                 donder_language::dsl::Color {
                     red: 64,
@@ -319,10 +335,7 @@ fn calculated_arrays_do_not_allocate_after_warmup() {
 
 #[test]
 fn retained_array_results_do_not_allocate_on_the_first_evaluation() {
-    use donder_language::dsl::{
-        DslBindCache, GeneratorContext, GeneratorInput, RunContext, TargetValue, VmWorkspace,
-        compile_effects,
-    };
+    use donder_language::dsl::{GeneratorContext, GeneratorInput, TargetValue, compile_effects};
     use donder_language::values::{SampleDuration, SampleTime};
 
     let generator = compile_effects(
@@ -337,57 +350,90 @@ fn retained_array_results_do_not_allocate_on_the_first_evaluation() {
     .generator()
     .unwrap()
     .clone();
-    let specialized = generator
-        .bind(&[GeneratorInput::Live])
-        .unwrap()
-        .specialize(&GeneratorContext {
-            start_time: SampleTime::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            target: Arc::new(TargetValue { groups: Vec::new() }),
-        })
-        .unwrap();
-    let (program, types, outputs) = specialized.calculations[0].program.clone().into_parts();
-    let params = BoundParams::from_values(
-        types.iter().map(|ty| (ty, Value::Float(0.25))),
-        &mut DslBindCache::default(),
-    );
-    let mut workspace = VmWorkspace::for_program(&program);
-    let mut result = BoundParams::result_workspace(
-        &outputs,
-        program.array_capacity as usize,
-        program.array_width as usize,
+    let specialized =
+        generator
+            .bind(&[GeneratorInput::Live])
+            .unwrap()
+            .specialize(&GeneratorContext {
+                start_time: SampleTime::from_ticks(0),
+                duration: SampleDuration::from_ticks(1_000_000),
+                target: Arc::new(TargetValue { groups: Vec::new() }),
+            });
+    let child = compile_effects(
+        "effect Child { param array<array<float>> value; color sample() {
+        return rgb(value[0][0], value[1][0], (len(value) + len(value[0]) + len(value[1])) * 0.125);
+    } }",
+    )
+    .unwrap()
+    .remove(0)
+    .effect;
+    let mut playback = retained_playback(
+        &specialized.calculations[0].program,
+        vec![Value::Float(0.25)],
+        &child,
     );
     for time in [0, 500_000, 250_000, 0] {
-        let context = RunContext {
-            progress: time as f32 / 1_000_000.0,
-            time: SampleDuration::from_ticks(time),
-            duration: SampleDuration::from_ticks(1_000_000),
-            pixel_index: 0,
-            pixel_count: 0,
-            pixel_fraction: 0.0,
-        };
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let evaluated =
-            program.evaluate_bindings(&params, &context, &mut workspace, &mut result, &outputs);
+        let evaluated = playback.evaluate(SampleTime::from_ticks(time));
         COUNTING.set(false);
-        evaluated.unwrap();
         assert_eq!(
             ALLOCATIONS.get(),
             0,
             "retained array result allocated at {time}"
         );
         assert_eq!(
-            result.value(0).unwrap(),
-            Value::Array(
-                vec![
-                    Value::Array(vec![Value::Float(0.25 + time as f32 / 1_000_000.0)].into()),
-                    Value::Array(vec![Value::Float(0.25)].into()),
-                ]
-                .into()
-            )
+            evaluated.colors(),
+            &[donder_runtime::Color {
+                red: ((0.25 + time as f32 / 1_000_000.0) * 255.0).round() as u8,
+                green: 64,
+                blue: 128,
+            }]
         );
     }
+}
+
+// Exercise retained result storage through the same admitted graph used by playback.
+// A raw calculation and its output bank are never independently executable.
+fn retained_playback(
+    calculation: &donder_runtime::CalculationProgram,
+    values: Vec<Value>,
+    child: &donder_language::dsl::CompiledEffect,
+) -> donder_runtime::SequencePlayback {
+    use donder_runtime::{
+        PreparedEffectImplementation, PreparedParameterCalculation, PreparedParameterEnvironment,
+        PreparedSequence, SampleDuration, SampleTime,
+    };
+    let (program, types, outputs) = calculation.clone().into_parts();
+    let calculation = PreparedParameterCalculation { program, outputs };
+    let (array_capacity, array_width) =
+        PreparedParameterEnvironment::required_array_storage([], Some(&calculation));
+    let params = BoundParams::from_values(types.iter().zip(values), &mut DslBindCache::default());
+    let base = workload::show(
+        1,
+        child.sample_program().unwrap().clone().into_parts().0,
+        BoundParams::default(),
+    );
+    let mut graph = base.signals().clone();
+    let environment: PreparedParameterEnvironment = PreparedParameterEnvironment {
+        start_time: SampleTime::from_ticks(0),
+        duration: SampleDuration::from_ticks(1_000_000),
+        params,
+        types,
+        bindings: Box::new([]),
+        automation: Box::new([]),
+        calculation: Some(calculation),
+        array_capacity,
+        array_width,
+    };
+    graph.parameter_environments = vec![environment].into();
+    graph.effects[0].implementation = PreparedEffectImplementation::Bound {
+        program: 0,
+        environment: 0,
+    };
+    PreparedSequence::admit(graph, base.patch().clone(), base.outputs().into())
+        .unwrap()
+        .into_playback()
 }
 
 #[test]
@@ -398,17 +444,26 @@ fn prepared_calculated_arrays_do_not_allocate_on_the_first_frame() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let show = workload::layered_show(200, effect.sample_program().unwrap().clone(), params, 4);
-    let mut workspace = show.workspace().unwrap();
+    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    let show = workload::layered_show(
+        200,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+        4,
+    );
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
     let mut buffers = [vec![0; 600]];
     ALLOCATIONS.set(0);
     COUNTING.set(true);
-    let result = [0, 31, 4, 0]
-        .into_iter()
-        .try_for_each(|frame| show.evaluate(workload::time(frame), &mut buffers, &mut workspace));
+    for frame in [0, 31, 4, 0] {
+        for (snapshot, output) in buffers
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
+    }
     COUNTING.set(false);
-    result.unwrap();
     assert_eq!(ALLOCATIONS.get(), 0, "prepared array evaluation allocated");
 }
 
@@ -430,7 +485,9 @@ fn enum_local_assignment_and_constant_loads_do_not_allocate() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
+    let bound = effect
+        .bind(&IndexMap::new(), &mut DslBindCache::default())
+        .unwrap();
     let mut workspace = donder_language::dsl::VmWorkspace::default();
     let mut context = donder_language::dsl::RunContext {
         progress: 0.0,
@@ -440,19 +497,15 @@ fn enum_local_assignment_and_constant_loads_do_not_allocate() {
         pixel_count: 1,
         pixel_fraction: 0.0,
     };
-    effect
-        .sample_bound(&params, &context, &mut workspace)
-        .unwrap();
+    bound.evaluate(&context, &SPATIAL, &mut workspace);
     ALLOCATIONS.set(0);
     COUNTING.set(true);
-    let result = [1.0, 0.0, 1.0].into_iter().try_for_each(|progress| {
+    for progress in [1.0, 0.0, 1.0] {
         context.progress = progress;
-        effect
-            .sample_bound(&params, &context, &mut workspace)
-            .map(|color| assert_eq!(color.red, if progress > 0.5 { 255 } else { 0 }))
-    });
+        let color = bound.evaluate(&context, &SPATIAL, &mut workspace);
+        assert_eq!(color.red, if progress > 0.5 { 255 } else { 0 });
+    }
     COUNTING.set(false);
-    result.unwrap();
     assert_eq!(ALLOCATIONS.get(), 0, "enum copies allocated");
 }
 
@@ -464,9 +517,17 @@ fn many_signal_times_use_fixed_storage_from_the_first_frame() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let expected = workload::show(2, effect.sample_program().unwrap().clone(), params.clone());
-    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
+    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    let expected = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params.clone(),
+    );
+    let mut show = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    );
     let operator = donder_language::dsl::compile_operators(
         "operator ManyTimes { input Signal source; color sample() {
             color saved = source.at(seconds());
@@ -476,24 +537,27 @@ fn many_signal_times_use_fixed_storage_from_the_first_frame() {
     )
     .unwrap()
     .remove(0);
-    workload::apply_operator(&mut show, operator.bytecode, true);
-    let mut workspace = show.workspace().unwrap();
-    let mut expected_workspace = expected.workspace().unwrap();
+    workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
+    let mut expected_workspace = expected.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 6]];
     let mut expected_bytes = [vec![0; 6]];
     for frame in [0, 31, 4, 0] {
-        expected
-            .evaluate(
-                workload::time(frame),
-                &mut expected_bytes,
-                &mut expected_workspace,
-            )
-            .unwrap();
+        for (snapshot, output) in expected_bytes
+            .iter_mut()
+            .zip(expected_workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = show.evaluate(workload::time(frame), &mut actual, &mut workspace);
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         COUNTING.set(false);
-        result.unwrap();
         assert_eq!(ALLOCATIONS.get(), 0, "signal cache allocated");
         assert_eq!(actual, expected_bytes);
     }
@@ -506,18 +570,19 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
     for count in [1, 16, 128] {
         let show = workload::show(
             200,
-            effect.sample_program().unwrap().clone(),
+            effect.sample_program().unwrap().clone().into_parts().0,
             params.clone(),
         );
         let mut signals = show.signals().clone();
         signals.effects = vec![signals.effects[0].clone(); count].into();
         signals.effects_by_layer[0] = (0..count).collect();
         let show = workload::rgb_output(signals);
+        let prepared = show.prepare().unwrap();
         ALLOCATIONS.set(0);
         LIVE_BYTES.set(0);
         PEAK_BYTES.set(0);
         COUNTING.set(true);
-        let mut workspace = show.workspace().unwrap();
+        let mut workspace = prepared.into_playback();
         COUNTING.set(false);
         println!(
             "effects={count} workspace_bytes={} workspace_allocations={}",
@@ -532,22 +597,26 @@ fn unautomated_effects_do_not_expand_the_evaluation_workspace() {
         let mut output = [vec![0; 600]];
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = show.evaluate(workload::time(0), &mut output, &mut workspace);
+        for (snapshot, output) in output
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(0)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         COUNTING.set(false);
-        result.unwrap();
         assert_eq!(ALLOCATIONS.get(), 0);
     }
 }
 
 #[test]
 fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame() {
-    use donder_runtime::signal::{PreparedAutomation, PreparedEffectAutomation};
-    use donder_runtime::values::{SampleDuration, SampleTime};
+    use donder_runtime::{PreparedAutomation, PreparedEffectAutomation};
+    use donder_runtime::{SampleDuration, SampleTime};
     let (effect, params) = fixtures::uniform_resources();
     for recursive in [false, true] {
         let mut show = workload::show(
             200,
-            effect.sample_program().unwrap().clone(),
+            effect.sample_program().unwrap().clone().into_parts().0,
             params.clone(),
         );
         let mut signals = show.signals().clone();
@@ -557,10 +626,7 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
                 start: SampleTime::from_ticks(0),
                 duration: SampleDuration::from_ticks(8_000_000),
                 curve: params.curve(0).unwrap(),
-                mapping: donder_runtime::automation::AutomationMapping::Curve {
-                    min: 0.0,
-                    max: 1.0,
-                },
+                mapping: donder_runtime::AutomationMapping::Curve { min: 0.0, max: 1.0 },
                 param_index: 0,
             }]
             .into(),
@@ -570,23 +636,31 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
             let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
                 .unwrap()
                 .remove(0);
-            workload::apply_operator(&mut show, operator.bytecode, true);
+            workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
         }
-        let mut workspace = show.workspace().unwrap();
+        let mut workspace = show.clone().prepare().unwrap().into_playback();
         let mut output = [vec![0; 600]];
         let mut expected = [vec![0; 600]];
         for frame in [0, 31, 4, 0] {
-            show.evaluate(
-                workload::time(frame),
-                &mut expected,
-                &mut show.workspace().unwrap(),
-            )
-            .unwrap();
+            for (snapshot, output) in expected.iter_mut().zip(
+                show.clone()
+                    .prepare()
+                    .unwrap()
+                    .into_playback()
+                    .evaluate(workload::time(frame))
+                    .outputs(),
+            ) {
+                snapshot.copy_from_slice(output.bytes);
+            }
             ALLOCATIONS.set(0);
             COUNTING.set(true);
-            let result = show.evaluate(workload::time(frame), &mut output, &mut workspace);
+            for (snapshot, output) in output
+                .iter_mut()
+                .zip(workspace.evaluate(workload::time(frame)).outputs())
+            {
+                snapshot.copy_from_slice(output.bytes);
+            }
             COUNTING.set(false);
-            result.unwrap();
             assert_eq!(ALLOCATIONS.get(), 0, "resource frame allocated");
             assert_eq!(output, expected);
         }
@@ -601,32 +675,48 @@ fn dsl_curve_automation_releases_previous_sample_before_update() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
+    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    let mut show = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    );
     let pulse = donder_language::dsl::compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap()
     .remove(0)
     .effect;
-    workload::apply_pulse_automation(&mut show, pulse.sample_program().unwrap().clone(), false);
-    let mut workspace = show.workspace().unwrap();
+    workload::apply_pulse_automation(
+        &mut show,
+        pulse.sample_program().unwrap().clone().into_parts().0,
+        false,
+    );
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
     let mut counts = [0; 4];
     for (index, frame) in [0, 31, 4, 0].into_iter().enumerate() {
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = show.evaluate(workload::time(frame), &mut actual, &mut workspace);
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         COUNTING.set(false);
         counts[index] = ALLOCATIONS.get();
-        result.unwrap();
-        show.evaluate(
-            workload::time(frame),
-            &mut expected,
-            &mut show.workspace().unwrap(),
-        )
-        .unwrap();
+        for (snapshot, output) in expected.iter_mut().zip(
+            show.clone()
+                .prepare()
+                .unwrap()
+                .into_playback()
+                .evaluate(workload::time(frame))
+                .outputs(),
+        ) {
+            snapshot.copy_from_slice(output.bytes);
+        }
         assert_eq!(actual, expected);
     }
     assert_eq!(counts, [0; 4]);
@@ -640,13 +730,21 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
     .unwrap()
     .remove(0)
     .effect;
-    let params = effect.bind_params(&IndexMap::new()).unwrap();
-    let reference = workload::show(2, effect.sample_program().unwrap().clone(), params.clone());
-    let mut show = workload::show(2, effect.sample_program().unwrap().clone(), params);
+    let params = BoundParams::bind(effect.params(), &IndexMap::new()).unwrap();
+    let reference = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params.clone(),
+    );
+    let mut show = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    );
     let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
-    workload::apply_operator(&mut show, operator.bytecode, true);
+    workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
     let invert = donder_language::dsl::compile_operators(include_str!(
         "../../../examples/starter/operators/standard.operator.donder"
     ))
@@ -654,27 +752,31 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
     .into_iter()
     .find(|operator| operator.name().as_str() == "Invert")
     .unwrap();
-    workload::insert_invert(&mut show, invert.bytecode);
-    let mut workspace = show.workspace().unwrap();
-    let mut reference_workspace = reference.workspace().unwrap();
+    workload::insert_invert(&mut show, invert.program().clone().into_parts().0);
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
+    let mut reference_workspace = reference.clone().prepare().unwrap().into_playback();
     let mut actual = [vec![0; 6]];
     let mut expected = [vec![0; 6]];
     for frame in [0, 31, 4, 0] {
-        reference
-            .evaluate(
-                workload::time(frame),
-                &mut expected,
-                &mut reference_workspace,
-            )
-            .unwrap();
+        for (snapshot, output) in expected.iter_mut().zip(
+            reference_workspace
+                .evaluate(workload::time(frame))
+                .outputs(),
+        ) {
+            snapshot.copy_from_slice(output.bytes);
+        }
         for value in &mut expected[0] {
             *value = 255 - *value;
         }
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = show.evaluate(workload::time(frame), &mut actual, &mut workspace);
+        for (snapshot, output) in actual
+            .iter_mut()
+            .zip(workspace.evaluate(workload::time(frame)).outputs())
+        {
+            snapshot.copy_from_slice(output.bytes);
+        }
         COUNTING.set(false);
-        result.unwrap();
         assert_eq!(actual, expected);
         assert_eq!(ALLOCATIONS.get(), 0, "nested operator displaced VM storage");
     }
@@ -682,101 +784,82 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
 
 #[test]
 fn empty_curve_automation_reserves_its_fallback_point() {
-    use donder_runtime::signal::{PreparedAutomation, PreparedEffectAutomation};
-    use donder_runtime::values::{Curve, SampleDuration, SampleTime};
+    use donder_runtime::{Curve, SampleDuration, SampleTime};
+    use donder_runtime::{PreparedAutomation, PreparedEffectAutomation};
     let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0).effect;
-    let params = effect
-        .bind_params(&IndexMap::from([(
+    let params = BoundParams::bind(
+        effect.params(),
+        &IndexMap::from([(
             donder_language::dsl::Identifier::new("shape".into()).unwrap(),
             donder_language::dsl::Value::Curve(Curve { points: vec![] }.into()),
-        )]))
-        .unwrap();
-    let mut signals = workload::show(2, effect.sample_program().unwrap().clone(), params)
-        .signals()
-        .clone();
+        )]),
+    )
+    .unwrap();
+    let mut signals = workload::show(
+        2,
+        effect.sample_program().unwrap().clone().into_parts().0,
+        params,
+    )
+    .signals()
+    .clone();
     signals.effects[0].automation = Some(Box::new(PreparedEffectAutomation {
         workspace_slot: 0,
         bindings: vec![PreparedAutomation {
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(8_000_000),
             curve: Curve { points: vec![] }.into(),
-            mapping: donder_runtime::automation::AutomationMapping::Curve { min: 0.5, max: 1.0 },
+            mapping: donder_runtime::AutomationMapping::Curve { min: 0.5, max: 1.0 },
             param_index: 0,
         }]
         .into(),
     }));
     let show = workload::rgb_output(signals);
-    let mut workspace = show.workspace().unwrap();
+    let mut workspace = show.clone().prepare().unwrap().into_playback();
     let mut buffers = [vec![0; 6]];
     ALLOCATIONS.set(0);
     COUNTING.set(true);
-    let result = show.evaluate(workload::time(0), &mut buffers, &mut workspace);
+    for (snapshot, output) in buffers
+        .iter_mut()
+        .zip(workspace.evaluate(workload::time(0)).outputs())
+    {
+        snapshot.copy_from_slice(output.bytes);
+    }
     COUNTING.set(false);
-    result.unwrap();
     assert!(buffers[0].iter().any(|&value| value != 0));
     assert_eq!(ALLOCATIONS.get(), 0, "empty automation window allocated");
 }
 
 #[test]
 fn retained_nested_array_results_forward_without_first_or_repeated_sample_allocations() {
-    use donder_language::dsl::{
-        GeneratorBinding, GeneratorContext, RunContext, TargetValue, VmWorkspace, compile_effects,
-    };
+    use donder_language::dsl::{GeneratorBinding, GeneratorContext, TargetValue, compile_effects};
     use donder_language::values::{SampleDuration, SampleTime};
     let generator = compile_effects("effect Parent { void generate() { timeline.emit Child { start: 0.0, duration: 1.0, target: target, values: [[seconds(), seconds() + 1.0], [2.0, 3.0]] }; } }").unwrap()
         .remove(0).effect.generator().unwrap().clone().bind(&[]).unwrap().specialize(&GeneratorContext {
             start_time: SampleTime::from_ticks(0), duration: SampleDuration::from_ticks(1_000_000),
             target: Arc::new(TargetValue { groups: Vec::new() }),
-        }).unwrap();
+        });
     let GeneratorBinding::Calculation { index, output } = generator.children[0].params[0].1 else {
         panic!("live calculation")
     };
     let calculation = &generator.calculations[index];
     assert!(calculation.inputs.is_empty());
-    let (program, _, output_types) = calculation.program.clone().into_parts();
+    assert_eq!(output, 0);
     let child = compile_effects("effect Child { param array<array<float>> values; color sample() { return rgb(values[0][0], values[0][1] * 0.25, values[1][0] * 0.25); } }").unwrap().remove(0).effect;
-    let mut vm = VmWorkspace::for_program(&program);
-    let mut child_vm = VmWorkspace::for_program(child.sample_program().unwrap());
-    let mut results = BoundParams::result_workspace(
-        &output_types,
-        program.array_capacity as usize,
-        program.array_width as usize,
-    );
-    let mut child_params = BoundParams::result_workspace(
-        &[child.params[0].ty.clone()],
-        program.array_capacity as usize,
-        program.array_width as usize,
-    );
-    let inputs = BoundParams::default();
+    let mut playback = retained_playback(&calculation.program, vec![], &child);
     for tick in [0, 750_000, 250_000, 999_999, 0] {
-        let context = RunContext {
-            progress: tick as f32 / 1_000_000.0,
-            time: SampleDuration::from_ticks(tick),
-            duration: SampleDuration::from_ticks(1_000_000),
-            pixel_index: 0,
-            pixel_count: 1,
-            pixel_fraction: 0.0,
-        };
         ALLOCATIONS.set(0);
         COUNTING.set(true);
-        let result = (|| {
-            child_params.clear_results();
-            program.evaluate_bindings(&inputs, &context, &mut vm, &mut results, &output_types)?;
-            child_params.copy_parameter(0, &results, usize::from(output), &child.params[0].ty)?;
-            child.sample_bound(&child_params, &context, &mut child_vm)
-        })();
+        let result = playback.evaluate(SampleTime::from_ticks(tick));
         COUNTING.set(false);
-        let actual = result.unwrap();
         assert_eq!(ALLOCATIONS.get(), 0);
-        let expected_params = child
-            .bind_params([(
-                &child.params[0].name,
-                &results.value(usize::from(output)).unwrap(),
-            )])
-            .unwrap();
-        let expected = child
-            .sample_bound(&expected_params, &context, &mut VmWorkspace::default())
-            .unwrap();
-        assert_eq!(actual, expected);
+        let seconds = tick as f32 / 1_000_000.0;
+        assert_eq!(
+            result.colors(),
+            &[donder_runtime::Color {
+                red: (seconds * 255.0).round() as u8,
+                green: ((seconds + 1.0) * 0.25 * 255.0).round() as u8,
+                blue: 128,
+            }]
+        );
     }
 }

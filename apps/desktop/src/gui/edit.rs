@@ -12,9 +12,14 @@ pub(super) fn edit_sequence(
         _ => Vec::new(),
     };
     let sequence_id = SequenceId(resolved.object_identity());
+    let mut draft = session
+        .project
+        .sequence(&sequence_id)
+        .cloned()
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
     let layout = session
         .project
-        .setup(session.project.root.setup.id())
+        .setup(session.project.root().setup.id())
         .map(|setup| setup.layout.id().clone())
         .ok_or_else(|| GuiMutationError::Invalid("Active layout was not found.".to_string()))?;
     if matches!(
@@ -43,8 +48,7 @@ pub(super) fn edit_sequence(
                     "Sequence duration must be greater than zero.".to_string(),
                 ));
             }
-            sequence_mut(session, &sequence_id)?.duration =
-                super::checked_gui_duration(duration_seconds)?;
+            draft.duration = super::checked_gui_duration(duration_seconds)?;
         }
         SequenceGuiEdit::SetAudio { import_path } => {
             let audio = match import_path {
@@ -58,7 +62,7 @@ pub(super) fn edit_sequence(
                 }
                 None => DomainSequenceAudio::None,
             };
-            sequence_mut(session, &sequence_id)?.audio = audio;
+            draft.audio = audio;
         }
         SequenceGuiEdit::MoveEffect {
             id,
@@ -67,7 +71,7 @@ pub(super) fn edit_sequence(
         } => {
             let parsed_target =
                 target.map(|target| layout_target_to_effect_target(&layout, target));
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let effect = effect_mut(sequence, id)?;
             effect.start = super::checked_gui_time(start_seconds.max(0.0))?;
             if let Some(target) = parsed_target {
@@ -79,7 +83,7 @@ pub(super) fn edit_sequence(
             start_seconds,
             duration_seconds,
         } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let start = super::checked_gui_time(start_seconds.max(0.0))?;
             let duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
             let effect = effect_mut(sequence, id)?;
@@ -87,17 +91,17 @@ pub(super) fn edit_sequence(
             effect.duration = duration;
         }
         SequenceGuiEdit::SetEffectScope { id, scope } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let scope = effect_scope(scope);
             effect_mut(sequence, id)?.scope = scope;
         }
         SequenceGuiEdit::RetargetEffect { id, target } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let target = layout_target_to_effect_target(&layout, target);
             effect_mut(sequence, id)?.target = target;
         }
         SequenceGuiEdit::DeleteEffect { id } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             sequence.effects.retain(|effect| effect.id.0 != id);
             for clip in &mut sequence.automation_clips {
                 clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
@@ -110,8 +114,7 @@ pub(super) fn edit_sequence(
             index,
             time_seconds,
         } => {
-            let collection =
-                mark_collection_mut(sequence_mut(session, &sequence_id)?, &collection_key)?;
+            let collection = mark_collection_mut(&mut draft, &collection_key)?;
             let mark = collection
                 .marks
                 .get_mut(index as usize)
@@ -125,7 +128,7 @@ pub(super) fn edit_sequence(
             target_collection_key,
         } => {
             if collection_key != target_collection_key {
-                let sequence = sequence_mut(session, &sequence_id)?;
+                let sequence = &mut draft;
                 let mark = {
                     let collection = mark_collection_mut(sequence, &collection_key)?;
                     if (index as usize) >= collection.marks.len() {
@@ -142,8 +145,7 @@ pub(super) fn edit_sequence(
             collection_key,
             time_seconds,
         } => {
-            let collection =
-                mark_collection_mut(sequence_mut(session, &sequence_id)?, &collection_key)?;
+            let collection = mark_collection_mut(&mut draft, &collection_key)?;
             collection
                 .marks
                 .push(super::checked_gui_time(time_seconds.max(0.0))?);
@@ -153,14 +155,13 @@ pub(super) fn edit_sequence(
             collection_key,
             index,
         } => {
-            let collection =
-                mark_collection_mut(sequence_mut(session, &sequence_id)?, &collection_key)?;
+            let collection = mark_collection_mut(&mut draft, &collection_key)?;
             if (index as usize) < collection.marks.len() {
                 collection.marks.remove(index as usize);
             }
         }
         SequenceGuiEdit::CreateMarkCollection { key, name, color } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             if sequence
                 .mark_collections
                 .iter()
@@ -178,10 +179,10 @@ pub(super) fn edit_sequence(
             });
         }
         SequenceGuiEdit::RenameMarkCollection { key, name } => {
-            mark_collection_mut(sequence_mut(session, &sequence_id)?, &key)?.name = name;
+            mark_collection_mut(&mut draft, &key)?.name = name;
         }
         SequenceGuiEdit::DeleteMarkCollection { key } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let is_referenced = sequence.effects.iter().any(|effect| {
                 effect.param_overrides.values().any(|value| {
                     matches!(value, EffectParamValue::Marks(collection) if collection.name == key)
@@ -197,12 +198,11 @@ pub(super) fn edit_sequence(
                 .retain(|collection| collection.key.name != key);
         }
         SequenceGuiEdit::SetMarkCollectionColor { key, color } => {
-            mark_collection_mut(sequence_mut(session, &sequence_id)?, &key)?.display_color =
-                parse_color(&color)?;
+            mark_collection_mut(&mut draft, &key)?.display_color = parse_color(&color)?;
         }
         SequenceGuiEdit::UpdateEffectParam { id, name, value } => {
             let value = effect_param_value_from_gui(session, &resolved.identity, value)?;
-            effect_mut(sequence_mut(session, &sequence_id)?, id)?
+            effect_mut(&mut draft, id)?
                 .param_overrides
                 .insert(identifier(&name)?, value);
         }
@@ -216,13 +216,14 @@ pub(super) fn edit_sequence(
         } => {
             let initial_color = parse_color(&initial_color)?;
             let definition = effect_ref_from_gui(session, effect_reference)?;
-            let Some(effect_definition) = session.project.definitions.effects.resolve(&definition)
+            let Some(effect_definition) =
+                session.project.definitions().effects.resolve(&definition)
             else {
                 return Err(GuiMutationError::Invalid(
                     "Effect was not found.".to_string(),
                 ));
             };
-            let params = effect_definition.params.clone();
+            let params = effect_definition.params().to_vec();
             let EffectRef::Custom(definition_id) = &definition;
             ensure_document_can_reference_source(
                 session,
@@ -231,7 +232,7 @@ pub(super) fn edit_sequence(
                 &definition_id.0,
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let layer_id = sequence
                 .layers
                 .first()
@@ -282,13 +283,13 @@ pub(super) fn edit_sequence(
             });
         }
         SequenceGuiEdit::CreateLayer { name, color } => {
-            create_sequence_layer(session, &sequence_id, name, color, None, true)?;
+            create_sequence_layer(&mut draft, name, color, None, true)?;
         }
         SequenceGuiEdit::CreateLayerAt { name, color, x, y } => {
-            create_sequence_layer(session, &sequence_id, name, color, Some((x, y)), false)?;
+            create_sequence_layer(&mut draft, name, color, Some((x, y)), false)?;
         }
         SequenceGuiEdit::RenameLayer { id, name } => {
-            let layer = sequence_mut(session, &sequence_id)?
+            let layer = draft
                 .layers
                 .iter_mut()
                 .find(|layer| layer.id.0 == id)
@@ -296,7 +297,7 @@ pub(super) fn edit_sequence(
             layer.name = name;
         }
         SequenceGuiEdit::SetLayerColor { id, color } => {
-            let layer = sequence_mut(session, &sequence_id)?
+            let layer = draft
                 .layers
                 .iter_mut()
                 .find(|layer| layer.id.0 == id)
@@ -304,7 +305,7 @@ pub(super) fn edit_sequence(
             layer.color = parse_color(&color)?;
         }
         SequenceGuiEdit::SetLayerEnabled { id, enabled } => {
-            let layer = sequence_mut(session, &sequence_id)?
+            let layer = draft
                 .layers
                 .iter_mut()
                 .find(|layer| layer.id.0 == id)
@@ -312,7 +313,7 @@ pub(super) fn edit_sequence(
             layer.enabled = enabled;
         }
         SequenceGuiEdit::SetEffectLayer { id, layer_id } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             if !sequence.layers.iter().any(|layer| layer.id.0 == layer_id) {
                 return Err(GuiMutationError::Invalid(
                     "Layer was not found.".to_string(),
@@ -332,13 +333,14 @@ pub(super) fn edit_sequence(
         } => {
             let initial_color = parse_color(&initial_color)?;
             let definition = effect_ref_from_gui(session, effect_reference)?;
-            let Some(effect_definition) = session.project.definitions.effects.resolve(&definition)
+            let Some(effect_definition) =
+                session.project.definitions().effects.resolve(&definition)
             else {
                 return Err(GuiMutationError::Invalid(
                     "Effect was not found.".to_string(),
                 ));
             };
-            let params = effect_definition.params.clone();
+            let params = effect_definition.params().to_vec();
             let mut param_overrides = IndexMap::new();
             for param in params.iter().filter(|param| param.default.is_none()) {
                 let value = EffectParamValue::initial_for_type(&param.ty, initial_color).ok_or_else(|| {
@@ -357,7 +359,7 @@ pub(super) fn edit_sequence(
                 &definition_id.0,
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let effect = effect_mut(sequence, id)?;
             effect.definition = definition;
             effect.param_overrides = param_overrides;
@@ -377,7 +379,7 @@ pub(super) fn edit_sequence(
             let operator = graph_operator_from_gui(session, &operator)?;
             let definition = session
                 .project
-                .definitions
+                .definitions()
                 .operators
                 .resolve(&operator)
                 .cloned()
@@ -392,9 +394,9 @@ pub(super) fn edit_sequence(
                 &id.0,
             )
             .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let mut params = IndexMap::new();
-            for declaration in &definition.params {
+            for declaration in definition.params() {
                 if declaration.default.is_none() {
                     let value = required_operator_param_value(
                         declaration.ty.clone(),
@@ -412,7 +414,7 @@ pub(super) fn edit_sequence(
             });
         }
         SequenceGuiEdit::MoveGraphNodes { positions } => {
-            super::graph::move_nodes(sequence_mut(session, &sequence_id)?, positions)?;
+            super::graph::move_nodes(&mut draft, positions)?;
         }
         SequenceGuiEdit::DeleteGraphItems {
             node_ids,
@@ -421,7 +423,7 @@ pub(super) fn edit_sequence(
             migrate_to_layer_id,
         } => {
             super::graph::delete_items(
-                sequence_mut(session, &sequence_id)?,
+                &mut draft,
                 node_ids,
                 layer_ids,
                 edges,
@@ -434,9 +436,9 @@ pub(super) fn edit_sequence(
             to_node,
             to_port,
         } => {
-            let definitions = session.project.definitions.operators.clone();
+            let definitions = session.project.definitions().operators.clone();
             super::graph::connect_nodes(
-                sequence_mut(session, &sequence_id)?,
+                &mut draft,
                 &definitions,
                 crate::dto::SequenceGraphEdge {
                     from_node,
@@ -451,13 +453,8 @@ pub(super) fn edit_sequence(
             previous,
             connection,
         } => {
-            let definitions = session.project.definitions.operators.clone();
-            super::graph::connect_nodes(
-                sequence_mut(session, &sequence_id)?,
-                &definitions,
-                connection,
-                Some(previous),
-            )?;
+            let definitions = session.project.definitions().operators.clone();
+            super::graph::connect_nodes(&mut draft, &definitions, connection, Some(previous))?;
         }
         SequenceGuiEdit::UpdateGraphOperatorParam {
             node_id,
@@ -465,8 +462,8 @@ pub(super) fn edit_sequence(
             value,
         } => {
             let value = effect_param_value_from_gui(session, &resolved.identity, value)?;
-            let definitions = session.project.definitions.operators.clone();
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let definitions = session.project.definitions().operators.clone();
+            let sequence = &mut draft;
             let node_id = parse_graph_node_id(&node_id)?;
             let mut graph = sequence.composition_graph.clone();
             let node = graph
@@ -491,7 +488,7 @@ pub(super) fn edit_sequence(
             duration_seconds,
             row_target,
         } => {
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let next_id = sequence
                 .automation_clips
                 .iter()
@@ -526,7 +523,7 @@ pub(super) fn edit_sequence(
                 })?;
                 automation_target_timing(session, sequence, &target)?
             };
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             ensure_automation_target_available(sequence, &target, None)?;
             let next_id = sequence
                 .automation_clips
@@ -550,7 +547,7 @@ pub(super) fn edit_sequence(
             start_seconds,
             row_target,
         } => {
-            let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
+            let clip = automation_clip_mut(&mut draft, id)?;
             clip.start = super::checked_gui_time(start_seconds.max(0.0))?;
             clip.row_target = layout_target_to_effect_target(&layout, row_target);
         }
@@ -559,13 +556,12 @@ pub(super) fn edit_sequence(
             start_seconds,
             duration_seconds,
         } => {
-            let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?;
+            let clip = automation_clip_mut(&mut draft, id)?;
             clip.start = super::checked_gui_time(start_seconds.max(0.0))?;
             clip.duration = super::checked_gui_duration(duration_seconds.max(0.000000001))?;
         }
         SequenceGuiEdit::UpdateAutomationCurve { id, curve } => {
-            automation_clip_mut(sequence_mut(session, &sequence_id)?, id)?.curve =
-                curve_from_points(curve);
+            automation_clip_mut(&mut draft, id)?.curve = curve_from_points(curve);
         }
         SequenceGuiEdit::UpdateAutomationParamMapping {
             clip_id,
@@ -581,7 +577,7 @@ pub(super) fn edit_sequence(
                 &target,
             )
             .map_err(|error| GuiMutationError::Invalid(error.message))?;
-            let binding = automation_clip_mut(sequence_mut(session, &sequence_id)?, clip_id)?
+            let binding = automation_clip_mut(&mut draft, clip_id)?
                 .bindings
                 .iter_mut()
                 .find(|binding| binding.target == target)
@@ -591,9 +587,7 @@ pub(super) fn edit_sequence(
             binding.mapping = automation_mapping_from_gui(mapping)?;
         }
         SequenceGuiEdit::DeleteAutomationClip { id } => {
-            sequence_mut(session, &sequence_id)?
-                .automation_clips
-                .retain(|clip| clip.id.0 != id);
+            draft.automation_clips.retain(|clip| clip.id.0 != id);
         }
         SequenceGuiEdit::BindAutomationParam {
             clip_id,
@@ -609,14 +603,14 @@ pub(super) fn edit_sequence(
                 &target,
             )
             .map_err(|error| GuiMutationError::Invalid(error.message))?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             ensure_automation_target_available(sequence, &target, Some(clip_id))?;
             automation_clip_mut(sequence, clip_id)?
                 .bind(target, automation_mapping_from_gui(mapping)?);
         }
         SequenceGuiEdit::UnbindAutomationParam { clip_id, target } => {
             let target = automation_target_from_gui(target)?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             let clip = sequence
                 .automation_clips
                 .iter()
@@ -683,7 +677,7 @@ pub(super) fn edit_sequence(
             )
             .map_err(|error| GuiMutationError::Invalid(error.message))?;
             let mapping = automation_mapping_from_gui(mapping)?;
-            let sequence = sequence_mut(session, &sequence_id)?;
+            let sequence = &mut draft;
             ensure_automation_target_available(sequence, &target, Some(clip_id))?;
             let clip = automation_clip_mut(sequence, clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
@@ -698,7 +692,7 @@ pub(super) fn edit_sequence(
             clip_id,
             detached_index,
         } => {
-            let clip = automation_clip_mut(sequence_mut(session, &sequence_id)?, clip_id)?;
+            let clip = automation_clip_mut(&mut draft, clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
                     "Detached automation binding was not found.".to_string(),
@@ -707,7 +701,10 @@ pub(super) fn edit_sequence(
             clip.detached_bindings.remove(detached_index as usize);
         }
     }
-    Ok(())
+    session
+        .project
+        .replace_sequence(&sequence_id, draft)
+        .map_err(GuiMutationError::Invalid)
 }
 
 fn automation_target_from_gui(
@@ -846,7 +843,7 @@ use super::model::{
     composition_graph_node_mut, create_sequence_layer, curve_from_points, default_automation_curve,
     effect_mut, effect_param_value_from_gui, effect_scope, graph_operator_from_gui, identifier,
     layout_target_to_effect_target, mark_collection_mut, next_composition_node_id, parse_color,
-    parse_graph_node_id, register_sequence_audio_asset, sequence_mut, source_identity_from_gui,
+    parse_graph_node_id, register_sequence_audio_asset, source_identity_from_gui,
 };
 use super::selection::{mark_param_names, required_operator_param_value};
 use super::{GuiMutationError, ResolvedGuiObject};

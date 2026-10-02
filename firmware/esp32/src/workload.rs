@@ -1,14 +1,51 @@
-use donder_runtime::patch::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
+use donder_runtime::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
 extern crate alloc;
 
-use alloc::vec;
-use donder_runtime::dsl::{
-    BoundParams, RunContext,
-    bytecode::{BytecodeProgram, Instruction},
+use alloc::{boxed::Box, vec};
+use donder_runtime::{BoundParams, BytecodeProgram, Instruction, RunContext};
+use donder_runtime::{
+    PreparedAutomation, PreparedEffect, PreparedEffectAutomation, PreparedEffectImplementation,
+    PreparedFixture, PreparedLayer, PreparedOperator, PreparedOperatorNode, PreparedPixel,
+    PreparedSignalGraph, PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan,
 };
-use donder_runtime::sequence::PreparedSequence;
-use donder_runtime::signal::*;
-use donder_runtime::values::{SampleDuration, SampleTime};
+use donder_runtime::{PreparedOutput, PreparedSequence};
+use donder_runtime::{SampleDuration, SampleTime};
+
+#[derive(Clone)]
+pub struct Workload {
+    signals: PreparedSignalGraph,
+    patch: PreparedPatch,
+    outputs: alloc::boxed::Box<[PreparedOutput]>,
+}
+
+impl Workload {
+    pub fn new(
+        signals: PreparedSignalGraph,
+        patch: PreparedPatch,
+        outputs: alloc::boxed::Box<[PreparedOutput]>,
+    ) -> Self {
+        Self {
+            signals,
+            patch,
+            outputs,
+        }
+    }
+
+    pub fn signals(&self) -> &PreparedSignalGraph {
+        &self.signals
+    }
+    pub fn patch(&self) -> &PreparedPatch {
+        &self.patch
+    }
+    pub fn outputs(&self) -> &[PreparedOutput] {
+        &self.outputs
+    }
+
+    /// Admit the complete benchmark fixture before any playback is created.
+    pub fn prepare(self) -> Result<PreparedSequence, donder_runtime::LoadError> {
+        PreparedSequence::admit(self.signals, self.patch, self.outputs)
+    }
+}
 
 pub const COUNTS: [usize; 4] = [200, 400, 800, 1600];
 pub const FRAMES: usize = 32;
@@ -24,32 +61,50 @@ pub const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("MarkChase20
 // same editable effect document included in new projects.
 #[cfg(not(target_arch = "xtensa"))]
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
-pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
+pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
     use donder_language::dsl::compile_effects;
-    use donder_runtime::dsl::{Identifier, Value};
-    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::{Identifier, Value};
     let definitions = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap();
     let chase = definitions
         .iter()
-        .find(|definition| definition.effect.name.as_str() == "Chase")
+        .find(|definition| definition.effect.name().as_str() == "Chase")
         .unwrap();
     let pulse = definitions
         .iter()
-        .find(|definition| definition.effect.name.as_str() == "Pulse")
+        .find(|definition| definition.effect.name().as_str() == "Pulse")
         .unwrap();
     let show = layered_show(
         count,
-        pulse.effect.sample_program().unwrap().clone(),
+        pulse
+            .effect
+            .sample_program()
+            .unwrap()
+            .clone()
+            .into_parts()
+            .0,
         BoundParams::default(),
         layers,
     );
     let mut signals = show.signals().clone();
     signals.programs = vec![
-        chase.effect.sample_program().unwrap().clone(),
-        pulse.effect.sample_program().unwrap().clone(),
+        chase
+            .effect
+            .sample_program()
+            .unwrap()
+            .clone()
+            .into_parts()
+            .0,
+        pulse
+            .effect
+            .sample_program()
+            .unwrap()
+            .clone()
+            .into_parts()
+            .0,
     ]
     .into();
     let shape: Value = Value::Curve(
@@ -125,9 +180,9 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
             .collect::<vec::Vec<_>>();
         let params = BoundParams::bind_pairs(
             if chasing {
-                &chase.effect.params
+                chase.effect.params()
             } else {
-                &pulse.effect.params
+                pulse.effect.params()
             },
             &overrides,
         )
@@ -139,7 +194,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
         effect.start_time = SampleTime::from_ticks(index as u32 * 43_000);
         effect.duration = SampleDuration::from_ticks(4_000_000 + index as u32 * 97_000);
     }
-    PreparedSequence::new(
+    Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),
@@ -147,7 +202,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> PreparedSequence {
 }
 
 // Extend the single-operator fixture into a chain, sharing its bytecode.
-pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
+pub fn nest_operator(show: &mut Workload, depth: usize) {
     let mut signals = show.signals().clone();
     assert!(depth > 0);
     let graph = &mut signals.plan;
@@ -170,7 +225,7 @@ pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
     graph.vm_workspace_count = depth;
     graph.frame_nodes = vec![depth].into();
     graph.frame_slots = vec![0; depth + 1].into();
-    *show = PreparedSequence::new(
+    *show = Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),
@@ -181,7 +236,7 @@ pub fn nest_operator(show: &mut PreparedSequence, depth: usize) {
 pub const IDENTITY_SOURCE: &str =
     "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }";
 
-pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
+pub fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
     nest_operator(show, 2);
     let mut signals = show.signals().clone();
     let program_index = signals.programs.len();
@@ -221,7 +276,7 @@ pub fn insert_invert(show: &mut PreparedSequence, program: BytecodeProgram) {
     graph.output_index = 3;
     graph.frame_nodes = vec![3].into();
     graph.frame_slots = vec![0; 4].into();
-    *show = PreparedSequence::new(
+    *show = Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),
@@ -243,10 +298,10 @@ pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; colo
     return max(max(a, b), max(c, d));
 } }";
 
-pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProgram, empty: bool) {
+pub fn apply_pulse_automation(show: &mut Workload, program: BytecodeProgram, empty: bool) {
     let mut signals = show.signals().clone();
-    use donder_runtime::dsl::{Identifier, ParamDecl, Type, Value};
-    use donder_runtime::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime::{Identifier, ParamDecl, Type, Value};
     let mut curve = Curve {
         points: vec![
             CurvePoint {
@@ -308,7 +363,7 @@ pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProg
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(8_000_000),
             curve: curve.into(),
-            mapping: donder_runtime::automation::AutomationMapping::Curve {
+            mapping: donder_runtime::AutomationMapping::Curve {
                 min: if empty { 0.5 } else { 0.0 },
                 max: 1.0,
             },
@@ -316,7 +371,7 @@ pub fn apply_pulse_automation(show: &mut PreparedSequence, program: BytecodeProg
         }]
         .into(),
     }));
-    *show = PreparedSequence::new(
+    *show = Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),
@@ -328,7 +383,7 @@ pub const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
     color sample() { return source.at(seconds()) * (sin(seconds() * 7.0) * 0.5 + 0.5); }
 }";
 
-pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram, reuse: bool) {
+pub fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
     let mut signals = show.signals().clone();
     if !reuse {
         disable_uniform_reuse(&mut program);
@@ -364,7 +419,7 @@ pub fn apply_operator(show: &mut PreparedSequence, mut program: BytecodeProgram,
         frame_slots: vec![0, 0].into(),
         frame_buffer_count: 1,
     };
-    *show = PreparedSequence::new(
+    *show = Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),
@@ -386,13 +441,13 @@ pub fn gamma_lookup() -> [u8; 256] {
     core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0).round() as u8)
 }
 
-pub fn apply_gamma(show: &mut PreparedSequence, lookup: [u8; 256]) {
+pub fn apply_gamma(show: &mut Workload, lookup: [u8; 256]) {
     let mut patch = show.patch().clone();
     patch.lookups = vec![lookup].into_boxed_slice();
     for route in &mut patch.routes {
         route.lookup = Some(0);
     }
-    *show = PreparedSequence::new(
+    *show = Workload::new(
         show.signals().clone(),
         patch,
         show.outputs().to_vec().into(),
@@ -410,7 +465,7 @@ pub fn context(count: usize, pixel: usize, frame: usize) -> RunContext {
         duration: SampleDuration::from_ticks(8_000_000),
         pixel_index: pixel as i32,
         pixel_count: count as i32,
-        pixel_fraction: pixel as f32 / (count - 1) as f32,
+        pixel_fraction: pixel as f32 / count.saturating_sub(1).max(1) as f32,
     }
 }
 
@@ -423,11 +478,10 @@ pub fn checksum(bytes: &[u8]) -> u32 {
 // A deliberately small prepared workload: one DSL effect on one RGB fixture,
 // one layer/output signal graph, and the production RGB-to-GRB patch path.
 // Construction is measured separately; the runtime evaluator is not duplicated.
-pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> PreparedSequence {
+pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Workload {
     rgb_output(PreparedSignalGraph {
         clips: Box::new([]),
         parameter_environments: vec![].into_boxed_slice(),
-        workspace_key: 1,
         frame_rate: 120,
         frame_count: 960,
         duration: SampleDuration::from_ticks(8_000_000),
@@ -456,7 +510,7 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
         }]
         .into_boxed_slice(),
         spatial_contexts: (0..count)
-            .map(|pixel| donder_runtime::dsl::SpatialContext {
+            .map(|pixel| donder_runtime::SpatialContext {
                 position: [pixel as f32, 0.0],
                 min: [0.0, 0.0],
                 max: [count.saturating_sub(1) as f32, 0.0],
@@ -468,7 +522,7 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
                 fixture_pixel_index: pixel as u32,
                 pixel_index: pixel,
                 pixel_count: count,
-                pixel_fraction: pixel as f32 / (count - 1) as f32,
+                pixel_fraction: pixel as f32 / count.saturating_sub(1).max(1) as f32,
             })
             .collect(),
         effects_by_layer: vec![vec![0].into_boxed_slice()].into_boxed_slice(),
@@ -496,9 +550,9 @@ pub fn show(count: usize, program: BytecodeProgram, params: BoundParams) -> Prep
 }
 
 /// Attach the benchmark's single GRB output after its signal graph is complete.
-pub fn rgb_output(signals: PreparedSignalGraph) -> PreparedSequence {
+pub fn rgb_output(signals: PreparedSignalGraph) -> Workload {
     let count = signals.pixel_count;
-    PreparedSequence::new(
+    Workload::new(
         signals,
         PreparedPatch {
             routes: vec![PreparedPixelRoute {
@@ -511,10 +565,10 @@ pub fn rgb_output(signals: PreparedSignalGraph) -> PreparedSequence {
             .into_boxed_slice(),
             lookups: vec![].into_boxed_slice(),
         },
-        vec![donder_runtime::sequence::PreparedOutput {
+        vec![donder_runtime::PreparedOutput {
             controller_index: 0,
             port: 0,
-            width: count as u32 * 3,
+            width: count * 3,
         }]
         .into_boxed_slice(),
     )
@@ -527,7 +581,7 @@ pub fn layered_show(
     program: BytecodeProgram,
     params: BoundParams,
     layers: usize,
-) -> PreparedSequence {
+) -> Workload {
     assert!(layers > 0);
     let show = show(count, program, params);
     let mut signals = show.signals().clone();
@@ -553,7 +607,7 @@ pub fn layered_show(
         .map(|i| if layers == 1 { 0 } else { i })
         .collect();
     graph.frame_buffer_count = if layers == 1 { 1 } else { layers + 1 };
-    PreparedSequence::new(
+    Workload::new(
         signals,
         show.patch().clone(),
         show.outputs().to_vec().into(),

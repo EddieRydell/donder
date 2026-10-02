@@ -6,7 +6,7 @@ extern crate alloc;
 use alloc::vec;
 use core::hint::black_box;
 use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
-use donder_runtime::dsl::VmWorkspace;
+use donder_runtime::VmWorkspace;
 use esp_hal::{clock::CpuClock, time::Instant};
 use esp_println::println;
 
@@ -17,6 +17,12 @@ mod fixtures {
 }
 
 esp_bootloader_esp_idf::esp_app_desc!();
+
+const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 static ALLOCATIONS: AtomicU32 = AtomicU32::new(0);
 static REQUESTED_LIVE: AtomicU32 = AtomicU32::new(0);
@@ -77,14 +83,22 @@ fn main() -> ! {
             REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
             let setup_start = Instant::now();
             let (program, params) = fixtures::case(case);
+            let invocation = program
+                .bind(
+                    params.iter_values().collect(),
+                    &mut donder_runtime::DslBindCache::default(),
+                )
+                .unwrap();
             let mut vm = VmWorkspace::default();
             let mut bytes = vec![0; count * 3];
             let setup_us = setup_start.elapsed().as_micros() as u32;
             let mut render = |frame| {
                 for pixel in 0..count {
-                    let color = program
-                        .sample_effect(&params, &workload::context(count, pixel, frame), &mut vm)
-                        .unwrap();
+                    let color = invocation.evaluate(
+                        &workload::context(count, pixel, frame),
+                        &SPATIAL,
+                        &mut vm,
+                    );
                     bytes[pixel * 3..pixel * 3 + 3].copy_from_slice(&[
                         color.green,
                         color.red,
@@ -110,9 +124,11 @@ fn main() -> ! {
             let mut mismatches = 0;
             for frame in 0..workload::FRAMES {
                 for pixel in 0..count {
-                    let color = program
-                        .sample_effect(&params, &workload::context(count, pixel, frame), &mut vm)
-                        .unwrap();
+                    let color = invocation.evaluate(
+                        &workload::context(count, pixel, frame),
+                        &SPATIAL,
+                        &mut vm,
+                    );
                     bytes[pixel * 3..pixel * 3 + 3].copy_from_slice(&[
                         color.green,
                         color.red,
@@ -189,6 +205,7 @@ fn main() -> ! {
                 REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
                 let setup_start = Instant::now();
                 let (program, params) = fixtures::case(case);
+                let program = program.into_parts().0;
                 let mut show = if case < 4 {
                     workload::show(count, program, params)
                 } else {
@@ -208,8 +225,10 @@ fn main() -> ! {
                         let mut signals = show.signals().clone();
                         assert!(!signals.programs[0].uses_pixel_context);
                         signals.programs[0].uses_pixel_context = !reuse;
-                        show = donder_runtime::sequence::PreparedSequence::new(
-                            signals, show.patch().clone(), show.outputs().into(),
+                        show = workload::Workload::new(
+                            signals,
+                            show.patch().clone(),
+                            show.outputs().into(),
                         );
                     }
                     workload::apply_operator(
@@ -225,7 +244,11 @@ fn main() -> ! {
                 }
                 if let Some(empty) = automation_case {
                     let (pulse_program, _) = fixtures::case(fixtures::NAMES.len() - 1);
-                    workload::apply_pulse_automation(&mut show, pulse_program, empty);
+                    workload::apply_pulse_automation(
+                        &mut show,
+                        pulse_program.into_parts().0,
+                        empty,
+                    );
                 }
                 let golden = if let Some(empty) = automation_case {
                     if empty {
@@ -246,24 +269,22 @@ fn main() -> ! {
                 } else {
                     &fixtures::GOLDEN[case][count_index]
                 };
-                let mut workspace = show.workspace().unwrap();
-                let mut buffers = [vec![0; count * 3]];
+                let mut show = show.prepare().unwrap().into_playback();
                 let setup_us = setup_start.elapsed().as_micros() as u32;
                 let first_start = Instant::now();
                 let first_allocations = ALLOCATIONS.load(Relaxed);
-                show.evaluate(workload::time(0), &mut buffers, &mut workspace)
-                    .unwrap();
+                show.evaluate(workload::time(0));
                 let first_us = first_start.elapsed().as_micros() as u32;
                 let first_allocations = ALLOCATIONS.load(Relaxed) - first_allocations;
                 let mut mismatches = 0;
                 let allocations_before = ALLOCATIONS.load(Relaxed);
                 for (frame, elapsed) in times.iter_mut().enumerate() {
                     let start = Instant::now();
-                    show.evaluate(workload::time(frame), &mut buffers, &mut workspace)
-                        .unwrap();
+                    let rendered = show.evaluate(workload::time(frame));
+                    let buffers = rendered.outputs().next().unwrap().bytes;
                     black_box(&buffers);
                     *elapsed = start.elapsed().as_micros() as u32;
-                    mismatches += usize::from(workload::checksum(&buffers[0]) != golden[frame]);
+                    mismatches += usize::from(workload::checksum(buffers) != golden[frame]);
                 }
                 report(
                     stage,
@@ -282,7 +303,7 @@ fn main() -> ! {
                     REQUESTED_PEAK.load(Relaxed),
                     esp_alloc::HEAP.free()
                 );
-                drop((show, workspace, buffers));
+                drop(show);
                 assert_eq!(esp_alloc::HEAP.used(), heap_before, "show case leaked heap");
             }
         }
@@ -291,18 +312,16 @@ fn main() -> ! {
         let heap_before = esp_alloc::HEAP.used();
         REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
         let start = Instant::now();
-        let show = donder_runtime::wire::decode_sequence(
+        let show = donder_runtime::decode_sequence(
             fixtures::GENERATOR_SEQUENCES[index],
             Default::default(),
         )
         .unwrap();
-        let mut workspace = show.workspace().unwrap();
-        let mut output = [vec![0; 600]];
+        let mut show = show.into_playback();
         let setup_us = start.elapsed().as_micros() as u32;
         let first_allocations = ALLOCATIONS.load(Relaxed);
         let start = Instant::now();
-        show.evaluate(workload::time(0), &mut output, &mut workspace)
-            .unwrap();
+        show.evaluate(workload::time(0));
         let first_us = start.elapsed().as_micros() as u32;
         let first_allocations = ALLOCATIONS.load(Relaxed) - first_allocations;
         let mut times = [0u32; workload::FRAMES];
@@ -310,13 +329,12 @@ fn main() -> ! {
         let mut mismatches = 0;
         for (frame, elapsed) in times.iter_mut().enumerate() {
             let start = Instant::now();
-            show.evaluate(workload::time(frame), &mut output, &mut workspace)
-                .unwrap();
+            let rendered = show.evaluate(workload::time(frame));
+            let output = rendered.outputs().next().unwrap().bytes;
             black_box(&output);
             *elapsed = start.elapsed().as_micros() as u32;
-            mismatches += usize::from(
-                workload::checksum(&output[0]) != fixtures::GENERATOR_GOLDEN[index][frame],
-            );
+            mismatches +=
+                usize::from(workload::checksum(output) != fixtures::GENERATOR_GOLDEN[index][frame]);
         }
         report(
             "generator",
@@ -335,7 +353,7 @@ fn main() -> ! {
             REQUESTED_PEAK.load(Relaxed),
             esp_alloc::HEAP.free()
         );
-        drop((show, workspace, output));
+        drop(show);
         assert_eq!(
             esp_alloc::HEAP.used(),
             heap_before,

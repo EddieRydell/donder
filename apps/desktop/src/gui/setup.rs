@@ -61,7 +61,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
             controllers,
             available_controllers: session
                 .project
-                .controllers
+                .reusable_controllers()
                 .iter()
                 .filter(|(id, _)| {
                     available_controllers.contains(*id)
@@ -80,7 +80,7 @@ pub(super) fn edit_setup(
     resolved: &ResolvedGuiObject,
     edit: SetupGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let setup = session
+    let mut setup = session
         .project
         .setup(&SetupId(resolved.object_identity()))
         .cloned()
@@ -136,14 +136,15 @@ pub(super) fn edit_setup(
                 .ok_or_else(|| GuiMutationError::Invalid("No controller IDs remain.".into()))?;
             let id = ControllerId(setup.id.0.owned(OwnedObjectSlot::Controller(next)));
             let controller = super::controller::domain_controller(id, config, ports)?;
-            session
-                .project
-                .setup_mut(&setup.id)
-                .ok_or_else(|| GuiMutationError::Invalid("Setup was not found.".into()))?
+            setup
                 .controllers
                 .push(donder_language::ownership::ValueSource::Inline(Box::new(
                     controller,
                 )));
+            session
+                .project
+                .replace_setup(&setup.id.clone(), setup)
+                .map_err(GuiMutationError::Invalid)?;
         }
     }
     Ok(())

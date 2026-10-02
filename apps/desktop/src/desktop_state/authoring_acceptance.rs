@@ -7,7 +7,7 @@ pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditR
     let session = state.project_session().unwrap();
     let layout = session
         .project
-        .setup(session.project.root.setup.id())
+        .setup(session.project.root().setup.id())
         .unwrap()
         .layout
         .id()
@@ -76,7 +76,7 @@ fn setup_edit(state: &DesktopState, edit: SetupGuiEdit) -> SetupGuiDocument {
 
 fn setup_command(state: &DesktopState, command: GuiEditCommand) -> SetupGuiDocument {
     let session = state.project_session().unwrap();
-    let id = session.project.root.setup.id();
+    let id = session.project.root().setup.id();
     state.open_file_path(id.0.document().as_str());
     match state
         .apply_gui_edit(
@@ -215,7 +215,7 @@ main:
             .project_session()
             .unwrap()
             .project
-            .definitions
+            .definitions()
             .fixtures
             .definitions
             .len(),
@@ -257,8 +257,8 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
         },
     );
     let initial = state.project_session().unwrap();
-    let setup_id = initial.project.root.setup.id().clone();
-    let sequence_id = initial.project.root.sequences[0].id().clone();
+    let setup_id = initial.project.root().setup.id().clone();
+    let sequence_id = initial.project.root().sequences[0].id().clone();
     let initial_color = initial.project.sequence(&sequence_id).unwrap().layers[0]
         .color
         .to_hex();
@@ -507,13 +507,13 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
         *before_copy.project.setup(&setup_id).unwrap().layout.id()
     );
     assert_eq!(
-        final_session.project.definitions.fixtures,
-        before_copy.project.definitions.fixtures
+        final_session.project.definitions().fixtures,
+        before_copy.project.definitions().fixtures
     );
     assert_eq!(
         final_session
             .project
-            .sequence(final_session.project.root.sequences[0].id())
+            .sequence(final_session.project.root().sequences[0].id())
             .unwrap()
             .effects[0]
             .target
@@ -526,25 +526,16 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert_eq!(*state.project_session().unwrap(), *final_session);
     let prepared = donder_elaboration::prepare(
         &final_session.project,
-        final_session.project.root.sequences[0].id(),
+        final_session.project.root().sequences[0].id(),
         donder_elaboration::PrepareOutputs::All,
     )
     .unwrap();
-    let mut buffers = prepared
-        .outputs()
-        .iter()
-        .map(|output| vec![0; output.width as usize])
-        .collect::<Vec<_>>();
-    let mut playback = prepared.into_playback().unwrap();
+    let mut playback = prepared.into_playback();
     let mut illuminated = false;
     for frame in 0..60 {
-        playback
-            .evaluate(
-                donder_runtime::values::sample_time_from_frame(frame, 60).unwrap(),
-                &mut buffers,
-            )
-            .unwrap();
-        let slots = &buffers[0];
+        let rendered =
+            playback.evaluate(donder_runtime::sample_time_from_frame(frame, 60).unwrap());
+        let slots = rendered.outputs().next().unwrap().bytes;
         illuminated |= slots[..12].iter().any(|&value| value != 0);
         assert!(slots[12..].iter().all(|&value| value == 0));
     }
@@ -592,7 +583,7 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let original = state.project_session().unwrap();
-    let setup_id = original.project.root.setup.id().clone();
+    let setup_id = original.project.root().setup.id().clone();
     state.open_file_path(setup_id.0.document().as_str());
     let request = || GuiDocumentRequest {
         owned_path: Vec::new(),
@@ -629,7 +620,7 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     };
     assert!(!document.layout_read_only && !document.patch_read_only);
     assert!(!document.controllers[0].read_only);
-    let copied_setup = &copied.project.setups[&setup_id];
+    let copied_setup = &copied.project.reusable_setups()[&setup_id];
     assert_eq!(
         copied
             .project
@@ -649,8 +640,8 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
         31
     );
     assert_eq!(
-        copied.project.definitions.fixtures,
-        original.project.definitions.fixtures
+        copied.project.definitions().fixtures,
+        original.project.definitions().fixtures
     );
     let imported_request = GuiDocumentRequest {
         owned_path: Vec::new(),
@@ -661,14 +652,14 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
         state.get_gui_document(imported_request).document,
         GuiDocument::Setup { .. }
     ));
-    let old_setup = &original.project.setups[&setup_id];
+    let old_setup = &original.project.reusable_setups()[&setup_id];
     assert_eq!(
-        copied.project.layouts[old_setup.layout.id()],
-        original.project.layouts[old_setup.layout.id()]
+        copied.project.reusable_layouts()[old_setup.layout.id()],
+        original.project.reusable_layouts()[old_setup.layout.id()]
     );
     assert_eq!(
-        copied.project.patches[old_setup.patch.id()],
-        original.project.patches[old_setup.patch.id()]
+        copied.project.reusable_patches()[old_setup.patch.id()],
+        original.project.reusable_patches()[old_setup.patch.id()]
     );
     state.undo_active_edit();
     state.undo_active_edit();
@@ -907,7 +898,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
                 .project_session()
                 .unwrap()
                 .project
-                .definitions
+                .definitions()
                 .fixtures
                 .definitions
                 .len(),
@@ -920,7 +911,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         assert!(removed.fixtures.is_empty());
         let after = state.project_session().unwrap();
         assert_eq!(
-            after.project.definitions.fixtures.definitions.len(),
+            after.project.definitions().fixtures.definitions.len(),
             usize::from(!matches!(storage, FixtureStorage::Inline))
         );
         state.undo_active_edit();
@@ -994,7 +985,7 @@ fn inline_fixture_copies_have_independent_ownership() {
         .project_session()
         .unwrap()
         .project
-        .setup(state.project_session().unwrap().project.root.setup.id())
+        .setup(state.project_session().unwrap().project.root().setup.id())
         .unwrap()
         .layout
         .id()
@@ -1012,7 +1003,7 @@ fn inline_fixture_copies_have_independent_ownership() {
         .layout(
             copied
                 .project
-                .setup(copied.project.root.setup.id())
+                .setup(copied.project.root().setup.id())
                 .unwrap()
                 .layout
                 .id(),
@@ -1043,7 +1034,7 @@ fn inline_fixture_copies_have_independent_ownership() {
             .project_session()
             .unwrap()
             .project
-            .definitions
+            .definitions()
             .fixtures
             .definitions
             .len(),
@@ -1055,7 +1046,7 @@ fn inline_fixture_copies_have_independent_ownership() {
             .project_session()
             .unwrap()
             .project
-            .definitions
+            .definitions()
             .fixtures
             .definitions
             .is_empty()
@@ -1115,8 +1106,8 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     assert_eq!(document.name, "Owned strip");
     assert_eq!(document.render_plan.pixels.len(), 1);
     let after = state.project_session().unwrap();
-    assert!(after.project.layouts.is_empty());
-    assert!(after.project.definitions.fixtures.definitions.is_empty());
+    assert!(after.project.reusable_layouts().is_empty());
+    assert!(after.project.definitions().fixtures.definitions.is_empty());
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);
     state.redo_active_edit();
@@ -1152,7 +1143,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
             let session = state.project_session().unwrap();
             let setup = session
                 .project
-                .setup(session.project.root.setup.id())
+                .setup(session.project.root().setup.id())
                 .unwrap();
             let (owner, view) = match &slot {
                 GuiOwnershipSlot::Fixture { .. } => {
@@ -1162,7 +1153,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 | GuiOwnershipSlot::Layout
                 | GuiOwnershipSlot::Patch => (setup.id.0.clone(), DocumentViewId::Setup),
                 GuiOwnershipSlot::Sequence { .. } | GuiOwnershipSlot::Setup => (
-                    session.project.root.id.0.clone().into(),
+                    session.project.root().id.0.clone().into(),
                     DocumentViewId::Project,
                 ),
             };
@@ -1234,18 +1225,18 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         let session = state.project_session().unwrap();
         let setup = session
             .project
-            .setup(session.project.root.setup.id())
+            .setup(session.project.root().setup.id())
             .unwrap();
         assert_eq!(
             session.project.layout(setup.layout.id()).unwrap().fixtures[0].name,
             "My Strip"
         );
-        assert_eq!(session.project.definitions.fixtures.definitions.len(), 1);
-        assert_eq!(session.project.controllers.len(), 1);
-        assert_eq!(session.project.layouts.len(), 1);
-        assert_eq!(session.project.patches.len(), 1);
-        assert_eq!(session.project.sequences.len(), 1);
-        assert_eq!(session.project.setups.len(), 1);
+        assert_eq!(session.project.definitions().fixtures.definitions.len(), 1);
+        assert_eq!(session.project.reusable_controllers().len(), 1);
+        assert_eq!(session.project.reusable_layouts().len(), 1);
+        assert_eq!(session.project.reusable_patches().len(), 1);
+        assert_eq!(session.project.reusable_sequences().len(), 1);
+        assert_eq!(session.project.reusable_setups().len(), 1);
     }
 }
 
@@ -1260,7 +1251,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
     let initial = state.project_session().unwrap();
-    let initial_id = initial.project.root.sequences[0].id().clone();
+    let initial_id = initial.project.root().sequences[0].id().clone();
     let color = initial.project.sequence(&initial_id).unwrap().layers[0]
         .color
         .to_hex();
@@ -1278,7 +1269,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         .project_session()
         .unwrap()
         .project
-        .root
+        .root()
         .sequences
         .last()
         .unwrap()
@@ -1446,7 +1437,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         let before = state.project_session().unwrap();
         let color = before
             .project
-            .sequence(before.project.root.sequences[0].id())
+            .sequence(before.project.root().sequences[0].id())
             .unwrap()
             .layers[0]
             .color
@@ -1463,10 +1454,10 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
             .unwrap();
         let after = state.project_session().unwrap();
         assert_eq!(
-            after.project.root.sequences.len(),
-            before.project.root.sequences.len() + 1
+            after.project.root().sequences.len(),
+            before.project.root().sequences.len() + 1
         );
-        let source = after.project.root.sequences.last().unwrap();
+        let source = after.project.root().sequences.last().unwrap();
         assert_eq!(
             matches!(source, donder_language::ownership::ValueSource::Inline(_)),
             inline
@@ -1489,7 +1480,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
     let before = state.project_session().unwrap();
     let color = before
         .project
-        .sequence(before.project.root.sequences[0].id())
+        .sequence(before.project.root().sequences[0].id())
         .unwrap()
         .layers[0]
         .color
@@ -1559,7 +1550,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         let current = state.project_session().unwrap();
         let layout_id = current
             .project
-            .setup(current.project.root.setup.id())
+            .setup(current.project.root().setup.id())
             .unwrap()
             .layout
             .id();
@@ -1604,8 +1595,8 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         assert!(matches!(definition, GuiFixtureSource::Inline { .. }));
         assert_eq!(placement.position.x_meters, 2.0);
         assert_eq!(
-            after.project.definitions.fixtures,
-            before.project.definitions.fixtures
+            after.project.definitions().fixtures,
+            before.project.definitions().fixtures
         );
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before);
@@ -1630,8 +1621,8 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
             before.project.layout(layout_id).unwrap().fixtures[0]
         );
         assert_eq!(
-            changed.project.definitions.fixtures,
-            before.project.definitions.fixtures
+            changed.project.definitions().fixtures,
+            before.project.definitions().fixtures
         );
         state.save_all().unwrap();
         assert_eq!(
@@ -1696,7 +1687,7 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
     let initial = state.project_session().unwrap();
     let layout_id = initial
         .project
-        .setup(initial.project.root.setup.id())
+        .setup(initial.project.root().setup.id())
         .unwrap()
         .layout
         .id();
@@ -1736,8 +1727,8 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
             &original_first
         );
         assert_eq!(
-            after.project.definitions.fixtures,
-            initial.project.definitions.fixtures
+            after.project.definitions().fixtures,
+            initial.project.definitions().fixtures
         );
         state.undo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *before_session);
@@ -1884,8 +1875,8 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
     }
     let after = state.project_session().unwrap();
     assert_eq!(
-        after.project.definitions.fixtures,
-        before.project.definitions.fixtures
+        after.project.definitions().fixtures,
+        before.project.definitions().fixtures
     );
     state.undo_active_edit();
     assert_eq!(*state.project_session().unwrap(), *before);

@@ -1,15 +1,14 @@
+use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::SignalPixel;
-use crate::dsl::{
-    BoundParams, OperatorRunContext, RunContext, RuntimeError, SignalSampler, VmWorkspace,
-};
+use crate::dsl::{BoundParams, OperatorRunContext, RunContext, SignalSampler, VmWorkspace};
 use crate::signal::{
-    CachedSignal, CachedSignalFrame, CachedVmSample, EffectAutomationWorkspace, EvaluationError,
+    CachedSignal, CachedSignalFrame, CachedVmSample, EffectAutomationWorkspace,
     EvaluationWorkspace, PreparedEffect, PreparedEffectImplementation, PreparedOperator,
-    PreparedOperatorNode, PreparedSignalGraph, PreparedSignalKind,
+    PreparedOperatorNode, PreparedSignalKind, SignalGraph,
 };
 use crate::values::{Color, SampleDuration, SampleTime};
-use alloc::string::ToString;
-use alloc::{boxed::Box, format};
+use alloc::boxed::Box;
+use core::convert::Infallible;
 
 /// A frame traversal may amortize a uniform query over all pixels. A scalar
 /// query must stay scalar throughout its upstream traversal: promoting it back
@@ -22,45 +21,24 @@ enum SamplingScope {
 
 /// One effect at one time, sampled over any selection of pixel coordinates.
 /// Both sequence playback and sparse editor rasters use this evaluator.
-pub struct EffectSampler<'a> {
-    program: &'a crate::dsl::bytecode::BytecodeProgram,
+pub(crate) struct EffectSampler<'a> {
+    program: &'a crate::dsl::SampleProgram,
     params: &'a BoundParams,
     context: RunContext,
     reuse_uniform: bool,
     spatial: bool,
 }
 
-impl PreparedEffect {
+impl PreparedEffect<AutomationPlan> {
     #[inline(always)]
-    pub fn with_sampler<P: core::borrow::Borrow<crate::dsl::bytecode::BytecodeProgram>, R>(
+    pub(crate) fn with_sampler<R>(
         &self,
-        programs: &[P],
+        graph: SignalGraph<'_>,
         sample_time: SampleTime,
-        automation: Option<&mut EffectAutomationWorkspace>,
-        bound: Option<&BoundParams>,
-        run: impl FnOnce(&mut EffectSampler<'_>) -> Result<R, RuntimeError>,
-    ) -> Result<R, EvaluationError> {
-        if self.automation.is_some() && automation.is_none() {
-            return Err(EvaluationError::InvalidWorkspace);
-        }
-        // This local owns automated resources only for the duration of sampling.
-        // The pixel loop always sees a plain borrow, never an ownership branch.
-        let (program, params) = match &self.implementation {
-            PreparedEffectImplementation::Bound { program, .. } => {
-                let params = bound.ok_or(EvaluationError::InvalidWorkspace)?;
-                (programs[*program].borrow(), params)
-            }
-            PreparedEffectImplementation::Dsl {
-                program,
-                bound_params,
-            } => {
-                let params = match automation {
-                    Some(state) => prepare_effect_params(self, sample_time, state)?,
-                    None => bound_params,
-                };
-                (programs[*program].borrow(), params)
-            }
-        };
+        params: &BoundParams,
+        run: impl FnOnce(&mut EffectSampler<'_>) -> R,
+    ) -> R {
+        let program = graph.sample_program(self.implementation.dsl_program());
         let mut sampler = EffectSampler {
             program,
             params,
@@ -75,31 +53,47 @@ impl PreparedEffect {
             reuse_uniform: false,
             spatial: program.uses_spatial_context(),
         };
-        run(&mut sampler).map_err(EvaluationError::from)
+        run(&mut sampler)
     }
 
-    pub fn automation_workspace(&self) -> Option<EffectAutomationWorkspace> {
+    pub(crate) fn automation_workspace(&self) -> Option<EffectAutomationWorkspace> {
         let automation = self.automation.as_ref()?;
-        let params = match &self.implementation {
-            PreparedEffectImplementation::Dsl { bound_params, .. } => Some(
-                crate::signal::automation_params(bound_params, &automation.bindings),
-            ),
-            PreparedEffectImplementation::Bound { .. } => None,
+        let PreparedEffectImplementation::Dsl { bound_params, .. } = &self.implementation else {
+            return None;
         };
+        let params = bound_params.clone();
         Some(EffectAutomationWorkspace {
+            plan: automation.bindings.clone(),
             params,
             sample_time: None,
         })
     }
+    pub(crate) fn resolve_params<'a>(
+        &'a self,
+        graph: SignalGraph<'_>,
+        sample_time: SampleTime,
+        parameters: &'a mut crate::bindings::ParameterWorkspace,
+        automation: impl FnOnce(usize) -> &'a mut EffectAutomationWorkspace,
+    ) -> &'a BoundParams {
+        match &self.implementation {
+            PreparedEffectImplementation::Bound { environment, .. } => {
+                parameters.resolve(&graph.parameter_environments, *environment, sample_time)
+            }
+            PreparedEffectImplementation::Dsl { bound_params, .. } => match &self.automation {
+                None => bound_params,
+                Some(binding) => automation(binding.workspace_slot).params_at(sample_time),
+            },
+        }
+    }
 }
 
 impl EffectSampler<'_> {
-    pub fn sample_spatial(
+    pub(crate) fn sample_spatial(
         &mut self,
         pixel: &crate::signal::PreparedPixel,
-        spatial: Option<&crate::dsl::SpatialContext>,
+        spatial: &crate::dsl::SpatialContext,
         workspace: &mut VmWorkspace,
-    ) -> Result<Color, RuntimeError> {
+    ) -> Color {
         self.sample_spatial_context(
             pixel.pixel_index(),
             pixel.pixel_count(),
@@ -109,51 +103,30 @@ impl EffectSampler<'_> {
         )
     }
 
-    pub fn sample_spatial_context(
+    pub(crate) fn sample_spatial_context(
         &mut self,
         pixel_index: usize,
         pixel_count: usize,
         pixel_fraction: f32,
-        spatial: Option<&crate::dsl::SpatialContext>,
+        spatial: &crate::dsl::SpatialContext,
         workspace: &mut VmWorkspace,
-    ) -> Result<Color, RuntimeError> {
+    ) -> Color {
         self.context.pixel_index = pixel_index as i32;
         self.context.pixel_count = pixel_count as i32;
         self.context.pixel_fraction = pixel_fraction;
-        let result = self.program.sample_spatial_effect(
+        let result = self.program.sample(
             self.params,
             &self.context,
             spatial,
             workspace,
             self.reuse_uniform,
         );
-        self.reuse_uniform = result.is_ok();
+        self.reuse_uniform = true;
         result
     }
 
     fn uniform(&self) -> bool {
-        !self.program.uses_pixel_context
-    }
-
-    #[inline(always)]
-    pub fn sample(
-        &mut self,
-        pixel_index: usize,
-        pixel_count: usize,
-        pixel_fraction: f32,
-        workspace: &mut VmWorkspace,
-    ) -> Result<Color, RuntimeError> {
-        self.context.pixel_index = pixel_index as i32;
-        self.context.pixel_count = pixel_count as i32;
-        self.context.pixel_fraction = pixel_fraction;
-        let result = self.program.sample_effect_from(
-            self.params,
-            &self.context,
-            workspace,
-            self.reuse_uniform,
-        );
-        self.reuse_uniform = result.is_ok();
-        result
+        !self.program.bytecode().uses_pixel_context
     }
 }
 
@@ -161,10 +134,10 @@ impl EffectSampler<'_> {
 // Xtensa code generation even though it removes one call per frame.
 #[inline(never)]
 pub(crate) fn sample_signal_graph<'a>(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     sample_time: SampleTime,
     workspace: &'a mut EvaluationWorkspace,
-) -> Result<&'a [Color], EvaluationError> {
+) -> &'a [Color] {
     let graph = &renderer.plan;
     workspace.effect_vm_sample = None;
     // Prefix registers belong to one node/time in each shared depth slot.
@@ -172,8 +145,8 @@ pub(crate) fn sample_signal_graph<'a>(
     for (_, sample) in &mut workspace.operator_vm {
         *sample = None;
     }
-    for (_, time) in &mut workspace.operator_automation {
-        *time = None;
+    for state in &mut workspace.operator_automation {
+        state.sample_time = None;
     }
     for frames in &mut workspace.operator_frames {
         for frame in frames {
@@ -181,129 +154,109 @@ pub(crate) fn sample_signal_graph<'a>(
         }
     }
     // Recursive signal sampling uses the VM and caches, not these frame buffers.
-    // Keep the fixed storage separate while evaluating, and restore it on errors too.
+    // Keep the fixed storage separate during recursive evaluation.
     let mut buffers = core::mem::take(&mut workspace.signal_buffers);
-    let result = (|| {
-        for node_index in graph.frame_nodes.iter().copied() {
-            let node =
-                graph
-                    .nodes
-                    .get(node_index)
-                    .ok_or_else(|| EvaluationError::InvalidGraph {
-                        message: "graph node index is out of bounds".to_string(),
-                    })?;
-            let destination = frame_range(renderer, node_index)?;
-            match &node.kind {
-                PreparedSignalKind::Layer { layer_index } => {
-                    sample_layer_frame(
-                        renderer,
-                        *layer_index,
-                        sample_time,
-                        &mut buffers[destination],
-                        workspace,
-                    )?;
-                }
-                PreparedSignalKind::Operator {
+    let mut operator_automation = core::mem::take(&mut workspace.operator_automation);
+    for node_index in graph.frame_nodes.iter().copied() {
+        let node = &graph.nodes[node_index];
+        let destination = frame_range(renderer, node_index);
+        match &node.kind {
+            PreparedSignalKind::Layer { layer_index } => {
+                sample_layer_frame(
+                    renderer,
+                    *layer_index,
+                    sample_time,
+                    &mut buffers[destination],
+                    workspace,
+                );
+            }
+            PreparedSignalKind::Operator {
+                operator,
+                inputs,
+                automation,
+                vm_slot,
+            } => {
+                let (params, upstream) =
+                    operator_params(operator, automation, sample_time, &mut operator_automation);
+                let vm_slot = *vm_slot;
+                let mut vm_workspace = core::mem::take(&mut workspace.operator_vm[vm_slot]);
+                sample_operator_frame(
+                    renderer,
                     operator,
                     inputs,
-                    automation,
+                    params,
+                    sample_time,
+                    destination,
+                    &mut buffers,
+                    workspace,
                     vm_slot,
-                } => {
-                    let slot = operator.automation_slot;
-                    let mut automation_workspace = (!automation.is_empty())
-                        .then(|| core::mem::take(&mut workspace.operator_automation[slot]));
-                    if let Some((state, time)) = &mut automation_workspace {
-                        if let Err(error) = apply_bound_automation(state, automation, sample_time) {
-                            workspace.operator_automation[slot] = automation_workspace.unwrap();
-                            return Err(error);
-                        }
-                        *time = Some(sample_time);
-                    }
-                    let vm_slot = *vm_slot;
-                    let mut vm_workspace = core::mem::take(&mut workspace.operator_vm[vm_slot]);
-                    let sampled = sample_operator_frame(
-                        renderer,
-                        operator,
-                        inputs,
-                        automation_workspace.as_ref().map(|(params, _)| params),
-                        sample_time,
-                        destination,
-                        &mut buffers,
-                        workspace,
-                        vm_slot,
-                        &mut vm_workspace.0,
-                    );
-                    workspace.operator_vm[vm_slot] = vm_workspace;
-                    if let Some(state) = automation_workspace {
-                        workspace.operator_automation[slot] = state;
-                    }
-                    sampled?;
-                }
-                PreparedSignalKind::Output { inputs } => {
-                    buffers[destination.clone()].fill(black());
-                    for input in inputs {
-                        let source = frame_range(renderer, *input)?;
-                        for (target, source) in destination.clone().zip(source) {
-                            let color = buffers[source];
-                            compose_max(&mut buffers[target], color);
-                        }
+                    &mut vm_workspace.0,
+                    upstream,
+                );
+                workspace.operator_vm[vm_slot] = vm_workspace;
+            }
+            PreparedSignalKind::Output { inputs } => {
+                buffers[destination.clone()].fill(black());
+                for input in inputs {
+                    let source = frame_range(renderer, *input);
+                    for (target, source) in destination.clone().zip(source) {
+                        let color = buffers[source];
+                        compose_max(&mut buffers[target], color);
                     }
                 }
             }
         }
-        frame_range(renderer, graph.output_index)
-    })();
+    }
+    let range = frame_range(renderer, graph.output_index);
     workspace.signal_buffers = buffers;
-    result.map(|range| &workspace.signal_buffers[range])
+    workspace.operator_automation = operator_automation;
+    &workspace.signal_buffers[range]
 }
 
-pub(crate) fn frame_range(
-    renderer: &PreparedSignalGraph,
-    node_index: usize,
-) -> Result<core::ops::Range<usize>, EvaluationError> {
-    let graph = &renderer.plan;
-    let slot = graph
-        .frame_slots
-        .get(node_index)
-        .copied()
-        .unwrap_or(usize::MAX);
-    if slot >= graph.frame_buffer_count {
-        return Err(EvaluationError::InvalidGraph {
-            message: "signal has no prepared frame buffer".to_string(),
-        });
+/// Graph admission orders dependencies before consumers and assigns automation
+/// slots in that same order. While this operator borrows its parameters, nested
+/// sampling may therefore borrow only the preceding automation states.
+fn operator_params<'a>(
+    operator: &'a PreparedOperatorNode,
+    automation: &AutomationPlan,
+    time: SampleTime,
+    states: &'a mut [EffectAutomationWorkspace],
+) -> (&'a BoundParams, &'a mut [EffectAutomationWorkspace]) {
+    if automation.is_empty() {
+        (&operator.params, states)
+    } else {
+        let (upstream, current) = states.split_at_mut(operator.automation_slot);
+        (current[0].params_at(time), upstream)
     }
+}
+
+pub(crate) fn frame_range(renderer: SignalGraph<'_>, node_index: usize) -> core::ops::Range<usize> {
+    let graph = &renderer.plan;
+    let slot = graph.frame_slots[node_index];
     let start = slot * renderer.pixel_count;
-    Ok(start..start + renderer.pixel_count)
+    start..start + renderer.pixel_count
 }
 
 // Keep the per-pixel loop out of the large graph dispatcher; inlining it
 // produces slower code for simple layered programs in controlled benchmarks.
 #[inline(never)]
 fn sample_layer_frame(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     layer_index: usize,
     sample_time: SampleTime,
     rendered: &mut [Color],
     workspace: &mut EvaluationWorkspace,
-) -> Result<(), EvaluationError> {
+) {
     // This traversal owns the effect VM independently of recursive sampling.
     workspace.effect_vm_sample = None;
-    let Some(layer) = renderer.layers.get(layer_index) else {
-        return Err(EvaluationError::InvalidGraph {
-            message: "layer index is out of bounds".to_string(),
-        });
-    };
+    let layer = &renderer.layers[layer_index];
     rendered.fill(black());
     if !layer.enabled {
-        return Ok(());
+        return;
     }
-    let Some(layer_effects) = renderer.effects_by_layer.get(layer_index) else {
-        return Ok(());
-    };
+    let layer_effects = &renderer.effects_by_layer[layer_index];
     for effect_index in layer_effects {
-        let Some(effect) = renderer.effects.get(*effect_index) else {
-            continue;
-        };
+        let effect = &renderer.effects[*effect_index];
         if effect.start_time > sample_time {
             break;
         }
@@ -314,38 +267,30 @@ fn sample_layer_frame(
         for sample in &mut workspace.effect_samples[..sample_count] {
             sample.pixel_count = 0;
         }
-        let state = effect
-            .automation
-            .as_ref()
-            .map(|automation| &mut workspace.effect_automation[automation.workspace_slot]);
-        let bound = match effect.implementation {
-            PreparedEffectImplementation::Bound { environment, .. } => {
-                Some(workspace.parameters.resolve(
-                    &renderer.parameter_environments,
-                    environment,
-                    sample_time,
-                )?)
-            }
-            _ => None,
-        };
-        effect.with_sampler(&renderer.programs, sample_time, state, bound, |sampler| {
+        let params =
+            effect.resolve_params(renderer, sample_time, &mut workspace.parameters, |slot| {
+                &mut workspace.effect_automation[slot]
+            });
+        effect.with_sampler(renderer, sample_time, params, |sampler| {
             let uniform = sampler.uniform();
             let target = renderer.target(effect.target);
             if uniform {
                 if let Some(pixel) = target.first() {
-                    let color = sampler.sample(
-                        pixel.pixel_index(),
-                        pixel.pixel_count(),
-                        pixel.pixel_fraction,
+                    let color = sampler.sample_spatial(
+                        pixel,
+                        renderer.spatial_context(
+                            sampler.spatial,
+                            renderer.targets[effect.target].pixels.start,
+                        ),
                         &mut workspace.effect_vm,
-                    )?;
+                    );
                     for pixel in target {
                         let flat_index = renderer.fixture_pixel_offsets[pixel.fixture_index()]
                             + pixel.fixture_pixel_index();
                         compose_max(&mut rendered[flat_index], color);
                     }
                 }
-                return Ok(());
+                return;
             }
             // This traversal keeps one program, parameter set and sample time.
             // Scalar registers survive VM cleanup; restart initialization for
@@ -360,11 +305,12 @@ fn sample_layer_frame(
                     cached => {
                         let color = sampler.sample_spatial(
                             pixel,
-                            renderer
-                                .spatial_contexts
-                                .get(renderer.targets[effect.target].pixels.start + target_index),
+                            renderer.spatial_context(
+                                sampler.spatial,
+                                renderer.targets[effect.target].pixels.start + target_index,
+                            ),
                             &mut workspace.effect_vm,
-                        )?;
+                        );
                         if let Some(sample) = cached {
                             sample.pixel_count = pixel.pixel_count;
                             sample.color = color;
@@ -376,28 +322,26 @@ fn sample_layer_frame(
                     + pixel.fixture_pixel_index();
                 compose_max(&mut rendered[flat_index], color);
             }
-            Ok(())
-        })?;
+        });
     }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 fn sample_operator_frame(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     operator: &PreparedOperatorNode,
     inputs: &[usize],
-    automation: Option<&BoundParams>,
+    params: &BoundParams,
     sample_time: SampleTime,
     destination: core::ops::Range<usize>,
     buffers: &mut [Color],
     workspace: &mut EvaluationWorkspace,
     frame_slot: usize,
     vm_workspace: &mut VmWorkspace,
-) -> Result<(), EvaluationError> {
-    let params = automation.unwrap_or(&operator.params);
+    operator_automation: &mut [EffectAutomationWorkspace],
+) {
     let PreparedOperator::Dsl(program) = &operator.implementation;
-    let compiled = &renderer.programs[*program];
+    let compiled = renderer.operator_program(*program);
     let duration = renderer.duration;
     let progress = if duration.as_ticks() == 0 {
         0.0
@@ -428,55 +372,47 @@ fn sample_operator_frame(
             frame_slot,
             duration: renderer.duration,
             workspace,
+            operator_automation,
         };
-        match compiled.sample_operator_from(
+        match compiled.sample(
             params,
             &context,
+            renderer.spatial_context(
+                compiled.uses_spatial_context(),
+                renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index,
+            ),
             &mut sampler,
             vm_workspace,
             reuse_uniform,
-            renderer
-                .spatial_contexts
-                .get(renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index),
         ) {
             Ok(color) => {
                 output[flat_pixel_index] = color;
                 reuse_uniform = true;
             }
-            Err(error) => {
-                workspace.signal_cache = cache;
-                return Err(error.into());
-            }
+            Err(never) => match never {},
         }
     }
     workspace.signal_cache = cache;
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 fn sample_signal_pixel(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     node_index: usize,
     sample_time: SampleTime,
     flat_pixel_index: usize,
     cache: &mut [Option<CachedSignal>],
     workspace: &mut EvaluationWorkspace,
     scope: SamplingScope,
-) -> Result<Color, EvaluationError> {
+    operator_automation: &mut [EffectAutomationWorkspace],
+) -> Color {
     if let Some(Some(cached)) = cache.get(node_index)
         && cached.sample_time == sample_time
         && cached.flat_pixel_index == flat_pixel_index
     {
-        return Ok(cached.color);
+        return cached.color;
     }
-    let node =
-        renderer
-            .plan
-            .nodes
-            .get(node_index)
-            .ok_or_else(|| EvaluationError::InvalidGraph {
-                message: "graph node index is out of bounds".to_string(),
-            })?;
+    let node = &renderer.plan.nodes[node_index];
     let color = match &node.kind {
         PreparedSignalKind::Layer { layer_index } => sample_layer_pixel(
             renderer,
@@ -484,27 +420,15 @@ fn sample_signal_pixel(
             sample_time,
             flat_pixel_index,
             workspace,
-        )?,
+        ),
         PreparedSignalKind::Operator {
             operator,
             inputs,
             automation,
             vm_slot,
         } => {
-            let slot = operator.automation_slot;
-            let mut automation_workspace = (!automation.is_empty())
-                .then(|| core::mem::take(&mut workspace.operator_automation[slot]));
-            if let Some((state, time)) = &mut automation_workspace
-                && *time != Some(sample_time)
-            {
-                // Invalidate before mutation so a partial error cannot reuse old data.
-                *time = None;
-                if let Err(error) = apply_bound_automation(state, automation, sample_time) {
-                    workspace.operator_automation[slot] = automation_workspace.unwrap();
-                    return Err(error);
-                }
-                *time = Some(sample_time);
-            }
+            let (params, upstream) =
+                operator_params(operator, automation, sample_time, operator_automation);
             let vm_slot = *vm_slot;
             let mut vm_workspace = core::mem::take(&mut workspace.operator_vm[vm_slot]);
             let cached = vm_workspace
@@ -527,7 +451,7 @@ fn sample_signal_pixel(
                 renderer,
                 operator,
                 inputs,
-                automation_workspace.as_ref().map(|(params, _)| params),
+                params,
                 sample_time,
                 flat_pixel_index,
                 cache,
@@ -537,19 +461,15 @@ fn sample_signal_pixel(
                 reuse_uniform,
                 progress,
                 scope,
+                upstream,
             );
-            if sampled.is_ok() {
-                vm_workspace.1 = Some(CachedVmSample {
-                    index: node_index,
-                    time: sample_time,
-                    progress,
-                });
-            }
+            vm_workspace.1 = Some(CachedVmSample {
+                index: node_index,
+                time: sample_time,
+                progress,
+            });
             workspace.operator_vm[vm_slot] = vm_workspace;
-            if let Some(state) = automation_workspace {
-                workspace.operator_automation[slot] = state;
-            }
-            sampled?
+            sampled
         }
         PreparedSignalKind::Output { inputs } => {
             let mut output = black();
@@ -564,7 +484,8 @@ fn sample_signal_pixel(
                         cache,
                         workspace,
                         scope,
-                    )?,
+                        operator_automation,
+                    ),
                 );
             }
             output
@@ -577,35 +498,25 @@ fn sample_signal_pixel(
         flat_pixel_index,
         color,
     });
-    Ok(color)
+    color
 }
 
 fn sample_layer_pixel(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     layer_index: usize,
     sample_time: SampleTime,
     flat_pixel_index: usize,
     workspace: &mut EvaluationWorkspace,
-) -> Result<Color, EvaluationError> {
-    let Some(layer) = renderer.layers.get(layer_index) else {
-        return Err(EvaluationError::InvalidGraph {
-            message: "layer index is out of bounds".to_string(),
-        });
-    };
+) -> Color {
+    let layer = &renderer.layers[layer_index];
     if !layer.enabled {
-        return Ok(black());
+        return black();
     }
-    let Some(pixel) = renderer.target(renderer.plan.target).get(flat_pixel_index) else {
-        return Ok(black());
-    };
+    let pixel = &renderer.target(renderer.plan.target)[flat_pixel_index];
     let mut rendered = black();
-    let Some(layer_effects) = renderer.effects_by_layer.get(layer_index) else {
-        return Ok(rendered);
-    };
+    let layer_effects = &renderer.effects_by_layer[layer_index];
     for effect_index in layer_effects {
-        let Some(effect) = renderer.effects.get(*effect_index) else {
-            continue;
-        };
+        let effect = &renderer.effects[*effect_index];
         if effect.start_time > sample_time {
             break;
         }
@@ -635,45 +546,38 @@ fn sample_layer_pixel(
                 .effect_vm_sample
                 .filter(|(sample, ..)| sample.index == *effect_index && sample.time == sample_time);
             if let Some((_, _, color)) = cached
-                && !renderer.programs[effect.implementation.dsl_program()].uses_pixel_context
+                && !renderer
+                    .sample_program(effect.implementation.dsl_program())
+                    .bytecode()
+                    .uses_pixel_context
             {
                 compose_max(&mut rendered, color);
                 continue;
             }
-            // A failed evaluation or a different effect must not expose old slots.
+            // A different effect must not expose old slots.
             workspace.effect_vm_sample = None;
             let reuse_uniform = cached.is_some();
             let (progress, local_time) = cached.map_or_else(
                 || (effect.progress(sample_time), effect.local_time(sample_time)),
                 |(sample, local_time, _)| (sample.progress, local_time),
             );
-            let state = effect
-                .automation
-                .as_ref()
-                .map(|automation| &mut workspace.effect_automation[automation.workspace_slot]);
-            let bound = match effect.implementation {
-                PreparedEffectImplementation::Bound { environment, .. } => {
-                    Some(workspace.parameters.resolve(
-                        &renderer.parameter_environments,
-                        environment,
-                        sample_time,
-                    )?)
-                }
-                _ => None,
-            };
-            let color =
-                effect.with_sampler(&renderer.programs, sample_time, state, bound, |sampler| {
-                    sampler.context.progress = progress;
-                    sampler.context.time = local_time;
-                    sampler.reuse_uniform = reuse_uniform;
-                    sampler.sample_spatial(
-                        effect_pixel,
-                        renderer
-                            .spatial_contexts
-                            .get(renderer.targets[effect.target].pixels.start + target_index),
-                        &mut workspace.effect_vm,
-                    )
-                })?;
+            let params =
+                effect.resolve_params(renderer, sample_time, &mut workspace.parameters, |slot| {
+                    &mut workspace.effect_automation[slot]
+                });
+            let color = effect.with_sampler(renderer, sample_time, params, |sampler| {
+                sampler.context.progress = progress;
+                sampler.context.time = local_time;
+                sampler.reuse_uniform = reuse_uniform;
+                sampler.sample_spatial(
+                    effect_pixel,
+                    renderer.spatial_context(
+                        sampler.spatial,
+                        renderer.targets[effect.target].pixels.start + target_index,
+                    ),
+                    &mut workspace.effect_vm,
+                )
+            });
             workspace.effect_vm_sample = Some((
                 CachedVmSample {
                     index: *effect_index,
@@ -686,15 +590,15 @@ fn sample_layer_pixel(
             compose_max(&mut rendered, color);
         }
     }
-    Ok(rendered)
+    rendered
 }
 
 #[allow(clippy::too_many_arguments)]
 fn sample_operator_pixel(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     operator: &PreparedOperatorNode,
     inputs: &[usize],
-    automation: Option<&BoundParams>,
+    params: &BoundParams,
     sample_time: SampleTime,
     flat_pixel_index: usize,
     cache: &mut [Option<CachedSignal>],
@@ -704,10 +608,10 @@ fn sample_operator_pixel(
     reuse_uniform: bool,
     progress: f32,
     scope: SamplingScope,
-) -> Result<Color, EvaluationError> {
-    let params = automation.unwrap_or(&operator.params);
+    operator_automation: &mut [EffectAutomationWorkspace],
+) -> Color {
     let PreparedOperator::Dsl(program) = &operator.implementation;
-    let compiled = &renderer.programs[*program];
+    let compiled = renderer.operator_program(*program);
     let pixel = &renderer.target(renderer.plan.target)[flat_pixel_index];
     let duration = renderer.duration;
     let context = OperatorRunContext {
@@ -727,21 +631,26 @@ fn sample_operator_pixel(
         frame_slot,
         duration: renderer.duration,
         workspace,
+        operator_automation,
     };
-    Ok(compiled.sample_operator_from(
+    match compiled.sample(
         params,
         &context,
+        renderer.spatial_context(
+            compiled.uses_spatial_context(),
+            renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index,
+        ),
         &mut sampler,
         vm_workspace,
         reuse_uniform,
-        renderer
-            .spatial_contexts
-            .get(renderer.targets[renderer.plan.target].pixels.start + flat_pixel_index),
-    )?)
+    ) {
+        Ok(color) => color,
+        Err(never) => match never {},
+    }
 }
 
 struct GraphSignalSampler<'a> {
-    renderer: &'a PreparedSignalGraph,
+    renderer: SignalGraph<'a>,
     inputs: &'a [usize],
     cache: &'a mut [Option<CachedSignal>],
     scope: SamplingScope,
@@ -749,16 +658,17 @@ struct GraphSignalSampler<'a> {
     frame_slot: usize,
     duration: SampleDuration,
     workspace: &'a mut EvaluationWorkspace,
+    operator_automation: &'a mut [EffectAutomationWorkspace],
 }
 
-impl SignalSampler for GraphSignalSampler<'_> {
+impl SignalSampler<Infallible> for GraphSignalSampler<'_> {
     fn sample_signal(
         &mut self,
         input: usize,
         sample_time: SampleTime,
         pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
-    ) -> Result<Color, RuntimeError> {
+    ) -> Result<Color, Infallible> {
         let index = match pixel {
             SignalPixel::Current => self.flat_pixel_index,
             SignalPixel::Global(index) => {
@@ -782,7 +692,7 @@ impl SignalSampler for GraphSignalSampler<'_> {
                 self.flat_pixel_index - current.pixel_index + index
             }
         };
-        self.sample_at_pixel(input, sample_time, index, frame_cache)
+        Ok(self.sample_at_pixel(input, sample_time, index, frame_cache))
     }
 }
 
@@ -793,30 +703,15 @@ impl GraphSignalSampler<'_> {
         sample_time: SampleTime,
         flat_pixel_index: usize,
         frame_cache: Option<usize>,
-    ) -> Result<Color, RuntimeError> {
+    ) -> Color {
         if sample_time.as_ticks() >= self.duration.as_ticks() {
-            return Ok(black());
+            return black();
         }
-        let node = self
-            .inputs
-            .get(input)
-            .copied()
-            .ok_or_else(|| RuntimeError {
-                message: "Signal input index is out of bounds".to_string(),
-            })?;
+        let node = self.inputs[input];
         if self.scope == SamplingScope::Frame
             && let Some(frame_cache) = frame_cache
         {
-            let Some(frames) = self.workspace.operator_frames.get_mut(self.frame_slot) else {
-                return Err(RuntimeError {
-                    message: "Signal frame cache slot is out of bounds".to_string(),
-                });
-            };
-            let Some(stored) = frames.get_mut(frame_cache) else {
-                return Err(RuntimeError {
-                    message: "Signal frame cache index is out of bounds".to_string(),
-                });
-            };
+            let stored = &mut self.workspace.operator_frames[self.frame_slot][frame_cache];
             let mut stored = core::mem::replace(
                 stored,
                 CachedSignalFrame {
@@ -826,29 +721,18 @@ impl GraphSignalSampler<'_> {
             );
             if stored.key != Some((node, sample_time)) {
                 stored.key = None;
-                let sampled = sample_signal_frame(
+                sample_signal_frame(
                     self.renderer,
                     node,
                     sample_time,
                     &mut stored.colors,
                     self.cache,
                     self.workspace,
+                    self.operator_automation,
                 );
-                if let Err(error) = sampled {
-                    self.workspace.operator_frames[self.frame_slot][frame_cache] = stored;
-                    return Err(RuntimeError {
-                        message: format!("failed to sample Signal frame: {error:?}"),
-                    });
-                }
                 stored.key = Some((node, sample_time));
             }
-            let color = stored
-                .colors
-                .get(flat_pixel_index)
-                .copied()
-                .ok_or_else(|| RuntimeError {
-                    message: "Signal frame pixel is out of bounds".to_string(),
-                });
+            let color = stored.colors[flat_pixel_index];
             self.workspace.operator_frames[self.frame_slot][frame_cache] = stored;
             return color;
         }
@@ -860,32 +744,21 @@ impl GraphSignalSampler<'_> {
             self.cache,
             self.workspace,
             SamplingScope::Pixel,
+            self.operator_automation,
         )
-        .map_err(|error| RuntimeError {
-            message: format!("failed to sample Signal: {error:?}"),
-        })
     }
 }
 
 fn sample_signal_frame(
-    renderer: &PreparedSignalGraph,
+    renderer: SignalGraph<'_>,
     node_index: usize,
     sample_time: SampleTime,
     output: &mut [Color],
     cache: &mut [Option<CachedSignal>],
     workspace: &mut EvaluationWorkspace,
-) -> Result<(), EvaluationError> {
-    if output.len() != renderer.pixel_count {
-        return Err(EvaluationError::InvalidWorkspace);
-    }
-    let node =
-        renderer
-            .plan
-            .nodes
-            .get(node_index)
-            .ok_or_else(|| EvaluationError::InvalidGraph {
-                message: "graph node index is out of bounds".to_string(),
-            })?;
+    operator_automation: &mut [EffectAutomationWorkspace],
+) {
+    let node = &renderer.plan.nodes[node_index];
     match &node.kind {
         PreparedSignalKind::Layer { layer_index } => {
             return sample_layer_frame(renderer, *layer_index, sample_time, output, workspace);
@@ -894,33 +767,39 @@ fn sample_signal_frame(
         PreparedSignalKind::Output { inputs } => {
             output.fill(black());
             if let Some((&first, rest)) = inputs.split_first() {
-                sample_signal_frame(renderer, first, sample_time, output, cache, workspace)?;
+                sample_signal_frame(
+                    renderer,
+                    first,
+                    sample_time,
+                    output,
+                    cache,
+                    workspace,
+                    operator_automation,
+                );
                 if !rest.is_empty() {
-                    let mut frame = workspace
-                        .frame_scratch
-                        .pop()
-                        .ok_or(EvaluationError::InvalidWorkspace)?;
-                    let result = (|| {
-                        for &input in rest {
-                            sample_signal_frame(
-                                renderer,
-                                input,
-                                sample_time,
-                                &mut frame,
-                                cache,
-                                workspace,
-                            )?;
-                            for (a, b) in output.iter_mut().zip(frame.iter()) {
-                                compose_max(a, *b);
-                            }
+                    let slot = workspace.frame_scratch_used;
+                    workspace.frame_scratch_used += 1;
+                    let mut frame = core::mem::take(&mut workspace.frame_scratch[slot]);
+                    for &input in rest {
+                        sample_signal_frame(
+                            renderer,
+                            input,
+                            sample_time,
+                            &mut frame,
+                            cache,
+                            workspace,
+                            operator_automation,
+                        );
+                        for (a, b) in output.iter_mut().zip(frame.iter()) {
+                            compose_max(a, *b);
                         }
-                        Ok(())
-                    })();
-                    workspace.frame_scratch.push(frame);
-                    return result;
+                    }
+                    workspace.frame_scratch[slot] = frame;
+                    workspace.frame_scratch_used -= 1;
+                    return;
                 }
             }
-            return Ok(());
+            return;
         }
     }
     for (flat_pixel_index, color) in output.iter_mut().enumerate() {
@@ -933,55 +812,9 @@ fn sample_signal_frame(
             cache,
             workspace,
             SamplingScope::Frame,
-        )?;
+            operator_automation,
+        );
     }
-    Ok(())
-}
-
-fn prepare_effect_params<'a>(
-    effect: &PreparedEffect,
-    sample_time: SampleTime,
-    workspace: &'a mut EffectAutomationWorkspace,
-) -> Result<&'a BoundParams, EvaluationError> {
-    let automation = effect
-        .automation
-        .as_ref()
-        .ok_or_else(|| EvaluationError::InvalidGraph {
-            message: "automated effect is missing its prepared automation".to_string(),
-        })?;
-    if workspace.sample_time != Some(sample_time) {
-        workspace.sample_time = None;
-        let params = workspace
-            .params
-            .as_mut()
-            .ok_or_else(|| EvaluationError::InvalidGraph {
-                message: "automated effect parameters are missing".to_string(),
-            })?;
-        apply_bound_automation(params, &automation.bindings, sample_time)?;
-        workspace.sample_time = Some(sample_time);
-    }
-    workspace
-        .params
-        .as_ref()
-        .ok_or_else(|| EvaluationError::InvalidGraph {
-            message: "automated effect parameters are missing".to_string(),
-        })
-}
-
-pub fn apply_bound_automation(
-    params: &mut BoundParams,
-    automation: &[crate::signal::PreparedAutomation],
-    sample_time: SampleTime,
-) -> Result<(), EvaluationError> {
-    for binding in automation {
-        params.apply_automation(
-            usize::from(binding.param_index),
-            &binding.curve,
-            &binding.mapping,
-            binding.position(sample_time),
-        )?;
-    }
-    Ok(())
 }
 
 fn compose_max(target: &mut Color, source: Color) {

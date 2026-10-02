@@ -1,15 +1,19 @@
-pub mod bytecode;
+pub(crate) mod bytecode;
 mod calculation;
-pub mod types;
+pub(crate) mod generator;
+mod operator;
+mod sample;
+pub(crate) mod types;
 mod vm;
 
 pub use calculation::{BoundCalculation, CalculationOutput, CalculationProgram};
+pub use operator::{BoundOperator, OperatorProgram, SignalAccess};
+pub use sample::{BoundSample, SampleProgram};
 
 use alloc::vec::Vec;
 
-pub use bytecode::SignalPixel;
-
 pub use types::{Identifier, TargetItemValue, TargetItemsValue, TargetValue, Type, Value};
+pub(crate) use vm::{AutomationPlan, ParameterLink, ParameterTransfer};
 pub use vm::{
     BoundParams, DslBindCache, MAX_DSL_LOOP_ITERATIONS, OperatorRunContext, RunContext,
     RuntimeError, SignalSampler, VmWorkspace,
@@ -40,13 +44,59 @@ impl ParamDecl {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledOperator {
-    pub name: Identifier,
-    pub inputs: Vec<OperatorInputDecl>,
-    pub params: Vec<ParamDecl>,
-    pub bytecode: bytecode::BytecodeProgram,
+    name: Identifier,
+    inputs: Vec<OperatorInputDecl>,
+    params: Vec<ParamDecl>,
+    program: OperatorProgram,
 }
 
 impl CompiledOperator {
+    /// Admit the complete compiled declaration, so callers cannot later replace
+    /// its bytecode independently of its parameter and signal schemas.
+    pub fn admit(
+        name: Identifier,
+        inputs: Vec<OperatorInputDecl>,
+        params: Vec<ParamDecl>,
+        bytecode: bytecode::BytecodeProgram,
+    ) -> Option<Self> {
+        if params.len() > u16::MAX as usize
+            || params.iter().any(|param| {
+                param
+                    .default
+                    .as_ref()
+                    .is_some_and(|value| !param.ty.accepts_value(value))
+            })
+        {
+            return None;
+        }
+        let program = OperatorProgram::admit(
+            bytecode,
+            inputs.len(),
+            params.iter().map(|param| param.ty.clone()).collect(),
+        )?;
+        Some(Self {
+            name,
+            inputs,
+            params,
+            program,
+        })
+    }
+
+    pub fn bytecode(
+        &self,
+    ) -> &bytecode::BytecodeProgram<
+        bytecode::ContextRead,
+        SignalAccess,
+        bytecode::ColorSlot,
+        core::convert::Infallible,
+    > {
+        self.program.bytecode()
+    }
+
+    pub fn program(&self) -> &OperatorProgram {
+        &self.program
+    }
+
     pub fn name(&self) -> &Identifier {
         &self.name
     }
@@ -59,21 +109,23 @@ impl CompiledOperator {
         &self.params
     }
 
-    pub fn bind_params<'a, P>(&self, params: P) -> Result<BoundParams, RuntimeError>
-    where
-        P: Clone + IntoIterator<Item = (&'a Identifier, &'a Value)>,
-    {
-        BoundParams::bind(&self.params, params)
-    }
-
-    pub fn sample_bound(
+    pub fn bind<'p, P>(
         &self,
-        params: &BoundParams,
-        context: &OperatorRunContext,
-        sampler: &mut dyn SignalSampler,
-        workspace: &mut VmWorkspace,
-    ) -> Result<crate::values::Color, RuntimeError> {
-        vm::run_operator(self, params, context, sampler, workspace)
+        params: P,
+        cache: &mut DslBindCache,
+    ) -> Result<BoundOperator<'_>, RuntimeError>
+    where
+        P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
+    {
+        Ok(BoundOperator {
+            program: &self.program,
+            params: sample::bind_named(
+                self.program.parameter_types(),
+                &self.params,
+                params,
+                cache,
+            )?,
+        })
     }
 }
 

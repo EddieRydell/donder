@@ -1,175 +1,263 @@
-use crate::patch::{PatchError, PreparedPatch};
-use crate::signal::{EvaluationError, EvaluationWorkspace, PreparedSignalGraph, RenderedFixture};
-use crate::values::SampleTime;
-use alloc::{boxed::Box, vec::Vec};
+use crate::patch::PreparedPatch;
+use crate::signal::{EvaluationWorkspace, PreparedSignalGraph, SignalGraph};
+use crate::values::{Color, SampleDuration, SampleTime};
+use alloc::{boxed::Box, vec};
+
+mod builder;
+mod compact;
+pub(crate) mod programs;
+pub use builder::{
+    EffectHandle, FixtureGeometry, FixtureHandle, GeneratedEffect, GeneratorPlayback, LookupHandle,
+    OperatorDefinition, OperatorInvocation, OutputEncoding, OutputHandle, RgbOrder,
+    SampleDefinition, SampleInvocation, SequenceBuilder, SequenceRoot, SequenceTiming,
+    SequenceWindow, SignalHandle, TargetHandle, TargetScope, WhitePosition, WindowHandle,
+};
+use programs::AdmittedPrograms;
 
 /// Frozen playback data; authoring, elaboration, networking, and pin timing are external.
-/// Its graph cannot be changed through the playback object:
-///
-/// ```compile_fail
-/// fn overwrite(sequence: &mut donder_runtime::sequence::PreparedSequence) {
-///     sequence.signals.effects = Box::new([]);
-/// }
-/// ```
-#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+/// Construction and archive decoding admit the complete graph before publishing it.
+/// The archive representation is private so deserialization cannot bypass admission.
 pub struct PreparedSequence {
-    pub(crate) workspace_key: u32,
-    pub(crate) signals: PreparedSignalGraph,
+    data: ExecutableSequenceData,
+}
+
+#[derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub(crate) struct SequenceData<
+    P = Box<[crate::dsl::bytecode::BytecodeProgram]>,
+    E = crate::bindings::PreparedParameterEnvironment,
+    A = Box<[crate::signal::PreparedAutomation]>,
+> {
+    pub(crate) signals: PreparedSignalGraph<P, E, A>,
     pub(crate) patch: PreparedPatch,
     pub(crate) outputs: Box<[PreparedOutput]>,
 }
+
+pub(crate) type ExecutableSequenceData = SequenceData<
+    AdmittedPrograms,
+    crate::bindings::ExecutableEnvironment,
+    crate::dsl::AutomationPlan,
+>;
 
 /// One output buffer. Controller indices refer to the active setup's controller
 /// order; authored document identities and network protocols stay on the host.
 #[derive(Clone, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct PreparedOutput {
-    pub controller_index: usize,
+    pub controller_index: u32,
     pub port: u32,
-    pub width: u32,
+    pub width: usize,
 }
 
-#[derive(Debug)]
-pub struct SequenceWorkspace {
-    workspace_key: u32,
-    signals: EvaluationWorkspace,
-}
-
-/// Owns an admitted sequence together with the workspace sized for it.
-/// Playback can inspect the sequence but cannot mutate it after admission.
+/// Owns an admitted sequence, its scratch storage, and its packed output buffers.
 pub struct SequencePlayback {
     sequence: PreparedSequence,
-    workspace: SequenceWorkspace,
+    workspace: EvaluationWorkspace,
+    outputs: Box<[Box<[u8]>]>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum SequenceError {
-    InvalidWorkspace,
-    Signal(EvaluationError),
-    Patch(PatchError),
+/// Borrowed logical colors and packed controller outputs from one evaluation.
+#[derive(Clone, Copy)]
+pub struct SequenceFrame<'a> {
+    data: &'a ExecutableSequenceData,
+    colors: &'a [Color],
+    outputs: &'a [Box<[u8]>],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FixtureFrame<'a> {
+    pub fixture_id: u32,
+    pub pixels: &'a [Color],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OutputFrame<'a> {
+    pub output: &'a PreparedOutput,
+    pub bytes: &'a [u8],
+}
+
+impl<'a> SequenceFrame<'a> {
+    pub fn colors(&self) -> &'a [Color] {
+        self.colors
+    }
+
+    pub fn fixtures(&self) -> impl ExactSizeIterator<Item = FixtureFrame<'a>> + 'a {
+        let colors = self.colors;
+        self.data
+            .signals
+            .fixtures
+            .iter()
+            .zip(&self.data.signals.fixture_pixel_offsets)
+            .map(move |(fixture, &offset)| FixtureFrame {
+                fixture_id: fixture.id,
+                pixels: &colors[offset..offset + fixture.pixel_count],
+            })
+    }
+
+    pub fn outputs(&self) -> impl ExactSizeIterator<Item = OutputFrame<'a>> + 'a {
+        self.data
+            .outputs
+            .iter()
+            .zip(self.outputs)
+            .map(|(output, bytes)| OutputFrame { output, bytes })
+    }
 }
 
 impl PreparedSequence {
-    /// Assemble the portable sequence after elaboration has finished lowering and
-    /// selecting its outputs. Scratch storage is created from this same graph.
-    pub fn new(
+    /// Lower accepted inputs through owner-branded handles. All graph addresses,
+    /// execution slots, and output spans are derived by the builder.
+    pub fn build(
+        timing: SequenceTiming,
+        build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>) -> SequenceRoot<'id>,
+    ) -> Self {
+        let mut builder = SequenceBuilder::new(timing);
+        let root = build(&mut builder);
+        Self::assembled(builder.finish(root))
+    }
+
+    /// Admit raw host-lowered data once, before allocating playback storage.
+    pub fn admit(
         signals: PreparedSignalGraph,
         patch: PreparedPatch,
         outputs: Box<[PreparedOutput]>,
-    ) -> Self {
-        Self {
-            workspace_key: signals.workspace_key,
+    ) -> Result<Self, crate::wire::LoadError> {
+        let data = SequenceData {
             signals,
             patch,
             outputs,
+        };
+        Self::admit_data(data, None)
+    }
+
+    pub(crate) fn admit_data(
+        data: SequenceData,
+        limits: Option<crate::wire::LoadLimits>,
+    ) -> Result<Self, crate::wire::LoadError> {
+        crate::wire::validate_sequence(&data, limits)?;
+        let SequenceData {
+            signals,
+            patch,
+            outputs,
+        } = data;
+        let signals = programs::admit_graph(signals)?;
+        Ok(Self::assembled(SequenceData {
+            signals,
+            patch,
+            outputs,
+        }))
+    }
+
+    pub(crate) fn assembled(data: ExecutableSequenceData) -> Self {
+        Self { data }
+    }
+
+    pub(crate) fn archive_data(&self) -> SequenceData {
+        SequenceData {
+            signals: self.data.signals.to_raw(),
+            patch: self.data.patch.clone(),
+            outputs: self.data.outputs.clone(),
         }
     }
 
-    pub fn signals(&self) -> &PreparedSignalGraph {
-        &self.signals
+    fn graph(&self) -> SignalGraph<'_> {
+        SignalGraph {
+            data: &self.data.signals,
+        }
+    }
+
+    /// Project owned raw data for inspection or checked re-admission.
+    /// This clones metadata and reconstructs raw programs; playback never uses it.
+    pub fn to_raw_signals(&self) -> PreparedSignalGraph {
+        self.data.signals.to_raw()
+    }
+
+    pub fn fixtures(&self) -> &[crate::signal::PreparedFixture] {
+        &self.data.signals.fixtures
+    }
+
+    pub fn effect_count(&self) -> usize {
+        self.data.signals.effects.len()
+    }
+
+    pub fn active_effect_count(&self, sample_time: SampleTime) -> usize {
+        self.data.signals.active_effect_count(sample_time)
     }
 
     pub fn patch(&self) -> &PreparedPatch {
-        &self.patch
+        &self.data.patch
     }
 
     pub fn outputs(&self) -> &[PreparedOutput] {
-        &self.outputs
+        &self.data.outputs
+    }
+
+    pub fn frame_rate(&self) -> u32 {
+        self.data.signals.frame_rate
+    }
+    pub fn frame_count(&self) -> u32 {
+        self.data.signals.frame_count
+    }
+    pub fn pixel_count(&self) -> usize {
+        self.data.signals.pixel_count
+    }
+    pub fn duration(&self) -> SampleDuration {
+        self.data.signals.duration
     }
 
     /// Resolve an authored clip within this prepared sequence, including all of
     /// its generator children. No source project or second preparation is needed.
     pub fn clip(&self, id: u32) -> Option<crate::clip::SequenceClip<'_>> {
-        self.signals
+        self.data
+            .signals
             .clips
             .iter()
             .find(|clip| clip.id == id)
             .map(|clip| crate::clip::SequenceClip {
-                graph: &self.signals,
+                graph: self.graph(),
                 clip,
             })
     }
 
-    pub fn into_playback(self) -> Result<SequencePlayback, crate::wire::LoadError> {
-        let workspace = self.workspace()?;
-        Ok(SequencePlayback {
+    pub fn into_playback(self) -> SequencePlayback {
+        let workspace = self.data.signals.create_workspace();
+        let outputs = self
+            .data
+            .outputs
+            .iter()
+            .map(|output| vec![0; output.width].into_boxed_slice())
+            .collect();
+        SequencePlayback {
             sequence: self,
             workspace,
-        })
-    }
-
-    pub fn workspace(&self) -> Result<SequenceWorkspace, crate::wire::LoadError> {
-        crate::wire::validate_prepared_sequence(self)?;
-        Ok(SequenceWorkspace {
-            workspace_key: self.workspace_key,
-            signals: self.signals.workspace_unchecked(),
-        })
-    }
-
-    pub fn rendered_fixtures(
-        &self,
-        workspace: &SequenceWorkspace,
-    ) -> Result<Vec<RenderedFixture>, SequenceError> {
-        if workspace.workspace_key != self.workspace_key {
-            return Err(SequenceError::InvalidWorkspace);
+            outputs,
         }
-        self.signals
-            .snapshot(&workspace.signals)
-            .map_err(SequenceError::Signal)
-    }
-
-    /// Evaluate and pack directly from signal storage, without intermediate pixel copies.
-    pub fn evaluate(
-        &self,
-        sample_time: SampleTime,
-        buffers: &mut [impl AsMut<[u8]>],
-        workspace: &mut SequenceWorkspace,
-    ) -> Result<(), SequenceError> {
-        if workspace.workspace_key != self.workspace_key {
-            return Err(SequenceError::InvalidWorkspace);
-        }
-        if buffers.len() != self.outputs.len()
-            || buffers
-                .iter_mut()
-                .zip(&self.outputs)
-                .any(|(buffer, output)| buffer.as_mut().len() != output.width as usize)
-        {
-            return Err(SequenceError::Patch(PatchError::WidthMismatch));
-        }
-        let colors = self
-            .signals
-            .evaluate(sample_time, &mut workspace.signals)
-            .map_err(SequenceError::Signal)?;
-        self.patch
-            .evaluate(colors, buffers)
-            .map_err(SequenceError::Patch)
     }
 }
 
 impl SequencePlayback {
+    /// Borrow the packed bytes of the most recently evaluated frame.
+    pub fn outputs(&self) -> impl ExactSizeIterator<Item = OutputFrame<'_>> {
+        self.sequence
+            .data
+            .outputs
+            .iter()
+            .zip(&self.outputs)
+            .map(|(output, bytes)| OutputFrame { output, bytes })
+    }
     pub fn sequence(&self) -> &PreparedSequence {
         &self.sequence
     }
 
-    pub fn evaluate(
-        &mut self,
-        sample_time: SampleTime,
-        buffers: &mut [impl AsMut<[u8]>],
-    ) -> Result<(), SequenceError> {
-        self.sequence
-            .evaluate(sample_time, buffers, &mut self.workspace)
-    }
-
-    pub fn evaluate_signals(
-        &mut self,
-        sample_time: SampleTime,
-    ) -> Result<&[crate::values::Color], EvaluationError> {
-        self.sequence
-            .signals
-            .evaluate(sample_time, &mut self.workspace.signals)
-    }
-
-    pub fn rendered_fixtures(&self) -> Result<Vec<RenderedFixture>, SequenceError> {
-        self.sequence.rendered_fixtures(&self.workspace)
+    pub fn evaluate(&mut self, sample_time: SampleTime) -> SequenceFrame<'_> {
+        let data = &self.sequence.data;
+        let colors = self
+            .sequence
+            .graph()
+            .evaluate(sample_time, &mut self.workspace);
+        data.patch.evaluate(colors, &mut self.outputs);
+        SequenceFrame {
+            data,
+            colors,
+            outputs: &self.outputs,
+        }
     }
 }
 
@@ -180,12 +268,293 @@ mod tests {
     use crate::values::SampleDuration;
     use alloc::vec;
 
+    #[test]
+    fn builder_nested_operators_keep_temporal_queries_and_clip_identity() {
+        use crate::dsl::{
+            CompiledOperator, DslBindCache, Identifier, OperatorInputDecl, SampleProgram,
+        };
+        use core::num::NonZeroU32;
+        let raw = queried_sequence(crate::dsl::bytecode::SignalPixel::Current)
+            .to_raw_signals()
+            .programs;
+        let sample =
+            SampleDefinition::new(SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap());
+        let operator = OperatorDefinition::new(
+            CompiledOperator::admit(
+                Identifier::new("query".into()).unwrap(),
+                vec![OperatorInputDecl {
+                    name: Identifier::new("source".into()).unwrap(),
+                }],
+                vec![],
+                raw[2].clone(),
+            )
+            .unwrap(),
+        );
+        let mut cache = DslBindCache::default();
+        let sample = sample.bind(vec![], &mut cache).unwrap();
+        let operator = operator.bind(vec![], &mut cache).unwrap();
+        let timing = SequenceTiming::admit(
+            NonZeroU32::new(60).unwrap(),
+            NonZeroU32::new(61).unwrap(),
+            NonZeroU32::new(1_000_000).unwrap(),
+            vec![SequenceWindow {
+                start: SampleTime::from_ticks(200_000),
+                duration: NonZeroU32::new(600_000).unwrap(),
+            }]
+            .into(),
+        )
+        .unwrap();
+        // Authored nanosecond frame count is preserved independently of the
+        // rounded portable duration (e.g. just past one second at 60 Hz).
+        assert_eq!(timing.frame_count(), 61);
+        assert_eq!(timing.duration().as_ticks(), 1_000_000);
+        let sequence = PreparedSequence::build(timing, |builder| {
+            let fixture =
+                builder.fixture(10, FixtureGeometry::admit(vec![[0.0, 0.0]].into()).unwrap());
+            let target = builder.target([fixture], TargetScope::PerFixture);
+            let window = builder.windows().next().unwrap();
+            let effect = builder.sample(&sample, window, target);
+            builder.clip(7, window, target, [effect]);
+            let layer = builder.layer(true, [effect]);
+            let inner = builder.operator(&operator, |input| {
+                assert_eq!(input, 0);
+                layer
+            });
+            let outer = builder.operator(&operator, |input| {
+                assert_eq!(input, 0);
+                inner
+            });
+            builder.output([outer])
+        });
+        assert_eq!(sequence.to_raw_signals().programs.len(), 2);
+        assert_eq!(sequence.to_raw_signals().plan.vm_workspace_count, 2);
+        let bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        let decoded =
+            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+        let expected = Color {
+            red: 17,
+            green: 29,
+            blue: 43,
+        };
+        for sequence in [sequence, decoded] {
+            let clip = sequence.clip(7).unwrap();
+            let mut sampler = clip.sampler(1);
+            assert_eq!(
+                sampler.evaluate(SampleTime::from_ticks(300_000)),
+                [expected]
+            );
+            assert_eq!(
+                sampler.evaluate(SampleTime::from_ticks(900_000)),
+                [Color::BLACK]
+            );
+            drop(sampler);
+            let mut playback = sequence.into_playback();
+            for ticks in [300_000, 900_000, 0, 500_000] {
+                assert_eq!(
+                    playback.evaluate(SampleTime::from_ticks(ticks)).colors(),
+                    [expected]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn builder_derives_storage_routes_and_schedule_from_handles() {
+        use core::num::NonZeroU32;
+        let raw = timed_sequence().archive_data().signals.programs[0].clone();
+        let definition =
+            SampleDefinition::new(crate::dsl::SampleProgram::admit(raw, Box::new([])).unwrap());
+        let invocation = definition
+            .bind(vec![], &mut crate::dsl::DslBindCache::default())
+            .unwrap();
+        let timing = SequenceTiming::admit(
+            NonZeroU32::new(60).unwrap(),
+            NonZeroU32::new(60).unwrap(),
+            NonZeroU32::new(1_000_000).unwrap(),
+            vec![SequenceWindow {
+                start: SampleTime::from_ticks(200_000),
+                duration: NonZeroU32::new(600_000).unwrap(),
+            }]
+            .into(),
+        )
+        .unwrap();
+        let sequence = PreparedSequence::build(timing, |builder| {
+            let first = builder.fixture(
+                10,
+                FixtureGeometry::admit(vec![[0.0, 0.0], [1.0, 0.0]].into()).unwrap(),
+            );
+            let middle =
+                builder.fixture(20, FixtureGeometry::admit(vec![[2.0, 0.0]].into()).unwrap());
+            let last =
+                builder.fixture(30, FixtureGeometry::admit(vec![[3.0, 0.0]].into()).unwrap());
+            let target = builder.target([last, first, first], TargetScope::WholeTarget);
+            let unused = builder.target([middle], TargetScope::PerFixture);
+            let window = builder.windows().next().unwrap();
+            let effect = builder.sample(&invocation, window, target);
+            let unreachable = builder.sample(&invocation, window, unused);
+            builder.layer(false, [unreachable]);
+            let layer = builder.layer(true, [effect]);
+            let output = builder.port(3, 7);
+            builder.padding(output, 2);
+            builder.route(output, target, OutputEncoding::Rgb(RgbOrder::Bgr), None);
+            builder.padding(output, 1);
+            builder.output([layer])
+        });
+        assert_eq!(sequence.to_raw_signals().programs.len(), 1);
+        // The terminal one-input output aliases its input's frame buffer.
+        assert_eq!(sequence.to_raw_signals().plan.frame_nodes.as_ref(), [1]);
+        assert_eq!(sequence.outputs()[0].width, 12);
+        assert_eq!(sequence.patch().routes.len(), 2);
+        let bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        let decoded =
+            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+        for sequence in [sequence, decoded] {
+            let mut playback = sequence.into_playback();
+            for ticks in [300_000, 900_000, 300_000, 0] {
+                let frame = playback.evaluate(SampleTime::from_ticks(ticks));
+                let active = ticks == 300_000;
+                let color = if active {
+                    Color {
+                        red: 17,
+                        green: 29,
+                        blue: 43,
+                    }
+                } else {
+                    Color::BLACK
+                };
+                assert_eq!(frame.colors(), [color, color, Color::BLACK, color]);
+                let output = frame.outputs().next().unwrap();
+                let expected = if active {
+                    [0, 0, 43, 29, 17, 43, 29, 17, 43, 29, 17, 0]
+                } else {
+                    [0; 12]
+                };
+                assert_eq!(output.bytes, expected);
+            }
+        }
+    }
+
+    fn timed_sequence() -> PreparedSequence {
+        use crate::dsl::BoundParams;
+        use crate::dsl::bytecode::{BytecodeProgram, ColorSlot, Instruction, SlotLayout};
+        use crate::patch::{PixelEncoding, PreparedPixelRoute};
+        use crate::signal::{
+            PreparedClip, PreparedEffect, PreparedEffectImplementation, PreparedFixture,
+            PreparedLayer, PreparedPixel,
+        };
+
+        let mut data = empty_sequence().archive_data();
+        data.signals.fixtures = vec![
+            PreparedFixture {
+                id: 10,
+                pixel_count: 2,
+            },
+            PreparedFixture {
+                id: 20,
+                pixel_count: 1,
+            },
+        ]
+        .into();
+        data.signals.fixture_pixel_offsets = vec![0, 2].into();
+        data.signals.pixel_count = 3;
+        data.signals.targets[0].pixels = 0..3;
+        data.signals.target_pixels = vec![
+            PreparedPixel::try_new(0, 0, 0, 2, 0.0).unwrap(),
+            PreparedPixel::try_new(0, 1, 1, 2, 1.0).unwrap(),
+            PreparedPixel::try_new(1, 0, 0, 1, 0.0).unwrap(),
+        ]
+        .into();
+        data.signals.programs = vec![BytecodeProgram {
+            instructions: vec![
+                Instruction::LoadColorConst {
+                    dst: ColorSlot(0),
+                    value: Color {
+                        red: 17,
+                        green: 29,
+                        blue: 43,
+                    },
+                },
+                Instruction::ReturnColor(ColorSlot(0)),
+            ]
+            .into(),
+            array_constants: Box::new([]),
+            enums: Box::new([]),
+            enum_types: Box::new([]),
+            curves: Box::new([]),
+            targets: Box::new([]),
+            target_lists: Box::new([]),
+            target_items: Box::new([]),
+            gradients: Box::new([]),
+            value_operands: Box::new([]),
+            array_types: Box::new([]),
+            layout: SlotLayout {
+                colors: 1,
+                ..SlotLayout::default()
+            },
+            uses_pixel_context: false,
+            pixel_entry: 0,
+            array_capacity: 0,
+            array_width: 0,
+            loop_count: 0,
+        }]
+        .into();
+        data.signals.effects = vec![PreparedEffect {
+            start_time: SampleTime::from_ticks(200_000),
+            duration: SampleDuration::from_ticks(600_000),
+            target: 0,
+            implementation: PreparedEffectImplementation::Dsl {
+                program: 0,
+                bound_params: BoundParams::default(),
+            },
+            automation: None,
+        }]
+        .into();
+        data.signals.clips = vec![PreparedClip {
+            id: 7,
+            start_time: SampleTime::from_ticks(200_000),
+            duration: SampleDuration::from_ticks(600_000),
+            target: 0,
+            effects: vec![0].into(),
+        }]
+        .into();
+        data.signals.effects_by_layer = vec![vec![0].into_boxed_slice()].into();
+        data.signals.layers = vec![PreparedLayer { enabled: true }].into();
+        data.signals.plan = SignalPlan {
+            output_index: 1,
+            target: 0,
+            nodes: vec![
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Layer { layer_index: 0 },
+                },
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Output {
+                        inputs: vec![0].into(),
+                    },
+                },
+            ]
+            .into(),
+            vm_workspace_count: 0,
+            frame_nodes: vec![0, 1].into(),
+            frame_slots: vec![0, 1].into(),
+            frame_buffer_count: 2,
+        };
+        data.outputs[0].width = 12;
+        data.patch.routes = vec![PreparedPixelRoute {
+            pixels: 0..3,
+            frame: 0,
+            start_slot: 2,
+            encoding: PixelEncoding::Rgb { order: [2, 1, 0] },
+            lookup: None,
+        }]
+        .into();
+        PreparedSequence::admit(data.signals, data.patch, data.outputs).unwrap()
+    }
+
     fn empty_sequence() -> PreparedSequence {
-        PreparedSequence::new(
+        PreparedSequence::admit(
             PreparedSignalGraph {
                 clips: Box::new([]),
                 parameter_environments: Box::new([]),
-                workspace_key: 1,
                 frame_rate: 60,
                 frame_count: 60,
                 duration: SampleDuration::from_ticks(1_000_000),
@@ -229,6 +598,146 @@ mod tests {
             }]
             .into(),
         )
+        .unwrap()
+    }
+
+    fn queried_sequence(pixel: crate::dsl::bytecode::SignalPixel<i32>) -> PreparedSequence {
+        use crate::dsl::bytecode::{ColorSlot, FloatSlot, Instruction, IntSlot};
+        use crate::signal::{PreparedOperator, PreparedOperatorNode};
+        let mut data = timed_sequence().archive_data();
+        let mut programs = data.signals.programs.into_vec();
+        let mut second = programs[0].clone();
+        second.instructions[0] = Instruction::LoadColorConst {
+            dst: ColorSlot(0),
+            value: Color {
+                red: 5,
+                green: 101,
+                blue: 3,
+            },
+        };
+        programs.push(second);
+        let mut query = programs[0].clone();
+        query.layout.floats = 1;
+        query.layout.ints = 1;
+        query.instructions = vec![
+            Instruction::LoadFloatConst {
+                dst: FloatSlot(0),
+                bits: 0.3f32.to_bits(),
+            },
+            Instruction::LoadIntConst {
+                dst: IntSlot(0),
+                value: pixel.index().copied().unwrap_or(0),
+            },
+            Instruction::SignalSample {
+                capability: (),
+                dst: ColorSlot(0),
+                input: 0,
+                seconds: FloatSlot(0),
+                pixel: pixel.map(|_| IntSlot(0)),
+                frame_cache: 0,
+            },
+            Instruction::ReturnColor(ColorSlot(0)),
+        ]
+        .into();
+        query.uses_pixel_context = true;
+        query.pixel_entry = 2;
+        programs.push(query);
+        data.signals.programs = programs.into();
+        let mut targets = data.signals.targets.into_vec();
+        targets.extend([
+            PreparedTarget {
+                pixels: 0..2,
+                sample_count: 0,
+            },
+            PreparedTarget {
+                pixels: 2..3,
+                sample_count: 0,
+            },
+        ]);
+        data.signals.targets = targets.into();
+        let mut effects = data.signals.effects.into_vec();
+        effects[0].target = 1;
+        let mut second = effects[0].clone();
+        second.target = 2;
+        second.implementation = crate::signal::PreparedEffectImplementation::Dsl {
+            program: 1,
+            bound_params: crate::dsl::BoundParams::default(),
+        };
+        effects.push(second);
+        data.signals.effects = effects.into();
+        data.signals.effects_by_layer[0] = vec![0, 1].into();
+        data.signals.plan = SignalPlan {
+            output_index: 2,
+            target: 0,
+            nodes: vec![
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Layer { layer_index: 0 },
+                },
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Operator {
+                        operator: PreparedOperatorNode {
+                            automation_slot: 0,
+                            implementation: PreparedOperator::Dsl(2),
+                            params: crate::dsl::BoundParams::default(),
+                        },
+                        inputs: vec![0].into(),
+                        automation: Box::<[crate::signal::PreparedAutomation]>::default(),
+                        vm_slot: 0,
+                    },
+                },
+                PreparedSignalNode {
+                    kind: PreparedSignalKind::Output {
+                        inputs: vec![1].into(),
+                    },
+                },
+            ]
+            .into(),
+            vm_workspace_count: 1,
+            frame_nodes: vec![1].into(),
+            frame_slots: vec![1, 0, 0].into(),
+            frame_buffer_count: 1,
+        };
+        PreparedSequence::admit(data.signals, data.patch, data.outputs).unwrap()
+    }
+
+    #[test]
+    fn local_and_global_temporal_queries_keep_their_domains_across_seeks() {
+        use crate::dsl::bytecode::SignalPixel;
+        let first = Color {
+            red: 17,
+            green: 29,
+            blue: 43,
+        };
+        let second = Color {
+            red: 5,
+            green: 101,
+            blue: 3,
+        };
+        for (pixel, expected) in [
+            (SignalPixel::Current, [first, first, second]),
+            (SignalPixel::Global(2), [second; 3]),
+            (SignalPixel::Local(1), [first, first, Color::BLACK]),
+            (SignalPixel::Global(-1), [Color::BLACK; 3]),
+            (SignalPixel::Global(3), [Color::BLACK; 3]),
+        ] {
+            let mut playback = queried_sequence(pixel).into_playback();
+            for time in [300_000, 900_000, 0, 500_000] {
+                assert_eq!(
+                    playback.evaluate(SampleTime::from_ticks(time)).colors(),
+                    expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn admission_rejects_local_query_coordinates_that_do_not_match_storage() {
+        let mut data = queried_sequence(crate::dsl::bytecode::SignalPixel::Local(0)).archive_data();
+        data.signals.target_pixels[0].pixel_index = 1;
+        assert!(matches!(
+            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            Err(crate::wire::LoadError::InvalidSequence)
+        ));
     }
 
     #[test]
@@ -242,12 +751,10 @@ mod tests {
                 width: 3
             }]
         );
-        let mut workspace = sequence.workspace().unwrap();
-        let mut output = [vec![255; 3]];
-        sequence
-            .evaluate(SampleTime::from_ticks(0), &mut output, &mut workspace)
-            .unwrap();
-        assert_eq!(output[0], [0, 0, 0]);
+        let mut playback = sequence.into_playback();
+        playback.outputs[0].fill(255);
+        let frame = playback.evaluate(SampleTime::from_ticks(0));
+        assert_eq!(frame.outputs().next().unwrap().bytes, [0, 0, 0]);
     }
 
     #[test]
@@ -257,11 +764,117 @@ mod tests {
         let decoded =
             crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
         assert_eq!(decoded.outputs(), sequence.outputs());
-        let mut playback = decoded.into_playback().unwrap();
-        let mut output = [vec![255; 3]];
-        playback
-            .evaluate(SampleTime::from_ticks(500_000), &mut output)
-            .unwrap();
-        assert_eq!(output[0], [0, 0, 0]);
+        let mut playback = decoded.into_playback();
+        playback.outputs[0].fill(255);
+        let frame = playback.evaluate(SampleTime::from_ticks(500_000));
+        assert_eq!(frame.outputs().next().unwrap().bytes, [0, 0, 0]);
+    }
+
+    #[test]
+    fn owned_frames_preserve_seek_boundaries_fixture_order_and_output_storage() {
+        let mut playback = timed_sequence().into_playback();
+        let pointer = playback.outputs[0].as_ptr();
+        for ticks in [
+            300_000, 900_000, 300_000, 0, 1_000_000, 799_999, 200_000, 800_000,
+        ] {
+            let frame = playback.evaluate(SampleTime::from_ticks(ticks));
+            let color = if (200_000..800_000).contains(&ticks) {
+                Color {
+                    red: 17,
+                    green: 29,
+                    blue: 43,
+                }
+            } else {
+                Color::BLACK
+            };
+            assert_eq!(frame.colors(), &[color; 3]);
+            let fixtures: alloc::vec::Vec<_> = frame.fixtures().collect();
+            assert_eq!(
+                fixtures[0],
+                FixtureFrame {
+                    fixture_id: 10,
+                    pixels: &[color; 2]
+                }
+            );
+            assert_eq!(
+                fixtures[1],
+                FixtureFrame {
+                    fixture_id: 20,
+                    pixels: &[color]
+                }
+            );
+            let output = frame.outputs().next().unwrap();
+            assert_eq!(output.bytes.as_ptr(), pointer);
+            assert_eq!(output.output.controller_index, 3);
+            assert_eq!(output.output.port, 7);
+            assert_eq!(&output.bytes[..2], &[0, 0]);
+            assert_eq!(output.bytes[11], 0);
+            for pixel in output.bytes[2..11].as_chunks::<3>().0 {
+                assert_eq!(pixel, &[color.blue, color.green, color.red]);
+            }
+        }
+    }
+
+    #[test]
+    fn sparse_clip_owns_output_and_recomputes_after_backward_seek() {
+        let sequence = timed_sequence();
+        let mut sampler = sequence.clip(7).unwrap().sampler(2);
+        let expected = Color {
+            red: 17,
+            green: 29,
+            blue: 43,
+        };
+        let pointer = sampler.evaluate(SampleTime::from_ticks(300_000)).as_ptr();
+        assert_eq!(
+            sampler.evaluate(SampleTime::from_ticks(900_000)),
+            &[Color::BLACK; 2]
+        );
+        let colors = sampler.evaluate(SampleTime::from_ticks(300_000));
+        assert_eq!(colors, &[expected; 2]);
+        assert_eq!(colors.as_ptr(), pointer);
+    }
+
+    #[test]
+    fn admission_rejects_output_overrun_and_invalid_channel_order() {
+        let mut data = timed_sequence().archive_data();
+        data.outputs[0].width = 10;
+        assert!(matches!(
+            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            Err(crate::wire::LoadError::InvalidSequence)
+        ));
+        let mut data = timed_sequence().archive_data();
+        data.patch.routes[0].encoding = crate::patch::PixelEncoding::Rgb { order: [0, 0, 2] };
+        assert!(matches!(
+            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            Err(crate::wire::LoadError::InvalidSequence)
+        ));
+    }
+
+    #[test]
+    fn archive_admission_rejects_semantic_corruption_and_incomplete_spatial_tables() {
+        let sequence = timed_sequence();
+        let mut data = sequence.archive_data();
+        data.signals.plan.frame_slots[1] = 2;
+        let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(&data).unwrap();
+        let mut bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        bytes.truncate(crate::wire::HEADER_BYTES);
+        bytes[8..12].copy_from_slice(&u32::try_from(payload.len()).unwrap().to_le_bytes());
+        bytes[12..16].copy_from_slice(&crc32fast::hash(&payload).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        assert!(matches!(
+            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()),
+            Err(crate::wire::LoadError::InvalidSequence)
+        ));
+        let mut data = timed_sequence().archive_data();
+        data.signals.spatial_contexts = vec![crate::dsl::SpatialContext {
+            position: [0.0; 2],
+            min: [0.0; 2],
+            max: [0.0; 2],
+        }]
+        .into();
+        assert!(matches!(
+            PreparedSequence::admit(data.signals, data.patch, data.outputs),
+            Err(crate::wire::LoadError::InvalidSequence)
+        ));
     }
 }

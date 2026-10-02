@@ -2,6 +2,9 @@ use crate::values::Color;
 use alloc::boxed::Box;
 use core::ops::Range;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub enum PixelEncoding {
     Rgb { order: [u8; 3] },
@@ -42,41 +45,19 @@ pub struct PreparedPatch {
     pub lookups: Box<[[u8; 256]]>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PatchError {
-    InvalidRoute,
-    WidthMismatch,
-}
-
 impl PreparedPatch {
-    pub fn evaluate(
-        &self,
-        colors: &[Color],
-        frames: &mut [impl AsMut<[u8]>],
-    ) -> Result<(), PatchError> {
+    /// Only admitted sequences invoke packing, with their own fixed-size buffers.
+    pub(crate) fn evaluate(&self, colors: &[Color], frames: &mut [impl AsMut<[u8]>]) {
         for frame in frames.iter_mut() {
             frame.as_mut().fill(0);
         }
         for route in &self.routes {
-            let colors = colors
-                .get(route.pixels.start..route.pixels.end)
-                .ok_or(PatchError::InvalidRoute)?;
-            let width = colors
-                .len()
-                .checked_mul(route.encoding.channel_order().len())
-                .ok_or(PatchError::WidthMismatch)?;
-            let frame = frames
-                .get_mut(route.frame)
-                .ok_or(PatchError::InvalidRoute)?
-                .as_mut();
+            let colors = &colors[route.pixels.clone()];
+            let width = colors.len() * route.encoding.channel_order().len();
+            let frame = frames[route.frame].as_mut();
             let start = route.start_slot;
-            let output = frame
-                .get_mut(start..start.checked_add(width).ok_or(PatchError::WidthMismatch)?)
-                .ok_or(PatchError::WidthMismatch)?;
-            let lookup = route
-                .lookup
-                .map(|index| self.lookups.get(index).ok_or(PatchError::InvalidRoute))
-                .transpose()?;
+            let output = &mut frame[start..start + width];
+            let lookup = route.lookup.map(|index| &self.lookups[index]);
             match route.encoding {
                 PixelEncoding::Rgb { order } => {
                     pack(colors, output, order, lookup, |c| [c.red, c.green, c.blue])
@@ -87,7 +68,6 @@ impl PreparedPatch {
                 }),
             }
         }
-        Ok(())
     }
 }
 

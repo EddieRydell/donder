@@ -1,6 +1,7 @@
 //! Lexical values and playback references have separate storage. A compiled
 //! structural calculation reads only slots proven fixed by staging analysis.
 use super::{BindingSlot, FixedBindingSlot, GeneratorBinding, Value};
+use alloc::{vec, vec::Vec};
 
 #[derive(Clone, Copy)]
 enum Source {

@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare as prepare_sequence};
 use donder_project_io::load_project;
-use donder_runtime::values::{SampleTime, sample_time_from_frame};
+use donder_runtime::{SampleTime, sample_time_from_frame};
 
 #[test]
 fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
@@ -9,40 +9,49 @@ fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {
     let session = load_project(&root).unwrap();
     for sequence in session
         .project
-        .root
+        .root()
         .sequences
         .iter()
         .map(|source| source.id())
     {
         let show = prepare_sequence(&session.project, sequence, PrepareOutputs::All).unwrap();
-        let mut workspace = show.workspace().unwrap();
-        let mut buffers = show
-            .outputs()
-            .iter()
-            .map(|output| vec![0; output.width as usize])
-            .collect::<Vec<_>>();
+        let mut workspace = donder_runtime::PreparedSequence::admit(
+            show.to_raw_signals(),
+            show.patch().clone(),
+            show.outputs().into(),
+        )
+        .unwrap()
+        .into_playback();
         let mut times = [9504, 8450, 0, 8494, 8398]
-            .map(|frame| sample_time_from_frame(frame, show.signals().frame_rate()).unwrap())
+            .map(|frame| sample_time_from_frame(frame, show.frame_rate()).unwrap())
             .to_vec();
         times.extend(
-            show.signals()
+            show.to_raw_signals()
                 .effects
                 .iter()
                 .filter_map(|effect| effect.start_time.checked_add_duration(effect.duration)),
         );
         times.extend([
             SampleTime::from_ticks(0),
-            SampleTime::from_ticks(show.signals().duration().as_ticks()),
+            SampleTime::from_ticks(show.duration().as_ticks()),
         ]);
         for time in times {
-            show.evaluate(time, &mut buffers, &mut workspace).unwrap();
-            let mut fresh = show.workspace().unwrap();
-            let mut expected = buffers.clone();
-            show.evaluate(time, &mut expected, &mut fresh).unwrap();
-            assert_eq!(buffers, expected, "{sequence:?} at {time:?}");
+            let actual = workspace.evaluate(time);
+            let mut fresh = donder_runtime::PreparedSequence::admit(
+                show.to_raw_signals(),
+                show.patch().clone(),
+                show.outputs().into(),
+            )
+            .unwrap()
+            .into_playback();
+            let expected = fresh.evaluate(time);
+            assert!(
+                actual.outputs().eq(expected.outputs()),
+                "{sequence:?} at {time:?}"
+            );
             assert_eq!(
-                show.rendered_fixtures(&workspace).unwrap(),
-                show.rendered_fixtures(&fresh).unwrap()
+                actual.fixtures().collect::<Vec<_>>(),
+                expected.fixtures().collect::<Vec<_>>()
             );
         }
     }

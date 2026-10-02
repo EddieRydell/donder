@@ -14,8 +14,13 @@ fn export_starter(session: &donder_project_io::ProjectSession, root: &Utf8Path) 
 #[test]
 fn starter_layout_targets_and_led_routes_round_trip() {
     let session = starter();
-    let layout = session.project.layouts.values().next().unwrap();
-    let counts = session.project.definitions.fixtures.pixel_counts().unwrap();
+    let layout = session.project.reusable_layouts().values().next().unwrap();
+    let counts = session
+        .project
+        .definitions()
+        .fixtures
+        .pixel_counts()
+        .unwrap();
     assert_eq!(
         layout
             .target_pixel_count(
@@ -42,7 +47,7 @@ fn starter_layout_targets_and_led_routes_round_trip() {
             113
         );
     }
-    let patch = session.project.patches.values().next().unwrap();
+    let patch = session.project.reusable_patches().values().next().unwrap();
     assert_eq!(patch.routes.len(), 30);
     assert!(
         patch
@@ -69,13 +74,14 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     std::fs::write(&fixture_path, source).unwrap();
     // The extra definition is indexed even though no layout uses it yet.
     let mut loaded = load_project(root).unwrap();
-    let (id, definition) = loaded
+    let (id, mut definition) = loaded
         .project
-        .definitions
+        .definitions()
         .fixtures
         .definitions
-        .iter_mut()
+        .iter()
         .find(|(id, _)| id.0.object() == "assembly")
+        .map(|(id, definition)| (id.clone(), definition.clone()))
         .unwrap();
     assert_eq!(
         id.0.document(),
@@ -83,12 +89,19 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     );
     assert_eq!(definition.elements[0].id.0, 90);
     definition.elements.swap(0, 1);
+    loaded
+        .project
+        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+            id,
+            value: definition,
+        }])
+        .unwrap();
     save_project(&loaded).unwrap();
     let saved = load_project(root).unwrap();
     assert_eq!(saved.project, loaded.project);
     let definition = saved
         .project
-        .definitions
+        .definitions()
         .fixtures
         .definitions
         .iter()
@@ -103,7 +116,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
             .collect::<Vec<_>>(),
         [10, 90]
     );
-    let layout = saved.project.layouts.values().next().unwrap();
+    let layout = saved.project.reusable_layouts().values().next().unwrap();
     assert!(matches!(
         layout.fixture(FixtureInstanceId(1)).unwrap().kind,
         LayoutFixtureKind::Fixture { .. }
@@ -114,13 +127,14 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
 fn all_shape_parameters_round_trip_in_authored_order() {
     use donder_language::fixture::{FixtureElementId, FixtureShape, GridAxis, GridCorner};
     let mut session = starter();
-    let fixture = session
+    let (id, mut fixture) = session
         .project
-        .definitions
+        .definitions()
         .fixtures
         .definitions
-        .values_mut()
+        .iter()
         .next()
+        .map(|(id, definition)| (id.clone(), definition.clone()))
         .unwrap();
     let template = fixture.elements[0].clone();
     let shapes = vec![
@@ -176,6 +190,13 @@ fn all_shape_parameters_round_trip_in_authored_order() {
             element
         })
         .collect();
+    session
+        .project
+        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+            id,
+            value: fixture,
+        }])
+        .unwrap();
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     export_starter(&session, root);

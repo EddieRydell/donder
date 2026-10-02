@@ -14,7 +14,7 @@ pub(super) fn project_document(
     let Some(patch) = session.project.patch(&PatchId(resolved.object_identity())) else {
         return blocked("Patch was not found.", Vec::new());
     };
-    let counts = match session.project.definitions.fixtures.pixel_counts() {
+    let counts = match session.project.definitions().fixtures.pixel_counts() {
         Ok(counts) => counts,
         Err(error) => {
             return blocked(
@@ -152,8 +152,12 @@ pub(super) fn replace(
         .collect::<Result<_, _>>()?;
     session
         .project
-        .patch_mut(id)
-        .ok_or_else(|| GuiMutationError::Invalid("Patch was not found.".into()))?
-        .routes = routes;
-    Ok(())
+        .replace_patch(
+            id,
+            donder_language::patch::Patch {
+                id: id.clone(),
+                routes,
+            },
+        )
+        .map_err(GuiMutationError::Invalid)
 }
