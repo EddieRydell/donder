@@ -1,5 +1,5 @@
 //! Authored sample-effect declaration and its executable program.
-use super::{BoundSample, DslBindCache, Identifier, ParamDecl, RuntimeError, SampleProgram, Value};
+use super::{BindingError, Identifier, ParamDecl, SampleInvocation, SampleProgram, Value};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -26,17 +26,11 @@ impl CompiledEffect {
         &self.params
     }
 
-    pub fn bind<'p, P>(
-        &self,
-        params: P,
-        cache: &mut DslBindCache,
-    ) -> Result<BoundSample<'_>, RuntimeError>
+    pub fn bind<'p, P>(&self, params: P) -> Result<SampleInvocation, BindingError>
     where
         P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
     {
-        self.program.bind(
-            super::declarations::resolve_params(&self.params, params)?,
-            cache,
-        )
+        super::SampleDefinition::new(Arc::clone(&self.program))
+            .bind(super::declarations::resolve_params(&self.params, params)?)
     }
 }

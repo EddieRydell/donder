@@ -4,19 +4,18 @@ use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec};
 
 mod builder;
-mod compact;
 pub(crate) mod programs;
+mod schedule;
 pub use builder::{
-    EffectHandle, FixtureGeometry, FixtureHandle, LookupHandle, OperatorDefinition,
-    OperatorInvocation, OutputEncoding, OutputHandle, RgbOrder, SampleDefinition, SampleInvocation,
-    SequenceBuilder, SequenceRoot, SequenceTiming, SequenceWindow, SignalHandle, TargetHandle,
-    TargetScope, WhitePosition, WindowHandle,
+    EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
+    SignalHandle, TargetHandle, WindowHandle,
 };
+use donder_language::execution::SequenceTiming;
 use programs::AdmittedPrograms;
 
 /// Frozen playback data; authoring, elaboration, networking, and pin timing are external.
-/// Construction and archive decoding admit the complete graph before publishing it.
-/// The archive representation is private so deserialization cannot bypass admission.
+/// Construction derives valid graph addresses. Archive decoding trusts the
+/// compatible producer to preserve those invariants.
 #[derive(Clone)]
 pub struct PreparedSequence {
     data: ExecutableSequenceData,
@@ -109,17 +108,13 @@ impl PreparedSequence {
         Self::assembled(builder.finish(root))
     }
 
-    pub(crate) fn admit_data(
-        data: SequenceData,
-        limits: Option<crate::wire::LoadLimits>,
-    ) -> Result<Self, crate::wire::LoadError> {
-        crate::wire::validate_sequence(&data, limits)?;
+    pub(crate) fn from_archive(data: SequenceData) -> Result<Self, crate::wire::LoadError> {
         let SequenceData {
             signals,
             patch,
             outputs,
         } = data;
-        let signals = programs::admit_graph(signals)?;
+        let signals = programs::restore_graph(signals)?;
         Ok(Self::assembled(SequenceData {
             signals,
             patch,
@@ -249,27 +244,28 @@ mod tests {
     use crate::signal::{PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan};
     use crate::values::SampleDuration;
     use alloc::vec;
+    use donder_language::dsl::{OperatorDefinition, SampleDefinition};
+    use donder_language::execution::{
+        FixtureGeometry, OutputEncoding, RgbOrder, SequenceWindow, TargetScope,
+    };
 
-    mod admission;
+    mod routing;
 
-    fn admit_fixture(
+    fn restore_fixture(
         signals: PreparedSignalGraph,
         patch: PreparedPatch,
         outputs: Box<[PreparedOutput]>,
     ) -> Result<PreparedSequence, crate::wire::LoadError> {
-        PreparedSequence::admit_data(
-            SequenceData {
-                signals,
-                patch,
-                outputs,
-            },
-            None,
-        )
+        PreparedSequence::from_archive(SequenceData {
+            signals,
+            patch,
+            outputs,
+        })
     }
 
     #[test]
     fn builder_nested_operators_keep_temporal_queries_and_clip_identity() {
-        use crate::dsl::{DslBindCache, OperatorProgram, SampleProgram};
+        use crate::dsl::{OperatorProgram, SampleProgram};
         use core::num::NonZeroU32;
         let raw = queried_sequence(crate::dsl::bytecode::SignalPixel::Current)
             .archive_data()
@@ -280,9 +276,8 @@ mod tests {
         let operator = OperatorDefinition::new(
             OperatorProgram::admit(raw[2].clone(), 1, Box::new([])).unwrap(),
         );
-        let mut cache = DslBindCache::default();
-        let sample = sample.bind(vec![], &mut cache).unwrap();
-        let operator = operator.bind(vec![], &mut cache).unwrap();
+        let sample = sample.bind(vec![]).unwrap();
+        let operator = operator.bind(vec![]).unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(61).unwrap(),
@@ -354,9 +349,7 @@ mod tests {
         let raw = timed_sequence().archive_data().signals.programs[0].clone();
         let definition =
             SampleDefinition::new(crate::dsl::SampleProgram::admit(raw, Box::new([])).unwrap());
-        let invocation = definition
-            .bind(vec![], &mut crate::dsl::DslBindCache::default())
-            .unwrap();
+        let invocation = definition.bind(vec![]).unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(60).unwrap(),
@@ -527,11 +520,11 @@ mod tests {
             lookup: None,
         }]
         .into();
-        admit_fixture(data.signals, data.patch, data.outputs).unwrap()
+        restore_fixture(data.signals, data.patch, data.outputs).unwrap()
     }
 
     fn empty_sequence() -> PreparedSequence {
-        admit_fixture(
+        restore_fixture(
             PreparedSignalGraph {
                 clips: Box::new([]),
                 frame_rate: 60,
@@ -677,7 +670,7 @@ mod tests {
             frame_slots: vec![1, 0, 0].into(),
             frame_buffer_count: 1,
         };
-        admit_fixture(data.signals, data.patch, data.outputs).unwrap()
+        restore_fixture(data.signals, data.patch, data.outputs).unwrap()
     }
 
     #[test]
@@ -708,16 +701,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn admission_rejects_local_query_coordinates_that_do_not_match_storage() {
-        let mut data = queried_sequence(crate::dsl::bytecode::SignalPixel::Local(0)).archive_data();
-        data.signals.target_pixels[0].pixel_index = 1;
-        assert!(matches!(
-            admit_fixture(data.signals, data.patch, data.outputs),
-            Err(crate::wire::LoadError::InvalidSequence)
-        ));
     }
 
     #[test]
@@ -815,23 +798,7 @@ mod tests {
     }
 
     #[test]
-    fn admission_rejects_output_overrun_and_invalid_channel_order() {
-        let mut data = timed_sequence().archive_data();
-        data.outputs[0].width = 10;
-        assert!(matches!(
-            admit_fixture(data.signals, data.patch, data.outputs),
-            Err(crate::wire::LoadError::InvalidSequence)
-        ));
-        let mut data = timed_sequence().archive_data();
-        data.patch.routes[0].encoding = crate::patch::PixelEncoding::Rgb { order: [0, 0, 2] };
-        assert!(matches!(
-            admit_fixture(data.signals, data.patch, data.outputs),
-            Err(crate::wire::LoadError::InvalidSequence)
-        ));
-    }
-
-    #[test]
-    fn archive_admission_rejects_semantic_corruption_and_incomplete_spatial_tables() {
+    fn trusted_archive_decode_accepts_checksum_correct_semantically_malformed_graph() {
         let sequence = timed_sequence();
         let mut data = sequence.archive_data();
         data.signals.plan.frame_slots[1] = 2;
@@ -841,20 +808,10 @@ mod tests {
         bytes[8..12].copy_from_slice(&u32::try_from(payload.len()).unwrap().to_le_bytes());
         bytes[12..16].copy_from_slice(&crc32fast::hash(&payload).to_le_bytes());
         bytes.extend_from_slice(&payload);
-        assert!(matches!(
-            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()),
-            Err(crate::wire::LoadError::InvalidSequence)
-        ));
-        let mut data = timed_sequence().archive_data();
-        data.signals.spatial_contexts = vec![crate::dsl::SpatialContext {
-            position: [0.0; 2],
-            min: [0.0; 2],
-            max: [0.0; 2],
-        }]
-        .into();
-        assert!(matches!(
-            admit_fixture(data.signals, data.patch, data.outputs),
-            Err(crate::wire::LoadError::InvalidSequence)
-        ));
+        let decoded =
+            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+        // Trusted decoding restores the schedule without checking its semantics.
+        // Deliberately do not evaluate this malformed graph.
+        assert_eq!(decoded.archive_data().signals.plan.frame_slots[1], 2);
     }
 }

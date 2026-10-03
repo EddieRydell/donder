@@ -1,8 +1,14 @@
+use donder_language::dsl::OperatorDefinition;
+use donder_language::dsl::OperatorProgram;
+use donder_language::dsl::SampleDefinition;
+use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::{compile_effects, compile_operators};
-use donder_runtime::{
-    Color, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition, OperatorProgram,
-    PreparedSequence, SampleDefinition, SampleTime, SequenceTiming, TargetScope,
-};
+use donder_language::execution::FixtureGeometry;
+use donder_language::execution::SequenceTiming;
+use donder_language::execution::TargetScope;
+use donder_language::values::Color;
+use donder_language::values::SampleTime;
+use donder_runtime::PreparedSequence;
 use std::num::NonZeroU32;
 
 fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
@@ -14,7 +20,7 @@ fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
     .unwrap()
     .remove(0);
     let sample = SampleDefinition::new(effect.sample_program().clone())
-        .bind(vec![], &mut DslBindCache::default())
+        .bind(vec![])
         .unwrap();
     let operator = query.map(|(query, cached)| {
         let compiled = compile_operators(&format!(
@@ -42,9 +48,7 @@ fn sequence(query: Option<(&str, bool)>) -> PreparedSequence {
             )
             .unwrap()
         };
-        OperatorDefinition::new(program)
-            .bind(vec![], &mut DslBindCache::default())
-            .unwrap()
+        OperatorDefinition::new(program).bind(vec![]).unwrap()
     });
     let timing = SequenceTiming::admit(
         NonZeroU32::new(120).unwrap(),

@@ -1,12 +1,50 @@
 use crate::selection::Selection;
+use donder_language::execution::{FixtureGeometry, TargetGeometry, TargetScope};
 use donder_language::layout::FixtureInstanceId;
-use donder_runtime::{FixtureHandle, SequenceBuilder, TargetScope};
+use donder_language::patch::PixelRouteId;
+use donder_runtime::{FixtureHandle, SequenceBuilder};
 use indexmap::IndexMap;
+
+pub(super) fn targets(
+    selected: &Selection<'_>,
+    geometry: &[FixtureGeometry],
+    members: &IndexMap<FixtureInstanceId, Vec<usize>>,
+) -> IndexMap<PixelRouteId, TargetGeometry> {
+    selected
+        .patch
+        .routes
+        .iter()
+        .filter(|route| {
+            selected
+                .ports
+                .iter()
+                .any(|port| &route.controller == port.controller && route.port == port.port.id)
+        })
+        .map(|route| {
+            let target = TargetGeometry::new(
+                members[&route.target.fixture]
+                    .iter()
+                    .map(|&index| (index, &geometry[index])),
+                TargetScope::PerFixture,
+            );
+            let target = match route.pixels {
+                Some(span) => {
+                    target.slice(span.start as usize..span.start as usize + span.count as usize)
+                }
+                None => target,
+            };
+            (route.id, target)
+        })
+        .collect()
+}
 
 pub(super) fn prepare<'id>(
     builder: &mut SequenceBuilder<'id>,
     selected: &Selection<'_>,
-    targets: &IndexMap<FixtureInstanceId, Vec<FixtureHandle<'id>>>,
+    geometry: &[FixtureGeometry],
+    targets: &IndexMap<FixtureInstanceId, Vec<usize>>,
+    cells: &[Vec<u32>],
+    fixtures: &IndexMap<usize, FixtureHandle<'id>>,
 ) {
     let mut lookups = Vec::new();
     for port in &selected.ports {
@@ -21,14 +59,37 @@ pub(super) fn prepare<'id>(
         let mut cursor = 0;
         for route in routes {
             let target = builder.target(
-                targets[&route.target.fixture].iter().copied(),
+                targets[&route.target.fixture]
+                    .iter()
+                    .map(|index| fixtures[index]),
                 TargetScope::PerFixture,
             );
             let target = match route.pixels {
-                Some(span) => builder.target_slice(
-                    target,
-                    span.start as usize..span.start as usize + span.count as usize,
-                ),
+                Some(span) => {
+                    let original = TargetGeometry::new(
+                        targets[&route.target.fixture]
+                            .iter()
+                            .map(|&index| (index, &geometry[index])),
+                        TargetScope::PerFixture,
+                    );
+                    let retained = |pixel: &&donder_language::execution::TargetPixel| {
+                        cells[pixel.fixture()].binary_search(&pixel.cell()).is_ok()
+                    };
+                    let start = original
+                        .pixels()
+                        .iter()
+                        .take(span.start as usize)
+                        .filter(retained)
+                        .count();
+                    let count = original
+                        .pixels()
+                        .iter()
+                        .skip(span.start as usize)
+                        .take(span.count as usize)
+                        .filter(retained)
+                        .count();
+                    builder.target_slice(target, start..start + count)
+                }
                 None => target,
             };
             let count = builder.target_pixel_count(target);

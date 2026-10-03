@@ -5,30 +5,7 @@ use core::ops::Range;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub enum PixelEncoding {
-    Rgb { order: [u8; 3] },
-    Rgbw { order: [u8; 4] },
-}
-
-impl PixelEncoding {
-    pub fn channel_order(&self) -> &[u8] {
-        match self {
-            Self::Rgb { order } => order,
-            Self::Rgbw { order } => order,
-        }
-    }
-    pub fn is_valid(&self) -> bool {
-        let order = self.channel_order();
-        (0..order.len()).all(|channel| {
-            order
-                .iter()
-                .filter(|&&value| usize::from(value) == channel)
-                .count()
-                == 1
-        })
-    }
-}
+pub(crate) use donder_language::execution::PixelEncoding;
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedPixelRoute {

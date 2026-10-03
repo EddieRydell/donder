@@ -1,6 +1,5 @@
 //! Original target membership for section queries. Routing may discard physical
 //! pixels, but must not change the authored section population or numbering.
-use crate::signal::PreparedPixel;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 
 pub(crate) fn normalize_width(width: f32) -> u32 {
@@ -41,28 +40,27 @@ pub(crate) struct PreparedSections {
 
 impl PreparedSections {
     pub(crate) fn new(
-        selection: &[PreparedPixel],
-        pixels: &[PreparedPixel],
+        selection: &[(usize, u32)],
+        pixels: &[(usize, u32)],
         per_fixture: bool,
     ) -> Self {
         let mut runs = Vec::<SectionRun>::new();
         let mut addresses = BTreeMap::new();
-        for pixel in selection {
-            let index = pixel.fixture_pixel_index;
+        for &(fixture, index) in selection {
             if let Some(run) = runs.last_mut()
-                && run.fixture == pixel.fixture_index
+                && run.fixture == fixture
                 && run.last.checked_add(1) == Some(index)
             {
                 run.last = index;
             } else {
                 runs.push(SectionRun {
-                    fixture: pixel.fixture_index,
+                    fixture,
                     first: index,
                     last: index,
                 });
             }
             addresses.insert(
-                (pixel.fixture_index, index),
+                (fixture, index),
                 SectionPixel {
                     run: runs.len() - 1,
                     index,
@@ -71,33 +69,9 @@ impl PreparedSections {
         }
         Self {
             runs: runs.into(),
-            pixels: pixels
-                .iter()
-                .map(|pixel| addresses[&(pixel.fixture_index, pixel.fixture_pixel_index)])
-                .collect(),
+            pixels: pixels.iter().map(|pixel| addresses[pixel]).collect(),
             per_fixture,
         }
-    }
-
-    pub(crate) fn retain(&self, indices: &[usize]) -> Self {
-        Self {
-            runs: self.runs.clone(),
-            pixels: indices.iter().map(|&index| self.pixels[index]).collect(),
-            per_fixture: self.per_fixture,
-        }
-    }
-
-    pub(crate) fn valid(&self, pixel_count: usize) -> bool {
-        if self.runs.is_empty() {
-            return self.pixels.is_empty();
-        }
-        self.pixels.len() == pixel_count
-            && self.runs.iter().all(|run| run.first <= run.last)
-            && self.pixels.iter().all(|pixel| {
-                self.runs
-                    .get(pixel.run)
-                    .is_some_and(|run| (run.first..=run.last).contains(&pixel.index))
-            })
     }
 
     pub(crate) fn pixel(&self, index: usize) -> SectionPixel {

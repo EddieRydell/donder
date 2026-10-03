@@ -1,30 +1,55 @@
+#[cfg(feature = "host")]
 mod array_lowering;
+#[cfg(feature = "host")]
 mod ast;
-mod bytecode;
+mod bindings;
+pub mod bytecode;
+mod invocation;
+mod operator;
+mod sample;
+pub use bindings::{BindingError, BoundParams};
+pub use bytecode::BytecodeProgram;
+pub use invocation::{OperatorDefinition, OperatorInvocation, SampleDefinition, SampleInvocation};
+pub use operator::{OperatorProgram, SignalAccess};
+pub use sample::SampleProgram;
+pub const MAX_DSL_LOOP_ITERATIONS: usize = 10_000;
+#[cfg(feature = "host")]
 mod checked;
+#[cfg(feature = "host")]
 mod compiled_effect;
+#[cfg(feature = "host")]
 mod compiler;
+#[cfg(feature = "host")]
 pub use compiled_effect::CompiledEffect;
+#[cfg(feature = "host")]
 mod declarations;
+#[cfg(feature = "host")]
 pub use declarations::{CompiledOperator, OperatorInputDecl, ParamDecl, bind_params};
+#[cfg(feature = "host")]
 mod diagnostic;
+#[cfg(feature = "host")]
 mod fixed_params;
+#[cfg(feature = "host")]
 mod loop_bounds;
+#[cfg(feature = "host")]
 mod optimize;
+#[cfg(feature = "host")]
 mod parser;
+#[cfg(feature = "host")]
 mod typecheck;
 
+#[cfg(feature = "host")]
 use compiler::{compile_checked_effects, compile_checked_operators};
+#[cfg(feature = "host")]
+use core::hash::{Hash, Hasher};
+#[cfg(feature = "host")]
 pub use diagnostic::Diagnostic;
-pub use donder_runtime::{
-    BoundOperator, BoundParams, BoundSample, BytecodeProgram, DslBindCache, OperatorRunContext,
-    RunContext, RuntimeError, SampleProgram, SignalPixel, SignalSampler, SpatialContext,
-    VmWorkspace,
-};
+#[cfg(feature = "host")]
 use parser::parse_module;
-use std::hash::{Hash, Hasher};
+#[cfg(feature = "host")]
 use typecheck::check_module;
 
+#[cfg(feature = "host")]
 pub(crate) mod lexer;
 pub mod types;
 
@@ -32,6 +57,7 @@ pub use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks}
 pub use types::{Identifier, Type, Value};
 
 /// Compile sample effect declarations from a DSL source.
+#[cfg(feature = "host")]
 pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnostic>> {
     let module = parse_module(source)?;
     if !module.operators.is_empty() {
@@ -43,6 +69,7 @@ pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnost
     compile_checked_effects(check_module(module)?).map_err(|error| vec![error])
 }
 
+#[cfg(feature = "host")]
 pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diagnostic>> {
     let module = parse_module(source)?;
     if !module.effects.is_empty() {
@@ -55,12 +82,14 @@ pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diag
     compile_checked_operators(module).map_err(|error| vec![error])
 }
 
+#[cfg(feature = "host")]
 pub fn hash_compiled_effect<H: Hasher>(effect: &CompiledEffect, state: &mut H) {
     effect.name.hash(state);
     hash_param_decls(&effect.params, state);
     hash_bytecode(effect.program.bytecode(), state);
 }
 
+#[cfg(feature = "host")]
 fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash>(
     bytecode: &BytecodeProgram<C, S, A>,
     state: &mut H,
@@ -93,6 +122,7 @@ fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash>(
     bytecode.array_width.hash(state);
 }
 
+#[cfg(feature = "host")]
 fn hash_param_decls<H: Hasher>(params: &[ParamDecl], state: &mut H) {
     params.len().hash(state);
     for param in params {
@@ -103,6 +133,7 @@ fn hash_param_decls<H: Hasher>(params: &[ParamDecl], state: &mut H) {
     }
 }
 
+#[cfg(feature = "host")]
 fn hash_optional_value<H: Hasher>(value: &Option<Value>, state: &mut H) {
     match value {
         Some(value) => {
@@ -113,6 +144,7 @@ fn hash_optional_value<H: Hasher>(value: &Option<Value>, state: &mut H) {
     }
 }
 
+#[cfg(feature = "host")]
 fn hash_values<H: Hasher>(values: &[Value], state: &mut H) {
     values.len().hash(state);
     for value in values {
@@ -120,6 +152,7 @@ fn hash_values<H: Hasher>(values: &[Value], state: &mut H) {
     }
 }
 
+#[cfg(feature = "host")]
 fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
     match value {
         Value::Void => 0u8.hash(state),
@@ -165,6 +198,7 @@ fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
     }
 }
 
+#[cfg(feature = "host")]
 fn hash_curve<H: Hasher>(curve: &Curve, state: &mut H) {
     curve.points.len().hash(state);
     for point in &curve.points {
@@ -173,6 +207,7 @@ fn hash_curve<H: Hasher>(curve: &Curve, state: &mut H) {
     }
 }
 
+#[cfg(feature = "host")]
 fn hash_gradient<H: Hasher>(gradient: &Gradient, state: &mut H) {
     gradient.stops.len().hash(state);
     for stop in &gradient.stops {

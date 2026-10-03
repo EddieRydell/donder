@@ -1,143 +1,24 @@
-//! Admitted operators require a signal provider. Its error type is carried into
-//! the interpreter, so the playback provider can make execution infallible.
-use super::bytecode::{BytecodeProgram, ColorSlot, ContextRead, ParameterKind, ProgramContext};
-use super::{
-    BoundParams, DslBindCache, RunContext, RuntimeError, SignalSampler, SpatialContext, Type,
-    Value, VmWorkspace,
-};
+//! Runtime-private execution of language-admitted programs.
+use super::{BoundParams, RunContext, SignalSampler, SpatialContext, VmWorkspace};
 use crate::values::Color;
-use alloc::{boxed::Box, vec::Vec};
-use core::convert::Infallible;
+use donder_language::dsl::OperatorProgram;
 
-/// A signal instruction admitted in an operator program.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SignalAccess(());
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct OperatorProgram {
-    bytecode: BytecodeProgram<ContextRead, SignalAccess, ColorSlot>,
-    inputs: usize,
-    parameters: Box<[Type]>,
-    uses_spatial_context: bool,
-    uses_sections: bool,
-}
-
-/// One admitted operator paired with its immutable, schema-checked parameters.
-pub struct BoundOperator<'a> {
-    program: &'a OperatorProgram,
-    params: BoundParams,
-}
-
-impl OperatorProgram {
-    pub(crate) fn admit_bound(
-        bytecode: BytecodeProgram,
-        inputs: usize,
-        params: &BoundParams,
-    ) -> Option<Self> {
-        if !params.is_frozen()
-            || params
-                .types()
-                .iter()
-                .enumerate()
-                .any(|(index, ty)| !params.parameter_accepts_type(index, ty))
-        {
-            return None;
-        }
-        Self::admit(bytecode, inputs, params.types().into())
-    }
-
-    pub fn admit(
-        bytecode: BytecodeProgram,
-        inputs: usize,
-        parameters: Box<[Type]>,
-    ) -> Option<Self> {
-        if !bytecode.has_valid_structure()
-            || !bytecode.has_valid_context(ProgramContext::Operator { inputs })
-            || !bytecode.has_valid_parameter_reads(|index| {
-                parameters.get(index).map(ParameterKind::for_type)
-            })
-            || !bytecode.has_valid_reference_parameter_reads(|index, expected| {
-                parameters
-                    .get(index)
-                    .is_some_and(|actual| expected.accepts(actual))
-            })
-        {
-            return None;
-        }
-        let uses_spatial_context = bytecode.uses_spatial_context();
-        let uses_sections = bytecode.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                super::bytecode::Instruction::SectionQuery { .. }
-            )
-        });
-        let bytecode = bytecode
-            .try_map_execution(Ok::<_, Infallible>, |()| Ok(SignalAccess(())), Ok)
-            .ok()?;
-        Some(Self {
-            bytecode,
-            inputs,
-            parameters,
-            uses_spatial_context,
-            uses_sections,
-        })
-    }
-
-    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, SignalAccess, ColorSlot> {
-        &self.bytecode
-    }
-
-    pub fn input_count(&self) -> usize {
-        self.inputs
-    }
-
-    pub fn parameter_types(&self) -> &[Type] {
-        &self.parameters
-    }
-
-    pub fn bind(
-        &self,
-        values: Vec<Value>,
-        cache: &mut DslBindCache,
-    ) -> Result<BoundOperator<'_>, RuntimeError> {
-        if values.len() != self.parameters.len()
-            || self
-                .parameters
-                .iter()
-                .zip(&values)
-                .any(|(ty, value)| !ty.accepts_value(value))
-        {
-            return Err(RuntimeError {
-                message: "operator inputs do not match its declaration".into(),
-            });
-        }
-        Ok(BoundOperator {
-            program: self,
-            params: BoundParams::from_values(self.parameters.iter().zip(values), cache),
-        })
-    }
-
-    pub fn uses_spatial_context(&self) -> bool {
-        self.uses_spatial_context
-    }
-
-    pub(crate) fn uses_sections(&self) -> bool {
-        self.uses_sections
-    }
-
-    pub fn into_parts(self) -> (BytecodeProgram, usize, Box<[Type]>) {
-        let bytecode = match self
-            .bytecode
-            .try_map_execution(Ok::<_, Infallible>, |_| Ok(()), Ok)
-        {
-            Ok(bytecode) => bytecode,
-            Err(never) => match never {},
-        };
-        (bytecode, self.inputs, self.parameters)
-    }
-
+pub(crate) trait OperatorProgramExt: Sized {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn sample<E>(
+    fn sample<E>(
+        &self,
+        params: &BoundParams,
+        context: &RunContext,
+        spatial: &SpatialContext,
+        sections: crate::sections::SectionContext<'_>,
+        sampler: &mut dyn SignalSampler<E>,
+        workspace: &mut VmWorkspace,
+        reuse_uniform: bool,
+    ) -> Result<Color, E>;
+}
+
+impl OperatorProgramExt for OperatorProgram {
+    fn sample<E>(
         &self,
         params: &BoundParams,
         context: &RunContext,
@@ -148,7 +29,7 @@ impl OperatorProgram {
         reuse_uniform: bool,
     ) -> Result<Color, E> {
         super::vm::evaluate_operator(
-            &self.bytecode,
+            self.bytecode(),
             params,
             context,
             spatial,
@@ -156,35 +37,10 @@ impl OperatorProgram {
             sampler,
             workspace,
             if reuse_uniform {
-                self.bytecode.pixel_entry as usize
+                self.bytecode().pixel_entry as usize
             } else {
                 0
             },
-        )
-    }
-}
-
-impl BoundOperator<'_> {
-    /// Standalone context describes one virtual fixture. Prepared playback uses
-    /// the original full graph target for fixture-aware section queries.
-    pub fn evaluate<E>(
-        &self,
-        context: &RunContext,
-        spatial: &SpatialContext,
-        sampler: &mut dyn SignalSampler<E>,
-        workspace: &mut VmWorkspace,
-    ) -> Result<Color, E> {
-        self.program.sample(
-            &self.params,
-            context,
-            spatial,
-            crate::sections::SectionContext::Single {
-                index: context.pixel_index,
-                count: context.pixel_count,
-            },
-            sampler,
-            workspace,
-            false,
         )
     }
 }

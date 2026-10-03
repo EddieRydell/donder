@@ -1,9 +1,9 @@
 //! Resolve authored automation to declaration slots during project admission.
 use crate::dsl::ParamDecl;
+use crate::execution::PreparedAutomation;
 use crate::sequence::{AutomationTarget, Sequence};
 use crate::validation::ProjectValidationError;
 use crate::values::{SampleDuration, SampleTime};
-use donder_runtime::PreparedAutomation;
 use std::sync::Arc;
 
 pub(super) fn admit(

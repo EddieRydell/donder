@@ -6,17 +6,19 @@ description = "Donder language"
 authors = ["Donder"]
 license = "MIT"
 
+[features]
+default = ["host"]
+host = ["atomic", "dep:camino", "dep:glam", "dep:indexmap", "dep:uuid"]
+atomic = []
+
 [dependencies]
-camino.workspace = true
-donder-runtime.workspace = true
+camino = { workspace = true, optional = true }
 fugit.workspace = true
-glam.workspace = true
-indexmap.workspace = true
-uuid.workspace = true
+glam = { workspace = true, optional = true }
+indexmap = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+rkyv.workspace = true
+libm.workspace = true
 
 [dev-dependencies]
-criterion.workspace = true
-
-[[bench]]
-name = "effect_vm_bench"
-harness = false
+micromath.workspace = true

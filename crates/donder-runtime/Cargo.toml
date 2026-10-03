@@ -2,17 +2,26 @@
 name = "donder-runtime"
 edition.workspace = true
 version.workspace = true
-description = "Portable Donder bytecode and prepared-sequence runtime"
+description = "Portable Donder prepared-sequence playback and archive codec"
 authors = ["Donder"]
 license = "MIT"
 
 [features]
 default = ["atomic"]
-atomic = []
+atomic = ["donder-language/atomic"]
 
 [dependencies]
+donder-language = { path = "../donder-language", default-features = false }
 rkyv.workspace = true
 crc32fast.workspace = true
-fugit.workspace = true
 libm.workspace = true
 micromath.workspace = true
+
+[dev-dependencies]
+donder-language = { path = "../donder-language", features = ["host"] }
+criterion.workspace = true
+indexmap.workspace = true
+
+[[bench]]
+name = "prepared_playback_bench"
+harness = false

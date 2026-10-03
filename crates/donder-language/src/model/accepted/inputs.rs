@@ -2,18 +2,18 @@
 //! authored state; they cannot be edited independently afterwards.
 use super::parameters::{EffectParamTiming, prepare_params};
 use super::*;
+use crate::dsl::{
+    OperatorDefinition as ProgramOperatorDefinition, OperatorInvocation, SampleDefinition,
+    SampleInvocation,
+};
 use crate::dsl::{ParamDecl, Value};
 use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
+use crate::execution::{SequenceTiming, SequenceWindow};
 use crate::operator::OperatorImplementation;
 use crate::sequence::AutomationTarget;
 use crate::sequence::CompositionGraphNodeId;
 use crate::validation::ProjectValidationError;
 use crate::values::{SampleDuration, SampleTime};
-use donder_runtime::DslBindCache;
-use donder_runtime::{
-    OperatorDefinition as RuntimeOperatorDefinition, OperatorInvocation, SampleDefinition,
-    SampleInvocation, SequenceTiming, SequenceWindow,
-};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -59,11 +59,10 @@ impl ProjectInputs {
                 let OperatorImplementation::Dsl(compiled) = definition.implementation();
                 (
                     id,
-                    RuntimeOperatorDefinition::new(Arc::clone(compiled.shared_program())),
+                    ProgramOperatorDefinition::new(Arc::clone(compiled.shared_program())),
                 )
             })
             .collect();
-        let mut bind_cache = DslBindCache::default();
         let mut sequences = IndexMap::new();
         for sequence in project.sequences() {
             let mut effects = Vec::with_capacity(sequence.effects.len());
@@ -88,7 +87,7 @@ impl ProjectInputs {
                     |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
                 )?;
                 let invocation = definitions[id]
-                    .bind(values.into_vec(), &mut bind_cache)
+                    .bind(values.into_vec())
                     .and_then(|invocation| invocation.with_automation(automation))
                     .map_err(|error| invalid(error.message))?;
                 effects.push(invocation);
@@ -118,7 +117,7 @@ impl ProjectInputs {
                     |target| matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if node_id == &node.id),
                 )?;
                 let invocation = operator_definitions[id]
-                    .bind(values.into_vec(), &mut bind_cache)
+                    .bind(values.into_vec())
                     .and_then(|invocation| invocation.with_automation(automation))
                     .map_err(|error| invalid(error.message))?;
                 operators.insert(node.id.clone(), invocation);

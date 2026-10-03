@@ -1,4 +1,6 @@
 use super::*;
+use core::num::NonZeroU32;
+use donder_language::execution::{PixelEncoding, RgbOrder};
 
 fn timing() -> SequenceTiming {
     SequenceTiming::admit(

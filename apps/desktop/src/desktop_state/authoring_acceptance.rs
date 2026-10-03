@@ -534,7 +534,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     let mut illuminated = false;
     for frame in 0..60 {
         let rendered =
-            playback.evaluate(donder_runtime::sample_time_from_frame(frame, 60).unwrap());
+            playback.evaluate(donder_language::values::sample_time_from_frame(frame, 60).unwrap());
         let slots = rendered.outputs().next().unwrap().bytes;
         illuminated |= slots[..12].iter().any(|&value| value != 0);
         assert!(slots[12..].iter().all(|&value| value == 0));

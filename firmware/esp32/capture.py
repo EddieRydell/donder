@@ -72,7 +72,7 @@ with (
             fields = dict(field.split("=", 1) for field in line.split())
             if stage is None:
                 raise RuntimeError("First-frame result without a measurement")
-            if stage != "vm" and int(fields["first_alloc_calls"]) != 0:
+            if int(fields["first_alloc_calls"]) != 0:
                 raise RuntimeError(f"Prepared first-frame allocation: {stage}")
             stage = None
         elif line.startswith("DONDER PROFILE END"):

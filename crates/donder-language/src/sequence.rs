@@ -1,13 +1,13 @@
+pub use crate::automation::{
+    AutomationMapping, AutomationValue,
+    automation_value_at_position as automation_mapping_value_at_position,
+    curve_window_into as curve_window_into_at_position,
+};
 use crate::dsl::types::Identifier;
 use crate::effect::{EffectInst, EffectInstId};
 use crate::identity::ObjectIdentity;
 use crate::operator::GraphOperatorNode;
 use crate::values::{Color, Curve, DonderDuration, DonderTime};
-pub use donder_runtime::{
-    AutomationMapping, AutomationValue,
-    automation_value_at_position as automation_mapping_value_at_position,
-    curve_window_into as curve_window_into_at_position,
-};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SequenceId(pub ObjectIdentity);
@@ -118,7 +118,7 @@ impl AutomationClip {
         let end_position = start_position + range_duration / clip_duration;
         let mut points = vec![crate::values::CurvePoint {
             position: 0.0,
-            value: donder_runtime::sample_curve(&self.curve, start_position),
+            value: crate::sampling::sample_curve(&self.curve, start_position),
         }];
         points.extend(self.curve.points.iter().filter_map(|point| {
             let position = (point.position - start_position) * clip_duration / range_duration;
@@ -130,7 +130,7 @@ impl AutomationClip {
         if points.last().is_none_or(|point| point.position < 1.0) {
             points.push(crate::values::CurvePoint {
                 position: 1.0,
-                value: donder_runtime::sample_curve(&self.curve, end_position),
+                value: crate::sampling::sample_curve(&self.curve, end_position),
             });
         }
         Curve { points }

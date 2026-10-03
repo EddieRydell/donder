@@ -1,4 +1,5 @@
 use donder_language::controller::*;
+use donder_language::execution::PixelEncoding;
 use donder_language::fixture::*;
 use donder_language::identity::DocumentId;
 use donder_language::layout::*;

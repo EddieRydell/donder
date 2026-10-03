@@ -56,8 +56,9 @@ be assigned in the body. C-style `for` loops require a statically proven constan
 trip count; dynamic C-style loops are rejected during compilation.
 
 Parameters and VM registers use typed banks. Binding validates authored values;
-bytecode admission validates register addresses, operand spans, control flow,
-array types, and loop state before evaluation. Scalars copy directly between
+compiler-side bytecode admission validates register addresses, operand spans,
+control flow, array types, and loop state. Prepared-archive decoding trusts the
+compatible producer and does not repeat these checks. Scalars copy directly between
 matching banks; integer values accepted for float declarations widen at binding.
 Curves, gradients, and marks share their resources rather than rebuilding them
 for each pixel. Automation uses prepared storage.

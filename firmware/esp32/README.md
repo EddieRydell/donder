@@ -6,7 +6,10 @@ separate prevents embedded-only build scripts and target configuration from
 breaking the host workspace. Its local `crates/donder-device-storage` crate owns
 LittleFS credential storage and two contiguous flash slots for prepared archives.
 
-The firmware consumes `donder-runtime` prepared sequences. Source parsing,
+The firmware consumes `donder-runtime` prepared sequences and portable values,
+DSL bytecode, and execution descriptions from `donder-language` with default
+features disabled. The `i2s-output` feature enables runtime atomic ownership,
+which also enables language atomic ownership. Source parsing,
 imports, target resolution, and controller selection remain
 host concerns. See [prepared sequence loading](../../docs/esp32_loading.md) for
 the archive, transport, install, and verification workflow.
@@ -36,7 +39,13 @@ exists and the board checks are repeated.
 
 ## Binaries and features
 
-- `donder-esp32` is the standalone benchmark harness.
+- `donder-esp32` is the standalone prepared-playback benchmark harness. Its
+  `sample_playback` stage builds each sample through `SequenceBuilder` and
+  measures complete playback, including output encoding. All stages require
+  allocation-free first and subsequent frames. Host golden generation compares
+  encoded output with fixture colors and checks composition against a separately
+  prepared single-layer sequence. Frame times and workloads are shared with the
+  device harness; historical standalone VM timings are not comparable.
 - `pc_profile` with `pc-profile` records interrupted instruction addresses for
   host-side symbolization. It is not a call-stack profiler.
 - `loader` with `loader` enables persistent credentials and Wi-Fi upload.

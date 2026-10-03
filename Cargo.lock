@@ -1552,11 +1552,12 @@ name = "donder-language"
 version = "0.1.0"
 dependencies = [
  "camino",
- "criterion",
- "donder-runtime",
  "fugit",
  "glam",
  "indexmap 2.14.2",
+ "libm",
+ "micromath",
+ "rkyv",
  "uuid",
 ]
 
@@ -1576,6 +1577,7 @@ name = "donder-preview"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "donder-language",
  "donder-runtime",
  "glam",
  "wgpu",
@@ -1605,7 +1607,9 @@ name = "donder-runtime"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
- "fugit",
+ "criterion",
+ "donder-language",
+ "indexmap 2.14.2",
  "libm",
  "micromath",
  "rkyv",

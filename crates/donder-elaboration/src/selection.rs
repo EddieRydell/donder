@@ -19,12 +19,12 @@ pub(crate) struct Selection<'a> {
     pub(crate) layout: &'a Layout,
     pub(crate) geometry: &'a [(
         donder_language::layout::FixtureInstanceId,
-        donder_runtime::FixtureGeometry,
+        donder_language::execution::FixtureGeometry,
     )],
     pub(crate) patch: &'a Patch,
     pub(crate) encodings: &'a indexmap::IndexMap<
         donder_language::patch::PixelRouteId,
-        donder_runtime::OutputEncoding,
+        donder_language::execution::OutputEncoding,
     >,
     pub(crate) ports: Vec<SelectedPort<'a>>,
 }

@@ -1,6 +1,8 @@
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::SignalPixel;
-use crate::dsl::{BoundParams, OperatorRunContext, RunContext, SignalSampler, VmWorkspace};
+use crate::dsl::{
+    BoundParams, OperatorProgramExt, RunContext, SampleProgramExt, SignalSampler, VmWorkspace,
+};
 use crate::signal::{
     CachedSignal, CachedSignalFrame, CachedVmSample, EffectAutomationWorkspace,
     EvaluationWorkspace, PreparedEffect, PreparedOperatorNode, PreparedSignalKind, SignalGraph,
@@ -357,7 +359,7 @@ fn sample_operator_frame(
     let mut reuse_uniform = false;
     for (flat_pixel_index, pixel) in renderer.target(renderer.plan.target).iter().enumerate() {
         cache.fill(None);
-        let context = OperatorRunContext {
+        let context = RunContext {
             progress,
             time: SampleDuration::from_ticks(sample_time.as_ticks()),
             duration,
@@ -621,7 +623,7 @@ fn sample_operator_pixel(
     let compiled = renderer.operator_program(*program);
     let pixel = &renderer.target(renderer.plan.target)[flat_pixel_index];
     let duration = renderer.duration;
-    let context = OperatorRunContext {
+    let context = RunContext {
         progress,
         time: SampleDuration::from_ticks(sample_time.as_ticks()),
         duration,

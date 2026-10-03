@@ -480,7 +480,7 @@ impl FunctionCompiler {
                 let count = self.allocate_slot(&Type::Int);
                 self.emit_constant(count, Value::Int(iterations as i32));
                 let Some((id, loop_start)) =
-                    self.emit_range_start(count, donder_runtime::MAX_DSL_LOOP_ITERATIONS as i32)
+                    self.emit_range_start(count, super::MAX_DSL_LOOP_ITERATIONS as i32)
                 else {
                     return;
                 };
@@ -1686,7 +1686,7 @@ impl FunctionCompiler {
     }
 
     fn emit_range_start(&mut self, count: ValueSlot, cap: i32) -> Option<(u32, usize)> {
-        if cap <= 0 || cap as usize > donder_runtime::MAX_DSL_LOOP_ITERATIONS {
+        if cap <= 0 || cap as usize > super::MAX_DSL_LOOP_ITERATIONS {
             self.invalid_loop = true;
             return None;
         }

@@ -18,7 +18,6 @@ use super::bytecode::{
     SignalPixel, SlotLayout, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
-use crate::automation::AutomationMapping;
 use crate::sampling::{
     add_colors, color_hue, color_intensity, color_saturation, invert_color, max_colors, mix_colors,
     multiply_colors, scale_color,
@@ -27,32 +26,21 @@ use crate::values::{
     Color, Curve, Gradient, Marks, SampleDuration, SampleTime, sample_duration_seconds_f32,
 };
 use alloc::boxed::Box;
-#[cfg(not(feature = "atomic"))]
-use alloc::rc::Rc as Arc;
 use alloc::string::String;
-#[cfg(feature = "atomic")]
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+use donder_language::Shared as Arc;
 
-pub const MAX_DSL_LOOP_ITERATIONS: usize = 10_000;
+use donder_language::execution::SpatialContext;
 
 #[derive(Clone, Debug)]
-pub struct RunContext {
+pub(crate) struct RunContext {
     pub progress: f32,
     pub time: SampleDuration,
     pub duration: SampleDuration,
     pub pixel_index: i32,
     pub pixel_count: i32,
     pub pixel_fraction: f32,
-}
-
-/// Layout-space position and the bounds of this sampling scope, in meters.
-#[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct SpatialContext {
-    pub position: [f32; 2],
-    pub min: [f32; 2],
-    pub max: [f32; 2],
 }
 
 #[cfg(test)]
@@ -62,11 +50,9 @@ const TEST_SPATIAL_CONTEXT: SpatialContext = SpatialContext {
     max: [0.0; 2],
 };
 
-pub type OperatorRunContext = RunContext;
-
 /// Samples an immutable signal. Identical input/time/pixel
 /// queries must produce the same result; compilation and evaluation may reuse it.
-pub trait SignalSampler<E = RuntimeError> {
+pub(crate) trait SignalSampler<E = RuntimeError> {
     fn sample_signal(
         &mut self,
         input: usize,
@@ -77,10 +63,11 @@ pub trait SignalSampler<E = RuntimeError> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RuntimeError {
+pub(crate) struct RuntimeError {
     pub message: String,
 }
 
+#[cfg(test)]
 impl RuntimeError {
     fn new(message: impl Into<String>) -> Self {
         Self {
@@ -90,28 +77,28 @@ impl RuntimeError {
 }
 
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct BoundParams {
+pub(crate) struct BoundParams {
     values: Box<ParameterValues>,
 }
 
 impl BoundParams {
-    /// Check external values against the executable's numeric parameter schema.
-    pub fn bind_values(
+    /// Materialize compiler-checked inputs once; no VM-bank validation is repeated here.
+    pub(crate) fn from_validated(
+        params: &donder_language::dsl::BoundParams,
+        cache: &mut DslBindCache,
+    ) -> Self {
+        Self::from_values(params.types().iter().zip(params.iter_values()), cache)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bind_values(
         types: &[Type],
         values: Vec<Value>,
         cache: &mut DslBindCache,
     ) -> Result<Self, RuntimeError> {
-        if types.len() != values.len()
-            || types
-                .iter()
-                .zip(&values)
-                .any(|(ty, value)| !ty.accepts_value(value))
-        {
-            return Err(RuntimeError::new(
-                "parameter values do not match the admitted program",
-            ));
-        }
-        Ok(Self::from_values(types.iter().zip(values), cache))
+        let accepted = donder_language::dsl::BoundParams::bind_values(types, values)
+            .map_err(|error| RuntimeError::new(error.message))?;
+        Ok(Self::from_validated(&accepted, cache))
     }
     /// Materialize already type-checked values in declaration order. Unlike
     /// `bind_values`, this performs no parameter validation.
@@ -130,63 +117,15 @@ impl BoundParams {
     }
 
     /// Materialize all slots without an out-of-range lookup.
-    pub fn iter_values(&self) -> impl Iterator<Item = Value> + '_ {
+    #[cfg(test)]
+    pub(crate) fn iter_values(&self) -> impl Iterator<Item = Value> + '_ {
         self.values
             .iter()
             .map(|value| runtime_to_value(value.to_runtime(), &ArrayStorage::default()))
     }
 
-    pub(crate) fn parameter_accepts_type(&self, index: usize, ty: &Type) -> bool {
-        self.value(index)
-            .is_ok_and(|value| ty.accepts_value(&value))
-    }
-
-    pub(crate) fn parameter_kind(&self, index: usize) -> Option<ParameterKind> {
-        self.values.get(index).map(|value| match value {
-            BoundParamValue::Void => ParameterKind::Void,
-            BoundParamValue::Int(_) => ParameterKind::Int,
-            BoundParamValue::Float(_) => ParameterKind::Float,
-            BoundParamValue::Bool(_) => ParameterKind::Bool,
-            BoundParamValue::Color(_) => ParameterKind::Color,
-            BoundParamValue::Curve(_) | BoundParamValue::RawCurve(_) => ParameterKind::Curve,
-            BoundParamValue::Gradient(_) => ParameterKind::Gradient,
-            BoundParamValue::Enum(_) => ParameterKind::Enum,
-            BoundParamValue::Marks(_) => ParameterKind::Marks,
-            BoundParamValue::Array(_) => ParameterKind::Array,
-        })
-    }
-
-    pub(crate) fn has_valid_automation(
-        &self,
-        bindings: &[crate::signal::PreparedAutomation],
-    ) -> bool {
-        bindings.iter().all(|binding| {
-            binding.duration.as_ticks() != 0
-                && binding.curve.validate().is_ok()
-                && binding.mapping.is_well_formed()
-                && matches!(
-                    (
-                        self.values.get(usize::from(binding.param_index)),
-                        &binding.mapping
-                    ),
-                    (
-                        Some(BoundParamValue::Float(_)),
-                        AutomationMapping::Float { .. }
-                    ) | (Some(BoundParamValue::Int(_)), AutomationMapping::Int { .. })
-                        | (Some(BoundParamValue::Bool(_)), AutomationMapping::Bool)
-                        | (
-                            Some(BoundParamValue::Enum(_)),
-                            AutomationMapping::Enum { .. }
-                        )
-                        | (
-                            Some(BoundParamValue::Curve(_)),
-                            AutomationMapping::Curve { .. }
-                        )
-                )
-        })
-    }
-
     /// Materialize an owned value during host preparation or inspection.
+    #[cfg(test)]
     fn value(&self, index: usize) -> Result<Value, RuntimeError> {
         let value = self
             .values
@@ -198,35 +137,8 @@ impl BoundParams {
         ))
     }
 
-    pub(crate) fn is_frozen(&self) -> bool {
-        self.values.has_valid_layout() && self.has_type_layout(&self.values.types)
-    }
-
     pub(crate) fn types(&self) -> &[Type] {
         &self.values.types
-    }
-
-    pub(crate) fn has_type_layout(&self, types: &[Type]) -> bool {
-        self.values.slots.len() == types.len()
-            && self
-                .values
-                .slots
-                .iter()
-                .zip(types)
-                .all(|(address, ty)| match ty {
-                    Type::Int => matches!(address, ParameterAddress::Int(_)),
-                    Type::Float => matches!(address, ParameterAddress::Float(_)),
-                    Type::Bool => matches!(address, ParameterAddress::Bool(_)),
-                    Type::Color => matches!(address, ParameterAddress::Color(_)),
-                    Type::Marks => matches!(address, ParameterAddress::Marks(_)),
-                    Type::Curve => matches!(address, ParameterAddress::Curve(_)),
-                    Type::Gradient => matches!(address, ParameterAddress::Gradient(_)),
-                    Type::Enum(_) => matches!(address, ParameterAddress::Enum(_)),
-                    Type::Array(_) => matches!(address, ParameterAddress::Array(_)),
-                    Type::Void | Type::Signal => {
-                        matches!(address, ParameterAddress::Void)
-                    }
-                })
     }
 
     /// Conservative load-time budget for the detached automation copy, including
@@ -284,7 +196,7 @@ impl BoundParams {
 }
 
 #[derive(Debug, Default)]
-pub struct DslBindCache {
+pub(crate) struct DslBindCache {
     curves: Vec<(usize, Arc<PreparedCurve>)>,
 }
 
@@ -323,6 +235,7 @@ impl BoundParamValue {
         }
     }
 
+    #[cfg(test)]
     fn to_runtime(&self) -> RuntimeValue {
         match self {
             Self::Void => RuntimeValue::Void,
@@ -420,7 +333,7 @@ impl PreparedCurve {
 }
 
 #[derive(Debug, Default)]
-pub struct VmWorkspace {
+pub(crate) struct VmWorkspace {
     registers: VmRegisters,
     arrays: ArrayStorage,
     // Collection length is not a DSL int. Only the visible loop index wraps.
@@ -428,7 +341,8 @@ pub struct VmWorkspace {
 }
 
 impl VmWorkspace {
-    pub fn for_program<C, S, A>(program: &BytecodeProgram<C, S, A>) -> Self {
+    #[cfg(test)]
+    pub(crate) fn for_program<C, S, A>(program: &BytecodeProgram<C, S, A>) -> Self {
         let mut workspace = Self::default();
         workspace.reserve(program);
         workspace
@@ -468,7 +382,7 @@ impl VmWorkspace {
         Some(bytes)
     }
 
-    pub fn reserve<C, S, A>(&mut self, bytecode: &BytecodeProgram<C, S, A>) {
+    pub(crate) fn reserve<C, S, A>(&mut self, bytecode: &BytecodeProgram<C, S, A>) {
         self.registers.reserve(bytecode.layout);
         self.reserve_arrays(bytecode);
         self.loop_remaining.resize(
@@ -826,11 +740,21 @@ mod workspace_capacity_tests {
             max: [1.0, 2.0],
         };
         let program = super::super::SampleProgram::admit(program, Box::new([])).unwrap();
-        let params = program
-            .bind(Vec::new(), &mut DslBindCache::default())
-            .unwrap();
+        let accepted = program.bind(Vec::new()).unwrap();
+        let params = BoundParams::from_validated(&accepted, &mut DslBindCache::default());
         let mut workspace = VmWorkspace::for_program(program.bytecode());
-        params.evaluate(&context, &spatial, &mut workspace);
+        super::super::SampleProgramExt::sample(
+            &program,
+            &params,
+            &context,
+            &spatial,
+            crate::sections::SectionContext::Single {
+                index: context.pixel_index,
+                count: context.pixel_count,
+            },
+            &mut workspace,
+            false,
+        );
         assert_eq!(
             workspace.registers.ints,
             [context.pixel_index, context.pixel_count]
@@ -970,7 +894,7 @@ pub(super) fn evaluate_sample(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate_operator<E>(
-    program: &BytecodeProgram<ContextRead, super::operator::SignalAccess, ColorSlot>,
+    program: &BytecodeProgram<ContextRead, super::SignalAccess, ColorSlot>,
     params: &BoundParams,
     context: &RunContext,
     spatial: &SpatialContext,
@@ -2064,6 +1988,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
     }
 }
 
+#[cfg(test)]
 fn runtime_to_value(value: RuntimeValue, arrays: &ArrayStorage) -> Value {
     match value {
         RuntimeValue::Void => Value::Void,
@@ -2391,15 +2316,6 @@ mod binding_totality_tests {
             )
             .is_err()
         );
-        assert!(named.is_frozen());
-        // Deserialization can supply malformed bank addresses or truncate a bank;
-        // these are rejected before any instruction uses an admitted address.
-        let mut truncated = named.clone();
-        truncated.values.floats.clear();
-        assert!(!truncated.is_frozen());
-        let mut misaddressed = named;
-        misaddressed.values.slots[0] = super::ParameterAddress::Float(1);
-        assert!(!misaddressed.is_frozen());
     }
 }
 

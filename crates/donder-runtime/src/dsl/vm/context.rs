@@ -62,12 +62,12 @@ impl SampleSignal<Infallible> for () {
     }
 }
 
-impl<E> SampleSignal<crate::dsl::operator::SignalAccess> for &mut dyn SignalSampler<E> {
+impl<E> SampleSignal<crate::dsl::SignalAccess> for &mut dyn SignalSampler<E> {
     type Error = E;
 
     fn sample(
         &mut self,
-        _: crate::dsl::operator::SignalAccess,
+        _: crate::dsl::SignalAccess,
         input: usize,
         time: SampleTime,
         pixel: SignalPixel<i32>,

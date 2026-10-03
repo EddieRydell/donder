@@ -1,10 +1,14 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_runtime::sample_time_from_frame;
-use donder_runtime::{HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence};
+use donder_language::values::sample_time_from_frame;
+use donder_runtime::HEADER_BYTES;
+use donder_runtime::LoadError;
+use donder_runtime::LoadLimits;
+use donder_runtime::decode_sequence;
+use donder_runtime::encode_sequence;
 
 #[test]
-fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
+fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() {
     let path = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let project = donder_project_io::load_project(&path).unwrap().project;
     let setup = &project.reusable_setups()[project.root().setup.id()];
@@ -68,8 +72,8 @@ fn selected_sequences_roundtrip_and_corrupt_uploads_are_rejected() {
             decode_sequence(&corrupt, LoadLimits::default()),
             Err(LoadError::Checksum)
         ));
-        corrupt[16..].fill(0xff);
-        let checksum = crc32fast::hash(&corrupt[16..]);
+        corrupt[HEADER_BYTES..].fill(0xff);
+        let checksum = crc32fast::hash(&corrupt[HEADER_BYTES..]);
         corrupt[12..16].copy_from_slice(&checksum.to_le_bytes());
         assert!(matches!(
             decode_sequence(&corrupt, LoadLimits::default()),

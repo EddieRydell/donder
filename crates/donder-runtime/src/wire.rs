@@ -1,12 +1,10 @@
 //! Portable prepared-sequence archives. The format uses 32-bit little-endian
-//! fields; rkyv owns pointer relocation, sharing, and archive validation.
+//! fields; rkyv owns pointer relocation, sharing, and structural archive validation.
+//! Semantic validity is trusted to the Donder producer.
 
 use crate::sequence::{PreparedSequence, SequenceData};
-use crate::values::{SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec, vec::Vec};
-use rkyv::rancor::Fallible;
-use rkyv::with::{ArchiveWith, DeserializeWith, SerializeWith};
-use rkyv::{Archive, Archived, Place};
+use rkyv::Archived;
 
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
@@ -20,7 +18,6 @@ pub enum LoadError {
     Checksum,
     Archive,
     Limit,
-    InvalidSequence,
 }
 
 /// Admission limits for uploads from a trusted Donder compiler. Workspace bytes
@@ -110,10 +107,6 @@ fn validate_archive(
         .map_err(|_| LoadError::Archive)?;
     if archived.signals.pixel_count.to_native() as usize > limits.pixels
         || archived.signals.plan.nodes.len() > limits.graph_nodes
-        || archived.signals.plan.vm_workspace_count.to_native() as usize
-            > archived.signals.plan.nodes.len()
-        || archived.signals.plan.frame_buffer_count.to_native() as usize
-            > archived.signals.plan.nodes.len()
     {
         return Err(LoadError::Limit);
     }
@@ -125,119 +118,37 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
     let archived = validate_archive(bytes, limits)?;
     let data = rkyv::deserialize::<SequenceData, rkyv::rancor::Failure>(archived)
         .map_err(|_| LoadError::Archive)?;
-    PreparedSequence::admit_data(data, Some(limits))
+    check_resource_limits(&data, limits)?;
+    PreparedSequence::from_archive(data)
 }
 
-pub(crate) fn validate_sequence(
-    sequence: &SequenceData,
-    limits: Option<LoadLimits>,
-) -> Result<(), LoadError> {
-    let signal = &sequence.signals;
-    let mut workspace = validate_signal_graph(signal, limits)?;
-    let mut reserve = |count: usize, width: usize| -> Result<(), LoadError> {
-        workspace = workspace
-            .checked_add(count.checked_mul(width).ok_or(LoadError::Limit)?)
-            .ok_or(LoadError::Limit)?;
-        if limits.is_some_and(|limits| workspace > limits.workspace_bytes) {
-            return Err(LoadError::Limit);
-        }
-        Ok(())
-    };
-    reserve(1, size_of::<crate::signal::EvaluationWorkspace>())?;
-    reserve(sequence.outputs.len(), size_of::<Box<[u8]>>())?;
-    for output in &sequence.outputs {
-        reserve(output.width, 1)?;
-    }
-    let bad = LoadError::InvalidSequence;
-    for route in &sequence.patch.routes {
-        if route.pixels.start > route.pixels.end
-            || route.pixels.end > signal.pixel_count
-            || !route.encoding.is_valid()
-            || route
-                .lookup
-                .is_some_and(|index| index >= sequence.patch.lookups.len())
-        {
-            return Err(bad);
-        }
-        let width = (route.pixels.end - route.pixels.start)
-            .checked_mul(route.encoding.channel_order().len())
-            .ok_or(LoadError::Limit)?;
-        let end = route
-            .start_slot
-            .checked_add(width)
-            .ok_or(LoadError::Limit)?;
-        if sequence
-            .outputs
-            .get(route.frame)
-            .is_none_or(|output| end > output.width)
-        {
-            return Err(bad);
-        }
-    }
-    Ok(())
-}
-
-fn validate_signal_graph(
-    signal: &crate::signal::PreparedSignalGraph,
-    limits: Option<LoadLimits>,
-) -> Result<usize, LoadError> {
-    use crate::dsl::bytecode::ProgramContext;
+/// Estimate playback storage using references and layouts supplied by the trusted
+/// producer. This checks resource budgets, not graph or program validity.
+fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<(), LoadError> {
     use crate::dsl::{AutomationPlan, VmWorkspace};
     use crate::signal::{
         CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
-        EffectAutomationWorkspace,
+        EffectAutomationWorkspace, PreparedOperatorNode, PreparedSignalKind,
     };
-    use crate::signal::{PreparedOperatorNode, PreparedSignalKind};
     use crate::values::Color;
-    let bad = LoadError::InvalidSequence;
+
+    let signal = &sequence.signals;
     let plan = &signal.plan;
-    if signal.frame_rate == 0
-        || signal.duration.as_ticks() == 0
-        || signal.frame_count == 0
-        || plan.output_index >= plan.nodes.len()
-        || plan.target >= signal.targets.len()
-        || plan.vm_workspace_count > plan.nodes.len()
-        || plan.frame_buffer_count > plan.nodes.len()
-        || signal.fixture_pixel_offsets.len() != signal.fixtures.len()
-        || signal.layers.len() != signal.effects_by_layer.len()
-        || plan.frame_slots.len() != plan.nodes.len()
-    {
-        return Err(bad);
-    }
-    if (!signal.spatial_contexts.is_empty()
-        || signal
-            .programs
-            .iter()
-            .any(|program| program.uses_spatial_context()))
-        && signal.spatial_contexts.len() != signal.target_pixels.len()
-    {
-        return Err(bad);
-    }
-    for spatial in &signal.spatial_contexts {
-        for axis in 0..2 {
-            if !spatial.position[axis].is_finite()
-                || !spatial.min[axis].is_finite()
-                || !spatial.max[axis].is_finite()
-                || spatial.position[axis] < spatial.min[axis]
-                || spatial.position[axis] > spatial.max[axis]
-            {
-                return Err(bad);
-            }
-        }
-    }
     let mut workspace = 0usize;
     let mut reserve = |count: usize, width: usize| -> Result<(), LoadError> {
         workspace = workspace
             .checked_add(count.checked_mul(width).ok_or(LoadError::Limit)?)
             .ok_or(LoadError::Limit)?;
-        if limits.is_some_and(|limits| workspace > limits.workspace_bytes) {
+        if workspace > limits.workspace_bytes {
             return Err(LoadError::Limit);
         }
         Ok(())
     };
     reserve(
         signal.pixel_count,
-        plan.frame_buffer_count * size_of::<Color>(),
+        plan.frame_buffer_count
+            .checked_mul(size_of::<Color>())
+            .ok_or(LoadError::Limit)?,
     )?;
     // All VM slots reserve the component-wise largest layouts they can execute.
     // Budgeting that maximum for every slot also covers a program reused by
@@ -247,9 +158,6 @@ fn validate_signal_graph(
     let mut array_width = 0usize;
     let mut loop_count = 0usize;
     for program in &signal.programs {
-        if !program.has_valid_structure() {
-            return Err(bad);
-        }
         let layout = program.layout;
         for (maximum, count) in registers.iter_mut().zip([
             layout.ints,
@@ -267,10 +175,18 @@ fn validate_signal_graph(
         array_capacity = array_capacity.max(program.array_capacity as usize);
         array_width = array_width.max(program.array_width as usize);
         loop_count = loop_count.max(program.loop_count as usize);
-        if program.frame_cache_count() > program.instructions.len() {
-            return Err(bad);
-        }
     }
+    reserve(
+        plan.vm_workspace_count,
+        size_of::<Vec<CachedSignalFrame>>() + size_of::<Option<CachedVmSample>>(),
+    )?;
+    reserve(
+        plan.vm_workspace_count
+            .checked_add(1)
+            .ok_or(LoadError::Limit)?,
+        VmWorkspace::storage_estimate(registers, array_capacity, array_width, loop_count)
+            .ok_or(LoadError::Limit)?,
+    )?;
     let mut operator_frame_counts = vec![0usize; plan.vm_workspace_count];
     for node in &plan.nodes {
         let PreparedSignalKind::Operator {
@@ -281,13 +197,8 @@ fn validate_signal_graph(
         else {
             continue;
         };
-        let Some(slot) = operator_frame_counts.get_mut(*vm_slot) else {
-            return Err(bad);
-        };
-        let Some(program) = signal.programs.get(*program) else {
-            return Err(bad);
-        };
-        *slot = (*slot).max(program.frame_cache_count());
+        let slot = &mut operator_frame_counts[*vm_slot];
+        *slot = (*slot).max(signal.programs[*program].frame_cache_count());
     }
     for count in operator_frame_counts {
         reserve(
@@ -298,83 +209,7 @@ fn validate_signal_graph(
         )?;
         reserve(count, size_of::<CachedSignalFrame>())?;
     }
-    reserve(
-        plan.vm_workspace_count,
-        size_of::<Vec<CachedSignalFrame>>() + size_of::<Option<CachedVmSample>>(),
-    )?;
-    reserve(
-        1 + plan.vm_workspace_count,
-        VmWorkspace::storage_estimate(registers, array_capacity, array_width, loop_count)
-            .ok_or(LoadError::Limit)?,
-    )?;
     reserve(plan.nodes.len(), size_of::<Option<CachedSignal>>())?;
-    let mut count = 0usize;
-    for (fixture, &offset) in signal.fixtures.iter().zip(&signal.fixture_pixel_offsets) {
-        if offset != count {
-            return Err(bad);
-        }
-        count = count
-            .checked_add(fixture.pixel_count)
-            .ok_or(LoadError::Limit)?;
-    }
-    if count != signal.pixel_count {
-        return Err(bad);
-    }
-    for target in &signal.targets {
-        let pixels = signal
-            .target_pixels
-            .get(target.pixels.start..target.pixels.end)
-            .ok_or(bad)?;
-        let mut previous = None;
-        if !target.sections.valid(pixels.len()) {
-            return Err(bad);
-        }
-        for pixel in pixels {
-            let fixture = signal.fixtures.get(pixel.fixture_index).ok_or(bad)?;
-            let address = (pixel.fixture_index, pixel.fixture_pixel_index);
-            if pixel.fixture_pixel_index as usize >= fixture.pixel_count
-                || pixel.pixel_count == 0
-                || pixel.pixel_index >= pixel.pixel_count
-                || (target.sample_count != 0 && pixel.pixel_index >= target.sample_count)
-                || !pixel.pixel_fraction.is_finite()
-                || previous.is_some_and(|old| old >= address)
-            {
-                return Err(bad);
-            }
-            previous = Some(address);
-        }
-    }
-    if signal.target(plan.target).len() != signal.pixel_count {
-        return Err(bad);
-    }
-    let samples_local_pixels = plan.nodes.iter().any(|node| {
-        let PreparedSignalKind::Operator { operator, .. } = &node.kind else {
-            return false;
-        };
-        let program = operator.program;
-        signal.programs.get(program).is_some_and(|program| {
-            program.instructions.iter().any(|instruction| {
-                matches!(
-                    instruction,
-                    crate::dsl::bytecode::Instruction::SignalSample {
-                        pixel: crate::dsl::bytecode::SignalPixel::Local(_),
-                        ..
-                    }
-                )
-            })
-        })
-    });
-    // Local queries translate fixture-relative coordinates into flat storage.
-    // Compaction may preserve sparse authored coordinates only when no operator
-    // can issue such a query; otherwise the whole fixture must remain resident.
-    if samples_local_pixels
-        && signal.target(plan.target).iter().any(|pixel| {
-            pixel.pixel_index != pixel.fixture_pixel_index as usize
-                || pixel.pixel_count != signal.fixtures[pixel.fixture_index].pixel_count
-        })
-    {
-        return Err(bad);
-    }
     reserve(
         signal
             .targets
@@ -384,199 +219,43 @@ fn validate_signal_graph(
             .unwrap_or(0),
         size_of::<CachedEffectSample>(),
     )?;
-    for clip in &signal.clips {
-        if clip.effect >= signal.effects.len() {
-            return Err(bad);
-        }
-    }
-    let mut automation_slot = 0;
     for effect in &signal.effects {
-        if effect.target >= signal.targets.len()
-            || effect.duration.as_ticks() == 0
-            || effect
-                .start_time
-                .checked_add_duration(effect.duration)
-                .is_none_or(|end| end.as_ticks() > signal.duration.as_ticks())
-        {
-            return Err(bad);
-        }
-        if signal.programs.get(effect.program).is_some_and(|program| {
-            program.instructions.iter().any(|instruction| {
-                matches!(
-                    instruction,
-                    crate::dsl::bytecode::Instruction::SectionQuery { .. }
-                )
-            })
-        }) && signal.targets[effect.target].sections.pixels.len()
-            != signal.targets[effect.target].pixels.len()
-        {
-            return Err(bad);
-        }
-        let program = effect.program;
-        let bound_params = &effect.bound_params;
-        if !bound_params.is_frozen()
-            || signal.programs.get(program).is_none_or(|program| {
-                !program.has_valid_context(ProgramContext::Effect)
-                    || !program
-                        .has_valid_parameter_reads(|index| bound_params.parameter_kind(index))
-                    || !program.has_valid_reference_parameter_reads(|index, expected| {
-                        bound_params.parameter_accepts_type(index, expected)
-                    })
-            })
-        {
-            return Err(bad);
-        }
         if let Some(automation) = &effect.automation {
             reserve(1, size_of::<EffectAutomationWorkspace>())?;
             reserve(
                 1,
                 AutomationPlan::storage_estimate(&automation.bindings).ok_or(LoadError::Limit)?,
             )?;
-            if !bound_params.has_valid_automation(&automation.bindings) {
-                return Err(bad);
-            }
             reserve(
                 1,
-                bound_params
+                effect
+                    .bound_params
                     .automation_storage_estimate(&automation.bindings)
                     .ok_or(LoadError::Limit)?,
             )?;
-            if automation.workspace_slot != automation_slot {
-                return Err(bad);
-            }
-            automation_slot += 1;
         }
     }
-    for layer in &signal.effects_by_layer {
-        let mut previous = None;
-        for &index in layer {
-            let effect = signal.effects.get(index).ok_or(bad)?;
-            if previous.is_some_and(|time| time > effect.start_time) {
-                return Err(bad);
-            }
-            previous = Some(effect.start_time);
-        }
-    }
-    let mut automation_slot = 0;
-    let mut depths = Vec::with_capacity(plan.nodes.len());
-    let mut nested_vm_depths = Vec::with_capacity(plan.nodes.len());
-    for (index, node) in plan.nodes.iter().enumerate() {
-        let (inputs, vm_slot) = match &node.kind {
-            PreparedSignalKind::Layer { layer_index } => {
-                if *layer_index >= signal.layers.len() {
-                    return Err(bad);
-                }
-                (&[][..], None)
-            }
-            PreparedSignalKind::Operator {
-                operator,
-                inputs,
-                automation,
-                vm_slot,
-            } => {
-                if *vm_slot >= plan.vm_workspace_count {
-                    return Err(bad);
-                }
-                let program = operator.program;
-                if program >= signal.programs.len() {
-                    return Err(bad);
-                }
-                if signal.programs[program]
-                    .instructions
-                    .iter()
-                    .any(|instruction| {
-                        matches!(
-                            instruction,
-                            crate::dsl::bytecode::Instruction::SectionQuery { .. }
-                        )
-                    })
-                    && signal.targets[plan.target].sections.pixels.len()
-                        != signal.targets[plan.target].pixels.len()
-                {
-                    return Err(bad);
-                }
-                if !operator.params.is_frozen()
-                    || !signal.programs[program].has_valid_context(ProgramContext::Operator {
-                        inputs: inputs.len(),
-                    })
-                    || !signal.programs[program]
-                        .has_valid_parameter_reads(|index| operator.params.parameter_kind(index))
-                    || !signal.programs[program].has_valid_reference_parameter_reads(
-                        |index, expected| operator.params.parameter_accepts_type(index, expected),
-                    )
-                {
-                    return Err(bad);
-                }
-                if !automation.is_empty() {
-                    if !operator.params.has_valid_automation(automation) {
-                        return Err(bad);
-                    }
-                    reserve(1, size_of::<EffectAutomationWorkspace>())?;
-                    reserve(
-                        1,
-                        AutomationPlan::storage_estimate(automation).ok_or(LoadError::Limit)?,
-                    )?;
-                    reserve(
-                        1,
-                        operator
-                            .params
-                            .automation_storage_estimate(automation)
-                            .ok_or(LoadError::Limit)?,
-                    )?;
-                    if operator.automation_slot != automation_slot {
-                        return Err(bad);
-                    }
-                    automation_slot += 1;
-                }
-                (&inputs[..], Some(*vm_slot))
-            }
-            PreparedSignalKind::Output { inputs } => (&inputs[..], None),
-        };
-        if inputs.iter().any(|&input| input >= index) {
-            return Err(bad);
-        }
-        let input_vm_depth = inputs
-            .iter()
-            .map(|&input| nested_vm_depths[input])
-            .max()
-            .unwrap_or(0);
-        let vm_depth = if let Some(slot) = vm_slot {
-            if slot < input_vm_depth {
-                return Err(bad);
-            }
-            slot + 1
-        } else {
-            input_vm_depth
-        };
-        nested_vm_depths.push(vm_depth);
-        let depth = inputs.iter().map(|&input| depths[input]).max().unwrap_or(0) + 1;
-        if limits.is_some() && depth > 32 {
-            return Err(LoadError::Limit);
-        }
-        depths.push(depth);
-    }
-    let mut scheduled = vec![false; plan.nodes.len()];
-    let mut slot_owner = vec![None; plan.frame_buffer_count];
-    for &node in &plan.frame_nodes {
-        if node >= plan.nodes.len()
-            || scheduled[node]
-            || plan.frame_slots[node] >= plan.frame_buffer_count
+    for node in &plan.nodes {
+        if let PreparedSignalKind::Operator {
+            operator,
+            automation,
+            ..
+        } = &node.kind
+            && !automation.is_empty()
         {
-            return Err(bad);
+            reserve(1, size_of::<EffectAutomationWorkspace>())?;
+            reserve(
+                1,
+                AutomationPlan::storage_estimate(automation).ok_or(LoadError::Limit)?,
+            )?;
+            reserve(
+                1,
+                operator
+                    .params
+                    .automation_storage_estimate(automation)
+                    .ok_or(LoadError::Limit)?,
+            )?;
         }
-        let destination = plan.frame_slots[node];
-        if let PreparedSignalKind::Output { inputs } = &plan.nodes[node].kind
-            && inputs.iter().any(|&input| {
-                let source = plan.frame_slots[input];
-                !scheduled[input]
-                    || source == destination
-                    || slot_owner.get(source) != Some(&Some(input))
-            })
-        {
-            return Err(bad);
-        }
-        slot_owner[destination] = Some(node);
-        scheduled[node] = true;
     }
     reserve(
         signal.frame_scratch_count(),
@@ -586,51 +265,10 @@ fn validate_signal_graph(
             .and_then(|bytes| bytes.checked_add(size_of::<Box<[Color]>>()))
             .ok_or(LoadError::Limit)?,
     )?;
-    if plan.frame_slots[plan.output_index] >= plan.frame_buffer_count {
-        return Err(bad);
+    reserve(1, size_of::<crate::signal::EvaluationWorkspace>())?;
+    reserve(sequence.outputs.len(), size_of::<Box<[u8]>>())?;
+    for output in &sequence.outputs {
+        reserve(output.width, 1)?;
     }
-    let output_owner = slot_owner[plan.frame_slots[plan.output_index]];
-    if !scheduled[plan.output_index] {
-        let PreparedSignalKind::Output { inputs } = &plan.nodes[plan.output_index].kind else {
-            return Err(bad);
-        };
-        let [input] = inputs.as_ref() else {
-            return Err(bad);
-        };
-        if !scheduled[*input]
-            || plan.frame_slots[plan.output_index] != plan.frame_slots[*input]
-            || output_owner != Some(*input)
-        {
-            return Err(bad);
-        }
-    } else if output_owner != Some(plan.output_index) {
-        return Err(bad);
-    }
-    Ok(workspace)
+    Ok(())
 }
-
-pub(crate) struct Microseconds;
-
-macro_rules! archive_clock {
-    ($clock:ty) => {
-        impl ArchiveWith<$clock> for Microseconds {
-            type Archived = Archived<u32>;
-            type Resolver = ();
-            fn resolve_with(value: &$clock, _: (), out: Place<Self::Archived>) {
-                value.as_ticks().resolve((), out);
-            }
-        }
-        impl<S: Fallible + ?Sized> SerializeWith<$clock, S> for Microseconds {
-            fn serialize_with(_: &$clock, _: &mut S) -> Result<(), S::Error> {
-                Ok(())
-            }
-        }
-        impl<D: Fallible + ?Sized> DeserializeWith<Archived<u32>, $clock, D> for Microseconds {
-            fn deserialize_with(value: &Archived<u32>, _: &mut D) -> Result<$clock, D::Error> {
-                Ok(<$clock>::from_ticks(value.to_native()))
-            }
-        }
-    };
-}
-archive_clock!(SampleTime);
-archive_clock!(SampleDuration);

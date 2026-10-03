@@ -4,12 +4,13 @@ use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::model::{DonderProject, ProjectEdit};
 use donder_language::values::{Color, sample_time_from_frame};
 use donder_project_io::load_project;
-use donder_runtime::{PreparedSequence, SequenceFrame};
+use donder_runtime::PreparedSequence;
+use donder_runtime::SequenceFrame;
 use std::hint::black_box;
 use std::time::Duration;
 
 #[allow(dead_code)]
-#[path = "../../donder-language/benches/fixtures/mod.rs"]
+#[path = "../../donder-runtime/benches/fixtures/mod.rs"]
 mod effect_fixtures;
 #[allow(dead_code)]
 #[path = "../../../firmware/esp32/src/mark_workload.rs"]
@@ -170,8 +171,8 @@ fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::dsl::Identifier;
     use donder_language::effect::{CurveSource, EffectParamValue, EffectRef};
     use donder_language::sequence::{MarkCollection, MarkCollectionKey};
+    use donder_language::values::SampleTime;
     use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
-    use donder_runtime::SampleTime;
     pin_benchmark_thread();
     let source_project = render_only_project(&load_project(&project_path()).unwrap().project);
     for (name, pulse) in [("pulse", true), ("chase", false)] {
@@ -503,7 +504,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
         if !reuse {
             program.pixel_entry = 0;
         }
-        let program = donder_runtime::SampleProgram::admit(program, types).unwrap();
+        let program = donder_language::dsl::SampleProgram::admit(program, types).unwrap();
         let show = workload::show(200, program, params.clone());
         let mut workspace = show.clone().prepare().into_playback();
         let mut output = [vec![0; 600]];

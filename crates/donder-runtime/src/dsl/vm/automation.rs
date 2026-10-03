@@ -3,7 +3,7 @@
 //! Keep a plan with the parameter workspace it was admitted for. Curve windows
 //! belong to the plan, not to a tagged parameter value supplied during playback.
 
-use super::{Arc, BoundParams, CurveRegister, Identifier, ParameterAddress, PreparedCurve};
+use super::{Arc, BoundParams, CurveRegister, Identifier, PreparedCurve};
 use crate::automation::AutomationMapping;
 use crate::sampling::sample_curve;
 use crate::signal::PreparedAutomation;
@@ -135,55 +135,40 @@ impl AutomationPlan {
             .collect()
     }
 
-    /// Resolve declaration slots into typed bank addresses once. This is an
-    /// admission boundary: mismatched mappings and malformed curves are rejected.
-    pub(crate) fn admit(params: &BoundParams, bindings: &[PreparedAutomation]) -> Option<Self> {
+    /// Materialize automation already checked with the language invocation.
+    /// The parameter banks must be the materialization of that invocation's inputs.
+    pub(crate) fn from_accepted(params: &BoundParams, bindings: &[PreparedAutomation]) -> Self {
+        use super::ParameterKind;
         let values = &params.values;
         let mut admitted = Vec::with_capacity(bindings.len());
         let mut windows: Vec<Window> = Vec::new();
         for binding in bindings {
             let parameter = usize::from(binding.param_index);
-            if binding.duration.as_ticks() == 0
-                || binding.curve.validate().is_err()
-                || !binding.mapping.is_well_formed()
-            {
-                return None;
-            }
-            let address = *values.slots.get(parameter)?;
-            let destination = match (address, &binding.mapping) {
-                (ParameterAddress::Float(slot), AutomationMapping::Float { min, max }) => {
-                    values.floats.get(slot)?;
-                    Destination::Float {
-                        slot,
-                        min: *min,
-                        max: *max,
-                    }
-                }
-                (ParameterAddress::Int(slot), AutomationMapping::Int { min, max }) => {
-                    values.ints.get(slot)?;
-                    Destination::Int {
-                        slot,
-                        min: *min,
-                        max: *max,
-                    }
-                }
-                (ParameterAddress::Bool(slot), AutomationMapping::Bool) => {
-                    values.bools.get(slot)?;
-                    Destination::Bool { slot }
-                }
-                (ParameterAddress::Enum(slot), AutomationMapping::Enum { values: options }) => {
-                    values.enums.get(slot)?;
-                    let (first, rest) = options.split_first()?;
-                    Destination::Enum {
-                        slot,
-                        first: first.clone(),
-                        rest: rest.into(),
-                    }
-                }
-                (ParameterAddress::Curve(slot), AutomationMapping::Curve { min, max }) => {
-                    let CurveRegister::Prepared(curve) = values.curves.get(slot)? else {
-                        return None;
-                    };
+            // Parameter indices are declaration-order indices; typed banks retain
+            // the same relative order within each kind.
+            let kind = ParameterKind::for_type(&params.types()[parameter]);
+            let slot = params.types()[..parameter]
+                .iter()
+                .filter(|ty| ParameterKind::for_type(ty) == kind)
+                .count();
+            let destination = match &binding.mapping {
+                AutomationMapping::Float { min, max } => Destination::Float {
+                    slot,
+                    min: *min,
+                    max: *max,
+                },
+                AutomationMapping::Int { min, max } => Destination::Int {
+                    slot,
+                    min: *min,
+                    max: *max,
+                },
+                AutomationMapping::Bool => Destination::Bool { slot },
+                AutomationMapping::Enum { values: options } => Destination::Enum {
+                    slot,
+                    first: options[0].clone(),
+                    rest: options[1..].into(),
+                },
+                AutomationMapping::Curve { min, max } => {
                     let point_capacity = binding.curve.points.len().max(1);
                     let window = match windows.iter().position(|window| window.slot == slot) {
                         Some(index) => {
@@ -194,7 +179,7 @@ impl AutomationPlan {
                             index
                         }
                         None => {
-                            let mut curve = curve.detached_clone();
+                            let mut curve = PreparedCurve::new(values.curves[slot].owned());
                             curve.reserve_window_capacity(point_capacity);
                             let index = windows.len();
                             windows.push(Window {
@@ -211,7 +196,6 @@ impl AutomationPlan {
                         max: *max,
                     }
                 }
-                _ => return None,
             };
             admitted.push(Binding {
                 parameter: binding.param_index,
@@ -221,10 +205,10 @@ impl AutomationPlan {
                 destination,
             });
         }
-        Some(Self {
+        Self {
             bindings: admitted.into(),
             windows: windows.into(),
-        })
+        }
     }
 
     /// Apply in authored order, preserving last-binding-wins behavior.

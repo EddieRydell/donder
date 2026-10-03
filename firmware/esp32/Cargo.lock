@@ -523,10 +523,11 @@ name = "donder-language"
 version = "0.1.0"
 dependencies = [
  "camino",
- "donder-runtime",
  "fugit",
  "glam",
  "indexmap",
+ "libm",
+ "rkyv",
  "uuid",
 ]
 
@@ -535,7 +536,7 @@ name = "donder-runtime"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
- "fugit",
+ "donder-language",
  "libm",
  "micromath",
  "rkyv",

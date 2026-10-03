@@ -5,9 +5,10 @@ use donder_language::layout::FixtureInstanceId;
 use donder_language::model::{DonderProject, ProjectEdit};
 use donder_language::patch::PixelSpan;
 use donder_language::sequence::SequenceId;
+use donder_language::values::SampleTime;
+use donder_language::values::sample_time_from_frame;
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
-use donder_runtime::{SampleTime, sample_time_from_frame};
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");

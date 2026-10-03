@@ -1,17 +1,16 @@
-pub(crate) mod bytecode;
+pub(crate) use donder_language::dsl::bytecode;
 mod operator;
 mod sample;
-pub(crate) mod types;
+pub(crate) use donder_language::dsl::types;
 mod vm;
 
-pub use operator::{BoundOperator, OperatorProgram, SignalAccess};
-pub use sample::{BoundSample, SampleProgram};
-
-pub use types::{Identifier, Type, Value};
+pub(crate) use donder_language::dsl::{OperatorProgram, SampleProgram, SignalAccess};
+pub(crate) use donder_language::execution::SpatialContext;
+pub(crate) use operator::OperatorProgramExt;
+pub(crate) use sample::SampleProgramExt;
+#[cfg(test)]
+pub(crate) use types::{Type, Value};
 pub(crate) use vm::AutomationPlan;
-pub use vm::{
-    BoundParams, DslBindCache, MAX_DSL_LOOP_ITERATIONS, OperatorRunContext, RunContext,
-    RuntimeError, SignalSampler, VmWorkspace,
-};
-
-pub use vm::SpatialContext;
+#[cfg(test)]
+pub(crate) use vm::RuntimeError;
+pub(crate) use vm::{BoundParams, DslBindCache, RunContext, SignalSampler, VmWorkspace};

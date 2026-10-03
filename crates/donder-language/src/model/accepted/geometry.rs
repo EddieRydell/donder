@@ -1,9 +1,9 @@
 //! The runtime geometry contract is established with the authored layout, not
 //! rediscovered while preparing a selected sequence.
 use super::DonderProject;
+use crate::execution::FixtureGeometry;
 use crate::layout::{FixtureInstanceId, LayoutId};
 use crate::validation::ProjectValidationError;
-use donder_runtime::FixtureGeometry;
 use indexmap::IndexMap;
 use std::sync::Arc;
 

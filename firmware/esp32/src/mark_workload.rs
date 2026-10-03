@@ -1,11 +1,12 @@
 //! Host-prepared mark fixtures using the same editable effects as projects.
 use super::workload::{SampleFixture, Workload};
-use donder_language::dsl::{bind_params, compile_effects};
-use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration};
-use donder_runtime::{DslBindCache, Identifier, SampleTime, Value};
+use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
+use donder_language::values::{
+    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
+};
 
 #[allow(dead_code)] // Shared device-profile and host benchmark fixture.
-pub fn mark_show(count: usize, pulse: bool) -> Workload {
+pub(crate) fn mark_show(count: usize, pulse: bool) -> Workload {
     let definitions = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
@@ -95,7 +96,6 @@ pub fn mark_show(count: usize, pulse: bool) -> Workload {
     let params = bind_params(
         effect.params(),
         overrides.iter().map(|(name, value)| (name, value)),
-        &mut DslBindCache::default(),
     )
     .unwrap();
     Workload::samples(

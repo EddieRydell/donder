@@ -1,7 +1,7 @@
+use super::MAX_DSL_LOOP_ITERATIONS;
 use super::ast::{BinaryOp, UnaryOp};
 use super::checked::{CheckedBlock, CheckedExpr, CheckedExprKind, CheckedStmt};
 use super::types::{Identifier, Type, Value};
-use donder_runtime::MAX_DSL_LOOP_ITERATIONS;
 
 pub(super) fn fixed_for_iterations(
     initializer: &CheckedStmt,

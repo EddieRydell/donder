@@ -1,16 +1,12 @@
-use crate::automation::AutomationMapping;
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::BytecodeProgram;
 use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, VmWorkspace};
 use crate::sequence::programs::ExecutableGraph;
-use crate::values::{Color, Curve, SampleDuration, SampleTime};
+use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
-#[cfg(not(feature = "atomic"))]
-use alloc::rc::Rc as Arc;
-#[cfg(feature = "atomic")]
-use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+pub(crate) use donder_language::execution::PreparedAutomation;
 
 /// Raw construction/archive data. This representation is not executable by itself:
 /// Archive admission checks it before publishing immutable playback state.
@@ -19,7 +15,7 @@ use alloc::vec::Vec;
 pub(crate) struct PreparedSignalGraph<P = Box<[BytecodeProgram]>, A = Box<[PreparedAutomation]>> {
     pub frame_rate: u32,
     pub frame_count: u32,
-    #[rkyv(with = crate::wire::Microseconds)]
+    #[rkyv(with = donder_language::values::archive::Microseconds)]
     pub duration: SampleDuration,
     pub fixtures: Box<[PreparedFixture]>,
     pub fixture_pixel_offsets: Box<[usize]>,
@@ -65,9 +61,9 @@ pub struct PreparedFixture {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedEffect<A = Box<[PreparedAutomation]>> {
-    #[rkyv(with = crate::wire::Microseconds)]
+    #[rkyv(with = donder_language::values::archive::Microseconds)]
     pub start_time: SampleTime,
-    #[rkyv(with = crate::wire::Microseconds)]
+    #[rkyv(with = donder_language::values::archive::Microseconds)]
     pub duration: SampleDuration,
     pub target: usize,
     pub program: usize,
@@ -108,30 +104,6 @@ pub(crate) struct PreparedEffectAutomation<A = Box<[PreparedAutomation]>> {
     /// Dense index in automated-effect order, assigned by elaboration.
     pub workspace_slot: usize,
     pub bindings: A,
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub struct PreparedAutomation {
-    #[rkyv(with = crate::wire::Microseconds)]
-    pub start: SampleTime,
-    #[rkyv(with = crate::wire::Microseconds)]
-    pub duration: SampleDuration,
-    pub curve: Arc<Curve>,
-    pub mapping: AutomationMapping,
-    pub param_index: u16,
-}
-
-impl PreparedAutomation {
-    pub fn position(&self, sample_time: SampleTime) -> f32 {
-        let elapsed = sample_time
-            .checked_duration_since(self.start)
-            .map_or(0, |duration| duration.as_ticks());
-        if self.duration.as_ticks() == 0 {
-            0.0
-        } else {
-            (elapsed as f32 / self.duration.as_ticks() as f32).clamp(0.0, 1.0)
-        }
-    }
 }
 
 /// Graph connections and the buffer/VM schedule assigned during elaboration.
@@ -461,17 +433,17 @@ impl<P, A> PreparedSignalGraph<P, A> {
     }
 
     /// Consume raw/typed automation once while retaining the other graph banks.
-    pub(crate) fn try_map_automation<B, X>(
+    pub(crate) fn map_automation<B>(
         self,
-        mut effect: impl FnMut(PreparedEffect<A>) -> Result<PreparedEffect<B>, X>,
-        mut node: impl FnMut(PreparedSignalNode<A>) -> Result<PreparedSignalNode<B>, X>,
-    ) -> Result<PreparedSignalGraph<P, B>, X> {
+        mut effect: impl FnMut(PreparedEffect<A>) -> PreparedEffect<B>,
+        mut node: impl FnMut(PreparedSignalNode<A>) -> PreparedSignalNode<B>,
+    ) -> PreparedSignalGraph<P, B> {
         let effects = self
             .effects
             .into_vec()
             .into_iter()
             .map(&mut effect)
-            .collect::<Result<_, _>>()?;
+            .collect();
         let plan = SignalPlan {
             nodes: self
                 .plan
@@ -479,7 +451,7 @@ impl<P, A> PreparedSignalGraph<P, A> {
                 .into_vec()
                 .into_iter()
                 .map(&mut node)
-                .collect::<Result<_, _>>()?,
+                .collect(),
             output_index: self.plan.output_index,
             target: self.plan.target,
             vm_workspace_count: self.plan.vm_workspace_count,
@@ -487,7 +459,7 @@ impl<P, A> PreparedSignalGraph<P, A> {
             frame_slots: self.plan.frame_slots,
             frame_buffer_count: self.plan.frame_buffer_count,
         };
-        Ok(PreparedSignalGraph {
+        PreparedSignalGraph {
             programs: self.programs,
             frame_rate: self.frame_rate,
             frame_count: self.frame_count,
@@ -503,7 +475,7 @@ impl<P, A> PreparedSignalGraph<P, A> {
             effects_by_layer: self.effects_by_layer,
             layers: self.layers,
             plan,
-        })
+        }
     }
 
     fn frame_scratch_count_with(&self, frame_cache_count: impl Fn(usize) -> usize) -> usize {

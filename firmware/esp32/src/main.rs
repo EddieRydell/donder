@@ -3,10 +3,8 @@
 
 extern crate alloc;
 
-use alloc::vec;
 use core::hint::black_box;
 use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
-use donder_runtime::VmWorkspace;
 use esp_hal::{clock::CpuClock, time::Instant};
 use esp_println::println;
 
@@ -17,12 +15,6 @@ mod fixtures {
 }
 
 esp_bootloader_esp_idf::esp_app_desc!();
-
-const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
-    position: [0.0; 2],
-    min: [0.0; 2],
-    max: [0.0; 2],
-};
 
 static ALLOCATIONS: AtomicU32 = AtomicU32::new(0);
 static REQUESTED_LIVE: AtomicU32 = AtomicU32::new(0);
@@ -83,29 +75,13 @@ fn main() -> ! {
             REQUESTED_PEAK.store(REQUESTED_LIVE.load(Relaxed), Relaxed);
             let setup_start = Instant::now();
             let (program, params) = fixtures::case(case);
-            let invocation = program
-                .bind(
-                    params.iter_values().collect(),
-                    &mut donder_runtime::DslBindCache::default(),
-                )
-                .unwrap();
-            let mut vm = VmWorkspace::default();
-            let mut bytes = vec![0; count * 3];
+            let mut playback = workload::show(count, program, params)
+                .prepare()
+                .into_playback();
             let setup_us = setup_start.elapsed().as_micros() as u32;
             let mut render = |frame| {
-                for pixel in 0..count {
-                    let color = invocation.evaluate(
-                        &workload::context(count, pixel, frame),
-                        &SPATIAL,
-                        &mut vm,
-                    );
-                    bytes[pixel * 3..pixel * 3 + 3].copy_from_slice(&[
-                        color.green,
-                        color.red,
-                        color.blue,
-                    ]);
-                }
-                black_box(&bytes);
+                let rendered = playback.evaluate(workload::time(frame));
+                black_box(rendered.outputs().next().unwrap().bytes);
             };
             let first_start = Instant::now();
             let first_allocations = ALLOCATIONS.load(Relaxed);
@@ -123,24 +99,14 @@ fn main() -> ! {
             // Verification is a separate untimed pass over all measured frames.
             let mut mismatches = 0;
             for frame in 0..workload::FRAMES {
-                for pixel in 0..count {
-                    let color = invocation.evaluate(
-                        &workload::context(count, pixel, frame),
-                        &SPATIAL,
-                        &mut vm,
-                    );
-                    bytes[pixel * 3..pixel * 3 + 3].copy_from_slice(&[
-                        color.green,
-                        color.red,
-                        color.blue,
-                    ]);
-                }
+                let rendered = playback.evaluate(workload::time(frame));
+                let bytes = rendered.outputs().next().unwrap().bytes;
                 mismatches += usize::from(
-                    workload::checksum(&bytes) != fixtures::GOLDEN[case][count_index][frame],
+                    workload::checksum(bytes) != fixtures::GOLDEN[case][count_index][frame],
                 );
             }
             report(
-                "vm",
+                "sample_playback",
                 name,
                 count,
                 setup_us,
@@ -156,8 +122,12 @@ fn main() -> ! {
                 REQUESTED_PEAK.load(Relaxed),
                 esp_alloc::HEAP.free()
             );
-            drop((program, params, vm, bytes));
-            assert_eq!(esp_alloc::HEAP.used(), heap_before, "VM case leaked heap");
+            drop(playback);
+            assert_eq!(
+                esp_alloc::HEAP.used(),
+                heap_before,
+                "sample playback leaked heap"
+            );
 
             #[derive(Clone, Copy)]
             enum OperatorCase {

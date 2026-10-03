@@ -1,6 +1,7 @@
 use super::mapping::{MappingReader, parse_mapping};
 use crate::source::SourceObjectKind;
 use camino::{Utf8Path, Utf8PathBuf};
+use donder_language::execution::PixelEncoding;
 use donder_language::fixture::*;
 use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot};
 use donder_language::layout::*;

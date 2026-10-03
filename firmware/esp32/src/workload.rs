@@ -2,25 +2,30 @@ extern crate alloc;
 
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::num::NonZeroU32;
-use donder_runtime::{
-    BoundParams, BytecodeProgram, DslBindCache, FixtureGeometry, Instruction, OperatorDefinition,
-    OperatorInvocation, OperatorProgram, OutputEncoding, PreparedAutomation, PreparedSequence,
-    RgbOrder, RunContext, SampleDefinition, SampleDuration, SampleProgram, SampleTime,
-    SequenceBuilder, SequenceRoot, SequenceTiming, SequenceWindow, SignalHandle, TargetScope,
+use donder_language::dsl::bytecode::{BytecodeProgram, Instruction};
+use donder_language::dsl::{
+    BoundParams, OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition,
+    SampleProgram,
 };
+use donder_language::execution::{
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SequenceWindow,
+    TargetScope,
+};
+use donder_language::values::{SampleDuration, SampleTime};
+use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
 
 #[derive(Clone)]
-pub struct SampleFixture {
-    pub program: SampleProgram,
-    pub params: BoundParams,
-    pub start: SampleTime,
-    pub duration: SampleDuration,
-    pub automation: Vec<PreparedAutomation>,
+pub(crate) struct SampleFixture {
+    pub(crate) program: SampleProgram,
+    pub(crate) params: BoundParams,
+    pub(crate) start: SampleTime,
+    pub(crate) duration: SampleDuration,
+    pub(crate) automation: Vec<PreparedAutomation>,
 }
 
 /// Typed benchmark inputs. The runtime builder owns all graph and storage addresses.
 #[derive(Clone)]
-pub struct Workload {
+pub(crate) struct Workload {
     count: usize,
     layers: Vec<Vec<SampleFixture>>,
     operators: Vec<OperatorInvocation>,
@@ -28,7 +33,7 @@ pub struct Workload {
 }
 
 impl Workload {
-    pub fn samples(count: usize, layers: Vec<Vec<SampleFixture>>) -> Self {
+    pub(crate) fn samples(count: usize, layers: Vec<Vec<SampleFixture>>) -> Self {
         Self {
             count,
             layers,
@@ -37,13 +42,13 @@ impl Workload {
         }
     }
 
-    pub fn prepare(self) -> PreparedSequence {
+    pub(crate) fn prepare(self) -> PreparedSequence {
         self.prepare_with(|builder, _layers, signal| builder.output([signal]))
     }
 
     /// Extend the fixture using its layers and composed signal after its operator chain.
     /// Fixture geometry, timing and the GRB output route remain builder-owned.
-    pub fn prepare_with(
+    pub(crate) fn prepare_with(
         self,
         build: impl for<'id> FnOnce(
             &mut SequenceBuilder<'id>,
@@ -76,7 +81,6 @@ impl Workload {
             let target = builder.target([fixture], TargetScope::PerFixture);
             let windows: Vec<_> = builder.windows().collect();
             let mut windows = windows.into_iter();
-            let mut cache = DslBindCache::default();
             let mut definitions: Vec<(SampleProgram, SampleDefinition)> = Vec::new();
             let mut layers = Vec::new();
             for layer in &self.layers {
@@ -95,7 +99,7 @@ impl Workload {
                             }
                         };
                         let invocation = definition
-                            .bind(effect.params.iter_values().collect(), &mut cache)
+                            .bind(effect.params.iter_values().collect())
                             .unwrap()
                             .with_automation(effect.automation.clone().into())
                             .unwrap();
@@ -126,24 +130,23 @@ impl Workload {
     }
 }
 
-pub const COUNTS: [usize; 4] = [200, 400, 800, 1600];
-pub const FRAMES: usize = 32;
-pub const GAMMA_CASE: usize = 5; // PixelRamp in the shared fixture list.
-pub const OPERATOR_DEPTHS: [usize; 3] = [2, 4, 8];
+pub(crate) const COUNTS: [usize; 4] = [200, 400, 800, 1600];
+pub(crate) const FRAMES: usize = 32;
+pub(crate) const GAMMA_CASE: usize = 5; // PixelRamp in the shared fixture list.
+pub(crate) const OPERATOR_DEPTHS: [usize; 3] = [2, 4, 8];
 #[allow(dead_code)] // PC profiler and host golden generation only.
-pub const CHASE_PULSE_CASES: [(&str, usize); 3] =
+pub(crate) const CHASE_PULSE_CASES: [(&str, usize); 3] =
     [("ChasePulse1", 1), ("ChasePulse4", 4), ("ChasePulse16", 16)];
 #[allow(dead_code)]
-pub const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("MarkChase200", false)];
+pub(crate) const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("MarkChase200", false)];
 
 // Profiling fixture: varied, overlapping chases and pulses compiled from the
 // same editable effect document included in new projects.
 #[cfg(not(target_arch = "xtensa"))]
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
-pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
-    use donder_language::dsl::{bind_params, compile_effects};
-    use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    use donder_runtime::{Identifier, Value};
+pub(crate) fn chase_pulse_show(count: usize, layers: usize) -> Workload {
+    use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
+    use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let definitions = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
     ))
@@ -235,7 +238,6 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
                 pulse.params()
             },
             overrides.iter().map(|(name, value)| (name, value)),
-            &mut DslBindCache::default(),
         )
         .unwrap();
         effects.push(SampleFixture {
@@ -253,50 +255,38 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
 }
 
 // Extend the single-operator fixture into a chain, sharing its admitted definition.
-pub fn nest_operator(show: &mut Workload, depth: usize) {
+pub(crate) fn nest_operator(show: &mut Workload, depth: usize) {
     assert!(depth > 0);
     assert_eq!(show.operators.len(), 1);
     show.operators.resize(depth, show.operators[0].clone());
 }
 
-pub fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
+pub(crate) fn insert_invert(show: &mut Workload, program: BytecodeProgram) {
     nest_operator(show, 2);
     show.operators.insert(1, operator_invocation(program));
 }
 
 fn operator_invocation(program: BytecodeProgram) -> OperatorInvocation {
     let operator = OperatorProgram::admit(program, 1, Box::new([])).unwrap();
-    OperatorDefinition::new(operator)
-        .bind(vec![], &mut DslBindCache::default())
-        .unwrap()
+    OperatorDefinition::new(operator).bind(vec![]).unwrap()
 }
 
 #[cfg(not(target_arch = "xtensa"))]
-pub fn apply_compiled_operator(
+pub(crate) fn apply_compiled_operator(
     show: &mut Workload,
     operator: donder_language::dsl::CompiledOperator,
 ) {
-    let params = donder_language::dsl::bind_params(
-        operator.params(),
-        core::iter::empty(),
-        &mut DslBindCache::default(),
-    )
-    .unwrap();
-    show.operators = vec![
-        OperatorDefinition::new(operator.program().clone())
-            .bind(params.iter_values().collect(), &mut DslBindCache::default())
-            .unwrap(),
-    ];
+    show.operators = vec![operator.bind(core::iter::empty()).unwrap()];
 }
 
-pub fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
+pub(crate) fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
     if !reuse {
         disable_uniform_reuse(&mut program);
     }
     show.operators = vec![operator_invocation(program)];
 }
 
-pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
+pub(crate) fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
     if reuse {
         return;
     }
@@ -306,14 +296,14 @@ pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
     // A real, unused pixel read disables whole-result reuse without changing
     // colors. Dependency metadata must agree with the admitted instructions;
     // flipping its flag alone would make this benchmark fixture invalid.
-    let dst = donder_runtime::FloatSlot(program.layout.floats);
+    let dst = donder_language::dsl::bytecode::FloatSlot(program.layout.floats);
     program.layout.floats += 1;
     let mut instructions = program.instructions.into_vec();
     let return_color = instructions.pop().unwrap();
     assert!(matches!(return_color, Instruction::ReturnColor(_)));
     instructions.push(Instruction::ContextRead {
-        dst: donder_runtime::NumberSlot::Float(dst),
-        read: donder_runtime::ContextRead::PixelFraction,
+        dst: donder_language::dsl::bytecode::NumberSlot::Float(dst),
+        read: donder_language::dsl::bytecode::ContextRead::PixelFraction,
     });
     instructions.push(return_color);
     program.instructions = instructions.into_boxed_slice();
@@ -322,27 +312,27 @@ pub fn set_uniform_upstream(show: &mut Workload, reuse: bool) {
 }
 
 #[allow(dead_code)] // Compiled on the host, not the device.
-pub const IDENTITY_SOURCE: &str =
+pub(crate) const IDENTITY_SOURCE: &str =
     "operator Identity { input Signal source; color sample() { return source.at(seconds()); } }";
 
 #[allow(dead_code)] // Compiled on the host, not the device.
-pub const GROUPED_SOURCE: &str = "operator Times { input Signal source; color sample() {
+pub(crate) const GROUPED_SOURCE: &str = "operator Times { input Signal source; color sample() {
     float now = seconds(); float past = now - 0.1;
     color a = source.at(now); color b = source.at(now);
     color c = source.at(past); color d = source.at(past);
     return max(max(a, b), max(c, d));
 } }";
 #[allow(dead_code)]
-pub const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; color sample() {
+pub(crate) const ALTERNATING_SOURCE: &str = "operator Times { input Signal source; color sample() {
     float now = seconds(); float past = now - 0.1;
     color a = source.at(now); color b = source.at(past);
     color c = source.at(now); color d = source.at(past);
     return max(max(a, b), max(c, d));
 } }";
 
-pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty: bool) {
-    use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};
-    use donder_runtime::{Type, Value};
+pub(crate) fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty: bool) {
+    use donder_language::dsl::{Type, Value};
+    use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let mut curve = Curve {
         points: vec![
             CurvePoint {
@@ -384,7 +374,6 @@ pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty
     let params = BoundParams::bind_values(
         &values.iter().map(|(ty, _)| ty.clone()).collect::<Vec<_>>(),
         values.into_iter().map(|(_, value)| value).collect(),
-        &mut DslBindCache::default(),
     )
     .unwrap();
     show.layers[0][0] = SampleFixture {
@@ -396,7 +385,7 @@ pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty
             start: SampleTime::from_ticks(0),
             duration: SampleDuration::from_ticks(8_000_000),
             curve: curve.into(),
-            mapping: donder_runtime::AutomationMapping::Curve {
+            mapping: donder_language::automation::AutomationMapping::Curve {
                 min: if empty { 0.5 } else { 0.0 },
                 max: 1.0,
             },
@@ -406,11 +395,11 @@ pub fn apply_pulse_automation(show: &mut Workload, program: SampleProgram, empty
 }
 
 #[allow(dead_code)] // Compiled on the host; firmware receives only bytecode.
-pub const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
+pub(crate) const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
     color sample() { return source.at(seconds()) * (sin(seconds() * 7.0) * 0.5 + 0.5); }
 }";
 
-pub fn disable_uniform_reuse(program: &mut BytecodeProgram) {
+pub(crate) fn disable_uniform_reuse(program: &mut BytecodeProgram) {
     program.pixel_entry = 0;
     for instruction in &mut program.instructions {
         if let Instruction::SignalSample { frame_cache, .. } = instruction {
@@ -421,41 +410,30 @@ pub fn disable_uniform_reuse(program: &mut BytecodeProgram) {
 
 // The firmware receives this host-prepared lookup as data.
 #[cfg(not(target_arch = "xtensa"))]
-pub fn gamma_lookup() -> [u8; 256] {
+pub(crate) fn gamma_lookup() -> [u8; 256] {
     core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0).round() as u8)
 }
 
-pub fn apply_gamma(show: &mut Workload, lookup: [u8; 256]) {
+pub(crate) fn apply_gamma(show: &mut Workload, lookup: [u8; 256]) {
     show.lookup = Some(lookup);
 }
 
-pub fn time(frame: usize) -> SampleTime {
+pub(crate) fn time(frame: usize) -> SampleTime {
     SampleTime::from_ticks(3_000_000 + frame as u32 * 8_333)
 }
 
-pub fn context(count: usize, pixel: usize, frame: usize) -> RunContext {
-    RunContext {
-        progress: time(frame).as_ticks() as f32 / 8_000_000.0,
-        time: SampleDuration::from_ticks(time(frame).as_ticks()),
-        duration: SampleDuration::from_ticks(8_000_000),
-        pixel_index: pixel as i32,
-        pixel_count: count as i32,
-        pixel_fraction: pixel as f32 / count.saturating_sub(1).max(1) as f32,
-    }
-}
-
-pub fn checksum(bytes: &[u8]) -> u32 {
+pub(crate) fn checksum(bytes: &[u8]) -> u32 {
     bytes.iter().fold(0x811c9dc5_u32, |hash, byte| {
         (hash ^ u32::from(*byte)).wrapping_mul(0x01000193)
     })
 }
 
-pub fn show(count: usize, program: SampleProgram, params: BoundParams) -> Workload {
+pub(crate) fn show(count: usize, program: SampleProgram, params: BoundParams) -> Workload {
     layered_show(count, program, params, 1)
 }
 
 // Identical overlapping inputs preserve the max-composited golden output.
-pub fn layered_show(
+pub(crate) fn layered_show(
     count: usize,
     program: SampleProgram,
     params: BoundParams,

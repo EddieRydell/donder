@@ -38,9 +38,10 @@ fixtures, targets, effects and signal nodes; callers cannot supply mismatched gr
 indices. Project admission binds typed programs, parameter values, automation,
 timing and geometry before preparation.
 
-Elaboration resolves authored output selections. The runtime-owned builder then
-compacts its own storage when requested; per-frame evaluation has no device-selection
-branches, alternate executor, or fragment type. `SequencePlayback` owns the prepared
+Elaboration resolves authored output selections and retained pixel domains before
+calling the runtime-owned builder. The builder assigns dense storage from those
+domains; per-frame evaluation has no device-selection branches, alternate executor,
+or fragment type. `SequencePlayback` owns the prepared
 sequence, scratch storage and output buffers together. `evaluate` returns borrowed
 frame views directly, so the caller cannot mismatch a sequence and workspace.
 
@@ -49,9 +50,12 @@ unpatched but valid port produces its normal zero-filled buffer. `None` means th
 selection cannot be resolved: for example, a missing sequence, a controller or
 port outside the active setup, or a sequence targeting another layout. Internal
 preparation failures must not be disguised as an absent selection. Accepted
-preparation and playback do not return ordinary errors. Text loading, checked GUI
-edits and raw archive admission remain checked boundaries. Memory exhaustion and
-other system resource failures are outside this guarantee.
+preparation and playback do not return ordinary errors. Text loading and checked
+GUI edits remain validation boundaries. Archive decoding retains integrity and
+structural checks while trusting producer semantics. Malformed semantic data,
+even with a valid checksum and archive structure, is outside this contract and
+may panic during decoding or playback. Memory exhaustion and other system
+resource failures are outside this guarantee.
 
 ## Boundaries and ownership
 
@@ -65,18 +69,23 @@ modules are not alternate entry points. The boundaries have different contracts:
 | Elaboration | Accepted project plus selection to `Option<PreparedSequence>` | Resolving the selection, not repeating text validation |
 | Runtime construction | Accepted inputs and builder-issued handles to a private sequence | Handles preserve graph/storage ownership |
 | Playback | Owned sequence plus sample time to borrowed frame views | No ordinary failure; scratch storage cannot be paired with another sequence |
-| Archive decoding | Untrusted bytes to an admitted sequence | Format, storage addresses, program structure and execution capabilities |
+| Archive decoding | Trusted producer archive to a prepared sequence | Header/version, checksum, structural rkyv checks, representation conversion and independent resource budgets |
 
 Raw sequence graphs, execution plans, bound parameters and output-routing
 storage are runtime-private. Callers cannot export or reconstruct them; archive
-decoding validates the private representation before returning a prepared sequence.
-Tests that deliberately corrupt these records live inside runtime.
+decoding trusts the producer's graph, references, bytecode, parameters and execution
+schedule. It does not validate their relationships or matching. Payload bytes,
+pixels, graph nodes and estimated workspace bytes remain independent resource
+budgets; workspace estimation uses valid producer references. Impossible
+representation conversions return an archive error.
 
-Bytecode instructions and slots form a separate, necessary cross-crate contract:
-the private compiler in `donder-language` emits the runtime-owned representation
-and admits it as a typed program. Raw bytecode cannot execute directly. Parameter
-binding pairs values with their admitted program before execution; evaluation
-does not accept an independently replaceable parameter bank.
+Bytecode instructions, slots, validated programs and parameter bindings belong
+to `donder-language`. Runtime depends on the portable language definitions, never
+the reverse. The language's default `host` feature enables compilation and the
+authoring model; firmware uses its `no_std + alloc` definitions without that feature.
+Raw bytecode cannot execute directly. Parameter binding pairs values with their
+admitted program before execution; evaluation does not accept an independently
+replaceable parameter bank.
 
 Authored parameter declarations, defaults, names, compiled effect/operator
 declarations, and layout geometry units belong to `donder-language`. Runtime
@@ -84,10 +93,24 @@ stores executable programs and positional parameter schemas, not source-level
 declarations. Each authored clip references one sample effect; mark-triggered
 effects query marks and curve crossings inside that same sample program.
 
+Runtime's `lib.rs` is its only public facade. It exposes sequence playback and
+read-only frames/metadata, prepared clip sampling, the owner-bound sequence
+constructor, and the prepared archive codec. It does not re-export language types
+or expose the VM, raw instruction execution, binding caches, registers, signal
+providers or caller-managed execution workspaces. Mathematical sampling primitives
+shared with authoring live in language; VM instruction execution stays in runtime.
+The archive codec remains with the private prepared representation, separate from
+project IO, network transport and device storage. Loading a trusted producer
+archive is fallible for format, corruption, representation and resource-budget
+errors; playback remains infallible under the producer validity contract.
+
 In elaboration, `selection.rs` resolves identities and output ordering, while
 `sequence.rs` lowers accepted fixtures and effects. Its `composition`
-and `routing` modules connect signals and physical outputs. Runtime's builder owns
-numeric graph addresses, selected-output compaction and the evaluation storage plan.
+and `routing` modules connect signals and physical outputs. Its `retention` module
+keeps pixels needed by selected routes and reachable spatial signal queries.
+Language-owned fixture geometry records original positions together with retained
+cells; selection cannot detach storage from its sampling domain. Runtime's builder
+owns numeric graph addresses and the evaluation storage plan, not output selection.
 These details are internal rather than independently callable preparation stages.
 
 ## What gets retained
@@ -115,9 +138,9 @@ whole-target effect across devices preserves the appearance. Resources reference
 by retained code (curves, marks, gradients, target metadata) retain their contents;
 their meaning cannot be changed merely because fewer output pixels are retained.
 
-The host still elaborates the complete authored signal graph before compacting
-it. Sample contexts retain their original target and layout coordinates. This
-favors simple preparation and correct sampling semantics.
+The host resolves retention against the complete authored graph and original
+geometry before assembling the selected graph. Sample contexts and section
+membership retain their original target and layout coordinates.
 
 ## Measurement and checks
 

@@ -8,6 +8,7 @@ license = "MIT"
 
 [dependencies]
 bytemuck.workspace = true
+donder-language = { path = "../donder-language", default-features = false }
 donder-runtime.workspace = true
 glam.workspace = true
 wgpu.workspace = true

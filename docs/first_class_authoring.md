@@ -8,8 +8,10 @@ state is then shared with history, persistence, rendering, and waveform work.
 
 ## Owning layers
 
-- `donder-language` owns domain types, the effect/operator DSL, and semantic
-  validation.
+- `donder-language` owns domain types, the effect/operator DSL, bytecode and
+  validated parameter bindings. Its portable values and executable definitions
+  support `no_std + alloc`; the compiler and authoring model use the `host` feature.
+  Language has no dependency on runtime.
 - `donder-project-io` owns source documents, imports, linking, diagnostics,
   serialization, and local project loading.
   Its public facade reexports project loading/checking from `project_loading.rs`,
@@ -18,8 +20,9 @@ state is then shared with history, persistence, rendering, and waveform work.
   `diagnostics.rs`. YAML serialization stays in `serialization/`.
 - `donder-elaboration` resolves targets, and prepares the
   portable runtime representation.
-- `donder-runtime` evaluates prepared sequences. It does not resolve source names,
-  imports, layouts, or device selection per frame.
+- `donder-runtime` consumes language-owned executable definitions and evaluates
+  prepared sequences. Its VM and scratch storage are private. It does not compile
+  source or resolve names, imports, layouts, or device selection per frame.
 - `apps/desktop/src/desktop_state` owns application workflows and background
   scheduling. `apps/desktop/src/gui` owns typed projection, edits, selection, and
   DTO conversion. The frontend renders those typed contracts.

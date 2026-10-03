@@ -1,8 +1,8 @@
 //! Runtime output encodings admitted with their authored patch and route IDs.
 use super::DonderProject;
+use crate::execution::OutputEncoding;
 use crate::patch::{PatchId, PixelRouteId};
 use crate::validation::ProjectValidationError;
-use donder_runtime::OutputEncoding;
 use indexmap::IndexMap;
 use std::fmt;
 

@@ -2,9 +2,10 @@ use crate::dto::*;
 use crate::gui::model::object_identity_from_gui;
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_language::controller::{ControllerId, ControllerPortId};
+use donder_language::execution::PixelEncoding;
 use donder_language::identity::ObjectIdentity;
 use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_language::patch::{PatchId, PixelEncoding, PixelRoute, PixelRouteId, PixelSpan};
+use donder_language::patch::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_object};
 
 pub(super) fn project_document(

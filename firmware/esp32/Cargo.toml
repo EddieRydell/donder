@@ -42,6 +42,7 @@ picoserve = { version = "0.20.0", default-features = false, features = ["embassy
 static_cell = { version = "2.1.1", optional = true }
 crc32fast = { version = "1.5.1", default-features = false }
 donder-runtime = { path = "../../crates/donder-runtime", default-features = false }
+donder-language = { path = "../../crates/donder-language", default-features = false }
 esp-hal = { version = "~1.2.0", features = ["esp32", "unstable"] }
 esp-alloc = { version = "0.11.0", features = ["esp32", "alloc-hooks"] }
 esp-println = { version = "0.18.0", default-features = false, features = ["esp32", "uart", "critical-section"] }

@@ -150,43 +150,6 @@ impl<'a> FromIterator<(&'a Type, BoundParamValue)> for ParameterValues {
 }
 
 impl ParameterValues {
-    pub(super) fn has_valid_layout(&self) -> bool {
-        if self.slots.len() != self.types.len() {
-            return false;
-        }
-        let mut lengths = [0; 9];
-        for address in &self.slots {
-            let (bank, index) = match *address {
-                ParameterAddress::Void => continue,
-                ParameterAddress::Int(index) => (0, index),
-                ParameterAddress::Float(index) => (1, index),
-                ParameterAddress::Bool(index) => (2, index),
-                ParameterAddress::Color(index) => (3, index),
-                ParameterAddress::Array(index) => (4, index),
-                ParameterAddress::Enum(index) => (8, index),
-                ParameterAddress::Marks(index) => (5, index),
-                ParameterAddress::Curve(index) => (6, index),
-                ParameterAddress::Gradient(index) => (7, index),
-            };
-            if index != lengths[bank] {
-                return false;
-            }
-            lengths[bank] += 1;
-        }
-        lengths
-            == [
-                self.ints.len(),
-                self.floats.len(),
-                self.bools.len(),
-                self.colors.len(),
-                self.array_values.len(),
-                self.marks.len(),
-                self.curves.len(),
-                self.gradients.len(),
-                self.enums.len(),
-            ]
-    }
-
     pub(super) fn len(&self) -> usize {
         self.slots.len()
     }
@@ -260,6 +223,7 @@ impl ParameterValues {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn get(&self, index: usize) -> Option<BoundParamValue> {
         self.slots.get(index).map(|address| self.read(*address))
     }

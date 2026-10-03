@@ -7,7 +7,7 @@ mod geometry;
 mod inputs;
 mod parameters;
 mod patch;
-use donder_runtime::{OperatorInvocation, SampleInvocation};
+use crate::dsl::{OperatorInvocation, SampleInvocation};
 pub(super) use inputs::ProjectInputs;
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
@@ -37,7 +37,7 @@ impl DonderProject {
     pub fn playback_patch_encodings(
         &self,
         patch: &crate::patch::PatchId,
-    ) -> Option<&indexmap::IndexMap<crate::patch::PixelRouteId, donder_runtime::OutputEncoding>>
+    ) -> Option<&indexmap::IndexMap<crate::patch::PixelRouteId, crate::execution::OutputEncoding>>
     {
         self.accepted_inputs
             .patches
@@ -51,7 +51,7 @@ impl DonderProject {
     ) -> Option<
         &[(
             crate::layout::FixtureInstanceId,
-            donder_runtime::FixtureGeometry,
+            crate::execution::FixtureGeometry,
         )],
     > {
         self.accepted_inputs.layouts.get(layout).map(AsRef::as_ref)
@@ -66,7 +66,7 @@ impl DonderProject {
 }
 
 impl<'a> AcceptedSequence<'a> {
-    pub fn timing(self) -> &'a donder_runtime::SequenceTiming {
+    pub fn timing(self) -> &'a crate::execution::SequenceTiming {
         &self.project.accepted_inputs.sequences[&self.sequence.id].timing
     }
 
@@ -120,7 +120,7 @@ impl<'a> AcceptedEffectInputs<'a> {
 }
 
 impl<'a> AcceptedOperatorInputs<'a> {
-    pub fn invocation(self) -> &'a donder_runtime::OperatorInvocation {
+    pub fn invocation(self) -> &'a crate::dsl::OperatorInvocation {
         self.invocation
     }
 

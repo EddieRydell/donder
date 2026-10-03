@@ -56,16 +56,16 @@ Criterion output lives under `target/criterion` and is not committed.
 
 ## Benchmark Coverage
 
-The direct VM benches live in `crates/donder-language/benches/effect_vm_bench.rs`. They use public
-Effect DSL APIs:
+The prepared-playback benchmark lives in
+`crates/donder-runtime/benches/prepared_playback_bench.rs`. It compiles ScanSweep,
+ImpactBurst, SparkleComet, and ShimmerField with `donder-language`, binds their
+parameters, and builds four 512-pixel sequences before timing.
 
-- `compile_effects`
-- `CompiledEffect::bind`
-- `BoundSample::evaluate`
-
-The VM suite samples ScanSweep, ImpactBurst, SparkleComet, and ShimmerField over 512 pixels each.
-Binding occurs outside the timed sampling loop and pairs parameters with an admitted
-program. Renderer fixtures exercise preparation separately from per-pixel execution.
+The timed loop evaluates each sequence through `SequencePlayback::evaluate`.
+It includes prepared scheduling, VM execution, composition, and output encoding;
+it is not a standalone VM measurement. Compilation, binding, sequence construction,
+and playback allocation occur outside the timed loop. These timings are not
+directly comparable with the former standalone VM suite.
 
 The renderer benches live in `crates/donder-elaboration/benches/render_bench.rs`. They load
 `examples/starter/project.donder`, benchmark preparation, and check representative frames
@@ -82,10 +82,10 @@ per-revolution crossing-time pulse calculation.
 
 ## Focused Benchmarks
 
-Run one VM benchmark by name:
+Run the prepared effect playback suite:
 
 ```powershell
-cargo bench -p donder-language --bench effect_vm_bench -- scan_sweep
+cargo bench -p donder-runtime --bench prepared_playback_bench -- prepared_effect_suite_4x512_pixels
 ```
 
 Run the dense controller-output workload:

@@ -1,21 +1,15 @@
 use std::{fmt::Write, fs, path::PathBuf};
 
+use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::{Type, Value, compile_effects};
-use donder_runtime::Instruction;
 
 #[allow(dead_code)]
-#[path = "../../crates/donder-language/benches/fixtures/mod.rs"]
+#[path = "../../crates/donder-runtime/benches/fixtures/mod.rs"]
 mod fixtures;
 #[path = "src/mark_workload.rs"]
 mod mark_workload;
 #[path = "src/workload.rs"]
 mod workload;
-
-const SPATIAL: donder_runtime::SpatialContext = donder_runtime::SpatialContext {
-    position: [0.0; 2],
-    min: [0.0; 2],
-    max: [0.0; 2],
-};
 
 fn main() {
     println!("cargo:rustc-link-arg=-Tlinkall.x");
@@ -24,21 +18,20 @@ fn main() {
         std::env::var("CARGO_MANIFEST_DIR").unwrap()
     );
     println!("cargo:rerun-if-changed=rwtext_hook.x");
-    println!("cargo:rerun-if-changed=../../crates/donder-language/benches/fixtures/mod.rs");
+    println!("cargo:rerun-if-changed=../../crates/donder-runtime/benches/fixtures/mod.rs");
     println!("cargo:rerun-if-changed=../../examples/starter/effects");
     println!("cargo:rerun-if-changed=../../examples/starter/operators");
     println!("cargo:rerun-if-changed=src/workload.rs");
     println!("cargo:rerun-if-changed=src/mark_workload.rs");
     println!(
-        "cargo:rerun-if-changed=../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"
+        "cargo:rerun-if-changed=../../crates/donder-runtime/tests/fixtures/array-lifetimes.effect.donder"
     );
     let mut generated = String::from(
         "use alloc::{boxed::Box, vec};\n\
-         #[cfg(not(feature = \"i2s-output\"))] use alloc::rc::Rc as Arc;\n\
-         #[cfg(feature = \"i2s-output\")] use alloc::sync::Arc;\n\
-         use donder_runtime::{BoundParams, DslBindCache, Identifier, SampleProgram, Type, Value};\n\
-         use donder_runtime::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, ValueSlot};\n\
-         use donder_runtime::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
+         use donder_language::Shared as Arc;\n\
+         use donder_language::dsl::{BoundParams, Identifier, SampleProgram, Type, Value};\n\
+         use donder_language::dsl::bytecode::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, ValueSlot};\n\
+         use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
     );
     let mut golden = Vec::new();
     let gamma_lookup = workload::gamma_lookup();
@@ -119,7 +112,7 @@ fn main() {
             (
                 "ArrayLifetimes",
                 include_str!(
-                    "../../crates/donder-language/tests/fixtures/array-lifetimes.effect.donder"
+                    "../../crates/donder-runtime/tests/fixtures/array-lifetimes.effect.donder"
                 ),
                 indexmap::IndexMap::new(),
             ),
@@ -140,15 +133,7 @@ fn main() {
                 "board array-storage coverage was optimized away"
             );
         }
-        let bound = donder_language::dsl::bind_params(
-            effect.params(),
-            &params,
-            &mut donder_runtime::DslBindCache::default(),
-        )
-        .unwrap();
-        let invocation = effect
-            .bind(&params, &mut donder_runtime::DslBindCache::default())
-            .unwrap();
+        let bound = donder_language::dsl::bind_params(effect.params(), &params).unwrap();
         let bytecode = effect.sample_program().clone().into_parts().0;
         writeln!(
             generated,
@@ -178,7 +163,7 @@ fn main() {
         }
         writeln!(
             generated,
-            "]; let params = BoundParams::bind_values(&types, values, &mut DslBindCache::default()).unwrap(); let program = SampleProgram::admit(program, types.into_boxed_slice()).unwrap(); (program, params) }}"
+            "]; let params = BoundParams::bind_values(&types, values).unwrap(); let program = SampleProgram::admit(program, types.into_boxed_slice()).unwrap(); (program, params) }}"
         ).unwrap();
         let mut case_golden = Vec::new();
         for count in workload::COUNTS {
@@ -188,20 +173,19 @@ fn main() {
                 workload::layered_show(count, effect.sample_program().clone(), bound.clone(), 16)
             };
             let mut show = show.prepare().into_playback();
-            let mut vm = donder_language::dsl::VmWorkspace::default();
+            let mut sample = workload::show(count, effect.sample_program().clone(), bound.clone())
+                .prepare()
+                .into_playback();
             let mut frames = Vec::new();
             let mut gamma_frames = Vec::new();
             for frame in 0..workload::FRAMES {
                 let rendered = show.evaluate(workload::time(frame));
                 let buffers = rendered.outputs().next().unwrap().bytes;
-                // Independently compare patch output to direct VM sampling before
-                // using the host result as the on-device golden checksum.
-                for pixel in 0..count {
-                    let color = invocation.evaluate(
-                        &workload::context(count, pixel, frame),
-                        &SPATIAL,
-                        &mut vm,
-                    );
+                // Check max-composition against one prepared sample, then check
+                // the GRB route against its fixture colors before recording goldens.
+                let sampled = sample.evaluate(workload::time(frame));
+                assert_eq!(buffers, sampled.outputs().next().unwrap().bytes);
+                for (pixel, color) in sampled.fixtures().next().unwrap().pixels.iter().enumerate() {
                     assert_eq!(
                         &buffers[pixel * 3..pixel * 3 + 3],
                         &[color.green, color.red, color.blue]
@@ -231,12 +215,10 @@ fn main() {
                 for frame in 0..workload::FRAMES {
                     let rendered = mixed.evaluate(workload::time(frame));
                     let buffers = rendered.outputs().next().unwrap().bytes;
-                    for pixel in 0..count {
-                        let color = invocation.evaluate(
-                            &workload::context(count, pixel, frame),
-                            &SPATIAL,
-                            &mut vm,
-                        );
+                    let sampled = sample.evaluate(workload::time(frame));
+                    for (pixel, color) in
+                        sampled.fixtures().next().unwrap().pixels.iter().enumerate()
+                    {
                         assert_eq!(
                             &buffers[pixel * 3..pixel * 3 + 3],
                             &[255 - color.green, 255 - color.red, 255 - color.blue]
@@ -558,7 +540,7 @@ fn type_source(ty: &Type) -> String {
     }
 }
 
-fn identifier_source(value: &donder_runtime::Identifier) -> String {
+fn identifier_source(value: &donder_language::dsl::Identifier) -> String {
     format!("Identifier::new({:?}.into()).unwrap()", value.as_str())
 }
 
@@ -589,27 +571,27 @@ fn value_source(value: &Value) -> String {
     }
 }
 
-fn curve_source(value: &donder_runtime::Curve) -> String {
+fn curve_source(value: &donder_language::values::Curve) -> String {
     format!("Arc::new(Curve {{ points: vec!{:?} }})", value.points)
 }
 
-fn gradient_source(value: &donder_runtime::Gradient) -> String {
+fn gradient_source(value: &donder_language::values::Gradient) -> String {
     format!("Arc::new(Gradient {{ stops: vec!{:?} }})", value.stops)
 }
 
-fn marks_source(value: &donder_runtime::Marks) -> String {
+fn marks_source(value: &donder_language::values::Marks) -> String {
     let marks = value
         .marks
         .iter()
         .map(|mark| {
             format!(
-                "donder_runtime::SampleDuration::from_ticks({})",
+                "donder_language::values::SampleDuration::from_ticks({})",
                 mark.as_ticks()
             )
         })
         .collect::<Vec<_>>()
         .join(",");
-    format!("Arc::new(donder_runtime::Marks {{ marks: vec![{marks}] }})")
+    format!("Arc::new(donder_language::values::Marks {{ marks: vec![{marks}] }})")
 }
 
 fn instruction_source(instruction: &Instruction) -> String {

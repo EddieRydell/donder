@@ -1,10 +1,9 @@
 //! Authoring declarations and named parameter resolution.
 //! Playback programs receive positional, typed values rather than source names.
+use super::OperatorProgram;
 use super::{
-    BoundOperator, BoundParams, BytecodeProgram, DslBindCache, Identifier, RuntimeError, Type,
-    Value,
+    BindingError, BoundParams, BytecodeProgram, Identifier, OperatorInvocation, Type, Value,
 };
-use donder_runtime::OperatorProgram;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -61,9 +60,9 @@ impl CompiledOperator {
     pub fn bytecode(
         &self,
     ) -> &BytecodeProgram<
-        donder_runtime::ContextRead,
-        donder_runtime::SignalAccess,
-        donder_runtime::ColorSlot,
+        super::bytecode::ContextRead,
+        super::SignalAccess,
+        super::bytecode::ColorSlot,
     > {
         self.program.bytecode()
     }
@@ -85,16 +84,12 @@ impl CompiledOperator {
         &self.params
     }
 
-    pub fn bind<'p, P>(
-        &self,
-        params: P,
-        cache: &mut DslBindCache,
-    ) -> Result<BoundOperator<'_>, RuntimeError>
+    pub fn bind<'p, P>(&self, params: P) -> Result<OperatorInvocation, BindingError>
     where
         P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
     {
-        self.program
-            .bind(resolve_params(&self.params, params)?, cache)
+        super::OperatorDefinition::new(Arc::clone(&self.program))
+            .bind(resolve_params(&self.params, params)?)
     }
 }
 
@@ -102,20 +97,19 @@ impl CompiledOperator {
 pub fn bind_params<'p, P>(
     declarations: &[ParamDecl],
     params: P,
-    cache: &mut DslBindCache,
-) -> Result<BoundParams, RuntimeError>
+) -> Result<BoundParams, BindingError>
 where
     P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
 {
     let values = resolve_params(declarations, params)?;
     let types: Vec<_> = declarations.iter().map(|param| param.ty.clone()).collect();
-    BoundParams::bind_values(&types, values, cache)
+    BoundParams::bind_values(&types, values)
 }
 
 pub(super) fn resolve_params<'p, P>(
     declarations: &[ParamDecl],
     params: P,
-) -> Result<Vec<Value>, RuntimeError>
+) -> Result<Vec<Value>, BindingError>
 where
     P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
 {
@@ -125,7 +119,7 @@ where
         .map(|(name, _)| name)
         .find(|name| !declarations.iter().any(|param| param.name == **name))
     {
-        return Err(RuntimeError {
+        return Err(BindingError {
             message: format!("unknown parameter `{}`", name.as_str()),
         });
     }
@@ -138,14 +132,9 @@ where
                 .find(|(name, _)| **name == param.name)
                 .map(|(_, value)| value.clone())
                 .or_else(|| param.default.clone())
-                .ok_or_else(|| RuntimeError {
+                .ok_or_else(|| BindingError {
                     message: format!("missing required parameter `{}`", param.name.as_str()),
                 })?;
-            if !param.ty.accepts_value(&value) {
-                return Err(RuntimeError {
-                    message: "parameter value does not match its declared type".into(),
-                });
-            }
             Ok(value)
         })
         .collect()

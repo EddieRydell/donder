@@ -37,7 +37,7 @@ pub struct PixelRoute {
     pub brightness: f32,
 }
 
-pub use donder_runtime::PixelEncoding;
+pub use crate::execution::PixelEncoding;
 
 impl Patch {
     pub fn remove_output(&mut self, id: PixelRouteId) -> Result<(), String> {

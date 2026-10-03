@@ -1840,8 +1840,8 @@ main:
       layer_id: 1
     - id: 4
       position:
-        x: 163.7331085205078
-        y: 271.92333984375
+        x: 182.40475463867188
+        y: 261.5502014160156
       type: operator
       operator: operators.HueShift
     - id: 5
@@ -1852,14 +1852,14 @@ main:
       layer_id: 2
     - id: 6
       position:
-        x: 143.78970336914062
-        y: 550.5182495117188
+        x: 20.977108001708984
+        y: 517.1060180664062
       type: operator
       operator: operators.HueMap
     - id: 7
       position:
-        x: -382.9534912109375
-        y: 923.4098510742188
+        x: -404.6263122558594
+        y: 890.900634765625
       type: layer
       layer_id: 3
     - id: 8

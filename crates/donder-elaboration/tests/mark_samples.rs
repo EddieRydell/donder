@@ -6,11 +6,13 @@ use donder_language::effect::{
 };
 use donder_language::model::DonderProject;
 use donder_language::sequence::SequenceId;
+use donder_language::values::SampleTime;
 use donder_language::values::{
     Color, Curve, CurvePoint, DonderDuration, DonderTime, Gradient, GradientStop,
 };
 use donder_project_io::load_project;
-use donder_runtime::{PreparedSequence, SampleTime, SequencePlayback};
+use donder_runtime::PreparedSequence;
+use donder_runtime::SequencePlayback;
 use std::time::Duration;
 
 #[derive(Clone, Copy, Debug)]
@@ -277,7 +279,8 @@ fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bo
                 EffectScope::PerFixture => fixture.pixel_count.div_ceil(7),
             };
             let choices = [0.0, 1.0, 2.0].map(|choice| {
-                (donder_runtime::deterministic_random([1000.75, choice].into_iter()) * count as f32)
+                (donder_language::sampling::deterministic_random([1000.75, choice].into_iter())
+                    * count as f32)
                     .floor() as usize
             });
             let start = match scope {

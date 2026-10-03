@@ -1,40 +1,94 @@
-//! Lower accepted authoring relationships to owner-branded playback handles.
-//! Parameter binding, clock admission and geometry expansion have already happened
-//! at project admission. This module only assembles their accepted results.
-
+//! Resolve selected sampling domains before assembling owner-branded playback storage.
 mod composition;
+mod retention;
 mod routing;
 
 use crate::selection::Selection;
 use donder_language::effect::EffectScope;
+use donder_language::execution::TargetScope;
 use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind};
-use donder_runtime::{FixtureHandle, PreparedSequence, TargetScope};
+use donder_language::operator::composition_graph_output_dependencies;
+use donder_language::sequence::CompositionGraphNodeKind;
+use donder_runtime::PreparedSequence;
 use indexmap::IndexMap;
 
 pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequence {
+    let geometry = selected
+        .geometry
+        .iter()
+        .map(|(_, geometry)| geometry.clone())
+        .collect::<Vec<_>>();
+    let indexes = selected
+        .geometry
+        .iter()
+        .enumerate()
+        .map(|(index, (id, _))| (*id, index))
+        .collect::<IndexMap<_, _>>();
+    let mut targets = IndexMap::new();
+    collect_targets(&selected.layout.fixtures, &indexes, &mut targets);
+    let routes = routing::targets(&selected, &geometry, &targets);
+    let sequence = selected.sequence.sequence();
+    let dependencies = composition_graph_output_dependencies(&sequence.composition_graph);
+    let cells = retention::cells(&selected, &geometry, &routes, &dependencies, compact);
+    let has_pixels = cells.iter().any(|cells| !cells.is_empty());
+    let required_layers = sequence
+        .composition_graph
+        .nodes
+        .iter()
+        .filter_map(|node| {
+            if dependencies.contains(&node.id)
+                && let CompositionGraphNodeKind::Layer { layer_id } = &node.kind
+            {
+                Some(layer_id)
+            } else {
+                None
+            }
+        })
+        .collect::<std::collections::HashSet<_>>();
     PreparedSequence::build(selected.sequence.timing().clone(), |builder| {
         let fixtures = selected
             .geometry
             .iter()
-            .map(|(id, geometry)| (*id, builder.fixture(id.0, geometry.clone())))
+            .enumerate()
+            .map(|(index, (id, geometry))| {
+                let geometry = if compact {
+                    geometry.select(|cell| cells[index].binary_search(&cell).is_ok())
+                } else {
+                    geometry.clone()
+                };
+                (index, builder.fixture(id.0, geometry))
+            })
             .collect::<IndexMap<_, _>>();
-        let mut targets = IndexMap::new();
-        collect_targets(&selected.layout.fixtures, &fixtures, &mut targets);
-        let sequence = selected.sequence.sequence();
         let mut layer_effects = sequence
             .layers
             .iter()
             .map(|layer| (&layer.id, Vec::new()))
             .collect::<IndexMap<_, _>>();
+        let enabled_layers = sequence
+            .layers
+            .iter()
+            .filter(|layer| layer.enabled)
+            .map(|layer| &layer.id)
+            .collect::<std::collections::HashSet<_>>();
         let windows = builder.windows().collect::<Vec<_>>();
         for (accepted, window) in selected.sequence.effects().zip(windows) {
             let effect = accepted.instance();
-            let fixtures = &targets[&effect.target.fixture];
+            if compact
+                && (!has_pixels
+                    || !enabled_layers.contains(&effect.layer_id)
+                    || !required_layers.contains(&effect.layer_id))
+            {
+                continue;
+            }
             let scope = match effect.scope {
                 EffectScope::PerFixture => TargetScope::PerFixture,
                 EffectScope::WholeTarget => TargetScope::WholeTarget,
             };
-            let target = builder.target(fixtures.iter().copied(), scope);
+            let members = &targets[&effect.target.fixture];
+            if compact && members.iter().all(|&index| cells[index].is_empty()) {
+                continue;
+            }
+            let target = builder.target(members.iter().map(|index| fixtures[index]), scope);
             let prepared = builder.sample(accepted.execution(), window, target);
             builder.clip(effect.id.0, prepared);
             layer_effects[&effect.layer_id].push(prepared);
@@ -42,6 +96,7 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
         let layers = sequence
             .layers
             .iter()
+            .filter(|layer| !compact || has_pixels && required_layers.contains(&layer.id))
             .map(|layer| {
                 (
                     &layer.id,
@@ -49,21 +104,22 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                 )
             })
             .collect::<IndexMap<_, _>>();
-        let root = composition::prepare(builder, selected.sequence, &layers);
-        routing::prepare(builder, &selected, &targets);
-        if compact {
-            builder.compact_to_outputs();
-        }
+        let root = if compact && !has_pixels {
+            builder.output([])
+        } else {
+            composition::prepare(builder, selected.sequence, &layers)
+        };
+        routing::prepare(builder, &selected, &geometry, &targets, &cells, &fixtures);
         root
     })
 }
 
 /// Every group denotes its ordered leaf fixtures, including empty groups.
-fn collect_targets<'id>(
+fn collect_targets(
     nodes: &[LayoutFixture],
-    fixtures: &IndexMap<FixtureInstanceId, FixtureHandle<'id>>,
-    targets: &mut IndexMap<FixtureInstanceId, Vec<FixtureHandle<'id>>>,
-) -> Vec<FixtureHandle<'id>> {
+    fixtures: &IndexMap<FixtureInstanceId, usize>,
+    targets: &mut IndexMap<FixtureInstanceId, Vec<usize>>,
+) -> Vec<usize> {
     let mut members = Vec::new();
     for node in nodes {
         let target = match &node.kind {
