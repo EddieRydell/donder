@@ -2,6 +2,7 @@ use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::BytecodeProgram;
 use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, VmWorkspace};
 use crate::sequence::programs::ExecutableGraph;
+pub(crate) use crate::targets::PreparedTarget;
 use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
 use alloc::vec;
@@ -25,8 +26,7 @@ pub(crate) struct PreparedSignalGraph<P = Box<[BytecodeProgram]>, A = Box<[Prepa
     pub clips: Box<[PreparedClip]>,
     pub programs: P,
     pub targets: Box<[PreparedTarget]>,
-    pub target_pixels: Box<[PreparedPixel]>,
-    pub spatial_contexts: Box<[crate::dsl::SpatialContext]>,
+    pub positions: Box<[Box<[[f32; 2]]>]>,
     pub effects_by_layer: Box<[Box<[usize]>]>,
     pub layers: Box<[PreparedLayer]>,
     pub plan: SignalPlan<A>,
@@ -147,14 +147,6 @@ pub(crate) struct PreparedOperatorNode {
     pub params: BoundParams,
 }
 
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct PreparedTarget {
-    pub pixels: core::ops::Range<usize>,
-    pub sections: crate::sections::PreparedSections,
-    /// Zero disables sample reuse; otherwise this is the required cache width.
-    pub sample_count: usize,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedPixel {
     pub fixture_index: usize,
@@ -203,7 +195,7 @@ impl PreparedPixel {
 pub(crate) struct EvaluationWorkspace {
     pub(crate) effect_vm: VmWorkspace,
     pub(crate) effect_vm_sample: Option<(CachedVmSample, SampleDuration, Color)>,
-    pub(crate) operator_vm: Vec<(VmWorkspace, Option<CachedVmSample>)>,
+    pub(crate) operator_vm: Vec<OperatorVmWorkspace>,
     pub(crate) operator_frames: Vec<Vec<CachedSignalFrame>>,
     pub(crate) signal_cache: Box<[Option<CachedSignal>]>,
     pub(crate) signal_buffers: Box<[Color]>,
@@ -212,6 +204,12 @@ pub(crate) struct EvaluationWorkspace {
     pub(crate) effect_samples: Vec<CachedEffectSample>,
     pub(crate) effect_automation: Vec<EffectAutomationWorkspace>,
     pub(crate) operator_automation: Vec<EffectAutomationWorkspace>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct OperatorVmWorkspace {
+    pub(crate) vm: VmWorkspace,
+    pub(crate) sample: Option<CachedVmSample>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -304,7 +302,7 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
             frame_scratch_used: 0,
             effect_vm_sample: None,
             operator_vm: (0..self.plan.vm_workspace_count)
-                .map(|_| (VmWorkspace::default(), None))
+                .map(|_| OperatorVmWorkspace::default())
                 .collect(),
             operator_frames: operator_frame_counts
                 .into_iter()
@@ -387,10 +385,13 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                 .collect(),
         };
         for effect in self.effects.iter() {
-            let program = effect.program;
-            workspace
-                .effect_vm
-                .reserve(self.sample_program(program).bytecode());
+            let program = self.sample_program(effect.program);
+            workspace.effect_vm.reserve(program.bytecode());
+            if program.supports_numeric_blocks() {
+                workspace
+                    .effect_vm
+                    .reserve_numeric_block(program.bytecode());
+            }
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {
@@ -402,8 +403,17 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                 continue;
             };
             workspace.operator_vm[*vm_slot]
-                .0
+                .vm
                 .reserve(self.operator_program(*program).bytecode());
+            if self.operator_program(*program).supports_color_blocks() {
+                workspace.operator_vm[*vm_slot]
+                    .vm
+                    .reserve_color_block(self.operator_program(*program).bytecode().layout.colors);
+            } else if self.operator_program(*program).supports_numeric_blocks() {
+                workspace.operator_vm[*vm_slot]
+                    .vm
+                    .reserve_numeric_block(self.operator_program(*program).bytecode());
+            }
         }
         workspace
     }
@@ -424,8 +434,7 @@ impl<P, A> PreparedSignalGraph<P, A> {
             effects: self.effects,
             clips: self.clips,
             targets: self.targets,
-            target_pixels: self.target_pixels,
-            spatial_contexts: self.spatial_contexts,
+            positions: self.positions,
             effects_by_layer: self.effects_by_layer,
             layers: self.layers,
             plan: self.plan,
@@ -470,8 +479,7 @@ impl<P, A> PreparedSignalGraph<P, A> {
             effects,
             clips: self.clips,
             targets: self.targets,
-            target_pixels: self.target_pixels,
-            spatial_contexts: self.spatial_contexts,
+            positions: self.positions,
             effects_by_layer: self.effects_by_layer,
             layers: self.layers,
             plan,
@@ -507,9 +515,8 @@ impl<P, A> PreparedSignalGraph<P, A> {
         required
     }
 
-    pub(crate) fn target(&self, index: usize) -> &[PreparedPixel] {
-        let range = &self.targets[index].pixels;
-        &self.target_pixels[range.start..range.end]
+    pub(crate) fn target(&self, index: usize) -> &crate::targets::TargetPixels {
+        &self.targets[index].pixels
     }
 
     pub(crate) fn active_effect_count(&self, sample_time: SampleTime) -> usize {
@@ -521,11 +528,16 @@ impl<P, A> PreparedSignalGraph<P, A> {
 }
 
 impl SignalGraph<'_> {
+    // Let callers borrow the unused static directly and construct only spatial
+    // contexts on their stack. An out-of-line Cow return materializes the enum.
+    #[inline(always)]
     pub(crate) fn spatial_context(
         &self,
         uses_spatial: bool,
-        pixel: usize,
-    ) -> &crate::dsl::SpatialContext {
+        target: usize,
+        index: usize,
+        pixel: &PreparedPixel,
+    ) -> alloc::borrow::Cow<'static, crate::dsl::SpatialContext> {
         // Admission proves this capability cannot read geometry. This value is
         // only the unused argument required by the VM's uniform execution ABI.
         const UNUSED: crate::dsl::SpatialContext = crate::dsl::SpatialContext {
@@ -534,9 +546,13 @@ impl SignalGraph<'_> {
             max: [0.0; 2],
         };
         if uses_spatial {
-            &self.data.spatial_contexts[pixel]
+            alloc::borrow::Cow::Owned(self.targets[target].spatial_context(
+                index,
+                pixel,
+                &self.positions,
+            ))
         } else {
-            &UNUSED
+            alloc::borrow::Cow::Borrowed(&UNUSED)
         }
     }
 
@@ -561,6 +577,11 @@ impl SignalGraph<'_> {
 }
 
 fn operator_frame_cache_count(program: &OperatorProgram) -> usize {
+    // Single-query blocks optimize nested pixel traversal. At a whole-frame
+    // entry, keep the existing contiguous source pass and its bounded slot.
+    if program.supports_color_blocks() {
+        return 0;
+    }
     program
         .bytecode()
         .instructions

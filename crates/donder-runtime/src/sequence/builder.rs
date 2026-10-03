@@ -447,30 +447,49 @@ impl<'id> SequenceBuilder<'id> {
                 .collect::<Vec<_>>(),
             TargetScope::PerFixture,
         );
-        let needs_spatial = self
-            .sample_programs
+        let mut needs_spatial = alloc::vec![false; self.targets.len()];
+        let mut needs_sections = alloc::vec![false; self.targets.len()];
+        for effect in &self.effects {
+            let program = &self.sample_programs[effect.program];
+            needs_spatial[effect.target] |= program.uses_spatial_context();
+            needs_sections[effect.target] |= program.uses_sections();
+        }
+        for program in &self.operator_programs {
+            needs_spatial[full.index] |= program.uses_spatial_context();
+            needs_sections[full.index] |= program.uses_sections();
+        }
+        let mut fixture_spatial = alloc::vec![false; self.fixtures.len()];
+        for (target, &spatial) in self.targets.iter().zip(&needs_spatial) {
+            if spatial {
+                for pixel in &target.pixels {
+                    fixture_spatial[pixel.fixture_index] = true;
+                }
+            }
+        }
+        let positions = self
+            .geometry
             .iter()
-            .any(|program| program.uses_spatial_context())
-            || self
-                .operator_programs
-                .iter()
-                .any(|program| program.uses_spatial_context());
-        let mut target_pixels = Vec::new();
-        let needs_sections = self
-            .sample_programs
-            .iter()
-            .any(|program| program.uses_sections())
-            || self
-                .operator_programs
-                .iter()
-                .any(|program| program.uses_sections());
-        let mut spatial_contexts = Vec::new();
+            .enumerate()
+            .filter(|(_, geometry)| geometry.retains_fixture())
+            .map(|(index, geometry)| {
+                if fixture_spatial[self.storage[index]] {
+                    geometry
+                        .cells()
+                        .iter()
+                        .map(|&cell| geometry.positions()[cell as usize])
+                        .collect()
+                } else {
+                    Box::new([]) as Box<[[f32; 2]]>
+                }
+            })
+            .collect();
+        let mut interner = crate::targets::TargetInterner::default();
         let targets = self
             .targets
             .into_iter()
-            .map(|target| {
-                let start = target_pixels.len();
-                let sections = if needs_sections {
+            .enumerate()
+            .map(|(index, target)| {
+                let sections = if needs_sections[index] {
                     crate::sections::PreparedSections::new(
                         &target.selection,
                         &target.source_pixels,
@@ -488,12 +507,14 @@ impl<'id> SequenceBuilder<'id> {
                 } else {
                     0
                 };
-                target_pixels.extend(target.pixels);
-                if needs_spatial {
-                    spatial_contexts.extend(target.spatial);
-                }
+                let spatial = if needs_spatial[index] {
+                    PreparedTarget::prepare_spatial(&target.spatial)
+                } else {
+                    Box::new([])
+                };
                 PreparedTarget {
-                    pixels: start..target_pixels.len(),
+                    pixels: interner.prepare(target.pixels),
+                    spatial,
                     sections,
                     sample_count,
                 }
@@ -529,8 +550,7 @@ impl<'id> SequenceBuilder<'id> {
                         .collect(),
                 ),
                 targets,
-                target_pixels: target_pixels.into(),
-                spatial_contexts: spatial_contexts.into(),
+                positions,
                 effects_by_layer: self.effects_by_layer.into(),
                 layers: self.layers.into(),
                 plan: super::schedule::finish_plan(self.nodes, root.index, full.index),

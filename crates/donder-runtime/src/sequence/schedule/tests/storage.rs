@@ -200,7 +200,7 @@ fn preselected_fixture_preserves_output_with_only_required_programs_and_targets(
     assert_eq!(after.programs[0], before.programs[0]);
     assert_eq!(before.effects.len(), 2);
     assert_eq!(after.effects.len(), 1);
-    assert!(after.target_pixels.len() < before.target_pixels.len());
+    assert!(after.target(after.plan.target).len() < before.target(before.plan.target).len());
     assert_eq!(before.pixel_count, 226);
     assert_eq!(after.pixel_count, 113);
     assert_outputs_match(full, compacted);
@@ -215,13 +215,16 @@ fn disjoint_spans_remap_storage_without_changing_logical_coordinates() {
     assert_eq!(data.signals.pixel_count, 74);
     assert_eq!(target.len(), 74);
     for (physical, logical) in (0..37).chain(76..113).enumerate() {
-        assert_eq!(target[physical].fixture_pixel_index, physical as u32);
-        assert_eq!(target[physical].pixel_index, logical);
-        assert_eq!(target[physical].pixel_count, 113);
-        assert_eq!(target[physical].pixel_fraction, logical as f32 / 112.0);
+        assert_eq!(target.pixel(physical).fixture_pixel_index, physical as u32);
+        assert_eq!(target.pixel(physical).pixel_index, logical);
+        assert_eq!(target.pixel(physical).pixel_count, 113);
+        assert_eq!(
+            target.pixel(physical).pixel_fraction,
+            logical as f32 / 112.0
+        );
     }
-    assert_eq!(target[37].fixture_pixel_index, 37);
-    assert_eq!(target[37].pixel_index, 76);
+    assert_eq!(target.pixel(37).fixture_pixel_index, 37);
+    assert_eq!(target.pixel(37).pixel_index, 76);
     assert_eq!(data.patch.routes.len(), 2);
     assert_eq!(data.patch.routes[0].pixels, 0..37);
     assert_eq!(data.patch.routes[1].pixels, 37..74);
@@ -255,7 +258,12 @@ fn shared_fixture_keeps_both_routes_and_unpatched_port_keeps_none() {
     assert!(data.signals.fixtures.is_empty());
     assert!(data.signals.programs.is_empty());
     assert!(data.signals.effects.is_empty());
-    assert!(data.signals.target_pixels.is_empty());
+    assert!(
+        data.signals
+            .targets
+            .iter()
+            .all(|target| target.pixels.is_empty())
+    );
     assert_outputs_match(full, compacted);
 }
 

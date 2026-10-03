@@ -13,6 +13,63 @@ fn timing() -> SequenceTiming {
 }
 
 #[test]
+fn spatial_storage_is_shared_by_physical_fixture_and_only_kept_for_consumers() {
+    let spatial = donder_language::dsl::compile_effects(
+        "effect Position { color sample() { return rgb(pixel_x(), 0.0, 0.0); } }",
+    )
+    .unwrap()
+    .remove(0)
+    .bind([])
+    .unwrap();
+    let plain = donder_language::dsl::compile_effects(
+        "effect Plain { color sample() { return rgb(1.0, 0.0, 0.0); } }",
+    )
+    .unwrap()
+    .remove(0)
+    .bind([])
+    .unwrap();
+    let sequence = crate::PreparedSequence::build(timing(), |builder| {
+        let a = builder.fixture(
+            0,
+            FixtureGeometry::admit((0..150).map(|index| [index as f32 / 149.0, 0.0]).collect())
+                .unwrap(),
+        );
+        let b = builder.fixture(
+            1,
+            FixtureGeometry::admit(vec![[0.0, 0.0]; 150].into()).unwrap(),
+        );
+        let whole = builder.target([a], TargetScope::PerFixture);
+        let sliced = builder.target_slice(whole, 50..100);
+        let other = builder.target([b], TargetScope::PerFixture);
+        let window = builder.whole_sequence();
+        let effects = [
+            builder.sample(&spatial, window, whole),
+            builder.sample(&spatial, window, sliced),
+            builder.sample(&plain, window, other),
+        ];
+        let layer = builder.layer(true, effects);
+        builder.output([layer])
+    });
+    let graph = sequence.archive_data().signals;
+    assert_eq!(graph.positions[0].len(), 150);
+    assert!(graph.positions[1].is_empty());
+    let a = &graph.targets[graph.effects[0].target];
+    let b = &graph.targets[graph.effects[1].target];
+    assert_eq!(a.spatial.len(), 1);
+    assert_eq!(b.spatial.len(), 1);
+    assert!(graph.targets[graph.effects[2].target].spatial.is_empty());
+    let context = b.spatial_context(0, &b.pixels.pixel(0), &graph.positions);
+    assert_eq!(
+        context,
+        a.spatial_context(50, &a.pixels.pixel(50), &graph.positions)
+    );
+    assert_eq!(context.min, [0.0, 0.0]);
+    assert_eq!(context.max, [1.0, 0.0]);
+    assert_eq!(b.pixels.pixel(0).pixel_index, 50);
+    assert_eq!(b.pixels.pixel(0).pixel_count, 150);
+}
+
+#[test]
 fn archive_roundtrip_preserves_boundary_controller_metadata_and_output_order() {
     let sequence = crate::sequence::PreparedSequence::build(timing(), |builder| {
         for (controller, port, width) in [(u32::MAX, 3, 2), (0, 8, 1), (u32::MAX - 1, 5, 4)] {

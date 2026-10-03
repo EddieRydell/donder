@@ -1,4 +1,5 @@
 #![no_std]
+#![recursion_limit = "256"]
 #![deny(unsafe_code)]
 #![deny(unreachable_pub)]
 #![deny(private_interfaces, private_bounds)]
@@ -41,6 +42,7 @@ mod patch;
 mod sections;
 mod sequence;
 mod signal;
+mod targets;
 mod wire;
 
 #[cfg(test)]

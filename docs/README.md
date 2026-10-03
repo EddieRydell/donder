@@ -9,6 +9,8 @@
   contract.
 - [File persistence](file_persistence.md): save behavior and failure boundaries.
 - [Output selection](output_selection.md): controller-specific elaboration.
+- [Vixen effect contracts](vixen_effects.md): Basic and Pixel effect inventory,
+  reference behavior, and current DSL compatibility gaps.
 - [ESP32 loading](esp32_loading.md): archive transport, admission limits, Wi-Fi,
   and I2S output.
 - [Performance and hardware evidence](performance.md): accepted evidence,

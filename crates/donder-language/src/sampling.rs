@@ -4,6 +4,29 @@ use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
 mod tests;
 
 #[inline(always)]
+pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
+    if min.is_nan() || max.is_nan() || min > max {
+        f32::NAN
+    } else {
+        value.clamp(min, max)
+    }
+}
+
+#[inline(always)]
+pub fn rgb(red: f32, green: f32, blue: f32) -> Color {
+    if red.is_nan() || green.is_nan() || blue.is_nan() {
+        Color::BLACK
+    } else {
+        let channel = |value: f32| ((value * 255.0).clamp(0.0, 255.0) + 0.5) as u8;
+        Color {
+            red: channel(red),
+            green: channel(green),
+            blue: channel(blue),
+        }
+    }
+}
+
+#[inline(always)]
 pub fn sample_curve(curve: &Curve, position: f32) -> f32 {
     sample_curve_points(&curve.points, position)
 }
@@ -224,28 +247,41 @@ pub fn invert_color(color: Color) -> Color {
 
 #[inline(always)]
 pub fn color_intensity(color: Color) -> f32 {
-    f32::from(color.red.max(color.green).max(color.blue)) / 255.0
+    f32::from(color.red.max(color.green).max(color.blue)) * (1.0 / 255.0)
 }
+
+// RGB components bound both HSV divisors to 1..=255. Store these constants in
+// read-only program data, rather than performing software division per pixel.
+// This has no initialization, heap allocation, or retained frame state.
+const CHANNEL_RECIPROCALS: [f32; 256] = {
+    let mut values = [0.0; 256];
+    let mut channel = 1;
+    while channel < values.len() {
+        values[channel] = 1.0 / channel as f32;
+        channel += 1;
+    }
+    values
+};
 
 /// HSV hue in turns, in [0, 1). Achromatic colors have hue zero.
 #[inline]
 pub fn color_hue(color: Color) -> f32 {
-    let r = f32::from(color.red);
-    let g = f32::from(color.green);
-    let b = f32::from(color.blue);
-    let max = r.max(g).max(b);
-    let chroma = max - r.min(g).min(b);
-    if chroma == 0.0 {
+    let max = color.red.max(color.green).max(color.blue);
+    let min = color.red.min(color.green).min(color.blue);
+    let chroma = max - min;
+    if chroma == 0 {
         return 0.0;
     }
-    let sector = if max == r {
-        (g - b) / chroma
-    } else if max == g {
-        (b - r) / chroma + 2.0
+    let inverse = CHANNEL_RECIPROCALS[usize::from(chroma)];
+    let difference = |left: u8, right: u8| f32::from(i16::from(left) - i16::from(right));
+    let sector = if max == color.red {
+        difference(color.green, color.blue) * inverse
+    } else if max == color.green {
+        difference(color.blue, color.red) * inverse + 2.0
     } else {
-        (r - g) / chroma + 4.0
+        difference(color.red, color.green) * inverse + 4.0
     };
-    let hue = sector / 6.0;
+    let hue = sector * (1.0 / 6.0);
     if hue < 0.0 { hue + 1.0 } else { hue }
 }
 
@@ -257,7 +293,7 @@ pub fn color_saturation(color: Color) -> f32 {
     if max == 0 {
         0.0
     } else {
-        f32::from(max - min) / f32::from(max)
+        f32::from(max - min) * CHANNEL_RECIPROCALS[usize::from(max)]
     }
 }
 

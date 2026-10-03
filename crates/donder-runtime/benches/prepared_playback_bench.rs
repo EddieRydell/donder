@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 mod fixtures;
+#[path = "fixtures/layered.rs"]
+mod layered;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use donder_language::values::SampleTime;
@@ -24,6 +26,13 @@ fn bench_prepared_playback(c: &mut Criterion) {
             for playback in &mut playbacks {
                 black_box(playback.evaluate(black_box(time)));
             }
+        });
+    });
+
+    let mut layered = layered::layered_600().into_playback();
+    c.bench_function("prepared_600_pixels_4_layers_3_operators", |b| {
+        b.iter(|| {
+            black_box(layered.evaluate(black_box(time)));
         });
     });
 }

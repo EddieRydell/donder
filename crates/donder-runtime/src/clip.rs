@@ -44,12 +44,14 @@ impl<'a> SequenceClip<'a> {
         vm.reserve(program.bytecode());
         let mut groups = Vec::<SampleGroup>::new();
         let mut group_by_context = BTreeMap::new();
-        let target_start = self.graph.targets[effect.target].pixels.start;
         for (row, local) in indices.into_iter().enumerate() {
-            let pixel = &target[local];
-            let spatial = *self
-                .graph
-                .spatial_context(program.uses_spatial_context(), target_start + local);
+            let pixel = target.pixel(local);
+            let spatial = *self.graph.spatial_context(
+                program.uses_spatial_context(),
+                effect.target,
+                local,
+                &pixel,
+            );
             let context = SampleContext {
                 index: pixel.pixel_index,
                 count: pixel.pixel_count,

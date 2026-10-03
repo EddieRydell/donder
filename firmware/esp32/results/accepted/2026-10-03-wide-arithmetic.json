@@ -1,0 +1,88 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Late primitive register allocation; 32-lane batches; safe direct register reads; operation selection outside lane loops; generic multiply/add and multiply/smoothstep fusion. Shared sparse-mask search and color writes keep the complete controller within instruction memory. Wire format 45. No retained sampled-frame cache.",
+  "baseline_reference": "2026-10-03-program-fusion.json",
+  "profiling_heap_bytes": 163840,
+  "method": "Classic ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. Each timing window includes first use and 32 frames. Two-second controls bracket 997/1999 us interrupted-PC sampling. Evaluation and prepared output encoding only; excludes network, storage, DMA and physical output. Full baseline comparison uses separate native images; arithmetic-only controls use the same final image. No laptop timing comparison.",
+  "correctness": {
+    "host_reference_frames": 640,
+    "unchanged_checksums_timestamps_active_counts": true,
+    "regenerated_archives_byte_identical": 20,
+    "device_cases": 23,
+    "device_frames": 736,
+    "current_frames": 576,
+    "same_image_unfused_control_frames": 160,
+    "profile_and_control_windows": 12,
+    "host_only_capacity_cases": ["scheduled_1024", "starter_dense"],
+    "evaluation_allocations": 0,
+    "focused_coverage": "138 runtime unit tests. Arithmetic fusion covers missing/nonfinite values and shared intermediates. Staging regression checks uniform gradients. Prepared numeric blocks cover divergent branches, loops, mixed targets and partial widths. Register kernels check aliases and inactive lanes; masks include lane 31.",
+    "rounding": "Small FP differences are permitted, but this phase changes none of the reference frames."
+  },
+  "validation": "cargo fmt and full pnpm check pass: generated bindings/frontend checks, 138 runtime unit tests, project save/load and graph tests, exhaustive schema validation (570.37 seconds), 16 firmware-owned host storage tests, and workspace all-target/all-feature Clippy with warnings denied. Both I2S and Dig-Quad controller release variants build and link. Thirteen production source files match the measured snapshot; canonical preparation reproduces all 20 measured archives byte for byte. The initial gate caught obsolete expansion-loop lint errors; the unused expansion path and its configuration parameter were removed before the final passing gate.",
+  "timing_columns": ["workload", "previous_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "timings": [
+    ["layered_600_4layers_3operators", 106703, 89079, 89246, 89724],
+    ["ScanSweep_150", 1786, 1800, 1802, 2163],
+    ["ImpactBurst_150", 1697, 1721, 1727, 2092],
+    ["SparkleComet_150", 2718, 2822, 2824, 3187],
+    ["ShimmerField_1200", 14662, 15140, 15240, 15592],
+    ["starter_port1", 233, 193, 191, 541],
+    ["stanford", 13823, 13428, 13945, 14597]
+  ],
+  "same_image_arithmetic_control_columns": ["workload", "unfused_mean_us", "fused_mean_us"],
+  "same_image_arithmetic_controls": [
+    ["layered_600_4layers_3operators", 91698, 89079],
+    ["stanford", 13468, 13428],
+    ["ShimmerField_600", 7620, 7620],
+    ["ShimmerField_1200", 15140, 15140],
+    ["ScanSweep_150", 1800, 1800]
+  ],
+  "memory_columns": ["workload", "previous_archive", "current_archive", "previous_decoded", "current_decoded", "previous_workspace_outputs", "current_workspace_outputs", "previous_retained", "current_retained"],
+  "memory_bytes": [
+    ["layered_600_4layers_3operators", 12401, 12076, 15224, 14860, 10172, 12780, 25396, 27640],
+    ["stanford", 38965, 38640, 49112, 48748, 6756, 9772, 55868, 58520]
+  ],
+  "experiments": {
+    "width_sweep_columns": ["width", "mixed_mean_us", "mixed_retained_bytes"],
+    "width_sweep": [[8, 105127, 24356], [16, 107132, 25572], [32, 97993, 28004], [64, 97724, 32868]],
+    "width_note": "Identical late-allocated archives, before direct bank reads and arithmetic fusion. Eight lanes is the original-iterator reference; 16/32/64 use the same dense/sparse implementation, so the eight-lane comparison also includes iteration changes. Width 64 adds 4864 retained bytes over 32 for negligible gain. Do not add percentages across stages.",
+    "late_allocation": "At width 8, mixed workspace decreases by 1040 bytes. Same-image means are 106850 us before and 105127 us after. Initial allocation before specialization slowed playback by hiding single-assignment uniform expressions; moving it after staging preserves prefix instructions and corrects the regression.",
+    "packed_uniform_storage": "Against the same early-allocation archives, packed scalar uniform registers reduce workspace from 9132 to 8568 bytes but increase mean time from 109283 to 115570 us. Per-operand scalar/lane addressing and code expansion outweigh broadcasts. Not retained.",
+    "direct_registers": "At width 32, removing copied operand rows changes mixed mean from 97993 to 91469 us. Safe row bounds and in-place alias semantics remain.",
+    "native_code_tradeoff": "The initial combined candidate measured 87444 us but the complete controller exceeded instruction memory by 8560 bytes. Compact iteration and shared sparse search/color writes produce the fitting 89079 us implementation. Flattening scalar/batch arithmetic to one indexed loop measured 92998 us and is not retained. Runtime size optimization measured 114683 us and is not retained. Unsuccessful or incomplete serial captures are excluded from accepted timings.",
+    "small_regressions": "Shimmer 1200 increases by 478 us from baseline. The oversized combined version measured 14761 us, compact iteration 14990 us, shared helpers 15114 us, and final 15140 us. The smaller implementation carries a measured speed/size tradeoff. All 32 final frames remain below 16667 us. Sparkle increases by 104 us; the representative mixed gain is 17624 us. No extra complexity is retained to recover small isolated scores."
+  },
+  "hotspot_percent": {
+    "mixed": {"shared_vm": 63.54, "gradient_sampling": 8.71, "block_layer_traversal": 5.70, "software_float_division": 3.85, "unresolved": 3.47},
+    "stanford": {"shared_vm": 58.00, "software_float_division": 23.20, "gradient_sampling": 2.39, "unresolved": 2.39},
+    "note": "Weighted self-symbol PC shares across both periods. The VM includes inlined math, register access and control flow; this is not a dispatch-overhead percentage. Caller type cannot distinguish effect/operator cost in the shared interpreter. Sampling percentages are estimates and not isolated timing deltas."
+  },
+  "findings": "Mixed mean decreases 16.5 percent, approximately 1.20x throughput. All 32 mixed frames still exceed the 60 Hz budget. Four effects and the two-repeat echo still require 7200 upstream effect samples per frame: about 2969 cycles/sample including operators/composition, versus a 556-cycle evaluation-only budget at 60 Hz. Batching amortizes dispatch but retains per-pixel math. No cache-hit gain or SIMD arithmetic is claimed.",
+  "controller": {
+    "built_and_linked": true,
+    "variants_built": ["i2s-output", "dig-quad"],
+    "both_variants_have_identical_instruction_and_static_ram_budgets": true,
+    "image_bytes": 1100528,
+    "configured_heap_bytes": 141312,
+    "previous_heap_bytes": 159744,
+    "mixed_heap_headroom_reduction_bytes": 20676,
+    "render_stack_bytes": 24576,
+    "previous_render_stack_bytes": 6144,
+    "network_core_stack_region_bytes": 20396,
+    "network_core_stack_region_unchanged": true,
+    "rwtext_bytes": 78164,
+    "rwtext_wifi_bytes": 51796,
+    "instruction_region_remaining_bytes": 88,
+    "shared_interpreter_bytes": 38352,
+    "previous_shared_interpreter_bytes": 38996,
+    "interpreter_stack_frame_bytes": 272,
+    "measured_mixed_additional_stack_bytes": 16912,
+    "stack_note": "Diagnostic watermark paints 48 KiB of unused main-core stack below the live harness frame, with linker/SP bounds checked; scans outside timing. Maximum observed across the 23 cases is 16912 bytes. This includes evaluation/checksum calls below the harness, excludes its own frame, and is not a bound for arbitrary graphs or the complete controller/RTOS path. The output controller transfers 18 KiB of its ordinary heap reservation to the render stack, preserving the network-core stack region. Including 2244 additional retained bytes, mixed-show heap headroom decreases by 20676 bytes assuming other allocations are unchanged. This is a meaningful RAM-budget cost for the moderate throughput improvement."
+  },
+  "sha256": {
+    "profile_elf": "0f02335546245c48f3f4f7864a6c255f68d1572e4324811edc0a49a04a98cf08",
+    "controller_image": "04d9c797bf73edcfe184d536449df1f41e612e43ee76825a2b31a1d4409a970b"
+  },
+  "limitations": "The networked controller was built, not flashed or timed. Its Wi-Fi allocations and peak upload/load memory, including an in-flight archive, were not measured in this pass. The lower heap budget can reduce the size of shows it can load. The standalone profiler has a 160 KiB heap; controller output variants have 138 KiB. Host-only capacity cases are excluded from device timings.",
+  "raw_evidence": "Ignored target/vm-wide-20261003 contains frozen source snapshots, width/storage/code-generation experiments and raw captures. final contains canonical preparation, exact archive/reference comparisons, final ELF/PC attribution, stack watermarks and controller inspection. No raw captures or diagnostic tools are promoted."
+}

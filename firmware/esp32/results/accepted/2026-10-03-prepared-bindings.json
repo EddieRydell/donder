@@ -1,0 +1,61 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Evaluate fixed primitive binding expressions in the compiler-proven immutable initialization prefix. Retain only live results as ordinary bound inputs, reusing unused fixed slots of the same type before appending. Preserve automation addresses and value-independent program sharing. No interpreter change, new opcode, wire change or sampled-frame cache. Pointwise graph/program fusion remains unfinished.",
+  "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. Same profiling ELF runs current sequences and previous numeric-block sequences for the three affected device workloads. Each timing window includes 32 frames and first use. Two-second controls bracket 997/1999 us PC sampling. Instruction counting is disabled while timing. Excludes network, storage, DMA and physical output; no laptop timing comparison.",
+  "baseline": "2026-10-03-numeric-blocks.json; its archives are also evaluated in the same current image to isolate preparation from native-code layout changes.",
+  "preparation_cost": "Prefix partial evaluation preserves the validated body and initialization boundary, then reuses the compiler's storage-compaction pass. It does not repeat whole-program dataflow and loop optimization. Removing that duplicate analysis produces byte-for-byte identical archives for all 20 host workloads.",
+  "correctness": {
+    "host_reference_frames": 640,
+    "unchanged_checksums_timestamps_active_counts": true,
+    "device_current_frames": 576,
+    "device_same_image_baseline_frames": 96,
+    "device_cases": 21,
+    "profile_and_control_windows": 32,
+    "evaluation_allocations": 0,
+    "focused_tests": "Different fixed settings share identical prepared programs. Automated input slots remain live. Repeated preparation is idempotent. Temporal branches, loops, seeks, tails and multiple block widths match unprepared execution. Small FP rounding changes are permitted, but every reference checksum remains unchanged."
+  },
+  "validation": "cargo fmt and the complete pnpm check pass, including 123 runtime tests, 11 allocation tests, 16 device-storage tests and warning-denying workspace Clippy. Two new focused tests cover prepared bindings. Complete controller release image builds and is byte-for-byte unchanged. Eight measured product-source files match the checkout. The final preparation cleanup regenerates all 20 host archives byte-for-byte identically to the measured archives.",
+  "controlled_timing_columns": ["workload", "baseline_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "controlled_timings": [
+    ["layered_600_4layers_3operators", 130396, 124857, 125043, 125313],
+    ["stanford", 15043, 15028, 15536, 16211],
+    ["starter_port1", 228, 228, 231, 483]
+  ],
+  "warm_us_before_after": {
+    "layered_600_4layers_3operators": [130414.06, 124870.12],
+    "stanford": [14867.77, 14853.16]
+  },
+  "memory_before_after": {
+    "mixed_archive_bytes": [13257, 12572],
+    "mixed_decoded_bytes": [16160, 15472],
+    "mixed_workspace_outputs_bytes": [10648, 10420],
+    "mixed_retained_bytes": [26808, 25892],
+    "stanford_archive_bytes": [39031, 39211],
+    "stanford_retained_bytes": [56652, 56940],
+    "starter_archive_bytes": [17570, 17353],
+    "starter_retained_bytes": [25036, 24748],
+    "note": "The original append-only prototype retained 58212 bytes for Stanford. Reusing unused fixed binding slots reduces this to 56940. The remaining 288-byte increase has no meaningful measured frame-time benefit in this workload; no workload-specific exception was added."
+  },
+  "mixed_instruction_counts_per_frame_before_after": {
+    "dispatches": [56339, 50036],
+    "float_parameter_loads": [5403, 6978],
+    "division_dispatches": [2250, 225],
+    "note": "The eliminated 2025 division dispatches were fixed-input initialization, executed in one lane. Ordinary pixel-body numeric dispatches still perform math for multiple lanes. Prepared results replace calculations with parameter loads, so the load count increases while total dispatch and arithmetic work fall."
+  },
+  "hotspot_percent_before_after": {
+    "mixed_shared_vm": [64.80, 65.54],
+    "mixed_software_float_division": [6.65, 5.38],
+    "mixed_gradient_sampling": [8.27, 8.10],
+    "mixed_block_traversal": [7.44, 7.24],
+    "stanford_shared_vm": [60.56, 59.76],
+    "stanford_software_float_division": [21.62, 20.55],
+    "note": "Weighted self-symbol shares across both sampling periods in the same ELF. Shares are sampling estimates; effects and operators share one native VM symbol."
+  },
+  "limits": "The mixed temporal workload still misses 60 Hz on every frame and is 2.34x faster than the earlier 291705 us staged/block baseline, not 5x. Stanford fits all 32 measured 60 Hz evaluation deadlines. Unchanged Shimmer 1200 bytecode measured 16701 us mean and 16804 us p95 in this image versus 16544/16649 in the previous image: it has insufficient headroom to claim sustained 60 Hz. No complexity was added to chase that small unchanged-workload variation.",
+  "sha256": {
+    "profile_elf": "eabfbdd20de8fd0cc4e9292e09422aa35bbbad1c15ae2a6bde9803c1681fe5f2",
+    "controller_elf": "95631a5ffe9145a75f0c56f0242dfef3d8b5e1bcfcf9ca98980dcf7cca9fea66",
+    "controller_image": "ab5cd94e378f0ef27afb1947f8f5854c8f4f0834aa5b0aabb1a91df9d2efba72"
+  },
+  "raw_evidence": "Ignored target/vm-opt-20261002/prepared-reuse contains measured cases, captures, instruction counts, source hashes and linked profiling ELF. prepared-compact contains byte-identical regenerated cases, the passing full-check log and final controller build log. prepared-bindings retains the append-only prototype and original baseline archives. Only this reviewed summary is retained outside target."
+}

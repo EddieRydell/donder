@@ -1,0 +1,1966 @@
+{
+  "date_local": "2026-10-02",
+  "experiment": "Only native Vm::run function/literal placement changed. Same bytecode archives, timestamps, harness, optimizer, atomic mode and board as baseline. No playback cache or semantic changes.",
+  "baseline_evidence": "2026-10-02-vm-profile.json",
+  "baseline_elf_sha256": "c9e26ccfb544695a87e4ad284e6568384d2d831fe0973d0d3060678f033e32c0",
+  "iram_elf_sha256": "2485f88b05bdcbca46863c72ba5e66e5871e608bd88ba5bcc622a200284e61ab",
+  "selector_before": "*(.literal.*2Vm3run .text.*2Vm3run)",
+  "selector_after": "*(.literal.*2Vm*3run* .text.*2Vm*3run*)",
+  "baseline_sections_bytes": {
+    ".rwtext": 10540,
+    ".rwtext.wifi": 0,
+    ".data": 2228,
+    ".data.wifi": 0,
+    ".bss": 114800,
+    ".rodata": 340980,
+    ".text": 249145,
+    ".vectors": 1024
+  },
+  "iram_sections_bytes": {
+    ".rwtext": 42088,
+    ".rwtext.wifi": 0,
+    ".data": 2228,
+    ".data.wifi": 0,
+    ".bss": 114800,
+    ".rodata": 340980,
+    ".text": 217725,
+    ".vectors": 1024
+  },
+  "iram_vm_functions": [
+    {
+      "kind": "operator",
+      "address": "0x40081938",
+      "section": ".rwtext",
+      "bytes": 15655
+    },
+    {
+      "kind": "effect",
+      "address": "0x40085660",
+      "section": ".rwtext",
+      "bytes": 15353
+    }
+  ],
+  "heap_bytes": 163840,
+  "verified_frames": 544,
+  "pc_samples": 15461,
+  "cases": [
+    {
+      "name": "ScanSweep_150",
+      "baseline_mean_us": 7427,
+      "iram_mean_us": 3782,
+      "less_time_percent": 49.08,
+      "iram": {
+        "frames": 32,
+        "mean_us": 3782,
+        "p50_us": 3770,
+        "p95_us": 3779,
+        "max_us": 4192,
+        "first_us": 4192,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 9232,
+        "workspace_outputs": 1532,
+        "retained": 10764,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ImpactBurst_150",
+      "baseline_mean_us": 7371,
+      "iram_mean_us": 4020,
+      "less_time_percent": 45.46,
+      "iram": {
+        "frames": 32,
+        "mean_us": 4020,
+        "p50_us": 4010,
+        "p95_us": 4016,
+        "max_us": 4432,
+        "first_us": 4432,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 9376,
+        "workspace_outputs": 1580,
+        "retained": 10956,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "SparkleComet_150",
+      "baseline_mean_us": 10009,
+      "iram_mean_us": 8015,
+      "less_time_percent": 19.92,
+      "iram": {
+        "frames": 32,
+        "mean_us": 8015,
+        "p50_us": 8002,
+        "p95_us": 8010,
+        "max_us": 8445,
+        "first_us": 8445,
+        "over60": 0,
+        "over120": 1,
+        "decoded": 10404,
+        "workspace_outputs": 1680,
+        "retained": 12084,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ShimmerField_150",
+      "baseline_mean_us": 5853,
+      "iram_mean_us": 5247,
+      "less_time_percent": 10.35,
+      "iram": {
+        "frames": 32,
+        "mean_us": 5247,
+        "p50_us": 5324,
+        "p95_us": 5352,
+        "max_us": 5695,
+        "first_us": 5695,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 9480,
+        "workspace_outputs": 1624,
+        "retained": 11104,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ShimmerField_600",
+      "baseline_mean_us": 22630,
+      "iram_mean_us": 20561,
+      "less_time_percent": 9.14,
+      "iram": {
+        "frames": 32,
+        "mean_us": 20561,
+        "p50_us": 20913,
+        "p95_us": 20924,
+        "max_us": 21243,
+        "first_us": 21243,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 27480,
+        "workspace_outputs": 5672,
+        "retained": 33152,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ShimmerField_1200",
+      "baseline_mean_us": 44927,
+      "iram_mean_us": 40937,
+      "less_time_percent": 8.88,
+      "iram": {
+        "frames": 32,
+        "mean_us": 40937,
+        "p50_us": 41653,
+        "p95_us": 41659,
+        "max_us": 41974,
+        "first_us": 41974,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 51480,
+        "workspace_outputs": 11072,
+        "retained": 62552,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ShimmerField_150_layers4",
+      "baseline_mean_us": 22542,
+      "iram_mean_us": 20503,
+      "less_time_percent": 9.05,
+      "iram": {
+        "frames": 32,
+        "mean_us": 20503,
+        "p50_us": 20853,
+        "p95_us": 20877,
+        "max_us": 21224,
+        "first_us": 21224,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 11192,
+        "workspace_outputs": 2976,
+        "retained": 14168,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "ShimmerField_150_layers16",
+      "baseline_mean_us": 89302,
+      "iram_mean_us": 81526,
+      "less_time_percent": 8.71,
+      "iram": {
+        "frames": 32,
+        "mean_us": 81526,
+        "p50_us": 82967,
+        "p95_us": 82992,
+        "max_us": 83327,
+        "first_us": 83327,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 18064,
+        "workspace_outputs": 8376,
+        "retained": 26440,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "black_150",
+      "baseline_mean_us": 103,
+      "iram_mean_us": 95,
+      "less_time_percent": 7.77,
+      "iram": {
+        "frames": 32,
+        "mean_us": 95,
+        "p50_us": 85,
+        "p95_us": 89,
+        "max_us": 404,
+        "first_us": 404,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 6744,
+        "workspace_outputs": 1380,
+        "retained": 8124,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "freeze_black_150",
+      "baseline_mean_us": 40706,
+      "iram_mean_us": 31237,
+      "less_time_percent": 23.26,
+      "iram": {
+        "frames": 32,
+        "mean_us": 31237,
+        "p50_us": 31255,
+        "p95_us": 31259,
+        "max_us": 31944,
+        "first_us": 31944,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 8176,
+        "workspace_outputs": 1320,
+        "retained": 9496,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "scheduled_16",
+      "baseline_mean_us": 71,
+      "iram_mean_us": 66,
+      "less_time_percent": 7.04,
+      "iram": {
+        "frames": 32,
+        "mean_us": 66,
+        "p50_us": 57,
+        "p95_us": 60,
+        "max_us": 381,
+        "first_us": 381,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 9084,
+        "workspace_outputs": 932,
+        "retained": 10016,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "scheduled_128",
+      "baseline_mean_us": 78,
+      "iram_mean_us": 74,
+      "less_time_percent": 5.13,
+      "iram": {
+        "frames": 32,
+        "mean_us": 74,
+        "p50_us": 64,
+        "p95_us": 68,
+        "max_us": 383,
+        "first_us": 383,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 27004,
+        "workspace_outputs": 932,
+        "retained": 27936,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "chase_pulse_150_layers1",
+      "baseline_mean_us": 4034,
+      "iram_mean_us": 3833,
+      "less_time_percent": 4.98,
+      "iram": {
+        "frames": 32,
+        "mean_us": 3833,
+        "p50_us": 3820,
+        "p95_us": 3831,
+        "max_us": 4301,
+        "first_us": 4301,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 6192,
+        "workspace_outputs": 1104,
+        "retained": 7296,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "chase_pulse_150_layers4",
+      "baseline_mean_us": 8029,
+      "iram_mean_us": 7762,
+      "less_time_percent": 3.33,
+      "iram": {
+        "frames": 32,
+        "mean_us": 7762,
+        "p50_us": 7748,
+        "p95_us": 7774,
+        "max_us": 8208,
+        "first_us": 8208,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 7728,
+        "workspace_outputs": 2904,
+        "retained": 10632,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "chase_pulse_150_layers16",
+      "baseline_mean_us": 31693,
+      "iram_mean_us": 31095,
+      "less_time_percent": 1.89,
+      "iram": {
+        "frames": 32,
+        "mean_us": 31095,
+        "p50_us": 31078,
+        "p95_us": 31126,
+        "max_us": 31533,
+        "first_us": 31533,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 12824,
+        "workspace_outputs": 8304,
+        "retained": 21128,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "starter_port1",
+      "baseline_mean_us": 918,
+      "iram_mean_us": 823,
+      "less_time_percent": 10.35,
+      "iram": {
+        "frames": 32,
+        "mean_us": 823,
+        "p50_us": 801,
+        "p95_us": 817,
+        "max_us": 1553,
+        "first_us": 1553,
+        "over60": 0,
+        "over120": 0,
+        "decoded": 34172,
+        "workspace_outputs": 2764,
+        "retained": 36936,
+        "eval_allocations": 0
+      }
+    },
+    {
+      "name": "stanford",
+      "baseline_mean_us": 79058,
+      "iram_mean_us": 49275,
+      "less_time_percent": 37.67,
+      "iram": {
+        "frames": 32,
+        "mean_us": 49275,
+        "p50_us": 48801,
+        "p95_us": 51416,
+        "max_us": 52103,
+        "first_us": 52103,
+        "over60": 32,
+        "over120": 32,
+        "decoded": 75508,
+        "workspace_outputs": 5800,
+        "retained": 81308,
+        "eval_allocations": 0
+      }
+    }
+  ],
+  "warm_controls": {
+    "ShimmerField_150": {
+      "before_us_per_frame": 5127.4182692307695,
+      "after_us_per_frame": 5126.961538461538
+    },
+    "freeze_black_150": {
+      "before_us_per_frame": 31124.458333333332,
+      "after_us_per_frame": 31124.09375
+    },
+    "starter_port1": {
+      "before_us_per_frame": 675.0063844086021,
+      "after_us_per_frame": 674.932123655914
+    },
+    "stanford": {
+      "before_us_per_frame": 48883.21875,
+      "after_us_per_frame": 48879.453125
+    }
+  },
+  "full_firmware": {
+    "build": "dig-quad feature; Wi-Fi, storage, scheduler and I2S enabled; link verified, not flashed or exercised",
+    "elf_sha256": "2d94803777055c0181d114c2d378b870a143437c1e453879b10be28bc48b04d4",
+    "sections_bytes": {
+      ".rwtext": 50232,
+      ".rwtext.wifi": 51796,
+      ".data": 11096,
+      ".data.wifi": 540,
+      ".bss": 164308,
+      ".rodata": 80444,
+      ".text": 766461,
+      ".vectors": 1024
+    },
+    "vm_functions": [
+      {
+        "kind": "operator",
+        "address": "0x40083908",
+        "section": ".rwtext",
+        "bytes": 15655
+      },
+      {
+        "kind": "effect",
+        "address": "0x40087630",
+        "section": ".rwtext",
+        "bytes": 15353
+      }
+    ],
+    "iram_region_bytes": 130048,
+    "iram_region_remaining_bytes": 28020,
+    "heap_bytes": 159744
+  },
+  "local_artifacts": "target/vm-profile-20261002/iram",
+  "hotspot_method": "Pool self PC samples from997and1999us windows. Estimated milliseconds = sample share times bracketing unsampled warm frame mean; not direct per-function stopwatch timing. VM self includes inlined helpers. Inside-VM source attribution is approximate and does not measure complete opcode cost or external callees.",
+  "hotspot_comparison": {
+    "flash": {
+      "ShimmerField_150": {
+        "samples": 3256,
+        "unsampled_mean_us": 5627.795572916666,
+        "self": [
+          {
+            "name": "effect VM",
+            "samples": 2344,
+            "percent": 71.99,
+            "estimated_ms": 4.051
+          },
+          {
+            "name": "copy helper",
+            "samples": 402,
+            "percent": 12.35,
+            "estimated_ms": 0.695
+          },
+          {
+            "name": "float division",
+            "samples": 226,
+            "percent": 6.94,
+            "estimated_ms": 0.391
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 124,
+            "percent": 3.81,
+            "estimated_ms": 0.214
+          },
+          {
+            "name": "donder_runtime::evaluation::sample_layer_frame",
+            "samples": 66,
+            "percent": 2.03,
+            "estimated_ms": 0.114
+          },
+          {
+            "name": "<donder_language::dsl::sample::SampleProgram as donder_runtime::dsl::sample::SampleProgramExt>::sample",
+            "samples": 33,
+            "percent": 1.01,
+            "estimated_ms": 0.057
+          },
+          {
+            "name": "unresolved",
+            "samples": 23,
+            "percent": 0.71,
+            "estimated_ms": 0.04
+          },
+          {
+            "name": "<donder_runtime::sequence::SequencePlayback>::evaluate",
+            "samples": 18,
+            "percent": 0.55,
+            "estimated_ms": 0.031
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 521,
+            "percent": 16.0,
+            "estimated_ms": 0.901
+          },
+          {
+            "name": "SectionPosition",
+            "samples": 367,
+            "percent": 11.27,
+            "estimated_ms": 0.634
+          },
+          {
+            "name": "ContextRead",
+            "samples": 364,
+            "percent": 11.18,
+            "estimated_ms": 0.629
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 217,
+            "percent": 6.66,
+            "estimated_ms": 0.375
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 204,
+            "percent": 6.27,
+            "estimated_ms": 0.353
+          },
+          {
+            "name": "ClampConst",
+            "samples": 120,
+            "percent": 3.69,
+            "estimated_ms": 0.207
+          },
+          {
+            "name": "FloatArithmeticConst",
+            "samples": 120,
+            "percent": 3.69,
+            "estimated_ms": 0.207
+          }
+        ],
+        "by_vm": {
+          "effect VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 521,
+              "percent": 16.0,
+              "estimated_ms": 0.901,
+              "percent_of_vm_self": 22.23
+            },
+            {
+              "name": "SectionPosition",
+              "samples": 367,
+              "percent": 11.27,
+              "estimated_ms": 0.634,
+              "percent_of_vm_self": 15.66
+            },
+            {
+              "name": "ContextRead",
+              "samples": 364,
+              "percent": 11.18,
+              "estimated_ms": 0.629,
+              "percent_of_vm_self": 15.53
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 217,
+              "percent": 6.66,
+              "estimated_ms": 0.375,
+              "percent_of_vm_self": 9.26
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 204,
+              "percent": 6.27,
+              "estimated_ms": 0.353,
+              "percent_of_vm_self": 8.7
+            },
+            {
+              "name": "ClampConst",
+              "samples": 120,
+              "percent": 3.69,
+              "estimated_ms": 0.207,
+              "percent_of_vm_self": 5.12
+            },
+            {
+              "name": "FloatArithmeticConst",
+              "samples": 120,
+              "percent": 3.69,
+              "estimated_ms": 0.207,
+              "percent_of_vm_self": 5.12
+            },
+            {
+              "name": "FloatUnary",
+              "samples": 104,
+              "percent": 3.19,
+              "estimated_ms": 0.18,
+              "percent_of_vm_self": 4.44
+            }
+          ]
+        }
+      },
+      "freeze_black_150": {
+        "samples": 3905,
+        "unsampled_mean_us": 40476.6171875,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 2742,
+            "percent": 70.22,
+            "estimated_ms": 28.422
+          },
+          {
+            "name": "effect VM",
+            "samples": 396,
+            "percent": 10.14,
+            "estimated_ms": 4.105
+          },
+          {
+            "name": "source-pixel sampling",
+            "samples": 267,
+            "percent": 6.84,
+            "estimated_ms": 2.768
+          },
+          {
+            "name": "copy helper",
+            "samples": 207,
+            "percent": 5.3,
+            "estimated_ms": 2.146
+          },
+          {
+            "name": "unresolved",
+            "samples": 100,
+            "percent": 2.56,
+            "estimated_ms": 1.037
+          },
+          {
+            "name": "float division",
+            "samples": 80,
+            "percent": 2.05,
+            "estimated_ms": 0.829
+          },
+          {
+            "name": "<donder_language::dsl::sample::SampleProgram as donder_runtime::dsl::sample::SampleProgramExt>::sample",
+            "samples": 61,
+            "percent": 1.56,
+            "estimated_ms": 0.632
+          },
+          {
+            "name": "signal sampler",
+            "samples": 30,
+            "percent": 0.77,
+            "estimated_ms": 0.311
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 843,
+            "percent": 21.59,
+            "estimated_ms": 8.738
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 610,
+            "percent": 15.62,
+            "estimated_ms": 6.323
+          },
+          {
+            "name": "Move",
+            "samples": 377,
+            "percent": 9.65,
+            "estimated_ms": 3.908
+          },
+          {
+            "name": "Rgb",
+            "samples": 320,
+            "percent": 8.19,
+            "estimated_ms": 3.317
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 239,
+            "percent": 6.12,
+            "estimated_ms": 2.477
+          },
+          {
+            "name": "FloatCompare",
+            "samples": 110,
+            "percent": 2.82,
+            "estimated_ms": 1.14
+          },
+          {
+            "name": "SignalSample",
+            "samples": 105,
+            "percent": 2.69,
+            "estimated_ms": 1.088
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 804,
+              "percent": 20.59,
+              "estimated_ms": 8.334,
+              "percent_of_vm_self": 29.32
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 610,
+              "percent": 15.62,
+              "estimated_ms": 6.323,
+              "percent_of_vm_self": 22.25
+            },
+            {
+              "name": "Move",
+              "samples": 377,
+              "percent": 9.65,
+              "estimated_ms": 3.908,
+              "percent_of_vm_self": 13.75
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 222,
+              "percent": 5.69,
+              "estimated_ms": 2.301,
+              "percent_of_vm_self": 8.1
+            },
+            {
+              "name": "FloatCompare",
+              "samples": 110,
+              "percent": 2.82,
+              "estimated_ms": 1.14,
+              "percent_of_vm_self": 4.01
+            },
+            {
+              "name": "SignalSample",
+              "samples": 105,
+              "percent": 2.69,
+              "estimated_ms": 1.088,
+              "percent_of_vm_self": 3.83
+            },
+            {
+              "name": "FloatCompareConst",
+              "samples": 100,
+              "percent": 2.56,
+              "estimated_ms": 1.037,
+              "percent_of_vm_self": 3.65
+            },
+            {
+              "name": "JumpIfFalse",
+              "samples": 86,
+              "percent": 2.2,
+              "estimated_ms": 0.891,
+              "percent_of_vm_self": 3.14
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "Rgb",
+              "samples": 320,
+              "percent": 8.19,
+              "estimated_ms": 3.317,
+              "percent_of_vm_self": 80.81
+            },
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 39,
+              "percent": 1.0,
+              "estimated_ms": 0.404,
+              "percent_of_vm_self": 9.85
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 17,
+              "percent": 0.44,
+              "estimated_ms": 0.176,
+              "percent_of_vm_self": 4.29
+            },
+            {
+              "name": "LoadFloatConst",
+              "samples": 12,
+              "percent": 0.31,
+              "estimated_ms": 0.124,
+              "percent_of_vm_self": 3.03
+            },
+            {
+              "name": "ReturnColor",
+              "samples": 6,
+              "percent": 0.15,
+              "estimated_ms": 0.062,
+              "percent_of_vm_self": 1.52
+            },
+            {
+              "name": "MixFloat",
+              "samples": 2,
+              "percent": 0.05,
+              "estimated_ms": 0.021,
+              "percent_of_vm_self": 0.51
+            }
+          ]
+        }
+      },
+      "starter_port1": {
+        "samples": 3009,
+        "unsampled_mean_us": 725.5549568965516,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 859,
+            "percent": 28.55,
+            "estimated_ms": 0.207
+          },
+          {
+            "name": "unresolved",
+            "samples": 538,
+            "percent": 17.88,
+            "estimated_ms": 0.13
+          },
+          {
+            "name": "graph traversal",
+            "samples": 413,
+            "percent": 13.73,
+            "estimated_ms": 0.1
+          },
+          {
+            "name": "signal sampler",
+            "samples": 354,
+            "percent": 11.76,
+            "estimated_ms": 0.085
+          },
+          {
+            "name": "<donder_runtime::sequence::SequencePlayback>::evaluate",
+            "samples": 173,
+            "percent": 5.75,
+            "estimated_ms": 0.042
+          },
+          {
+            "name": "operator setup",
+            "samples": 157,
+            "percent": 5.22,
+            "estimated_ms": 0.038
+          },
+          {
+            "name": "effect VM",
+            "samples": 120,
+            "percent": 3.99,
+            "estimated_ms": 0.029
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 120,
+            "percent": 3.99,
+            "estimated_ms": 0.029
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "SignalSample",
+            "samples": 545,
+            "percent": 18.11,
+            "estimated_ms": 0.131
+          },
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 129,
+            "percent": 4.29,
+            "estimated_ms": 0.031
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 86,
+            "percent": 2.86,
+            "estimated_ms": 0.021
+          },
+          {
+            "name": "CurveParamFloatClamped",
+            "samples": 80,
+            "percent": 2.66,
+            "estimated_ms": 0.019
+          },
+          {
+            "name": "ReturnColor",
+            "samples": 48,
+            "percent": 1.6,
+            "estimated_ms": 0.012
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 39,
+            "percent": 1.3,
+            "estimated_ms": 0.009
+          },
+          {
+            "name": "ContextRead",
+            "samples": 31,
+            "percent": 1.03,
+            "estimated_ms": 0.007
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "SignalSample",
+              "samples": 545,
+              "percent": 18.11,
+              "estimated_ms": 0.131,
+              "percent_of_vm_self": 63.45
+            },
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 111,
+              "percent": 3.69,
+              "estimated_ms": 0.027,
+              "percent_of_vm_self": 12.92
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 86,
+              "percent": 2.86,
+              "estimated_ms": 0.021,
+              "percent_of_vm_self": 10.01
+            },
+            {
+              "name": "ReturnColor",
+              "samples": 48,
+              "percent": 1.6,
+              "estimated_ms": 0.012,
+              "percent_of_vm_self": 5.59
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 39,
+              "percent": 1.3,
+              "estimated_ms": 0.009,
+              "percent_of_vm_self": 4.54
+            },
+            {
+              "name": "ContextRead",
+              "samples": 30,
+              "percent": 1.0,
+              "estimated_ms": 0.007,
+              "percent_of_vm_self": 3.49
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "CurveParamFloatClamped",
+              "samples": 80,
+              "percent": 2.66,
+              "estimated_ms": 0.019,
+              "percent_of_vm_self": 66.67
+            },
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 18,
+              "percent": 0.6,
+              "estimated_ms": 0.004,
+              "percent_of_vm_self": 15.0
+            },
+            {
+              "name": "LoadMarksConst",
+              "samples": 15,
+              "percent": 0.5,
+              "estimated_ms": 0.004,
+              "percent_of_vm_self": 12.5
+            },
+            {
+              "name": "GradientParamColorScaled",
+              "samples": 6,
+              "percent": 0.2,
+              "estimated_ms": 0.001,
+              "percent_of_vm_self": 5.0
+            },
+            {
+              "name": "ContextRead",
+              "samples": 1,
+              "percent": 0.03,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 0.83
+            }
+          ]
+        }
+      },
+      "stanford": {
+        "samples": 3781,
+        "unsampled_mean_us": 78349.171875,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 1634,
+            "percent": 43.22,
+            "estimated_ms": 33.859
+          },
+          {
+            "name": "effect VM",
+            "samples": 1028,
+            "percent": 27.19,
+            "estimated_ms": 21.302
+          },
+          {
+            "name": "array access",
+            "samples": 248,
+            "percent": 6.56,
+            "estimated_ms": 5.139
+          },
+          {
+            "name": "float division",
+            "samples": 224,
+            "percent": 5.92,
+            "estimated_ms": 4.642
+          },
+          {
+            "name": "copy helper",
+            "samples": 156,
+            "percent": 4.13,
+            "estimated_ms": 3.233
+          },
+          {
+            "name": "source-pixel sampling",
+            "samples": 121,
+            "percent": 3.2,
+            "estimated_ms": 2.507
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 103,
+            "percent": 2.72,
+            "estimated_ms": 2.134
+          },
+          {
+            "name": "unresolved",
+            "samples": 94,
+            "percent": 2.49,
+            "estimated_ms": 1.948
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 689,
+            "percent": 18.22,
+            "estimated_ms": 14.277
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 374,
+            "percent": 9.89,
+            "estimated_ms": 7.75
+          },
+          {
+            "name": "Move",
+            "samples": 199,
+            "percent": 5.26,
+            "estimated_ms": 4.124
+          },
+          {
+            "name": "Mark",
+            "samples": 186,
+            "percent": 4.92,
+            "estimated_ms": 3.854
+          },
+          {
+            "name": "ColorScale",
+            "samples": 179,
+            "percent": 4.73,
+            "estimated_ms": 3.709
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 169,
+            "percent": 4.47,
+            "estimated_ms": 3.502
+          },
+          {
+            "name": "FloatCompareConst",
+            "samples": 152,
+            "percent": 4.02,
+            "estimated_ms": 3.15
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 379,
+              "percent": 10.02,
+              "estimated_ms": 7.854,
+              "percent_of_vm_self": 23.19
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 320,
+              "percent": 8.46,
+              "estimated_ms": 6.631,
+              "percent_of_vm_self": 19.58
+            },
+            {
+              "name": "ColorScale",
+              "samples": 179,
+              "percent": 4.73,
+              "estimated_ms": 3.709,
+              "percent_of_vm_self": 10.95
+            },
+            {
+              "name": "Move",
+              "samples": 162,
+              "percent": 4.28,
+              "estimated_ms": 3.357,
+              "percent_of_vm_self": 9.91
+            },
+            {
+              "name": "SignalSample",
+              "samples": 129,
+              "percent": 3.41,
+              "estimated_ms": 2.673,
+              "percent_of_vm_self": 7.89
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 101,
+              "percent": 2.67,
+              "estimated_ms": 2.093,
+              "percent_of_vm_self": 6.18
+            },
+            {
+              "name": "FloatCompare",
+              "samples": 73,
+              "percent": 1.93,
+              "estimated_ms": 1.513,
+              "percent_of_vm_self": 4.47
+            },
+            {
+              "name": "JumpIfFalse",
+              "samples": 55,
+              "percent": 1.45,
+              "estimated_ms": 1.14,
+              "percent_of_vm_self": 3.37
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 310,
+              "percent": 8.2,
+              "estimated_ms": 6.424,
+              "percent_of_vm_self": 30.16
+            },
+            {
+              "name": "Mark",
+              "samples": 186,
+              "percent": 4.92,
+              "estimated_ms": 3.854,
+              "percent_of_vm_self": 18.09
+            },
+            {
+              "name": "FloatCompareConst",
+              "samples": 114,
+              "percent": 3.02,
+              "estimated_ms": 2.362,
+              "percent_of_vm_self": 11.09
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 68,
+              "percent": 1.8,
+              "estimated_ms": 1.409,
+              "percent_of_vm_self": 6.61
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 54,
+              "percent": 1.43,
+              "estimated_ms": 1.119,
+              "percent_of_vm_self": 5.25
+            },
+            {
+              "name": "GradientColorScaled",
+              "samples": 52,
+              "percent": 1.38,
+              "estimated_ms": 1.078,
+              "percent_of_vm_self": 5.06
+            },
+            {
+              "name": "CurveParamFloatClamped",
+              "samples": 45,
+              "percent": 1.19,
+              "estimated_ms": 0.932,
+              "percent_of_vm_self": 4.38
+            },
+            {
+              "name": "Move",
+              "samples": 37,
+              "percent": 0.98,
+              "estimated_ms": 0.767,
+              "percent_of_vm_self": 3.6
+            }
+          ]
+        }
+      }
+    },
+    "iram": {
+      "ShimmerField_150": {
+        "samples": 3214,
+        "unsampled_mean_us": 5127.189903846154,
+        "self": [
+          {
+            "name": "effect VM",
+            "samples": 1861,
+            "percent": 57.9,
+            "estimated_ms": 2.969
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 698,
+            "percent": 21.72,
+            "estimated_ms": 1.113
+          },
+          {
+            "name": "copy helper",
+            "samples": 329,
+            "percent": 10.24,
+            "estimated_ms": 0.525
+          },
+          {
+            "name": "float division",
+            "samples": 169,
+            "percent": 5.26,
+            "estimated_ms": 0.27
+          },
+          {
+            "name": "donder_runtime::evaluation::sample_layer_frame",
+            "samples": 72,
+            "percent": 2.24,
+            "estimated_ms": 0.115
+          },
+          {
+            "name": "<donder_language::dsl::sample::SampleProgram as donder_runtime::dsl::sample::SampleProgramExt>::sample",
+            "samples": 39,
+            "percent": 1.21,
+            "estimated_ms": 0.062
+          },
+          {
+            "name": "graph traversal",
+            "samples": 18,
+            "percent": 0.56,
+            "estimated_ms": 0.029
+          },
+          {
+            "name": "unresolved",
+            "samples": 12,
+            "percent": 0.37,
+            "estimated_ms": 0.019
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 576,
+            "percent": 17.92,
+            "estimated_ms": 0.919
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 264,
+            "percent": 8.21,
+            "estimated_ms": 0.421
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 216,
+            "percent": 6.72,
+            "estimated_ms": 0.345
+          },
+          {
+            "name": "ClampConst",
+            "samples": 123,
+            "percent": 3.83,
+            "estimated_ms": 0.196
+          },
+          {
+            "name": "FloatArithmeticConst",
+            "samples": 120,
+            "percent": 3.73,
+            "estimated_ms": 0.191
+          },
+          {
+            "name": "FloatUnary",
+            "samples": 108,
+            "percent": 3.36,
+            "estimated_ms": 0.172
+          },
+          {
+            "name": "MixColor",
+            "samples": 79,
+            "percent": 2.46,
+            "estimated_ms": 0.126
+          }
+        ],
+        "by_vm": {
+          "effect VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 576,
+              "percent": 17.92,
+              "estimated_ms": 0.919,
+              "percent_of_vm_self": 30.95
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 264,
+              "percent": 8.21,
+              "estimated_ms": 0.421,
+              "percent_of_vm_self": 14.19
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 216,
+              "percent": 6.72,
+              "estimated_ms": 0.345,
+              "percent_of_vm_self": 11.61
+            },
+            {
+              "name": "ClampConst",
+              "samples": 123,
+              "percent": 3.83,
+              "estimated_ms": 0.196,
+              "percent_of_vm_self": 6.61
+            },
+            {
+              "name": "FloatArithmeticConst",
+              "samples": 120,
+              "percent": 3.73,
+              "estimated_ms": 0.191,
+              "percent_of_vm_self": 6.45
+            },
+            {
+              "name": "FloatUnary",
+              "samples": 108,
+              "percent": 3.36,
+              "estimated_ms": 0.172,
+              "percent_of_vm_self": 5.8
+            },
+            {
+              "name": "MixColor",
+              "samples": 79,
+              "percent": 2.46,
+              "estimated_ms": 0.126,
+              "percent_of_vm_self": 4.25
+            },
+            {
+              "name": "EnumParamEqualConst",
+              "samples": 61,
+              "percent": 1.9,
+              "estimated_ms": 0.097,
+              "percent_of_vm_self": 3.28
+            }
+          ]
+        }
+      },
+      "freeze_black_150": {
+        "samples": 4504,
+        "unsampled_mean_us": 31124.276041666664,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 3068,
+            "percent": 68.12,
+            "estimated_ms": 21.201
+          },
+          {
+            "name": "source-pixel sampling",
+            "samples": 457,
+            "percent": 10.15,
+            "estimated_ms": 3.158
+          },
+          {
+            "name": "copy helper",
+            "samples": 352,
+            "percent": 7.82,
+            "estimated_ms": 2.432
+          },
+          {
+            "name": "effect VM",
+            "samples": 212,
+            "percent": 4.71,
+            "estimated_ms": 1.465
+          },
+          {
+            "name": "unresolved",
+            "samples": 142,
+            "percent": 3.15,
+            "estimated_ms": 0.981
+          },
+          {
+            "name": "float division",
+            "samples": 126,
+            "percent": 2.8,
+            "estimated_ms": 0.871
+          },
+          {
+            "name": "<donder_language::dsl::sample::SampleProgram as donder_runtime::dsl::sample::SampleProgramExt>::sample",
+            "samples": 81,
+            "percent": 1.8,
+            "estimated_ms": 0.56
+          },
+          {
+            "name": "signal sampler",
+            "samples": 27,
+            "percent": 0.6,
+            "estimated_ms": 0.187
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 1207,
+            "percent": 26.8,
+            "estimated_ms": 8.341
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 427,
+            "percent": 9.48,
+            "estimated_ms": 2.951
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 354,
+            "percent": 7.86,
+            "estimated_ms": 2.446
+          },
+          {
+            "name": "FloatCompare",
+            "samples": 153,
+            "percent": 3.4,
+            "estimated_ms": 1.057
+          },
+          {
+            "name": "JumpIfFalse",
+            "samples": 146,
+            "percent": 3.24,
+            "estimated_ms": 1.009
+          },
+          {
+            "name": "Move",
+            "samples": 141,
+            "percent": 3.13,
+            "estimated_ms": 0.974
+          },
+          {
+            "name": "FloatCompareConst",
+            "samples": 119,
+            "percent": 2.64,
+            "estimated_ms": 0.822
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 1151,
+              "percent": 25.56,
+              "estimated_ms": 7.954,
+              "percent_of_vm_self": 37.52
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 427,
+              "percent": 9.48,
+              "estimated_ms": 2.951,
+              "percent_of_vm_self": 13.92
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 333,
+              "percent": 7.39,
+              "estimated_ms": 2.301,
+              "percent_of_vm_self": 10.85
+            },
+            {
+              "name": "FloatCompare",
+              "samples": 153,
+              "percent": 3.4,
+              "estimated_ms": 1.057,
+              "percent_of_vm_self": 4.99
+            },
+            {
+              "name": "JumpIfFalse",
+              "samples": 146,
+              "percent": 3.24,
+              "estimated_ms": 1.009,
+              "percent_of_vm_self": 4.76
+            },
+            {
+              "name": "Move",
+              "samples": 141,
+              "percent": 3.13,
+              "estimated_ms": 0.974,
+              "percent_of_vm_self": 4.6
+            },
+            {
+              "name": "FloatCompareConst",
+              "samples": 119,
+              "percent": 2.64,
+              "estimated_ms": 0.822,
+              "percent_of_vm_self": 3.88
+            },
+            {
+              "name": "IntArithmetic",
+              "samples": 118,
+              "percent": 2.62,
+              "estimated_ms": 0.815,
+              "percent_of_vm_self": 3.85
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "Rgb",
+              "samples": 83,
+              "percent": 1.84,
+              "estimated_ms": 0.574,
+              "percent_of_vm_self": 39.15
+            },
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 56,
+              "percent": 1.24,
+              "estimated_ms": 0.387,
+              "percent_of_vm_self": 26.42
+            },
+            {
+              "name": "LoadFloatConst",
+              "samples": 33,
+              "percent": 0.73,
+              "estimated_ms": 0.228,
+              "percent_of_vm_self": 15.57
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 21,
+              "percent": 0.47,
+              "estimated_ms": 0.145,
+              "percent_of_vm_self": 9.91
+            },
+            {
+              "name": "ReturnColor",
+              "samples": 16,
+              "percent": 0.36,
+              "estimated_ms": 0.111,
+              "percent_of_vm_self": 7.55
+            },
+            {
+              "name": "MixFloat",
+              "samples": 3,
+              "percent": 0.07,
+              "estimated_ms": 0.021,
+              "percent_of_vm_self": 1.42
+            }
+          ]
+        }
+      },
+      "starter_port1": {
+        "samples": 3027,
+        "unsampled_mean_us": 674.969254032258,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 796,
+            "percent": 26.3,
+            "estimated_ms": 0.177
+          },
+          {
+            "name": "graph traversal",
+            "samples": 627,
+            "percent": 20.71,
+            "estimated_ms": 0.14
+          },
+          {
+            "name": "unresolved",
+            "samples": 461,
+            "percent": 15.23,
+            "estimated_ms": 0.103
+          },
+          {
+            "name": "operator setup",
+            "samples": 259,
+            "percent": 8.56,
+            "estimated_ms": 0.058
+          },
+          {
+            "name": "signal sampler",
+            "samples": 257,
+            "percent": 8.49,
+            "estimated_ms": 0.057
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 174,
+            "percent": 5.75,
+            "estimated_ms": 0.039
+          },
+          {
+            "name": "<donder_runtime::signal::EffectAutomationWorkspace>::params_at",
+            "samples": 125,
+            "percent": 4.13,
+            "estimated_ms": 0.028
+          },
+          {
+            "name": "donder_runtime::evaluation::sample_layer_frame",
+            "samples": 100,
+            "percent": 3.3,
+            "estimated_ms": 0.022
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "SignalSample",
+            "samples": 516,
+            "percent": 17.05,
+            "estimated_ms": 0.115
+          },
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 166,
+            "percent": 5.48,
+            "estimated_ms": 0.037
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 85,
+            "percent": 2.81,
+            "estimated_ms": 0.019
+          },
+          {
+            "name": "ReturnColor",
+            "samples": 56,
+            "percent": 1.85,
+            "estimated_ms": 0.012
+          },
+          {
+            "name": "ContextRead",
+            "samples": 3,
+            "percent": 0.1,
+            "estimated_ms": 0.001
+          },
+          {
+            "name": "CurveParamFloatClamped",
+            "samples": 3,
+            "percent": 0.1,
+            "estimated_ms": 0.001
+          },
+          {
+            "name": "GradientParamColorScaled",
+            "samples": 2,
+            "percent": 0.07,
+            "estimated_ms": 0.0
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "SignalSample",
+              "samples": 516,
+              "percent": 17.05,
+              "estimated_ms": 0.115,
+              "percent_of_vm_self": 64.82
+            },
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 143,
+              "percent": 4.72,
+              "estimated_ms": 0.032,
+              "percent_of_vm_self": 17.96
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 79,
+              "percent": 2.61,
+              "estimated_ms": 0.018,
+              "percent_of_vm_self": 9.92
+            },
+            {
+              "name": "ReturnColor",
+              "samples": 56,
+              "percent": 1.85,
+              "estimated_ms": 0.012,
+              "percent_of_vm_self": 7.04
+            },
+            {
+              "name": "LoadFloatParam",
+              "samples": 1,
+              "percent": 0.03,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 0.13
+            },
+            {
+              "name": "ContextRead",
+              "samples": 1,
+              "percent": 0.03,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 0.13
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 23,
+              "percent": 0.76,
+              "estimated_ms": 0.005,
+              "percent_of_vm_self": 62.16
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 6,
+              "percent": 0.2,
+              "estimated_ms": 0.001,
+              "percent_of_vm_self": 16.22
+            },
+            {
+              "name": "CurveParamFloatClamped",
+              "samples": 3,
+              "percent": 0.1,
+              "estimated_ms": 0.001,
+              "percent_of_vm_self": 8.11
+            },
+            {
+              "name": "ContextRead",
+              "samples": 2,
+              "percent": 0.07,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 5.41
+            },
+            {
+              "name": "GradientParamColorScaled",
+              "samples": 2,
+              "percent": 0.07,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 5.41
+            },
+            {
+              "name": "LoadFloatConst",
+              "samples": 1,
+              "percent": 0.03,
+              "estimated_ms": 0.0,
+              "percent_of_vm_self": 2.7
+            }
+          ]
+        }
+      },
+      "stanford": {
+        "samples": 4716,
+        "unsampled_mean_us": 48881.3359375,
+        "self": [
+          {
+            "name": "operator VM",
+            "samples": 2197,
+            "percent": 46.59,
+            "estimated_ms": 22.772
+          },
+          {
+            "name": "effect VM",
+            "samples": 861,
+            "percent": 18.26,
+            "estimated_ms": 8.924
+          },
+          {
+            "name": "float division",
+            "samples": 461,
+            "percent": 9.78,
+            "estimated_ms": 4.778
+          },
+          {
+            "name": "copy helper",
+            "samples": 331,
+            "percent": 7.02,
+            "estimated_ms": 3.431
+          },
+          {
+            "name": "gradient sampling",
+            "samples": 226,
+            "percent": 4.79,
+            "estimated_ms": 2.342
+          },
+          {
+            "name": "unresolved",
+            "samples": 186,
+            "percent": 3.94,
+            "estimated_ms": 1.928
+          },
+          {
+            "name": "source-pixel sampling",
+            "samples": 101,
+            "percent": 2.14,
+            "estimated_ms": 1.047
+          },
+          {
+            "name": "<donder_language::dsl::sample::SampleProgram as donder_runtime::dsl::sample::SampleProgramExt>::sample",
+            "samples": 89,
+            "percent": 1.89,
+            "estimated_ms": 0.922
+          }
+        ],
+        "inside_vm": [
+          {
+            "name": "fetch / IP / dispatch",
+            "samples": 1142,
+            "percent": 24.22,
+            "estimated_ms": 11.837
+          },
+          {
+            "name": "FloatArithmetic",
+            "samples": 391,
+            "percent": 8.29,
+            "estimated_ms": 4.053
+          },
+          {
+            "name": "unattributed VM",
+            "samples": 348,
+            "percent": 7.38,
+            "estimated_ms": 3.607
+          },
+          {
+            "name": "SignalSample",
+            "samples": 132,
+            "percent": 2.8,
+            "estimated_ms": 1.368
+          },
+          {
+            "name": "FloatCompareConst",
+            "samples": 127,
+            "percent": 2.69,
+            "estimated_ms": 1.316
+          },
+          {
+            "name": "JumpIfFalse",
+            "samples": 98,
+            "percent": 2.08,
+            "estimated_ms": 1.016
+          },
+          {
+            "name": "Move",
+            "samples": 95,
+            "percent": 2.01,
+            "estimated_ms": 0.985
+          }
+        ],
+        "by_vm": {
+          "operator VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 797,
+              "percent": 16.9,
+              "estimated_ms": 8.261,
+              "percent_of_vm_self": 36.28
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 295,
+              "percent": 6.26,
+              "estimated_ms": 3.058,
+              "percent_of_vm_self": 13.43
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 279,
+              "percent": 5.92,
+              "estimated_ms": 2.892,
+              "percent_of_vm_self": 12.7
+            },
+            {
+              "name": "SignalSample",
+              "samples": 132,
+              "percent": 2.8,
+              "estimated_ms": 1.368,
+              "percent_of_vm_self": 6.01
+            },
+            {
+              "name": "FloatCompareConst",
+              "samples": 110,
+              "percent": 2.33,
+              "estimated_ms": 1.14,
+              "percent_of_vm_self": 5.01
+            },
+            {
+              "name": "JumpIfFalse",
+              "samples": 84,
+              "percent": 1.78,
+              "estimated_ms": 0.871,
+              "percent_of_vm_self": 3.82
+            },
+            {
+              "name": "FloatCompare",
+              "samples": 82,
+              "percent": 1.74,
+              "estimated_ms": 0.85,
+              "percent_of_vm_self": 3.73
+            },
+            {
+              "name": "Move",
+              "samples": 75,
+              "percent": 1.59,
+              "estimated_ms": 0.777,
+              "percent_of_vm_self": 3.41
+            }
+          ],
+          "effect VM": [
+            {
+              "name": "fetch / IP / dispatch",
+              "samples": 345,
+              "percent": 7.32,
+              "estimated_ms": 3.576,
+              "percent_of_vm_self": 40.07
+            },
+            {
+              "name": "FloatArithmetic",
+              "samples": 96,
+              "percent": 2.04,
+              "estimated_ms": 0.995,
+              "percent_of_vm_self": 11.15
+            },
+            {
+              "name": "Mark",
+              "samples": 92,
+              "percent": 1.95,
+              "estimated_ms": 0.954,
+              "percent_of_vm_self": 10.69
+            },
+            {
+              "name": "unattributed VM",
+              "samples": 69,
+              "percent": 1.46,
+              "estimated_ms": 0.715,
+              "percent_of_vm_self": 8.01
+            },
+            {
+              "name": "FloatBinaryConst",
+              "samples": 31,
+              "percent": 0.66,
+              "estimated_ms": 0.321,
+              "percent_of_vm_self": 3.6
+            },
+            {
+              "name": "Move",
+              "samples": 20,
+              "percent": 0.42,
+              "estimated_ms": 0.207,
+              "percent_of_vm_self": 2.32
+            },
+            {
+              "name": "FloatUnary",
+              "samples": 17,
+              "percent": 0.36,
+              "estimated_ms": 0.176,
+              "percent_of_vm_self": 1.97
+            },
+            {
+              "name": "FloatCompareConst",
+              "samples": 17,
+              "percent": 0.36,
+              "estimated_ms": 0.176,
+              "percent_of_vm_self": 1.97
+            }
+          ]
+        }
+      }
+    }
+  }
+}

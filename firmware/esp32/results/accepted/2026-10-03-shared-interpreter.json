@@ -1,0 +1,85 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "One native interpreter for admitted samples and operators; compiler-visible smoothstep normalization; hot resource/register helpers placed beside dispatch. Current wire marker 43. Numeric VM lanes and graph/program fusion remain unfinished.",
+  "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. Standalone prepared-evaluation profiling image; instruction counting disabled while timing. Each case evaluates 32 frames including first use. Two-second controls bracket 997/1999 us PC sampling. Excludes network, storage, DMA and physical output. No laptop timing comparisons.",
+  "baseline": "2026-10-03-single-query-blocks.json, final nested traversal implementation",
+  "correctness": {
+    "host_reference_frames": 640,
+    "unchanged_checksums_timestamps_active_counts": true,
+    "device_cases": 18,
+    "device_frames": 576,
+    "profile_and_control_windows": 20,
+    "evaluation_allocations": 0,
+    "rounding": "Small floating-point rounding differences are allowed, but this batch preserves every reference-frame checksum. Focused tests also cover reversed, varying, zero-width and uniform smoothstep edges and missing-value handling."
+  },
+  "validation": "cargo fmt and pnpm check passed, including exhaustive schema tests (545.58 seconds), frontend checks, device-storage tests and all-target/all-feature Clippy with warnings denied. A final focused run passed 118 runtime unit tests, 11 allocation tests, temporal integration coverage and all language tests. The complete controller release image builds and links. Nine changed implementation/linker files match the measured source snapshot byte-for-byte.",
+  "timing_columns": ["workload", "previous_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "timings": [
+    ["layered_600_4layers_3operators", 143404, 139917, 140097, 140426],
+    ["ScanSweep_150", 2125, 2302, 2305, 2477],
+    ["ImpactBurst_150", 2446, 2419, 2435, 2607],
+    ["SparkleComet_150", 3898, 4080, 4086, 4270],
+    ["ShimmerField_150", 2305, 2465, 2483, 2659],
+    ["ShimmerField_600", 9094, 9763, 9825, 9987],
+    ["ShimmerField_1200", 18117, 19491, 19595, 19763],
+    ["ShimmerField_150_layers4", 9055, 9751, 9807, 9982],
+    ["ShimmerField_150_layers16", 36058, 38897, 39114, 39275],
+    ["black_150", 127, 125, 122, 266],
+    ["freeze_black_150", 2825, 2864, 2871, 3053],
+    ["scheduled_16", 99, 97, 94, 245],
+    ["scheduled_128", 108, 106, 109, 249],
+    ["chase_pulse_150_layers1", 1601, 1763, 1769, 1948],
+    ["chase_pulse_150_layers4", 3483, 3784, 3802, 3979],
+    ["chase_pulse_150_layers16", 13986, 15213, 15231, 15416],
+    ["starter_port1", 230, 206, 206, 478],
+    ["stanford", 13424, 13564, 13978, 14572]
+  ],
+  "warm_us": {
+    "layered_600_4layers_3operators": 140000.97,
+    "stanford": 13422.97,
+    "ShimmerField_150": 2450.99,
+    "freeze_black_150": 2858.39
+  },
+  "memory": {
+    "mixed_archive_bytes_before_after": [13082, 13257],
+    "mixed_decoded_bytes_before_after": [15964, 16160],
+    "mixed_workspace_outputs_bytes_before_after": [8572, 8580],
+    "mixed_retained_bytes_before_after": [24536, 24740],
+    "stanford_retained_bytes_before_and_after": 54828,
+    "new_retained_sampled_frame_caches": 0,
+    "native_instruction_bytes": 28
+  },
+  "mixed_instruction_counts_per_frame": {
+    "dispatches_before_after": [232739, 240614],
+    "float_parameter_loads_before_and_after": 5403,
+    "explicit_divisions_before_after": [1125, 3825],
+    "divisions_hidden_in_smoothstep_before_after": [9000, 0],
+    "note": "Normalization adds dispatches but removes 6300 divisions per frame when explicit and previously hidden smoothstep divisions are counted together. Other sampling helpers may also divide. ScanSweep's correlated edge expression is not proven bounded by the current interval analysis, so its normalization still divides per pixel."
+  },
+  "hotspot_percent": {
+    "mixed": {"shared_vm": 68.26, "block_traversal": 7.52, "float_division": 7.01, "gradient_sampling": 6.41, "curve_sampling": 1.39},
+    "stanford": {"shared_vm": 57.22, "float_division": 21.44},
+    "shimmer": {"shared_vm": 76.95, "gradient_sampling": 7.62},
+    "note": "Weighted self-symbol shares across both sampling periods. One native VM symbol now contains effect and operator execution; the PC-only profiler cannot split it by caller."
+  },
+  "investigation": {
+    "sharing": "Sharing alone measured 149464 us for mixed and 15427 us for Stanford. It removes compile-time scalar color-lane specialization as well as duplicate machine code. Scalar Shimmer and Chase/Pulse remain about 7-9 percent slower in the combined implementation. This is an intermediate code-space tradeoff for numeric block execution, not a completed speed optimization for all workloads.",
+    "normalization": "Adding compiler-visible smoothstep normalization measured 139958 us for mixed before helper placement. All 640 reference-frame checksums remain identical.",
+    "helper_placement": "The shared Stanford profile attributed 4.78 percent to an outlined curve helper and 4.43 percent to set_array outside instruction RAM. Placing these and other hot VM helpers beside dispatch brought Stanford to 13552 us in the controlled placement stage, then 13564 us in the final capture. Helper symbol addresses were checked in the linked ELF.",
+    "color_access": "Keeping an extra invocation copy of lane width enlarged the measured VM stack reservation from 192 to 208 bytes and generated additional stride/loop setup. Manual indexed color stores added lane-level bounds checking and did not recover the cost: mixed measured 143169, 143011 and 142485 us across these variants. The final implementation retains the existing workspace lane metadata and bulk slice fill, measuring 139917 us. No extra path is retained to chase the small isolated scores."
+  },
+  "controller": {
+    "rwtext_bytes_before_after": [68092, 55792],
+    "rwtext_wifi_bytes_before_and_after": 51796,
+    "instruction_ram_freed_bytes": 12300,
+    "configured_heap_bytes_before_and_after": 159744,
+    "native_interpreter_symbols": 1,
+    "native_interpreter_text_bytes": 21859,
+    "native_stack_reservations_bytes": {"shared_vm": 192, "graph": 496, "scalar_pixel": 384, "block_operator": 320, "block_signal": 368},
+    "stack_note": "Previous effect and operator VM frames each reserved 160 bytes. Individual native reservations are not maximum nested stack use.",
+    "elf_sha256": "e2b8f76f67b24d0588ea4fc968fd27dcc478bae1fc508a220d079bcf0562a7d4",
+    "image_sha256": "87c7f1baafd453ba0320ff1af84bed27a0aedca3c741d2dd6bbf0b3659f8a3aa"
+  },
+  "profile_elf_sha256": "0dfbb751d8b498ac718b469cde96db88ba49b8f9b84b1ac711865205825bd286",
+  "raw_evidence": "Ignored target/vm-opt-20261002/shared-interpreter contains the final capture, attribution, source hashes and controller disassembly. Baseline and intermediate captures remain under the same ignored task directory."
+}

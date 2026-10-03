@@ -3,6 +3,7 @@ mod array_lowering;
 #[cfg(feature = "host")]
 mod ast;
 mod bindings;
+mod blocks;
 pub mod bytecode;
 mod invocation;
 mod operator;
@@ -30,9 +31,15 @@ mod diagnostic;
 #[cfg(feature = "host")]
 mod fixed_params;
 #[cfg(feature = "host")]
+mod fusion;
+#[cfg(feature = "host")]
 mod loop_bounds;
 #[cfg(feature = "host")]
 mod optimize;
+#[cfg(feature = "host")]
+mod specialize;
+#[cfg(feature = "host")]
+pub use specialize::ProgramConstants;
 #[cfg(feature = "host")]
 mod parser;
 #[cfg(feature = "host")]

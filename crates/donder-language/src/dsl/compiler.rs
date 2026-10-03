@@ -1,9 +1,9 @@
 use super::ast::{BinaryOp, UnaryOp};
 use super::bytecode::{
-    ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot,
-    CompareOp, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary,
-    GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot,
-    ParamId, PoolSpan, SlotLayout, Target, ValueSlot,
+    ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
+    ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary,
+    GradientSlot, Instruction, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, PoolSpan,
+    SlotLayout, Target, ValueSlot,
 };
 use super::checked::{
     CheckedBlock, CheckedEffectDecl, CheckedExpr, CheckedExprKind, CheckedModule,
@@ -307,32 +307,17 @@ impl FunctionCompiler {
             &mut self.array_types,
             &mut self.enum_types,
         );
-        let pixel_entry =
-            super::optimize::hoist_uniform(&mut self.instructions, &mut self.value_operands);
+        let pixel_entry = super::optimize::prepare_pixels(
+            &mut self.instructions,
+            &mut self.value_operands,
+            &mut self.layout,
+        );
         let mut program = BytecodeProgram {
             pixel_entry,
             array_capacity: 0,
             array_width: 0,
-            loop_count: self.loop_count,
-            uses_pixel_context: self.instructions.iter().any(|instruction| {
-                matches!(
-                    instruction,
-                    Instruction::ContextRead {
-                        read: ContextRead::PixelIndex
-                            | ContextRead::PixelCount
-                            | ContextRead::PixelFraction
-                            | ContextRead::PixelX
-                            | ContextRead::PixelY
-                            | ContextRead::TargetMinX
-                            | ContextRead::TargetMinY
-                            | ContextRead::TargetMaxX
-                            | ContextRead::TargetMaxY,
-                        ..
-                    } | Instruction::SectionPosition { .. }
-                        | Instruction::SectionQuery { .. }
-                        | Instruction::SignalSample { .. }
-                )
-            }),
+            loop_count: super::optimize::compact_loops(&mut self.instructions),
+            uses_pixel_context: false,
             instructions: std::mem::take(&mut self.instructions).into_boxed_slice(),
             array_constants: std::mem::take(&mut self.array_constants).into_boxed_slice(),
             enums: std::mem::take(&mut self.enums).into_boxed_slice(),
@@ -347,6 +332,7 @@ impl FunctionCompiler {
             array_types: std::mem::take(&mut self.array_types).into_boxed_slice(),
             layout: self.layout,
         };
+        program.uses_pixel_context = program.reads_pixel_context();
         let (array_capacity, array_width) = program.required_array_storage().ok_or_else(|| {
             super::Diagnostic::new(
                 super::lexer::TextSpan { start: 0, end: 0 },
@@ -436,26 +422,25 @@ impl FunctionCompiler {
                 then_block,
                 else_block,
             } => {
-                let condition = self.compile_expr(condition);
-                let condition = self.bool_slot(condition);
                 let dominating_context_reads = self.context_reads.clone();
                 let dominating_param_reads = self.param_reads.clone();
-                let false_jump = self.emit_jump(Instruction::JumpIfFalse {
-                    condition,
-                    target: usize::MAX,
-                });
+                let false_jumps = self.compile_condition(condition, false);
                 self.context_reads = dominating_context_reads.clone();
                 self.param_reads = dominating_param_reads.clone();
                 self.compile_block(then_block);
                 if let Some(else_block) = else_block {
                     let end_jump = self.emit_jump(Instruction::Jump(usize::MAX));
-                    self.patch_jump(false_jump, self.current_target());
+                    for jump in false_jumps {
+                        self.patch_jump(jump, self.current_target());
+                    }
                     self.context_reads = dominating_context_reads.clone();
                     self.param_reads = dominating_param_reads.clone();
                     self.compile_block(else_block);
                     self.patch_jump(end_jump, self.current_target());
                 } else {
-                    self.patch_jump(false_jump, self.current_target());
+                    for jump in false_jumps {
+                        self.patch_jump(jump, self.current_target());
+                    }
                 }
                 self.context_reads = dominating_context_reads;
                 self.param_reads = dominating_param_reads;
@@ -512,9 +497,8 @@ impl FunctionCompiler {
                 let dominating_context_reads = self.context_reads.clone();
                 let dominating_param_reads = self.param_reads.clone();
                 self.compile_block(body);
-                self.emit(Instruction::IntArithmetic {
+                self.emit(Instruction::IntAdd {
                     dst: self.int_slot(index_slot),
-                    op: IntArithmeticOp::Add,
                     left: self.int_slot(index_slot),
                     right: self.int_slot(one_slot),
                 });
@@ -550,9 +534,8 @@ impl FunctionCompiler {
                 let dominating_context_reads = self.context_reads.clone();
                 let dominating_param_reads = self.param_reads.clone();
                 self.compile_block(body);
-                self.emit(Instruction::IntArithmetic {
+                self.emit(Instruction::IntAdd {
                     dst: self.int_slot(index_slot),
-                    op: IntArithmeticOp::Add,
                     left: self.int_slot(index_slot),
                     right: self.int_slot(one_slot),
                 });
@@ -798,13 +781,13 @@ impl FunctionCompiler {
             | BinaryOp::Divide
             | BinaryOp::Remainder => {
                 let dst = self.float_slot(dst);
-                self.emit(Instruction::FloatArithmeticConst {
+                self.emit(float_const_instruction(
+                    op,
                     dst,
-                    op: arithmetic_op(op),
                     value,
-                    constant_bits: constant.to_bits(),
+                    constant.to_bits(),
                     constant_left,
-                });
+                ));
             }
             BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => {
                 self.emit(Instruction::FloatCompareConst {
@@ -818,6 +801,67 @@ impl FunctionCompiler {
             _ => unreachable!("float constant binary operation is arithmetic or comparison"),
         }
         dst
+    }
+
+    /// Conditions need control flow, not a temporary boolean for each logical
+    /// operator. Return the branches whose destination belongs to the caller.
+    fn compile_condition(&mut self, expr: CheckedExpr, when: bool) -> Vec<usize> {
+        let context_reads = self.context_reads.clone();
+        let param_reads = self.param_reads.clone();
+        let jumps = match expr.kind {
+            CheckedExprKind::Unary {
+                op: UnaryOp::Not,
+                expr,
+            } => self.compile_condition(*expr, !when),
+            CheckedExprKind::Binary {
+                op: op @ (BinaryOp::And | BinaryOp::Or),
+                left,
+                right,
+            } => {
+                let short_circuit = op == BinaryOp::Or;
+                if when == short_circuit {
+                    let mut jumps = self.compile_condition(*left, when);
+                    jumps.extend(self.compile_condition(*right, when));
+                    jumps
+                } else {
+                    let skip = self.compile_condition(*left, short_circuit);
+                    let jumps = self.compile_condition(*right, when);
+                    for jump in skip {
+                        self.patch_jump(jump, self.current_target());
+                    }
+                    jumps
+                }
+            }
+            _ => {
+                let start = self.instructions.len();
+                let condition = self.compile_expr(expr);
+                let branch = self.instructions.last().and_then(|last| {
+                    (self.instructions.len() > start && last.written_slot() == Some(condition))
+                        .then(|| super::optimize::comparison_branch(last, when, usize::MAX))
+                        .flatten()
+                });
+                let branch = if let Some(branch) = branch {
+                    self.instructions.pop();
+                    branch
+                } else if when {
+                    Instruction::JumpIfTrue {
+                        condition: self.bool_slot(condition),
+                        target: usize::MAX,
+                    }
+                } else {
+                    Instruction::JumpIfFalse {
+                        condition: self.bool_slot(condition),
+                        target: usize::MAX,
+                    }
+                };
+                vec![self.emit_jump(branch)]
+            }
+        };
+        // Reads introduced inside a short-circuited operand do not dominate the
+        // continuation. Keep only values available before this condition.
+        self.context_reads = context_reads;
+        self.param_reads = param_reads;
+        jumps
     }
 
     fn compile_short_circuit(
@@ -884,9 +928,25 @@ impl FunctionCompiler {
             "section_position" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
+                let width = self.allocate_slot(&Type::Float);
+                let width = self.float_slot(width);
+                let inverse = self.allocate_slot(&Type::Float);
+                let inverse = self.float_slot(inverse);
+                self.emit(Instruction::FloatBinaryConst {
+                    dst: width,
+                    op: FloatBinary::Max,
+                    value: args[0],
+                    constant_bits: 1.0f32.to_bits(),
+                });
+                self.emit(Instruction::FloatDivideIntoConst {
+                    dst: inverse,
+                    value: width,
+                    constant_bits: 1.0f32.to_bits(),
+                });
                 self.emit(Instruction::SectionPosition {
                     dst,
-                    width: args[0],
+                    width,
+                    inverse,
                 });
             }
             "section_count" | "section_index" => {
@@ -897,7 +957,7 @@ impl FunctionCompiler {
                     index: name.as_str() == "section_index",
                 });
             }
-            "sin" | "cos" | "abs" | "floor" => {
+            "sin" | "cos" | "abs" | "floor" | "sqrt" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
                 self.emit(Instruction::FloatUnary {
@@ -907,6 +967,7 @@ impl FunctionCompiler {
                         "cos" => FloatUnary::Cos,
                         "abs" => FloatUnary::Abs,
                         "floor" => FloatUnary::Floor,
+                        "sqrt" => FloatUnary::Sqrt,
                         _ => unreachable!("matched float unary builtin"),
                     },
                     value: args[0],
@@ -921,12 +982,16 @@ impl FunctionCompiler {
                     right: ValueSlot::Float(args[0]),
                 });
             }
-            "value_or" => {
+            "value_or" | "atan2" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
                 self.emit(Instruction::FloatBinary {
                     dst,
-                    op: FloatBinary::ValueOr,
+                    op: match name.as_str() {
+                        "value_or" => FloatBinary::ValueOr,
+                        "atan2" => FloatBinary::Atan2,
+                        _ => unreachable!("matched float binary builtin"),
+                    },
                     left: args[0],
                     right: args[1],
                 });
@@ -1034,11 +1099,30 @@ impl FunctionCompiler {
             "smoothstep" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
+                let width = self.allocate_slot(&Type::Float);
+                let width = self.float_slot(width);
+                let position = self.allocate_slot(&Type::Float);
+                let position = self.float_slot(position);
+                let normalized = self.allocate_slot(&Type::Float);
+                let normalized = self.float_slot(normalized);
+                self.emit(Instruction::FloatSubtract {
+                    dst: width,
+                    left: args[1],
+                    right: args[0],
+                });
+                self.emit(Instruction::FloatSubtract {
+                    dst: position,
+                    left: args[2],
+                    right: args[0],
+                });
+                self.emit(Instruction::FloatDivide {
+                    dst: normalized,
+                    left: position,
+                    right: width,
+                });
                 self.emit(Instruction::Smoothstep {
                     dst,
-                    edge0: args[0],
-                    edge1: args[1],
-                    value: args[2],
+                    value: normalized,
                 });
             }
             "mix" => {
@@ -1096,24 +1180,19 @@ impl FunctionCompiler {
                 }
                 for (index, arg) in args.into_iter().enumerate() {
                     if index == 0 {
-                        self.emit(Instruction::FloatArithmeticConst {
+                        self.emit(Instruction::FloatAddConst {
                             dst,
-                            op: ArithmeticOp::Add,
                             value: arg,
                             constant_bits: 0.0_f32.to_bits(),
-                            constant_left: true,
                         });
                     } else {
-                        self.emit(Instruction::FloatArithmeticConst {
+                        self.emit(Instruction::FloatMultiplyConst {
                             dst,
-                            op: ArithmeticOp::Multiply,
                             value: dst,
                             constant_bits: 31.0_f32.to_bits(),
-                            constant_left: false,
                         });
-                        self.emit(Instruction::FloatArithmetic {
+                        self.emit(Instruction::FloatAdd {
                             dst,
-                            op: ArithmeticOp::Add,
                             left: dst,
                             right: arg,
                         });
@@ -1365,19 +1444,14 @@ impl FunctionCompiler {
                 ValueSlot::Float(dst) => {
                     let left = self.float_slot(left);
                     let right = self.float_slot(right);
-                    self.emit(Instruction::FloatArithmetic {
-                        dst,
-                        op: arithmetic_op(op),
-                        left,
-                        right,
-                    });
+                    self.emit(float_instruction(op, dst, left, right));
                 }
-                ValueSlot::Int(dst) => self.emit(Instruction::IntArithmetic {
+                ValueSlot::Int(dst) => self.emit(int_instruction(
+                    op,
                     dst,
-                    op: int_arithmetic_op(op),
-                    left: self.int_slot(left),
-                    right: self.int_slot(right),
-                }),
+                    self.int_slot(left),
+                    self.int_slot(right),
+                )),
                 _ => unreachable!("checked arithmetic result is numeric"),
             },
             BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual => {
@@ -1733,16 +1807,10 @@ impl FunctionCompiler {
     }
 
     fn patch_jump(&mut self, offset: usize, target: Target) {
-        match &mut self.instructions[offset] {
-            Instruction::Jump(existing) => *existing = target,
-            Instruction::JumpIfFalse {
-                target: existing, ..
-            }
-            | Instruction::JumpIfTrue {
-                target: existing, ..
-            } => *existing = target,
-            _ => {}
-        }
+        let Some(existing) = self.instructions[offset].jump_target_mut() else {
+            unreachable!("only compiler branches are patched")
+        };
+        *existing = target;
     }
 }
 
@@ -1754,25 +1822,81 @@ fn pool_span(start: usize, len: usize) -> PoolSpan {
     }
 }
 
-fn arithmetic_op(op: BinaryOp) -> ArithmeticOp {
+fn float_instruction(
+    op: BinaryOp,
+    dst: FloatSlot,
+    left: FloatSlot,
+    right: FloatSlot,
+) -> Instruction {
     match op {
-        BinaryOp::Add => ArithmeticOp::Add,
-        BinaryOp::Subtract => ArithmeticOp::Subtract,
-        BinaryOp::Multiply => ArithmeticOp::Multiply,
-        BinaryOp::Divide => ArithmeticOp::Divide,
-        BinaryOp::Remainder => ArithmeticOp::Remainder,
-        _ => unreachable!("arithmetic operator"),
+        BinaryOp::Add => Instruction::FloatAdd { dst, left, right },
+        BinaryOp::Subtract => Instruction::FloatSubtract { dst, left, right },
+        BinaryOp::Multiply => Instruction::FloatMultiply { dst, left, right },
+        BinaryOp::Divide => Instruction::FloatDivide { dst, left, right },
+        BinaryOp::Remainder => Instruction::FloatRemainder { dst, left, right },
+        _ => unreachable!("checked arithmetic operator"),
     }
 }
 
-fn int_arithmetic_op(op: BinaryOp) -> IntArithmeticOp {
+fn int_instruction(op: BinaryOp, dst: IntSlot, left: IntSlot, right: IntSlot) -> Instruction {
     match op {
-        BinaryOp::Add => IntArithmeticOp::Add,
-        BinaryOp::Subtract => IntArithmeticOp::Subtract,
-        BinaryOp::Multiply => IntArithmeticOp::Multiply,
-        BinaryOp::Remainder => IntArithmeticOp::Remainder,
-        BinaryOp::Divide => unreachable!("int division compiles to float arithmetic"),
-        _ => unreachable!("int arithmetic operator"),
+        BinaryOp::Add => Instruction::IntAdd { dst, left, right },
+        BinaryOp::Subtract => Instruction::IntSubtract { dst, left, right },
+        BinaryOp::Multiply => Instruction::IntMultiply { dst, left, right },
+        BinaryOp::Remainder => Instruction::IntRemainder { dst, left, right },
+        _ => unreachable!("checked arithmetic operator"),
+    }
+}
+
+fn float_const_instruction(
+    op: BinaryOp,
+    dst: FloatSlot,
+    value: FloatSlot,
+    constant_bits: u32,
+    constant_left: bool,
+) -> Instruction {
+    match (op, constant_left) {
+        (BinaryOp::Add, _) => Instruction::FloatAddConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Subtract, true) => Instruction::FloatSubtractFromConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Subtract, _) => Instruction::FloatSubtractConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Multiply, _) => Instruction::FloatMultiplyConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Divide, true) => Instruction::FloatDivideIntoConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Divide, _) => Instruction::FloatDivideConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Remainder, true) => Instruction::FloatRemainderFromConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        (BinaryOp::Remainder, _) => Instruction::FloatRemainderConst {
+            dst,
+            value,
+            constant_bits,
+        },
+        _ => unreachable!("checked arithmetic operator"),
     }
 }
 

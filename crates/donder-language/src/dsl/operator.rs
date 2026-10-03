@@ -9,6 +9,14 @@ use core::convert::Infallible;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SignalAccess(());
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BlockExecution {
+    Scalar,
+    Colors,
+    Numeric,
+    SingleQuery,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorProgram {
     bytecode: BytecodeProgram<ContextRead, SignalAccess, ColorSlot>,
@@ -16,6 +24,9 @@ pub struct OperatorProgram {
     parameters: Box<[Type]>,
     uses_spatial_context: bool,
     uses_sections: bool,
+    target_entry: usize,
+    uses_progress: bool,
+    blocks: BlockExecution,
 }
 
 impl OperatorProgram {
@@ -48,6 +59,17 @@ impl OperatorProgram {
         parameters: Box<[Type]>,
     ) -> Self {
         let uses_spatial_context = bytecode.uses_spatial_context();
+        let target_entry = bytecode.target_entry();
+        let uses_progress = bytecode.reads_progress();
+        let blocks = if super::blocks::color_blocks(&bytecode) {
+            BlockExecution::Colors
+        } else if super::blocks::numeric_blocks(&bytecode) {
+            BlockExecution::Numeric
+        } else if super::blocks::single_query(&bytecode) {
+            BlockExecution::SingleQuery
+        } else {
+            BlockExecution::Scalar
+        };
         let uses_sections = bytecode.instructions.iter().any(|instruction| {
             matches!(
                 instruction,
@@ -65,6 +87,9 @@ impl OperatorProgram {
             parameters,
             uses_spatial_context,
             uses_sections,
+            target_entry,
+            uses_progress,
+            blocks,
         }
     }
 
@@ -90,6 +115,29 @@ impl OperatorProgram {
 
     pub fn uses_sections(&self) -> bool {
         self.uses_sections
+    }
+
+    pub fn target_entry(&self) -> usize {
+        self.target_entry
+    }
+
+    pub fn uses_progress(&self) -> bool {
+        self.uses_progress
+    }
+
+    /// Scalar registers/control are uniform; only color registers need lanes.
+    pub fn supports_color_blocks(&self) -> bool {
+        self.blocks == BlockExecution::Colors
+    }
+
+    pub fn supports_numeric_blocks(&self) -> bool {
+        self.blocks == BlockExecution::Numeric
+    }
+
+    /// Bounded traversal may use color lanes or a single uniform source block
+    /// followed by ordinary per-pixel scalar execution.
+    pub fn supports_blocks(&self) -> bool {
+        self.blocks != BlockExecution::Scalar
     }
 
     pub fn into_parts(self) -> (BytecodeProgram, usize, Box<[Type]>) {

@@ -51,15 +51,25 @@ fn positive_seconds_to_ticks(seconds: f32) -> Result<u32, SampleTimeError> {
     if seconds < 0.0 {
         return Err(SampleTimeError::Negative);
     }
-    rounded_ticks(f64::from(seconds) * f64::from(MICROS_PER_SECOND))
-}
-
-fn rounded_ticks(micros: f64) -> Result<u32, SampleTimeError> {
-    let rounded = libm::round(micros);
-    if rounded > f64::from(u32::MAX) {
+    let bits = seconds.to_bits();
+    let exponent = (bits >> 23) & 0xff;
+    // Below 2^-21 seconds even the largest significand rounds to zero ticks.
+    // At or above 2^13 seconds every value exceeds the 32-bit clock.
+    if exponent <= 105 {
+        return Ok(0);
+    }
+    if exponent >= 140 {
         return Err(SampleTimeError::OutOfRange);
     }
-    Ok(rounded as u32)
+    // A normal f32 is significand * 2^(exponent - 150). Multiplying its
+    // 24-bit significand by one million is exact in 44 bits; shifting with a
+    // half-unit bias exactly preserves the previous round-to-nearest, ties-up
+    // conversion without software double-precision arithmetic on the ESP32.
+    let significand = (bits & 0x7f_ffff) | 0x80_0000;
+    let micros = u64::from(significand) * u64::from(MICROS_PER_SECOND);
+    let shift = 150 - exponent;
+    let rounded = (micros + (1u64 << (shift - 1))) >> shift;
+    u32::try_from(rounded).map_err(|_| SampleTimeError::OutOfRange)
 }
 
 /// Adds a possibly-negative floating-point DSL offset to the portable clock.
@@ -71,8 +81,7 @@ pub fn sample_time_with_seconds_offset(
     if !seconds.is_finite() {
         return Err(SampleTimeError::NotFinite);
     }
-    let micros = f64::from(seconds).abs() * f64::from(MICROS_PER_SECOND);
-    let offset = SampleDuration::from_ticks(rounded_ticks(micros)?);
+    let offset = SampleDuration::from_ticks(positive_seconds_to_ticks(seconds.abs())?);
     if seconds.is_sign_negative() {
         start
             .checked_sub_duration(offset)
@@ -130,6 +139,41 @@ mod clock_conversion_tests {
             sample_time_with_seconds_offset(SampleTime::from_ticks(0), over_limit),
             Err(SampleTimeError::OutOfRange)
         );
+    }
+
+    #[test]
+    fn integer_clock_conversion_matches_double_reference_at_rounding_boundaries() {
+        let check = |seconds: f32| {
+            let expected = if !seconds.is_finite() {
+                Err(SampleTimeError::NotFinite)
+            } else if seconds < 0.0 {
+                Err(SampleTimeError::Negative)
+            } else {
+                let ticks = libm::round(f64::from(seconds) * 1_000_000.0);
+                if ticks > f64::from(u32::MAX) {
+                    Err(SampleTimeError::OutOfRange)
+                } else {
+                    Ok(SampleTime::from_ticks(ticks as u32))
+                }
+            };
+            assert_eq!(
+                sample_time_from_seconds_f32(seconds),
+                expected,
+                "{seconds:?}"
+            );
+        };
+        for exponent in 0..256u32 {
+            for fraction in [0, 1, 0x1f_ffff, 0x40_0000, 0x7f_fffe, 0x7f_ffff] {
+                check(f32::from_bits((exponent << 23) | fraction));
+                check(f32::from_bits(0x8000_0000 | (exponent << 23) | fraction));
+            }
+        }
+        for tick in (0..u32::MAX).step_by(9973) {
+            let midpoint = ((f64::from(tick) + 0.5) / 1_000_000.0) as f32;
+            for bits in midpoint.to_bits().saturating_sub(1)..=midpoint.to_bits() + 1 {
+                check(f32::from_bits(bits));
+            }
+        }
     }
 }
 

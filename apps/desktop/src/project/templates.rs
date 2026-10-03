@@ -34,6 +34,10 @@ pub(crate) fn new_project_files(
   as: effects
 - from:
     documents:
+    - effects/vixen.effect.donder
+  as: vixen
+- from:
+    documents:
     - operators/standard.operator.donder
   as: operators
 {project_id}:
@@ -89,6 +93,11 @@ pub(crate) fn new_project_files(
         ProjectBoilerplateFile {
             path: "effects/standard.effect.donder",
             text: include_str!("../../../../examples/starter/effects/standard.effect.donder")
+                .to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "effects/vixen.effect.donder",
+            text: include_str!("../../../../examples/starter/effects/vixen.effect.donder")
                 .to_string(),
         },
         ProjectBoilerplateFile {
@@ -192,7 +201,7 @@ mod tests {
                 .iter()
                 .filter(|file| file.path.ends_with(".donder"))
                 .count(),
-            5
+            6
         );
         write_new_project_files(&root, &files).unwrap();
         let session = donder_project_io::load_project(&root).unwrap();

@@ -81,8 +81,9 @@ static EVALUATION_ALLOCATIONS: AtomicU32 = AtomicU32::new(0);
 #[cfg(feature = "i2s-output")]
 static OUTPUT_READY: AtomicBool = AtomicBool::new(false);
 #[cfg(feature = "i2s-output")]
-// Dense authored effects need VM call frames plus the RTOS interrupt context.
-static APP_CORE_STACK: StaticCell<Stack<6144>> = StaticCell::new();
+// Recursive 32-lane playback measured about 17 KiB below its caller. Leave
+// headroom for controller/RTOS frames and interrupts; rebalance the heap below.
+static APP_CORE_STACK: StaticCell<Stack<{ 24 * 1024 }>> = StaticCell::new();
 #[cfg(feature = "i2s-output")]
 static APP_CORE_EXECUTOR: StaticCell<esp_rtos::embassy::Executor> = StaticCell::new();
 
@@ -1072,6 +1073,11 @@ async fn recover_storage(
 async fn main(spawner: embassy_executor::Spawner) -> ! {
     let mut p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 64 * 1024);
+    // Keep the network core's stack space unchanged when reserving the larger
+    // render stack. Total heap with output enabled is 138 KiB.
+    #[cfg(feature = "i2s-output")]
+    esp_alloc::heap_allocator!(size: 74 * 1024);
+    #[cfg(not(feature = "i2s-output"))]
     esp_alloc::heap_allocator!(size: 92 * 1024);
     let timer = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timer.timer0, p.FROM_CPU_INTR0);

@@ -30,7 +30,7 @@ fn main() {
         "use alloc::{boxed::Box, vec};\n\
          use donder_language::Shared as Arc;\n\
          use donder_language::dsl::{BoundParams, Identifier, SampleProgram, Type, Value};\n\
-         use donder_language::dsl::bytecode::{ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntArithmeticOp, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, ValueSlot};\n\
+         use donder_language::dsl::bytecode::{ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ConstantId, ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary, GradientSlot, Instruction, IntSlot, LocalId, MarkOp, MarksSlot, NumberSlot, ParamId, ParameterKind, PoolSpan, SignalPixel, SlotLayout, Target, ValueSlot};\n\
          use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};\n",
     );
     let mut golden = Vec::new();
@@ -628,10 +628,6 @@ fn instruction_source(instruction: &Instruction) -> String {
         source = source.replace("dst: ValueSlot::", "dst: NumberSlot::");
     }
     let op_type = match instruction {
-        Instruction::FloatArithmetic { .. } | Instruction::FloatArithmeticConst { .. } => {
-            Some("ArithmeticOp")
-        }
-        Instruction::IntArithmetic { .. } => Some("IntArithmeticOp"),
         Instruction::IntCompare { .. }
         | Instruction::FloatCompare { .. }
         | Instruction::FloatCompareConst { .. } => Some("CompareOp"),

@@ -660,7 +660,7 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Int, env);
                 Type::Int
             }
-            "sin" | "cos" | "abs" | "floor" => {
+            "sin" | "cos" | "abs" | "floor" | "sqrt" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Float
@@ -670,7 +670,7 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Bool
             }
-            "min" | "value_or" => {
+            "min" | "value_or" | "atan2" => {
                 self.require_arg_count(name, args.len(), 2, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 self.require_arg(args, 1, &Type::Float, env);
@@ -906,8 +906,10 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         "mark_at" if index == 1 => Some(Type::Int),
         "mark_last" | "mark_last_index" if index == 1 => Some(Type::Float),
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
-        "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "min" | "clamp"
-        | "smoothstep" | "section_position" | "is_nan" | "value_or" => Some(Type::Float),
+        "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "sqrt" | "atan2"
+        | "min" | "clamp" | "smoothstep" | "section_position" | "is_nan" | "value_or" => {
+            Some(Type::Float)
+        }
         "curve_first_crossing" | "curve_last_crossing" if index == 0 => Some(Type::Curve),
         "curve_clamped" if index == 0 => Some(Type::Curve),
         "gradient_color_scaled" if index == 0 => Some(Type::Gradient),

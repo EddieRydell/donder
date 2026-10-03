@@ -9,7 +9,7 @@ use rkyv::Archived;
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 38;
+pub const FORMAT_VERSION: u32 = 45;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -159,22 +159,37 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
     let mut loop_count = 0usize;
     for program in &signal.programs {
         let layout = program.layout;
-        for (maximum, count) in registers.iter_mut().zip([
-            layout.ints,
-            layout.floats,
-            layout.bools,
-            layout.colors,
-            layout.arrays,
-            layout.marks,
-            layout.curves,
-            layout.gradients,
-            layout.enums,
-        ]) {
-            *maximum = (*maximum).max(count as usize);
+        for (bank, (maximum, count)) in registers
+            .iter_mut()
+            .zip([
+                layout.ints,
+                layout.floats,
+                layout.bools,
+                layout.colors,
+                layout.arrays,
+                layout.marks,
+                layout.curves,
+                layout.gradients,
+                layout.enums,
+            ])
+            .enumerate()
+        {
+            let count = if bank <= 3 {
+                (count as usize)
+                    .checked_mul(crate::dsl::COLOR_BLOCK_WIDTH)
+                    .ok_or(LoadError::Limit)?
+            } else {
+                count as usize
+            };
+            *maximum = (*maximum).max(count);
         }
         array_capacity = array_capacity.max(program.array_capacity as usize);
         array_width = array_width.max(program.array_width as usize);
-        loop_count = loop_count.max(program.loop_count as usize);
+        loop_count = loop_count.max(
+            (program.loop_count as usize)
+                .checked_mul(crate::dsl::COLOR_BLOCK_WIDTH)
+                .ok_or(LoadError::Limit)?,
+        );
     }
     reserve(
         plan.vm_workspace_count,

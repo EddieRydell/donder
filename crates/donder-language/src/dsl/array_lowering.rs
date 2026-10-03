@@ -33,19 +33,14 @@ pub(super) fn lower_arrays(code: &mut [Instruction], operands: &mut Vec<ValueSlo
         .collect::<HashMap<_, _>>();
     let targets = code
         .iter()
-        .filter_map(|op| match op {
-            Instruction::Jump(target)
-            | Instruction::JumpIfFalse { target, .. }
-            | Instruction::JumpIfTrue { target, .. }
-            | Instruction::LoopRangeStart { end: target, .. }
-            | Instruction::LoopMarksStart { end: target, .. }
-            | Instruction::LoopEnd { start: target, .. } => Some(*target),
-            _ => None,
-        })
+        .filter_map(Instruction::jump_target)
         .collect::<HashSet<_>>();
     let mut arrays = HashMap::<ArraySlot, Vec<ValueSlot>>::new();
     for (offset, op) in code.iter_mut().enumerate() {
         if targets.contains(&offset) {
+            arrays.clear();
+        }
+        if op.conditional_target().is_some() {
             arrays.clear();
         }
         match op {

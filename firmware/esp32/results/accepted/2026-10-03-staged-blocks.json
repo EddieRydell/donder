@@ -1,0 +1,75 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Control-input specialization, query/target/pixel initialization, invariant pixel-loop division, constant color folding, bounded eight-pixel color blocks, and exact integer seconds-to-ticks conversion. Current wire format 42. No new retained sampled-frame cache.",
+  "baseline_reference": "2026-10-02-compact-targets.json",
+  "method": {
+    "device": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Standalone profiling firmware, Cargo release opt-level 3, fat LTO, one codegen unit. Instruction counters disabled in timed images.",
+    "equivalence": "All 608 host reference frames across 19 workloads preserve CRCs, timestamps and active-effect counts. The complete device capture verifies 544 frames, 17 workloads and 16 profiling/control windows. Every measured evaluation allocates zero times.",
+    "timing": "32-frame windows include first use. Warm controls bracket interrupted-PC sampling at 997 and 1999 microseconds. Shares aggregate self-symbol samples, including inlined helpers; they are not separately timed functions.",
+    "memory": "Allocator-used device bytes. Retained includes decoded sequence, workspace and output buffers, excluding stack. Block storage depends on color-register counts and graph depth, not pixel count or temporal taps.",
+    "limits": "Prepared evaluation and output encoding only; excludes network, storage, DMA and physical output. Dense starter and scheduled_1024 were checked on the host but not timed on the ESP32. No laptop timing comparison. No cache-hit measurement or general 5x claim. General varying-numeric blocks and program fusion remain unimplemented."
+  },
+  "validation": "cargo fmt and full pnpm check passed, including frontend checks, workspace tests, 16 storage tests, and all-target/all-feature Clippy with warnings denied. The final gate used RUST_TEST_THREADS=4: an earlier concurrent run hit the desktop filesystem-watcher test's 10-second timeout; that test passed in isolation and in the full controlled run. Focused coverage includes scalar/block parity across nested temporal graphs, tails and seeks, local/global/subset pixel domains, constant colors, fixed/live bindings, target initialization, section boundaries, and integer clock conversion against the double-precision reference. Full controller release also builds and links.",
+  "artifacts": {
+    "device_elf_sha256": "330ababc880cc3d0738dbefa1671f0623d0bf5f2267c3a6c87f5021dc014eb1b",
+    "manifest_sha256": "943c2093fbef4b0c72f6363057b058217d2b413bb7ccae0ca43d42e2eeb79c2b",
+    "controller_elf_sha256": "e4af1613bd1885afc0a59055368b3fc0ad374bd5b7354f507f0a498219adbf4c",
+    "controller_image_sha256": "9dc20ad98eb358f7a0e9d29df460ced40041e547a4564cbc9ba442da686b3dab",
+    "raw_evidence": "target/vm-opt-20261002/compact-targets-borrow, staged-sharing, color-blocks, block-specialized, block-placement. Final placement uses the block-specialized Rust source snapshot with block-placement/rwtext_hook.x; the earlier linker script is preserved as block-specialized/measured-rwtext_hook.x."
+  },
+  "timing_columns": ["workload", "before_mean_us", "after_mean_us", "after_p95_us", "after_max_us", "after_over_60hz", "after_over_120hz"],
+  "timings": [
+    ["ScanSweep_150", 3234, 2146, 2157, 2502, 0, 0],
+    ["ImpactBurst_150", 3395, 2471, 2491, 2837, 0, 0],
+    ["SparkleComet_150", 5032, 3921, 3930, 4296, 0, 0],
+    ["ShimmerField_150", 3076, 2330, 2351, 2620, 0, 0],
+    ["ShimmerField_600", 12209, 9135, 9189, 9425, 0, 32],
+    ["ShimmerField_1200", 24358, 18165, 18267, 18499, 32, 32],
+    ["ShimmerField_150_layers4", 12156, 9087, 9149, 9414, 0, 32],
+    ["ShimmerField_150_layers16", 48474, 36114, 36341, 36587, 32, 32],
+    ["black_150", 124, 126, 125, 296, 0, 0],
+    ["freeze_black_150", 11083, 2711, 2704, 3066, 0, 0],
+    ["scheduled_16", 97, 98, 93, 268, 0, 0],
+    ["scheduled_128", 107, 106, 102, 277, 0, 0],
+    ["chase_pulse_150_layers1", 2860, 1611, 1612, 1933, 0, 0],
+    ["chase_pulse_150_layers4", 5970, 3476, 3484, 3802, 0, 0],
+    ["chase_pulse_150_layers16", 23957, 13971, 13990, 14293, 0, 32],
+    ["starter_port1", 752, 244, 245, 807, 0, 0],
+    ["stanford", 22107, 14232, 14665, 15462, 0, 32]
+  ],
+  "memory_columns": ["workload", "before_retained_bytes", "after_retained_bytes", "after_decoded_bytes", "after_workspace_outputs_bytes"],
+  "memory": [
+    ["ShimmerField_1200", 19128, 19168, 8116, 11052],
+    ["freeze_black_150", 3968, 3868, 2504, 1364],
+    ["chase_pulse_150_layers16", 18492, 18564, 10276, 8288],
+    ["starter_port1", 22220, 23556, 21192, 2364],
+    ["stanford", 50512, 54828, 49024, 5804]
+  ],
+  "archive_columns": ["workload", "before_bytes", "after_bytes"],
+  "archives": [
+    ["ShimmerField_1200", 7562, 7587],
+    ["freeze_black_150", 2455, 2305],
+    ["starter_port1", 16329, 17570],
+    ["starter_dense", 68354, 69595],
+    ["stanford", 35568, 39031]
+  ],
+  "instruction_columns": ["workload", "before_instructions_per_frame", "after_instructions_per_frame", "before_explicit_float_divides", "after_explicit_float_divides"],
+  "instructions": [
+    ["ShimmerField_150", 6619, 5279, 150, 2],
+    ["freeze_black_150", 15013, 1635, 2, 4],
+    ["stanford", 29461.65625, 14403.9375, 917.5625, 171],
+    ["chase_pulse_150_layers16", 57183.875, 35743.875, 3608, 32]
+  ],
+  "instruction_note": "Block instructions count one dispatch for several color lanes. Explicit float-divide counts exclude division inside sampling/math helpers. A short tail reruns block initialization, explaining four explicit divides instead of two in freeze_black_150.",
+  "warm_mean_us": {"ShimmerField_150": 2273.40, "freeze_black_150": 2668.12, "starter_port1": 189.00, "stanford": 13917.00},
+  "hotspot_percent": {
+    "stanford": {"effect_vm": 30.95, "float_division": 26.18, "operator_vm": 21.54, "unresolved": 2.65},
+    "ShimmerField_150": {"effect_vm": 77.82, "gradient_sampling": 7.00, "layer_sampling": 6.48, "float_division": 2.28},
+    "freeze_black_150": {"operator_vm": 48.90, "block_source_traversal": 38.38, "effect_vm": 2.27}
+  },
+  "regression_investigation": "The first color-block implementation introduced dynamic color strides into scalar effects: Shimmer1200 rose from 18110 to 19007 us and Chase/Pulse16 from 13946 to 14951 us versus the compiler-only stage. Making the existing effect execution capability's lane count statically one restored them to 18123 and 13986 us. The same interpreter implementation remains shared. Specializing every scalar binding initially grew Stanford's archive to 63469 bytes; specializing control dependencies while retaining ordinary parameters reduced it to 39031 bytes. Remaining specialization costs 4316 retained device bytes on Stanford. Small 0-2 us black/scheduling changes were not treated as individual performance gates.",
+  "placement_confirmation": "Including the new block traversal and callbacks in the existing hot-code selector adds 3620 instruction-RAM bytes. FreezeFrame's first-use-inclusive mean changes from 2819 to 2711 us, but warm controls remain 2668 us. Stanford changes from 14229 to 14232 us, warm 13899 to 13917 us. The short starter wrapper improves from 306 to 244 us, warm 219 to 189 us. No large steady-state placement gain is claimed; the core remaining cost is computation and traversal.",
+  "controller": {"built_and_linked": true, "rwtext_bytes": 67488, "rwtext_wifi_bytes": 51796, "configured_heap_bytes": 159744, "flashed_image": "standalone profiling image"},
+  "native_stack_frames_bytes": {"effect_vm": 160, "operator_vm": 160, "sample_signal_graph": 464, "sample_signal_pixel": 416, "blocks_signal": 320},
+  "stack_note": "Individual entry-frame reservations from the block-specialized complete controller ELF, before the linker-only placement adjustment; not maximum nested stack use. The previous graph/source-pixel frames were 384/384 bytes. Both interpreter frames remain 160."
+}

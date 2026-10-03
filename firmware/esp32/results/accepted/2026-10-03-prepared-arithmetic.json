@@ -1,0 +1,52 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Prepare reciprocals for immutable, known finite nonzero divisors whose reciprocals are finite. Reuse ordinary fixed bindings and share inverses of repeated loads of one parameter. Extend permanent loop-rejection proofs to multiplication by nonnegative constants, using known iteration counts and checked final updates. No native runtime, opcode, wire-format or retained frame-cache change. Pointwise program fusion remains unfinished.",
+  "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. Previous and newly compiled archives execute in the same image. Each timing window includes 32 frames and first use. Two-second controls bracket 997/1999 us PC sampling. No instruction instrumentation. Excludes network, storage, DMA and physical output; no laptop timing comparison.",
+  "baseline": "2026-10-03-lane-arithmetic.json; its bytecode rerun in the current profile image",
+  "correctness": {
+    "host_reference_frames": 640,
+    "device_frames": 800,
+    "device_cases": 25,
+    "profile_and_control_windows": 32,
+    "identical_outputs_timestamps_and_active_counts": true,
+    "unchanged_archive_sizes": true,
+    "unchanged_playback_memory_in_all_same_image_pairs": true,
+    "evaluation_allocations": 0,
+    "focused_tests": "129 runtime unit tests and focused all-targets language/runtime Clippy pass. Added cases cover repeated parameter loads, shared code across settings, repeated preparation, zero, signed zero, infinities, NaN, reciprocal overflow, dynamic and pixel-mutated inputs, branches, loops, seeks and partial blocks. Multiplicative loop cases cover positive/negative induction, nesting, wraparound, sign alternation and live-out values."
+  },
+  "validation": "Changes are integrated and cargo fmt passes. The final compiler reproduces all 20 measured archives byte for byte, and twelve recorded source/test files match the checkout. 129 focused runtime tests, focused Clippy and ESP32 release profiling pass. The full controller release build passes and produces the byte-identical controller image from the lane-arithmetic stage. Full pnpm check passes, including firmware-owned host storage tests and workspace Clippy.",
+  "timing_columns": ["workload", "same_image_previous_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "timings": [
+    ["layered_600_4layers_3operators", 108806, 107404, 107568, 108107],
+    ["ScanSweep_150", 1769, 1769, 1759, 2239],
+    ["ImpactBurst_150", 1675, 1675, 1672, 2162],
+    ["SparkleComet_150", 2704, 2704, 2695, 3186],
+    ["ShimmerField_1200", 14650, 14650, 14746, 15204],
+    ["starter_port1", 230, 228, 228, 602],
+    ["stanford", 14685, 14683, 15217, 16060]
+  ],
+  "mixed_warm_us_approximate": 107381.32,
+  "mixed_memory_bytes": {
+    "archive": 12622,
+    "decoded": 15528,
+    "workspace_outputs": 10420,
+    "retained": 25948
+  },
+  "hotspot_percent": {
+    "mixed_shared_vm": 66.32,
+    "mixed_block_traversal": 6.83,
+    "mixed_gradient_sampling": 6.24,
+    "mixed_software_float_division": 4.26,
+    "mixed_unresolved": 4.06,
+    "same_image_previous_mixed_software_float_division": 5.01,
+    "stanford_shared_vm": 61.60,
+    "stanford_software_float_division": 18.37,
+    "note": "Weighted self-symbol shares from both sampling periods; estimates do not isolate opcode costs or effect/operator callers. Small share changes are not separate acceptance claims."
+  },
+  "limits": "The mixed workload improves 1.3 percent in the same image. Other measured differences are negligible. Isolated effect fixtures bypass binding preparation and keep identical archives, while the mixed fixture and real-project cases use it. Mixed remains above the 16.667 ms evaluation budget for all 32 measured frames; cumulative 291705 to 107404 us is 2.72x across the earlier staged/block and current images, not a same-image cumulative comparison or a general 5x claim. No memory or cache-locality speedup is claimed for this compiler step.",
+  "sha256": {
+    "profile_elf": "ea10d4708aa04c4b8e51da31ac6359dc12049d2961ea564d06078d8e01a02e97",
+    "controller_image": "0a1fb3f5746d1538db6db7bd95cfdf92284a7459caebf40db9a5ba477abae09b"
+  },
+  "raw_evidence": "Ignored target/vm-opt-20261002/prepared-arithmetic contains archives, manifest, device capture, PC attribution, image, build/capture logs and source hashes. Focused host logs are under the sibling numeric-blocks directory. Only this reviewed summary is retained outside target."
+}

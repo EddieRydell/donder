@@ -442,13 +442,11 @@ mod tests {
         .into();
         data.signals.fixture_pixel_offsets = vec![0, 2].into();
         data.signals.pixel_count = 3;
-        data.signals.targets[0].pixels = 0..3;
-        data.signals.target_pixels = vec![
+        data.signals.targets[0].pixels = crate::targets::TargetInterner::default().prepare(vec![
             PreparedPixel::try_new(0, 0, 0, 2, 0.0).unwrap(),
             PreparedPixel::try_new(0, 1, 1, 2, 1.0).unwrap(),
             PreparedPixel::try_new(1, 0, 0, 1, 0.0).unwrap(),
-        ]
-        .into();
+        ]);
         data.signals.programs = vec![BytecodeProgram {
             instructions: vec![
                 Instruction::LoadColorConst {
@@ -536,13 +534,13 @@ mod tests {
                 effects: Box::new([]),
                 programs: Box::new([]),
                 targets: vec![PreparedTarget {
-                    pixels: 0..0,
+                    pixels: crate::targets::TargetInterner::default().prepare(vec![]),
+                    spatial: Box::new([]),
                     sections: Default::default(),
                     sample_count: 0,
                 }]
                 .into(),
-                target_pixels: Box::new([]),
-                spatial_contexts: Box::new([]),
+                positions: Box::new([]),
                 effects_by_layer: Box::new([]),
                 layers: Box::new([]),
                 plan: SignalPlan {
@@ -617,14 +615,19 @@ mod tests {
         programs.push(query);
         data.signals.programs = programs.into();
         let mut targets = data.signals.targets.into_vec();
+        let mut interner = crate::targets::TargetInterner::default();
+        let first_pixels = interner.prepare(targets[0].pixels.iter().take(2).collect());
+        let last_pixels = interner.prepare(targets[0].pixels.iter().skip(2).collect());
         targets.extend([
             PreparedTarget {
-                pixels: 0..2,
+                pixels: first_pixels,
+                spatial: Box::new([]),
                 sections: Default::default(),
                 sample_count: 0,
             },
             PreparedTarget {
-                pixels: 2..3,
+                pixels: last_pixels,
+                spatial: Box::new([]),
                 sections: Default::default(),
                 sample_count: 0,
             },

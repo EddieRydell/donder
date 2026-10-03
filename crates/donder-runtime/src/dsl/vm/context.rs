@@ -45,20 +45,30 @@ pub(super) trait SampleSignal<S> {
         pixel: SignalPixel<i32>,
         cache: Option<usize>,
     ) -> Result<Color, Self::Error>;
+    fn sample_block(
+        &mut self,
+        capability: S,
+        input: usize,
+        time: SampleTime,
+        pixel: SignalPixel<i32>,
+        output: &mut [Color],
+    ) -> Result<(), Self::Error>;
 }
 
-impl SampleSignal<Infallible> for () {
-    type Error = Infallible;
+/// Sample admission rejects every signal instruction, including trusted-wire
+/// conversion. This provider keeps the public effect API signal-free while
+/// using the same native interpreter specialization as prepared operators.
+pub(crate) struct NoSignals;
 
-    fn sample(
+impl SignalSampler<Infallible> for NoSignals {
+    fn sample_signal(
         &mut self,
-        capability: Infallible,
         _: usize,
         _: SampleTime,
         _: SignalPixel<i32>,
         _: Option<usize>,
     ) -> Result<Color, Infallible> {
-        match capability {}
+        unreachable!("sample admission excludes signal instructions")
     }
 }
 
@@ -74,5 +84,16 @@ impl<E> SampleSignal<crate::dsl::SignalAccess> for &mut dyn SignalSampler<E> {
         cache: Option<usize>,
     ) -> Result<Color, E> {
         self.sample_signal(input, time, pixel, cache)
+    }
+
+    fn sample_block(
+        &mut self,
+        _: crate::dsl::SignalAccess,
+        input: usize,
+        time: SampleTime,
+        pixel: SignalPixel<i32>,
+        output: &mut [Color],
+    ) -> Result<(), E> {
+        self.sample_signal_block(input, time, pixel, output)
     }
 }

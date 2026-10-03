@@ -93,7 +93,7 @@ function TypedParamValue({
   switch (param.value.type) {
     case "int": {
       const mapping = param.automation?.mapping.type === "int" ? param.automation.mapping : null;
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}>{mapping === null ? <NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} disabled={automated} commit={(value) => commit({ type: "int", value: Math.max(0, Math.round(value)) })} /> : <AutomationRangeParam mapping={mapping} step={1} commit={commitAutomationMapping} />}</ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}>{mapping === null ? <NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /> : <AutomationRangeParam mapping={mapping} step={1} commit={commitAutomationMapping} />}</ParamValueRow></ParamShell>;
     }
     case "float": {
       const mapping = param.automation?.mapping.type === "float" ? param.automation.mapping : null;
@@ -145,7 +145,7 @@ function TypedParamValue({
         </ParamShell>
       );
     case "intArray":
-      return <NumberArrayParam name={param.name} values={param.value.values} step={1} commit={(values) => commit({ type: "intArray", values: values.map((value) => Math.max(0, Math.round(value))) })} />;
+      return <NumberArrayParam name={param.name} values={param.value.values} step={1} commit={(values) => commit({ type: "intArray", values: values.map((value) => Math.round(value)) })} />;
     case "floatArray":
       return <NumberArrayParam name={param.name} values={param.value.values} step={0.05} commit={(values) => commit({ type: "floatArray", values })} />;
     case "boolArray":
@@ -321,9 +321,9 @@ function automationBindingControl(
 function defaultAutomationMapping(param: SequenceEffectParam): SequenceAutomationMapping | null {
   switch (param.value.type) {
     case "float":
-      return { type: "float", min: 0, max: Math.max(1, param.value.value) };
+      return { type: "float", min: Math.min(0, param.value.value), max: Math.max(1, param.value.value) };
     case "int":
-      return { type: "int", min: 0, max: Math.max(1, param.value.value) };
+      return { type: "int", min: Math.min(0, param.value.value), max: Math.max(1, param.value.value) };
     case "bool":
       return { type: "bool" };
     case "enum":

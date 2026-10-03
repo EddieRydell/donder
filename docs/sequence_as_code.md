@@ -445,6 +445,19 @@ gradient remains valid.
 A `Signal.at` query at a negative, non-finite, or unrepresentable time returns
 black without invoking its input signal.
 
+### Polar-coordinate math
+
+`sqrt(value)` returns the square root as a float. Negative inputs return NaN;
+zero and positive infinity retain their usual floating-point behavior.
+`atan2(y, x)` returns the angle in radians from the positive X axis, in
+`[-pi, pi]`, preserving the quadrant. Both functions accept integer arguments
+through the usual conversion to float and propagate NaN inputs. They use the
+same `libm` operations during constant folding and portable runtime evaluation.
+
+For a point relative to an effect center, compute radius with
+`sqrt(dx * dx + dy * dy)` and angle with `atan2(dy, dx)`. These operations use
+only the current pixel's coordinates and do not sample other pixels.
+
 ### Missing scalar values and color boundaries
 
 NaN represents an unavailable or undefined scalar result. Ordinary floating-point

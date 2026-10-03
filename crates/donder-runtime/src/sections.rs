@@ -31,10 +31,28 @@ struct SectionRun {
     last: u32,
 }
 
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+struct SectionSpan {
+    end: usize,
+    first: SectionPixel,
+}
+
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+enum SectionPixels {
+    Runs(Box<[SectionSpan]>),
+    Indexed(Box<[SectionPixel]>),
+}
+
+impl Default for SectionPixels {
+    fn default() -> Self {
+        Self::Runs(Box::new([]))
+    }
+}
+
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedSections {
     runs: Box<[SectionRun]>,
-    pub(crate) pixels: Box<[SectionPixel]>,
+    pixels: SectionPixels,
     per_fixture: bool,
 }
 
@@ -67,19 +85,55 @@ impl PreparedSections {
                 },
             );
         }
+        let mut spans = Vec::<SectionSpan>::new();
+        for (index, pixel) in pixels.iter().enumerate() {
+            let address = addresses[pixel];
+            let start = if spans.len() > 1 {
+                spans[spans.len() - 2].end
+            } else {
+                0
+            };
+            if let Some(span) = spans.last_mut()
+                && span.first.run == address.run
+                && span.first.index.checked_add((index - start) as u32) == Some(address.index)
+            {
+                span.end = index + 1;
+            } else {
+                spans.push(SectionSpan {
+                    end: index + 1,
+                    first: address,
+                });
+            }
+        }
+        let pixels = if spans.len() * core::mem::size_of::<rkyv::Archived<SectionSpan>>()
+            < pixels.len() * core::mem::size_of::<rkyv::Archived<SectionPixel>>()
+        {
+            SectionPixels::Runs(spans.into())
+        } else {
+            SectionPixels::Indexed(pixels.iter().map(|pixel| addresses[pixel]).collect())
+        };
         Self {
             runs: runs.into(),
-            pixels: pixels.iter().map(|pixel| addresses[pixel]).collect(),
+            pixels,
             per_fixture,
         }
     }
 
     pub(crate) fn pixel(&self, index: usize) -> SectionPixel {
-        if self.pixels.is_empty() {
+        match &self.pixels {
             // Programs without section queries do not allocate this metadata.
-            SectionPixel::default()
-        } else {
-            self.pixels[index]
+            SectionPixels::Runs(spans) if spans.is_empty() => SectionPixel::default(),
+            SectionPixels::Indexed(pixels) if pixels.is_empty() => SectionPixel::default(),
+            SectionPixels::Indexed(pixels) => pixels[index],
+            SectionPixels::Runs(spans) => {
+                let span = spans.partition_point(|span| span.end <= index);
+                let start = if span == 0 { 0 } else { spans[span - 1].end };
+                let first = spans[span].first;
+                SectionPixel {
+                    run: first.run,
+                    index: first.index + (index - start) as u32,
+                }
+            }
         }
     }
 

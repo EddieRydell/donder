@@ -17,6 +17,11 @@ use Donder's typed DSL. See `effects/` and `operators/` for working source,
 including the editable standard libraries. Existing sequences, whether inline
 in `project.donder` or under `sequences/`, demonstrate how definitions are used.
 
+`effects/vixen.effect.donder` contains supported-mode Vixen ports. Read its
+comments before using a definition: its curves use percentage values `0..100`,
+pixel effects have explicit frame/coordinate settings, and it does not implement
+all Vixen effects or modes. Random modes use Donder's seeded random values.
+
 Effects declare typed parameters and produce colors in `color sample()`.
 Operators declare signal inputs and sample them to transform or combine output.
 Ordinary parameters can vary during playback where their types support

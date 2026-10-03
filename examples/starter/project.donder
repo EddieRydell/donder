@@ -10,6 +10,10 @@ imports:
   as: effects
 - from:
     documents:
+    - effects/vixen.effect.donder
+  as: vixen
+- from:
+    documents:
     - operators/standard.operator.donder
   as: operators
 - from:

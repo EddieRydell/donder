@@ -1,0 +1,59 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Hoist total typed parameter resource samples to their proven query/target or loop scope. Split a uniform gradient/curve sample from varying scaling/clamping with existing instructions; preserve the fused gradient operation's explicit 0..1 gain clamp. No runtime interpreter change, opcode, format change or retained frame cache. Pointwise program fusion remains unfinished.",
+  "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. One profiling ELF runs 18 current workloads and seven previous prepared-binding archives. Each timing window includes 32 frames and first use. Two-second controls bracket 997/1999 us PC sampling. Instruction instrumentation is removed before building the device image. Excludes network, storage, DMA and physical output; no laptop timing comparison.",
+  "baseline": "2026-10-03-prepared-bindings.json; seven preceding archives are rerun in this same image.",
+  "correctness": {
+    "host_reference_frames": 640,
+    "unchanged_checksums_timestamps_active_counts": true,
+    "device_current_frames": 576,
+    "device_same_image_baseline_frames": 224,
+    "device_cases": 25,
+    "profile_and_control_windows": 32,
+    "evaluation_allocations": 0,
+    "focused_tests": "125 runtime unit tests pass. New cases compare split sampling against independent sampling math across empty curves/gradients, invalid clamp bounds, gains above one, missing values, branches, block tails and seeks. Target-dependent resource samples refresh when bounds change. Existing temporal, automation and scalar/block parity tests pass."
+  },
+  "validation": "cargo fmt and the complete pnpm check pass, including 125 runtime unit tests, 11 allocation tests, 16 device-storage tests and warning-denying workspace Clippy. Complete controller release image builds and is byte-for-byte unchanged. Nine measured source hashes match the checkout. Desktop watcher test passed.",
+  "controlled_timing_columns": ["workload", "baseline_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "controlled_timings": [
+    ["layered_600_4layers_3operators", 124676, 118217, 118394, 118848],
+    ["ScanSweep_150", 2166, 1858, 1854, 2210],
+    ["ImpactBurst_150", 2171, 1863, 1865, 2203],
+    ["SparkleComet_150", 3626, 3007, 3009, 3357],
+    ["ShimmerField_1200", 16698, 16698, 16803, 17049],
+    ["stanford", 14991, 14991, 15542, 16215],
+    ["starter_port1", 224, 224, 228, 483]
+  ],
+  "warm_us_before_after": {
+    "layered_600_4layers_3operators": [124715.44, 118252.97]
+  },
+  "mixed_memory_before_after": {
+    "archive_bytes": [12572, 12622],
+    "decoded_bytes": [15472, 15528],
+    "workspace_outputs_bytes": [10420, 10420],
+    "retained_bytes": [25892, 25948],
+    "note": "Separate sampling and scaling adds 50 wire bytes and 56 decoded bytes. Workspace allocation does not grow. The other six controlled comparisons retain unchanged memory."
+  },
+  "mixed_instruction_counts_per_frame_before_after": {
+    "dispatches": [50036, 50486],
+    "gradient_parameter_samples": [450, 675],
+    "fused_gradient_scaling": [450, 225],
+    "color_scale": [300, 525],
+    "constant_clamp": [2025, 2250],
+    "fused_curve_clamp": [675, 675],
+    "note": "Dispatch count rises by 450 because the split gradient needs a separate clamp and scale. Lifted resource instructions execute in single-lane initialization; their previous numeric-body dispatch performed sampling for each lane. Dispatch counts therefore do not measure the arithmetic removed."
+  },
+  "hotspot_percent_before_after": {
+    "mixed_shared_vm": [65.09, 68.48],
+    "mixed_gradient_sampling": [8.24, 6.01],
+    "mixed_block_traversal": [6.51, 5.71],
+    "mixed_software_float_division": [5.83, 4.88],
+    "note": "Weighted self-symbol shares across two sampling periods in the same ELF. These are sampling estimates, not isolated costs; the shared VM symbol does not distinguish effects from operators. Stanford remains about 59.2% VM and 21.8% software float division."
+  },
+  "limits": "Mixed frame time falls 5.2%, ScanSweep and Impact about 14%, Sparkle about 17%. Mixed still misses all 32 60 Hz deadlines and is 2.47x faster than the earlier 291705 us staged/block baseline, not 5x. Stanford fits the measured evaluation deadlines. Shimmer 1200 still lacks sufficient 60 Hz headroom. No broader gain is claimed for unchanged workloads.",
+  "sha256": {
+    "profile_elf": "583ce847ec8658f9f3cd10fd83de4904686e8bdc3d8699a8b96e6becff165192",
+    "controller_image": "ab5cd94e378f0ef27afb1947f8f5854c8f4f0834aa5b0aabb1a91df9d2efba72"
+  },
+  "raw_evidence": "Ignored target/vm-opt-20261002/uniform-samples contains cases, verified device capture, PC attribution, instruction counts, source hashes and build logs. The full gate log is target/vm-opt-20261002/uniform-samples-full-check.log. Only this reviewed summary is retained outside target."
+}

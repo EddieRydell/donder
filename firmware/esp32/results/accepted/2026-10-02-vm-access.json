@@ -1,0 +1,99 @@
+{
+  "date_local": "2026-10-02",
+  "scope": "Advance a local instruction slice instead of updating a numeric instruction index on every dispatch. Retain existing workspace register storage after measuring two alternative borrowed layouts. No bytecode, cache or allocation changes.",
+  "baseline_reference": "2026-10-02-loop-optimization.json",
+  "method": {
+    "device": "ESP32 rev3.1, 240MHz, one core, standalone profiling image, Wi-Fi off, GPIO untouched. Same workloads, parameters and 32 timestamps per case. CRC and serial output outside timed evaluation.",
+    "release": "opt-level=3, fat LTO, one codegen unit, panic=abort, debug=2 for symbols. Timed device images have no per-instruction counters.",
+    "hotspots": "Interrupted PCs at 997 and 1999 microseconds bracketed by two unsampled controls. Self-symbol percentages include inlined helpers. Estimated function times use sample share times warm control mean.",
+    "equivalence": "All 19 prepared archives and the manifest are byte-for-byte identical in baseline, cursor and both register experiments. All 608 host CRCs and full instruction-signature counts match. Each device capture verifies 544 frames, all 17 cases and all 16 profiling/control windows.",
+    "limitations": "Prepared evaluation and output-buffer encoding only. No network, storage, DMA or physical LED latency. Short windows do not establish full-show deadlines or maximum nested stack use. No new laptop timings."
+  },
+  "artifacts": {
+    "baseline_device_elf_sha256": "3071ba58f4aa557d1de507eae36c9731b198c27c9d64041bea37705b7d3d2431",
+    "accepted_device_elf_sha256": "f7b0497b1fe1ed30eeccf9843f35c2f44a3fbc587aa2b0bcad37693151d8f8f5",
+    "slice_banks_device_elf_sha256": "93b46721a10ce8793992f0ba5eae5264d2f1ba2d7dd410600e9bf8ef604010fb",
+    "split_references_device_elf_sha256": "352153a885591f9d3f08dc767b4d1fd81e6f21baa1a8182b07cb6ce430a6d98f",
+    "case_manifest_sha256": "286f32af01ffee4c88a18b0056353ed82da306f49328a2679bd84c8f7623cbcd",
+    "accepted_vm_source_sha256": "1a3f2627fdcf755fef78f91303d3164e6a993c5f74d98a2244bf4a63e6859a40",
+    "full_controller_elf_sha256": "4557e3b1c89b26e1a05b05f481f64bedddde778f49e2e89a9dd035b6423bc5ba"
+  },
+  "timing_columns": ["name", "before_mean_us", "accepted_mean_us", "accepted_p95_us", "accepted_max_us", "accepted_over_60hz_budget_frames"],
+  "timings": [
+    ["ScanSweep_150", 3418, 3201, 3199, 3573, 0],
+    ["ImpactBurst_150", 3683, 3397, 3404, 3747, 0],
+    ["SparkleComet_150", 5487, 5014, 5020, 5387, 0],
+    ["ShimmerField_150", 3340, 3065, 3089, 3349, 0],
+    ["ShimmerField_600", 13111, 12011, 12067, 12294, 0],
+    ["ShimmerField_1200", 26087, 23900, 24005, 24217, 32],
+    ["ShimmerField_150_layers4", 13042, 11948, 12016, 12266, 0],
+    ["ShimmerField_150_layers16", 51852, 47468, 47685, 47928, 32],
+    ["black_150", 94, 90, 85, 276, 0],
+    ["freeze_black_150", 11914, 11364, 11350, 12066, 0],
+    ["scheduled_16", 62, 63, 61, 248, 0],
+    ["scheduled_128", 69, 70, 65, 260, 0],
+    ["chase_pulse_150_layers1", 3115, 2820, 2821, 3135, 0],
+    ["chase_pulse_150_layers4", 6382, 5798, 5803, 6100, 0],
+    ["chase_pulse_150_layers16", 25520, 23165, 23184, 23479, 32],
+    ["starter_port1", 694, 701, 693, 1449, 0],
+    ["stanford", 22774, 21643, 22085, 23029, 32]
+  ],
+  "warm_control_columns": ["name", "before_us", "accepted_us"],
+  "warm_controls": [
+    ["ShimmerField_150", 3257.148, 2983.214],
+    ["freeze_black_150", 11825.115, 11266.839],
+    ["starter_port1", 603.739, 605.494],
+    ["stanford", 22433.573, 21291.760]
+  ],
+  "register_experiment_columns": ["name", "accepted_cursor_mean_us", "nine_slice_banks_mean_us", "split_references_mean_us"],
+  "register_experiments": [
+    ["ShimmerField_150", 3065, 3154, 3134],
+    ["ShimmerField_1200", 23900, 24657, 24035],
+    ["freeze_black_150", 11364, 11868, 11535],
+    ["chase_pulse_150_layers16", 23165, 24134, 23447],
+    ["starter_port1", 701, 767, 709],
+    ["stanford", 21643, 22169, 21850]
+  ],
+  "register_findings": "The original workspace embeds VmRegisters; optimized code keeps its base in a CPU register. Splitting it does not eliminate a pointer chase. Nine slices eagerly preload and spill bank pointers/lengths, grow the invocation object and run stack frames, and penalize short invocations. One register reference plus array/loop references reduces this overhead but does not outperform cursor-only playback. Keep the existing compact ownership structure. Exact shares attributable to register allocation versus code layout were not separately measured.",
+  "native_columns": ["variant", "operator_code_bytes", "effect_code_bytes", "operator_run_stack_bytes", "effect_run_stack_bytes"],
+  "native": [
+    ["baseline", 17433, 17095, 128, 112],
+    ["accepted_cursor", 18087, 17822, 160, 160],
+    ["nine_slice_banks", 18720, 18189, 240, 224],
+    ["split_references", 18144, 17910, 176, 160]
+  ],
+  "native_scope": "Symbol sizes and Xtensa entry stack-frame operands from the exact profiling ELFs. Run frames exclude callers, callees and nested invocations. Cursor code retains checked slice rebasing at taken branches.",
+  "full_controller_build": {
+    "configuration": "release loader with dig-quad; built and linked, not flashed",
+    "before_rwtext_bytes": 55684,
+    "after_rwtext_bytes": 57172,
+    "rwtext_wifi_bytes": 51796,
+    "vector_bytes": 1024,
+    "unused_iram_bytes": 21080,
+    "configured_heap_bytes": 159744
+  },
+  "memory": {
+    "all_retained_sizes_unchanged": true,
+    "all_evaluation_allocation_counts": 0,
+    "stanford_retained_bytes": 78308,
+    "freeze_black_retained_bytes": 9284,
+    "notes": "Heap accounting excludes stack and native code. Existing workspace layout and capacities are unchanged."
+  },
+  "hotspot_columns": ["name", "symbol", "accepted_sample_percent"],
+  "hotspots": [
+    ["stanford", "operator VM", 27.75],
+    ["stanford", "effect VM", 27.33],
+    ["stanford", "software float division", 19.74],
+    ["freeze_black_150", "operator VM", 39.15],
+    ["freeze_black_150", "source pixel sampling", 28.69],
+    ["freeze_black_150", "effect VM", 16.71],
+    ["ShimmerField_150", "effect VM", 75.86],
+    ["ShimmerField_150", "software float division", 9.92],
+    ["starter_port1", "operator VM", 33.96],
+    ["starter_port1", "signal graph traversal", 20.53]
+  ],
+  "hotspot_sample_counts": {"stanford": 3085, "freeze_black_150": 3262, "ShimmerField_150": 3045, "starter_port1": 3030},
+  "recollection": "Reflashed the accepted cursor ELF and recollected a complete report under access-cursor-confirmation. Its serial bytes exactly match the first capture; this is not counted as an independent statistical timing sample.",
+  "verification": "cargo fmt, full pnpm check including firmware-owned host storage tests and Clippy, and release dig-quad loader build passed on the final cursor source. All 102 runtime unit tests passed. The board is left on the accepted standalone profiling image.",
+  "raw_artifact_locations": ["target/vm-access-20261002", "target/vm-opt-20261002/access-cursor", "target/vm-opt-20261002/access-banks", "target/vm-opt-20261002/access-direct", "target/vm-opt-20261002/access-cursor-confirmation"]
+}

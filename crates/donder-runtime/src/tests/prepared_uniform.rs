@@ -21,9 +21,7 @@ mod mark_workload;
 #[path = "../../benches/fixtures/mod.rs"]
 mod fixtures;
 
-#[allow(dead_code)]
-#[path = "../../tests/support/playback.rs"]
-mod playback;
+use super::playback;
 
 use crate::dsl::VmWorkspace;
 use donder_language::dsl::compile_effects;
@@ -212,7 +210,7 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
     ] {
         let effect = compile_effects(source).unwrap().remove(0);
         assert!(
-            !effect.sample_program().bytecode().instructions
+            effect.sample_program().bytecode().instructions
                 [..effect.sample_program().bytecode().pixel_entry as usize]
                 .iter()
                 .any(|op| matches!(
@@ -240,6 +238,11 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
             );
         if returns_black {
             assert_eq!(result, donder_language::values::Color::BLACK);
+        } else {
+            assert_eq!(
+                result,
+                crate::sampling::rgb(0.0, super::evaluation::context(200, 0, 0).progress, 0.25)
+            );
         }
     }
 }

@@ -1,5 +1,4 @@
 use super::*;
-use crate::dsl::bytecode::ArithmeticOp;
 use crate::values::Color;
 
 fn sequence(
@@ -33,19 +32,15 @@ fn sequence(
                     dst: FloatSlot(1),
                     src: IntSlot(2),
                 },
-                Instruction::FloatArithmeticConst {
+                Instruction::FloatDivideConst {
                     dst: FloatSlot(0),
-                    op: ArithmeticOp::Divide,
                     value: FloatSlot(0),
                     constant_bits: 10.0_f32.to_bits(),
-                    constant_left: false,
                 },
-                Instruction::FloatArithmeticConst {
+                Instruction::FloatDivideConst {
                     dst: FloatSlot(1),
-                    op: ArithmeticOp::Divide,
                     value: FloatSlot(1),
                     constant_bits: 10.0_f32.to_bits(),
-                    constant_left: false,
                 },
                 Instruction::LoadFloatConst {
                     dst: FloatSlot(2),

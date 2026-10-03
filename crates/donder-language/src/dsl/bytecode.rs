@@ -104,7 +104,7 @@ pub struct BytecodeProgram<C = ContextRead, S = (), A = ColorSlot> {
     pub layout: SlotLayout,
     /// Compiler-proven dependency on pixel geometry or an upstream signal.
     pub uses_pixel_context: bool,
-    /// First pixel-dependent instruction, following pure frame initialization.
+    /// First pixel-dependent instruction, following query and target initialization.
     pub pixel_entry: u32,
     /// Conservative live calculated-array bound, including construction space.
     pub array_capacity: u32,
@@ -152,6 +152,11 @@ impl BytecodeProgram {
             match instruction {
                 Instruction::SignalSample { input, .. } => {
                     if !matches!(context, ProgramContext::Operator { inputs } if *input < inputs) {
+                        return false;
+                    }
+                }
+                Instruction::QuerySeconds { .. } | Instruction::QueryProgress { .. } => {
+                    if !matches!(context, ProgramContext::Operator { .. }) {
                         return false;
                     }
                 }
@@ -260,25 +265,7 @@ impl BytecodeProgram {
                 .and_then(|end| self.value_operands.get(span.start as usize..end))
                 .is_some_and(|slots| slots.iter().copied().all(valid_slot))
         };
-        let uses_pixel_context = self.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                Instruction::ContextRead {
-                    read: ContextRead::PixelIndex
-                        | ContextRead::PixelCount
-                        | ContextRead::PixelFraction
-                        | ContextRead::PixelX
-                        | ContextRead::PixelY
-                        | ContextRead::TargetMinX
-                        | ContextRead::TargetMinY
-                        | ContextRead::TargetMaxX
-                        | ContextRead::TargetMaxY,
-                    ..
-                } | Instruction::SectionPosition { .. }
-                    | Instruction::SectionQuery { .. }
-                    | Instruction::SignalSample { .. }
-            )
-        });
+        let uses_pixel_context = self.reads_pixel_context();
         if !self.has_valid_pixel_entry()
             || self.uses_pixel_context != uses_pixel_context
             || !self.value_operands.iter().copied().all(valid_slot)
@@ -403,10 +390,24 @@ impl BytecodeProgram {
                     NegInt { dst, src } => {
                         valid_slot(ValueSlot::Int(*dst)) && valid_slot(ValueSlot::Int(*src))
                     }
-                    NegFloat { dst, src } => {
+                    NegFloat { dst, src }
+                    | QuerySeconds { dst, seconds: src }
+                    | QueryProgress { dst, seconds: src } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*src))
                     }
-                    FloatArithmetic {
+                    FloatAdd {
+                        dst, left, right, ..
+                    }
+                    | FloatSubtract {
+                        dst, left, right, ..
+                    }
+                    | FloatMultiply {
+                        dst, left, right, ..
+                    }
+                    | FloatDivide {
+                        dst, left, right, ..
+                    }
+                    | FloatRemainder {
                         dst, left, right, ..
                     }
                     | FloatBinary {
@@ -416,13 +417,29 @@ impl BytecodeProgram {
                             && valid_slot(ValueSlot::Float(*left))
                             && valid_slot(ValueSlot::Float(*right))
                     }
-                    FloatArithmeticConst { dst, value, .. }
+                    FloatAddConst { dst, value, .. }
+                    | FloatSubtractConst { dst, value, .. }
+                    | FloatMultiplyConst { dst, value, .. }
+                    | FloatDivideConst { dst, value, .. }
+                    | FloatRemainderConst { dst, value, .. }
+                    | FloatSubtractFromConst { dst, value, .. }
+                    | FloatDivideIntoConst { dst, value, .. }
+                    | FloatRemainderFromConst { dst, value, .. }
                     | FloatUnary { dst, value, .. }
                     | FloatBinaryConst { dst, value, .. }
                     | ClampConst { dst, value, .. } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*value))
                     }
-                    IntArithmetic {
+                    IntAdd {
+                        dst, left, right, ..
+                    }
+                    | IntSubtract {
+                        dst, left, right, ..
+                    }
+                    | IntMultiply {
+                        dst, left, right, ..
+                    }
+                    | IntRemainder {
                         dst, left, right, ..
                     } => {
                         valid_slot(ValueSlot::Int(*dst))
@@ -454,6 +471,85 @@ impl BytecodeProgram {
                     EnumParamEqualConst { dst, constant, .. } => {
                         valid_slot(ValueSlot::Bool(*dst)) && self.enums.get(*constant).is_some()
                     }
+                    IntJumpLess {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | IntJumpLessEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | IntJumpGreater {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | IntJumpGreaterEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | IntJumpEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    } => {
+                        valid_slot(ValueSlot::Int(*left))
+                            && valid_slot(ValueSlot::Int(*right))
+                            && *target > ip
+                            && *target < self.instructions.len()
+                    }
+                    FloatJumpLess {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | FloatJumpLessEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | FloatJumpGreater {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | FloatJumpGreaterEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    }
+                    | FloatJumpEqual {
+                        left,
+                        right,
+                        target,
+                        ..
+                    } => {
+                        valid_slot(ValueSlot::Float(*left))
+                            && valid_slot(ValueSlot::Float(*right))
+                            && *target > ip
+                            && *target < self.instructions.len()
+                    }
+                    FloatJumpLessConst { value, target, .. }
+                    | FloatJumpLessEqualConst { value, target, .. }
+                    | FloatJumpGreaterConst { value, target, .. }
+                    | FloatJumpGreaterEqualConst { value, target, .. }
+                    | FloatJumpEqualConst { value, target, .. } => {
+                        valid_slot(ValueSlot::Float(*value))
+                            && *target > ip
+                            && *target < self.instructions.len()
+                    }
                     Jump(target) => *target > ip && *target < self.instructions.len(),
                     JumpIfFalse { condition, target } | JumpIfTrue { condition, target } => {
                         valid_slot(ValueSlot::Bool(*condition))
@@ -482,8 +578,14 @@ impl BytecodeProgram {
                     LoopEnd { id, start } => {
                         *id < self.loop_count && *start <= ip && *start < self.instructions.len()
                     }
-                    SectionPosition { dst, width } => {
-                        valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*width))
+                    SectionPosition {
+                        dst,
+                        width,
+                        inverse,
+                    } => {
+                        valid_slot(ValueSlot::Float(*dst))
+                            && valid_slot(ValueSlot::Float(*width))
+                            && valid_slot(ValueSlot::Float(*inverse))
                     }
                     SectionQuery { dst, width, .. } => {
                         valid_slot(ValueSlot::Int(*dst)) && valid_slot(ValueSlot::Int(*width))
@@ -499,16 +601,24 @@ impl BytecodeProgram {
                             && valid_slot(ValueSlot::Float(*min))
                             && valid_slot(ValueSlot::Float(*max))
                     }
-                    Smoothstep {
+                    FloatMultiplyAdd {
                         dst,
-                        edge0,
-                        edge1,
-                        value,
-                    } => {
-                        valid_slot(ValueSlot::Float(*dst))
-                            && valid_slot(ValueSlot::Float(*edge0))
-                            && valid_slot(ValueSlot::Float(*edge1))
-                            && valid_slot(ValueSlot::Float(*value))
+                        left,
+                        right,
+                        addend,
+                    } => [*dst, *left, *right, *addend]
+                        .into_iter()
+                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
+                    FloatMultiplyAddConst {
+                        dst, value, addend, ..
+                    } => [*dst, *value, *addend]
+                        .into_iter()
+                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
+                    FloatMultiplySmoothstep { dst, left, right } => [*dst, *left, *right]
+                        .into_iter()
+                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
+                    Smoothstep { dst, value } => {
+                        valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*value))
                     }
                     MixFloat {
                         dst,
@@ -662,10 +772,10 @@ impl BytecodeProgram {
 
     /// Conservative live calculated-array storage required by the final
     /// instruction stream. Both compilation and wire admission use this proof.
-    /// A reused pixel starts after this prefix with only its scalar registers
-    /// carried over. Prove the skipped instructions depend only on values
-    /// produced earlier in the prefix and that the pixel body cannot mutate
-    /// those cached values. This is a wire boundary, not an optimizer hint.
+    /// A reused query/target starts after its initialization with scalar registers
+    /// carried over. Prove that initialization depends only on its inputs and
+    /// earlier immutable scalar results. Changing target count/bounds restarts
+    /// the target stage. This is a wire boundary, not an optimizer hint.
     fn has_valid_pixel_entry(&self) -> bool {
         use Instruction::*;
 
@@ -674,7 +784,9 @@ impl BytecodeProgram {
             return false;
         }
         let mut cached = BTreeSet::new();
-        for instruction in &self.instructions[..entry] {
+        let mut query_uniform = BTreeSet::new();
+        let target_entry = self.target_entry();
+        for (ip, instruction) in self.instructions[..entry].iter().enumerate() {
             let mut reads = [None; 4];
             let dst = match instruction {
                 LoadIntConst { dst, .. } => ValueSlot::Int(*dst),
@@ -685,14 +797,72 @@ impl BytecodeProgram {
                 LoadFloatParam { dst, .. } => ValueSlot::Float(*dst),
                 LoadBoolParam { dst, .. } => ValueSlot::Bool(*dst),
                 LoadColorParam { dst, .. } => ValueSlot::Color(*dst),
+                EnumParamEqualConst { dst, .. } => ValueSlot::Bool(*dst),
+                Clamp {
+                    dst,
+                    value,
+                    min,
+                    max,
+                } => {
+                    reads[0] = Some(ValueSlot::Float(*value));
+                    reads[1] = Some(ValueSlot::Float(*min));
+                    reads[2] = Some(ValueSlot::Float(*max));
+                    ValueSlot::Float(*dst)
+                }
+                ClampConst { dst, value, .. }
+                | Smoothstep { dst, value }
+                | Rand { dst, seed: value } => {
+                    reads[0] = Some(ValueSlot::Float(*value));
+                    ValueSlot::Float(*dst)
+                }
                 ContextRead {
                     dst,
                     read:
                         self::ContextRead::Progress
                         | self::ContextRead::Seconds
-                        | self::ContextRead::Duration,
+                        | self::ContextRead::Duration
+                        | self::ContextRead::PixelCount
+                        | self::ContextRead::TargetMinX
+                        | self::ContextRead::TargetMinY
+                        | self::ContextRead::TargetMaxX
+                        | self::ContextRead::TargetMaxY,
                 } => dst.value_slot(),
-                FloatArithmetic {
+                FloatMultiplyAdd {
+                    dst,
+                    left,
+                    right,
+                    addend,
+                } => {
+                    reads[0] = Some(ValueSlot::Float(*left));
+                    reads[1] = Some(ValueSlot::Float(*right));
+                    reads[2] = Some(ValueSlot::Float(*addend));
+                    ValueSlot::Float(*dst)
+                }
+                FloatMultiplyAddConst {
+                    dst, value, addend, ..
+                } => {
+                    reads[0] = Some(ValueSlot::Float(*value));
+                    reads[1] = Some(ValueSlot::Float(*addend));
+                    ValueSlot::Float(*dst)
+                }
+                FloatMultiplySmoothstep { dst, left, right } => {
+                    reads[0] = Some(ValueSlot::Float(*left));
+                    reads[1] = Some(ValueSlot::Float(*right));
+                    ValueSlot::Float(*dst)
+                }
+                FloatAdd {
+                    dst, left, right, ..
+                }
+                | FloatSubtract {
+                    dst, left, right, ..
+                }
+                | FloatMultiply {
+                    dst, left, right, ..
+                }
+                | FloatDivide {
+                    dst, left, right, ..
+                }
+                | FloatRemainder {
                     dst, left, right, ..
                 }
                 | FloatBinary {
@@ -702,7 +872,22 @@ impl BytecodeProgram {
                     reads[1] = Some(ValueSlot::Float(*right));
                     ValueSlot::Float(*dst)
                 }
-                FloatArithmeticConst { dst, value, .. }
+                QuerySeconds {
+                    dst,
+                    seconds: value,
+                }
+                | QueryProgress {
+                    dst,
+                    seconds: value,
+                }
+                | FloatAddConst { dst, value, .. }
+                | FloatSubtractConst { dst, value, .. }
+                | FloatMultiplyConst { dst, value, .. }
+                | FloatDivideConst { dst, value, .. }
+                | FloatRemainderConst { dst, value, .. }
+                | FloatSubtractFromConst { dst, value, .. }
+                | FloatDivideIntoConst { dst, value, .. }
+                | FloatRemainderFromConst { dst, value, .. }
                 | FloatBinaryConst { dst, value, .. }
                 | FloatUnary { dst, value, .. } => {
                     reads[0] = Some(ValueSlot::Float(*value));
@@ -849,6 +1034,9 @@ impl BytecodeProgram {
             {
                 return false;
             }
+            if ip < target_entry {
+                query_uniform.insert(slot_key(dst));
+            }
         }
         if self.instructions[entry..].iter().any(|instruction| {
             instruction
@@ -873,7 +1061,8 @@ impl BytecodeProgram {
             if *frame_cache == u32::MAX {
                 continue;
             }
-            if *frame_cache != next_cache || !cached.contains(&slot_key(ValueSlot::Float(*seconds)))
+            if *frame_cache != next_cache
+                || !query_uniform.contains(&slot_key(ValueSlot::Float(*seconds)))
             {
                 return false;
             }
@@ -973,11 +1162,6 @@ impl BytecodeProgram {
                 match instruction {
                     Instruction::ReturnColor(_) => {}
                     Instruction::Jump(target) => pending.push(*target),
-                    Instruction::JumpIfFalse { target, .. }
-                    | Instruction::JumpIfTrue { target, .. } => {
-                        pending.push(*target);
-                        pending.push(ip + 1);
-                    }
                     Instruction::LoopRangeStart { end, .. }
                     | Instruction::LoopMarksStart { end, .. } => {
                         pending.push(end + 1);
@@ -987,7 +1171,12 @@ impl BytecodeProgram {
                         pending.push(*start);
                         pending.push(ip + 1);
                     }
-                    _ => pending.push(ip + 1),
+                    _ => {
+                        if let Some(target) = instruction.conditional_target() {
+                            pending.push(target);
+                        }
+                        pending.push(ip + 1);
+                    }
                 }
             }
         }
@@ -1186,11 +1375,6 @@ impl BytecodeProgram {
             match instruction {
                 Instruction::ReturnColor(_) => {}
                 Instruction::Jump(target) => pending.push(*target),
-                Instruction::JumpIfFalse { target, .. }
-                | Instruction::JumpIfTrue { target, .. } => {
-                    pending.push(*target);
-                    pending.push(ip + 1);
-                }
                 Instruction::LoopRangeStart { end, .. }
                 | Instruction::LoopMarksStart { end, .. } => {
                     pending.push(end + 1);
@@ -1200,7 +1384,12 @@ impl BytecodeProgram {
                     pending.push(*start);
                     pending.push(ip + 1);
                 }
-                _ => pending.push(ip + 1),
+                _ => {
+                    if let Some(target) = instruction.conditional_target() {
+                        pending.push(target);
+                    }
+                    pending.push(ip + 1);
+                }
             }
         }
         true
@@ -1236,6 +1425,62 @@ impl BytecodeProgram {
                         | ContextRead::TargetMaxY,
                     ..
                 }
+            )
+        })
+    }
+
+    /// Query initialization precedes the first target-context read. The compiler
+    /// groups all target-dependent initialization after this boundary.
+    pub fn target_entry(&self) -> usize {
+        self.instructions
+            .iter()
+            .take(self.pixel_entry as usize)
+            .position(|op| {
+                matches!(
+                    op,
+                    Instruction::ContextRead {
+                        read: ContextRead::PixelCount
+                            | ContextRead::TargetMinX
+                            | ContextRead::TargetMinY
+                            | ContextRead::TargetMaxX
+                            | ContextRead::TargetMaxY,
+                        ..
+                    }
+                )
+            })
+            .unwrap_or(self.pixel_entry as usize)
+    }
+
+    pub fn reads_progress(&self) -> bool {
+        self.instructions.iter().any(|op| {
+            matches!(
+                op,
+                Instruction::ContextRead {
+                    read: ContextRead::Progress,
+                    ..
+                }
+            )
+        })
+    }
+
+    pub fn reads_pixel_context(&self) -> bool {
+        self.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                Instruction::ContextRead {
+                    read: ContextRead::PixelIndex
+                        | ContextRead::PixelCount
+                        | ContextRead::PixelFraction
+                        | ContextRead::PixelX
+                        | ContextRead::PixelY
+                        | ContextRead::TargetMinX
+                        | ContextRead::TargetMinY
+                        | ContextRead::TargetMaxX
+                        | ContextRead::TargetMaxY,
+                    ..
+                } | Instruction::SectionPosition { .. }
+                    | Instruction::SectionQuery { .. }
+                    | Instruction::SignalSample { .. }
             )
         })
     }
@@ -1535,6 +1780,11 @@ macro_rules! instructions {
 }
 
 instructions! {
+    /// Quantize an inlined source query using the runtime clock. Invalid or
+    /// out-of-sequence queries yield NaN so their source body can be skipped.
+    QuerySeconds { dst: FloatSlot, seconds: FloatSlot },
+    /// Progress at the same original query, before any seconds round trip.
+    QueryProgress { dst: FloatSlot, seconds: FloatSlot },
     LoadCurveConst {
         dst: CurveSlot,
         constant: ConstantId,
@@ -1680,25 +1930,27 @@ instructions! {
         dst: FloatSlot,
         src: FloatSlot,
     },
-    FloatArithmetic {
-        dst: FloatSlot,
-        op: ArithmeticOp,
-        left: FloatSlot,
-        right: FloatSlot,
-    },
-    FloatArithmeticConst {
-        dst: FloatSlot,
-        op: ArithmeticOp,
-        value: FloatSlot,
-        constant_bits: u32,
-        constant_left: bool,
-    },
-    IntArithmetic {
-        dst: IntSlot,
-        op: IntArithmeticOp,
-        left: IntSlot,
-        right: IntSlot,
-    },
+    FloatAdd { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    FloatSubtract { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    FloatMultiply { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    /// Separate multiply and add semantics in one interpreter dispatch.
+    FloatMultiplyAdd { dst: FloatSlot, left: FloatSlot, right: FloatSlot, addend: FloatSlot },
+    FloatMultiplyAddConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32, addend: FloatSlot },
+    FloatMultiplySmoothstep { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    FloatDivide { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    FloatRemainder { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
+    IntAdd { dst: IntSlot, left: IntSlot, right: IntSlot },
+    IntSubtract { dst: IntSlot, left: IntSlot, right: IntSlot },
+    IntMultiply { dst: IntSlot, left: IntSlot, right: IntSlot },
+    IntRemainder { dst: IntSlot, left: IntSlot, right: IntSlot },
+    FloatAddConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatSubtractConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatMultiplyConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatDivideConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatRemainderConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatSubtractFromConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatDivideIntoConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
+    FloatRemainderFromConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32 },
     IntCompare {
         dst: BoolSlot,
         op: CompareOp,
@@ -1731,6 +1983,21 @@ instructions! {
         constant: ConstantId,
         negate: bool,
     },
+    IntJumpLess { left: IntSlot, right: IntSlot, when: bool, target: Target },
+    IntJumpLessEqual { left: IntSlot, right: IntSlot, when: bool, target: Target },
+    IntJumpGreater { left: IntSlot, right: IntSlot, when: bool, target: Target },
+    IntJumpGreaterEqual { left: IntSlot, right: IntSlot, when: bool, target: Target },
+    IntJumpEqual { left: IntSlot, right: IntSlot, when: bool, target: Target },
+    FloatJumpLess { left: FloatSlot, right: FloatSlot, when: bool, target: Target },
+    FloatJumpLessEqual { left: FloatSlot, right: FloatSlot, when: bool, target: Target },
+    FloatJumpGreater { left: FloatSlot, right: FloatSlot, when: bool, target: Target },
+    FloatJumpGreaterEqual { left: FloatSlot, right: FloatSlot, when: bool, target: Target },
+    FloatJumpEqual { left: FloatSlot, right: FloatSlot, when: bool, target: Target },
+    FloatJumpLessConst { value: FloatSlot, constant_bits: u32, when: bool, target: Target },
+    FloatJumpLessEqualConst { value: FloatSlot, constant_bits: u32, when: bool, target: Target },
+    FloatJumpGreaterConst { value: FloatSlot, constant_bits: u32, when: bool, target: Target },
+    FloatJumpGreaterEqualConst { value: FloatSlot, constant_bits: u32, when: bool, target: Target },
+    FloatJumpEqualConst { value: FloatSlot, constant_bits: u32, when: bool, target: Target },
     Jump(value: Target),
     JumpIfFalse {
         condition: BoolSlot,
@@ -1759,7 +2026,9 @@ instructions! {
     },
     SectionPosition {
         dst: FloatSlot,
+        /// Normalized width and its reciprocal, shared at their dependency scope.
         width: FloatSlot,
+        inverse: FloatSlot,
     },
     SectionQuery {
         dst: IntSlot,
@@ -1795,10 +2064,10 @@ instructions! {
         min_bits: u32,
         max_bits: u32,
     },
+    /// Clamped cubic interpolation of an already normalized position. Edge
+    /// normalization uses ordinary arithmetic so invariant work can be hoisted.
     Smoothstep {
         dst: FloatSlot,
-        edge0: FloatSlot,
-        edge1: FloatSlot,
         value: FloatSlot,
     },
     MixFloat {
@@ -1905,7 +2174,67 @@ instructions! {
 }
 
 impl Instruction {
-    fn written_slot(&self) -> Option<ValueSlot> {
+    pub fn conditional_target(&self) -> Option<Target> {
+        match self {
+            Self::JumpIfFalse { target, .. }
+            | Self::JumpIfTrue { target, .. }
+            | Self::IntJumpLess { target, .. }
+            | Self::IntJumpLessEqual { target, .. }
+            | Self::IntJumpGreater { target, .. }
+            | Self::IntJumpGreaterEqual { target, .. }
+            | Self::IntJumpEqual { target, .. }
+            | Self::FloatJumpLess { target, .. }
+            | Self::FloatJumpLessEqual { target, .. }
+            | Self::FloatJumpGreater { target, .. }
+            | Self::FloatJumpGreaterEqual { target, .. }
+            | Self::FloatJumpEqual { target, .. }
+            | Self::FloatJumpLessConst { target, .. }
+            | Self::FloatJumpLessEqualConst { target, .. }
+            | Self::FloatJumpGreaterConst { target, .. }
+            | Self::FloatJumpGreaterEqualConst { target, .. }
+            | Self::FloatJumpEqualConst { target, .. } => Some(*target),
+            _ => None,
+        }
+    }
+    pub fn jump_target(&self) -> Option<Target> {
+        match self {
+            Self::Jump(target)
+            | Self::LoopRangeStart { end: target, .. }
+            | Self::LoopMarksStart { end: target, .. }
+            | Self::LoopEnd { start: target, .. } => Some(*target),
+            _ => self.conditional_target(),
+        }
+    }
+    pub fn jump_target_mut(&mut self) -> Option<&mut Target> {
+        match self {
+            Self::Jump(target)
+            | Self::LoopRangeStart { end: target, .. }
+            | Self::LoopMarksStart { end: target, .. }
+            | Self::LoopEnd { start: target, .. }
+            | Self::JumpIfFalse { target, .. }
+            | Self::JumpIfTrue { target, .. }
+            | Self::IntJumpLess { target, .. }
+            | Self::IntJumpLessEqual { target, .. }
+            | Self::IntJumpGreater { target, .. }
+            | Self::IntJumpGreaterEqual { target, .. }
+            | Self::IntJumpEqual { target, .. }
+            | Self::FloatJumpLess { target, .. }
+            | Self::FloatJumpLessEqual { target, .. }
+            | Self::FloatJumpGreater { target, .. }
+            | Self::FloatJumpGreaterEqual { target, .. }
+            | Self::FloatJumpEqual { target, .. }
+            | Self::FloatJumpLessConst { target, .. }
+            | Self::FloatJumpLessEqualConst { target, .. }
+            | Self::FloatJumpGreaterConst { target, .. }
+            | Self::FloatJumpGreaterEqualConst { target, .. }
+            | Self::FloatJumpEqualConst { target, .. } => Some(target),
+            _ => None,
+        }
+    }
+}
+
+impl Instruction {
+    pub(super) fn written_slot(&self) -> Option<ValueSlot> {
         use Instruction::*;
         Some(match self {
             LoadCurveConst { dst, .. } | LoadCurveParam { dst, .. } => ValueSlot::Curve(*dst),
@@ -1921,16 +2250,35 @@ impl Instruction {
             LoadIntConst { dst, .. }
             | LoadIntParam { dst, .. }
             | NegInt { dst, .. }
-            | IntArithmetic { dst, .. }
+            | IntAdd { dst, .. }
+            | IntSubtract { dst, .. }
+            | IntMultiply { dst, .. }
+            | IntRemainder { dst, .. }
             | SectionQuery { dst, .. }
             | Len { dst, .. } => ValueSlot::Int(*dst),
-            LoadFloatConst { dst, .. }
+            QuerySeconds { dst, .. }
+            | QueryProgress { dst, .. }
+            | LoadFloatConst { dst, .. }
             | LoadFloatParam { dst, .. }
             | CurveParamSample { dst, .. }
             | IntToFloat { dst, .. }
             | NegFloat { dst, .. }
-            | FloatArithmetic { dst, .. }
-            | FloatArithmeticConst { dst, .. }
+            | FloatAdd { dst, .. }
+            | FloatSubtract { dst, .. }
+            | FloatMultiply { dst, .. }
+            | FloatMultiplyAdd { dst, .. }
+            | FloatMultiplyAddConst { dst, .. }
+            | FloatMultiplySmoothstep { dst, .. }
+            | FloatDivide { dst, .. }
+            | FloatRemainder { dst, .. }
+            | FloatAddConst { dst, .. }
+            | FloatSubtractConst { dst, .. }
+            | FloatMultiplyConst { dst, .. }
+            | FloatDivideConst { dst, .. }
+            | FloatRemainderConst { dst, .. }
+            | FloatSubtractFromConst { dst, .. }
+            | FloatDivideIntoConst { dst, .. }
+            | FloatRemainderFromConst { dst, .. }
             | SectionPosition { dst, .. }
             | FloatUnary { dst, .. }
             | FloatBinary { dst, .. }
@@ -1969,7 +2317,22 @@ impl Instruction {
             LoadArrayConst { dst, .. } | LoadArrayParam { dst, .. } | MakeArray { dst, .. } => {
                 ValueSlot::Array(*dst)
             }
-            Jump(_)
+            IntJumpLess { .. }
+            | IntJumpLessEqual { .. }
+            | IntJumpGreater { .. }
+            | IntJumpGreaterEqual { .. }
+            | IntJumpEqual { .. }
+            | FloatJumpLess { .. }
+            | FloatJumpLessEqual { .. }
+            | FloatJumpGreater { .. }
+            | FloatJumpGreaterEqual { .. }
+            | FloatJumpEqual { .. }
+            | FloatJumpLessConst { .. }
+            | FloatJumpLessEqualConst { .. }
+            | FloatJumpGreaterConst { .. }
+            | FloatJumpGreaterEqualConst { .. }
+            | FloatJumpEqualConst { .. }
+            | Jump(_)
             | JumpIfFalse { .. }
             | JumpIfTrue { .. }
             | LoopRangeStart { .. }
@@ -2148,9 +2511,8 @@ mod representation_tests {
         program.uses_pixel_context = false;
         assert!(!program.has_valid_structure());
 
-        program.instructions[1] = Instruction::FloatArithmetic {
+        program.instructions[1] = Instruction::FloatAdd {
             dst: FloatSlot(1),
-            op: super::ArithmeticOp::Add,
             left: FloatSlot(0),
             right: FloatSlot(1),
         };
@@ -2556,6 +2918,7 @@ pub enum FloatUnary {
     Cos,
     Abs,
     Floor,
+    Sqrt,
 }
 
 #[derive(
@@ -2579,27 +2942,6 @@ pub enum ColorComponent {
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
-pub enum ArithmeticOp {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Remainder,
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
-pub enum IntArithmeticOp {
-    Add,
-    Subtract,
-    Multiply,
-    Remainder,
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
-)]
 pub enum CompareOp {
     Less,
     LessEqual,
@@ -2615,6 +2957,8 @@ pub enum FloatBinary {
     Max,
     /// Preserve the left operand unless it is NaN; otherwise use the right.
     ValueOr,
+    /// Angle in radians: left is y, right is x.
+    Atan2,
 }
 
 #[derive(

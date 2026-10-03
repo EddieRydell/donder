@@ -328,19 +328,24 @@ mod tests {
             let original = full_raw.target(full_raw.effects[0].target);
             let original_index = if count == 2 { 2 } else { 0 };
             assert_eq!(
-                retained[0].pixel_index,
-                original[original_index].pixel_index
+                retained.pixel(0).pixel_index,
+                original.pixel(original_index).pixel_index
             );
             assert_eq!(
-                retained[0].pixel_fraction,
-                original[original_index].pixel_fraction
+                retained.pixel(0).pixel_fraction,
+                original.pixel(original_index).pixel_fraction
             );
             assert_eq!(
-                compact_raw.spatial_contexts[compact_raw.targets[compact_raw.effects[0].target]
-                    .pixels
-                    .start],
-                full_raw.spatial_contexts
-                    [full_raw.targets[full_raw.effects[0].target].pixels.start + original_index]
+                compact_raw.targets[compact_raw.effects[0].target].spatial_context(
+                    0,
+                    &retained.pixel(0),
+                    &compact_raw.positions
+                ),
+                full_raw.targets[full_raw.effects[0].target].spatial_context(
+                    original_index,
+                    &original.pixel(original_index),
+                    &full_raw.positions
+                )
             );
             let bytes = crate::wire::encode_sequence(&compacted).unwrap();
             let decoded =
@@ -370,7 +375,7 @@ mod tests {
         let before = full.archive_data();
         assert!(!before.signals.programs.is_empty());
         assert!(!before.signals.effects.is_empty());
-        assert!(!before.signals.target_pixels.is_empty());
+        assert!(!before.signals.target(before.signals.plan.target).is_empty());
         let compacted = sequence(true, false, SignalPixel::Global(9));
         assert_eq!(compacted.pixel_count(), 0);
         let data = compacted.archive_data();
@@ -381,7 +386,7 @@ mod tests {
         assert!(raw.fixture_pixel_offsets.is_empty());
         assert!(raw.programs.is_empty());
         assert!(raw.effects.is_empty());
-        assert!(raw.target_pixels.is_empty());
+        assert!(raw.targets.iter().all(|target| target.pixels.is_empty()));
         assert_eq!(raw.plan.nodes.len(), 1);
         assert!(
             compacted

@@ -1,0 +1,94 @@
+{
+  "date_local": "2026-10-03",
+  "scope": "Bounded numeric pixel blocks with divergent control flow, one shared instruction implementation, register-bank address reuse and uniform target-prefix staging. Wire marker 43 and archive contents unchanged. Compatible pointwise graph/program fusion remains unfinished.",
+  "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Cargo release opt-level 3, fat LTO, one codegen unit. Standalone prepared-evaluation profiling image; instruction counting disabled while timing. Each case evaluates 32 frames including first use. Two-second controls bracket 997/1999 us PC sampling. Excludes network, storage, DMA and physical output. No laptop timing comparison.",
+  "baseline": "2026-10-03-shared-interpreter.json",
+  "correctness": {
+    "host_reference_frames": 640,
+    "unchanged_checksums_timestamps_active_counts": true,
+    "device_cases": 18,
+    "device_frames": 576,
+    "profile_and_control_windows": 20,
+    "evaluation_allocations": 0,
+    "rounding": "Small floating-point rounding changes are allowed, but this batch preserves all reference-frame checksums.",
+    "focused_coverage": "Divergent branches and loops, unequal loop counts, early returns, query reuse, differing target bounds/counts, short-to-full blocks and mixed-to-common target transitions. Existing Select coverage caught an incorrect scalar-only classification; Select remains lane-dependent."
+  },
+  "validation": "cargo fmt and full pnpm check passed, including frontend checks, all workspace tests, exhaustive schema validation (566.88 seconds), 16 device-storage tests and all-target/all-feature Clippy with warnings denied. Runtime coverage includes 121 unit tests and 11 allocation tests. Complete controller release image builds and links. Sixteen implementation/linker files match the measured snapshot after stripping disabled diagnostic counting hooks. All timing rows and three artifact hashes were verified against the captures.",
+  "timing_columns": ["workload", "previous_mean_us", "current_mean_us", "current_p95_us", "current_max_us"],
+  "timings": [
+    ["layered_600_4layers_3operators", 139917, 129957, 130129, 130505],
+    ["ScanSweep_150", 2302, 2208, 2215, 2517],
+    ["ImpactBurst_150", 2419, 2226, 2233, 2510],
+    ["SparkleComet_150", 4080, 3671, 3676, 3962],
+    ["ShimmerField_150", 2465, 2189, 2226, 2458],
+    ["ShimmerField_600", 9763, 8363, 8416, 8617],
+    ["ShimmerField_1200", 19491, 16544, 16649, 16844],
+    ["ShimmerField_150_layers4", 9751, 8356, 8432, 8662],
+    ["ShimmerField_150_layers16", 38897, 33025, 33260, 33472],
+    ["black_150", 125, 135, 131, 270],
+    ["freeze_black_150", 2864, 3290, 3284, 3498],
+    ["scheduled_16", 97, 107, 103, 241],
+    ["scheduled_128", 106, 116, 116, 251],
+    ["chase_pulse_150_layers1", 1763, 1727, 1742, 2042],
+    ["chase_pulse_150_layers4", 3784, 3680, 3696, 3964],
+    ["chase_pulse_150_layers16", 15213, 14542, 14558, 14844],
+    ["starter_port1", 206, 235, 232, 503],
+    ["stanford", 13564, 14962, 15499, 16203]
+  ],
+  "deadlines": "Mixed misses 60 Hz on all 32 frames. Stanford and Chase/Pulse 16 layers fit all 32. Shimmer 1200 fits at p95 but misses once on first use. These are evaluation times, not physical output deadlines.",
+  "warm_us": {
+    "layered_600_4layers_3operators": 129940.47,
+    "stanford": 14764.19,
+    "ShimmerField_150": 2077.56,
+    "freeze_black_150": 3271.99
+  },
+  "memory": {
+    "mixed_archive_bytes_before_and_after": 13257,
+    "mixed_decoded_bytes_before_and_after": 16160,
+    "mixed_workspace_outputs_bytes_before_after": [8580, 10648],
+    "mixed_retained_bytes_before_after": [24740, 26808],
+    "stanford_retained_bytes_before_after": [54828, 56652],
+    "shimmer_1200_retained_bytes_before_after": [19168, 20772],
+    "new_retained_sampled_frame_caches": 0,
+    "maximum_numeric_lanes": 8,
+    "native_instruction_bytes": 28
+  },
+  "dispatches_per_frame_before_after": {
+    "layered_600_4layers_3operators": [240614, 56339],
+    "stanford": [14403.9375, 10735.9375],
+    "chase_pulse_150_layers16": [35743.875, 4773.8125],
+    "ShimmerField_1200": [42029, 5279],
+    "note": "A numeric instruction performs arithmetic for multiple active lanes. Fewer dispatches, including division dispatches, do not imply the same reduction in arithmetic operations. Mixed float-parameter loads remain 5403 per frame. Chase target-prefix division dispatches remain 32 per frame."
+  },
+  "hotspot_percent": {
+    "mixed": {"shared_vm": 64.88, "block_traversal": 7.69, "float_division": 6.95, "gradient_sampling": 7.72},
+    "stanford": {"shared_vm": 61.52, "float_division": 20.52, "gradient_sampling": 2.32, "block_traversal": 0.60},
+    "shimmer": {"shared_vm": 74.18, "float_division": 3.79, "gradient_sampling": 8.52},
+    "freeze": {"shared_vm": 54.95, "block_traversal": 23.37, "float_division": 0.13},
+    "note": "Weighted self-symbol shares across both sampling periods. One native VM symbol contains effect and operator execution; PC-only profiling cannot separate callers. Inlined curve sampling is not independently attributable in this image."
+  },
+  "investigation": {
+    "lane_iteration": "Initial numeric execution made mixed 199664 us and overflowed controller instruction memory. On Xtensa, trailing_zeros expanded into a long software bit-search sequence and accounted for 15-19 percent of sampled PCs. Cohort formation now records lane order once, arithmetic borrows one register bank, and straight-line dispatch checks only the next stage/join event. The final complete controller fits.",
+    "target_staging": "After dispatch simplification, Chase/Pulse 16 layers still measured 20803 us. Numeric execution repeated target-invariant divisions per lane. Restoring target-prefix initialization and broadcasting it once brings the final case to 14542 us. This proof uses target count/bounds, not effect identities, and handles short blocks and mixed target domains.",
+    "stanford": "The final Stanford case is 1398 us slower than the previous image. A diagnostic image toggled numeric admission before archive decoding, leaving the native interpreter identical: numeric on measured 14993 us, numeric off 15638 us. Numeric scheduling therefore improves Stanford within the expanded interpreter; it does not cause the entire regression. Remaining shared-path overhead includes lane-aware register addressing and instruction-loop/control state. The experiment does not isolate their individual cycle costs. No workload-specific scalar switch is retained.",
+    "small_cases": "Freeze increases 426 us, starter 29 us and scheduled cases 10 us. These tradeoffs are recorded alongside representative improvements; no extra dispatch specialization was added solely to recover isolated scores."
+  },
+  "controller": {
+    "release_build": true,
+    "rwtext_bytes": 76512,
+    "rwtext_wifi_bytes": 51796,
+    "configured_heap_bytes": 159744,
+    "native_vm_functions": 1,
+    "native_vm_bytes": 36282,
+    "stack_reservations_bytes": {"vm": 208, "graph": 576, "scalar_signal": 384, "block_operator": 1248, "main_block_signal": 624},
+    "stack_note": "Individual function reservations, not a maximum recursive stack bound. The block operator includes eight lane contexts.",
+    "hot_helpers": "Flow::resume and Flow::merge_waiting map to 0x4008d798 and 0x4008d834 in the controller ELF; the hot linker selector includes both."
+  },
+  "sha256": {
+    "profile_elf": "4f33a621f16a85531985e048d84047e89a59a9b713791d6524f84110cb3c7377",
+    "controller_elf": "95631a5ffe9145a75f0c56f0242dfef3d8b5e1bcfcf9ca98980dcf7cca9fea66",
+    "controller_image": "ab5cd94e378f0ef27afb1947f8f5854c8f4f0834aa5b0aabb1a91df9d2efba72",
+    "diagnostic_probe_elf": "3347f643ae27712b4cf0e2f20d3b49a400e79986d8e3d73a37855c921587cb30"
+  },
+  "raw_evidence": "Ignored target/vm-opt-20261002/numeric-target holds production captures, disassembly inputs, host preparation/count logs and complete controller artifacts. numeric-probe holds the same-image admission experiment and its diagnostic source. numeric-blocks/counts holds final instruction counts. numeric-final-check.log records the full repository gate. No raw logs or profiling images are committed."
+}

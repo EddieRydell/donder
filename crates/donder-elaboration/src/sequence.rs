@@ -1,5 +1,6 @@
 //! Resolve selected sampling domains before assembling owner-branded playback storage.
 mod composition;
+mod programs;
 mod retention;
 mod routing;
 
@@ -29,6 +30,7 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
     let routes = routing::targets(&selected, &geometry, &targets);
     let sequence = selected.sequence.sequence();
     let dependencies = composition_graph_output_dependencies(&sequence.composition_graph);
+    let mut programs = programs::Programs::default();
     let cells = retention::cells(&selected, &geometry, &routes, &dependencies, compact);
     let has_pixels = cells.iter().any(|cells| !cells.is_empty());
     let required_layers = sequence
@@ -71,7 +73,12 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
             .map(|layer| &layer.id)
             .collect::<std::collections::HashSet<_>>();
         let windows = builder.windows().collect::<Vec<_>>();
-        for (accepted, window) in selected.sequence.effects().zip(windows) {
+        for ((accepted, window), timing) in selected
+            .sequence
+            .effects()
+            .zip(windows)
+            .zip(selected.sequence.timing().windows())
+        {
             let effect = accepted.instance();
             if compact
                 && (!has_pixels
@@ -89,7 +96,25 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                 continue;
             }
             let target = builder.target(members.iter().map(|index| fixtures[index]), scope);
-            let prepared = builder.sample(accepted.execution(), window, target);
+            let mut counts = members
+                .iter()
+                .map(|&index| geometry[index].positions().len() as i32);
+            let pixel_count = match scope {
+                TargetScope::WholeTarget => Some(counts.sum()),
+                TargetScope::PerFixture => counts
+                    .next()
+                    .filter(|first| counts.all(|count| count == *first)),
+            };
+            let invocation = programs.sample(
+                accepted.execution(),
+                donder_language::dsl::ProgramConstants {
+                    pixel_count,
+                    duration_seconds: Some(donder_language::values::sample_duration_seconds_f32(
+                        donder_language::values::SampleDuration::from_ticks(timing.duration.get()),
+                    )),
+                },
+            );
+            let prepared = builder.sample(&invocation, window, target);
             builder.clip(effect.id.0, prepared);
             layer_effects[&effect.layer_id].push(prepared);
         }
@@ -107,7 +132,7 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
         let root = if compact && !has_pixels {
             builder.output([])
         } else {
-            composition::prepare(builder, selected.sequence, &layers)
+            composition::prepare(builder, selected.sequence, &layers, &mut programs)
         };
         routing::prepare(builder, &selected, &geometry, &targets, &cells, &fixtures);
         root

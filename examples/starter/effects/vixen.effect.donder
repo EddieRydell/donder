@@ -1,0 +1,1069 @@
+// Procedural Vixen 3.13u2 ports. See docs/vixen_effects.md in the Donder source.
+// This is a supported-mode library, not a complete Vixen sequence importer.
+// Source: https://github.com/VixenLights/Vixen/tree/3.13u2/src/Vixen.Modules/Effect
+//
+// Curves use positions 0..1 and Vixen percentage VALUES 0..100. Required
+// gradients/curves must be supplied by the caller. Parallel colors/levels arrays
+// must have equal lengths. Scalar percentage controls can use Donder automation;
+// defaults below are the values of Vixen's default flat control curves.
+// Pixel ports use layout coordinates with one virtual pixel per pixel_size
+// layout units. Their explicit frame_interval_ms must match the source show.
+// They never sample neighboring colors or derive bounds from a controller slice.
+// Gradient interpolation, floating precision, alpha and group/depth semantics
+// differ from Vixen; these ports do not claim byte-for-byte renderer parity.
+//
+// Adapted from Vixen. Copyright 2023 Vixen Team.
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+// * Redistributions of source code must retain the above copyright notice,
+//   this list of conditions and the following disclaimer.
+// * Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// BASIC: RGB Set Level. Discrete-color filtering is not represented.
+effect VixenSetLevel {
+  param color light_color = #ffffff;
+  param float intensity = 100.0;
+  color sample() {
+    return light_color * (clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// BASIC: RGB Pulse. Supply Vixen's gradient and percentage intensity curve.
+effect VixenPulse {
+  param gradient color_gradient;
+  param curve intensity_curve;
+  color sample() {
+    float level = clamp(value_or(intensity_curve[progress()], 100.0), 0.0, 100.0) / 100.0;
+    return color_gradient[progress()] * level;
+  }
+}
+
+// BASIC: Alternating, time-interval/static modes over ordered individual pixels.
+// Vixen defaults: red/green gradients, flat-100 level curves.
+effect VixenAlternating {
+  param array<gradient> colors;
+  param array<curve> levels;
+  fixed param float interval_ms = 500.0;
+  fixed param bool enable_static = false;
+  fixed param int group_level = 1;
+  fixed param int interval_skip_count = 1;
+  color sample() {
+    if (len(colors) == 0 || len(colors) != len(levels) || group_level <= 0 || (!enable_static && interval_ms <= 1.0)) {
+      return rgb(0.0, 0.0, 0.0);
+    }
+    float interval = interval_ms;
+    if (enable_static) { interval = duration() * 1000.0; }
+    if (interval <= 1.0) { return rgb(0.0, 0.0, 0.0); }
+    float elapsed = seconds() * 1000.0;
+    float cycle = floor(elapsed / interval);
+    float age = elapsed - cycle * interval;
+    // Vixen subtracts one millisecond from each pulse's duration.
+    if (age >= interval - 1.0) { return rgb(0.0, 0.0, 0.0); }
+    float local = age / (interval - 1.0);
+    float selected = (floor(pixel_index() / group_level) + cycle * interval_skip_count) % len(colors);
+    selected = (selected + len(colors)) % len(colors);
+    for (int i in range(len(colors), 10000)) {
+      if (i + 0.0 == selected) {
+        return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0);
+      }
+    }
+    return rgb(0.0, 0.0, 0.0);
+  }
+}
+
+// BASIC: Strobe, Simple time-interval mode (50% duty, no mark labels).
+// Default resources: white gradient, triangular 0/100/0 intensity curve.
+effect VixenStrobe {
+  param gradient colors;
+  param curve intensity_curve;
+  fixed param float cycle_time_ms = 150.0;
+  color sample() {
+    if (cycle_time_ms <= 2.0) { return rgb(0.0, 0.0, 0.0); }
+    float age = (seconds() * 1000.0) % cycle_time_ms;
+    float on_time = cycle_time_ms * 0.5 - 1.0;
+    if (age >= on_time) { return rgb(0.0, 0.0, 0.0); }
+    float local = age / on_time;
+    return colors[local] * (clamp(value_or(intensity_curve[local], 100.0), 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Pinwheel, location positioning, all colors, both motion modes and all
+// four blade types. Random/Rainbow use Donder's seeded RNG, not Vixen's stream.
+// Default resources: red/green/blue gradients, three flat-100 level curves.
+effect VixenPinwheel {
+  param array<gradient> colors;
+  param array<curve> levels;
+  param enum color_type { standard, gradient, random, rainbow } = standard;
+  param enum motion { iterations, speed } = iterations;
+  param int arms = 8;
+  param float movement = 5.0;
+  param float thickness = 15.0;
+  param float size = 23.0;
+  param float twist = 56.0;
+  param float rotation = 100.0;
+  param float x_offset = 50.0;
+  param float y_offset = 50.0;
+  param float center_hub = 0.0;
+  param bool offset_percentage = true;
+  param enum size_scale_basis { largest_dimension, height, width } = largest_dimension;
+  param enum blade_type { flat, three_d, inverted_three_d, fan } = flat;
+  param float intensity = 100.0;
+  fixed param float random_seed = 0.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || arms < 1 || arms > 20 || len(colors) == 0 || len(colors) != len(levels)) {
+      return rgb(0.0, 0.0, 0.0);
+    }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = floor((pixel_y() - target_min_y()) / pixel_size);
+    float ox = clamp(x_offset, 0.0, 100.0) * 2.0 - 100.0;
+    float oy = clamp(y_offset, 0.0, 100.0) * 2.0 - 100.0;
+    if (offset_percentage) { ox = ox * w / 100.0; oy = -oy * h / 100.0; }
+    // Math.Round's midpoint-to-even rule, including negative offsets.
+    float fx = floor(ox);
+    float fy = floor(oy);
+    if (ox - fx > 0.5 || (ox - fx == 0.5 && fx % 2.0 != 0.0)) { fx = fx + 1.0; }
+    if (oy - fy > 0.5 || (oy - fy == 0.5 && fy % 2.0 != 0.0)) { fy = fy + 1.0; }
+    float cx = floor(w / 2.0) + fx;
+    float cy = floor(h / 2.0) + fy;
+    float dx = x - cx;
+    float dy = y - cy;
+    float radius = sqrt(dx * dx + dy * dy);
+    float basis = max(w, h);
+    if (size_scale_basis == height) { basis = h; }
+    if (size_scale_basis == width) { basis = w; }
+    if (!offset_percentage) { basis = sqrt((w - cx) * (w - cx) + (h - cy) * (h - cy)); }
+    float max_radius = basis * (1.0 + clamp(size, 0.0, 100.0) * 3.99) / 100.0;
+    if (radius > max_radius || radius <= clamp(center_hub, 0.0, 100.0) * max_radius / 100.0) { return rgb(0.0, 0.0, 0.0); }
+    float angle = (270.0 - atan2(-dy, -dx) * 57.29577951308232) % 360.0;
+    float separation = floor(360.0 / arms);
+    float thick = clamp(thickness, 0.0, 100.0);
+    float rounded = floor(thick);
+    if (thick - rounded > 0.5 || (thick - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
+    float half_angle = max(1.0, rounded) * separation / 200.0;
+    float movement_speed = max(1.0, (1.0 + clamp(movement, 0.0, 100.0) * 0.49) * frame_interval_ms / 50.0);
+    float position = t * movement_speed * 360.0;
+    if (motion == speed) { position = t * movement_speed * floor(duration() * 1000.0 / frame_interval_ms); }
+    float rotation_amount = clamp(rotation, 0.0, 100.0) / 50.0 - 1.0;
+    float twist_angle = radius / max_radius * (clamp(twist, 0.0, 100.0) * 10.0 - 500.0);
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int arm in range(arms, 20)) {
+      float arm_angle = floor((((arm + 2) * separation - position * rotation_amount) % 360.0 + 360.0) % 360.0);
+      arm_angle = ((arm_angle + twist_angle) % 360.0 + 360.0) % 360.0;
+      float difference = min(abs(arm_angle - angle), 360.0 - abs(arm_angle - angle));
+      if (difference <= half_angle) {
+        int index = arm % len(colors);
+        float color_position = t;
+        if (color_type == gradient) { color_position = radius / max_radius; }
+        float level = clamp(value_or(levels[index][color_position], 100.0), 0.0, 100.0) * clamp(intensity, 0.0, 100.0) / 10000.0;
+        if (blade_type == three_d) { level = level * (1.0 - difference / half_angle); }
+        if (blade_type == inverted_three_d) { level = level * difference / half_angle; }
+        if (blade_type == fan) {
+          float leading = half_angle;
+          if (rotation_amount < 0.0) { leading = -leading; }
+          float front = ((arm_angle + leading) % 360.0 + 360.0) % 360.0;
+          level = level * min(abs(front - angle), 360.0 - abs(front - angle)) / (2.0 * half_angle);
+        }
+        // Vixen draws arms in order; the last covering arm owns the pixel.
+        result = colors[index][color_position] * level;
+        if (color_type == random) { result = hsv(rand(random_seed, index), 1.0, level); }
+        if (color_type == rainbow) { result = hsv(rand(random_seed, arm, floor(seconds() * 1000.0 / frame_interval_ms)), 1.0, level); }
+      }
+    }
+    return result;
+  }
+}
+
+// PIXEL: Butterfly, five formulas and iteration motion. Default gradient red/green.
+effect VixenButterfly {
+  param gradient color_gradient;
+  param enum butterfly_type { type_1, type_2, type_3, type_4, type_5 } = type_1;
+  param enum color_scheme { gradient, rainbow } = gradient;
+  param enum direction { forward, backward } = forward;
+  param int iterations = 2;
+  param int repeat = 1;
+  param int background_chunks = 1;
+  param int background_skips = 2;
+  param bool use_base_color = false;
+  param color base_color = #000000;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || background_skips <= 0) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    float repetitions = repeat;
+    if (butterfly_type == type_1 || butterfly_type == type_5) { repetitions = repeat * 3.0; }
+    if (butterfly_type == type_4) { repetitions = repeat * 6.0; }
+    float state = floor(duration() * 1000.0 * ((t * iterations) % 1.0) * repetitions);
+    float frame = floor(h * state / max(1.0, floor(duration() * 1000.0))) % h;
+    float offset = state / (duration() * 1000.0);
+    if (direction == forward) { offset = -offset; }
+    float value = 0.0;
+    if (butterfly_type == type_2 || butterfly_type == type_3) {
+      float f = h - frame;
+      if (frame < floor(h / 2.0)) { f = frame + 1.0; }
+      if (butterfly_type == type_3) { f = f * 0.1 + h / 60.0; }
+      float xx = (x - w / 2.0) / f;
+      float yy = (y - h / 2.0) / f;
+      value = sqrt(xx * xx + yy * yy);
+      if (butterfly_type == type_3) { value = sin(xx) * cos(yy); }
+    } else {
+      if (x == 0.0 && y == 1.0) { y = 2.0; }
+      if (x == 1.0 && y == 0.0) { x = 2.0; }
+      float dimension = w + h;
+      if (butterfly_type == type_5) { dimension = w * h; }
+      float n = (x * x - y * y) * sin(offset + (x + y) * 6.283185307179586 / dimension);
+      float d = x * x + y * y;
+      if (d > 0.001) { value = n / d; }
+      if (butterfly_type == type_4) { value = value - floor(value); }
+      else { value = abs(value); }
+    }
+    // C# converts to int by truncation toward zero, including Type 3 negatives.
+    float chunk = floor(abs(value * background_chunks));
+    if (value < 0.0) { chunk = -chunk; }
+    if (background_chunks > 1 && chunk % background_skips == 0.0) {
+      if (use_base_color) { return base_color; }
+      return rgb(0.0, 0.0, 0.0);
+    }
+    float level = clamp(intensity, 0.0, 100.0) / 100.0;
+    if (color_scheme == rainbow) { return hsv(value, 1.0, level); }
+    return color_gradient[value] * level;
+  }
+}
+
+// PIXEL: Colorwash, iteration mode, all fades and frame-alternating shimmer.
+// Default gradient red/green/blue. Speed-curve accumulation is not exposed.
+effect VixenColorwash {
+  param gradient color_gradient;
+  param enum wash_type { center, outer, invert } = center;
+  param int iterations = 1;
+  param bool horizontal_fade = false;
+  param bool vertical_fade = false;
+  param bool shimmer = false;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float frame = floor(seconds() * 1000.0 / frame_interval_ms);
+    float frames = floor(duration() * 1000.0 / frame_interval_ms);
+    if (frames < 1.0 || (shimmer && frame % 2.0 != 0.0)) { return rgb(0.0, 0.0, 0.0); }
+    float position = (frame * iterations % frames) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float half_w = (w - 1.0) / 2.0;
+    float half_h = (h - 1.0) / 2.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = floor((pixel_y() - target_min_y()) / pixel_size);
+    color c = color_gradient[position];
+    float v = intensity(c);
+    if (horizontal_fade && half_w > 0.0) {
+      float fade = abs(half_w - x) / half_w;
+      if (wash_type == center) { v = v * (1.0 - fade); }
+      if (wash_type == outer) { v = v * fade; }
+      if (wash_type == invert) { v = v / (1.0 - fade); }
+    }
+    if (vertical_fade && half_h > 0.0) {
+      float fade = abs(half_h - y) / half_h;
+      if (wash_type == center) { v = v * (1.0 - fade); }
+      if (wash_type == outer) { v = v * fade; }
+      if (wash_type == invert) { v = v / (1.0 - fade); }
+    }
+    return hsv(hue(c), saturation(c), v * clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Plasma, all five color modes and the original seven-term formula.
+// Default resources: red/green/blue gradients.
+effect VixenPlasma {
+  param array<gradient> colors;
+  param enum color_type { normal, preset_1, preset_2, preset_3, preset_4 } = normal;
+  param int plasma_style = 1;
+  param float speed = 10.0;
+  param float line_density = 10.0;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size) / w;
+    float y = (h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size)) / h;
+    float s = clamp(speed, 0.0, 100.0);
+    float time = (t * 100.0 * s + 1.0) / ((101.0 - s) * 3.0);
+    float cx = x + 0.5 * sin(time / 5.0);
+    float cy = y + 0.5 * cos(time / 3.0);
+    float v = sin(x * 10.0 + time);
+    v = v + sin(10.0 * (x * sin(time / 2.0) + y * cos(time / 3.0)) + time);
+    v = v + sin(sqrt(plasma_style * 50.0 * (cx * cx + cy * cy) + time));
+    v = v + sin(x + time) + sin((y + time) / 2.0) + sin((x + y + time) / 2.0);
+    v = (v + sin(sqrt(x * x + y * y) + time)) / 2.0;
+    float phase = v * (1.0 + clamp(line_density, 0.0, 100.0) * 0.09) * 3.141592653589793;
+    color result = rgb(0.0, 0.0, 0.0);
+    if (color_type == normal) {
+      float n = clamp((sin(phase + 2.0943951023931953) + 0.5) / 2.0, 0.0, 0.99999);
+      float selected = floor(n * len(colors));
+      for (int i in range(len(colors), 10000)) {
+        if (i + 0.0 == selected) { result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], n * len(colors) - selected); }
+      }
+    } else {
+      float r = floor((sin(phase) + 1.0) * 128.0) / 255.0;
+      float g = floor((cos(phase) + 1.0) * 128.0) / 255.0;
+      float b = 0.0;
+      if (color_type == preset_2) { b = r; r = 1.0 / 255.0; }
+      if (color_type == preset_3) { g = floor((sin(phase + 2.0943951023931953) + 1.0) * 128.0) / 255.0; b = floor((sin(phase + 4.1887902047863905) + 1.0) * 128.0) / 255.0; }
+      if (color_type == preset_4) { g = r; b = r; }
+      result = rgb(r, g, b);
+    }
+    return result * (clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Flat Bars, iteration motion, cardinal/alternate/compress/expand modes.
+// This uses the dense integer-buffer formula, mapped onto layout coordinates.
+// Zigzag bars, rotation and accumulated speed are not exposed.
+effect VixenBars {
+  param array<gradient> colors;
+  param enum direction { up, down, left, right, expand, compress, horizontal_expand, horizontal_compress, alternate_up, alternate_down, alternate_left, alternate_right } = up;
+  param int iterations = 1;
+  param int repeat = 1;
+  param bool highlight = false;
+  param bool show_3d = false;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || repeat < 1) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    float length = h;
+    float coordinate = h - y - 1.0;
+    if (direction == down || direction == alternate_down) { coordinate = y; }
+    if (direction == expand) { coordinate = min(y, h - y - 1.0); }
+    if (direction == compress) { coordinate = max(y, h - y - 1.0); }
+    if (direction == left || direction == right || direction == alternate_left || direction == alternate_right || direction == horizontal_expand || direction == horizontal_compress) {
+      length = w;
+      coordinate = w - x - 1.0;
+      if (direction == right || direction == alternate_right) { coordinate = x; }
+      if (direction == horizontal_expand) { coordinate = min(x, w - x - 1.0); }
+      if (direction == horizontal_compress) { coordinate = max(x, w - x - 1.0); }
+    }
+    float count = len(colors) * repeat;
+    float bar_size = floor(length / count) + 1.0;
+    float position = (t * iterations) % 1.0;
+    float offset = floor(position * len(colors) * bar_size * repeat);
+    if (direction == alternate_up || direction == alternate_down || direction == alternate_left || direction == alternate_right) { offset = floor(position * count) * bar_size; }
+    float n = coordinate + offset + 1.0;
+    float selected = floor((n % (len(colors) * bar_size)) / bar_size);
+    float local = (n % bar_size) / bar_size;
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int i in range(len(colors), 10000)) {
+      if (i + 0.0 == selected) { result = colors[i][local]; }
+    }
+    float s = saturation(result);
+    float v = intensity(result);
+    if (highlight && n % bar_size == 0.0) { s = 0.0; }
+    if (show_3d) { v = v * (bar_size - n % bar_size - 1.0) / bar_size; }
+    return hsv(hue(result), s, v * clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Border, Simple/Advanced with shared or independent edge controls.
+// Marquee is not exposed. Default gradient red/green.
+effect VixenBorder {
+  param gradient color_gradient;
+  param enum border_mode { simple, advanced } = simple;
+  param enum border_type { single, independent } = single;
+  param enum gradient_mode { over_time, across, vertical, diagonal_top_bottom, diagonal_bottom_top } = over_time;
+  param int simple_border_width = 1;
+  param float thickness = 20.0;
+  param float top_thickness = 10.0;
+  param float bottom_thickness = 10.0;
+  param float left_thickness = 10.0;
+  param float right_thickness = 10.0;
+  param float border_size = 100.0;
+  param float border_height = 100.0;
+  param float x_offset = 50.0;
+  param float y_offset = 50.0;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    float inset_x = floor((100.0 - clamp(border_size, 0.0, 100.0)) * w / 200.0);
+    float inset_y = floor((100.0 - clamp(border_height, 0.0, 100.0)) * h / 200.0);
+    float thick = (2.0 + clamp(thickness, 0.0, 100.0) * (min(w, h) - 2.0) / 100.0) / 2.0;
+    float rounded = floor(thick);
+    if (thick - rounded > 0.5 || (thick - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
+    float ox = clamp(x_offset, 0.0, 100.0) * 2.0 - 100.0;
+    float oy = clamp(y_offset, 0.0, 100.0) * 2.0 - 100.0;
+    float rx = floor(ox);
+    float ry = floor(oy);
+    if (ox - rx > 0.5 || (ox - rx == 0.5 && rx % 2.0 != 0.0)) { rx = rx + 1.0; }
+    if (oy - ry > 0.5 || (oy - ry == 0.5 && ry % 2.0 != 0.0)) { ry = ry + 1.0; }
+    ox = rx * (w - inset_x) / 100.0;
+    oy = ry * (h - inset_y) / 100.0;
+    float shift_x = floor(abs(ox));
+    float shift_y = floor(abs(oy));
+    if (ox < 0.0) { shift_x = -shift_x; }
+    if (oy < 0.0) { shift_y = -shift_y; }
+    if (border_mode == simple) { rounded = simple_border_width; inset_x = 0.0; inset_y = 0.0; shift_x = 0.0; shift_y = 0.0; }
+    x = x - shift_x;
+    y = y - shift_y;
+    if (x < inset_x || x >= w - inset_x || y < inset_y || y >= h - inset_y) { return rgb(0.0, 0.0, 0.0); }
+    float top = rounded;
+    float bottom = rounded;
+    float left = rounded;
+    float right = rounded;
+    if (border_mode == advanced && border_type == independent) {
+      top = floor(clamp(top_thickness, 0.0, 100.0) * h / 100.0);
+      bottom = floor(clamp(bottom_thickness, 0.0, 100.0) * h / 100.0);
+      left = floor(clamp(left_thickness, 0.0, 100.0) * w / 100.0);
+      right = floor(clamp(right_thickness, 0.0, 100.0) * w / 100.0);
+    }
+    if (x >= inset_x + left && x < w - inset_x - right && y >= inset_y + bottom && y < h - inset_y - top) { return rgb(0.0, 0.0, 0.0); }
+    float position = t;
+    if (gradient_mode == across) { position = x / w; }
+    if (gradient_mode == vertical) { position = (h - y) / h; }
+    if (gradient_mode == diagonal_top_bottom) { position = ((h - y) / h + x / w) / 2.0; }
+    if (gradient_mode == diagonal_bottom_top) { position = (y / h + x / w) / 2.0; }
+    return color_gradient[position] * (clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Spiral, iteration motion, all directions, growth/shrink, blend and 3D.
+// Default gradients red/green/blue. Uses Vixen's last-strand-wins raster rule.
+effect VixenSpiral {
+  param array<gradient> colors;
+  param enum direction { forward, backwards, none } = forward;
+  param float iterations = 1.0;
+  param int repeat = 1;
+  param float rotation = 57.0;
+  param float thickness = 60.0;
+  param bool grow = false;
+  param bool shrink = false;
+  param bool blend = false;
+  param bool show_3d = false;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || repeat < 1) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    int count = len(colors) * repeat;
+    float delta = floor(w / count);
+    float thick_percent = 1.0 + clamp(thickness, 0.0, 100.0) * 0.99;
+    float rounded = floor(thick_percent);
+    if (thick_percent - rounded > 0.5 || (thick_percent - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
+    float thick = floor(delta * rounded / 100.0) + 1.0;
+    float gap = delta - thick;
+    float position = (t * iterations) % 1.0;
+    float growth = 0.0;
+    if (grow && shrink) { growth = gap * 2.0 * min(position, 1.0 - position); }
+    if (grow && !shrink) { growth = gap * position; }
+    if (shrink && !grow) { growth = gap * (1.0 - position); }
+    if (growth < 0.0) { thick = thick - floor(-growth); }
+    else { thick = thick + floor(growth); }
+    float state = floor(position * w * 10.0);
+    float shift = floor(state / 10.0);
+    if (direction == backwards) { shift = -shift; }
+    if (direction == none) { shift = 0.0; }
+    float rotation_amount = clamp(rotation, 0.0, 100.0) * 3.0 - 150.0;
+    float rotation_integer = floor(abs(rotation_amount));
+    if (rotation_amount < 0.0) { rotation_integer = -rotation_integer; }
+    float row_shift = y * rotation_integer / h;
+    if (row_shift < 0.0) { row_shift = -floor(-row_shift); }
+    else { row_shift = floor(row_shift); }
+    float strand = ((x - shift - row_shift) % w + w) % w;
+    for (int ordinal in range(count, 10000)) {
+      int index = count - ordinal - 1;
+      float within = ((strand - index * delta) % w + w) % w;
+      if (within < thick) {
+        if (thick > w) { within = within + floor((thick - 1.0 - within) / w) * w; }
+        float color_position = within / thick;
+        if (blend) { color_position = (h - y - 1.0) / h; }
+        color c = colors[index % len(colors)][color_position];
+        float v = intensity(c);
+        if (show_3d) {
+          v = (within + 1.0) / thick;
+          if (direction == backwards) { v = (thick - within) / thick; }
+        }
+        return hsv(hue(c), saturation(c), v * clamp(intensity, 0.0, 100.0) / 100.0);
+      }
+    }
+    return rgb(0.0, 0.0, 0.0);
+  }
+}
+
+// PIXEL: Circular Shockwave. Acceleration presets correspond to Vixen curve
+// values 50 (linear), 55 (gentle_in, default), 45 (gentle_out), 0 (strong_out).
+// Other acceleration values need arbitrary pow. Radius default 0->100; width 2->4.
+effect VixenShockwave {
+  param gradient color_gradient;
+  param curve radius_curve;
+  param curve width_curve;
+  param float center_x = 50.0;
+  param float center_y = 50.0;
+  param enum acceleration { linear, gentle_in, gentle_out, strong_out } = gentle_in;
+  param bool blend_edges = true;
+  param bool scaled_radius = true;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float cx = floor(w * clamp(center_x, 0.0, 100.0) / 100.0);
+    float cy = floor(h * (100.0 - clamp(center_y, 0.0, 100.0)) / 100.0);
+    float dx = floor((pixel_x() - target_min_x()) / pixel_size) - cx;
+    float dy = floor((pixel_y() - target_min_y()) / pixel_size) - cy;
+    float adjusted = t;
+    if (acceleration == gentle_in) { adjusted = t * sqrt(t); }
+    if (acceleration == gentle_out) { adjusted = 1.0 - (1.0 - t) * sqrt(1.0 - t); }
+    if (acceleration == strong_out) {
+      float complement = 1.0 - t;
+      float squared = complement * complement;
+      adjusted = 1.0 - squared * squared * complement;
+    }
+    float scale = 750.0;
+    if (scaled_radius) { scale = max(w, h); }
+    float radius = clamp(value_or(radius_curve[adjusted], 100.0), 0.0, 100.0) * scale / 100.0;
+    float half_width = clamp(value_or(width_curve[adjusted], 100.0), 0.0, 100.0) * 2.55 / 2.0;
+    float distance = sqrt(dx * dx + dy * dy);
+    if (distance < max(0.0, radius - half_width) || distance > radius + half_width) { return rgb(0.0, 0.0, 0.0); }
+    float level = 1.0;
+    if (blend_edges) {
+      if (half_width <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+      level = max(0.0, 1.0 - abs(distance - radius) / half_width);
+    }
+    return color_gradient[t] * level;
+  }
+}
+
+// PIXEL: Garlands, five dense-grid patterns and four directions, iteration mode.
+// Spacing/iterations are fixed because Vixen's reset timing depends on history
+// when those values change. Sparse-row location remapping is not represented.
+effect VixenGarlands {
+  param array<gradient> colors;
+  param enum direction { up, down, left, right } = up;
+  param enum garland_type { type_0, type_1, type_2, type_3, type_4 } = type_0;
+  fixed param int iterations = 1;
+  fixed param float spacing = 10.0;
+  param float intensity = 100.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || iterations < 1) { return rgb(0.0, 0.0, 0.0); }
+    float frame = floor(seconds() * 1000.0 / frame_interval_ms);
+    float frames = floor(duration() * 1000.0 / frame_interval_ms);
+    if (frames < 1.0) { return rgb(0.0, 0.0, 0.0); }
+    float t = frame * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    float height = h;
+    float across = x;
+    float row = y;
+    if (direction == down) { row = h - y - 1.0; }
+    if (direction == left || direction == right) {
+      height = w; across = y; row = x;
+      if (direction == left) { row = w - x - 1.0; }
+    }
+    float spacing_value = 1.0 + clamp(spacing, 0.0, 100.0) * 0.19;
+    float rounded = floor(spacing_value);
+    if (spacing_value - rounded > 0.5 || (spacing_value - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
+    float separation = floor(rounded * h / 100.0) + 3.0;
+    float limit = height * separation * 4.0;
+    float step = floor(limit / frames) * iterations;
+    float cycle_frame = frame;
+    if (step > 0.0 && frame > 0.0) {
+      float reset = max(1.0, -floor(-(limit - 3.0) / step));
+      cycle_frame = ((frame - 1.0) % reset) + 1.0;
+    }
+    float state = max(0.0, floor((limit - cycle_frame * step) / 4.0));
+    float deviation = 0.0;
+    float m = across % 5.0;
+    if (garland_type == type_1 || garland_type == type_2) {
+      if (m == 1.0 || m == 3.0) { deviation = 1.0; }
+      if (m == 2.0) { deviation = 2.0; }
+      if (garland_type == type_2) { deviation = deviation * 2.0; }
+    }
+    if (garland_type == type_3) { deviation = 2.0 * min(across % 6.0, 6.0 - across % 6.0); }
+    if (garland_type == type_4 && (m == 1.0 || m == 3.0)) { deviation = 2.0; }
+    // Invert the ring placement instead of rendering all rows for every pixel.
+    float selected_ring = -1.0;
+    float free_ring = (state - deviation - row) / separation;
+    if (free_ring == floor(free_ring) && free_ring >= 0.0 && free_ring < height && row >= height - free_ring - 1.0) { selected_ring = free_ring; }
+    float settled_ring = height - row - 1.0;
+    if (settled_ring >= 0.0 && settled_ring < height && state - settled_ring * separation - deviation <= row) { selected_ring = max(selected_ring, settled_ring); }
+    if (selected_ring < 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float color_position = selected_ring / height * (len(colors) - 1);
+    float selected = floor(color_position);
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int i in range(len(colors), 10000)) {
+      if (i + 0.0 == selected) { result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], color_position - selected); }
+    }
+    return result * (clamp(intensity, 0.0, 100.0) / 100.0);
+  }
+}
+
+// PIXEL: Curtain, location-based Position mode, open/close, six edges and swag.
+// Default position curve: 100->0->100; default intensity curve: flat 100.
+// Automatic open-close iteration state is not exposed.
+effect VixenCurtain {
+  param gradient color_gradient;
+  param curve position_curve;
+  param curve intensity_curve;
+  param enum direction { open, close } = open;
+  param enum edge { left, center, right, bottom, middle, top } = center;
+  param int iterations = 1;
+  param int swag = 1;
+  param bool intensity_per_iteration = false;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || swag < 0) { return rgb(0.0, 0.0, 0.0); }
+    float frame = floor(seconds() * 1000.0 / frame_interval_ms);
+    float frames = floor(duration() * 1000.0 / frame_interval_ms);
+    if (frames < 1.0) { return rgb(0.0, 0.0, 0.0); }
+    float t = frame * frame_interval_ms / (duration() * 1000.0);
+    float phase = (frame * iterations % frames) * frame_interval_ms / (duration() * 1000.0);
+    float position = 1.0 - clamp(value_or(position_curve[phase], 100.0), 0.0, 100.0) / 100.0;
+    float intensity_position = t;
+    if (intensity_per_iteration) { intensity_position = phase; }
+    float level = clamp(value_or(intensity_curve[intensity_position], 100.0), 0.0, 100.0) / 100.0;
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = floor((pixel_y() - target_min_y()) / pixel_size);
+    float swag_length = 0.0;
+    if (h > 1.0) { swag_length = floor(swag * w / 40.0); }
+    bool vertical_axis = edge == bottom || edge == middle || edge == top;
+    bool paired = edge == center || edge == middle;
+    float length = w;
+    float cross_length = h;
+    float coordinate = x;
+    float cross_coordinate = y;
+    if (vertical_axis) { length = h; cross_length = w; coordinate = y; cross_coordinate = x; }
+    float limit = floor(position * length + swag_length * position * 2.0);
+    if (direction == open) { limit = length - limit; }
+    float color_width = length;
+    if (paired) { limit = floor(limit / 2.0); color_width = floor(length / 2.0); }
+    if (color_width <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int side in range(2, 2)) {
+      if (side == 0 || paired) {
+        bool high_edge = edge == left || edge == top || (paired && side == 0);
+        bool covered = coordinate <= limit;
+        float swag_index = coordinate - limit;
+        if (high_edge) { covered = coordinate >= length - limit; swag_index = length - limit - coordinate; }
+        if (vertical_axis) {
+          covered = coordinate < limit;
+          if (high_edge) { covered = coordinate > length - limit; }
+        }
+        if (swag_length > 0.0 && swag_index >= 0.0 && swag_index < swag_length) {
+          float swag_height = floor(cross_length * swag_index * swag_index / (swag_length * swag_length));
+          if (!vertical_axis && cross_coordinate < cross_length - swag_height) { covered = true; }
+          if (vertical_axis && cross_coordinate > swag_height) { covered = true; }
+        }
+        if (covered) {
+          float color_position = coordinate / color_width;
+          if (high_edge) {
+            color_position = 1.0 - coordinate / color_width;
+            if (paired) { color_position = 1.0 - (coordinate - (length - color_width)) / color_width; }
+          }
+          result = color_gradient[color_position] * level;
+        }
+      }
+    }
+    return result;
+  }
+}
+
+// BASIC: Chase, ascending linear movement over ordered pixels. Nonmonotonic
+// movement curves and hierarchy targeting require intent scheduling preparation.
+// Pulse overlap is MILLISECONDS (not a number of pixels).
+effect VixenChase {
+  param gradient color_gradient;
+  param curve pulse_curve;
+  param color static_color = #ffffff;
+  param enum color_handling { single_color, gradient_per_pulse, gradient_through_effect, gradient_across_items } = single_color;
+  fixed param float pulse_overlap_ms = 0.0;
+  param bool enable_default_level = false;
+  param float default_level = 0.0;
+  param bool extend_pulse_to_start = false;
+  param bool extend_pulse_to_end = false;
+  color sample() {
+    float total = duration() * 1000.0;
+    float now = seconds() * 1000.0;
+    float count = pixel_count();
+    if (total <= 0.0 || count <= 0.0 || pulse_overlap_ms < 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float chase_time = max(1.0, total - pulse_overlap_ms);
+    float step = clamp(chase_time / count / 2.0, 0.25, 2.0);
+    float start = -floor(-(pixel_index() / count * chase_time) / step) * step;
+    float next = -floor(-((pixel_index() + 1.0) / count * chase_time) / step) * step;
+    float pulse_time = next - start + pulse_overlap_ms;
+    if (pixel_index() == pixel_count() - 1) { pulse_time = total - start; }
+    float local = (now - start) / pulse_time;
+    float position = local;
+    if (color_handling == gradient_through_effect) { position = progress(); }
+    if (color_handling == gradient_across_items) { position = min(1.0, next / chase_time); }
+    color base = static_color;
+    if (color_handling != single_color) { base = color_gradient[position]; }
+    color result = rgb(0.0, 0.0, 0.0);
+    if (enable_default_level) {
+      float baseline_position = progress();
+      if (color_handling == gradient_per_pulse) { baseline_position = 0.0; }
+      if (color_handling == gradient_across_items) { baseline_position = pixel_index() / count; }
+      color baseline = static_color;
+      if (color_handling != single_color) { baseline = color_gradient[baseline_position]; }
+      result = baseline * (clamp(default_level, 0.0, 100.0) / 100.0);
+    }
+    float sampled_item = min(count - 1.0, floor(start / chase_time * count));
+    if (sampled_item == pixel_index() && pulse_time > 0.0 && ((local >= 0.0 && local <= 1.0) || (local < 0.0 && extend_pulse_to_start) || (local > 1.0 && extend_pulse_to_end))) {
+      float level = clamp(value_or(pulse_curve[clamp(local, 0.0, 1.0)], 100.0), 0.0, 100.0) / 100.0;
+      result = max(result, base * level);
+    }
+    return result;
+  }
+}
+
+// BASIC: Spin over ordered pixels, three speed and three pulse-length formats.
+// Pulse start times use Vixen's 0.25..2 ms movement sampling grid. Group/depth and
+// discrete-color intents are absent; overlapping RGB pulses combine by maximum.
+effect VixenSpin {
+  param gradient color_gradient;
+  param curve pulse_curve;
+  param color static_color = #ffffff;
+  param enum color_handling { single_color, gradient_per_pulse, gradient_through_effect, gradient_across_items } = single_color;
+  fixed param enum speed_format { revolution_count, revolution_frequency, fixed_time } = revolution_count;
+  fixed param enum pulse_length_format { distribute_evenly, percent_revolution, pulse_time } = distribute_evenly;
+  fixed param float revolutions = 3.0;
+  fixed param float frequency_hz = 2.0;
+  fixed param float revolution_time_ms = 500.0;
+  fixed param float pulse_time_ms = 100.0;
+  fixed param float pulse_overlap_ms = 0.0;
+  fixed param float pulse_percentage = 10.0;
+  fixed param bool reverse_spin = false;
+  param bool enable_default_level = false;
+  param float default_level = 0.0;
+  color sample() {
+    float total = duration() * 1000.0;
+    float now = seconds() * 1000.0;
+    float count = pixel_count();
+    if (total <= 0.0 || count <= 0.0 || revolutions <= 0.0 || frequency_hz <= 0.0 || revolution_time_ms <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float constant = 0.0;
+    float fractional = 1.0 / count;
+    if (pulse_length_format == percent_revolution) { fractional = clamp(pulse_percentage, 0.0, 100.0) / 100.0; }
+    if (pulse_length_format == pulse_time) {
+      fractional = 0.0; constant = pulse_time_ms;
+      if (pulse_overlap_ms != 0.0) { constant = min(total - 1.0, total / count + pulse_overlap_ms); }
+    }
+    float divisor = revolutions + fractional - 1.0 / count;
+    if (divisor <= 0.0) { divisor = revolutions; }
+    float revolution_ms = (total - constant) / divisor;
+    if (speed_format == revolution_frequency) { revolution_ms = 1000.0 / frequency_hz; }
+    if (speed_format == fixed_time) { revolution_ms = revolution_time_ms; }
+    float pulse_ms = constant + revolution_ms * fractional;
+    if (revolution_ms <= 0.0 || pulse_ms <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float step = clamp(revolution_ms / count / 2.0, 0.25, 2.0);
+    float item = pixel_index();
+    if (reverse_spin) { item = count - item - 1.0; }
+    color result = rgb(0.0, 0.0, 0.0);
+    if (enable_default_level) {
+      color base = static_color;
+      if (color_handling == gradient_through_effect) { base = color_gradient[progress()]; }
+      if (color_handling == gradient_per_pulse) { base = color_gradient[0.0]; }
+      if (color_handling == gradient_across_items) { base = color_gradient[pixel_index() / count]; }
+      result = base * (clamp(default_level, 0.0, 100.0) / 100.0);
+    }
+    // Only revolutions whose pulses could cover now need evaluation.
+    float first_cycle = max(0.0, floor((now - pulse_ms) / revolution_ms));
+    float last_cycle = floor(now / revolution_ms);
+    for (int candidate in range(10000, 10000)) {
+      float cycle = first_cycle + candidate;
+      if (cycle > last_cycle) { return result; }
+      float ideal = (cycle + item / count) * revolution_ms;
+      float start = -floor(-ideal / step) * step;
+      // Reverse movement enters most bins strictly after the boundary.
+      if (reverse_spin && item > 0.0 && start == ideal) { start = start + step; }
+      float sampled_position = (start % revolution_ms) / revolution_ms;
+      float previous_position = ((start - step) % revolution_ms + revolution_ms) % revolution_ms / revolution_ms;
+      if (reverse_spin) { sampled_position = 1.0 - sampled_position; previous_position = 1.0 - previous_position; }
+      float sampled_item = min(count - 1.0, floor(sampled_position * count));
+      float previous_item = min(count - 1.0, floor(previous_position * count));
+      bool entered = sampled_item == pixel_index() && (start == 0.0 || previous_item != sampled_item);
+      if (entered && start <= total - pulse_ms + step && now >= start && now <= start + pulse_ms) {
+        float local = (now - start) / pulse_ms;
+        float position = local;
+        if (color_handling == gradient_through_effect) { position = progress(); }
+        if (color_handling == gradient_across_items) { position = (start % revolution_ms) / revolution_ms; if (reverse_spin) { position = 1.0 - position; } }
+        color c = static_color;
+        if (color_handling != single_color) { c = color_gradient[position]; }
+        float level = clamp(value_or(pulse_curve[local], 100.0), 0.0, 100.0) / 100.0;
+        result = max(result, c * level);
+      }
+    }
+    return result;
+  }
+}
+
+// BASIC: Candle Flicker, original bounded random walk and linear transitions.
+// Random values differ from Vixen. Groups are consecutive pixels, not hierarchy
+// nodes. Replays up to 10,000 transitions per sample; see the duration bound below.
+effect VixenCandleFlicker {
+  param color light_color = #ffffff;
+  fixed param int group_level = 1;
+  fixed param int flicker_frequency = 20;
+  fixed param float change_percentage = 20.0;
+  fixed param float minimum_level = 10.0;
+  fixed param float maximum_level = 100.0;
+  fixed param float frequency_deviation = 25.0;
+  fixed param float change_deviation = 50.0;
+  fixed param float random_seed = 0.0;
+  color sample() {
+    if (group_level <= 0 || flicker_frequency <= 0 || frequency_deviation < 0.0 || frequency_deviation >= 100.0 || minimum_level > maximum_level) { return rgb(0.0, 0.0, 0.0); }
+    float group = floor(pixel_index() / group_level);
+    float low = clamp(minimum_level, 0.0, 100.0) / 100.0;
+    float high = clamp(maximum_level, 0.0, 100.0) / 100.0;
+    float current = clamp(rand(random_seed, group, -1.0), low, high);
+    float start = 0.0;
+    float total = duration() * 1000.0;
+    float now = seconds() * 1000.0;
+    float frequency_cap = floor(frequency_deviation);
+    float change_cap = floor(clamp(change_deviation, 0.0, 100.0));
+    for (int event in range(10000, 10000)) {
+      float deviation = floor(min(0.99999994, rand(random_seed, group, event, 0.0)) * 2.0 * change_cap) - change_cap;
+      float sign = floor(min(0.99999994, rand(random_seed, group, event, 1.0)) * 3.0) - 1.0;
+      float next = clamp(current + change_percentage / 100.0 * (1.0 + deviation / 100.0) * sign, low, high);
+      float variation = floor(min(0.99999994, rand(random_seed, group, event, 2.0)) * 2.0 * frequency_cap) - frequency_cap;
+      float length = min(1000.0 / flicker_frequency * (1.0 + variation / 100.0), total - start);
+      if (length <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+      if (now < start + length) { return light_color * mix(current, next, clamp((now - start) / length, 0.0, 1.0)); }
+      start = start + length;
+      current = next;
+    }
+    // Requests beyond the documented replay bound are unsupported.
+    return rgb(0.0, 0.0, 0.0);
+  }
+}
+
+// BASIC: Wipe, horizontal/vertical Count mode, RGB colors and wipe on/off.
+// Vixen's "Gradient Thru Effect" in Count mode traverses the gradient per pulse.
+// Non-cardinal geometry and movement-curve/pulse-length modes are not exposed.
+effect VixenWipe {
+  param gradient color_gradient;
+  param curve pulse_curve;
+  param enum direction { horizontal, vertical } = horizontal;
+  param enum color_handling { gradient_through_effect, color_across_items } = gradient_through_effect;
+  fixed param int pass_count = 1;
+  fixed param float pulse_percent = 33.0;
+  fixed param bool reverse_direction = false;
+  param bool color_across_item_per_count = true;
+  param bool wipe_on = false;
+  param bool wipe_off = false;
+  fixed param float pixel_size = 1.0;
+  color sample() {
+    if (pixel_size <= 0.0 || pass_count < 1 || duration() <= 0.0 || pulse_percent <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float steps = floor((target_max_x() - target_min_x()) / pixel_size);
+    float item = floor((pixel_x() - target_min_x()) / pixel_size);
+    if (direction == vertical) { steps = floor((target_max_y() - target_min_y()) / pixel_size); item = floor((pixel_y() - target_min_y()) / pixel_size); }
+    if (steps <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    if (reverse_direction) { item = steps - item; }
+    float groups = steps + 1.0;
+    float total = duration();
+    float pulse_seconds = total * clamp(pulse_percent, 0.0, 100.0) * steps / groups / 100.0 / pass_count;
+    float interval = (total - pulse_seconds) / (groups * pass_count);
+    color result = rgb(0.0, 0.0, 0.0);
+    for (int pass in range(pass_count, 10000)) {
+      float start = (pass * groups + item) * interval;
+      float local = (seconds() - start) / pulse_seconds;
+      bool active = local >= 0.0 && local <= 1.0;
+      if (pass == 0 && wipe_off && local < 0.0) { active = true; }
+      if (pass == pass_count - 1 && wipe_on && local > 1.0) { active = true; }
+      if (active) {
+        float color_position = clamp(local, 0.0, 1.0);
+        if (color_handling == color_across_items) {
+          color_position = start / (total - pulse_seconds);
+          if (color_across_item_per_count) { color_position = (color_position * pass_count) % 1.0; }
+        }
+        float level = clamp(value_or(pulse_curve[clamp(local, 0.0, 1.0)], 100.0), 0.0, 100.0) / 100.0;
+        result = max(result, color_gradient[color_position] * level);
+      }
+    }
+    return result;
+  }
+}
+
+// PIXEL: Spirograph, original sampled hypotrochoid with Standard/Random/Rainbow.
+// Uses the string-buffer formula on a layout-derived grid. Up to 5,400 curve
+// points are examined per pixel; this is expensive and has not been benchmarked.
+// Random colors are repeatable Donder samples indexed by frame and curve point.
+effect VixenSpirograph {
+  param array<gradient> colors;
+  param enum color_type { standard, random, rainbow } = standard;
+  param float outer_circle_radius = 88.0;
+  param float inner_circle_radius = 21.0;
+  param float speed = 2.0;
+  param float distance = 50.0;
+  param float color_range = 35.0;
+  param float spirograph_range = 33.0;
+  param bool animate = true;
+  param float intensity = 100.0;
+  fixed param float random_seed = 0.0;
+  fixed param float pixel_size = 1.0;
+  fixed param float frame_interval_ms = 50.0;
+  color sample() {
+    if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0) { return rgb(0.0, 0.0, 0.0); }
+    float frame = floor(seconds() * 1000.0 / frame_interval_ms);
+    float t = frame * frame_interval_ms / (duration() * 1000.0);
+    float w = floor((target_max_x() - target_min_x()) / pixel_size) + 1.0;
+    float h = floor((target_max_y() - target_min_y()) / pixel_size) + 1.0;
+    float cx = floor(w / 2.0);
+    float cy = floor(h / 2.0);
+    float x = floor((pixel_x() - target_min_x()) / pixel_size);
+    float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
+    float outer = cx * clamp(outer_circle_radius, 0.0, 100.0) / 100.0;
+    float inner = min(outer, cx * clamp(inner_circle_radius, 0.0, 100.0) / 100.0);
+    if (inner <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    float state = frame * clamp(speed, 0.0, 100.0);
+    float d = cx * (1.0 + clamp(distance, 0.0, 100.0) * 0.99) / 100.0;
+    if (animate) { d = floor(d + state / 2.0) % 100.0; }
+    if (sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) > outer - inner + d + 0.707107) { return rgb(0.0, 0.0, 0.0); }
+    float state_mod = state % 1440.0;
+    float rounded_state = floor(state_mod);
+    if (state_mod - rounded_state > 0.5 || (state_mod - rounded_state == 0.5 && rounded_state % 2.0 != 0.0)) { rounded_state = rounded_state + 1.0; }
+    float samples = floor((1.0 + clamp(spirograph_range, 0.0, 100.0) * 2.99) * 18.0);
+    float range_value = 1.0 + clamp(color_range, 0.0, 100.0) * 1.99;
+    float bin = range_value / len(colors);
+    float rounded_bin = floor(bin);
+    if (bin - rounded_bin > 0.5 || (bin - rounded_bin == 0.5 && rounded_bin % 2.0 != 0.0)) { rounded_bin = rounded_bin + 1.0; }
+    if (color_type == standard && rounded_bin <= 0.0) { return rgb(0.0, 0.0, 0.0); }
+    for (int ordinal in range(5400, 5400)) {
+      float point = samples - ordinal;
+      if (point < 1.0) { return rgb(0.0, 0.0, 0.0); }
+      float angle = (point + rounded_state) * 0.017453292519943295;
+      float xx = (outer - inner) * cos(angle) + d * cos((outer - inner) / inner * angle) + cx;
+      float yy = (outer - inner) * sin(angle) + d * sin((outer - inner) / inner * angle) + cy;
+      float rx = floor(xx);
+      float ry = floor(yy);
+      if (xx - rx > 0.5 || (xx - rx == 0.5 && rx % 2.0 != 0.0)) { rx = rx + 1.0; }
+      if (yy - ry > 0.5 || (yy - ry == 0.5 && ry % 2.0 != 0.0)) { ry = ry + 1.0; }
+      if (rx == x && ry == y) {
+        float level = clamp(intensity, 0.0, 100.0) / 100.0;
+        if (color_type == rainbow) { return hsv(floor(rand(random_seed, frame, point) * 1000.0) / 1000.0, 1.0, level); }
+        float selected = floor(sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) / range_value * 100.0 / rounded_bin);
+        if (color_type == random) { selected = floor(rand(random_seed, frame, point) * len(colors)); }
+        selected = clamp(selected, 0.0, len(colors) - 1.0);
+        for (int i in range(len(colors), 10000)) {
+          if (i + 0.0 == selected) { return colors[i][t] * level; }
+        }
+      }
+    }
+    return rgb(0.0, 0.0, 0.0);
+  }
+}
+
+// BASIC: Dissolve, effect-duration mode with one monotonic fill or clear.
+// Supply a monotonic 0->100 fill curve or 100->0 clear curve. Paired directions,
+// mark modes, curve reversals and group-color overlays are not exposed.
+// Random ordering ranks seeded keys; it is a permutation, not independent pixel
+// thresholds. This costs O(pixel_count) per sample and supports <=10,000 pixels.
+effect VixenDissolve {
+  param array<gradient> colors;
+  param array<curve> levels;
+  fixed param curve dissolve_curve;
+  fixed param enum method { clear, fill } = clear;
+  fixed param bool random_dissolve = true;
+  fixed param bool dissolve_flip = true;
+  fixed param bool random_color = true;
+  fixed param int group_level = 1;
+  fixed param int starting_node = 1;
+  fixed param float random_seed = 0.0;
+  color sample() {
+    if (duration() <= 0.0 || group_level <= 0 || pixel_count() > 10000 || len(colors) == 0 || len(colors) != len(levels)) { return rgb(0.0, 0.0, 0.0); }
+    float groups = -floor(-pixel_count() / group_level);
+    float group = floor(pixel_index() / group_level);
+    float rank = ((group - max(0.0, starting_node - 1.0)) % groups + groups) % groups;
+    if (random_dissolve) {
+      rank = 0.0;
+      float key = rand(random_seed, group, 0.0);
+      for (int candidate in range(pixel_count(), 10000)) {
+        if (candidate % group_level == 0) {
+          float other = floor(candidate / group_level);
+          float other_key = rand(random_seed, other, 0.0);
+          if (other_key < key || (other_key == key && other < group)) { rank = rank + 1.0; }
+        }
+      }
+    }
+    if (!dissolve_flip) { rank = groups - rank - 1.0; }
+    float total = duration() * 1000.0;
+    float intervals = -floor(-total / 25.0);
+    float start = 0.0;
+    float end = total;
+    if (method == fill) {
+      float threshold = rank / groups * 100.0;
+      if (dissolve_curve[0.0] <= threshold) {
+        float crossing = curve_last_crossing(dissolve_curve, threshold, 1.0);
+        if (is_nan(crossing)) { return rgb(0.0, 0.0, 0.0); }
+        start = (floor(crossing * intervals) + 1.0) * 25.0;
+      }
+    } else {
+      float removal_rank = rank;
+      if (!random_dissolve) { removal_rank = groups - rank - 1.0; }
+      float threshold = (groups - removal_rank - 1.0) / groups * 100.0;
+      float crossing = curve_first_crossing(dissolve_curve, threshold);
+      if (!is_nan(crossing)) {
+        float removal_time = -floor(-crossing * intervals) * 25.0;
+        if (removal_time < total) { end = removal_time - 1.0; }
+      }
+    }
+    float now = seconds() * 1000.0;
+    if (end <= start || now < start || now >= end) { return rgb(0.0, 0.0, 0.0); }
+    float local = (now - start) / (end - start);
+    float selected = group % len(colors);
+    if (random_color) { selected = min(len(colors) - 1.0, floor(rand(random_seed, group, 1.0) * len(colors))); }
+    for (int i in range(len(colors), 10000)) {
+      if (i + 0.0 == selected) { return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0); }
+    }
+    return rgb(0.0, 0.0, 0.0);
+  }
+}

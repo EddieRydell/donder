@@ -1,7 +1,10 @@
 mod arrays;
 mod context;
+mod lanes;
+pub(super) use context::NoSignals;
 use context::{ReadContext, SampleSignal};
 use core::convert::Infallible;
+use lanes::{Flow, Mask, dispatch};
 mod automation;
 mod parameters;
 use arrays::ArrayRegister;
@@ -12,15 +15,15 @@ use parameters::{
 };
 
 use super::bytecode::{
-    ArithmeticOp, ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot,
-    CompareOp, ContextRead, CurveSlot, EnumSlot, FloatBinary, FloatSlot, FloatUnary, GradientSlot,
-    Instruction, IntArithmeticOp, IntSlot, MarkOp, MarksSlot, NumberSlot, ParameterKind,
-    SignalPixel, SlotLayout, ValueSlot,
+    ArraySlot, BoolSlot, BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp,
+    ContextRead, CurveSlot, EnumSlot, EnumSlotType, FloatBinary, FloatSlot, FloatUnary,
+    GradientSlot, Instruction, IntSlot, MarkOp, MarksSlot, NumberSlot, ParameterKind, SignalPixel,
+    SlotLayout, ValueSlot,
 };
 use super::types::{Identifier, Type, Value};
 use crate::sampling::{
-    add_colors, color_hue, color_intensity, color_saturation, invert_color, max_colors, mix_colors,
-    multiply_colors, scale_color,
+    add_colors, clamp_float, color_hue, color_intensity, color_saturation, invert_color,
+    max_colors, mix_colors, multiply_colors, scale_color,
 };
 use crate::values::{
     Color, Curve, Gradient, Marks, SampleDuration, SampleTime, sample_duration_seconds_f32,
@@ -33,7 +36,7 @@ use donder_language::Shared as Arc;
 
 use donder_language::execution::SpatialContext;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct RunContext {
     pub progress: f32,
     pub time: SampleDuration,
@@ -41,6 +44,13 @@ pub(crate) struct RunContext {
     pub pixel_index: i32,
     pub pixel_count: i32,
     pub pixel_fraction: f32,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct LaneContext<'a> {
+    pub context: RunContext,
+    pub spatial: SpatialContext,
+    pub sections: crate::sections::SectionContext<'a>,
 }
 
 #[cfg(test)]
@@ -60,7 +70,23 @@ pub(crate) trait SignalSampler<E = RuntimeError> {
         pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
     ) -> Result<Color, E>;
+
+    fn sample_signal_block(
+        &mut self,
+        input: usize,
+        sample_time: SampleTime,
+        pixel: SignalPixel<i32>,
+        output: &mut [Color],
+    ) -> Result<(), E> {
+        // Only the prepared graph invokes color blocks. Scalar adapters keep
+        // their original error ordering and never receive a multi-lane query.
+        assert_eq!(output.len(), 1);
+        output[0] = self.sample_signal(input, sample_time, pixel, None)?;
+        Ok(())
+    }
 }
+
+pub(crate) const COLOR_BLOCK_WIDTH: usize = 32;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeError {
@@ -338,9 +364,39 @@ pub(crate) struct VmWorkspace {
     arrays: ArrayStorage,
     // Collection length is not a DSL int. Only the visible loop index wraps.
     loop_remaining: Vec<usize>,
+    target_count: i32,
+    target_bounds: [u32; 4],
+    color_lanes: usize,
+    numeric_lanes: usize,
+    numeric_uniform_target: bool,
 }
 
 impl VmWorkspace {
+    pub(super) fn sample_entry(
+        &mut self,
+        reuse_uniform: bool,
+        target_entry: usize,
+        pixel_entry: usize,
+        context: &RunContext,
+        spatial: &SpatialContext,
+    ) -> usize {
+        let reuse_uniform = reuse_uniform && self.color_lanes <= 1;
+        if target_entry == pixel_entry {
+            return if reuse_uniform { pixel_entry } else { 0 };
+        }
+        let bounds = target_bounds_bits(spatial);
+        let same_target = self.target_count == context.pixel_count && self.target_bounds == bounds;
+        self.target_count = context.pixel_count;
+        self.target_bounds = bounds;
+        if !reuse_uniform {
+            0
+        } else if same_target {
+            pixel_entry
+        } else {
+            target_entry
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn for_program<C, S, A>(program: &BytecodeProgram<C, S, A>) -> Self {
         let mut workspace = Self::default();
@@ -391,6 +447,36 @@ impl VmWorkspace {
         );
     }
 
+    pub(crate) fn reserve_color_block(&mut self, colors: u32) {
+        reserve(
+            &mut self.registers.colors,
+            colors as usize * COLOR_BLOCK_WIDTH,
+        );
+    }
+
+    pub(crate) fn reserve_numeric_block<C, S, A>(&mut self, bytecode: &BytecodeProgram<C, S, A>) {
+        let layout = bytecode.layout;
+        reserve(
+            &mut self.registers.ints,
+            layout.ints as usize * COLOR_BLOCK_WIDTH,
+        );
+        reserve(
+            &mut self.registers.floats,
+            layout.floats as usize * COLOR_BLOCK_WIDTH,
+        );
+        reserve(
+            &mut self.registers.bools,
+            layout.bools as usize * COLOR_BLOCK_WIDTH,
+        );
+        self.reserve_color_block(layout.colors);
+        self.loop_remaining.resize(
+            self.loop_remaining
+                .len()
+                .max(bytecode.loop_count as usize * COLOR_BLOCK_WIDTH),
+            0,
+        );
+    }
+
     fn reserve_arrays<C, S, A>(&mut self, bytecode: &BytecodeProgram<C, S, A>) {
         if bytecode.array_capacity == 0 {
             return;
@@ -403,6 +489,15 @@ impl VmWorkspace {
             );
         }
     }
+}
+
+fn target_bounds_bits(spatial: &SpatialContext) -> [u32; 4] {
+    [
+        spatial.min[0].to_bits(),
+        spatial.min[1].to_bits(),
+        spatial.max[0].to_bits(),
+        spatial.max[1].to_bits(),
+    ]
 }
 
 // Slots have a compiler-bounded width, so allocation cannot fragment the value
@@ -492,6 +587,28 @@ struct VmRegisters {
 }
 
 impl VmRegisters {
+    /// Query initialization writes lane zero. Replicate once at the stage
+    /// boundary, keeping broadcasts out of every arithmetic register write.
+    #[inline(never)]
+    fn broadcast_numeric(&mut self) {
+        for register in self.ints.as_chunks_mut::<COLOR_BLOCK_WIDTH>().0 {
+            let value = register[0];
+            register.fill(value);
+        }
+        for register in self.floats.as_chunks_mut::<COLOR_BLOCK_WIDTH>().0 {
+            let value = register[0];
+            register.fill(value);
+        }
+        for register in self.bools.as_chunks_mut::<COLOR_BLOCK_WIDTH>().0 {
+            let value = register[0];
+            register.fill(value);
+        }
+        for register in self.colors.as_chunks_mut::<COLOR_BLOCK_WIDTH>().0 {
+            let value = register[0];
+            register.fill(value);
+        }
+    }
+
     fn reserve(&mut self, layout: SlotLayout) {
         reserve(&mut self.ints, layout.ints as usize);
         reserve(&mut self.floats, layout.floats as usize);
@@ -504,11 +621,16 @@ impl VmRegisters {
         reserve(&mut self.gradients, layout.gradients as usize);
     }
 
-    fn prepare<C, S, A>(&mut self, bytecode: &BytecodeProgram<C, S, A>) {
-        if self.ints.len() == bytecode.layout.ints as usize
-            && self.floats.len() == bytecode.layout.floats as usize
-            && self.bools.len() == bytecode.layout.bools as usize
-            && self.colors.len() == bytecode.layout.colors as usize
+    fn prepare<C, S, A>(
+        &mut self,
+        bytecode: &BytecodeProgram<C, S, A>,
+        lanes: usize,
+        numeric: usize,
+    ) {
+        if self.ints.len() == bytecode.layout.ints as usize * numeric
+            && self.floats.len() == bytecode.layout.floats as usize * numeric
+            && self.bools.len() == bytecode.layout.bools as usize * numeric
+            && self.colors.len() == bytecode.layout.colors as usize * lanes
             && self.array_values.len() == bytecode.layout.arrays as usize
             && self.enums.len() == bytecode.layout.enums as usize
             && self.marks.len() == bytecode.layout.marks as usize
@@ -517,29 +639,36 @@ impl VmRegisters {
         {
             return;
         }
+        self.resize(bytecode.layout, &bytecode.enum_types, lanes, numeric);
+    }
+
+    // Keep shape changes and value initialization out of the hot constructor.
+    // The length check above still runs on every independent invocation.
+    #[inline(never)]
+    fn resize(&mut self, layout: SlotLayout, enums: &[EnumSlotType], lanes: usize, numeric: usize) {
         self.ints.clear();
-        self.ints.resize(bytecode.layout.ints as usize, 0);
+        self.ints.resize(layout.ints as usize * numeric, 0);
         self.floats.clear();
-        self.floats.resize(bytecode.layout.floats as usize, 0.0);
+        self.floats.resize(layout.floats as usize * numeric, 0.0);
         self.bools.clear();
-        self.bools.resize(bytecode.layout.bools as usize, false);
+        self.bools.resize(layout.bools as usize * numeric, false);
         self.colors.clear();
-        self.colors.resize(bytecode.layout.colors as usize, black());
+        self.colors.resize(layout.colors as usize * lanes, black());
         self.enums.clear();
         self.enums
-            .extend(bytecode.enum_types.iter().map(|ty| ty.initial().clone()));
+            .extend(enums.iter().map(|ty| ty.initial().clone()));
         self.array_values.clear();
         self.array_values
-            .resize(bytecode.layout.arrays as usize, ArrayRegister::Empty);
+            .resize(layout.arrays as usize, ArrayRegister::Empty);
         self.curves.clear();
         self.curves
-            .resize(bytecode.layout.curves as usize, CurveRegister::Empty);
+            .resize(layout.curves as usize, CurveRegister::Empty);
         self.gradients.clear();
         self.gradients
-            .resize(bytecode.layout.gradients as usize, GradientRegister::Empty);
+            .resize(layout.gradients as usize, GradientRegister::Empty);
         self.marks.clear();
         self.marks
-            .resize(bytecode.layout.marks as usize, MarksRegister::Empty);
+            .resize(layout.marks as usize, MarksRegister::Empty);
     }
 }
 
@@ -641,16 +770,18 @@ mod workspace_capacity_tests {
         let admitted = super::super::SampleProgram::admit(program.clone(), Box::new([])).unwrap();
         // Reusing the workspace must preserve the same values too.
         for _ in 0..2 {
+            let mut signals = NoSignals;
             let mut vm = Vm::new(
                 admitted.bytecode(),
                 &params,
                 &context,
                 &TEST_SPATIAL_CONTEXT,
                 &mut workspace,
-                (),
+                &mut signals as &mut dyn SignalSampler<Infallible>,
                 0,
             );
-            assert_eq!(vm.run::<Color>().unwrap(), color);
+            let result = vm.run().unwrap();
+            assert_eq!(vm.color(result), color);
             assert_eq!(vm.workspace.registers.ints, ints);
             assert_eq!(vm.workspace.registers.bools, [false, true]);
             for (actual, expected) in vm.workspace.registers.floats.iter().zip(floats) {
@@ -807,9 +938,8 @@ mod workspace_capacity_tests {
                     condition: BoolSlot(0),
                     target: 5,
                 },
-                Instruction::IntArithmetic {
+                Instruction::IntAdd {
                     dst: IntSlot(0),
-                    op: IntArithmeticOp::Add,
                     left: IntSlot(0),
                     right: IntSlot(1),
                 },
@@ -855,20 +985,22 @@ mod workspace_capacity_tests {
         let admitted = super::super::SampleProgram::admit(program.clone(), Box::new([])).unwrap();
         for remaining in [0, 1, 2, i32::MAX as usize + 2, usize::MAX] {
             let mut workspace = VmWorkspace::default();
-            workspace.registers.prepare(&program);
+            workspace.registers.prepare(&program, 1, 1);
             workspace.registers.ints.copy_from_slice(&[i32::MAX, 1]);
             workspace.registers.bools[0] = true;
             workspace.loop_remaining.push(remaining);
+            let mut signals = NoSignals;
             let mut vm = Vm::new(
                 admitted.bytecode(),
                 &params,
                 &context,
                 &TEST_SPATIAL_CONTEXT,
                 &mut workspace,
-                (),
+                &mut signals as &mut dyn SignalSampler<Infallible>,
                 3,
             );
-            assert_eq!(vm.run::<Color>().unwrap(), Color::BLACK);
+            let result = vm.run().unwrap();
+            assert_eq!(vm.color(result), Color::BLACK);
             assert_eq!(vm.workspace.registers.ints[0], i32::MIN);
             assert_eq!(vm.workspace.loop_remaining[0], remaining.saturating_sub(1));
         }
@@ -876,7 +1008,7 @@ mod workspace_capacity_tests {
 }
 
 pub(super) fn evaluate_sample(
-    program: &BytecodeProgram<ContextRead, Infallible, ColorSlot>,
+    program: &BytecodeProgram<ContextRead, super::SignalAccess, ColorSlot>,
     params: &BoundParams,
     context: &RunContext,
     spatial: &SpatialContext,
@@ -884,10 +1016,14 @@ pub(super) fn evaluate_sample(
     workspace: &mut VmWorkspace,
     entry: usize,
 ) -> Color {
-    let mut vm = Vm::new(program, params, context, spatial, workspace, (), entry);
+    workspace.color_lanes = 1;
+    workspace.numeric_lanes = 1;
+    let mut signals = NoSignals;
+    let sampler: &mut dyn SignalSampler<Infallible> = &mut signals;
+    let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
     vm.sections = sections;
-    match vm.run::<Color>() {
-        Ok(color) => color,
+    match vm.run() {
+        Ok(slot) => vm.color(slot),
         Err(never) => match never {},
     }
 }
@@ -903,9 +1039,106 @@ pub(super) fn evaluate_operator<E>(
     workspace: &mut VmWorkspace,
     entry: usize,
 ) -> Result<Color, E> {
+    workspace.color_lanes = 1;
+    workspace.numeric_lanes = 1;
     let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
     vm.sections = sections;
-    vm.run::<Color>()
+    vm.run().map(|slot| vm.color(slot))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn evaluate_operator_block(
+    program: &BytecodeProgram<ContextRead, super::SignalAccess, ColorSlot>,
+    params: &BoundParams,
+    context: &RunContext,
+    spatial: &SpatialContext,
+    sampler: &mut dyn SignalSampler<Infallible>,
+    workspace: &mut VmWorkspace,
+    output: &mut [Color],
+    reuse_uniform: bool,
+) {
+    assert!(!output.is_empty() && output.len() <= COLOR_BLOCK_WIDTH);
+    // A tail or intervening scalar query changes color-register strides. Run
+    // initialization again in that case; otherwise retain the proven prefix.
+    let entry =
+        if reuse_uniform && workspace.color_lanes == output.len() && workspace.numeric_lanes == 1 {
+            program.pixel_entry as usize
+        } else {
+            0
+        };
+    workspace.color_lanes = output.len();
+    workspace.numeric_lanes = 1;
+    let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
+    let slot = match vm.run() {
+        Ok(slot) => slot,
+        Err(never) => match never {},
+    };
+    let start = slot.0 as usize * output.len();
+    output.copy_from_slice(&vm.workspace.registers.colors[start..start + output.len()]);
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn evaluate_numeric_block(
+    program: &BytecodeProgram<ContextRead, super::SignalAccess, ColorSlot>,
+    params: &BoundParams,
+    context: &RunContext,
+    spatial: &SpatialContext,
+    contexts: Option<&[LaneContext<'_>]>,
+    sampler: &mut dyn SignalSampler<Infallible>,
+    workspace: &mut VmWorkspace,
+    output: &mut [Color],
+    reuse_uniform: bool,
+    target_entry: usize,
+) {
+    assert!(!output.is_empty() && output.len() <= COLOR_BLOCK_WIDTH);
+    assert!(contexts.is_none_or(|contexts| contexts.len() == output.len()));
+    let reuse_uniform = reuse_uniform && workspace.numeric_lanes == COLOR_BLOCK_WIDTH;
+    let mut entry = if reuse_uniform { target_entry } else { 0 };
+    let mut broadcast_end = target_entry;
+    let pixel_entry = program.pixel_entry as usize;
+    if target_entry != pixel_entry {
+        let bounds = target_bounds_bits(spatial);
+        let uniform_target = contexts.is_none_or(|contexts| {
+            contexts.iter().all(|lane| {
+                lane.context.pixel_count == context.pixel_count
+                    && target_bounds_bits(&lane.spatial) == bounds
+            })
+        });
+        if uniform_target {
+            // Target-invariant arithmetic still runs once, including division.
+            // Reuse is valid across tails because broadcasting initializes all
+            // physical lanes, not only those active in the current block.
+            if reuse_uniform
+                && workspace.numeric_uniform_target
+                && workspace.target_count == context.pixel_count
+                && workspace.target_bounds == bounds
+            {
+                entry = pixel_entry;
+            }
+            broadcast_end = pixel_entry;
+            workspace.target_count = context.pixel_count;
+            workspace.target_bounds = bounds;
+        }
+        workspace.numeric_uniform_target = uniform_target;
+    } else {
+        workspace.numeric_uniform_target = false;
+    }
+    workspace.color_lanes = COLOR_BLOCK_WIDTH;
+    workspace.numeric_lanes = COLOR_BLOCK_WIDTH;
+    let width = output.len();
+    let mut vm = Vm::new(program, params, context, spatial, workspace, sampler, entry);
+    vm.lanes = Some(Flow::new(width));
+    vm.broadcast_end = broadcast_end;
+    vm.broadcast = entry < broadcast_end;
+    if !vm.broadcast {
+        vm.active = Mask::full(width);
+    }
+    vm.lane_contexts = contexts;
+    vm.output = Some(output);
+    match vm.run() {
+        Ok(_) => {}
+        Err(never) => match never {},
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -922,23 +1155,6 @@ enum RuntimeValue {
     Array(Arc<[Value]>),
     ArraySlot(usize),
     Enum(Identifier),
-}
-
-// Color returns are selected at executable admission.
-trait ColorReturn<R> {
-    fn finish(&self, registers: &VmRegisters) -> R;
-}
-
-impl ColorReturn<Color> for ColorSlot {
-    fn finish(&self, registers: &VmRegisters) -> Color {
-        registers.colors[self.0 as usize]
-    }
-}
-
-impl<R> ColorReturn<R> for Infallible {
-    fn finish(&self, _: &VmRegisters) -> R {
-        match *self {}
-    }
 }
 
 impl RuntimeValue {
@@ -990,7 +1206,14 @@ struct Vm<'a, C: ReadContext, S, A, P> {
     spatial: &'a C::Spatial,
     sections: crate::sections::SectionContext<'a>,
     workspace: &'a mut VmWorkspace,
-    ip: usize,
+    entry: usize,
+    lane: usize,
+    lanes: Option<Flow>,
+    active: Mask,
+    broadcast: bool,
+    broadcast_end: usize,
+    lane_contexts: Option<&'a [LaneContext<'a>]>,
+    output: Option<&'a mut [Color]>,
     signal_sampler: P,
 }
 
@@ -1016,7 +1239,9 @@ impl<C: ReadContext, S, A, P> Drop for Vm<'_, C, S, A, P> {
     }
 }
 
-impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
+impl<'a, C: ReadContext<Spatial = SpatialContext>, S: Copy, A, P: SampleSignal<S>>
+    Vm<'a, C, S, A, P>
+{
     #[allow(clippy::too_many_arguments)]
     fn new(
         bytecode: &'a BytecodeProgram<C, S, A>,
@@ -1029,8 +1254,12 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
     ) -> Self {
         // A nonzero entry resumes a frame's initialized program/workspace.
         // Independent samples and each frame's first pixel always start at zero.
+        workspace.color_lanes = workspace.color_lanes.max(1);
+        workspace.numeric_lanes = workspace.numeric_lanes.max(1);
         if entry == 0 {
-            workspace.registers.prepare(bytecode);
+            workspace
+                .registers
+                .prepare(bytecode, workspace.color_lanes, workspace.numeric_lanes);
             if bytecode.array_capacity != 0 {
                 workspace.reserve_arrays(bytecode);
             }
@@ -1038,10 +1267,11 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 workspace
                     .loop_remaining
                     .len()
-                    .max(bytecode.loop_count as usize),
+                    .max(bytecode.loop_count as usize * workspace.numeric_lanes),
                 0,
             );
-            workspace.loop_remaining[..bytecode.loop_count as usize].fill(0);
+            workspace.loop_remaining[..bytecode.loop_count as usize * workspace.numeric_lanes]
+                .fill(0);
         }
         Self {
             bytecode,
@@ -1049,7 +1279,14 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
             context,
             spatial,
             workspace,
-            ip: entry,
+            entry,
+            lane: 0,
+            lanes: None,
+            active: Mask::FIRST,
+            broadcast: false,
+            broadcast_end: bytecode.pixel_entry as usize,
+            lane_contexts: None,
+            output: None,
             signal_sampler,
             sections: crate::sections::SectionContext::Single {
                 index: context.pixel_index,
@@ -1058,42 +1295,63 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
         }
     }
 
-    fn run<R>(&mut self) -> Result<R, P::Error>
+    fn run(&mut self) -> Result<A, P::Error>
     where
-        A: ColorReturn<R>,
+        A: Copy + Into<ColorSlot>,
     {
+        let code = self.bytecode.instructions.as_ref();
+        let mut instructions = &code[self.entry..];
+        let mut next_event = if self.broadcast {
+            code.len() - self.broadcast_end
+        } else {
+            usize::MAX
+        };
         loop {
-            // Admission checks every control-flow edge and rejects fallthrough.
-            let instruction = &self.bytecode.instructions[self.ip];
-            self.ip += 1;
-            match instruction {
+            // Scalar instructions compare against an unreachable sentinel.
+            // Numeric stage/join work happens only at the recorded boundary.
+            if instructions.len() == next_event {
+                if self.broadcast {
+                    self.workspace.registers.broadcast_numeric();
+                    self.broadcast = false;
+                }
+                if let Some(flow) = &mut self.lanes {
+                    flow.merge(code.len() - instructions.len());
+                    self.active = flow.active;
+                    next_event = flow.next_join_remaining(code.len());
+                }
+            }
+            // Advance the instruction pointer directly. Only taken branches
+            // translate an absolute bytecode target back into a slice.
+            let instruction = &instructions[0];
+            instructions = &instructions[1..];
+            dispatch! { self, code, instructions, instruction, next_event;
                 Instruction::LoadIntConst { dst, value } => self.set_int(*dst, *value),
                 Instruction::LoadFloatConst { dst, bits } => {
                     self.set_float(*dst, f32::from_bits(*bits))
                 }
                 Instruction::LoadBoolConst { dst, value } => self.set_bool(*dst, *value),
                 Instruction::LoadColorConst { dst, value } => self.set_color(*dst, *value),
-                Instruction::LoadCurveConst { dst, constant } => self.set_curve(
+                @once Instruction::LoadCurveConst { dst, constant } => self.set_curve(
                     *dst,
                     CurveRegister::Raw(Arc::clone(&self.bytecode.curves[*constant])),
                 ),
-                Instruction::LoadGradientConst { dst, constant } => self.set_gradient(
+                @once Instruction::LoadGradientConst { dst, constant } => self.set_gradient(
                     *dst,
                     GradientRegister::Shared(Arc::clone(&self.bytecode.gradients[*constant])),
                 ),
-                Instruction::LoadCurveParam { dst, source, .. } => {
+                @once Instruction::LoadCurveParam { dst, source, .. } => {
                     self.set_curve(*dst, self.params.values.curves[source.0 as usize].clone())
                 }
-                Instruction::LoadGradientParam { dst, source, .. } => self.set_gradient(
+                @once Instruction::LoadGradientParam { dst, source, .. } => self.set_gradient(
                     *dst,
                     self.params.values.gradients[source.0 as usize].clone(),
                 ),
-                Instruction::CurveSample {
+                @once Instruction::CurveSample {
                     dst,
                     curve,
                     position,
                 } => self.set_float(*dst, self.curve_value(*curve).sample(self.float(*position))),
-                Instruction::GradientSample {
+                @once Instruction::GradientSample {
                     dst,
                     gradient,
                     position,
@@ -1101,19 +1359,19 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     *dst,
                     sample_gradient(self.gradient_value(*gradient), self.float(*position)),
                 ),
-                Instruction::LoadMarksConst { dst, value } => {
+                @once Instruction::LoadMarksConst { dst, value } => {
                     self.set_marks(*dst, MarksRegister::Shared(Arc::clone(value)))
                 }
-                Instruction::LoadMarksParam { dst, source, .. } => {
+                @once Instruction::LoadMarksParam { dst, source, .. } => {
                     self.set_marks(*dst, self.params.values.marks[source.0 as usize].clone())
                 }
-                Instruction::LoadEnumConst { dst, constant } => {
+                @once Instruction::LoadEnumConst { dst, constant } => {
                     self.set_enum(*dst, self.bytecode.enums[*constant].clone());
                 }
-                Instruction::LoadEnumParam { dst, source, .. } => {
+                @once Instruction::LoadEnumParam { dst, source, .. } => {
                     self.set_enum(*dst, self.params.values.enums[source.0 as usize].clone());
                 }
-                Instruction::LoadArrayConst { dst, constant } => {
+                @once Instruction::LoadArrayConst { dst, constant } => {
                     self.set_array(
                         *dst,
                         ArrayRegister::Shared(Arc::clone(
@@ -1133,7 +1391,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 Instruction::LoadColorParam { dst, source, .. } => {
                     self.set_color(*dst, self.params.values.colors[source.0 as usize]);
                 }
-                Instruction::LoadArrayParam { dst, source, .. } => {
+                @once Instruction::LoadArrayParam { dst, source, .. } => {
                     self.set_array(
                         *dst,
                         self.params.values.array_values[source.0 as usize].register(),
@@ -1142,7 +1400,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 Instruction::Move { dst, src } => {
                     self.copy_slot(*dst, *src);
                 }
-                Instruction::MakeArray { dst, items } => {
+                @once Instruction::MakeArray { dst, items } => {
                     let items = &self.bytecode.value_operands[items.range()];
                     let index = self.workspace.arrays.allocate(items.len());
                     for (offset, item) in items.iter().enumerate() {
@@ -1156,7 +1414,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                         .arrays
                         .release(RuntimeValue::ArraySlot(index));
                 }
-                Instruction::Index {
+                @once Instruction::Index {
                     dst,
                     target,
                     index,
@@ -1209,7 +1467,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     );
                     self.set_color(*dst, color);
                 }
-                Instruction::SignalSample {
+                @once Instruction::SignalSample {
                     dst,
                     input,
                     seconds,
@@ -1223,6 +1481,33 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                         SignalPixel::Local(index) => SignalPixel::Local(self.int(index)),
                         SignalPixel::Global(index) => SignalPixel::Global(self.int(index)),
                     };
+                    if self.color_lanes() > 1 {
+                        let lanes = self.output.as_ref().map_or(self.color_lanes(), |output| output.len());
+                        let mut colors = [Color::BLACK; COLOR_BLOCK_WIDTH];
+                        let start = dst.0 as usize * self.color_lanes();
+                        let partial = self.lanes.as_ref().is_some_and(|flow| flow.active != Mask::full(lanes));
+                        let output = if partial {
+                            &mut colors[..lanes]
+                        } else {
+                            &mut self.workspace.registers.colors[start..start + lanes]
+                        };
+                        match crate::values::sample_time_from_seconds_f32(seconds) {
+                            Ok(time) => self.signal_sampler.sample_block(
+                                *capability,
+                                *input,
+                                time,
+                                pixel,
+                                output,
+                            )?,
+                            Err(_) => output.fill(Color::BLACK),
+                        }
+                        if partial {
+                            for lane in self.color_mask() {
+                                self.set_color_lane(*dst, lane, colors[lane]);
+                            }
+                        }
+                        continue;
+                    }
                     let color = match crate::values::sample_time_from_seconds_f32(seconds) {
                         Ok(sample_time) => self.signal_sampler.sample(
                             *capability,
@@ -1243,64 +1528,116 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     let value = self.int(*src).wrapping_neg();
                     self.set_int(*dst, value);
                 }
-                Instruction::NegFloat { dst, src } => {
-                    self.set_float(*dst, -self.float(*src));
+                @once Instruction::NegFloat { dst, src } => {
+                    self.float_unary_lanes(*dst, *src, |value| -value);
                 }
-                Instruction::FloatArithmetic {
-                    dst,
-                    op,
-                    left,
-                    right,
-                } => {
-                    let left = self.float(*left);
-                    let right = self.float(*right);
-                    let value = match op {
-                        ArithmeticOp::Add => left + right,
-                        ArithmeticOp::Subtract => left - right,
-                        ArithmeticOp::Multiply => left * right,
-                        ArithmeticOp::Divide => left / right,
-                        ArithmeticOp::Remainder => left % right,
-                    };
-                    self.set_float(*dst, value);
+                @once Instruction::FloatAdd { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| a + b);
                 }
-                Instruction::FloatArithmeticConst {
+                @once Instruction::FloatSubtract { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| a - b);
+                }
+                @once Instruction::FloatMultiply { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| a * b);
+                }
+                @once Instruction::FloatMultiplyAdd { dst, left, right, addend } => {
+                    lanes::ternary(
+                        &mut self.workspace.registers.floats, self.active,
+                        self.workspace.numeric_lanes, dst.0, [left.0, right.0, addend.0],
+                        |a, b, c| a * b + c,
+                    );
+                }
+                @once Instruction::FloatMultiplyAddConst { dst, value, constant_bits, addend } => {
+                    let factor = f32::from_bits(*constant_bits);
+                    self.float_binary_lanes(*dst, *value, *addend, |a, b| a * factor + b);
+                }
+                @once Instruction::FloatMultiplySmoothstep { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| {
+                        let t = (a * b).clamp(0.0, 1.0);
+                        t * t * (3.0 - 2.0 * t)
+                    });
+                }
+                @once Instruction::FloatDivide { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| a / b);
+                }
+                @once Instruction::FloatRemainder { dst, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| a % b);
+                }
+                @once Instruction::FloatAddConst {
                     dst,
-                    op,
                     value,
                     constant_bits,
-                    constant_left,
                 } => {
-                    let value = self.float(*value);
                     let constant = f32::from_bits(*constant_bits);
-                    let (left, right) = if *constant_left {
-                        (constant, value)
-                    } else {
-                        (value, constant)
-                    };
-                    let value = match op {
-                        ArithmeticOp::Add => left + right,
-                        ArithmeticOp::Subtract => left - right,
-                        ArithmeticOp::Multiply => left * right,
-                        ArithmeticOp::Divide => left / right,
-                        ArithmeticOp::Remainder => left % right,
-                    };
-                    self.set_float(*dst, value);
+                    self.float_unary_lanes(*dst, *value, |value| value + constant);
                 }
-                Instruction::IntArithmetic {
+                @once Instruction::FloatSubtractConst {
                     dst,
-                    op,
-                    left,
-                    right,
+                    value,
+                    constant_bits,
                 } => {
-                    let left = self.int(*left);
-                    let right = self.int(*right);
-                    let value = match op {
-                        IntArithmeticOp::Add => left.wrapping_add(right),
-                        IntArithmeticOp::Subtract => left.wrapping_sub(right),
-                        IntArithmeticOp::Multiply => left.wrapping_mul(right),
-                        IntArithmeticOp::Remainder => left.checked_rem(right).unwrap_or(0),
-                    };
-                    self.set_int(*dst, value);
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| value - constant);
+                }
+                @once Instruction::FloatMultiplyConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| value * constant);
+                }
+                @once Instruction::FloatDivideConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| value / constant);
+                }
+                @once Instruction::FloatRemainderConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| value % constant);
+                }
+                @once Instruction::FloatSubtractFromConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| constant - value);
+                }
+                @once Instruction::FloatDivideIntoConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| constant / value);
+                }
+                @once Instruction::FloatRemainderFromConst {
+                    dst,
+                    value,
+                    constant_bits,
+                } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| constant % value);
+                }
+                @once Instruction::IntAdd { dst, left, right } => {
+                    self.int_binary_lanes(*dst, *left, *right, i32::wrapping_add);
+                }
+                @once Instruction::IntSubtract { dst, left, right } => {
+                    self.int_binary_lanes(*dst, *left, *right, i32::wrapping_sub);
+                }
+                @once Instruction::IntMultiply { dst, left, right } => {
+                    self.int_binary_lanes(*dst, *left, *right, i32::wrapping_mul);
+                }
+                @once Instruction::IntRemainder { dst, left, right } => {
+                    self.int_binary_lanes(*dst, *left, *right, |a, b| a.checked_rem(b).unwrap_or(0));
                 }
                 Instruction::FloatCompare {
                     dst,
@@ -1376,18 +1713,182 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                         == self.bytecode.enums[*constant];
                     self.set_bool(*dst, if *negate { !equal } else { equal });
                 }
-                Instruction::Jump(target) => self.ip = *target,
-                Instruction::JumpIfFalse { condition, target } => {
+                @branch Instruction::IntJumpLess {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.int(*left) < self.int(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::IntJumpLessEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.int(*left) <= self.int(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::IntJumpGreater {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.int(*left) > self.int(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::IntJumpGreaterEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.int(*left) >= self.int(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::IntJumpEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.int(*left) == self.int(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpLess {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*left) < self.float(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpLessEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*left) <= self.float(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpGreater {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*left) > self.float(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpGreaterEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*left) >= self.float(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpEqual {
+                    left,
+                    right,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*left) == self.float(*right)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpLessConst {
+                    value,
+                    constant_bits,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*value) < f32::from_bits(*constant_bits)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpLessEqualConst {
+                    value,
+                    constant_bits,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*value) <= f32::from_bits(*constant_bits)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpGreaterConst {
+                    value,
+                    constant_bits,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*value) > f32::from_bits(*constant_bits)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpGreaterEqualConst {
+                    value,
+                    constant_bits,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*value) >= f32::from_bits(*constant_bits)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::FloatJumpEqualConst {
+                    value,
+                    constant_bits,
+                    when,
+                    target,
+                } => {
+                    if (self.float(*value) == f32::from_bits(*constant_bits)) == *when {
+                        instructions = &code[*target..];
+                    }
+                }
+                @once Instruction::Jump(target) => {
+                    if let Some(flow) = &mut self.lanes {
+                        for lane in flow.active {
+                            flow.redirect(lane, *target);
+                        }
+                        let Some(next) = flow.resume() else {
+                            unreachable!("jump retains active lanes")
+                        };
+                        self.active = flow.active;
+                        next_event = flow.next_join_remaining(code.len());
+                        instructions = &code[next..];
+                    } else {
+                        instructions = &code[*target..];
+                    }
+                }
+                @branch Instruction::JumpIfFalse { condition, target } => {
                     if !self.bool(*condition) {
-                        self.ip = *target;
+                        instructions = &code[*target..];
                     }
                 }
-                Instruction::JumpIfTrue { condition, target } => {
+                @branch Instruction::JumpIfTrue { condition, target } => {
                     if self.bool(*condition) {
-                        self.ip = *target;
+                        instructions = &code[*target..];
                     }
                 }
-                Instruction::LoopRangeStart {
+                @branch Instruction::LoopRangeStart {
                     id,
                     count,
                     cap,
@@ -1395,27 +1896,30 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 } => {
                     let count = self.int(*count).max(0).min(*cap);
                     // Loop IDs are checked at admission; new() reserves loop_count.
-                    let remaining = &mut self.workspace.loop_remaining[*id as usize];
+                    let index = self.numeric_index(*id);
+                    let remaining = &mut self.workspace.loop_remaining[index];
                     *remaining = count as usize;
                     if count == 0 {
-                        self.ip = end + 1;
+                        instructions = &code[end + 1..];
                     }
                 }
-                Instruction::LoopMarksStart { id, marks, end } => {
+                @once Instruction::LoopMarksStart { id, marks, end } => {
                     let count = self.mark_value(*marks).marks.len();
                     // Loop IDs are checked at admission; new() reserves loop_count.
-                    let remaining = &mut self.workspace.loop_remaining[*id as usize];
+                    let index = self.numeric_index(*id);
+                    let remaining = &mut self.workspace.loop_remaining[index];
                     *remaining = count;
                     if count == 0 {
-                        self.ip = end + 1;
+                        instructions = &code[end + 1..];
                     }
                 }
-                Instruction::LoopEnd { id, start } => {
+                @branch Instruction::LoopEnd { id, start } => {
                     // Loop IDs are checked at admission; new() reserves loop_count.
-                    let remaining = &mut self.workspace.loop_remaining[*id as usize];
+                    let index = self.numeric_index(*id);
+                    let remaining = &mut self.workspace.loop_remaining[index];
                     if *remaining > 1 {
                         *remaining -= 1;
-                        self.ip = *start;
+                        instructions = &code[*start..];
                     } else {
                         *remaining = 0;
                     }
@@ -1423,23 +1927,43 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 Instruction::ContextRead { dst, read } => {
                     self.context_read(*dst, *read);
                 }
-                Instruction::SectionPosition { dst, width } => {
+                Instruction::QuerySeconds { dst, seconds } => {
+                    let value = crate::values::sample_time_from_seconds_f32(self.float(*seconds))
+                        .ok()
+                        .filter(|time| time.as_ticks() < self.run_context().duration.as_ticks())
+                        .map_or(f32::NAN, crate::values::sample_time_seconds_f32);
+                    self.set_float(*dst, value);
+                }
+                Instruction::QueryProgress { dst, seconds } => {
+                    let duration = self.run_context().duration.as_ticks();
+                    let value = crate::values::sample_time_from_seconds_f32(self.float(*seconds))
+                        .ok()
+                        .filter(|time| time.as_ticks() < duration)
+                        .map_or(f32::NAN, |time| (time.as_ticks() as f32 / duration as f32).clamp(0.0, 1.0));
+                    self.set_float(*dst, value);
+                }
+                Instruction::SectionPosition {
+                    dst,
+                    width,
+                    inverse,
+                } => {
                     let width = self.float(*width);
-                    let index = self.context.pixel_index as f32;
-                    let value = if width.is_nan() {
-                        f32::NAN
-                    } else {
-                        let width = width.max(1.0);
-                        (index - libm::floorf(index / width) * width) / width
-                    };
+                    let inverse = self.float(*inverse);
+                    let index = self.run_context().pixel_index as f32;
+                    let value = (index - libm::floorf(index * inverse) * width) * inverse;
                     self.set_float(*dst, value);
                 }
                 Instruction::SectionQuery { dst, width, index } => {
-                    self.set_int(*dst, self.sections.query(self.int(*width), *index));
+                    self.set_int(*dst, self.section_context().query(self.int(*width), *index));
                 }
-                Instruction::FloatUnary { dst, op, value } => {
-                    let value = self.float(*value);
-                    let result = if value.is_nan() {
+                @once Instruction::FloatUnary { dst, op: FloatUnary::Abs, value } => {
+                    self.float_unary_lanes(*dst, *value, |value| if value.is_nan() { f32::NAN } else { value.abs() });
+                }
+                @once Instruction::FloatUnary { dst, op: FloatUnary::Floor, value } => {
+                    self.float_unary_lanes(*dst, *value, |value| if value.is_nan() { f32::NAN } else { libm::floorf(value) });
+                }
+                @once Instruction::FloatUnary { dst, op, value } => {
+                    self.float_unary_lanes(*dst, *value, |value| if value.is_nan() {
                         f32::NAN
                     } else {
                         match op {
@@ -1447,31 +1971,40 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                             FloatUnary::Cos => micromath::F32Ext::cos(value),
                             FloatUnary::Abs => value.abs(),
                             FloatUnary::Floor => libm::floorf(value),
+                            FloatUnary::Sqrt => libm::sqrtf(value),
                         }
-                    };
-                    self.set_float(*dst, result);
+                    });
                 }
-                Instruction::FloatBinary {
+                @once Instruction::FloatBinary { dst, op: FloatBinary::Min, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| float_binary(FloatBinary::Min, a, b));
+                }
+                @once Instruction::FloatBinary { dst, op: FloatBinary::Max, left, right } => {
+                    self.float_binary_lanes(*dst, *left, *right, |a, b| float_binary(FloatBinary::Max, a, b));
+                }
+                @once Instruction::FloatBinary {
                     dst,
                     op,
                     left,
                     right,
                 } => {
-                    let left = self.float(*left);
-                    let right = self.float(*right);
-                    let result = float_binary(*op, left, right);
-                    self.set_float(*dst, result);
+                    self.float_binary_lanes(*dst, *left, *right, |left, right| float_binary(*op, left, right));
                 }
-                Instruction::FloatBinaryConst {
+                @once Instruction::FloatBinaryConst { dst, op: FloatBinary::Min, value, constant_bits } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| float_binary(FloatBinary::Min, value, constant));
+                }
+                @once Instruction::FloatBinaryConst { dst, op: FloatBinary::Max, value, constant_bits } => {
+                    let constant = f32::from_bits(*constant_bits);
+                    self.float_unary_lanes(*dst, *value, |value| float_binary(FloatBinary::Max, value, constant));
+                }
+                @once Instruction::FloatBinaryConst {
                     dst,
                     op,
                     value,
                     constant_bits,
                 } => {
-                    let value = self.float(*value);
                     let constant = f32::from_bits(*constant_bits);
-                    let result = float_binary(*op, value, constant);
-                    self.set_float(*dst, result);
+                    self.float_unary_lanes(*dst, *value, |value| float_binary(*op, value, constant));
                 }
                 Instruction::Clamp {
                     dst,
@@ -1484,29 +2017,21 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     let max = self.float(*max);
                     self.set_float(*dst, clamp_float(value, min, max));
                 }
-                Instruction::ClampConst {
+                @once Instruction::ClampConst {
                     dst,
                     value,
                     min_bits,
                     max_bits,
                 } => {
-                    let value = self.float(*value);
-                    self.set_float(
-                        *dst,
-                        clamp_float(value, f32::from_bits(*min_bits), f32::from_bits(*max_bits)),
-                    );
+                    let min = f32::from_bits(*min_bits);
+                    let max = f32::from_bits(*max_bits);
+                    self.float_unary_lanes(*dst, *value, |value| clamp_float(value, min, max));
                 }
-                Instruction::Smoothstep {
-                    dst,
-                    edge0,
-                    edge1,
-                    value,
-                } => {
-                    let edge0 = self.float(*edge0);
-                    let edge1 = self.float(*edge1);
-                    let value = self.float(*value);
-                    let t = ((value - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
-                    self.set_float(*dst, t * t * (3.0 - 2.0 * t));
+                @once Instruction::Smoothstep { dst, value } => {
+                    self.float_unary_lanes(*dst, *value, |value| {
+                        let t = value.clamp(0.0, 1.0);
+                        t * t * (3.0 - 2.0 * t)
+                    });
                 }
                 Instruction::MixFloat {
                     dst,
@@ -1519,36 +2044,44 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     let right = self.float(*right);
                     self.set_float(*dst, left + (right - left) * amount);
                 }
-                Instruction::MixColor {
+                @once Instruction::MixColor {
                     dst,
                     left,
                     right,
                     amount,
                 } => {
-                    let amount = self.float(*amount);
-                    let left = self.color(*left);
-                    let right = self.color(*right);
-                    self.set_color(*dst, mix_colors(left, right, amount));
+                    for lane in self.color_mask() {
+                        self.lane = if self.lanes.is_some() { lane } else { 0 };
+                        let amount = self.float(*amount);
+                        let left = self.color_lane(*left, lane);
+                        let right = self.color_lane(*right, lane);
+                        self.set_color_lane(*dst, lane, mix_colors(left, right, amount));
+                    }
                 }
-                Instruction::ColorBinary {
+                @once Instruction::ColorBinary {
                     dst,
                     op,
                     left,
                     right,
                 } => {
-                    let left = self.color(*left);
-                    let right = self.color(*right);
-                    let color = match op {
-                        ColorBinary::Add => add_colors(left, right),
-                        ColorBinary::Multiply => multiply_colors(left, right),
-                        ColorBinary::Max => max_colors(left, right),
-                    };
-                    self.set_color(*dst, color);
+                    for lane in self.color_mask() {
+                        let left = self.color_lane(*left, lane);
+                        let right = self.color_lane(*right, lane);
+                        let color = match op {
+                            ColorBinary::Add => add_colors(left, right),
+                            ColorBinary::Multiply => multiply_colors(left, right),
+                            ColorBinary::Max => max_colors(left, right),
+                        };
+                        self.set_color_lane(*dst, lane, color);
+                    }
                 }
-                Instruction::ColorScale { dst, color, scale } => {
-                    let color = self.color(*color);
-                    let scale = self.float(*scale);
-                    self.set_color(*dst, scale_color(color, scale));
+                @once Instruction::ColorScale { dst, color, scale } => {
+                    for lane in self.color_mask() {
+                        self.lane = if self.lanes.is_some() { lane } else { 0 };
+                        let scale = self.float(*scale);
+                        let color = self.color_lane(*color, lane);
+                        self.set_color_lane(*dst, lane, scale_color(color, scale));
+                    }
                 }
                 Instruction::ColorComponent { dst, op, color } => {
                     let color = self.color(*color);
@@ -1559,9 +2092,11 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     };
                     self.set_float(*dst, value);
                 }
-                Instruction::ColorInvert { dst, color } => {
-                    let color = self.color(*color);
-                    self.set_color(*dst, invert_color(color));
+                @once Instruction::ColorInvert { dst, color } => {
+                    for lane in self.color_mask() {
+                        let color = self.color_lane(*color, lane);
+                        self.set_color_lane(*dst, lane, invert_color(color));
+                    }
                 }
                 Instruction::Rgb {
                     dst,
@@ -1571,18 +2106,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                 } => {
                     let (red, green, blue) =
                         (self.float(*red), self.float(*green), self.float(*blue));
-                    self.set_color(
-                        *dst,
-                        if red.is_nan() || green.is_nan() || blue.is_nan() {
-                            Color::BLACK
-                        } else {
-                            Color {
-                                red: channel(red),
-                                green: channel(green),
-                                blue: channel(blue),
-                            }
-                        },
-                    );
+                    self.set_color(*dst, crate::sampling::rgb(red, green, blue));
                 }
                 Instruction::Hsv {
                     dst,
@@ -1603,7 +2127,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     let random = crate::sampling::deterministic_random_seed(self.float(*seed));
                     self.set_float(*dst, random);
                 }
-                Instruction::CurveFloatClamped {
+                @once Instruction::CurveFloatClamped {
                     dst,
                     curve,
                     position,
@@ -1634,7 +2158,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     );
                     self.set_float(*dst, value);
                 }
-                Instruction::GradientColorScaled {
+                @once Instruction::GradientColorScaled {
                     dst,
                     gradient,
                     position,
@@ -1667,7 +2191,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                         self.set_color(*dst, scale_color(color, scale));
                     }
                 }
-                Instruction::CurveCrossing {
+                @once Instruction::CurveCrossing {
                     dst,
                     curve,
                     value,
@@ -1704,14 +2228,14 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                     };
                     self.set_float(*dst, result);
                 }
-                Instruction::Len { dst, value } => {
+                @once Instruction::Len { dst, value } => {
                     let length = self
                         .array_register(*value)
                         .view(&self.workspace.arrays)
                         .len();
                     self.set_int(*dst, int_len(length));
                 }
-                Instruction::Mark { marks, op } => {
+                @once Instruction::Mark { marks, op } => {
                     let marks = self.mark_value(*marks);
                     match *op {
                         MarkOp::Count { dst } => {
@@ -1734,27 +2258,145 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
                         }
                     }
                 }
-                Instruction::ReturnColor(value) => {
-                    return Ok(value.finish(&self.workspace.registers));
+                @once Instruction::ReturnColor(value) => {
+                    if let Some(flow) = &self.lanes {
+                        for lane in flow.active {
+                            let color = self.color_lane((*value).into(), lane);
+                            if let Some(output) = &mut self.output {
+                                output[lane] = color;
+                            }
+                        }
+                        if let Some(flow) = &mut self.lanes
+                            && let Some(next) = flow.resume()
+                        {
+                            self.active = flow.active;
+                            next_event = flow.next_join_remaining(code.len());
+                            instructions = &code[next..];
+                            continue;
+                        }
+                    }
+                    return Ok(*value);
                 }
             }
         }
     }
 
+    #[inline(always)]
+    fn float_binary_lanes(
+        &mut self,
+        dst: FloatSlot,
+        left: FloatSlot,
+        right: FloatSlot,
+        op: impl Fn(f32, f32) -> f32,
+    ) {
+        let mask = self.numeric_mask();
+        lanes::binary(
+            &mut self.workspace.registers.floats,
+            mask,
+            self.workspace.numeric_lanes,
+            dst.0,
+            left.0,
+            right.0,
+            op,
+        );
+    }
+
+    #[inline(always)]
+    fn float_unary_lanes(&mut self, dst: FloatSlot, src: FloatSlot, op: impl Fn(f32) -> f32) {
+        let mask = self.numeric_mask();
+        lanes::unary(
+            &mut self.workspace.registers.floats,
+            mask,
+            self.workspace.numeric_lanes,
+            dst.0,
+            src.0,
+            op,
+        );
+    }
+
+    #[inline(always)]
+    fn int_binary_lanes(
+        &mut self,
+        dst: IntSlot,
+        left: IntSlot,
+        right: IntSlot,
+        op: impl Fn(i32, i32) -> i32,
+    ) {
+        let mask = self.numeric_mask();
+        lanes::binary(
+            &mut self.workspace.registers.ints,
+            mask,
+            self.workspace.numeric_lanes,
+            dst.0,
+            left.0,
+            right.0,
+            op,
+        );
+    }
+
     fn int(&self, slot: IntSlot) -> i32 {
-        self.workspace.registers.ints[slot.0 as usize]
+        self.workspace.registers.ints[self.numeric_index(slot.0)]
     }
 
     fn float(&self, slot: FloatSlot) -> f32 {
-        self.workspace.registers.floats[slot.0 as usize]
+        self.workspace.registers.floats[self.numeric_index(slot.0)]
     }
 
     fn bool(&self, slot: BoolSlot) -> bool {
-        self.workspace.registers.bools[slot.0 as usize]
+        self.workspace.registers.bools[self.numeric_index(slot.0)]
     }
 
+    fn numeric_index(&self, slot: u32) -> usize {
+        slot as usize * self.workspace.numeric_lanes + self.lane
+    }
+
+    fn numeric_mask(&self) -> Mask {
+        self.active
+    }
+
+    fn color_mask(&self) -> Mask {
+        if self.broadcast {
+            Mask::FIRST
+        } else {
+            self.lanes
+                .as_ref()
+                .map_or_else(|| Mask::full(self.color_lanes()), |flow| flow.active)
+        }
+    }
+
+    fn run_context(&self) -> &RunContext {
+        self.lane_contexts
+            .map_or(self.context, |contexts| &contexts[self.lane].context)
+    }
+
+    fn spatial_context(&self) -> &SpatialContext {
+        self.lane_contexts
+            .map_or(self.spatial, |contexts| &contexts[self.lane].spatial)
+    }
+
+    fn section_context(&self) -> crate::sections::SectionContext<'_> {
+        self.lane_contexts
+            .map_or(self.sections, |contexts| contexts[self.lane].sections)
+    }
+
+    fn color_lanes(&self) -> usize {
+        self.workspace.color_lanes
+    }
+
+    #[inline(always)]
     fn color(&self, slot: ColorSlot) -> Color {
-        self.workspace.registers.colors[slot.0 as usize]
+        self.color_lane(slot, self.lane)
+    }
+
+    #[inline(always)]
+    fn color_lane(&self, slot: ColorSlot, lane: usize) -> Color {
+        self.workspace.registers.colors[slot.0 as usize * self.color_lanes() + lane]
+    }
+
+    #[inline(always)]
+    fn set_color_lane(&mut self, slot: ColorSlot, lane: usize, value: Color) {
+        let index = slot.0 as usize * self.color_lanes() + lane;
+        self.workspace.registers.colors[index] = value;
     }
 
     fn array_register(&self, slot: ArraySlot) -> &ArrayRegister {
@@ -1814,19 +2456,29 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
     }
 
     fn set_int(&mut self, slot: IntSlot, value: i32) {
-        self.workspace.registers.ints[slot.0 as usize] = value;
+        let index = self.numeric_index(slot.0);
+        self.workspace.registers.ints[index] = value;
     }
 
     fn set_float(&mut self, slot: FloatSlot, value: f32) {
-        self.workspace.registers.floats[slot.0 as usize] = value;
+        let index = self.numeric_index(slot.0);
+        self.workspace.registers.floats[index] = value;
     }
 
     fn set_bool(&mut self, slot: BoolSlot, value: bool) {
-        self.workspace.registers.bools[slot.0 as usize] = value;
+        let index = self.numeric_index(slot.0);
+        self.workspace.registers.bools[index] = value;
     }
 
+    #[inline(never)]
     fn set_color(&mut self, slot: ColorSlot, value: Color) {
-        self.workspace.registers.colors[slot.0 as usize] = value;
+        if self.lanes.is_some() {
+            self.set_color_lane(slot, self.lane, value);
+            return;
+        }
+        let lanes = self.color_lanes();
+        let start = slot.0 as usize * lanes;
+        self.workspace.registers.colors[start..start + lanes].fill(value);
     }
 
     fn set_enum(&mut self, slot: EnumSlot, value: Identifier) {
@@ -1909,7 +2561,18 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
             ValueSlot::Int(dst) => self.set_int(dst, self.int(IntSlot(src))),
             ValueSlot::Float(dst) => self.set_float(dst, self.float(FloatSlot(src))),
             ValueSlot::Bool(dst) => self.set_bool(dst, self.bool(BoolSlot(src))),
-            ValueSlot::Color(dst) => self.set_color(dst, self.color(ColorSlot(src))),
+            ValueSlot::Color(dst) => {
+                if self.lanes.is_some() {
+                    self.set_color(dst, self.color(ColorSlot(src)));
+                    return;
+                }
+                let lanes = self.color_lanes();
+                let start = src as usize * lanes;
+                self.workspace
+                    .registers
+                    .colors
+                    .copy_within(start..start + lanes, dst.0 as usize * lanes);
+            }
             ValueSlot::Array(dst) => {
                 self.set_array(dst, self.array_register(ArraySlot(src)).clone())
             }
@@ -1928,7 +2591,7 @@ impl<'a, C: ReadContext, S: Copy, A, P: SampleSignal<S>> Vm<'a, C, S, A, P> {
     }
 
     fn context_read(&mut self, dst: NumberSlot, read: C) {
-        match read.read(self.context, self.spatial) {
+        match read.read(self.run_context(), self.spatial_context()) {
             context::Number::Int(value) => self.set_context_int(dst, value),
             context::Number::Float(value) => self.set_context_float(dst, value),
         }
@@ -2230,23 +2893,8 @@ fn float_binary(op: FloatBinary, left: f32, right: f32) -> f32 {
         FloatBinary::Min | FloatBinary::Max if left.is_nan() || right.is_nan() => f32::NAN,
         FloatBinary::Min => left.min(right),
         FloatBinary::Max => left.max(right),
+        FloatBinary::Atan2 => libm::atan2f(left, right),
     }
-}
-
-fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
-    if min.is_nan() || max.is_nan() || min > max {
-        f32::NAN
-    } else {
-        value.clamp(min, max)
-    }
-}
-
-fn channel(value: f32) -> u8 {
-    channel_byte(value * 255.0)
-}
-
-fn channel_byte(value: f32) -> u8 {
-    (value.clamp(0.0, 255.0) + 0.5) as u8
 }
 
 fn mark_at_from(marks: &Marks, index: i32) -> f32 {

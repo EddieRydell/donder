@@ -13,4 +13,7 @@ pub(crate) use types::{Type, Value};
 pub(crate) use vm::AutomationPlan;
 #[cfg(test)]
 pub(crate) use vm::RuntimeError;
-pub(crate) use vm::{BoundParams, DslBindCache, RunContext, SignalSampler, VmWorkspace};
+pub(crate) use vm::{
+    BoundParams, COLOR_BLOCK_WIDTH, DslBindCache, LaneContext, RunContext, SignalSampler,
+    VmWorkspace,
+};
