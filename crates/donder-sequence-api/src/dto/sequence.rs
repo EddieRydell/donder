@@ -293,6 +293,17 @@ pub struct SequenceEffectDefinitionParam {
 pub struct SequenceLane {
     pub target: FixtureTarget,
     pub label: String,
+    pub kind: SequenceLaneKind,
+    /** Nesting depth in the layout tree; top-level fixtures and groups are 0. */
+    pub depth: u32,
+}
+
+/** Lanes follow the layout tree depth-first; a group lane precedes its members. */
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SequenceLaneKind {
+    Fixture,
+    Group,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

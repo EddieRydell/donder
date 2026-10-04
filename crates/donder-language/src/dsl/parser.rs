@@ -1,6 +1,6 @@
 use super::ast::{
-    BinaryOp, Block, EffectDecl, Expr, ExprKind, FunctionDecl, FunctionParam, Module, OperatorDecl,
-    OperatorInputDecl, ParamDecl, Stmt, UnaryOp,
+    BinaryOp, Block, DeclarationKind, DeclarationSpan, EffectDecl, Expr, ExprKind, FunctionDecl,
+    FunctionParam, Module, OperatorDecl, OperatorInputDecl, ParamDecl, Stmt, UnaryOp,
 };
 use super::diagnostic::Diagnostic;
 use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
@@ -52,14 +52,26 @@ impl<'source> Parser<'source> {
     fn parse_module(&mut self) -> Module {
         let mut effects = Vec::new();
         let mut operators = Vec::new();
+        let mut declarations = Vec::new();
         while !self.at(TokenKind::Eof) {
             let start_cursor = self.cursor;
+            let start = self.current().span.start;
             if self.consume_keyword(Keyword::Effect) {
                 if let Some(effect) = self.parse_effect() {
+                    declarations.push(self.declaration(
+                        DeclarationKind::Effect,
+                        &effect.name,
+                        start,
+                    ));
                     effects.push(effect);
                 }
             } else if self.consume_keyword(Keyword::Operator) {
                 if let Some(operator) = self.parse_operator() {
+                    declarations.push(self.declaration(
+                        DeclarationKind::Operator,
+                        &operator.name,
+                        start,
+                    ));
                     operators.push(operator);
                 }
             } else {
@@ -68,7 +80,31 @@ impl<'source> Parser<'source> {
             }
             self.ensure_progress(start_cursor, "parser made no progress in module");
         }
-        Module { effects, operators }
+        Module {
+            effects,
+            operators,
+            declarations,
+        }
+    }
+
+    /// A declaration that started at `start` and ended at the last consumed token.
+    fn declaration(
+        &self,
+        kind: DeclarationKind,
+        name: &Identifier,
+        start: usize,
+    ) -> DeclarationSpan {
+        let end = self
+            .cursor
+            .checked_sub(1)
+            .and_then(|index| self.tokens.get(index))
+            .map_or(start, |token| token.span.end);
+        DeclarationSpan {
+            kind,
+            name: name.clone(),
+            start,
+            end,
+        }
     }
 
     fn parse_operator(&mut self) -> Option<OperatorDecl> {

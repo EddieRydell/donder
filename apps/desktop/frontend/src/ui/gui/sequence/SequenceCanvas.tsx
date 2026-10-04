@@ -11,7 +11,7 @@ import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../editor/types";
+import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
@@ -40,6 +40,8 @@ import {
   laneIndexFromCanvasY,
   rowFromCanvasY,
   sequenceRowLayout,
+  collapseRows,
+  collapsedLaneTargets,
   type SequenceRowLayout,
   type SequenceRowKind,
   type SequenceRowHeightMap,
@@ -244,10 +246,15 @@ export function SequenceCanvas({
     () => automationClipsWithDrafts(document.automationClips, automationDrafts, automationCurveDraft),
     [automationCurveDraft, automationDrafts, document.automationClips]
   );
-  const rows = useMemo(
-    () => sequenceRowLayout(document.lanes, document.automationClips, viewport.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation),
-    [document.lanes, document.automationClips, viewport.rowHeights, settings, automationRowHeight, revealAutomation]
+  // Group lanes collapse like folders in a file tree; their members take no rows.
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<number>>(() => new Set());
+  const hiddenLanes = useMemo(() => collapsedLaneTargets(document.lanes, collapsedGroups), [document.lanes, collapsedGroups]);
+  const layoutRows = useCallback(
+    (rowHeights: SequenceRowHeightMap, reveal: boolean) =>
+      collapseRows(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), hiddenLanes),
+    [document.lanes, document.automationClips, settings, automationRowHeight, hiddenLanes]
   );
+  const rows = useMemo(() => layoutRows(viewport.rowHeights, revealAutomation), [layoutRows, viewport.rowHeights, revealAutomation]);
   const visibleMarkCollections = useMemo(
     () => document.markCollections.filter((collection) => visibleMarkCollectionKeys.has(collection.key)),
     [document.markCollections, visibleMarkCollectionKeys]
@@ -300,14 +307,14 @@ export function SequenceCanvas({
     event.preventDefault();
     setViewport((current) => {
       const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
-      const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, current.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight);
+      const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(current.rowHeights, revealAutomation)) - visibleHeight);
       if (event.ctrlKey && event.shiftKey) {
         const scale = Math.exp(-zoomDelta * SEQUENCE_CANVAS.wheelZoomScale);
         const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
         return {
           ...current,
           rowHeights,
-          scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight))
+          scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - visibleHeight))
         };
       }
       if (event.ctrlKey) {
@@ -336,7 +343,7 @@ export function SequenceCanvas({
         scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
       };
     });
-  }, [automationRowHeight, document, left, revealAutomation, scrollbarHeight, settings, setViewport, top]);
+  }, [document, layoutRows, left, revealAutomation, scrollbarHeight, settings, setViewport, top]);
 
   useEffect(() => {
     const target = canvas.current;
@@ -397,7 +404,7 @@ export function SequenceCanvas({
         const scrollXSeconds = clamp(current.scrollXSeconds, 0, Math.max(0, document.durationSeconds - timelineWidth / pxPerSecond));
         const rowHeights = completeRowHeights(current.rowHeights, document, settings);
         const rowsChanged = rowHeights !== current.rowHeights;
-        const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - Math.max(1, visibleHeight - top));
+        const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - Math.max(1, visibleHeight - top));
         const scrollY = clamp(current.scrollY, 0, maxScrollY);
         if (!rowsChanged && pxPerSecond === current.pxPerSecond && scrollXSeconds === current.scrollXSeconds && scrollY === current.scrollY) return current;
         return {
@@ -416,7 +423,7 @@ export function SequenceCanvas({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [automationRowHeight, revealAutomation, document, left, restoredViewport, scrollbarHeight, settings, top]);
+  }, [automationRowHeight, revealAutomation, document, layoutRows, left, restoredViewport, scrollbarHeight, settings, top]);
 
   useEffect(() => {
     if (restoredViewport === undefined || restoredViewportKey.current === restoreKey) return;
@@ -531,7 +538,12 @@ export function SequenceCanvas({
       const lane = document.lanes[row.laneIndex];
       if (lane === undefined) throw new Error("Timeline row has no lane.");
       const label = row.kind === "effects" ? lane.label : "Automation";
-      ctx.fillText(fitCanvasLabel(ctx, label, left - THEME_METRICS.sequenceLabelX * 2), THEME_METRICS.sequenceLabelX, y + row.height / 2 + THEME_METRICS.sequenceLabelYOffset);
+      const labelLayout = laneLabelLayout(lane);
+      const labelY = y + row.height / 2;
+      if (row.kind === "effects" && lane.kind === "group") {
+        drawDisclosure(ctx, labelLayout.disclosureX, labelY, collapsedGroups.has(lane.target.fixture));
+      }
+      ctx.fillText(fitCanvasLabel(ctx, label, left - labelLayout.textX - THEME_METRICS.sequenceLabelX), labelLayout.textX, labelY + THEME_METRICS.sequenceLabelYOffset);
       if (rowResizeHover?.laneIndex === row.laneIndex && rowResizeHover.rowKind === row.kind) {
         ctx.fillStyle = SEQUENCE_COLORS.accent;
         ctx.fillRect(0, y + row.height - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
@@ -662,7 +674,7 @@ export function SequenceCanvas({
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
 
-  }, [activeAutomationTargetEffectIds, audioResizeHover, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, audioResizeHover, collapsedGroups, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
@@ -1042,6 +1054,15 @@ export function SequenceCanvas({
           const lane = document.lanes[laneIndex];
           if (lane === undefined) return;
           const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
+          if (row?.kind === "effects" && lane.kind === "group" && x < laneLabelLayout(lane).textX) {
+            const group = lane.target.fixture;
+            setCollapsedGroups((current) => {
+              const next = new Set(current);
+              if (!next.delete(group)) next.add(group);
+              return next;
+            });
+            return;
+          }
           const effectIds = row?.kind === "effects" ? document.effects.filter((effect) => targetsEqual(effect.target, lane.target)).map((effect) => effect.id) : [];
           const automationIds = row?.kind === "automation" ? document.automationClips.filter((clip) => targetsEqual(clip.rowTarget, lane.target)).map((clip) => clip.id) : [];
           setSelectedLaneIndex(laneIndex);
@@ -1175,7 +1196,7 @@ export function SequenceCanvas({
           setViewport((previous) => {
             const nextTop = SEQUENCE_CANVAS.audioStripTopPx + audioStripHeight;
             const visibleHeight = Math.max(1, canvasSize.height - nextTop);
-            const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, previous.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - visibleHeight);
+            const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(previous.rowHeights, revealAutomation)) - visibleHeight);
             return { ...previous, audioStripHeight, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
           });
           return;
@@ -1198,7 +1219,7 @@ export function SequenceCanvas({
             const heights = complete[target.fixture];
             if (heights === undefined) throw new Error("Timeline row heights are missing.");
             const rowHeights = { ...complete, [target.fixture]: { ...heights, [current.rowKind]: nextHeight } };
-            const maxScrollY = Math.max(0, expandedTimelineHeight(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, revealAutomation)) - Math.max(1, canvasSize.height - top));
+            const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - Math.max(1, canvasSize.height - top));
             return { ...previous, rowHeights, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
           });
           return;
@@ -1306,7 +1327,7 @@ export function SequenceCanvas({
             const sourceTarget = current.kind === "automation" ? current.rowTarget : targetAtLane(document, current.laneIndex);
             const sourceKind = current.kind === "automation" ? "automation" : "effects";
             const before = rows.find((row) => targetsEqual(row.target, sourceTarget) && row.kind === sourceKind);
-            const expanded = sequenceRowLayout(document.lanes, document.automationClips, viewport.rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, true);
+            const expanded = layoutRows(viewport.rowHeights, true);
             const after = expanded.find((row) => targetsEqual(row.target, sourceTarget) && row.kind === sourceKind);
             if (before === undefined || after === undefined) throw new Error("Dragged clip row is missing.");
             // Keep the grabbed row under the pointer while exposing empty drop rows.
@@ -1689,6 +1710,30 @@ function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: 
   }
   scheduleViewStateSave(JSON.stringify(["sequence", objectViewKey(reference)]), () => commands.saveSequenceViewportState({ path, objectKey, ownedPath, state }),
     (error) => { useAppStore.getState().setError(String(error)); });
+}
+
+/** A lane label's disclosure triangle and text positions, indented by depth like a file tree. */
+function laneLabelLayout(lane: SequenceLane) {
+  const disclosureX = THEME_METRICS.sequenceLabelX + lane.depth * THEME_METRICS.sequenceLaneIndent;
+  return { disclosureX, textX: disclosureX + THEME_METRICS.sequenceDisclosureSize + THEME_METRICS.sequenceDisclosureGap };
+}
+
+/** A filled triangle: pointing right when collapsed, down when expanded. */
+function drawDisclosure(ctx: CanvasRenderingContext2D, x: number, centerY: number, collapsed: boolean) {
+  const size = THEME_METRICS.sequenceDisclosureSize;
+  const half = size / 2;
+  ctx.beginPath();
+  if (collapsed) {
+    ctx.moveTo(x, centerY - half);
+    ctx.lineTo(x + size, centerY);
+    ctx.lineTo(x, centerY + half);
+  } else {
+    ctx.moveTo(x, centerY - half);
+    ctx.lineTo(x + size, centerY - half);
+    ctx.lineTo(x + half, centerY + half);
+  }
+  ctx.closePath();
+  ctx.fill();
 }
 
 function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceEditorDocument, settings: AppSettings | null): SequenceRowHeightMap {

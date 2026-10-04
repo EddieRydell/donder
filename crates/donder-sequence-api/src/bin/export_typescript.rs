@@ -116,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<SequenceEffectDefinition>()
         .register::<SequenceEffectDefinitionParam>()
         .register::<SequenceLane>()
+        .register::<SequenceLaneKind>()
         .register::<SequenceMarkCollection>()
         .register::<SequenceSelectionEditResult>()
         .register::<GuiDocument>()

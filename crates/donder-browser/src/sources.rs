@@ -296,3 +296,41 @@ impl BrowserSession {
         self.update_source(path, kind, source, SourceInstall::Replace)
     }
 }
+
+/// Split a DSL source into one document per declaration, named
+/// `<Name>.effect.donder` or `<Name>.operator.donder`. Text between declarations
+/// (comments) is not part of any document.
+#[wasm_bindgen(js_name = declarationSources)]
+pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
+    let declarations = donder_language::dsl::declaration_spans(source).map_err(|diagnostics| {
+        JsValue::from_str(
+            &diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    })?;
+    let documents = declarations
+        .into_iter()
+        .map(|declaration| {
+            let (kind, suffix) = match declaration.kind {
+                donder_language::dsl::DeclarationKind::Effect => {
+                    (BrowserSourceKind::Effect, "effect")
+                }
+                donder_language::dsl::DeclarationKind::Operator => {
+                    (BrowserSourceKind::Operator, "operator")
+                }
+            };
+            let text = source
+                .get(declaration.start..declaration.end)
+                .ok_or_else(|| JsValue::from_str("Declaration span is outside its source."))?;
+            Ok(BrowserSourceDocument {
+                path: format!("{}.{suffix}.donder", declaration.name.as_str()),
+                kind,
+                source: format!("{text}\n"),
+            })
+        })
+        .collect::<Result<Vec<_>, JsValue>>()?;
+    js_value(&documents)
+}
