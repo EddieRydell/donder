@@ -8,30 +8,37 @@ No project files or runtime server are required.
 The shared Rust contract in `donder-sequence-api` generates standalone
 TypeScript types and desktop bindings through `pnpm generate:bindings`.
 The desktop frontend exports `@donder/editor`: the actual timeline, inspector,
-automation controls, graph editor, and playback controls. A
+automation controls, graph editor, playback controls, and DSL source editor. A
 `SequenceEditorHost` supplies commands, state, asset URLs, and host capabilities.
 The desktop adapter uses Tauri; the website adapter uses this WASM session.
 
 ## Session API
 
+- `new BrowserSession(config)` takes a `BrowserSessionConfig`: frame rate,
+  duration, the measured page tree, effect/operator source documents, and an
+  optional website audio URL. These are the starting point, not history entries.
+- The page tree (`BrowserPageNode`) becomes the layout: groups become layout
+  groups, and each fixture becomes an inline fixture with one pixel per point.
+  The website owns node ids so effect targets stay stable as the page changes.
+- `render(seconds)` returns RGB bytes in depth-first page order.
+- `setPageLayout(page)` replaces the page. Effects and automation rows on removed
+  nodes are deleted. Page changes are not history entries; undo keeps the current page.
 - `editorState()` returns the projected sequence, revision, settings, and undo state.
 - `applyEdit(edit)` accepts the shared `SequenceGuiEdit` contract: effects,
   parameters, automation clips and bindings, layers, operators, graph edges,
   and marks. `applySelectionEdit(edit)` handles mixed selections and clipboard.
 - `undo()` and `redo()` restore immutable project snapshots.
-- `sourceDocuments()`, `addSource(kind, source)`, and `setSource(path, source)`
-  expose effect/operator DSL authoring. Invalid source returns diagnostics
-  without replacing the last accepted project or playback.
-- `setCharacterPositions(positions)` replaces the demo fixture geometry using
-  normalized page coordinates. Position order matches `render(seconds).pixels`.
-  Geometry changes do not create history entries; undo preserves current page geometry.
+- `sourceDocuments()`, `addSource(kind, path, source)`, and `setSource(path, source)`
+  expose effect/operator DSL authoring. A document may declare any number of
+  effects or operators; the project check rejects removing a declaration the
+  sequence still uses. Invalid source returns diagnostics without replacing the
+  last accepted project or playback.
 - `renderClipRaster(effectId, columns, rows)` uses the prepared runtime sampler
   and the same column timing as desktop clip rasters.
 
-Browser audio-file imports and desktop device output are unavailable. View state
-is maintained by the browser host in memory. The current demo uses one fixture
-containing measured page characters; per-line fixtures and nested page groups
-remain a separate layout feature.
+The website serves the audio file and the browser host plays it. Choosing audio
+files and device output are unavailable. View state is maintained by the
+browser host in memory.
 
 ## Build
 

@@ -2,13 +2,10 @@ import { SequenceEditorHostProvider } from "../editor/host";
 import { desktopSequenceEditorHost } from "../editor/desktopHost";
 export function EditorPane(props: Parameters<typeof EditorPaneContent>[0]) { return <SequenceEditorHostProvider host={desktopSequenceEditorHost}><EditorPaneContent {...props} /></SequenceEditorHostProvider>; }
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { cpp } from "@codemirror/lang-cpp";
-import { yaml } from "@codemirror/lang-yaml";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { syntaxHighlighting } from "@codemirror/language";
 import { linter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
-import { EditorState, type Extension } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, ViewUpdate } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
 import { RefreshCw, Save, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -21,6 +18,7 @@ import { closeInlineEditor, runSnapshotCommand, useAppStore, type AppStaticSnaps
 import { runWorkspaceTransition } from "../workspaceTransitions";
 import { GuiEditor } from "./gui/GuiEditor";
 import { ReadOnlySourceNotice } from "./ReadOnlySourceNotice";
+import { donderHighlightStyle, languageForSyntax } from "./source/dslSyntax";
 import { reconcileSequenceSelection } from "./gui/sequence/sequenceSelection";
 import { SequenceTransportControls } from "./gui/sequence/SequenceTransportControls";
 import { THEME_METRICS } from "../theme";
@@ -817,20 +815,3 @@ function setScrollTop(scrollDOM: HTMLElement, scrollTop: number): void {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
-
-function languageForSyntax(syntax: AppSnapshot["tabs"][number]["syntax"]): Extension {
-  return syntax === "effectDsl" ? cpp() : yaml();
-}
-
-const donderHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: "var(--donder-code-keyword)" },
-  { tag: [tags.name, tags.propertyName, tags.attributeName], color: "var(--donder-code-name)" },
-  { tag: [tags.variableName, tags.definition(tags.variableName)], color: "var(--donder-text)" },
-  { tag: [tags.function(tags.variableName), tags.function(tags.definition(tags.variableName))], color: "var(--donder-code-function)" },
-  { tag: [tags.string, tags.special(tags.string)], color: "var(--donder-code-string)" },
-  { tag: [tags.number, tags.bool, tags.null], color: "var(--donder-code-number)" },
-  { tag: [tags.operator, tags.punctuation, tags.separator], color: "var(--donder-text-muted)" },
-  { tag: tags.comment, color: "var(--donder-text-muted)", fontStyle: "italic" },
-  { tag: [tags.typeName, tags.className], color: "var(--donder-code-type)" },
-  { tag: tags.invalid, color: "var(--donder-code-invalid)" }
-]);

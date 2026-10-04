@@ -81,23 +81,30 @@ export type BrowserEditorState = {
 	canRedo: boolean,
 };
 
-export type BrowserFrame = {
-	revision: number,
-	seconds: number,
-	pixels: BrowserPixel[],
-};
-
-export type BrowserPixel = {
-	red: number,
-	green: number,
-	blue: number,
-};
+/**
+ *  A page element tree measured by the website. Groups become layout groups and
+ *  fixtures become inline fixtures. Pixel order is depth-first and matches `render`.
+ */
+export type BrowserPageNode = { type: "group"; id: number; name: string; children: BrowserPageNode[] } | { type: "fixture"; id: number; name: string; pixels: ([number, number])[] };
 
 export type BrowserSelectionResult = {
 	state: BrowserEditorState,
 	selection: SequenceSelection | null,
 	copiedCount: number,
 	skippedCount: number,
+};
+
+/**
+ *  Everything needed to create a browser session. Sources, page, and audio are
+ *  the starting point, not history entries.
+ */
+export type BrowserSessionConfig = {
+	frameRate: number,
+	durationSeconds: number,
+	page: BrowserPageNode[],
+	sources: BrowserSourceDocument[],
+	/**  A URL served by the website, used for waveform and playback. */
+	audioUrl: string | null,
 };
 
 export type BrowserSourceDocument = {
