@@ -10,9 +10,6 @@ use donder_sequence_api::{BrowserSourceDocument, BrowserSourceKind};
 pub(super) fn initial_session(
     project: DonderProject,
     root: &SourceIdentity,
-    fixture: &FixtureDefinitionId,
-    effect: &EffectDefinitionId,
-    effect_source: &str,
 ) -> Result<ProjectSession, JsValue> {
     let mut source = SourceProject {
         workspace: ProjectWorkspace {
@@ -31,11 +28,6 @@ pub(super) fn initial_session(
         vec![
             SourceObjectId::new(SourceObjectKind::Project, root.object().into())
                 .map_err(|error| JsValue::from_str(&error))?,
-            SourceObjectId::new(
-                SourceObjectKind::FixtureDefinition,
-                fixture.0.object().into(),
-            )
-            .map_err(|error| JsValue::from_str(&error))?,
         ],
         SourceDocumentKind::Donder {
             original_value: yaml_serde::Value::Mapping(yaml_serde::Mapping::new()),
@@ -45,163 +37,208 @@ pub(super) fn initial_session(
     source
         .documents
         .insert(root.document_id().clone(), root_document);
-    register_document(
-        &mut source,
-        &effect.0,
-        BrowserSourceKind::Effect,
-        effect_source,
-    )?;
-    let mut session = ProjectSession { project, source };
-    donder_project_io::ensure_document_can_reference_source(
-        &mut session,
-        root.document_id(),
-        SourceObjectKind::EffectDefinition,
-        &effect.0,
-    )
-    .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    Ok(session)
+    Ok(ProjectSession { project, source })
 }
 
-fn register_document(
-    source: &mut SourceProject,
-    identity: &SourceIdentity,
+#[derive(Clone, Copy)]
+pub(super) enum SourceInstall {
+    Create,
+    Replace,
+}
+
+pub(super) enum SourceOutcome {
+    Compiled(Vec<String>),
+    Rejected(Vec<DiagnosticView>),
+}
+
+impl SourceOutcome {
+    pub(super) fn into_result(self, path: &str) -> Result<Vec<String>, JsValue> {
+        match self {
+            Self::Compiled(names) => Ok(names),
+            Self::Rejected(diagnostics) => Err(JsValue::from_str(&format!(
+                "{path} does not compile:\n{}",
+                diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ))),
+        }
+    }
+
+    fn view(self) -> CompileView {
+        match self {
+            Self::Compiled(definitions) => CompileView {
+                definitions,
+                diagnostics: Vec::new(),
+            },
+            Self::Rejected(diagnostics) => CompileView {
+                definitions: Vec::new(),
+                diagnostics,
+            },
+        }
+    }
+}
+
+fn object_kind(kind: &BrowserSourceKind) -> SourceObjectKind {
+    match kind {
+        BrowserSourceKind::Effect => SourceObjectKind::EffectDefinition,
+        BrowserSourceKind::Operator => SourceObjectKind::OperatorDefinition,
+    }
+}
+
+fn source_kind(document: &SourceDocument) -> Option<BrowserSourceKind> {
+    match document.kind() {
+        SourceDocumentKind::Effect { .. } => Some(BrowserSourceKind::Effect),
+        SourceDocumentKind::Operator { .. } => Some(BrowserSourceKind::Operator),
+        SourceDocumentKind::Donder { .. } => None,
+    }
+}
+
+/// Compile a source document and replace every declaration it owns. Declarations
+/// removed from the text are removed from the project; the project check rejects
+/// removals that the sequence still uses.
+pub(super) fn install_source(
+    session: &mut ProjectSession,
+    sequence_id: &SequenceId,
+    path: &str,
     kind: BrowserSourceKind,
     text: &str,
-) -> Result<(), JsValue> {
-    let (object_kind, document_kind) = match kind {
-        BrowserSourceKind::Effect => (
-            SourceObjectKind::EffectDefinition,
-            SourceDocumentKind::Effect {
-                source: text.into(),
-            },
-        ),
-        BrowserSourceKind::Operator => (
-            SourceObjectKind::OperatorDefinition,
-            SourceDocumentKind::Operator {
-                source: text.into(),
-            },
-        ),
+    install: SourceInstall,
+) -> Result<SourceOutcome, JsValue> {
+    let suffix = match kind {
+        BrowserSourceKind::Effect => ".effect.donder",
+        BrowserSourceKind::Operator => ".operator.donder",
     };
-    let object = SourceObjectId::new(object_kind, identity.object().into())
+    if !path.ends_with(suffix) {
+        return Err(JsValue::from_str(&format!(
+            "Source path {path} must end with {suffix}."
+        )));
+    }
+    donder_project_io::validate_relative_path(path).map_err(|error| JsValue::from_str(&error))?;
+    let document = session.source.project_document(path.into());
+    let previous = match (install, session.source.documents.get(&document)) {
+        (SourceInstall::Create, Some(_)) => {
+            return Err(JsValue::from_str(&format!("{path} already exists.")));
+        }
+        (SourceInstall::Replace, None) => {
+            return Err(JsValue::from_str(&format!("{path} was not found.")));
+        }
+        (SourceInstall::Create, None) => Vec::new(),
+        (SourceInstall::Replace, Some(existing)) => existing
+            .objects()
+            .iter()
+            .map(|object| object.id().to_owned())
+            .collect(),
+    };
+    let identity = |name: &str| SourceIdentity::from_document(document.clone(), name.into());
+    let (names, mut edits) = match kind {
+        BrowserSourceKind::Effect => match compile_effects(text) {
+            Err(diagnostics) => return Ok(SourceOutcome::Rejected(diagnostics_view(diagnostics)?)),
+            Ok(compiled) => {
+                let names = compiled
+                    .iter()
+                    .map(|effect| effect.name().as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let edits = compiled
+                    .into_iter()
+                    .map(|effect| {
+                        let id = EffectDefinitionId(identity(effect.name().as_str()));
+                        ProjectEdit::SetEffectDefinition {
+                            id: id.clone(),
+                            value: EffectDefinition::custom(id, effect),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (names, edits)
+            }
+        },
+        BrowserSourceKind::Operator => match compile_operators(text) {
+            Err(diagnostics) => return Ok(SourceOutcome::Rejected(diagnostics_view(diagnostics)?)),
+            Ok(compiled) => {
+                let names = compiled
+                    .iter()
+                    .map(|operator| operator.name().as_str().to_owned())
+                    .collect::<Vec<_>>();
+                let edits = compiled
+                    .into_iter()
+                    .map(|operator| {
+                        let id = OperatorDefinitionId(identity(operator.name().as_str()));
+                        ProjectEdit::SetOperatorDefinition {
+                            id: id.clone(),
+                            value: custom_operator_definition(id, operator),
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (names, edits)
+            }
+        },
+    };
+    edits.extend(
+        previous
+            .iter()
+            .filter(|name| !names.contains(name))
+            .map(|name| match kind {
+                BrowserSourceKind::Effect => {
+                    ProjectEdit::RemoveEffectDefinition(EffectDefinitionId(identity(name)))
+                }
+                BrowserSourceKind::Operator => {
+                    ProjectEdit::RemoveOperatorDefinition(OperatorDefinitionId(identity(name)))
+                }
+            }),
+    );
+    if let Err(message) = session.project.apply_edits(edits) {
+        return Ok(SourceOutcome::Rejected(vec![DiagnosticView {
+            start: 0,
+            end: 0,
+            message,
+        }]));
+    }
+    let objects = names
+        .iter()
+        .map(|name| SourceObjectId::new(object_kind(&kind), name.as_str().into()))
+        .collect::<Result<Vec<_>, _>>()
         .map_err(|error| JsValue::from_str(&error))?;
-    let document = SourceDocument::new(Vec::new(), vec![object], document_kind)
+    let document_kind = match kind {
+        BrowserSourceKind::Effect => SourceDocumentKind::Effect {
+            source: text.into(),
+        },
+        BrowserSourceKind::Operator => SourceDocumentKind::Operator {
+            source: text.into(),
+        },
+    };
+    let source_document = SourceDocument::new(Vec::new(), objects, document_kind)
         .map_err(|error| JsValue::from_str(&error))?;
-    source
+    session
+        .source
         .documents
-        .insert(identity.document_id().clone(), document);
-    Ok(())
+        .insert(document.clone(), source_document);
+    for name in &names {
+        donder_project_io::ensure_document_can_reference_source(
+            session,
+            sequence_id.0.document_id(),
+            object_kind(&kind),
+            &identity(name),
+        )
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    }
+    Ok(SourceOutcome::Compiled(names))
 }
 
 impl BrowserSession {
     fn update_source(
         &mut self,
-        existing_path: Option<&str>,
+        path: &str,
         kind: BrowserSourceKind,
         text: &str,
+        install: SourceInstall,
     ) -> Result<JsValue, JsValue> {
-        let (name, project_edit, identity) = match kind {
-            BrowserSourceKind::Effect => {
-                let mut definitions = match compile_effects(text) {
-                    Ok(definitions) => definitions,
-                    Err(diagnostics) => {
-                        return js_value(&CompileView {
-                            definitions: Vec::new(),
-                            diagnostics: diagnostics_view(diagnostics)?,
-                        });
-                    }
-                };
-                if definitions.len() != 1 {
-                    return Err(JsValue::from_str(
-                        "A demo source document must contain one declaration.",
-                    ));
-                }
-                let compiled = definitions.remove(0);
-                let name = compiled.name().as_str().to_owned();
-                let identity = self.source_identity(existing_path, &name, "effect")?;
-                let id = EffectDefinitionId(identity.clone());
-                let edit = ProjectEdit::SetEffectDefinition {
-                    id: id.clone(),
-                    value: EffectDefinition::custom(id, compiled),
-                };
-                (name, edit, identity)
-            }
-            BrowserSourceKind::Operator => {
-                let mut definitions = match compile_operators(text) {
-                    Ok(definitions) => definitions,
-                    Err(diagnostics) => {
-                        return js_value(&CompileView {
-                            definitions: Vec::new(),
-                            diagnostics: diagnostics_view(diagnostics)?,
-                        });
-                    }
-                };
-                if definitions.len() != 1 {
-                    return Err(JsValue::from_str(
-                        "A demo source document must contain one declaration.",
-                    ));
-                }
-                let compiled = definitions.remove(0);
-                let name = compiled.name().as_str().to_owned();
-                let identity = self.source_identity(existing_path, &name, "operator")?;
-                let id = OperatorDefinitionId(identity.clone());
-                let edit = ProjectEdit::SetOperatorDefinition {
-                    id: id.clone(),
-                    value: custom_operator_definition(id, compiled),
-                };
-                (name, edit, identity)
-            }
-        };
         let mut candidate = (*self.session).clone();
-        candidate
-            .project
-            .apply_edits([project_edit])
-            .map_err(|error| JsValue::from_str(&error))?;
-        register_document(&mut candidate.source, &identity, kind.clone(), text)?;
-        let object_kind = match kind {
-            BrowserSourceKind::Effect => SourceObjectKind::EffectDefinition,
-            BrowserSourceKind::Operator => SourceObjectKind::OperatorDefinition,
-        };
-        donder_project_io::ensure_document_can_reference_source(
-            &mut candidate,
-            self.sequence_id.0.document_id(),
-            object_kind,
-            &identity,
-        )
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        self.accept(candidate)?;
-        js_value(&CompileView {
-            definitions: vec![name],
-            diagnostics: Vec::new(),
-        })
-    }
-
-    fn source_identity(
-        &self,
-        existing_path: Option<&str>,
-        name: &str,
-        suffix: &str,
-    ) -> Result<SourceIdentity, JsValue> {
-        let document = DocumentId::new(
-            self.session.source.project_module_id(),
-            existing_path
-                .map(Utf8PathBuf::from)
-                .unwrap_or_else(|| Utf8PathBuf::from(format!("{name}.{suffix}.donder"))),
-        );
-        if let Some(source) = self.session.source.documents.get(&document) {
-            if existing_path.is_none() {
-                return Err(JsValue::from_str(
-                    "A source document with that name already exists.",
-                ));
-            }
-            if !source.objects().iter().any(|object| object.id() == name) {
-                return Err(JsValue::from_str(
-                    "Keep the source document's original declaration name.",
-                ));
-            }
-        } else if existing_path.is_some() {
-            return Err(JsValue::from_str("The source document was not found."));
+        let outcome = install_source(&mut candidate, &self.sequence_id, path, kind, text, install)?;
+        if matches!(outcome, SourceOutcome::Compiled(_)) {
+            self.accept(candidate)?;
         }
-        Ok(SourceIdentity::from_document(document, name.into()))
+        js_value(&outcome.view())
     }
 }
 
@@ -215,16 +252,14 @@ impl BrowserSession {
             .documents
             .iter()
             .filter_map(|(id, document)| {
-                let (kind, source) = match document.kind() {
-                    SourceDocumentKind::Effect { source } => (BrowserSourceKind::Effect, source),
-                    SourceDocumentKind::Operator { source } => {
-                        (BrowserSourceKind::Operator, source)
-                    }
+                let source = match document.kind() {
+                    SourceDocumentKind::Effect { source }
+                    | SourceDocumentKind::Operator { source } => source,
                     SourceDocumentKind::Donder { .. } => return None,
                 };
                 Some(BrowserSourceDocument {
                     path: id.path().to_string(),
-                    kind,
+                    kind: source_kind(document)?,
                     source: source.clone(),
                 })
             })
@@ -232,30 +267,32 @@ impl BrowserSession {
         js_value(&sources)
     }
 
+    /// Add a new effect or operator document. Returns compile diagnostics without
+    /// changing the project when the source is invalid.
     #[wasm_bindgen(js_name = addSource)]
-    pub fn add_source(&mut self, kind: JsValue, source: &str) -> Result<JsValue, JsValue> {
+    pub fn add_source(
+        &mut self,
+        kind: JsValue,
+        path: &str,
+        source: &str,
+    ) -> Result<JsValue, JsValue> {
         let kind: BrowserSourceKind = serde_wasm_bindgen::from_value(kind)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        self.update_source(None, kind, source)
+        self.update_source(path, kind, source, SourceInstall::Create)
     }
 
+    /// Replace an existing document's text. Invalid source keeps the last
+    /// accepted project and playback.
     #[wasm_bindgen(js_name = setSource)]
     pub fn set_source(&mut self, path: &str, source: &str) -> Result<JsValue, JsValue> {
-        let document = self
+        let kind = self
             .session
             .source
             .documents
             .get(&self.session.source.project_document(path.into()))
-            .ok_or_else(|| JsValue::from_str("The source document was not found."))?;
-        let kind = match document.kind() {
-            SourceDocumentKind::Effect { .. } => BrowserSourceKind::Effect,
-            SourceDocumentKind::Operator { .. } => BrowserSourceKind::Operator,
-            SourceDocumentKind::Donder { .. } => {
-                return Err(JsValue::from_str(
-                    "This document is not an effect or operator source.",
-                ));
-            }
-        };
-        self.update_source(Some(path), kind, source)
+            .ok_or_else(|| JsValue::from_str(&format!("{path} was not found.")))
+            .map(source_kind)?
+            .ok_or_else(|| JsValue::from_str(&format!("{path} is not DSL source.")))?;
+        self.update_source(path, kind, source, SourceInstall::Replace)
     }
 }

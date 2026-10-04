@@ -1,7 +1,7 @@
 use super::*;
 use donder_sequence_api::{
-    AppSettings, BrowserEditorState, BrowserSelectionResult, DocumentViewId, GuiDocumentRequest,
-    GuiEditCommand, SequenceGuiEdit, SequenceSelectionEdit,
+    AppSettings, BrowserEditorState, BrowserSelectionResult, DocumentViewId, GuiDocument,
+    GuiDocumentRequest, GuiEditCommand, SequenceGuiEdit, SequenceSelectionEdit,
 };
 
 impl BrowserSession {
@@ -18,9 +18,16 @@ impl BrowserSession {
 
     fn editor_state_view(&self) -> BrowserEditorState {
         let request = self.request();
+        let mut document = donder_editor::project_gui_document(Some(&self.session), &request);
+        // Projection checks the filesystem; browser audio is a URL the website serves.
+        if let GuiDocument::Sequence { document } = &mut document
+            && let Some(audio) = &mut document.audio
+        {
+            audio.exists = true;
+        }
         BrowserEditorState {
             revision: self.revision,
-            document: donder_editor::project_gui_document(Some(&self.session), &request),
+            document,
             request,
             settings: AppSettings::default(),
             can_undo: !self.past.is_empty(),
@@ -29,13 +36,8 @@ impl BrowserSession {
     }
 
     pub(super) fn accept(&mut self, candidate: ProjectSession) -> Result<(), JsValue> {
-        let playback = prepare(&candidate.project, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
+        let playback = prepare_playback(&candidate.project, &self.sequence_id)?;
+        let revision = self.next_revision()?;
         self.past.push(Arc::clone(&self.session));
         if self.past.len() > 100 {
             self.past.remove(0);
@@ -53,22 +55,17 @@ impl BrowserSession {
         Ok(())
     }
 
+    /// History holds project snapshots; the current page always wins.
     fn restore(&mut self, snapshot: Arc<ProjectSession>) -> Result<(), JsValue> {
         let mut candidate = (*snapshot).clone();
-        candidate
-            .project
-            .apply_edits([ProjectEdit::SetFixtureDefinition {
-                id: self.fixture_definition_id.clone(),
-                value: fixture_definition_at_positions(&self.character_positions),
-            }])
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate.project, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The historical sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
+        page_layout::apply_page_layout(
+            &mut candidate.project,
+            &self.layout_id,
+            &self.sequence_id,
+            &self.page,
+        )?;
+        let playback = prepare_playback(&candidate.project, &self.sequence_id)?;
+        let revision = self.next_revision()?;
         self.duration_seconds = candidate
             .project
             .sequence(&self.sequence_id)
