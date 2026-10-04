@@ -402,6 +402,9 @@ impl BytecodeProgram {
                     IntToFloat { dst, src } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Int(*src))
                     }
+                    FloatToInt { dst, src } => {
+                        valid_slot(ValueSlot::Int(*dst)) && valid_slot(ValueSlot::Float(*src))
+                    }
                     Not { dst, src } => {
                         valid_slot(ValueSlot::Bool(*dst)) && valid_slot(ValueSlot::Bool(*src))
                     }
@@ -773,11 +776,11 @@ impl BytecodeProgram {
     }
 
     /// Conservative live calculated-array storage required by the final
-    /// instruction stream. Both compilation and wire admission use this proof.
+    /// instruction stream. Both compilation and archive admission use this proof.
     /// A reused query/target starts after its initialization with scalar registers
     /// carried over. Prove that initialization depends only on its inputs and
     /// earlier immutable scalar results. Changing target count/bounds restarts
-    /// the target stage. This is a wire boundary, not an optimizer hint.
+    /// the target stage. This is an archive boundary, not an optimizer hint.
     fn has_valid_pixel_entry(&self) -> bool {
         use Instruction::*;
 
@@ -894,6 +897,10 @@ impl BytecodeProgram {
                 IntToFloat { dst, src } => {
                     reads[0] = Some(ValueSlot::Int(*src));
                     ValueSlot::Float(*dst)
+                }
+                FloatToInt { dst, src } => {
+                    reads[0] = Some(ValueSlot::Float(*src));
+                    ValueSlot::Int(*dst)
                 }
                 Not { dst, src } => {
                     reads[0] = Some(ValueSlot::Bool(*src));
@@ -2038,6 +2045,11 @@ instructions! {
         dst: FloatSlot,
         src: IntSlot,
     },
+    /// Truncates toward zero, saturating at the int range; NaN becomes zero.
+    FloatToInt {
+        dst: IntSlot,
+        src: FloatSlot,
+    },
     Not {
         dst: BoolSlot,
         src: BoolSlot,
@@ -2372,7 +2384,8 @@ impl Instruction {
             | IntMultiply { dst, .. }
             | IntRemainder { dst, .. }
             | SectionQuery { dst, .. }
-            | Len { dst, .. } => ValueSlot::Int(*dst),
+            | Len { dst, .. }
+            | FloatToInt { dst, .. } => ValueSlot::Int(*dst),
             QuerySeconds { dst, .. }
             | QueryProgress { dst, .. }
             | LoadFloatConst { dst, .. }
@@ -3267,6 +3280,10 @@ pub(super) fn slots(
         Instruction::IntToFloat { dst, src } => {
             typed!(false, Int, src);
             typed!(true, Float, dst);
+        }
+        Instruction::FloatToInt { dst, src } => {
+            typed!(false, Float, src);
+            typed!(true, Int, dst);
         }
         Instruction::Not { dst, src } => {
             typed!(false, Bool, src);

@@ -29,24 +29,53 @@ fn ports(project: &DonderProject) -> Vec<(ControllerId, ControllerPortId)> {
         .collect()
 }
 
+struct Reference {
+    sequence: PreparedSequence,
+    times: Vec<SampleTime>,
+    frames: Vec<Vec<Vec<u8>>>,
+}
+
+fn prepare_reference(project: &DonderProject, id: &SequenceId) -> Reference {
+    let sequence = prepare(project, id, PrepareOutputs::All).unwrap();
+    let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
+        .map(|frame| sample_time_from_frame(frame, sequence.frame_rate()).unwrap())
+        .to_vec();
+    times.extend(sequence.effect_windows().flat_map(|(start, duration)| {
+        [Some(start), start.checked_add_duration(duration)]
+            .into_iter()
+            .flatten()
+    }));
+    times.extend([
+        SampleTime::from_ticks(sequence.duration().as_ticks()),
+        SampleTime::from_ticks(0),
+    ]);
+    let mut workspace = sequence.clone().into_playback();
+    let frames = times
+        .iter()
+        .map(|&time| {
+            workspace
+                .evaluate(time)
+                .outputs()
+                .map(|output| output.bytes.to_vec())
+                .collect()
+        })
+        .collect();
+    Reference {
+        sequence,
+        times,
+        frames,
+    }
+}
+
 fn compare(
     project: &DonderProject,
     id: &SequenceId,
+    reference: &Reference,
     selected: &[(ControllerId, ControllerPortId)],
 ) -> PreparedSequence {
-    let full = prepare(project, id, PrepareOutputs::All).unwrap();
+    let full = &reference.sequence;
     let fragment = prepare(project, id, PrepareOutputs::Ports(selected)).unwrap();
-    let mut full_workspace = full.clone().into_playback();
     let mut workspace = fragment.clone().into_playback();
-    let buffers = |sequence: &PreparedSequence| {
-        sequence
-            .outputs()
-            .iter()
-            .map(|output| vec![0; output.width])
-            .collect::<Vec<_>>()
-    };
-    let mut expected = buffers(&full);
-    let mut actual = buffers(&fragment);
     let setup = project.setup(project.root().setup.id()).unwrap();
     let identity = |output: &donder_runtime::PreparedOutput| {
         (
@@ -56,39 +85,29 @@ fn compare(
             ControllerPortId(output.port),
         )
     };
-    let mut times = [9504, 8450, 0, 8494, 8398, 7150, 7151, 2000, 15000]
-        .map(|frame| sample_time_from_frame(frame, full.frame_rate()).unwrap())
-        .to_vec();
-    times.extend(full.effect_windows().flat_map(|(start, duration)| {
-        [Some(start), start.checked_add_duration(duration)]
-            .into_iter()
-            .flatten()
-    }));
-    times.extend([
-        SampleTime::from_ticks(full.duration().as_ticks()),
-        SampleTime::from_ticks(0),
-    ]);
-    for time in times {
-        for (snapshot, output) in expected
-            .iter_mut()
-            .zip(full_workspace.evaluate(time).outputs())
-        {
-            snapshot.copy_from_slice(output.bytes);
-        }
-        for (snapshot, output) in actual.iter_mut().zip(workspace.evaluate(time).outputs()) {
-            snapshot.copy_from_slice(output.bytes);
-        }
-        assert_eq!(actual.len(), selected.len());
-        for ((frame, output), selected) in actual.iter().zip(fragment.outputs()).zip(selected) {
-            assert_eq!(&identity(output), selected);
-            let index = full
-                .outputs()
+    let indices = selected
+        .iter()
+        .map(|selected| {
+            full.outputs()
                 .iter()
                 .position(|output| identity(output) == *selected)
-                .unwrap();
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(fragment.outputs().len(), selected.len());
+    for (output, selected) in fragment.outputs().iter().zip(selected) {
+        assert_eq!(&identity(output), selected);
+    }
+    for (&time, expected) in reference.times.iter().zip(&reference.frames) {
+        for ((output, &index), selected) in workspace
+            .evaluate(time)
+            .outputs()
+            .zip(&indices)
+            .zip(selected)
+        {
             assert_eq!(
-                frame,
-                &expected[index],
+                output.bytes,
+                expected[index].as_slice(),
                 "{} at {time:?}, port {:?}",
                 id.0.root_source().object(),
                 selected.1
@@ -103,24 +122,15 @@ fn every_starter_port_matches_the_full_sequence_across_seeks() {
     let project = starter();
     let ports = ports(&project);
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        let full = prepare(&project, id, PrepareOutputs::All).unwrap();
-        for port in &ports {
-            let fragment = compare(&project, id, std::slice::from_ref(port));
+        let reference = prepare_reference(&project, id);
+        let reversed = ports.iter().rev().cloned().collect::<Vec<_>>();
+        compare(&project, id, &reference, &reversed);
+        for port in [ports.first().unwrap(), ports.last().unwrap()] {
+            let fragment = compare(&project, id, &reference, std::slice::from_ref(port));
             assert_eq!(fragment.fixtures().len(), 1);
             assert_eq!(fragment.pixel_count(), 113);
-            assert!(fragment.effect_count() <= full.effect_count());
+            assert!(fragment.effect_count() <= reference.sequence.effect_count());
         }
-        let fragment = compare(&project, id, &ports[0..1]);
-        println!(
-            "{}: pixels {} -> {}; effects {} -> {}",
-            id.0.root_source().object(),
-            full.pixel_count(),
-            fragment.pixel_count(),
-            full.effect_count(),
-            fragment.effect_count()
-        );
-        let reversed = ports.iter().rev().cloned().collect::<Vec<_>>();
-        compare(&project, id, &reversed);
     }
 }
 
@@ -142,10 +152,16 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     project.replace_patch(&patch_id, patch).unwrap();
     let ports = ports(&project);
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        let fragment = compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
+        let reference = prepare_reference(&project, id);
+        let fragment = compare(
+            &project,
+            id,
+            &reference,
+            &[ports[1].clone(), ports[0].clone()],
+        );
         assert_eq!(fragment.fixtures().len(), 1);
         assert_eq!(fragment.pixel_count(), 74);
-        compare(&project, id, &ports[1..2]);
+        compare(&project, id, &reference, &ports[1..2]);
     }
     // Whole-target effects use different context from per-fixture effects.
     let edits = project
@@ -169,7 +185,13 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .collect::<Vec<_>>();
     project.apply_edits(edits).unwrap();
     for id in project.root().sequences.iter().map(|source| source.id()) {
-        compare(&project, id, &[ports[1].clone(), ports[0].clone()]);
+        let reference = prepare_reference(&project, id);
+        compare(
+            &project,
+            id,
+            &reference,
+            &[ports[1].clone(), ports[0].clone()],
+        );
     }
     // Spatial reads must not see the compacted 37-pixel output domain. Local
     // reads need the whole original fixture; global reads can reach unpatched
@@ -213,7 +235,8 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             .map(|source| source.id())
             .find(|id| id.0.root_source().object() == "layer_test")
             .unwrap();
-        let fragment = compare(&project, id, &ports[1..2]);
+        let reference = prepare_reference(&project, id);
+        let fragment = compare(&project, id, &reference, &ports[1..2]);
         assert_eq!(fragment.pixel_count(), expected_pixels, "{query}");
         // Exercise the serialized representation as well as live preparation.
         let encoded = donder_runtime::encode_sequence(&fragment).unwrap();
@@ -286,14 +309,16 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
         ])
         .unwrap();
     for id in project.root().sequences.iter().map(|source| source.id()) {
+        let reference = prepare_reference(&project, id);
         let fragment = compare(
             &project,
             id,
+            &reference,
             &[(other_id.clone(), selected[1].1), selected[0].clone()],
         );
         assert_eq!(fragment.fixtures().len(), 1);
         assert_eq!(fragment.pixel_count(), 113);
-        let unpatched = compare(&project, id, &selected[1..2]);
+        let unpatched = compare(&project, id, &reference, &selected[1..2]);
         assert!(unpatched.fixtures().is_empty());
     }
 }
@@ -374,41 +399,22 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         }),
     });
     project.replace_sequence(&id, sequence).unwrap();
-    let fragment = compare(&project, &id, &ports[0..1]);
+    let reference = prepare_reference(&project, &id);
+    let fragment = compare(&project, &id, &reference, &ports[0..1]);
     assert!(fragment.effect_count() == 0);
-    let mut workspace = prepare(&project, &id, PrepareOutputs::Ports(&ports[0..1]))
-        .unwrap()
-        .into_playback();
-    let mut buffers = [vec![0; fragment.outputs()[0].width]];
-    for (snapshot, output) in buffers
-        .iter_mut()
-        .zip(workspace.evaluate(SampleTime::from_ticks(0)).outputs())
-    {
-        snapshot.copy_from_slice(output.bytes);
-    }
-    assert!(buffers[0].iter().all(|&value| value == u8::MAX));
+    let mut workspace = fragment.into_playback();
+    let frame = workspace.evaluate(SampleTime::from_ticks(0));
+    let output = frame.outputs().next().unwrap();
+    assert!(output.bytes.iter().all(|&value| value == u8::MAX));
 }
 
 #[test]
-fn empty_and_unknown_selections_are_explicit() {
+fn empty_selection_prepares_an_empty_sequence() {
     let project = starter();
-    let ports = ports(&project);
     let id = project.root().sequences[0].id();
-    let empty = compare(&project, id, &[]);
+    let empty = prepare(&project, id, PrepareOutputs::Ports(&[])).unwrap();
     assert!(empty.fixtures().is_empty());
     assert!(empty.effect_count() == 0);
     assert_eq!(empty.pixel_count(), 0);
     assert!(empty.outputs().is_empty());
-    let duplicate = prepare(
-        &project,
-        id,
-        PrepareOutputs::Ports(&[ports[0].clone(), ports[0].clone()]),
-    );
-    assert_eq!(duplicate.unwrap().outputs().len(), 1);
-    let unknown = prepare(
-        &project,
-        id,
-        PrepareOutputs::Ports(&[(ports[0].0.clone(), ControllerPortId(u32::MAX))]),
-    );
-    assert!(unknown.is_none());
 }

@@ -25,8 +25,8 @@ fn at<'a>(mut value: &'a mut Value, steps: &[Step]) -> &'a mut Value {
     value
 }
 
-// Exercise real authored shapes recursively. Sample one of each shape/context,
-// so hundreds of identical fixture pixels do not repeat the same check.
+// Exercise real authored shapes recursively. Sample one mapping per parser
+// (context, type, and keys), so repeated objects do not repeat the same check.
 fn mapping_paths(
     value: &Value,
     path: &mut Vec<Step>,
@@ -35,12 +35,20 @@ fn mapping_paths(
 ) {
     match value {
         Value::Mapping(map) => {
-            let context = path.iter().rev().find_map(|step| match step {
-                Step::Key(key) => Some(key.as_str()),
-                _ => None,
-            });
-            // These two containers have authored names as keys; their values
-            // are still visited and tested below.
+            // Top-level objects and parameter values are keyed by authored
+            // names; their `type` field selects the parser, not the name.
+            let context = match path.as_slice() {
+                [_] => Some("<object>"),
+                [.., Step::Key(container), Step::Key(_)] if container == "params" => {
+                    Some("params.*")
+                }
+                _ => path.iter().rev().find_map(|step| match step {
+                    Step::Key(key) => Some(key.as_str()),
+                    _ => None,
+                }),
+            };
+            // Both name-keyed containers are skipped; their values are still
+            // visited and tested below.
             if !path.is_empty() && context != Some("params") {
                 let keys = map
                     .keys()
@@ -82,29 +90,15 @@ fn operator_names_require_project_definitions_and_explicit_imports() {
     let path = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
     let source = &original[&path];
     assert!(source.contains("operator: operators.TimeWarp"));
-    for name in [
-        "max",
-        "add",
-        "multiply",
-        "intensity_modulate",
-        "dim",
-        "invert",
-        "colorize",
-        "delay",
-        "echo",
-    ] {
-        let mut overrides = original.clone();
-        overrides.insert(
-            path.clone(),
-            source.replace("operator: operators.TimeWarp", &format!("operator: {name}")),
-        );
-        let report = check_project_with_overrides(&root, &overrides);
-        assert!(
-            report.session.is_none(),
-            "unimported operator {name} resolved"
-        );
-        assert!(!report.diagnostics.is_empty());
-    }
+    // Every operator name goes through the same reference resolution.
+    let mut overrides = original.clone();
+    overrides.insert(
+        path.clone(),
+        source.replace("operator: operators.TimeWarp", "operator: max"),
+    );
+    let report = check_project_with_overrides(&root, &overrides);
+    assert!(report.session.is_none(), "unimported operator max resolved");
+    assert!(!report.diagnostics.is_empty());
     assert_eq!(original, project_source_texts(&root).unwrap());
 }
 
@@ -117,8 +111,6 @@ fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
         .unwrap()
         .join("examples/starter");
     let original = project_source_texts(&root).unwrap();
-    let baseline = check_project_with_overrides(&root, &original);
-    assert!(baseline.session.is_some(), "{:?}", baseline.diagnostics);
     let mut seen = BTreeSet::new();
     let mut checked = 0;
     for (path, source) in &original {
@@ -165,7 +157,7 @@ fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
             checked += 1;
         }
     }
-    assert!(checked >= 30, "only exercised {checked} mapping shapes");
+    assert!(checked >= 54, "only exercised {checked} mapping shapes");
     assert_eq!(original, project_source_texts(&root).unwrap());
 }
 

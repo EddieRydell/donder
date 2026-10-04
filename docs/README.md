@@ -1,24 +1,33 @@
 # Documentation
 
-- [Create your first LED show](first_show.md): the shortest maintained user path.
-- [Fixture authoring](fixture_authoring.md): pixel definitions, instances, layout,
-  routing, and ownership.
-- [Authoring architecture](first_class_authoring.md): current subsystem boundaries
-  and edit/playback ownership.
-- [Sequence as Code](sequence_as_code.md): authored DSL and semantic preservation
-  contract.
-- [File persistence](file_persistence.md): save behavior and failure boundaries.
-- [Output selection](output_selection.md): controller-specific elaboration.
-- [Vixen effect contracts](vixen_effects.md): Basic and Pixel effect inventory,
-  reference behavior, and current DSL compatibility gaps.
-- [ESP32 loading](esp32_loading.md): archive transport, admission limits, Wi-Fi,
-  and I2S output.
-- [Performance and hardware evidence](performance.md): accepted evidence,
-  measurement boundaries, and retention policy.
-- [Regression tracking](regression_tracking.md): required checks and Criterion
-  workflows.
+These pages are for people working on Donder and for anyone who wants a quick
+picture of how it works. They describe current behavior; plans, journals and
+superseded measurements don't belong here.
 
-These pages describe current behavior and durable contracts. Dated plans,
-completion journals, failed captures, and superseded benchmark narratives do not
-belong in this directory; durable conclusions should be folded into the owning
-reference and the working artifact removed.
+**How it fits together**
+- [Architecture](architecture.md): the pipeline from documents to LED frames,
+  crate ownership, editing and playback.
+- [Project format](project_format.md): documents, imports, ownership, sequences
+  (layers, composition graph, automation clips), validity and the save contract.
+- [Effect language](effect_language.md): declarations, builtins, numeric rules,
+  limits and the standard effect and operator libraries.
+- [Output selection](output_selection.md): preparing a sequence for chosen
+  controllers and ports.
+
+**Hardware and performance**
+- [ESP32 controllers](esp32_loading.md): install, upload, admission, editor
+  playback, clock sync and output pins.
+- [Performance](performance.md): compiler, preparation and interpreter design,
+  device timings and memory placement.
+
+**Working on it**
+- [Testing and benchmarks](testing.md): the gate, where tests live, key contracts
+  and Criterion workflows.
+- [Firmware](../firmware/esp32/README.md): toolchain, builds, flashing and device
+  measurement.
+
+**Authoring references**
+- [Create your first LED show](first_show.md): a two-pixel project from scratch.
+- [Fixture authoring](fixture_authoring.md): shapes, layouts, groups and routing.
+- [Vixen effects](vixen_effects.md): what the Vixen ports cover and where they
+  differ.

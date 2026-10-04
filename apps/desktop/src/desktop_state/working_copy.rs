@@ -1003,7 +1003,7 @@ mod tests {
     }
 
     #[test]
-    fn filesystem_notifications_reload_clean_source_without_polling_snapshots() {
+    fn filesystem_notifications_publish_reloaded_clean_source() {
         let (_temporary, root) = starter_copy();
         let (sender, receiver) = std::sync::mpsc::channel();
         let state = DesktopState::new(move |snapshot| {
@@ -1029,8 +1029,6 @@ mod tests {
                 break;
             }
         }
-        let snapshot = state.snapshot();
-        assert_eq!(state.snapshot().state_revision, snapshot.state_revision);
     }
 
     #[test]

@@ -148,10 +148,11 @@ fn section_queries_preserve_fixture_scope_short_sections_and_selected_routes() {
             let mut raster = full.clip(7).unwrap().sampler(7 + second_count);
             assert_eq!(raster.evaluate(SampleTime::from_ticks(0)), expected);
             let bytes =
-                crate::wire::encode_sequence(&sequence(true, per_fixture, second_count, false))
+                crate::archive::encode_sequence(&sequence(true, per_fixture, second_count, false))
                     .unwrap();
             let selected =
-                crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+                crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default())
+                    .unwrap();
             let mut full = full.into_playback();
             let mut selected = selected.into_playback();
             for ticks in [0, 500_000, 0] {

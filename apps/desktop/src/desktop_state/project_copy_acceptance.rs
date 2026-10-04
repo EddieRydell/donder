@@ -53,17 +53,19 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
             TransitionResult::NeedsDecision { .. }
         ));
         assert!(!parent.join("copy").exists());
-        std::fs::create_dir(parent.join("occupied")).unwrap();
-        assert!(
-            state
-                .request_transition(request(Some(TransitionDecision::Discard), "occupied"))
-                .is_err()
-        );
-        assert!(std::sync::Arc::ptr_eq(
-            &draft,
-            &state.project_session().unwrap()
-        ));
-        assert_eq!(state.snapshot().project_epoch, snapshot.project_epoch);
+        if matches!(decision, TransitionDecision::SaveAll) {
+            std::fs::create_dir(parent.join("occupied")).unwrap();
+            assert!(
+                state
+                    .request_transition(request(Some(TransitionDecision::Discard), "occupied"))
+                    .is_err()
+            );
+            assert!(std::sync::Arc::ptr_eq(
+                &draft,
+                &state.project_session().unwrap()
+            ));
+            assert_eq!(state.snapshot().project_epoch, snapshot.project_epoch);
+        }
         let result = state
             .request_transition(request(Some(decision.clone()), "copy"))
             .unwrap();

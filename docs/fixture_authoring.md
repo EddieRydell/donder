@@ -101,6 +101,19 @@ modal; fixtures in another document open in their editor tab. The fixture modal'
 Save and close button saves through the normal project save path before closing;
 a failed save leaves the editor open.
 
+The layout hierarchy supports dragging fixtures and groups. Drop onto the middle
+of a group row to move inside it; the group opens while hovering. Drop near the
+top or bottom of a row to reorder siblings, or onto the bottom drop area to move
+to the top level. Moves preserve fixture IDs, geometry ownership, and canvas
+positions, and use normal undo/redo. Groups cannot be moved into their descendants.
+Reordering changes layout traversal order, and changing group membership also
+changes which fixtures are included when an effect or patch targets that group.
+
+Duplicating a fixture or group copies its geometry into independently owned
+values, even when the original used a reusable source. Copies get new placement
+IDs next to the originals. Routes and effect targets keep addressing the
+originals; a copy is not patched automatically.
+
 ## Authored format
 
 An owned fixture places its geometry directly inside the layout entry. It needs
@@ -158,12 +171,3 @@ target whole instances or groups.
 Copying a layout preserves shared fixtures and instance IDs, creates its own
 patch, and retargets affected sequences. Shared fixtures remain linked through
 explicit local imports and can be edited at their source.
-
-
-The layout hierarchy supports dragging fixtures and groups. Drop onto the middle
-of a group row to move inside it; the group opens while hovering. Drop near the
-top or bottom of a row to reorder siblings, or onto the bottom drop area to move
-to the top level. Moves preserve fixture IDs, geometry ownership, and canvas
-positions, and use normal undo/redo. Groups cannot be moved into their descendants.
-Reordering changes layout traversal order, and changing group membership also
-changes which fixtures are included when an effect or patch targets that group.

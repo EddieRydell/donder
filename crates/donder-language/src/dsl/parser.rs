@@ -587,6 +587,13 @@ impl<'source> Parser<'source> {
                 span: token.span,
                 kind: ExprKind::Literal(Value::Bool(false)),
             },
+            // `int(x)` converts a float; `int` is otherwise only a type keyword.
+            TokenKind::Keyword(Keyword::Int) if self.at(TokenKind::LeftParen) => Expr {
+                span: token.span,
+                kind: self
+                    .identifier_from_span(token.span)
+                    .map_or(ExprKind::Literal(Value::Void), ExprKind::Variable),
+            },
             TokenKind::Identifier | TokenKind::Keyword(Keyword::Input) => {
                 match self.identifier_from_span(token.span) {
                     Some(identifier) => Expr {

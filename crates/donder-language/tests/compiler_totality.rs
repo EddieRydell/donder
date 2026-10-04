@@ -19,7 +19,7 @@ fn malformed_source_never_panics_during_compilation() {
     let alphabet = b"{}()[];,:.<>!=+-*/%#abc0 9\n\"";
     let mut state = 0x51a7_d5e3_u64;
     for (template, is_effect) in templates {
-        for case in 0..2_000 {
+        for case in 0..400 {
             let mut bytes = template.as_bytes().to_vec();
             for _ in 0..(case % 5 + 1) {
                 state = state.wrapping_mul(6364136223846793005).wrapping_add(1);

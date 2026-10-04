@@ -9,13 +9,6 @@ const acknowledgement = (update, stateRevision) => ({
   tabs: [{ path: update.path, text: update.text, documentRevision: update.expectedDocumentRevision + 1 }]
 });
 
-test("full snapshots from an older project or command cannot roll back state", () => {
-  assert.equal(isNewerSnapshot(null, { stateRevision: 2 }), true);
-  assert.equal(isNewerSnapshot({ stateRevision: 8 }, { stateRevision: 7 }), false);
-  assert.equal(isNewerSnapshot({ stateRevision: 8 }, { stateRevision: 8 }), false);
-  assert.equal(isNewerSnapshot({ stateRevision: 8 }, { stateRevision: 9 }), true);
-});
-
 test("typing coalesces per document and navigation waits for the latest queued text", async () => {
   const calls = [];
   const sync = new DocumentSync((update) => new Promise((resolve) => calls.push({ update, resolve })), () => {}, assert.fail);

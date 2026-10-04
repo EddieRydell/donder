@@ -6,7 +6,7 @@ from the project overview, then open Layout or Patch from the setup.
 
 ## Define and place pixels
 
-Open Layout and right-click the inset tree. Choose **Add fixture > Create new fixture**
+Open Layout and right-click the fixture list. Choose **Add fixture > Create new fixture**
 and enter **Pixel A**. In the fixture editor, choose **Pixel** and click the canvas.
 Its default diameter is 0.01 meters; edit its position and diameter as needed.
 
@@ -53,10 +53,6 @@ For supported ESP32 standalone playback, choose **Export compiled sequence**,
 select output ports, install the bundled firmware, provision Wi-Fi, and upload.
 See [controller setup](esp32_loading.md#install-from-donder).
 
-Imported resources are editable local files. Use **Make independent** to give a
-linked value its own copy; layout/controller routing follows the copy. **Create
-Standalone Project Copy** creates and opens another folder containing the loaded
-sources and referenced audio. Downloaded sequences may need their imports and
-effect targets edited to match your layout.
-A rejected edit leaves the accepted project intact. A save failure reports the
-path and remains unsaved until corrected.
+From here, the composition graph, operators and automation clips are described
+in [project format](project_format.md#sequences), and writing your own effects
+in [effect language](effect_language.md).

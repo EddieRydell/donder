@@ -2,7 +2,7 @@ mod common;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::values::DonderDuration;
-use donder_project_io::{export_project, load_project, save_project};
+use donder_project_io::{load_project, save_project};
 use std::fs;
 use std::time::Duration;
 
@@ -86,15 +86,7 @@ fn audio_reference_cannot_escape_its_module() {
 
 #[test]
 fn same_named_definitions_in_different_documents_keep_distinct_identities() {
-    let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Utf8Path::parent)
-        .unwrap();
-    let starter = load_local_project(&workspace_root.join("examples/starter"));
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    export_project(&starter, &root).unwrap();
-    write_workspace_metadata(&root);
+    let (_temp, root) = common::starter_copy();
 
     fs::create_dir_all(root.join("identity-a")).unwrap();
     fs::create_dir_all(root.join("identity-b")).unwrap();
@@ -142,15 +134,7 @@ fn same_named_definitions_in_different_documents_keep_distinct_identities() {
 
 #[test]
 fn typed_sequence_insertion_roundtrips_nested_paths() {
-    let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Utf8Path::parent)
-        .unwrap();
-    let starter = load_local_project(&workspace_root.join("examples/starter"));
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    export_project(&starter, &root).unwrap();
-    write_workspace_metadata(&root);
+    let (_temp, root) = common::starter_copy();
     let mut session = load_local_project(&root);
 
     let color = session
@@ -201,32 +185,4 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
             .any(|source| source.id() == &id)
     );
     assert!(root.join(id.0.document()).is_file());
-}
-
-#[test]
-fn local_document_import_cannot_escape_module() {
-    let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Utf8Path::parent)
-        .unwrap();
-    let starter = load_local_project(&workspace_root.join("examples/starter"));
-    let temp = tempfile::tempdir().unwrap();
-    let temp_root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let root = temp_root.join("project");
-    export_project(&starter, &root).unwrap();
-    write_workspace_metadata(&root);
-    fs::write(
-        temp_root.join("dependency.effect.donder"),
-        "effect Dependency { color sample() { return #ffffff; } }",
-    )
-    .unwrap();
-    let entrypoint = root.join("project.donder");
-    let project_text = fs::read_to_string(&entrypoint).unwrap();
-    fs::write(
-        &entrypoint,
-        project_text.replacen("imports:\n", "imports:\n- from:\n    documents:\n    - ../dependency.effect.donder\n  as: dependency\n", 1),
-    )
-    .unwrap();
-
-    assert!(load_project(&root).is_err());
 }

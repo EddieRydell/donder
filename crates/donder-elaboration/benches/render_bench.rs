@@ -13,10 +13,10 @@ use std::time::Duration;
 #[path = "../../donder-runtime/benches/fixtures/mod.rs"]
 mod effect_fixtures;
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/mark_workload.rs"]
+#[path = "../../donder-runtime/tests/support/mark_workload.rs"]
 mod mark_workload;
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/workload.rs"]
+#[path = "../../donder-runtime/tests/support/workload.rs"]
 mod workload;
 
 const BENCHMARK_SEQUENCE_DOCUMENT: &str = "sequences/layer_test.sequence.donder";

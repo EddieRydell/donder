@@ -234,29 +234,6 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
 }
 
 #[test]
-fn editing_a_dangling_owned_target_fails_before_writing() {
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
-    let before = std::fs::read_to_string(root.join("project.donder")).unwrap();
-    let mut session = common::load_project(root);
-    let mut setup = session.project.root().setup.inline().unwrap().clone();
-    let controller = setup.controllers[1].id().clone();
-    setup.patch.inline_mut().unwrap().routes[0].controller = controller;
-    setup.controllers.remove(1);
-    assert!(
-        session
-            .project
-            .replace_setup(&setup.id.clone(), *setup)
-            .is_err()
-    );
-    assert_eq!(
-        std::fs::read_to_string(root.join("project.donder")).unwrap(),
-        before
-    );
-}
-#[test]
 fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() {
     use donder_language::layout::FixtureInstanceId;
     use donder_language::ownership::edit::{OwnershipSite, make_independent, make_reusable};

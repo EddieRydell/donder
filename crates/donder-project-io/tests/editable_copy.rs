@@ -1,14 +1,13 @@
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{export_editable_project, export_project, load_project};
+mod common;
+
+use camino::Utf8PathBuf;
+use donder_project_io::{export_editable_project, load_project};
 use std::fs;
 
 #[test]
 fn copy_preserves_local_imports_and_audio_and_is_independently_editable() {
-    let temp = tempfile::tempdir().unwrap();
-    let directory = Utf8Path::from_path(temp.path()).unwrap();
-    let root = directory.join("original");
-    let starter = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    export_project(&load_project(&starter).unwrap(), &root).unwrap();
+    let (_temp, root) = common::starter_copy();
+    let directory = root.parent().unwrap();
     let sequence = root.join("sequences/layer_test.sequence.donder");
     fs::create_dir(root.join("audio")).unwrap();
     fs::write(root.join("audio/test.wav"), b"test audio").unwrap();

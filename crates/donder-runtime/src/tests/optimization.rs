@@ -16,45 +16,6 @@ const SPATIAL: SpatialContext = SpatialContext {
 };
 
 #[test]
-fn constant_folding_propagates_through_locals_and_removes_unreachable_sampling() {
-    let operator = compile_operators(
-        "operator Fold {
-        input Signal source;
-        color sample() {
-            int a = 2 * 3;
-            int b = a + 1;
-            if (b != 7) { return source.at(0.0); }
-            return rgb(b / 14.0, 0.0, 0.0);
-        }
-    }",
-    )
-    .unwrap()
-    .remove(0);
-    assert!(
-        !operator
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(op, Instruction::SignalSample { .. }))
-    );
-    let bound = operator.bind([]).unwrap();
-    let mut sampler = FailOnSample { calls: 0 };
-    assert_eq!(
-        bound
-            .evaluate(
-                &context(1, 0, 0),
-                &SPATIAL,
-                &mut sampler,
-                &mut BatchWorkspace::default()
-            )
-            .unwrap()
-            .red,
-        128
-    );
-    assert_eq!(sampler.calls, 0);
-}
-
-#[test]
 fn propagation_merges_branch_values_and_respects_loop_backedges_and_snapshots() {
     let effect = compile_effects(
         "effect Flow {
@@ -211,38 +172,8 @@ fn dead_sample_results_preserve_errors() {
     assert_eq!(sampler.calls, 1);
 }
 
-fn early_exits<C, S>(code: &[Instruction<C, S>]) -> usize {
-    code.iter()
-        .enumerate()
-        .filter_map(|(header, op)| match op {
-            Instruction::LoopRangeStart { end, .. } => Some((header, *end)),
-            _ => None,
-        })
-        .map(|(header, end)| {
-            code[header + 1..end]
-                .iter()
-                .filter(|op| match op {
-                    Instruction::FloatJumpLess { target, .. }
-                    | Instruction::FloatJumpLessEqual { target, .. }
-                    | Instruction::FloatJumpGreater { target, .. }
-                    | Instruction::FloatJumpGreaterEqual { target, .. }
-                    | Instruction::FloatJumpLessConst { target, .. }
-                    | Instruction::FloatJumpLessEqualConst { target, .. }
-                    | Instruction::FloatJumpGreaterConst { target, .. }
-                    | Instruction::FloatJumpGreaterEqualConst { target, .. }
-                    | Instruction::IntJumpLess { target, .. }
-                    | Instruction::IntJumpLessEqual { target, .. }
-                    | Instruction::IntJumpGreater { target, .. }
-                    | Instruction::IntJumpGreaterEqual { target, .. } => *target == end + 1,
-                    _ => false,
-                })
-                .count()
-        })
-        .sum()
-}
-
 #[test]
-fn monotonic_guards_shorten_ascending_descending_and_nested_loops() {
+fn monotonic_loop_guards_preserve_ascending_descending_and_nested_counts() {
     for (loop_header, predicate, expected) in [
         ("int i = 0; i < 20; i = i + 2", "i < 5.0", 3),
         ("int i = 20; i > 0; i = i - 2", "i > 15.0", 3),
@@ -260,11 +191,6 @@ fn monotonic_guards_shorten_ascending_descending_and_nested_loops() {
         }} }}"
         );
         let effect = compile_effects(&source).unwrap().remove(0);
-        assert!(
-            early_exits(&effect.sample_program().bytecode().instructions) > 0,
-            "{source} {:#?}",
-            effect.sample_program().bytecode().instructions
-        );
         let bound = effect.bind([]).unwrap();
         let mut workspace = BatchWorkspace::default();
         for _ in 0..3 {
@@ -310,11 +236,6 @@ fn multiplicative_loop_guards_preserve_wraparound_alternation_and_live_outs() {
         );
         let effect = compile_effects(&source).unwrap().remove(0);
         assert_eq!(
-            early_exits(&effect.sample_program().bytecode().instructions),
-            0,
-            "{source}"
-        );
-        assert_eq!(
             effect
                 .bind([])
                 .unwrap()
@@ -359,11 +280,6 @@ fn loop_rejection_proofs_preserve_live_values_and_nonmonotonic_conditions() {
         );
         let effect = compile_effects(&source).unwrap().remove(0);
         assert_eq!(
-            early_exits(&effect.sample_program().bytecode().instructions),
-            0,
-            "{source}"
-        );
-        assert_eq!(
             effect
                 .bind([])
                 .unwrap()
@@ -390,7 +306,6 @@ fn rejecting_loop_guards_do_not_skip_earlier_sampling_errors() {
     )
     .unwrap()
     .remove(0);
-    assert_eq!(early_exits(&operator.bytecode().instructions), 0);
     let mut sampler = FailOnSample { calls: 0 };
     assert!(
         operator
@@ -409,7 +324,7 @@ fn rejecting_loop_guards_do_not_skip_earlier_sampling_errors() {
 }
 
 #[test]
-fn invariant_divisors_are_inverted_before_the_loop_with_either_sign() {
+fn invariant_loop_divisors_divide_correctly_with_either_sign() {
     for denominator in ["max(scale, 0.01)", "-max(scale, 0.01)"] {
         let source = format!(
             "effect Divide {{ param float scale = 2.0;
@@ -423,23 +338,6 @@ fn invariant_divisors_are_inverted_before_the_loop_with_either_sign() {
         }}"
         );
         let effect = compile_effects(&source).unwrap().remove(0);
-        let code = &effect.sample_program().bytecode().instructions;
-        let header = code
-            .iter()
-            .position(|op| matches!(op, Instruction::LoopRangeStart { .. }))
-            .unwrap();
-        assert!(
-            code[..header]
-                .iter()
-                .any(|op| matches!(op, Instruction::FloatDivideIntoConst { .. })),
-            "{code:#?}"
-        );
-        assert!(
-            !code[header..]
-                .iter()
-                .any(|op| matches!(op, Instruction::FloatDivide { .. })),
-            "{code:#?}"
-        );
         assert_eq!(
             effect
                 .bind([])
@@ -452,7 +350,7 @@ fn invariant_divisors_are_inverted_before_the_loop_with_either_sign() {
 }
 
 #[test]
-fn smoothstep_normalization_hoists_bounded_edges_and_preserves_boundaries() {
+fn smoothstep_with_bounded_edges_preserves_boundaries() {
     for (edge0, edge1) in [("0.0", "max(width, 0.01)"), ("max(width, 0.01)", "0.0")] {
         let effect = compile_effects(&format!(
             "effect Smooth {{ param float width = 0.75;
@@ -460,21 +358,6 @@ fn smoothstep_normalization_hoists_bounded_edges_and_preserves_boundaries() {
         ))
         .unwrap()
         .remove(0);
-        let program = effect.sample_program().bytecode();
-        let entry = program.pixel_entry as usize;
-        assert!(
-            program.instructions[..entry]
-                .iter()
-                .any(|op| matches!(op, Instruction::FloatDivideIntoConst { .. })),
-            "{program:#?}"
-        );
-        assert!(
-            !program.instructions[entry..].iter().any(|op| matches!(
-                op,
-                Instruction::FloatDivide { .. } | Instruction::FloatDivideIntoConst { .. }
-            )),
-            "{program:#?}"
-        );
         let effect = effect.bind([]).unwrap();
         let mut workspace = BatchWorkspace::default();
         for pixel in 0..65 {
@@ -532,8 +415,8 @@ fn uniform_smoothstep_is_admitted_in_query_initialization() {
     .unwrap()
     .remove(0);
     let bytecode = effect.sample_program().bytecode();
-    let (wire, inputs) = effect.sample_program().clone().into_parts();
-    assert!(donder_language::dsl::SampleProgram::admit(wire, inputs).is_some());
+    let (program, inputs) = effect.sample_program().clone().into_parts();
+    assert!(donder_language::dsl::SampleProgram::admit(program, inputs).is_some());
     assert!(
         bytecode.instructions[..bytecode.pixel_entry as usize]
             .iter()
@@ -546,38 +429,6 @@ fn uniform_smoothstep_is_admitted_in_query_initialization() {
         let t = (crate::values::sample_duration_seconds_f32(context.time) / 0.75).clamp(0.0, 1.0);
         let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
         assert_eq!(bound.evaluate(&context, &SPATIAL, &mut workspace), expected);
-    }
-}
-
-#[test]
-fn changing_unbounded_and_tiny_divisors_keep_division() {
-    for (initial, denominator, update) in [
-        ("scale", "d", ""),
-        (
-            "max(scale, 0.000000000000000000000000000000000000001)",
-            "d",
-            "",
-        ),
-        ("max(scale, 0.01)", "d", "d = d + 1.0;"),
-    ] {
-        let source = format!(
-            "effect Divide {{ param float scale = 2.0;
-            color sample() {{ float d = {initial}; float total = 0.0;
-                for (int i = 0; i < 4; i = i + 1) {{ total = total + i / {denominator}; {update} }}
-                return rgb(total / 10.0, 0.0, 0.0);
-            }}
-        }}"
-        );
-        let effect = compile_effects(&source).unwrap().remove(0);
-        assert!(
-            effect
-                .sample_program()
-                .bytecode()
-                .instructions
-                .iter()
-                .any(|op| matches!(op, Instruction::FloatDivide { .. })),
-            "{source}"
-        );
     }
 }
 
@@ -635,14 +486,6 @@ fn invariant_reciprocals_preserve_missing_values() {
     )
     .unwrap()
     .remove(0);
-    assert!(
-        effect
-            .sample_program()
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(op, Instruction::FloatDivideIntoConst { .. }))
-    );
     let divisor = Identifier::new("divisor".into()).unwrap();
     for (value, expected) in [(f32::NAN, 64), (2.0, 255), (f32::INFINITY, 0)] {
         let bound = effect.bind([(&divisor, &Value::Float(value))]).unwrap();

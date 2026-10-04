@@ -1457,6 +1457,10 @@ impl<'a> Batch<'a> {
             Instruction::IntToFloat { dst, src } => each!(lanes, |lane| {
                 floats[dst.0 as usize][lane] = ints[src.0 as usize][lane] as f32
             }),
+            // `as` truncates toward zero, saturates, and maps NaN to zero.
+            Instruction::FloatToInt { dst, src } => each!(lanes, |lane| {
+                ints[dst.0 as usize][lane] = floats[src.0 as usize][lane] as i32
+            }),
             Instruction::Not { dst, src } => set_bool!(dst, !bools[src.0 as usize] & mask),
             Instruction::NegInt { dst, src } => each!(lanes, |lane| {
                 ints[dst.0 as usize][lane] = ints[src.0 as usize][lane].wrapping_neg()
