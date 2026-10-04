@@ -9,7 +9,7 @@ use rkyv::Archived;
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 45;
+pub const FORMAT_VERSION: u32 = 47;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -125,10 +125,10 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
 /// Estimate playback storage using references and layouts supplied by the trusted
 /// producer. This checks resource budgets, not graph or program validity.
 fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<(), LoadError> {
-    use crate::dsl::{AutomationPlan, VmWorkspace};
+    use crate::dsl::{AutomationPlan, BatchWorkspace};
     use crate::signal::{
-        CachedEffectSample, CachedSignal, CachedSignalFrame, CachedVmSample,
-        EffectAutomationWorkspace, PreparedOperatorNode, PreparedSignalKind,
+        CachedEffectSample, CachedSignalFrame, EffectAutomationWorkspace, PreparedOperatorNode,
+        PreparedSignalKind,
     };
     use crate::values::Color;
 
@@ -150,56 +150,41 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
             .checked_mul(size_of::<Color>())
             .ok_or(LoadError::Limit)?,
     )?;
-    // All VM slots reserve the component-wise largest layouts they can execute.
-    // Budgeting that maximum for every slot also covers a program reused by
-    // several operators, and array capacity/width maxima from different programs.
-    let mut registers = [0usize; 9];
+    // Every batch workspace (effects plus one per operator depth) reserves the
+    // component-wise largest layout it can execute. Budgeting that maximum for
+    // every slot also covers a program reused by several operators.
+    let mut layout = crate::dsl::bytecode::SlotLayout::default();
     let mut array_capacity = 0usize;
     let mut array_width = 0usize;
-    let mut loop_count = 0usize;
+    let mut loop_count = 0u32;
     for program in &signal.programs {
-        let layout = program.layout;
-        for (bank, (maximum, count)) in registers
-            .iter_mut()
-            .zip([
-                layout.ints,
-                layout.floats,
-                layout.bools,
-                layout.colors,
-                layout.arrays,
-                layout.marks,
-                layout.curves,
-                layout.gradients,
-                layout.enums,
-            ])
-            .enumerate()
-        {
-            let count = if bank <= 3 {
-                (count as usize)
-                    .checked_mul(crate::dsl::COLOR_BLOCK_WIDTH)
-                    .ok_or(LoadError::Limit)?
-            } else {
-                count as usize
-            };
+        let program_layout = program.layout;
+        if program_layout.exceeded_bank().is_some() {
+            return Err(LoadError::Archive);
+        }
+        for (maximum, count) in [
+            (&mut layout.ints, program_layout.ints),
+            (&mut layout.floats, program_layout.floats),
+            (&mut layout.bools, program_layout.bools),
+            (&mut layout.colors, program_layout.colors),
+            (&mut layout.arrays, program_layout.arrays),
+            (&mut layout.enums, program_layout.enums),
+            (&mut layout.marks, program_layout.marks),
+            (&mut layout.curves, program_layout.curves),
+            (&mut layout.gradients, program_layout.gradients),
+        ] {
             *maximum = (*maximum).max(count);
         }
         array_capacity = array_capacity.max(program.array_capacity as usize);
         array_width = array_width.max(program.array_width as usize);
-        loop_count = loop_count.max(
-            (program.loop_count as usize)
-                .checked_mul(crate::dsl::COLOR_BLOCK_WIDTH)
-                .ok_or(LoadError::Limit)?,
-        );
+        loop_count = loop_count.max(program.loop_count);
     }
-    reserve(
-        plan.vm_workspace_count,
-        size_of::<Vec<CachedSignalFrame>>() + size_of::<Option<CachedVmSample>>(),
-    )?;
+    reserve(plan.vm_workspace_count, size_of::<Vec<CachedSignalFrame>>())?;
     reserve(
         plan.vm_workspace_count
             .checked_add(1)
             .ok_or(LoadError::Limit)?,
-        VmWorkspace::storage_estimate(registers, array_capacity, array_width, loop_count)
+        BatchWorkspace::storage_estimate(layout, loop_count, array_capacity, array_width)
             .ok_or(LoadError::Limit)?,
     )?;
     let mut operator_frame_counts = vec![0usize; plan.vm_workspace_count];
@@ -224,7 +209,6 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         )?;
         reserve(count, size_of::<CachedSignalFrame>())?;
     }
-    reserve(plan.nodes.len(), size_of::<Option<CachedSignal>>())?;
     reserve(
         signal
             .targets

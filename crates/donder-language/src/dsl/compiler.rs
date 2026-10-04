@@ -29,6 +29,7 @@ pub(crate) fn compile_checked_operators(
 fn compile_effect(effect: CheckedEffectDecl) -> Result<CompiledEffect, super::Diagnostic> {
     check_parameter_count(&effect.params)?;
     let bytecode = FunctionCompiler::new(&effect.params).compile(effect.body)?;
+    check_register_capacity(&bytecode)?;
     let program = super::SampleProgram::admit(
         bytecode,
         effect.params.iter().map(|param| param.ty.clone()).collect(),
@@ -45,6 +46,7 @@ fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, s
     check_parameter_count(&operator.params)?;
     let bytecode = FunctionCompiler::new_operator(&operator.params, &operator.inputs)
         .compile(operator.body)?;
+    check_register_capacity(&bytecode)?;
     CompiledOperator::admit(operator.name, operator.inputs, operator.params, bytecode)
         .ok_or_else(invalid_compiled_program)
 }
@@ -54,6 +56,23 @@ fn invalid_compiled_program() -> super::Diagnostic {
         super::lexer::TextSpan { start: 0, end: 0 },
         "compiler produced invalid bytecode",
     )
+}
+
+fn check_register_capacity(
+    bytecode: &super::bytecode::BytecodeProgram,
+) -> Result<(), super::Diagnostic> {
+    let Some((bank, used, limit)) = bytecode.layout.exceeded_bank() else {
+        return Ok(());
+    };
+    let bank = match bank {
+        super::bytecode::PrimitiveBank::Float => "float",
+        super::bytecode::PrimitiveBank::Int => "int",
+        super::bytecode::PrimitiveBank::Bool => "bool",
+    };
+    Err(super::Diagnostic::new(
+        super::lexer::TextSpan { start: 0, end: 0 },
+        format!("program needs {used} {bank} registers; the limit is {limit}"),
+    ))
 }
 
 /// Prepared automation addresses declaration slots with u16.
@@ -311,6 +330,7 @@ impl FunctionCompiler {
             &mut self.instructions,
             &mut self.value_operands,
             &mut self.layout,
+            &mut self.array_types,
         );
         let mut program = BytecodeProgram {
             pixel_entry,

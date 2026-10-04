@@ -7,10 +7,10 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
+use super::evaluation::SignalSampler;
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
 use crate::dsl::RuntimeError;
-use crate::dsl::SignalSampler;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::CompiledOperator;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
@@ -83,7 +83,7 @@ fn sample(
             },
             &SPATIAL,
             &mut inputs,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         )
         .unwrap();
     (color, inputs.times)

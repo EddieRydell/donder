@@ -64,6 +64,13 @@ and lifts the sample. Gradient gain still clamps to 0–1 before color scaling;
 ordinary channel saturation alone would change the result. Fully varying samples
 keep their fused instruction. No resource references or sampled frames are cached.
 
+Loads of marks, arrays, curves and gradients are uniform too. Reference registers
+do not survive an invocation, so a lifted reader gets its own copy of the load in
+initialization, and the pixel body keeps its load only while something there still
+reads it. Admission rejects a body that reads a reference loaded only by
+initialization. Mark lookups, lengths and curve/gradient samples with uniform
+inputs therefore run once per query or target instead of once per pixel.
+
 Structured-loop analysis moves total, invariant scalar calculations before their
 loop. It preserves values observed after a zero-iteration loop and respects
 conditional definitions. A monotonic rejection guard can jump directly out of
@@ -108,24 +115,40 @@ algebra policy.
 The ESP32 linker selector includes generic arguments in the mangled VM method
 name, placing the shared interpreter in instruction RAM. The effect-entry
 wrapper and its literals reside there too. Prepared bytecode
-uses current wire format 45; previously exported sequences must be regenerated.
+uses current wire format 47; previously exported sequences must be regenerated.
 
 ESP32 profiling and controller images use Cargo's release profile: optimization
 level 3, fat LTO, one codegen unit and abort-on-panic. `debug = 2` retains symbols
 for attribution; it does not disable release optimization.
 
+Every firmware image links a strong `__divsf3` built from the FPU's
+division-assist instructions, the same sequence as the toolchain's libgcc. It is
+correctly rounded and therefore bit-identical to software division, including NaN,
+infinities and subnormals; the board matched an f64 reference on 200,000 random
+pairs and all special-value pairs. A division costs about 75 cycles instead of
+about 200. The device suite became 1-10% faster, Stanford 3.2%.
+
 Instruction fetching advances a local slice through the bytecode. Sequential
 execution no longer reloads, increments and stores a numeric instruction index
 or scales that index by the instruction size on every dispatch. Taken branches
-rebase the slice from their absolute target. Register storage stays in the
-existing workspace. Bounds checks remain in place, including for trusted
-archive bytecode, whose operands are not revalidated during decoding. Fetching
-requires no additional cache or per-frame allocation.
+rebase the slice from their absolute target. Fetching requires no additional
+cache or per-frame allocation.
 
-Arithmetic reads input registers directly before writing the result, preserving
-in-place operands without copying input rows. Register addresses and operation
-selection are shared across active lanes. Register resizing remains separate
-from the hot constructor.
+Marks store each mark's seconds value beside its ticks, so mark lookups compare
+precomputed floats without division.
+
+Compilation if-converts a conditional assignment whose skipped body is one total,
+pure instruction: both values become single assignments and a `Choose` picks
+between them. The hoister can then lift guards such as
+`if (abs(dx) < epsilon) { dx = 0.0; }` and everything depending on them into the
+query or target stage. A `Choose` condition counts as a control input, so fixed
+parameters feeding it are still specialized away.
+
+Fusion inlines a caller's single source even when the result is scalar; the
+inlined source's uniform work stages into the fused prefix.
+
+Color channels round through one `byte_channel` helper, which clamps the
+converted integer instead of the float; it is bit-identical for every f32 input.
 
 Preparation reuses nonoverlapping primitive register lifetimes after binding,
 specialization and uniform staging. Prefix registers and live-in values stay
@@ -134,66 +157,83 @@ registers retain their existing ownership. Allocating before specialization can
 hide single-assignment values and move uniform work into the pixel body, so the
 allocation order is part of the optimization contract.
 
-Three generic arithmetic pairs combine multiplication with addition, constant
-multiplication with addition, or multiplication with normalized smoothstep.
-Fusion runs only in the pixel body after staging. It requires a single use of the
-intermediate result and cannot cross a branch entry. Multiply/add retains two
-arithmetic operations rather than requiring fused hardware rounding. These
-instructions share dispatch, register addressing and lane traversal.
+### Batched interpreter
 
-### Bounded block execution
+There is one interpreter, and it is batched. Every program, effect or operator,
+runs up to 32 pixels of a run per instruction dispatch; a single sample is a
+one-lane run. Each primitive register is a row of 32 lanes; bools are lane masks.
+Initialization runs once in lane zero and its outputs are copied to every lane;
+the target stage reruns when the pixel count or target bounds change. Runs split
+where those change only for programs that read them, so other programs' runs span
+fixtures. Every lane follows its own control flow: a divergent branch parks one
+side, and the lowest parked instruction always runs next, so lanes reconverge at
+joins and loop exits, and early returns simply leave the run. There is no
+compiler predication or language restriction, and every instruction is
+supported.
 
-Admitted operators whose scalar control/data is identical across pixels execute
-color operations over blocks of up to 32 pixels. Temporal loops therefore
-initialize and query upstream programs once per block instead of once per pixel.
-Source effects share their query initialization across the block, and uniform
-sources are evaluated once for each block/query. Tail blocks, seek changes and
-explicit local/global addressing retain their original sampling domains.
+A reference register written by exactly one load holds one value for every lane.
+Other reference registers (written by `Index`, `Move`, `select` or
+`make_array`) hold a value per lane, and local arrays of all lanes share one
+arena. A lane whose `Index` selects the resource it already holds keeps it
+without reference counting.
 
-Programs with primitive temporary registers can also execute numeric operations
-over 32 lanes. Lanes at the same instruction execute together; divergent
-branches retain one pending instruction pointer per lane and rejoin when control
-flow converges. Bounded loops may have different iteration counts, and a returned
-lane stays complete while its peers continue. Reference-valued temporaries retain
-ordinary scalar execution. Direct parameter-curve and gradient sampling can run
-in numeric lanes without creating reference-valued temporaries.
+While no lane is parked, an instruction whose inputs are all uniform runs in one
+lane and its result is copied to the others. Each register carries a runtime
+uniform bit; preparation marks registers that can never be uniform (pixel
+context, signals, per-lane references and anything derived from them) so their
+instructions skip the check. Without this, FreezeFrame and MarkPulse were 20%
+slower and Stanford 8.6%; effects pay about 1%.
 
-Admission proves eligibility and retains a small execution-mode tag; it performs
-no frame analysis. Register capacity is bounded by 32 times the program's
-primitive slots, independent of frame size or temporal sample count. Query
-initialization executes in lane zero, then broadcasts once at the stage boundary.
-Target initialization runs once when a block shares pixel count and target bounds,
-and those registers survive adjacent same-query blocks. Blocks crossing different
-domains initialize each lane separately. Section and pixel reads retain each
-lane's original domain. Same-query blocks reuse initialization even when their
-active width changes. Eligible operators do not allocate full-frame temporal caches.
+Operators query inputs over the same run: a signal query whose time is equal in
+every active lane evaluates the upstream node for the whole run, and other
+queries evaluate one-pixel runs. Query-uniform times still use whole-frame input
+caches at frame scope. A nested layer gathers the run's cells for each effect
+target once and reuses that map for later queries of the run.
 
-Numeric operator lanes require current-pixel source addressing at query-uniform
-times. Operators with exactly one such source instruction can also
-traverse upstream in blocks. The source must address the current pixel, and its
-time must be defined in the validated query prefix. On the first source request,
-evaluation fills up to 32 temporary colors; each lane then runs the operator's
-ordinary scalar code against its source color. Branches, arrays, numeric color
-operations and bounded loops keep their scalar semantics and per-operation color
-quantization. The temporary expires after the block, even for repeated timestamps;
-it is not a retained frame cache. This scheduling applies inside block traversal;
-whole-frame entry points retain their existing contiguous source pass. Replacing
-that pass with small blocks can repeat upstream initialization unnecessarily.
-Nested traversal instead benefits by keeping a scalar operator from forcing every
-upstream layer to repeat its uniform initialization for each pixel. Adjacent blocks
-also preserve the effect workspace's initialized registers when the effect and
-sample time are unchanged; switching either invalidates that reuse.
+Each instruction has one loop over a list of active lanes, rebuilt only when the
+running mask changes. The dispatch loop calls one out-of-line handler function;
+inlining it into the loop made effects about 5% slower. Jumps and comparisons
+share one loop per comparison kind (less, less-or-equal, equal) for float rows,
+float constants and int rows; a single masked test loop was 9% slower on
+MarkChase.
 
-Samples and operators share the same native interpreter specialization and
-28-byte Xtensa instruction representation. Sample admission still rejects signal
-queries; effects do not require a caller-provided signal sampler. Lane count is
-selected per invocation. Constant RGB/HSV/color arithmetic folds through the same
-sampling functions used at runtime. Float-seconds-to-clock conversion uses the
-f32 significand and integer scaling, preserving nearest-tick rounding and range
-errors without software double-precision arithmetic.
+The [reviewed device evidence](../firmware/esp32/results/accepted/2026-10-03-batched-interpreter.json)
+compares the accepted scalar interpreter, scalar operators with batched effects,
+and the batched-only interpreter. All 26 cases match host checksums, the 28 host
+cases match the previous implementation, and evaluation allocates nothing.
 
-Whole-frame source scheduling remains contiguous; nested traversal can carry
-numeric blocks through hue/saturation-dependent operators.
+| Workload | Scalar / batched effects / batched mean ms |
+| --- | ---: |
+| Stanford section | 6.759 / 5.355 / 5.668 |
+| Four layers, three operators, 600 pixels | 101.860 / 98.779 / 72.584 |
+| MarkChase, 1,200 pixels | - / 8.587 / 8.447 |
+| MarkPulse, 1,200 pixels | - / 6.718 / 5.549 |
+| ShimmerField, 1,200 pixels | 16.372 / 9.944 / 10.291 |
+| Chase/Pulse, 16 layers | 10.942 / 6.650 / 6.820 |
+| Trivial pixel-varying effect, 1,200 pixels | 3.071 / 2.137 / 1.860 |
+| FreezeFrame over black | 2.201 / 2.228 / 2.345 |
+| Selected starter port | 0.147 / 0.212 / 0.204 |
+
+Stanford is 5.8% slower than with scalar operators: its FreezeFrame operator
+loops 32 times over mostly uniform arithmetic, which costs about twice as much
+per instruction as scalar execution did (480k against 250k cycles per frame). The
+fused HueShift/HueMap operator is 30% cheaper (260k against 371k). Retained
+memory is 7 KB higher on Stanford, for per-depth operator batch rows.
+
+Instruction RAM holds the interpreter (the handler function is 23 KB), graph
+evaluation, and the per-lane helpers that interrupted-PC samples found in flash:
+curve crossing, mark search, color component and channel helpers, clamp, floor
+and sine. The loader holds 75,052 bytes of `.rwtext` beside 51,796 bytes of
+Wi-Fi code, about 2 KB below the limit. Measured before operators were batched:
+batch execution in flash cost Stanford 11.4%.
+
+Running 1,200 pixels at 100 Hz on one core needs about 2,000 cycles per output
+pixel; Stanford uses about 9,100.
+
+Rejected: a bit-extracting `byte_channel` (Stanford -0.9%, color-heavy cases
++5-8%); one-lane results copied lazily on first per-lane read (1-10% slower).
+
+### Operator input fusion
 
 Host preparation inlines private operator inputs when the caller has one
 current-pixel source instruction. The source body appears once, including when
@@ -201,142 +241,55 @@ that instruction is inside a loop. Register, resource, input and parameter
 addresses are remapped, then the ordinary compiler passes simplify the combined
 program. Unreachable loops lose their private state slots as well as their code.
 Graph assembly retains only the resulting nodes, bindings and workspace depths.
-
 Fusion preserves the queried source clock explicitly: seconds are quantized to
 the native clock, progress uses the original query and sequence duration, and
-invalid or out-of-sequence queries skip the body and return black. Source errors,
-branches, early returns and per-operation color quantization remain observable.
-Both programs must share sequence duration and pixel/section domains. Shared
-graph sources, source automation, multiple source sites, explicit pixel
-addressing and reliance on prior workspace contents retain their boundaries.
-Fusion also refuses to turn a block-capable caller into a scalar-only program.
-It adds no retained sample cache or runtime graph-analysis state.
+invalid or out-of-sequence queries skip the body and return black. Both programs
+must share sequence duration and pixel/section domains. Shared graph sources,
+source automation, multiple source sites, explicit pixel addressing and reliance
+on prior workspace contents retain their boundaries. Fusion also refuses to
+exceed a register bank.
 
-The [current measurements](../firmware/esp32/results/accepted/2026-10-03-wide-arithmetic.json)
-cover late register allocation, 32-lane execution, direct register reads and
-generic arithmetic fusion. The preceding
-[program-fusion report](../firmware/esp32/results/accepted/2026-10-03-program-fusion.json)
-provides the eight-lane baseline. Historical stage measurements remain in the
-accepted evidence directory; the architecture above describes current behavior.
-All 640 current-math host reference frames preserve their checksums, timestamps
-and active-effect counts. The device verifies 576 current frames across 18 workloads
-plus 160 unfused arithmetic control frames in the same image, with zero evaluation
-allocations. Those controls isolate arithmetic fusion; the complete eight-to-32
-lane comparison uses separate native images.
-Earlier reciprocal math changed 84 of 57,600
-channels in the added mixed workload by at most one byte level; subsequent passes
-introduce no further output changes.
+### Removal of numeric lanes and arithmetic fusion
 
-| Workload | Previous / current mean ms | Current p95 ms | Current max ms |
-| --- | ---: | ---: | ---: |
-| Four layers, three operators, 600 pixels | 106.703 / 89.079 | 89.246 | 89.724 |
-| ScanSweep, 150 pixels | 1.786 / 1.800 | 1.802 | 2.163 |
-| ImpactBurst, 150 pixels | 1.697 / 1.721 | 1.727 | 2.092 |
-| SparkleComet, 150 pixels | 2.718 / 2.822 | 2.824 | 3.187 |
-| Shimmer, 1,200 pixels | 14.662 / 15.140 | 15.240 | 15.592 |
-| Stanford section | 13.823 / 13.428 | 13.945 | 14.597 |
-| Starter port | 0.233 / 0.193 | 0.191 | 0.541 |
+An earlier interpreter also executed numeric registers over 32 SIMT-style lanes
+with per-lane divergence tracking, and fused three arithmetic instruction pairs.
+Admission excluded every program with mark, curve, gradient or array registers,
+so mark-driven effects in representative sequences never used it, and on a
+scalar CPU the lanes only amortized per-pixel and dispatch overhead. Both were
+removed with their admission, workspace sizing, IRAM selectors and tests. The
+scalar interpreter that replaced them was in turn replaced by the batched
+interpreter above.
 
-These 32-frame windows include first use. Measurements use a classic ESP32 at
-240 MHz, one core, Wi-Fi off and untouched GPIO. They exclude network, storage,
-DMA and physical output and do not establish full-show worst cases or a general
-5x gain. The controller image is built and inspected separately.
+The [reviewed device evidence](../firmware/esp32/results/accepted/2026-10-03-scalar-vm.json)
+runs the lane implementation and the current tree on the same board, each with
+archives prepared by its own compiler. All 19 cases match host checksums with zero
+evaluation allocations.
 
-Mixed frame time falls 16.5% (1.20x throughput). Disabling only arithmetic fusion
-in the same image gives 91.698 ms, so those three instruction pairs save 2.619 ms
-here. Stanford changes from 13.468 to 13.428 ms in that isolated comparison; the
-unaffected Shimmer and ScanSweep controls are effectively identical.
-
-Several isolated effects improve little or regress slightly. Shimmer at 1,200
-pixels rises by 0.478 ms; the faster, oversized candidate measured 14.761 ms,
-the compact iterator 14.990 ms, and the shared-helper candidate 15.114 ms before
-final formatting. The smaller lane/control implementation therefore carries a
-measured speed/size tradeoff. All 32 frames of that 1,200-pixel case remain below 16.667 ms;
-the much larger mixed-workload gain is retained rather than adding more code to
-recover these small isolated costs.
-
-The mixed workload has four different simultaneous starter effects followed by
-hue shift, a two-repeat 75 ms echo, and dimming. The echo samples the complete
-upstream mix three times: twelve effect samples per output pixel. Relative to
-the staged/block baseline, its preceding eight-lane mean fell from 291.705 to
-106.703 ms. Wider execution improves this further, but does not remove the
-7,200 upstream effect samples per frame.
-That remains far above the 16.667 ms budget. The workload is a diagnostic
-reference, not a universal claim about four-layer shows.
-
-The width sweep used identical prepared programs. Eight lanes is the original
-iteration reference; 16/32/64 use the same dense/sparse implementation. Mixed means were 105.127 ms
-at eight lanes, 107.132 ms at 16, 97.993 ms at 32 and 97.724 ms at 64. The final
-implementation uses 32: 64 cost another 4,864 retained bytes for negligible
-improvement. These intermediate timings precede direct register access and
-arithmetic fusion; percentages from different stages should not be added.
-
-Packed scalar storage for uniform numeric registers saved another 564 workspace
-bytes in its controlled comparison, but slowed mixed playback from 109.283 to
-115.570 ms. Per-operand scalar/lane addressing and the larger interpreter
-outweighed the avoided broadcasts. It is not retained. Early register reuse also
-regressed performance by hiding uniform expressions from specialization; moving
-allocation after staging corrected that cause.
-
-Dense active lanes advance by shifting a mask one bit. Only gaps call a shared
-software bit-search helper. Outlining this uncommon path avoids copying Xtensa's
-software `trailing_zeros` implementation into every instruction handler. Color
-writes likewise share their scalar/broadcast helper. Both remain in instruction
-memory. Branch scheduling scans only the invocation's lane count.
-
-| Playback allocation, bytes | Mixed previous / current | Stanford previous / current |
+| Workload | Lanes / current mean ms | Change |
 | --- | ---: | ---: |
-| Archive | 12,401 / 12,076 | 38,965 / 38,640 |
-| Decoded sequence | 15,224 / 14,860 | 49,112 / 48,748 |
-| Workspace and outputs | 10,172 / 12,780 | 6,756 / 9,772 |
-| Total retained | 25,396 / 27,640 | 55,868 / 58,520 |
+| Stanford section | 13.336 / 6.759 | -49.3% |
+| Chase/Pulse, 16 layers | 14.241 / 10.942 | -23.2% |
+| ScanSweep, 150 pixels | 1.838 / 1.574 | -14.4% |
+| Trivial pixel-varying effect, 1,200 pixels | 3.778 / 3.071 | -18.7% |
+| FreezeFrame over black | 2.415 / 2.201 | -8.9% |
+| Selected starter port | 0.187 / 0.147 | -21.4% |
+| SparkleComet, 150 pixels | 2.864 / 2.953 | +3.1% |
+| ShimmerField, 1,200 pixels | 15.273 / 16.372 | +7.2% |
+| Four layers, three operators, 600 pixels | 89.132 / 101.860 | +14.3% |
 
-At eight lanes, late register reuse alone saves 1,040 mixed workspace bytes.
-Wider batches spend that saving and additional space on transient lane storage.
-No new retained sampled-frame cache is added, and no cache-hit improvement has
-been measured. Stack reservations are separate from the allocation table.
+Retained memory falls by 4-8 KB for most effect cases and rises by about 1.4 KB
+for the smallest ones. The controller image's `.rwtext` is 59,824 bytes (78,164
+with lanes) and the interpreter 19,901 bytes; static RAM is unchanged.
 
-Remaining mixed-workload self-symbol shares are 63.5% shared VM, 5.7% block-layer
-traversal, 3.9% software float division and 8.7% gradient sampling. Stanford is
-58.0% VM and 23.2% division. These are weighted PC-sample
-shares across two sampling periods. The shared native symbol cannot distinguish
-effect and operator callers. Numeric blocks amortize dispatch, but register
-access and color/math conversion still execute for every active pixel. Removing
-eligible graph/program boundaries helps Stanford but barely changes the mixed
-workload. Further large gains require reducing the remaining per-pixel
-calculations and register/dispatch work, or avoiding repeated upstream evaluation
-where semantics permit it. The profiles do not establish a single dominant opcode.
-In particular, the VM share includes arithmetic, color conversion and register
-access; it is not a measurement of dispatch overhead alone. At 89.079 ms for
-7,200 effect samples, the mixed workload consumes about 2,969 cycles per sample
-including operator/composition costs. The 60 Hz budget is about 556 cycles per
-sample before physical-output and system costs. Wider scalar batches share
-bookkeeping, but do not perform multiple pixels' arithmetic simultaneously.
+Before batching, hand-written native equivalents using the same library helpers
+cost 528 cycles per pixel for MarkChase, 215 for Gradient and 733 for
+HueShift/HueMap, against about 50 cycles per simple scalar bytecode operation.
 
-Both the ordinary I2S and Dig-Quad controller release variants build and link with
-identical instruction/static-RAM budgets. They retain the configured
-network-core stack region of 20,396 bytes. `.rwtext` occupies 78,164 bytes and
-`.rwtext.wifi` 51,796, leaving only 88 bytes in the instruction region. The shared
-interpreter occupies 38,352 bytes, versus 38,996 previously. Initial wider-loop
-implementations exceeded this region; sharing sparse iteration and color writes
-allows optimization level 3 to remain in use. Runtime size optimization fit but
-regressed mixed playback to 114.683 ms and is not retained.
-
-The output controller reserves a 24 KiB render-core stack instead of 6 KiB.
-Its ordinary heap region decreases from 92 to 74 KiB, preserving the network-core
-stack region; with the separate 64 KiB region, total heap is 138 KiB. This is an
-explicit stack/heap tradeoff, not an additional allocation during evaluation.
-Including the mixed show's additional 2,244 retained bytes, available heap
-headroom decreases by about 20.2 KiB assuming other allocations are unchanged.
-That is a meaningful memory cost for the 1.20x throughput gain.
-The standalone profiler has a 160 KiB heap. Networked upload/load peaks, including
-Wi-Fi allocations and an in-flight archive, were not measured in this pass; the
-smaller controller heap can reduce the size of shows it can load.
-The interpreter itself reserves 272 stack bytes. Recursive 32-lane evaluation
-also retains lane contexts in callers, so individual function sizes cannot be
-used as a maximum stack bound. Profiling measures stack use separately from frame
-timing. These workload measurements do not prove a bound for arbitrary graph
-depth, and the networked controller's complete output path is not timed here.
+Measured experiments that did not help and were reverted: an explicit
+instruction tag byte (+1-4%, larger instructions), disabling LLVM tail merging
+(+12.6% on the starter port, +2.8 KB IRAM), a single-bounds-check fetch (+1%), an
+integer-truncation floor (+1.2%), and unrestricted single-query fusion (doubled
+the echo diagnostic by losing color blocks).
 
 ### Compact prepared targets
 

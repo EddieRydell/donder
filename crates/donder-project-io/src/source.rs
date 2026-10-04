@@ -138,28 +138,6 @@ impl SourceProject {
         ))
     }
 
-    /// Remove an object's source registration after its owner has checked references.
-    pub fn remove_object(
-        &mut self,
-        identity: &donder_language::identity::SourceIdentity,
-        kind: SourceObjectKind,
-    ) -> Result<(), String> {
-        if !self.is_project_owned(identity.document_id()) {
-            return Err("Removing objects requires a project-owned document.".into());
-        }
-        let document = self
-            .documents
-            .get_mut(identity.document_id())
-            .ok_or_else(|| "Source document was not found.".to_string())?;
-        let index = document
-            .objects
-            .iter()
-            .position(|object| object.kind == kind && object.id == identity.object())
-            .ok_or_else(|| "Source object was not found.".to_string())?;
-        document.objects.remove(index);
-        Ok(())
-    }
-
     pub fn project_module_id(&self) -> Uuid {
         self.workspace.metadata.project_id
     }
@@ -207,9 +185,6 @@ impl SourceProject {
 
     pub fn is_project_owned(&self, document: &DocumentId) -> bool {
         document.module_id() == self.project_module_id()
-    }
-    pub fn is_editable(&self, document: &DocumentId) -> bool {
-        self.is_project_owned(document)
     }
 }
 

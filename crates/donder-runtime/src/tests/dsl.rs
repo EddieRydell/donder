@@ -8,10 +8,10 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
+use super::evaluation::SignalSampler;
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext as OperatorRunContext;
 use crate::dsl::RuntimeError;
-use crate::dsl::SignalSampler;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::Color;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
@@ -50,7 +50,7 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
     .unwrap()
     .remove(0);
     let params = effect.bind(&IndexMap::new()).unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (progress, red) in [(0.0, 115), (1.0, 179), (0.0, 115)] {
         let context = OperatorRunContext {
             progress,
@@ -96,27 +96,25 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
     let mut params = IndexMap::new();
     params.insert(
         Identifier::new("beats".to_string()).unwrap(),
-        Value::Marks(Arc::new(Marks {
-            marks: vec![
-                SampleDuration::from_ticks(1_000_000),
-                SampleDuration::from_ticks(2_000_000),
-            ],
-        })),
+        Value::Marks(Arc::new(Marks::new(vec![
+            SampleDuration::from_ticks(1_000_000),
+            SampleDuration::from_ticks(2_000_000),
+        ]))),
     );
     let bound = effect.bind(&params).unwrap();
     assert_eq!(
         bound
-            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
+            .evaluate(&context, &SPATIAL, &mut BatchWorkspace::default())
             .red,
         77
     );
     params.insert(
         Identifier::new("beats".to_string()).unwrap(),
-        Value::Marks(Arc::new(Marks { marks: Vec::new() })),
+        Value::Marks(Arc::new(Marks::EMPTY)),
     );
     let bound = effect.bind(&params).unwrap();
     assert_eq!(
-        bound.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
+        bound.evaluate(&context, &SPATIAL, &mut BatchWorkspace::default()),
         Color::BLACK
     );
     assert!(
@@ -147,9 +145,9 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
     let params = effect
         .bind(&IndexMap::from([(
             Identifier::new("beats".to_string()).unwrap(),
-            Value::Marks(Arc::new(Marks {
-                marks: (0..10_001).map(SampleDuration::from_ticks).collect(),
-            })),
+            Value::Marks(Arc::new(Marks::new(
+                (0..10_001).map(SampleDuration::from_ticks),
+            ))),
         )]))
         .unwrap();
     let context = OperatorRunContext {
@@ -162,7 +160,7 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
     };
     assert_eq!(
         params
-            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
+            .evaluate(&context, &SPATIAL, &mut BatchWorkspace::default())
             .red,
         255
     );
@@ -194,7 +192,7 @@ fn integer_comparisons_do_not_round_through_float() {
         pixel_fraction: 0.0,
     };
     assert_eq!(
-        params.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
+        params.evaluate(&context, &SPATIAL, &mut BatchWorkspace::default()),
         Color {
             red: 255,
             green: 255,
@@ -254,7 +252,7 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
         );
         let params = capped.bind(&values).unwrap();
         params
-            .evaluate(&context, &SPATIAL, &mut VmWorkspace::default())
+            .evaluate(&context, &SPATIAL, &mut BatchWorkspace::default())
             .red
     };
     assert_eq!(sample(-3), 0);
@@ -312,7 +310,7 @@ fn nested_counted_loops_reset_their_private_iteration_state() {
     };
     let params = effect.bind(&IndexMap::new()).unwrap();
     assert_eq!(
-        params.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
+        params.evaluate(&context, &SPATIAL, &mut BatchWorkspace::default()),
         Color {
             red: 255,
             green: 255,
@@ -421,7 +419,7 @@ fn constant_and_calculated_arrays_preserve_nested_values_and_assignment() {
         pixel_count: 1,
         pixel_fraction: 0.0,
     };
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for _ in 0..3 {
         assert_eq!(
             params.evaluate(&context, &SPATIAL, &mut workspace),
@@ -456,7 +454,7 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
         .unwrap()
         .remove(0);
     let small_params = small.bind(&IndexMap::new()).unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (progress, iterations, expected) in [
         (
             0.25,
@@ -530,7 +528,7 @@ fn array_aliases_survive_loops_nested_reassignment_and_workspace_reuse() {
 
 #[test]
 fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     let context = OperatorRunContext {
         progress: 0.0,
         time: SampleDuration::from_ticks(0),
@@ -622,7 +620,7 @@ fn signal_sampling_and_color_operations_execute() {
             &context,
             &SPATIAL,
             &mut sampler,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         )
         .expect("operator samples");
     assert_eq!(
@@ -686,7 +684,7 @@ fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
             pixel_fraction: 0.0,
         },
         &SPATIAL,
-        &mut VmWorkspace::default(),
+        &mut BatchWorkspace::default(),
     );
     assert_eq!(color, Color::BLACK);
 }
@@ -728,7 +726,7 @@ fn integer_arithmetic_wraps_and_remainder_is_total() {
                 pixel_fraction: 0.0,
             },
             &SPATIAL,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         );
         assert_eq!(
             color,
@@ -787,7 +785,7 @@ fn signal_sampling_outside_the_portable_clock_returns_black() {
                 &context,
                 &SPATIAL,
                 &mut ConstantSignal(source_color),
-                &mut VmWorkspace::default(),
+                &mut BatchWorkspace::default(),
             )
             .unwrap();
         assert_eq!(color, expected, "{seconds}");
@@ -847,7 +845,7 @@ fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {
             &context,
             &SPATIAL,
             &mut samples,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         )
         .unwrap();
     assert_eq!(
@@ -945,7 +943,7 @@ fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
                 &context,
                 &SPATIAL,
                 &mut samples,
-                &mut VmWorkspace::default(),
+                &mut BatchWorkspace::default(),
             )
             .unwrap();
         assert_eq!(samples.0, calls, "{body}");

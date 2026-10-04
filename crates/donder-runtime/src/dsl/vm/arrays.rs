@@ -1,5 +1,5 @@
 //! Array references preserve their storage owner; element values are still tagged.
-use super::{Arc, ArrayStorage, BoundParamValue, RuntimeValue, Value};
+use super::{Arc, BoundParamValue, RuntimeValue, Value};
 
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) enum ArrayParameter {
@@ -16,36 +16,11 @@ impl ArrayParameter {
         }
     }
 
-    pub(super) fn register(&self) -> ArrayRegister {
-        match self {
-            Self::Empty => ArrayRegister::Empty,
-            Self::Shared(values) => ArrayRegister::Shared(Arc::clone(values)),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-pub(super) enum ArrayRegister {
-    #[default]
-    Empty,
-    Shared(Arc<[Value]>),
-    Local(usize),
-}
-
-impl ArrayRegister {
+    /// A loaded register value; an empty array is an empty register.
     pub(super) fn runtime(&self) -> RuntimeValue {
         match self {
-            Self::Empty => RuntimeValue::Array(Arc::from([])),
+            Self::Empty => RuntimeValue::Void,
             Self::Shared(values) => RuntimeValue::Array(Arc::clone(values)),
-            Self::Local(index) => RuntimeValue::ArraySlot(*index),
-        }
-    }
-
-    pub(super) fn view<'a>(&'a self, arrays: &'a ArrayStorage) -> ArrayView<'a> {
-        match self {
-            Self::Empty => ArrayView::Shared(&[]),
-            Self::Shared(values) => ArrayView::Shared(values),
-            Self::Local(index) => ArrayView::Local(arrays.items(*index)),
         }
     }
 }
@@ -60,13 +35,6 @@ impl ArrayView<'_> {
         match self {
             Self::Shared(values) => values.len(),
             Self::Local(values) => values.len(),
-        }
-    }
-
-    pub(super) fn get(&self, index: usize) -> Option<RuntimeValue> {
-        match self {
-            Self::Shared(values) => values.get(index).map(RuntimeValue::from_value),
-            Self::Local(values) => values.get(index).map(super::clone_runtime),
         }
     }
 }

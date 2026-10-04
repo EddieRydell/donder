@@ -8,6 +8,8 @@ use donder_language::dsl::{Type, Value, compile_effects};
 mod fixtures;
 #[path = "src/mark_workload.rs"]
 mod mark_workload;
+// Shared with the device harness; the build script uses only part of it.
+#[allow(dead_code)]
 #[path = "src/workload.rs"]
 mod workload;
 
@@ -581,7 +583,7 @@ fn gradient_source(value: &donder_language::values::Gradient) -> String {
 
 fn marks_source(value: &donder_language::values::Marks) -> String {
     let marks = value
-        .marks
+        .as_slice()
         .iter()
         .map(|mark| {
             format!(
@@ -591,7 +593,7 @@ fn marks_source(value: &donder_language::values::Marks) -> String {
         })
         .collect::<Vec<_>>()
         .join(",");
-    format!("Arc::new(donder_language::values::Marks {{ marks: vec![{marks}] }})")
+    format!("Arc::new(donder_language::values::Marks::new([{marks}]))")
 }
 
 fn instruction_source(instruction: &Instruction) -> String {

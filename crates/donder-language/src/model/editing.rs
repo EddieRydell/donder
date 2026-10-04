@@ -171,9 +171,6 @@ impl DonderProject {
         })
     }
 
-    pub fn replace_root(&mut self, value: ProjectRoot) -> Result<(), String> {
-        self.apply_edits([ProjectEdit::ReplaceRoot(value)])
-    }
     pub fn replace_setup(&mut self, id: &SetupId, value: Setup) -> Result<(), String> {
         self.apply_edits([ProjectEdit::ReplaceSetup {
             id: id.clone(),

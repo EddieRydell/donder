@@ -13,7 +13,7 @@ pub struct SampleProgram {
     uses_sections: bool,
     target_entry: usize,
     uses_progress: bool,
-    numeric_blocks: bool,
+    batch: super::BatchPlan,
 }
 
 impl SampleProgram {
@@ -40,13 +40,13 @@ impl SampleProgram {
         let uses_spatial_context = bytecode.uses_spatial_context();
         let target_entry = bytecode.target_entry();
         let uses_progress = bytecode.reads_progress();
-        let numeric_blocks = super::blocks::numeric_blocks(&bytecode);
         let uses_sections = bytecode.instructions.iter().any(|instruction| {
             matches!(
                 instruction,
                 super::bytecode::Instruction::SectionQuery { .. }
             )
         });
+        let batch = super::blocks::batch_plan(&bytecode);
         let bytecode = bytecode
             .try_map_execution(Ok, |()| Err::<SignalAccess, _>(()), Ok)
             .ok()?;
@@ -57,7 +57,7 @@ impl SampleProgram {
             uses_sections,
             target_entry,
             uses_progress,
-            numeric_blocks,
+            batch,
         })
     }
 
@@ -85,8 +85,8 @@ impl SampleProgram {
         self.uses_progress
     }
 
-    pub fn supports_numeric_blocks(&self) -> bool {
-        self.numeric_blocks
+    pub fn batch(&self) -> &super::BatchPlan {
+        &self.batch
     }
 
     pub fn bind(&self, values: Vec<Value>) -> Result<BoundParams, BindingError> {

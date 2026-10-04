@@ -408,6 +408,21 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
             let source = resolve(state, dst.with_index(src));
             Some(known(state, source).unwrap_or(Known::Copy(source)))
         }
+        Choose {
+            dst,
+            condition,
+            when_true,
+            when_false,
+        } => match known(state, ValueSlot::Bool(condition))? {
+            Known::Bool(chosen) => {
+                let source = resolve(
+                    state,
+                    dst.with_index(if chosen { when_true } else { when_false }),
+                );
+                Some(known(state, source).unwrap_or(Known::Copy(source)))
+            }
+            _ => None,
+        },
         IntToFloat { src, .. } => f(int(state, src)? as f32),
         Smoothstep { value, .. } => {
             let t = float(state, value)?.clamp(0.0, 1.0);
@@ -931,6 +946,7 @@ fn removable(op: &Instruction) -> bool {
             | LoadColorConst { .. }
             | LoadArrayConst { .. }
             | Move { .. }
+            | Choose { .. }
             | MakeArray { .. }
             | IntToFloat { .. }
             | Not { .. }
@@ -943,9 +959,6 @@ fn removable(op: &Instruction) -> bool {
             | FloatAdd { .. }
             | FloatSubtract { .. }
             | FloatMultiply { .. }
-            | FloatMultiplyAdd { .. }
-            | FloatMultiplyAddConst { .. }
-            | FloatMultiplySmoothstep { .. }
             | FloatDivide { .. }
             | FloatRemainder { .. }
             | FloatAddConst { .. }

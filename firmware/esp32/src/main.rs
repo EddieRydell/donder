@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(asm_experimental_arch)]
 
 extern crate alloc;
 
@@ -8,6 +9,7 @@ use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
 use esp_hal::{clock::CpuClock, time::Instant};
 use esp_println::println;
 
+mod fast_divide;
 mod workload;
 #[allow(unused_imports)]
 mod fixtures {

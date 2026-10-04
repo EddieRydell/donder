@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(impl_trait_in_assoc_type)]
-#![cfg_attr(feature = "i2s-output", feature(asm_experimental_arch))]
+#![feature(asm_experimental_arch)]
 
 extern crate alloc;
 use tinyrlibc as _;
@@ -9,6 +9,9 @@ use tinyrlibc as _;
 #[cfg(feature = "dig-quad")]
 #[path = "../dig_quad.rs"]
 mod dig_quad;
+
+#[path = "../fast_divide.rs"]
+mod fast_divide;
 
 #[path = "../storage.rs"]
 mod storage;

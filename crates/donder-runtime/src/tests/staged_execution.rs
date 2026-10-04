@@ -2,15 +2,14 @@ use super::evaluation::{SampleEvaluation, context};
 use super::std;
 use std::prelude::rust_2024::*;
 
-use crate::dsl::{BoundParams, DslBindCache, SampleProgramExt, VmWorkspace};
-use crate::sections::SectionContext;
+use crate::dsl::{BatchWorkspace, BoundParams, DslBindCache, sample_once};
 use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::{ProgramConstants, SampleDefinition, Value, compile_effects};
 use donder_language::execution::SpatialContext;
 
 use super::playback;
 
-fn force_scalar(
+fn uncached(
     operator: &donder_language::dsl::OperatorInvocation,
 ) -> donder_language::dsl::OperatorInvocation {
     use donder_language::dsl::bytecode::{ContextRead, FloatSlot, NumberSlot};
@@ -18,7 +17,7 @@ fn force_scalar(
     let (mut bytecode, inputs, parameters) = operator.program().as_ref().clone().into_parts();
     let mut code = bytecode.instructions.into_vec();
     // An unreachable geometry read preserves executed instructions and branch
-    // targets while forcing the independent scalar traversal.
+    // targets; without frame caches every query samples its run upstream.
     code.push(Instruction::ContextRead {
         dst: NumberSlot::Float(FloatSlot(bytecode.layout.floats)),
         read: ContextRead::PixelFraction,
@@ -31,10 +30,8 @@ fn force_scalar(
     bytecode.layout.floats += 1;
     bytecode.instructions = code.into();
     bytecode.uses_pixel_context = true;
-    let scalar = OperatorProgram::admit(bytecode, inputs, parameters).unwrap();
-    assert!(!scalar.supports_color_blocks());
-    assert!(!scalar.supports_blocks());
-    OperatorDefinition::new(scalar)
+    let reference_operator = OperatorProgram::admit(bytecode, inputs, parameters).unwrap();
+    OperatorDefinition::new(reference_operator)
         .bind(operator.params().iter_values().collect())
         .unwrap()
         .with_automation(operator.automation().into())
@@ -42,7 +39,7 @@ fn force_scalar(
 }
 
 #[test]
-fn color_blocks_match_scalar_temporal_loops_for_tails_seeks_and_nested_graphs() {
+fn frame_caches_match_run_sampling_for_temporal_loops_tails_seeks_and_nested_graphs() {
     use donder_language::dsl::compile_operators;
     let effect = compile_effects(
         "effect Source {
@@ -72,13 +69,17 @@ fn color_blocks_match_scalar_temporal_loops_for_tails_seeks_and_nested_graphs() 
     .remove(0)
     .bind([])
     .unwrap();
-    assert!(operator.program().supports_color_blocks());
-    let scalar = force_scalar(&operator);
+    let reference_operator = uncached(&operator);
     for count in [1, 7, 8, 9, 17] {
         let mut blocked = playback::chain(count, &effect, 2, &[operator.clone(), operator.clone()])
             .into_playback();
-        let mut reference =
-            playback::chain(count, &effect, 2, &[scalar.clone(), scalar.clone()]).into_playback();
+        let mut reference = playback::chain(
+            count,
+            &effect,
+            2,
+            &[reference_operator.clone(), reference_operator.clone()],
+        )
+        .into_playback();
         for ticks in [0, 1, 39_999, 40_000, 90_000, 3_083_333, 0, 7_999_999] {
             let time = donder_language::values::SampleTime::from_ticks(ticks);
             assert_eq!(
@@ -91,22 +92,7 @@ fn color_blocks_match_scalar_temporal_loops_for_tails_seeks_and_nested_graphs() 
 }
 
 #[test]
-fn color_block_admission_rejects_pixel_dependent_control_and_scalar_values() {
-    for source in [
-        "operator P { input Signal source; color sample() { return source.at(seconds()) * pixel_fraction(); } }",
-        "operator P { input Signal source; color sample() { color c = source.at(seconds()); if (intensity(c) > 0.5) { return c; } return invert(c); } }",
-        "operator P { input Signal source; color sample() { color c = source.at(seconds()); color d = c; return rgb(intensity(d), 0.0, 0.0); } }",
-        "operator P { input Signal source; param int selected = 0; color sample() { array<color> colors = [source.at(seconds()), #000000]; return rgb(intensity(colors[selected]), 0.0, 0.0); } }",
-    ] {
-        let operator = donder_language::dsl::compile_operators(source)
-            .unwrap()
-            .remove(0);
-        assert!(!operator.program().supports_color_blocks(), "{source}");
-    }
-}
-
-#[test]
-fn single_query_blocks_preserve_scalar_control_arrays_loops_and_seeks() {
+fn frame_caches_preserve_control_arrays_loops_and_seeks() {
     let effect = compile_effects(
         "effect Source { color sample() {
         return hsv(pixel_fraction() + seconds() * 0.03, 0.7, 0.8);
@@ -145,9 +131,7 @@ fn single_query_blocks_preserve_scalar_control_arrays_loops_and_seeks() {
             .remove(0)
             .bind([])
             .unwrap();
-        assert!(!operator.program().supports_color_blocks());
-        assert!(operator.program().supports_blocks(), "{source}");
-        let scalar = force_scalar(&operator);
+        let reference_operator = uncached(&operator);
         for count in [1, 7, 8, 9, 17] {
             let mut blocked = playback::chain(
                 count,
@@ -160,7 +144,11 @@ fn single_query_blocks_preserve_scalar_control_arrays_loops_and_seeks() {
                 count,
                 &effect,
                 2,
-                &[scalar.clone(), scalar.clone(), outer.clone()],
+                &[
+                    reference_operator.clone(),
+                    reference_operator.clone(),
+                    outer.clone(),
+                ],
             )
             .into_playback();
             for ticks in [
@@ -175,20 +163,10 @@ fn single_query_blocks_preserve_scalar_control_arrays_loops_and_seeks() {
             }
         }
     }
-    for source in [
-        "operator P { input Signal source; color sample() { return source.at(seconds() + pixel_fraction()) * intensity(source.at(seconds())); } }",
-        "operator P { input Signal source; color sample() { color c = source.at(seconds() + pixel_fraction()); return rgb(intensity(c), 0.0, 0.0); } }",
-        "operator P { input Signal source; color sample() { color c = source.at(seconds(), pixel_index()); return rgb(intensity(c), 0.0, 0.0); } }",
-    ] {
-        let operator = donder_language::dsl::compile_operators(source)
-            .unwrap()
-            .remove(0);
-        assert!(!operator.program().supports_blocks(), "{source}");
-    }
 }
 
 #[test]
-fn color_blocks_preserve_local_global_and_subset_target_addressing() {
+fn batches_preserve_local_global_and_subset_target_addressing() {
     use donder_language::dsl::compile_operators;
     use donder_language::execution::{FixtureGeometry, OutputEncoding, RgbOrder, TargetScope};
     let source = compile_effects(
@@ -210,8 +188,7 @@ fn color_blocks_preserve_local_global_and_subset_target_addressing() {
     .remove(0)
     .bind([])
     .unwrap();
-    assert!(operator.program().supports_color_blocks());
-    let scalar = force_scalar(&operator);
+    let reference_operator = uncached(&operator);
     let build = |op: &donder_language::dsl::OperatorInvocation| {
         crate::PreparedSequence::build(playback::timing(4_000_000), |builder| {
             let left = builder.fixture(
@@ -234,7 +211,7 @@ fn color_blocks_preserve_local_global_and_subset_target_addressing() {
         .into_playback()
     };
     let mut blocked = build(&operator);
-    let mut reference = build(&scalar);
+    let mut reference = build(&reference_operator);
     for ticks in [0, 1, 333_333, 3_900_000, 3_999_999, 4_000_000, 0] {
         let time = donder_language::values::SampleTime::from_ticks(ticks);
         assert_eq!(
@@ -280,9 +257,9 @@ fn constant_colors_use_the_same_quantization_as_runtime_expressions() {
             folded.bind([]).unwrap().evaluate(
                 &context(8, 3, 0),
                 &SPATIAL,
-                &mut VmWorkspace::default()
+                &mut BatchWorkspace::default()
             ),
-            runtime.evaluate(&context(8, 3, 0), &SPATIAL, &mut VmWorkspace::default())
+            runtime.evaluate(&context(8, 3, 0), &SPATIAL, &mut BatchWorkspace::default())
         );
     }
 }
@@ -345,8 +322,8 @@ fn prepared_binding_arithmetic_keeps_shared_code_and_dynamic_inputs() {
                 for frame in [0, 1, 17] {
                     let context = context(32, pixel, frame);
                     assert_eq!(
-                        original.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
-                        optimized.evaluate(&context, &SPATIAL, &mut VmWorkspace::default()),
+                        original.evaluate(&context, &SPATIAL, &mut BatchWorkspace::default()),
+                        optimized.evaluate(&context, &SPATIAL, &mut BatchWorkspace::default()),
                         "width={width} gain={gain} pixel={pixel} frame={frame}"
                     );
                 }
@@ -475,8 +452,8 @@ fn prepared_divisors_keep_dynamic_and_pixel_mutated_bindings() {
             for pixel in 0..17 {
                 let ctx = context(17, pixel, 0);
                 assert_eq!(
-                    original.evaluate(&ctx, &SPATIAL, &mut VmWorkspace::default()),
-                    prepared.evaluate(&ctx, &SPATIAL, &mut VmWorkspace::default())
+                    original.evaluate(&ctx, &SPATIAL, &mut BatchWorkspace::default()),
+                    prepared.evaluate(&ctx, &SPATIAL, &mut BatchWorkspace::default())
                 );
             }
         }
@@ -618,12 +595,12 @@ fn specialization_eliminates_fixed_branches_but_keeps_live_parameters() {
                 original.evaluate(
                     &context(32, pixel, 0),
                     &SPATIAL,
-                    &mut VmWorkspace::default()
+                    &mut BatchWorkspace::default()
                 ),
                 prepared.evaluate(
                     &context(32, pixel, 0),
                     &SPATIAL,
-                    &mut VmWorkspace::default()
+                    &mut BatchWorkspace::default()
                 )
             );
         }
@@ -651,8 +628,8 @@ fn target_initialization_refreshes_on_count_and_bounds_changes() {
             .any(|op| matches!(op, Instruction::FloatDivide { .. }))
     );
     let params = BoundParams::from_validated(bound.params(), &mut DslBindCache::default());
-    let mut workspace = VmWorkspace::default();
-    for (index, (count, pixel, max_x)) in [
+    let mut workspace = BatchWorkspace::default();
+    for (count, pixel, max_x) in [
         (8, 0, 1.0),
         (8, 7, 1.0),
         (3, 1, 1.0),
@@ -661,25 +638,14 @@ fn target_initialization_refreshes_on_count_and_bounds_changes() {
         (8, 7, 1.0),
     ]
     .into_iter()
-    .enumerate()
     {
         let context = context(count, pixel, 0);
         let spatial = SpatialContext {
             max: [max_x, 1.0],
             ..SPATIAL
         };
-        let actual = program.sample(
-            &params,
-            &context,
-            &spatial,
-            SectionContext::Single {
-                index: context.pixel_index,
-                count: context.pixel_count,
-            },
-            &mut workspace,
-            index != 0,
-        );
-        let expected = bound.evaluate(&context, &spatial, &mut VmWorkspace::default());
+        let actual = sample_once(program, &params, &context, &spatial, &mut workspace);
+        let expected = bound.evaluate(&context, &spatial, &mut BatchWorkspace::default());
         assert_eq!(
             actual, expected,
             "count={count} pixel={pixel} max_x={max_x}"
@@ -833,24 +799,14 @@ fn uniform_parameter_samples_refresh_when_target_changes() {
             .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
     );
     let params = BoundParams::from_validated(invocation.params(), &mut DslBindCache::default());
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (index, max_x) in [0.0, 0.25, 1.0, 0.25].into_iter().enumerate() {
         let context = context(9, index, 0);
         let spatial = SpatialContext {
             max: [max_x, 1.0],
             ..SPATIAL
         };
-        let actual = program.sample(
-            &params,
-            &context,
-            &spatial,
-            SectionContext::Single {
-                index: context.pixel_index,
-                count: context.pixel_count,
-            },
-            &mut workspace,
-            index != 0,
-        );
+        let actual = sample_once(program, &params, &context, &spatial, &mut workspace);
         assert_eq!(actual, crate::sampling::sample_gradient(&gradient, max_x));
     }
 }
@@ -882,91 +838,12 @@ fn section_reciprocal_preserves_boundaries_and_missing_values() {
                     .evaluate(
                         &context(64, pixel, 0),
                         &SPATIAL,
-                        &mut VmWorkspace::default()
+                        &mut BatchWorkspace::default()
                     )
                     .red,
                 expected,
                 "width={width} pixel={pixel}"
             );
-        }
-    }
-}
-
-#[test]
-fn numeric_blocks_match_scalar_branches_loops_targets_and_tail_reuse() {
-    use crate::dsl::LaneContext;
-    use crate::values::Color;
-    for source in [
-        "effect P { color sample() {
-            if (pixel_index() % 3 == 0) { return rgb(progress(), 0.2, 0.1); }
-            float value = 0.0;
-            for (int i in range(pixel_index() % 5, 5)) {
-                if (i % 2 == 0) { value = value + 0.07; }
-                else { value = value + pixel_fraction() * 0.1; }
-            }
-            return rgb(value, pixel_fraction(), seconds() * 0.1);
-        } }",
-        "effect P { color sample() {
-            float size = max(1.0, pixel_count() - 1.0);
-            float section = section_position(3.0);
-            return rgb(pixel_index() / size, target_max_x() * 0.1, section);
-        } }",
-        "effect P { param float gain = 0.37; color sample() {
-            color base = mix(invert(rgb(0.1, 0.3, 0.7)), hsv(0.4, 0.8, 0.9), gain) * gain;
-            return mix(base, invert(base), pixel_fraction());
-        } }",
-    ] {
-        let effect = compile_effects(source).unwrap().remove(0);
-        let bound = effect.bind([]).unwrap();
-        let (program, prepared) = effect
-            .sample_program()
-            .prepare_bindings(bound.params(), |_| false);
-        assert!(program.supports_numeric_blocks(), "{source}");
-        let params = BoundParams::from_validated(&prepared, &mut DslBindCache::default());
-        let mut workspace = VmWorkspace::default();
-        const WIDTH: usize = crate::dsl::COLOR_BLOCK_WIDTH;
-        for (block, width) in [3, WIDTH, 1, WIDTH - 1, WIDTH, WIDTH]
-            .into_iter()
-            .enumerate()
-        {
-            let contexts: [_; WIDTH] = core::array::from_fn(|lane| {
-                let (count, max_x) = match block {
-                    2 => (11, 2.0),
-                    3 => (9 + lane % 3, 1.0 + lane as f32),
-                    _ => (9, 1.0),
-                };
-                let index = (lane + block) % count;
-                LaneContext {
-                    context: context(count, index, 0),
-                    spatial: SpatialContext {
-                        max: [max_x, 1.0],
-                        ..SPATIAL
-                    },
-                    sections: SectionContext::Single {
-                        index: index as i32,
-                        count: count as i32,
-                    },
-                }
-            });
-            let mut colors = [Color::BLACK; WIDTH];
-            program.sample_block(
-                &params,
-                &contexts[..width],
-                &mut workspace,
-                &mut colors[..width],
-                block != 0,
-            );
-            for lane in 0..width {
-                let expected = bound.evaluate(
-                    &contexts[lane].context,
-                    &contexts[lane].spatial,
-                    &mut VmWorkspace::default(),
-                );
-                assert_eq!(
-                    colors[lane], expected,
-                    "block={block} lane={lane} source={source}"
-                );
-            }
         }
     }
 }

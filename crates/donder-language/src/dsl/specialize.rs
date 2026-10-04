@@ -212,7 +212,12 @@ fn finish(mut program: BytecodeProgram, finish: Finish) -> BytecodeProgram {
                 &mut arrays,
                 &mut enums,
             );
-            super::optimize::prepare_pixels(&mut code, &mut operands, &mut program.layout)
+            super::optimize::prepare_pixels(
+                &mut code,
+                &mut operands,
+                &mut program.layout,
+                &mut arrays,
+            )
         }
         Finish::PreparedPrefix(entry) => {
             super::optimize::compact_storage(
@@ -229,7 +234,6 @@ fn finish(mut program: BytecodeProgram, finish: Finish) -> BytecodeProgram {
     if matches!(finish, Finish::PreparedPrefix(_)) {
         // Keep logical temporaries distinct through specialization and staging.
         // Early reuse hides single-assignment values from those analyses.
-        super::optimize::fuse(&mut code, &mut operands, program.pixel_entry);
         super::optimize::reuse(
             &mut code,
             &mut operands,

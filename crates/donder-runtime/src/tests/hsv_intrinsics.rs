@@ -8,10 +8,10 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
+use super::evaluation::SignalSampler;
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext as OperatorRunContext;
 use crate::dsl::RuntimeError;
-use crate::dsl::SignalSampler;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::Color;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
@@ -81,7 +81,7 @@ fn hsv_components_execute_and_hoist_uniform_color_reads() {
                 })
         );
     }
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (input, output) in [
         ([255, 0, 0], [0, 255, 255]),
         ([255, 255, 0], [43, 255, 255]),
@@ -115,7 +115,7 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
     .into_iter()
     .find(|op| op.name().as_str() == "HueShift")
     .unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (input, shift, output) in [
         ([255, 0, 0], 1.0 / 6.0, [255, 255, 0]),
         ([255, 0, 0], -1.0 / 6.0, [255, 0, 255]),

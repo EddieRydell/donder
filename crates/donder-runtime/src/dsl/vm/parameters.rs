@@ -1,8 +1,5 @@
 use super::arrays::ArrayParameter;
-use super::{
-    Arc, BoundParamValue, Color, Curve, Gradient, Identifier, Marks, PreparedCurve, RuntimeValue,
-    Type,
-};
+use super::{Arc, BoundParamValue, Color, Curve, Gradient, Identifier, Marks, PreparedCurve, Type};
 use alloc::vec::Vec;
 
 /// Declaration order is metadata; dedicated value kinds live only in their typed bank.
@@ -68,13 +65,6 @@ impl CurveRegister {
         }
     }
 
-    pub(super) fn runtime(&self) -> RuntimeValue {
-        match self {
-            Self::Prepared(value) => RuntimeValue::PreparedCurve(Arc::clone(value)),
-            _ => RuntimeValue::Curve(self.owned()),
-        }
-    }
-
     pub(super) fn sample(&self, position: f32) -> f32 {
         super::sample_curve(self.raw(), position)
     }
@@ -124,7 +114,7 @@ pub(super) enum MarksRegister {
 
 impl MarksRegister {
     pub(super) fn get(&self) -> &Marks {
-        static EMPTY: Marks = Marks { marks: Vec::new() };
+        static EMPTY: Marks = Marks::EMPTY;
         match self {
             Self::Empty => &EMPTY,
             Self::Shared(value) => value,

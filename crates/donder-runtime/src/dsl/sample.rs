@@ -1,76 +1,38 @@
-//! Runtime-private execution of language-admitted programs.
-use super::{BoundParams, LaneContext, RunContext, SpatialContext, VmWorkspace};
+//! One-pixel evaluation of an admitted effect, for tests.
+use super::{BatchWorkspace, BoundParams, NoSignals, RunContext, SampleProgram, SpatialContext};
 use crate::values::Color;
-use donder_language::dsl::SampleProgram;
 
-pub(crate) trait SampleProgramExt: Sized {
-    fn sample_block(
-        &self,
-        params: &BoundParams,
-        contexts: &[LaneContext<'_>],
-        workspace: &mut VmWorkspace,
-        output: &mut [Color],
-        reuse_uniform: bool,
+/// Sample one pixel as a one-lane batch. Section queries use the pixel's index
+/// and count.
+pub(crate) fn sample_once(
+    program: &SampleProgram,
+    params: &BoundParams,
+    context: &RunContext,
+    spatial: &SpatialContext,
+    workspace: &mut BatchWorkspace,
+) -> Color {
+    workspace.reserve(program.bytecode(), program.batch());
+    let mut batch = super::Batch::new(
+        program.bytecode(),
+        program.target_entry(),
+        program.batch(),
+        params,
+        context,
+        None,
+        workspace,
     );
-    #[allow(clippy::too_many_arguments)]
-    fn sample(
-        &self,
-        params: &BoundParams,
-        context: &RunContext,
-        spatial: &SpatialContext,
-        sections: crate::sections::SectionContext<'_>,
-        workspace: &mut VmWorkspace,
-        reuse_uniform: bool,
-    ) -> Color;
-}
-
-impl SampleProgramExt for SampleProgram {
-    fn sample_block(
-        &self,
-        params: &BoundParams,
-        contexts: &[LaneContext<'_>],
-        workspace: &mut VmWorkspace,
-        output: &mut [Color],
-        reuse_uniform: bool,
-    ) {
-        assert!(self.supports_numeric_blocks());
-        super::vm::evaluate_numeric_block(
-            self.bytecode(),
-            params,
-            &contexts[0].context,
-            &contexts[0].spatial,
-            Some(contexts),
-            &mut super::vm::NoSignals,
-            workspace,
-            output,
-            reuse_uniform,
-            self.target_entry(),
-        );
-    }
-    fn sample(
-        &self,
-        params: &BoundParams,
-        context: &RunContext,
-        spatial: &SpatialContext,
-        sections: crate::sections::SectionContext<'_>,
-        workspace: &mut VmWorkspace,
-        reuse_uniform: bool,
-    ) -> Color {
-        let entry = workspace.sample_entry(
-            reuse_uniform,
-            self.target_entry(),
-            self.bytecode().pixel_entry as usize,
-            context,
-            spatial,
-        );
-        super::vm::evaluate_sample(
-            self.bytecode(),
-            params,
-            context,
-            spatial,
-            sections,
-            workspace,
-            entry,
-        )
-    }
+    let lanes = batch.lanes();
+    lanes.pixel_index[0] = context.pixel_index;
+    lanes.pixel_fraction[0] = context.pixel_fraction;
+    lanes.x[0] = spatial.position[0];
+    lanes.y[0] = spatial.position[1];
+    let mut color = [Color::BLACK];
+    batch.run(
+        context.pixel_count as usize,
+        spatial.min,
+        spatial.max,
+        &mut NoSignals,
+        &mut color,
+    );
+    color[0]
 }

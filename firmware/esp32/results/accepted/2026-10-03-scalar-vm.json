@@ -1,0 +1,325 @@
+{
+ "date_local": "2026-10-03",
+ "scope": "Scalar interpreter without numeric lanes or arithmetic fusion; sorted marks with precomputed seconds; fixed inline primitive register banks; interpreter sessions for effects and operators; per-run target traversal; seconds converted once per session; source query time memoized; cached-frame fast path; single-query fusion; if-conversion of conditional assignments into Choose so staging can hoist them; one shared channel conversion; evaluation/targets/session code placed in IRAM. Baseline is the preceding lane implementation (wire 45) with only Marks construction sorted.",
+ "method": "ESP32 rev3.1, 240 MHz, one core, Wi-Fi off, GPIO untouched. Release opt-level 3, fat LTO, one codegen unit. Each image embeds archives prepared by its own tree (wire 45 baseline, 47 current) and verifies every frame against host checksums. 32-frame windows include first use. Evaluation only; excludes network, storage, DMA and physical output.",
+ "images": {
+  "baseline_elf_sha256": "01e8393e2df63581a17741fe7e85004be05bf5e7fdc97608edb0dc19e0d1570a",
+  "current_elf_sha256": "12b04e90d8acbe62fec08bc07b283667c617f07acb09bcdd3b455bdf668b6281"
+ },
+ "correctness": {
+  "device_cases": 19,
+  "frames_per_case": 32,
+  "checksums_match_host": true,
+  "evaluation_allocations": 0
+ },
+ "timings": {
+  "baseline": {
+   "layered_600_4layers_3operators": {
+    "mean_us": 89132,
+    "p95_us": 89299,
+    "max_us": 89725,
+    "retained": 27640
+   },
+   "trivial_1200": {
+    "mean_us": 3778,
+    "p95_us": 3778,
+    "max_us": 4054,
+    "retained": 16920
+   },
+   "ScanSweep_150": {
+    "mean_us": 1838,
+    "p95_us": 1847,
+    "max_us": 2191,
+    "retained": 10472
+   },
+   "ImpactBurst_150": {
+    "mean_us": 1753,
+    "p95_us": 1767,
+    "max_us": 2123,
+    "retained": 11836
+   },
+   "SparkleComet_150": {
+    "mean_us": 2864,
+    "p95_us": 2874,
+    "max_us": 3233,
+    "retained": 15512
+   },
+   "ShimmerField_150": {
+    "mean_us": 2003,
+    "p95_us": 2029,
+    "max_us": 2377,
+    "retained": 12668
+   },
+   "ShimmerField_600": {
+    "mean_us": 7706,
+    "p95_us": 7753,
+    "max_us": 8080,
+    "retained": 18516
+   },
+   "ShimmerField_1200": {
+    "mean_us": 15273,
+    "p95_us": 15375,
+    "max_us": 15696,
+    "retained": 26316
+   },
+   "ShimmerField_150_layers4": {
+    "mean_us": 7750,
+    "p95_us": 7814,
+    "max_us": 8164,
+    "retained": 15732
+   },
+   "ShimmerField_150_layers16": {
+    "mean_us": 30739,
+    "p95_us": 30959,
+    "max_us": 31290,
+    "retained": 28004
+   },
+   "black_150": {
+    "mean_us": 142,
+    "p95_us": 141,
+    "max_us": 398,
+    "retained": 2804
+   },
+   "freeze_black_150": {
+    "mean_us": 2415,
+    "p95_us": 2417,
+    "max_us": 2731,
+    "retained": 4180
+   },
+   "scheduled_16": {
+    "mean_us": 111,
+    "p95_us": 114,
+    "max_us": 365,
+    "retained": 4696
+   },
+   "scheduled_128": {
+    "mean_us": 122,
+    "p95_us": 121,
+    "max_us": 377,
+    "retained": 22616
+   },
+   "chase_pulse_150_layers1": {
+    "mean_us": 1677,
+    "p95_us": 1690,
+    "max_us": 2058,
+    "retained": 9928
+   },
+   "chase_pulse_150_layers4": {
+    "mean_us": 3592,
+    "p95_us": 3608,
+    "max_us": 3956,
+    "retained": 13268
+   },
+   "chase_pulse_150_layers16": {
+    "mean_us": 14241,
+    "p95_us": 14259,
+    "max_us": 14615,
+    "retained": 23764
+   },
+   "starter_port1": {
+    "mean_us": 187,
+    "p95_us": 187,
+    "max_us": 578,
+    "retained": 26892
+   },
+   "stanford": {
+    "mean_us": 13336,
+    "p95_us": 13830,
+    "max_us": 14504,
+    "retained": 58520
+   }
+  },
+  "current": {
+   "layered_600_4layers_3operators": {
+    "mean_us": 101860,
+    "p95_us": 102020,
+    "max_us": 102458,
+    "retained": 27576
+   },
+   "trivial_1200": {
+    "mean_us": 3071,
+    "p95_us": 3072,
+    "max_us": 3302,
+    "retained": 17952
+   },
+   "ScanSweep_150": {
+    "mean_us": 1574,
+    "p95_us": 1571,
+    "max_us": 1847,
+    "retained": 6736
+   },
+   "ImpactBurst_150": {
+    "mean_us": 1549,
+    "p95_us": 1557,
+    "max_us": 1827,
+    "retained": 6852
+   },
+   "SparkleComet_150": {
+    "mean_us": 2953,
+    "p95_us": 2950,
+    "max_us": 3241,
+    "retained": 7720
+   },
+   "ShimmerField_150": {
+    "mean_us": 2075,
+    "p95_us": 2086,
+    "max_us": 2359,
+    "retained": 6792
+   },
+   "ShimmerField_600": {
+    "mean_us": 8204,
+    "p95_us": 8251,
+    "max_us": 8522,
+    "retained": 12640
+   },
+   "ShimmerField_1200": {
+    "mean_us": 16372,
+    "p95_us": 16472,
+    "max_us": 16730,
+    "retained": 20440
+   },
+   "ShimmerField_150_layers4": {
+    "mean_us": 8196,
+    "p95_us": 8244,
+    "max_us": 8519,
+    "retained": 9856
+   },
+   "ShimmerField_150_layers16": {
+    "mean_us": 32679,
+    "p95_us": 32885,
+    "max_us": 33140,
+    "retained": 22128
+   },
+   "black_150": {
+    "mean_us": 92,
+    "p95_us": 96,
+    "max_us": 315,
+    "retained": 4220
+   },
+   "freeze_black_150": {
+    "mean_us": 2201,
+    "p95_us": 2206,
+    "max_us": 2473,
+    "retained": 6828
+   },
+   "scheduled_16": {
+    "mean_us": 60,
+    "p95_us": 64,
+    "max_us": 278,
+    "retained": 6112
+   },
+   "scheduled_128": {
+    "mean_us": 70,
+    "p95_us": 74,
+    "max_us": 303,
+    "retained": 24032
+   },
+   "chase_pulse_150_layers1": {
+    "mean_us": 1266,
+    "p95_us": 1267,
+    "max_us": 1549,
+    "retained": 6064
+   },
+   "chase_pulse_150_layers4": {
+    "mean_us": 2714,
+    "p95_us": 2722,
+    "max_us": 2994,
+    "retained": 9404
+   },
+   "chase_pulse_150_layers16": {
+    "mean_us": 10942,
+    "p95_us": 10961,
+    "max_us": 11224,
+    "retained": 19900
+   },
+   "starter_port1": {
+    "mean_us": 147,
+    "p95_us": 153,
+    "max_us": 515,
+    "retained": 26112
+   },
+   "stanford": {
+    "mean_us": 6759,
+    "p95_us": 7135,
+    "max_us": 7663,
+    "retained": 58424
+   }
+  }
+ },
+ "stanford_node_cycles_per_frame": {
+  "note": "Instrumented copy with per-node cycle counters (about 1% overhead); keys: frame nodes, effects (64+index), patch (500). Measured before the channel-conversion change.",
+  "total_cycles_per_frame": 1642320,
+  "nodes": [
+   {
+    "key": 0,
+    "exclusive_cycles_per_frame": 455
+   },
+   {
+    "key": 4,
+    "exclusive_cycles_per_frame": 260380
+   },
+   {
+    "key": 5,
+    "exclusive_cycles_per_frame": 363784
+   },
+   {
+    "key": 6,
+    "exclusive_cycles_per_frame": 20732
+   },
+   {
+    "key": 35,
+    "exclusive_cycles_per_frame": 7185
+   },
+   {
+    "key": 64,
+    "exclusive_cycles_per_frame": 42434
+   },
+   {
+    "key": 65,
+    "exclusive_cycles_per_frame": 99969
+   },
+   {
+    "key": 66,
+    "exclusive_cycles_per_frame": 42177
+   },
+   {
+    "key": 67,
+    "exclusive_cycles_per_frame": 100735
+   },
+   {
+    "key": 73,
+    "exclusive_cycles_per_frame": 424287
+   },
+   {
+    "key": 86,
+    "exclusive_cycles_per_frame": 253846
+   },
+   {
+    "key": 500,
+    "exclusive_cycles_per_frame": 4834
+   }
+  ]
+ },
+ "native_estimate_cycles_per_pixel": {
+  "note": "Hand-written native equivalents using the same library helpers, timed on the device; interpreter values include its per-pixel floor.",
+  "gradient": {
+   "native": 215,
+   "interpreter": 1700
+  },
+  "markchase": {
+   "native": 528,
+   "interpreter": 4200
+  },
+  "huemap_hueshift": {
+   "native": 733,
+   "interpreter": 2400
+  }
+ },
+ "rejected_experiments": {
+  "explicit_instruction_tag": "#[repr(u8)] Instruction: +1-4% on workloads, larger instructions",
+  "tail_merge_disabled": "-enable-tail-merge=false: about 1% faster on some, +12.6% starter port, +2.8 KB IRAM",
+  "single_bounds_check_fetch": "split_first fetch: +1.0% ShimmerField",
+  "integer_truncation_floor": "truncating floor helper: +1.2% ShimmerField and Stanford",
+  "unrestricted_single_query_fusion": "fusing color-block callers into scalar programs doubled the echo diagnostic"
+ }
+}

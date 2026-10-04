@@ -122,7 +122,7 @@ impl OperatorInvocation {
                 items.start = u32::try_from(operands.len()).ok()?;
                 operands.extend_from_slice(values);
             }
-            super::optimize::slots(&mut op, &mut operands, |slot, _| {
+            super::bytecode::slots(&mut op, &mut operands, |slot, _| {
                 offset_slot(slot, registers)
             });
             remap_params(&mut op, param_offset, params);
@@ -190,15 +190,16 @@ impl OperatorInvocation {
         caller.instructions = code.into();
         caller.value_operands = operands.into();
         types = [types.as_ref(), source_types.as_ref()].concat().into();
-        let program = OperatorProgram::admit(
-            super::specialize::optimize_program(caller),
-            inputs - 1 + source_inputs,
-            types,
-        )
-        .unwrap_or_else(|| unreachable!("signal inlining preserves admitted program invariants"));
-        if self.program().supports_blocks() && !program.supports_blocks() {
+        let caller = super::specialize::optimize_program(caller);
+        // Inlining adds the source's registers; keep both programs separate
+        // when the combination no longer fits the fixed register banks.
+        if caller.layout.exceeded_bank().is_some() {
             return None;
         }
+        let program = OperatorProgram::admit(caller, inputs - 1 + source_inputs, types)
+            .unwrap_or_else(|| {
+                unreachable!("signal inlining preserves admitted program invariants")
+            });
         let values = self
             .params()
             .iter_values()

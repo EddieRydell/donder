@@ -62,12 +62,8 @@ pub(crate) fn mark_show(count: usize, pulse: bool) -> Workload {
     let mut overrides = vec![(
         Identifier::new("beats".into()).unwrap(),
         Value::Marks(
-            Marks {
-                marks: (0..32)
-                    .map(|index| SampleDuration::from_ticks(2_000_000 + index * 50_000))
-                    .collect(),
-            }
-            .into(),
+            Marks::new((0..32).map(|index| SampleDuration::from_ticks(2_000_000 + index * 50_000)))
+                .into(),
         ),
     )];
     if pulse {

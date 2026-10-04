@@ -8,8 +8,8 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
 use donder_language::dsl::compile_effects;
@@ -75,7 +75,7 @@ fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
                 pixel_fraction: 0.0,
             },
             &SPATIAL,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         );
         assert_eq!(color.red, brightness, "progress={progress}");
         assert_eq!(color.green, brightness);

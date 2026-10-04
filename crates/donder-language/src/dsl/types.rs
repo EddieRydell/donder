@@ -139,7 +139,7 @@ impl Type {
                 green: 0,
                 blue: 0,
             }),
-            Self::Marks => Value::Marks(Arc::new(Marks { marks: Vec::new() })),
+            Self::Marks => Value::Marks(Arc::new(Marks::EMPTY)),
             Self::Curve => Value::Curve(Arc::new(Curve { points: Vec::new() })),
             Self::Gradient => Value::Gradient(Arc::new(Gradient { stops: Vec::new() })),
             Self::Array(_) => Value::Array(Arc::from([])),

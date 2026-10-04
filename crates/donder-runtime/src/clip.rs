@@ -1,6 +1,7 @@
 //! Sparse sampling of one authored clip from an already prepared sequence.
 //! Raster dimensions, scheduling, image storage, and caching belong to the host.
-use crate::dsl::{AutomationPlan, SpatialContext, VmWorkspace};
+use crate::dsl::{AutomationPlan, BatchWorkspace};
+use crate::evaluation::RunPixel;
 use crate::signal::{EffectAutomationWorkspace, PreparedClip, PreparedEffect, SignalGraph};
 use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::{collections::BTreeMap, vec, vec::Vec};
@@ -40,8 +41,8 @@ impl<'a> SequenceClip<'a> {
         let indices = evenly_sample_indices(target.len(), rows);
         let row_count = indices.len();
         let program = self.graph.sample_program(effect.program);
-        let mut vm = VmWorkspace::default();
-        vm.reserve(program.bytecode());
+        let mut workspace = BatchWorkspace::default();
+        workspace.reserve(program.bytecode(), program.batch());
         let mut groups = Vec::<SampleGroup>::new();
         let mut group_by_context = BTreeMap::new();
         for (row, local) in indices.into_iter().enumerate() {
@@ -52,18 +53,12 @@ impl<'a> SequenceClip<'a> {
                 local,
                 &pixel,
             );
-            let context = SampleContext {
-                index: pixel.pixel_index,
-                count: pixel.pixel_count,
-                fraction: pixel.pixel_fraction,
-                spatial,
-                section: self.graph.targets[effect.target].sections.pixel(local),
-            };
+            let section = self.graph.targets[effect.target].sections.pixel(local);
             let key = (
-                program.uses_sections().then_some(context.section),
-                context.index,
-                context.count,
-                context.fraction.to_bits(),
+                program.uses_sections().then_some(section),
+                pixel.pixel_index,
+                pixel.pixel_count,
+                pixel.pixel_fraction.to_bits(),
                 [
                     spatial.position[0],
                     spatial.position[1],
@@ -80,7 +75,10 @@ impl<'a> SequenceClip<'a> {
             } else {
                 group_by_context.insert(key, groups.len());
                 groups.push(SampleGroup {
-                    context,
+                    pixel: RunPixel {
+                        target_index: local,
+                        pixel,
+                    },
                     rows: vec![row],
                 });
             }
@@ -90,7 +88,7 @@ impl<'a> SequenceClip<'a> {
             output: vec![Color::BLACK; row_count],
             groups,
             automation: effect.automation_workspace(),
-            vm,
+            workspace,
         }
     }
 }
@@ -101,21 +99,13 @@ pub struct ClipSampler<'a> {
     output: Vec<Color>,
     groups: Vec<SampleGroup>,
     automation: Option<EffectAutomationWorkspace>,
-    vm: VmWorkspace,
+    workspace: BatchWorkspace,
 }
 
+/// Rows sharing one sampling context, and a pixel with that context.
 struct SampleGroup {
-    context: SampleContext,
+    pixel: RunPixel,
     rows: Vec<usize>,
-}
-
-#[derive(Clone, Copy)]
-struct SampleContext {
-    index: usize,
-    count: usize,
-    section: crate::sections::SectionPixel,
-    fraction: f32,
-    spatial: SpatialContext,
 }
 
 impl ClipSampler<'_> {
@@ -129,21 +119,20 @@ impl ClipSampler<'_> {
             Some(automation) => automation.params_at(time),
             None => &effect.bound_params,
         };
+        let (groups, output) = (&self.groups, &mut self.output);
         effect.with_sampler(self.clip.graph, time, params, |sampler| {
-            for group in &self.groups {
-                let context = group.context;
-                let color = sampler.sample_spatial_context(
-                    context.index,
-                    context.count,
-                    context.fraction,
-                    context.section,
-                    &context.spatial,
-                    &mut self.vm,
-                );
-                for &row in &group.rows {
-                    self.output[row] = color;
-                }
-            }
+            sampler.sample_pixels(
+                self.clip.graph,
+                effect.target,
+                groups.len(),
+                |group| groups[group].pixel,
+                &mut self.workspace,
+                |group, color| {
+                    for &row in &groups[group].rows {
+                        output[row] = color;
+                    }
+                },
+            );
         });
         &self.output
     }

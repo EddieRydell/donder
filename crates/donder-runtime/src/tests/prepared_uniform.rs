@@ -23,7 +23,7 @@ mod fixtures;
 
 use super::playback;
 
-use crate::dsl::VmWorkspace;
+use crate::dsl::BatchWorkspace;
 use donder_language::dsl::compile_effects;
 use indexmap::IndexMap;
 
@@ -170,7 +170,7 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
         .sample_program()
         .bind_for_test(params.iter_values().collect())
         .unwrap();
-    let mut vm = VmWorkspace::default();
+    let mut vm = BatchWorkspace::default();
     for frame in [0, 31, 4, 0] {
         for (snapshot, output) in output
             .iter_mut()
@@ -234,7 +234,7 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
             .evaluate(
                 &super::evaluation::context(200, 0, 0),
                 &SPATIAL,
-                &mut VmWorkspace::default(),
+                &mut BatchWorkspace::default(),
             );
         if returns_black {
             assert_eq!(result, donder_language::values::Color::BLACK);
@@ -610,7 +610,7 @@ fn uniform_frames_match_individual_samples_when_seeking() {
             .sample_program()
             .bind_for_test(params.iter_values().collect())
             .unwrap();
-        let mut vm = VmWorkspace::default();
+        let mut vm = BatchWorkspace::default();
         for frame in [0, 31, 4, 0] {
             for (snapshot, output) in buffers
                 .iter_mut()
@@ -744,7 +744,7 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
                 .sample_program()
                 .bind_for_test(params.iter_values().collect())
                 .unwrap();
-            let mut vm = VmWorkspace::default();
+            let mut vm = BatchWorkspace::default();
             for frame in [0, 31, 4, 0] {
                 for (snapshot, output) in output
                     .iter_mut()

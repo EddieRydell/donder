@@ -12,12 +12,20 @@ pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
     }
 }
 
+/// Round a byte-domain value to a channel, saturating to 0..=255; NaN becomes 0.
+/// Equal to `(value.clamp(0.0, 255.0) + 0.5) as u8` for every f32, but clamps
+/// the converted integer, which avoids float compares on Xtensa.
+#[inline(always)]
+pub fn byte_channel(value: f32) -> u8 {
+    ((value + 0.5) as i32).clamp(0, 255) as u8
+}
+
 #[inline(always)]
 pub fn rgb(red: f32, green: f32, blue: f32) -> Color {
     if red.is_nan() || green.is_nan() || blue.is_nan() {
         Color::BLACK
     } else {
-        let channel = |value: f32| ((value * 255.0).clamp(0.0, 255.0) + 0.5) as u8;
+        let channel = |value: f32| byte_channel(value * 255.0);
         Color {
             red: channel(red),
             green: channel(green),
@@ -185,9 +193,8 @@ pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
     if t.is_nan() {
         return Color::BLACK;
     }
-    let channel = |left: u8, right: u8| {
-        ((left as f32 + (right as f32 - left as f32) * t).clamp(0.0, 255.0) + 0.5) as u8
-    };
+    let channel =
+        |left: u8, right: u8| byte_channel(left as f32 + (right as f32 - left as f32) * t);
     Color {
         red: channel(left.red, right.red),
         green: channel(left.green, right.green),
@@ -200,7 +207,7 @@ pub fn scale_color(color: Color, scale: f32) -> Color {
     if scale.is_nan() {
         return Color::BLACK;
     }
-    let channel = |value: u8| ((value as f32 * scale).clamp(0.0, 255.0) + 0.5) as u8;
+    let channel = |value: u8| byte_channel(value as f32 * scale);
     Color {
         red: channel(color.red),
         green: channel(color.green),
@@ -320,7 +327,7 @@ pub fn hsv(h: f32, s: f32, v: f32) -> Color {
     } else {
         (c, 0.0, x)
     };
-    let channel = |value: f32| ((value * 255.0).clamp(0.0, 255.0) + 0.5) as u8;
+    let channel = |value: f32| byte_channel(value * 255.0);
     Color {
         red: channel(r + m),
         green: channel(g + m),

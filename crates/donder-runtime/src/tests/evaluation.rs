@@ -1,14 +1,74 @@
-//! Private execution adapters shared by existing compiler/VM behavior tests.
+//! Private execution adapters shared by compiler/VM behavior tests. Programs
+//! run as one-lane batches.
+use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{
-    BoundParams, DslBindCache, OperatorProgramExt, RunContext, RuntimeError, SampleProgramExt,
-    SignalSampler, SpatialContext, VmWorkspace,
+    BATCH_LANES, Batch, BatchMask, BatchSignals, BatchWorkspace, BoundParams, DslBindCache,
+    RunContext, RuntimeError, SpatialContext,
 };
-use crate::sections::SectionContext;
 use alloc::vec::Vec;
 use donder_language::dsl::{
     BindingError, OperatorInvocation, SampleDefinition, SampleInvocation, SampleProgram, Value,
 };
-use donder_language::values::{Color, SampleDuration};
+use donder_language::values::{Color, SampleDuration, SampleTime};
+
+/// A test signal source. An error is reported as the operator's result.
+pub(super) trait SignalSampler {
+    fn sample_signal(
+        &mut self,
+        input: usize,
+        sample_time: SampleTime,
+        pixel: SignalPixel<i32>,
+        frame_cache: Option<usize>,
+    ) -> Result<Color, RuntimeError>;
+}
+
+/// Lane zero of a one-lane run; the first error wins.
+struct Adapter<'a> {
+    sampler: &'a mut dyn SignalSampler,
+    error: Option<RuntimeError>,
+}
+
+impl Adapter<'_> {
+    fn sample(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        pixel: SignalPixel<i32>,
+        frame_cache: Option<usize>,
+    ) -> Color {
+        match self.sampler.sample_signal(input, time, pixel, frame_cache) {
+            Ok(color) => color,
+            Err(error) => {
+                self.error.get_or_insert(error);
+                Color::BLACK
+            }
+        }
+    }
+}
+
+impl BatchSignals for Adapter<'_> {
+    fn sample_run(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        frame_cache: Option<usize>,
+        _: BatchMask,
+        output: &mut [Color; BATCH_LANES],
+    ) {
+        output[0] = self.sample(input, time, SignalPixel::Current, frame_cache);
+    }
+
+    fn sample_pixel(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        _: usize,
+        pixel: SignalPixel<i32>,
+        frame_cache: Option<usize>,
+    ) -> Color {
+        self.sample(input, time, pixel, frame_cache)
+    }
+}
 
 pub(super) trait BindForTest {
     fn bind_for_test(&self, values: Vec<Value>) -> Result<SampleInvocation, BindingError>;
@@ -25,7 +85,7 @@ pub(super) trait SampleEvaluation {
         &self,
         context: &RunContext,
         spatial: &SpatialContext,
-        workspace: &mut VmWorkspace,
+        workspace: &mut BatchWorkspace,
     ) -> Color;
 }
 
@@ -34,20 +94,10 @@ impl SampleEvaluation for SampleInvocation {
         &self,
         context: &RunContext,
         spatial: &SpatialContext,
-        workspace: &mut VmWorkspace,
+        workspace: &mut BatchWorkspace,
     ) -> Color {
         let params = BoundParams::from_validated(self.params(), &mut DslBindCache::default());
-        self.program().sample(
-            &params,
-            context,
-            spatial,
-            SectionContext::Single {
-                index: context.pixel_index,
-                count: context.pixel_count,
-            },
-            workspace,
-            false,
-        )
+        crate::dsl::sample_once(self.program(), &params, context, spatial, workspace)
     }
 }
 
@@ -57,7 +107,7 @@ pub(super) trait OperatorEvaluation {
         context: &RunContext,
         spatial: &SpatialContext,
         sampler: &mut dyn SignalSampler,
-        workspace: &mut VmWorkspace,
+        workspace: &mut BatchWorkspace,
     ) -> Result<Color, RuntimeError>;
 }
 
@@ -67,21 +117,41 @@ impl OperatorEvaluation for OperatorInvocation {
         context: &RunContext,
         spatial: &SpatialContext,
         sampler: &mut dyn SignalSampler,
-        workspace: &mut VmWorkspace,
+        workspace: &mut BatchWorkspace,
     ) -> Result<Color, RuntimeError> {
         let params = BoundParams::from_validated(self.params(), &mut DslBindCache::default());
-        self.program().sample(
+        let program = self.program();
+        workspace.reserve(program.bytecode(), program.batch());
+        let mut batch = Batch::new(
+            program.bytecode(),
+            program.target_entry(),
+            program.batch(),
             &params,
             context,
-            spatial,
-            SectionContext::Single {
-                index: context.pixel_index,
-                count: context.pixel_count,
-            },
-            sampler,
+            None,
             workspace,
-            false,
-        )
+        );
+        let lanes = batch.lanes();
+        lanes.pixel_index[0] = context.pixel_index;
+        lanes.pixel_fraction[0] = context.pixel_fraction;
+        lanes.x[0] = spatial.position[0];
+        lanes.y[0] = spatial.position[1];
+        let mut signals = Adapter {
+            sampler,
+            error: None,
+        };
+        let mut color = [Color::BLACK];
+        batch.run(
+            context.pixel_count as usize,
+            spatial.min,
+            spatial.max,
+            &mut signals,
+            &mut color,
+        );
+        match signals.error {
+            Some(error) => Err(error),
+            None => Ok(color[0]),
+        }
     }
 }
 

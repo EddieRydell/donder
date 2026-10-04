@@ -9,6 +9,7 @@ mod invocation;
 mod operator;
 mod sample;
 pub use bindings::{BindingError, BoundParams};
+pub use blocks::{BatchPlan, LaneOp, NO_REGISTER, lane_registers};
 pub use bytecode::BytecodeProgram;
 pub use invocation::{OperatorDefinition, OperatorInvocation, SampleDefinition, SampleInvocation};
 pub use operator::{OperatorProgram, SignalAccess};
@@ -181,8 +182,8 @@ fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
         }
         Value::Marks(value) => {
             5u8.hash(state);
-            value.marks.len().hash(state);
-            for mark in &value.marks {
+            value.as_slice().len().hash(state);
+            for mark in value.as_slice() {
                 mark.as_ticks().hash(state);
             }
         }

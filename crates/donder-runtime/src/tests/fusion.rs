@@ -7,7 +7,8 @@ use std::prelude::rust_2024::*;
 #[test]
 fn fusion_preserves_source_order_errors_and_conditional_queries() {
     use super::evaluation::{OperatorEvaluation, context};
-    use crate::dsl::{RuntimeError, SignalSampler, VmWorkspace};
+    use crate::dsl::{BatchWorkspace, RuntimeError};
+    use crate::tests::evaluation::SignalSampler;
     use donder_language::dsl::bytecode::SignalPixel;
     use donder_language::execution::SpatialContext;
     use donder_language::values::Color;
@@ -43,6 +44,7 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
     }
     operator Outer { input Signal other; input Signal source; param float at = 1.0;
         color sample() {
+            if (pixel_index() == -1) { return #000000; }
             color value = other.at(0.25);
             value = value + source.at(at);
             return value + other.at(0.5);
@@ -66,10 +68,8 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
                     }
                 }
                 expected.push((0, 500_000));
+                // A failed query is reported after the program finishes.
                 let error = expected.iter().position(|(input, _)| Some(*input) == fail);
-                if let Some(index) = error {
-                    expected.truncate(index + 1);
-                }
                 let mut sampler = Observe {
                     calls: Vec::new(),
                     fail,
@@ -82,7 +82,7 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
                         max: [0.0; 2],
                     },
                     &mut sampler,
-                    &mut VmWorkspace::default(),
+                    &mut BatchWorkspace::default(),
                 );
                 assert_eq!(result.is_err(), error.is_some());
                 assert_eq!(
@@ -221,7 +221,10 @@ fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
     }
     operator Outer { input Signal other; input Signal source;
         param float gain = 0.4;
-        color sample() { return max(source.at(seconds()) * gain, other.at(seconds())); }
+        color sample() {
+            if (pixel_index() == -1) { return #000000; }
+            return max(source.at(seconds()) * gain, other.at(seconds()));
+        }
     }",
     )
     .unwrap();
@@ -361,12 +364,10 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
         (
             Identifier::new("beats".into()).unwrap(),
             Value::Marks(
-                Marks {
-                    marks: vec![
-                        SampleDuration::from_ticks(1_000_000),
-                        SampleDuration::from_ticks(2_000_000),
-                    ],
-                }
+                Marks::new(vec![
+                    SampleDuration::from_ticks(1_000_000),
+                    SampleDuration::from_ticks(2_000_000),
+                ])
                 .into(),
             ),
         ),
@@ -382,7 +383,7 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
         ),
         (
             Identifier::new("unused_beats".into()).unwrap(),
-            Value::Marks(Marks { marks: vec![] }.into()),
+            Value::Marks(Marks::EMPTY.into()),
         ),
     ];
     let inner = definitions[0]
@@ -393,7 +394,7 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
         .unwrap();
     let fused = outer
         .fuse_input(0, &inner)
-        .expect("single-query arrays preserve block execution");
+        .expect("fusion preserves array snapshots");
     let mut original = playback::chain(17, &base, 1, &[inner, outer]).into_playback();
     let mut composed = playback::chain(17, &base, 1, &[fused]).into_playback();
     for ticks in [0, 1, 3_000_001, 7_999_999, 1] {

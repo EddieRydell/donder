@@ -57,7 +57,9 @@ trip count; dynamic C-style loops are rejected during compilation.
 
 Parameters and VM registers use typed banks. Binding validates authored values;
 compiler-side bytecode admission validates register addresses, operand spans,
-control flow, array types, and loop state. Prepared-archive decoding trusts the
+control flow, array types, and loop state. Integer, float and bool banks have
+fixed capacities of 64, 256 and 64 registers; a program that needs more is a
+compile error, and prepared-archive decoding rejects it as malformed. Prepared-archive decoding otherwise trusts the
 compatible producer and does not repeat these checks. Scalars copy directly between
 matching banks; integer values accepted for float declarations widen at binding.
 Curves, gradients, and marks share their resources rather than rebuilding them
@@ -503,8 +505,10 @@ arguments. Use `value_or` when a missing event should have a replacement.
 
 Curve positions are normalized coordinates; mark times are seconds. A NaN query
 value or coordinate produces NaN for the floating-point queries and `-1` for
-`mark_last_index`. Empty resources have no events. Duplicate marks at the same
-time select the last matching index. Exact-time queries include the event.
+`mark_last_index`. Empty resources have no events. Mark collections are kept in
+chronological order, so indices count marks in time order and lookups use a
+binary search. Duplicate marks at the same time select the last matching index.
+Exact-time queries include the event.
 
 Curve crossing queries support increasing, decreasing, and nonmonotonic curves.
 An exact touch counts as a crossing. A plateau at the requested value contributes

@@ -1,16 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use super::bytecode::{
-    ColorSlot, FloatSlot, Instruction, IntSlot, MarkOp, NumberSlot, SignalPixel, SlotLayout,
-    ValueSlot,
+    BoolSlot, ColorSlot, FloatSlot, Instruction, IntSlot, SignalPixel, SlotLayout, ValueSlot, slots,
 };
 use super::types::{Type, Value};
 
-mod arithmetic;
 mod dataflow;
 mod loops;
 mod registers;
-pub(super) use arithmetic::fuse;
 pub(super) use dataflow::prepare_bindings;
 pub(super) use registers::reuse;
 
@@ -98,9 +95,22 @@ pub(super) fn control_inputs(
     }
     let mut result = Inputs::default();
     for (op, (_, reads, _)) in code.iter().zip(&metadata) {
-        if op.conditional_target().is_none() && !matches!(op, Instruction::LoopRangeStart { .. }) {
-            continue;
-        }
+        // A choice's condition decides control as much as a branch does.
+        let condition;
+        let reads = match op {
+            Instruction::Choose {
+                condition: slot, ..
+            } => {
+                condition = [ValueSlot::Bool(*slot)];
+                &condition[..]
+            }
+            _ if op.conditional_target().is_some()
+                || matches!(op, Instruction::LoopRangeStart { .. }) =>
+            {
+                &reads[..]
+            }
+            _ => continue,
+        };
         let mut inputs = Inputs::default();
         for read in reads {
             if let Some(value) = values.get(read) {
@@ -120,13 +130,313 @@ pub(super) fn prepare_pixels(
     code: &mut Vec<Instruction>,
     operands: &mut [ValueSlot],
     layout: &mut SlotLayout,
+    array_types: &mut Vec<Type>,
 ) -> u32 {
-    let entry = hoist_uniform(code, operands);
+    while if_convert(code, operands, layout) {}
+    let entry = hoist_uniform(code, operands, layout, array_types);
     split_uniform_samples(code, layout, entry as usize);
     // Pixel execution is an implicit loop too. Invert proven bounded divisors
     // in query/target initialization even when there is only one textual use.
     loops::reciprocals(code, operands, layout, entry as usize);
-    hoist_uniform(code, operands)
+    hoist_uniform(code, operands, layout, array_types)
+}
+
+/// Rewrite one `x = a; ...; if (!c) { x = b; }` into single assignments and a
+/// `Choose`, so staging can lift the result when its inputs are uniform. The
+/// skipped body is one total, pure instruction, `a` is the only other write,
+/// and control flow from `a` through the join is straight-line. Returns whether
+/// a rewrite happened.
+fn if_convert(
+    code: &mut Vec<Instruction>,
+    operands: &mut [ValueSlot],
+    layout: &mut SlotLayout,
+) -> bool {
+    let mut targets = vec![0usize; code.len() + 1];
+    for op in code.iter() {
+        if let Some(target) = op.jump_target() {
+            targets[target.min(code.len())] += 1;
+        }
+    }
+    let mut writes = HashMap::<ValueSlot, Vec<usize>>::new();
+    for (ip, op) in code.iter_mut().enumerate() {
+        slots(op, operands, |slot, write| {
+            if write {
+                writes.entry(slot).or_default().push(ip);
+            }
+            slot
+        });
+    }
+    let control =
+        |op: &Instruction| op.jump_target().is_some() || matches!(op, Instruction::ReturnColor(_));
+    for branch in 0..code.len().saturating_sub(2) {
+        if code[branch].conditional_target() != Some(branch + 2)
+            || targets[branch + 1] != 0
+            || targets[branch + 2] != 1
+        {
+            continue;
+        }
+        let body = &code[branch + 1];
+        if !hoistable(body) || control(body) {
+            continue;
+        }
+        let Some(written) = body.written_slot() else {
+            continue;
+        };
+        if !matches!(
+            written,
+            ValueSlot::Int(_) | ValueSlot::Float(_) | ValueSlot::Bool(_) | ValueSlot::Color(_)
+        ) {
+            continue;
+        }
+        let Some(&[first, second]) = writes.get(&written).map(Vec::as_slice) else {
+            continue;
+        };
+        if second != branch + 1
+            || first >= branch
+            || (first + 1..=branch).any(|ip| targets[ip] != 0)
+            || code[first + 1..branch].iter().any(control)
+        {
+            continue;
+        }
+        let Some((predicate, condition)) = branch_predicate(&code[branch], layout) else {
+            continue;
+        };
+        let fresh = |layout: &mut SlotLayout| {
+            let slot = match written {
+                ValueSlot::Int(_) => &mut layout.ints,
+                ValueSlot::Float(_) => &mut layout.floats,
+                ValueSlot::Bool(_) => &mut layout.bools,
+                _ => &mut layout.colors,
+            };
+            *slot += 1;
+            written.with_index(*slot - 1)
+        };
+        let (kept, assigned) = (fresh(layout), fresh(layout));
+        let rename =
+            |op: &mut Instruction, operands: &mut [ValueSlot], write_to: Option<ValueSlot>| {
+                slots(op, operands, |slot, write| match (slot == written, write) {
+                    (true, false) => kept,
+                    (true, true) => write_to.unwrap_or(slot),
+                    _ => slot,
+                });
+            };
+        rename(&mut code[first], operands, Some(kept));
+        for op in &mut code[first + 1..=branch] {
+            rename(op, operands, None);
+        }
+        rename(&mut code[branch + 1], operands, Some(assigned));
+        // The body runs when the branch is not taken.
+        let (when_true, when_false) = if predicate.taken_when {
+            (kept, assigned)
+        } else {
+            (assigned, kept)
+        };
+        let choose = Instruction::Choose {
+            dst: written,
+            condition,
+            when_true: when_true.index(),
+            when_false: when_false.index(),
+        };
+        // Replace the branch with the predicate (if any) and insert the choice
+        // after the body; shift every later absolute target.
+        let inserted = usize::from(predicate.compare.is_some());
+        let mut replacement = Vec::with_capacity(code.len() + 1);
+        for (ip, op) in code.drain(..).enumerate() {
+            if ip == branch {
+                replacement.extend(predicate.compare.clone());
+            } else {
+                replacement.push(op);
+            }
+            if ip == branch + 1 {
+                replacement.push(choose.clone());
+            }
+        }
+        let shift = |target: usize| {
+            if target > branch + 1 {
+                target + inserted
+            } else if target > branch {
+                target + inserted - 1
+            } else {
+                target
+            }
+        };
+        for op in &mut replacement {
+            if let Some(target) = op.jump_target_mut() {
+                *target = shift(*target);
+            }
+        }
+        *code = replacement;
+        return true;
+    }
+    false
+}
+
+struct BranchPredicate {
+    /// Instruction computing the tested predicate, or none for a boolean branch.
+    compare: Option<Instruction>,
+    /// The branch is taken when the predicate equals this value.
+    taken_when: bool,
+}
+
+/// Express a conditional branch as a boolean predicate and its polarity.
+fn branch_predicate(
+    op: &Instruction,
+    layout: &mut SlotLayout,
+) -> Option<(BranchPredicate, BoolSlot)> {
+    use super::bytecode::CompareOp;
+    let mut fresh = || {
+        layout.bools += 1;
+        BoolSlot(layout.bools - 1)
+    };
+    let compare =
+        |op: CompareOp, left: FloatSlot, right: FloatSlot, dst| Instruction::FloatCompare {
+            dst,
+            op,
+            left,
+            right,
+        };
+    let int_compare = |op: CompareOp, left: IntSlot, right: IntSlot, dst| Instruction::IntCompare {
+        dst,
+        op,
+        left,
+        right,
+    };
+    let constant =
+        |op: CompareOp, value: FloatSlot, constant_bits: u32, dst| Instruction::FloatCompareConst {
+            dst,
+            op,
+            value,
+            constant_bits,
+            constant_left: false,
+        };
+    let (compare, taken_when, condition) = match *op {
+        Instruction::JumpIfFalse { condition, .. } => (None, false, condition),
+        Instruction::JumpIfTrue { condition, .. } => (None, true, condition),
+        Instruction::FloatJumpLess {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (Some(compare(CompareOp::Less, left, right, d)), when, d)
+        }
+        Instruction::FloatJumpLessEqual {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (Some(compare(CompareOp::LessEqual, left, right, d)), when, d)
+        }
+        Instruction::FloatJumpGreater {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (Some(compare(CompareOp::Greater, left, right, d)), when, d)
+        }
+        Instruction::FloatJumpGreaterEqual {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (
+                Some(compare(CompareOp::GreaterEqual, left, right, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::FloatJumpLessConst {
+            value,
+            constant_bits,
+            when,
+            ..
+        } => {
+            let d = fresh();
+            (
+                Some(constant(CompareOp::Less, value, constant_bits, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::FloatJumpLessEqualConst {
+            value,
+            constant_bits,
+            when,
+            ..
+        } => {
+            let d = fresh();
+            (
+                Some(constant(CompareOp::LessEqual, value, constant_bits, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::FloatJumpGreaterConst {
+            value,
+            constant_bits,
+            when,
+            ..
+        } => {
+            let d = fresh();
+            (
+                Some(constant(CompareOp::Greater, value, constant_bits, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::FloatJumpGreaterEqualConst {
+            value,
+            constant_bits,
+            when,
+            ..
+        } => {
+            let d = fresh();
+            (
+                Some(constant(CompareOp::GreaterEqual, value, constant_bits, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::IntJumpLess {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (Some(int_compare(CompareOp::Less, left, right, d)), when, d)
+        }
+        Instruction::IntJumpLessEqual {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (
+                Some(int_compare(CompareOp::LessEqual, left, right, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::IntJumpGreater {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (
+                Some(int_compare(CompareOp::Greater, left, right, d)),
+                when,
+                d,
+            )
+        }
+        Instruction::IntJumpGreaterEqual {
+            left, right, when, ..
+        } => {
+            let d = fresh();
+            (
+                Some(int_compare(CompareOp::GreaterEqual, left, right, d)),
+                when,
+                d,
+            )
+        }
+        _ => return None,
+    };
+    Some((
+        BranchPredicate {
+            compare,
+            taken_when,
+        },
+        condition,
+    ))
 }
 
 /// Typed parameter sampling is total after admission. Missing curves yield NaN
@@ -229,78 +539,114 @@ fn split_uniform_samples(code: &mut Vec<Instruction>, layout: &mut SlotLayout, e
     *code = result;
 }
 
+/// Loads of immutable references. A load stays in the pixel body because
+/// reference registers do not survive an invocation; lifted readers get their
+/// own copy of the load in initialization.
+fn reference_load(op: &Instruction) -> bool {
+    matches!(
+        op,
+        Instruction::LoadMarksParam { .. }
+            | Instruction::LoadMarksConst { .. }
+            | Instruction::LoadArrayParam { .. }
+            | Instruction::LoadArrayConst { .. }
+            | Instruction::LoadCurveParam { .. }
+            | Instruction::LoadCurveConst { .. }
+            | Instruction::LoadGradientParam { .. }
+            | Instruction::LoadGradientConst { .. }
+    )
+}
+
 /// Move pure, single-assignment scalar expressions to query and target
-/// initialization. Mutable locals and references stay in the pixel body. Hoisting may
+/// initialization. Mutable locals stay in the pixel body. Hoisting may
 /// cross branches only when evaluation is harmless. Typed parameter samples are
 /// total; fallible signal reads remain in the body in their original order.
-pub(super) fn hoist_uniform(code: &mut Vec<Instruction>, operands: &mut [ValueSlot]) -> u32 {
+/// Total, pure instructions: safe to execute once for a whole query/target, or
+/// unconditionally in place of a branch.
+fn hoistable(op: &Instruction) -> bool {
+    use super::bytecode::ContextRead;
+    matches!(
+        op,
+        Instruction::LoadIntParam { .. }
+            | Instruction::Move { .. }
+            | Instruction::LoadFloatParam { .. }
+            | Instruction::LoadBoolParam { .. }
+            | Instruction::LoadColorParam { .. }
+            | Instruction::LoadIntConst { .. }
+            | Instruction::LoadFloatConst { .. }
+            | Instruction::LoadBoolConst { .. }
+            | Instruction::LoadColorConst { .. }
+            | Instruction::ContextRead {
+                read: ContextRead::Progress
+                    | ContextRead::Seconds
+                    | ContextRead::Duration
+                    | ContextRead::PixelCount
+                    | ContextRead::TargetMinX
+                    | ContextRead::TargetMinY
+                    | ContextRead::TargetMaxX
+                    | ContextRead::TargetMaxY,
+                ..
+            }
+            | Instruction::FloatAdd { .. }
+            | Instruction::QuerySeconds { .. }
+            | Instruction::QueryProgress { .. }
+            | Instruction::FloatSubtract { .. }
+            | Instruction::FloatMultiply { .. }
+            | Instruction::FloatDivide { .. }
+            | Instruction::FloatRemainder { .. }
+            | Instruction::FloatAddConst { .. }
+            | Instruction::FloatSubtractConst { .. }
+            | Instruction::FloatMultiplyConst { .. }
+            | Instruction::FloatDivideConst { .. }
+            | Instruction::FloatRemainderConst { .. }
+            | Instruction::FloatSubtractFromConst { .. }
+            | Instruction::FloatDivideIntoConst { .. }
+            | Instruction::FloatRemainderFromConst { .. }
+            | Instruction::FloatBinary { .. }
+            | Instruction::FloatBinaryConst { .. }
+            | Instruction::FloatCompare { .. }
+            | Instruction::IntCompare { .. }
+            | Instruction::FloatCompareConst { .. }
+            | Instruction::FloatUnary { .. }
+            | Instruction::MixFloat { .. }
+            | Instruction::MixColor { .. }
+            | Instruction::ColorBinary { .. }
+            | Instruction::ColorScale { .. }
+            | Instruction::ColorComponent { .. }
+            | Instruction::Clamp { .. }
+            | Instruction::ClampConst { .. }
+            | Instruction::Smoothstep { .. }
+            | Instruction::Rand { .. }
+            | Instruction::EnumParamEqualConst { .. }
+            | Instruction::ColorInvert { .. }
+            | Instruction::Rgb { .. }
+            | Instruction::Hsv { .. }
+            | Instruction::IntToFloat { .. }
+            | Instruction::Not { .. }
+            | Instruction::NegFloat { .. }
+            | Instruction::Choose { .. }
+            | Instruction::Mark { .. }
+            | Instruction::Len { .. }
+            | Instruction::CurveSample { .. }
+            | Instruction::CurveCrossing { .. }
+            | Instruction::CurveFloatClamped { .. }
+            | Instruction::GradientSample { .. }
+            | Instruction::GradientColorScaled { .. }
+    ) || parameter_sample(op)
+        || reference_load(op)
+}
+
+pub(super) fn hoist_uniform(
+    code: &mut Vec<Instruction>,
+    operands: &mut [ValueSlot],
+    layout: &mut SlotLayout,
+    array_types: &mut Vec<Type>,
+) -> u32 {
     use super::bytecode::ContextRead;
     let mut writes = HashMap::<ValueSlot, usize>::new();
     let metadata = code
         .iter_mut()
         .map(|op| {
-            let eligible = matches!(
-                op,
-                Instruction::LoadIntParam { .. }
-                    | Instruction::LoadFloatParam { .. }
-                    | Instruction::LoadBoolParam { .. }
-                    | Instruction::LoadColorParam { .. }
-                    | Instruction::LoadIntConst { .. }
-                    | Instruction::LoadFloatConst { .. }
-                    | Instruction::LoadBoolConst { .. }
-                    | Instruction::LoadColorConst { .. }
-                    | Instruction::ContextRead {
-                        read: ContextRead::Progress
-                            | ContextRead::Seconds
-                            | ContextRead::Duration
-                            | ContextRead::PixelCount
-                            | ContextRead::TargetMinX
-                            | ContextRead::TargetMinY
-                            | ContextRead::TargetMaxX
-                            | ContextRead::TargetMaxY,
-                        ..
-                    }
-                    | Instruction::FloatAdd { .. }
-                    | Instruction::QuerySeconds { .. }
-                    | Instruction::QueryProgress { .. }
-                    | Instruction::FloatSubtract { .. }
-                    | Instruction::FloatMultiply { .. }
-                    | Instruction::FloatMultiplyAdd { .. }
-                    | Instruction::FloatMultiplyAddConst { .. }
-                    | Instruction::FloatMultiplySmoothstep { .. }
-                    | Instruction::FloatDivide { .. }
-                    | Instruction::FloatRemainder { .. }
-                    | Instruction::FloatAddConst { .. }
-                    | Instruction::FloatSubtractConst { .. }
-                    | Instruction::FloatMultiplyConst { .. }
-                    | Instruction::FloatDivideConst { .. }
-                    | Instruction::FloatRemainderConst { .. }
-                    | Instruction::FloatSubtractFromConst { .. }
-                    | Instruction::FloatDivideIntoConst { .. }
-                    | Instruction::FloatRemainderFromConst { .. }
-                    | Instruction::FloatBinary { .. }
-                    | Instruction::FloatBinaryConst { .. }
-                    | Instruction::FloatCompare { .. }
-                    | Instruction::IntCompare { .. }
-                    | Instruction::FloatCompareConst { .. }
-                    | Instruction::FloatUnary { .. }
-                    | Instruction::MixFloat { .. }
-                    | Instruction::MixColor { .. }
-                    | Instruction::ColorBinary { .. }
-                    | Instruction::ColorScale { .. }
-                    | Instruction::ColorComponent { .. }
-                    | Instruction::Clamp { .. }
-                    | Instruction::ClampConst { .. }
-                    | Instruction::Smoothstep { .. }
-                    | Instruction::Rand { .. }
-                    | Instruction::EnumParamEqualConst { .. }
-                    | Instruction::ColorInvert { .. }
-                    | Instruction::Rgb { .. }
-                    | Instruction::Hsv { .. }
-                    | Instruction::IntToFloat { .. }
-                    | Instruction::Not { .. }
-                    | Instruction::NegFloat { .. }
-            ) || parameter_sample(op);
+            let eligible = hoistable(op);
             let mut dst = None;
             let mut reads = Vec::new();
             slots(op, operands, |slot, write| {
@@ -316,12 +662,25 @@ pub(super) fn hoist_uniform(code: &mut Vec<Instruction>, operands: &mut [ValueSl
         })
         .collect::<Vec<_>>();
     let mut uniform = HashMap::new();
+    // Uniform reference slot -> its load, and the initialization copy, if any.
+    let mut references = HashMap::<ValueSlot, usize>::new();
+    let mut copies = HashMap::<ValueSlot, ValueSlot>::new();
     let mut lifted = vec![false; code.len()];
     let mut prefix = Vec::new();
     for target_stage in [false, true] {
         loop {
-            let before = prefix.len();
+            let mut changed = false;
             for (index, (eligible, dst, reads)) in metadata.iter().enumerate() {
+                if let Some(dst) = dst
+                    && reference_load(&code[index])
+                    && writes[dst] == 1
+                    && !references.contains_key(dst)
+                {
+                    references.insert(*dst, index);
+                    uniform.insert(*dst, false);
+                    changed = true;
+                    continue;
+                }
                 if let Some(dst) = dst
                     && *eligible
                     && !lifted[index]
@@ -349,12 +708,57 @@ pub(super) fn hoist_uniform(code: &mut Vec<Instruction>, operands: &mut [ValueSl
                 {
                     uniform.insert(*dst, target_stage);
                     lifted[index] = true;
-                    prefix.push(code[index].clone());
+                    let mut op = code[index].clone();
+                    for slot in reads {
+                        let Some(&load) = references.get(slot) else {
+                            continue;
+                        };
+                        copies.entry(*slot).or_insert_with(|| {
+                            let fresh = match *slot {
+                                ValueSlot::Array(old) => {
+                                    let ty = array_types[old.0 as usize].clone();
+                                    array_types.push(ty.clone());
+                                    ValueSlot::for_type(&ty, layout)
+                                }
+                                ValueSlot::Marks(_) => ValueSlot::for_type(&Type::Marks, layout),
+                                ValueSlot::Curve(_) => ValueSlot::for_type(&Type::Curve, layout),
+                                _ => ValueSlot::for_type(&Type::Gradient, layout),
+                            };
+                            let mut copy = code[load].clone();
+                            slots(
+                                &mut copy,
+                                operands,
+                                |slot, write| if write { fresh } else { slot },
+                            );
+                            prefix.push(copy);
+                            fresh
+                        });
+                    }
+                    slots(&mut op, operands, |slot, write| {
+                        if write {
+                            slot
+                        } else {
+                            copies.get(&slot).copied().unwrap_or(slot)
+                        }
+                    });
+                    prefix.push(op);
+                    changed = true;
                 }
             }
-            if prefix.len() == before {
+            if !changed {
                 break;
             }
+        }
+    }
+    // A load whose readers all moved to initialization is dead in the body.
+    for (slot, &load) in &references {
+        if copies.contains_key(slot)
+            && !metadata
+                .iter()
+                .enumerate()
+                .any(|(index, (_, _, reads))| !lifted[index] && reads.contains(slot))
+        {
+            lifted[load] = true;
         }
     }
     let mut frame_cache = 0u32;
@@ -559,451 +963,6 @@ pub(super) fn reads_initial_registers(code: &[Instruction], operands: &mut [Valu
         slot
     });
     !needed.is_empty()
-}
-
-/// One exhaustive register-operand description, used only by compilation.
-/// Operand spans are unique per instruction in compiler output.
-pub(super) fn slots(
-    op: &mut Instruction,
-    operands: &mut [ValueSlot],
-    mut visit: impl FnMut(ValueSlot, bool) -> ValueSlot,
-) {
-    macro_rules! typed {
-        ($write:expr, $kind:ident, $($slot:ident),+) => {{$(
-            let ValueSlot::$kind(mapped) = visit(ValueSlot::$kind(*$slot), $write) else { unreachable!("compiler register remapping preserves types") };
-            *$slot = mapped;
-        )+}};
-    }
-    macro_rules! number {
-        ($operand:expr) => {
-            match $operand {
-                NumberSlot::Int(slot) => typed!(false, Int, slot),
-                NumberSlot::Float(slot) => typed!(false, Float, slot),
-            }
-        };
-    }
-    match op {
-        Instruction::LoadCurveConst { dst, .. } | Instruction::LoadCurveParam { dst, .. } => {
-            typed!(true, Curve, dst)
-        }
-        Instruction::LoadGradientConst { dst, .. } | Instruction::LoadGradientParam { dst, .. } => {
-            typed!(true, Gradient, dst)
-        }
-        Instruction::CurveSample {
-            dst,
-            curve,
-            position,
-        } => {
-            typed!(false, Curve, curve);
-            typed!(false, Float, position);
-            typed!(true, Float, dst);
-        }
-        Instruction::GradientSample {
-            dst,
-            gradient,
-            position,
-        } => {
-            typed!(false, Gradient, gradient);
-            typed!(false, Float, position);
-            typed!(true, Color, dst);
-        }
-        Instruction::ContextRead { dst, .. } => match dst {
-            NumberSlot::Int(slot) => typed!(true, Int, slot),
-            NumberSlot::Float(slot) => typed!(true, Float, slot),
-        },
-        Instruction::LoadIntConst { dst, .. } | Instruction::LoadIntParam { dst, .. } => {
-            typed!(true, Int, dst)
-        }
-        Instruction::LoadFloatConst { dst, .. } | Instruction::LoadFloatParam { dst, .. } => {
-            typed!(true, Float, dst)
-        }
-        Instruction::LoadBoolConst { dst, .. }
-        | Instruction::LoadBoolParam { dst, .. }
-        | Instruction::EnumParamEqualConst { dst, .. } => {
-            typed!(true, Bool, dst)
-        }
-        Instruction::LoadColorConst { dst, .. } | Instruction::LoadColorParam { dst, .. } => {
-            typed!(true, Color, dst)
-        }
-        Instruction::LoadEnumConst { dst, .. } | Instruction::LoadEnumParam { dst, .. } => {
-            typed!(true, Enum, dst);
-        }
-        Instruction::LoadArrayConst { dst, .. } | Instruction::LoadArrayParam { dst, .. } => {
-            typed!(true, Array, dst)
-        }
-        Instruction::LoadMarksConst { dst, .. } | Instruction::LoadMarksParam { dst, .. } => {
-            typed!(true, Marks, dst)
-        }
-        Instruction::Move { dst, src } => {
-            *src = visit(dst.with_index(*src), false).index();
-            *dst = visit(*dst, true);
-        }
-        Instruction::MakeArray { dst, items } => {
-            for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
-                *slot = visit(*slot, false);
-            }
-            typed!(true, Array, dst);
-        }
-        Instruction::Index {
-            dst,
-            target,
-            index,
-            default,
-        } => {
-            *default = visit(dst.with_index(*default), false).index();
-            typed!(false, Array, target);
-            number!(index);
-            *dst = visit(*dst, true);
-        }
-        Instruction::Select {
-            dst,
-            items,
-            index,
-            default,
-        } => {
-            *default = visit(dst.with_index(*default), false).index();
-            for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
-                *slot = visit(*slot, false);
-            }
-            number!(index);
-            *dst = visit(*dst, true);
-        }
-        Instruction::CurveParamSample { dst, position, .. } => {
-            typed!(false, Float, position);
-            typed!(true, Float, dst);
-        }
-        Instruction::GradientParamSample { dst, position, .. } => {
-            typed!(false, Float, position);
-            typed!(true, Color, dst);
-        }
-        Instruction::SignalSample {
-            dst,
-            seconds,
-            pixel,
-            ..
-        } => {
-            typed!(false, Float, seconds);
-            *pixel = pixel.map(|mut slot| {
-                let index = &mut slot;
-                typed!(false, Int, index);
-                slot
-            });
-            typed!(true, Color, dst);
-        }
-        Instruction::IntToFloat { dst, src } => {
-            typed!(false, Int, src);
-            typed!(true, Float, dst);
-        }
-        Instruction::Not { dst, src } => {
-            typed!(false, Bool, src);
-            typed!(true, Bool, dst);
-        }
-        Instruction::NegInt { dst, src } => {
-            typed!(false, Int, src);
-            typed!(true, Int, dst);
-        }
-        Instruction::NegFloat { dst, src } => {
-            typed!(false, Float, src);
-            typed!(true, Float, dst);
-        }
-        Instruction::FloatAdd {
-            dst, left, right, ..
-        }
-        | Instruction::FloatSubtract {
-            dst, left, right, ..
-        }
-        | Instruction::FloatMultiply {
-            dst, left, right, ..
-        }
-        | Instruction::FloatDivide {
-            dst, left, right, ..
-        }
-        | Instruction::FloatRemainder {
-            dst, left, right, ..
-        }
-        | Instruction::FloatBinary {
-            dst, left, right, ..
-        } => {
-            typed!(false, Float, left, right);
-            typed!(true, Float, dst);
-        }
-        Instruction::IntAdd {
-            dst, left, right, ..
-        }
-        | Instruction::IntSubtract {
-            dst, left, right, ..
-        }
-        | Instruction::IntMultiply {
-            dst, left, right, ..
-        }
-        | Instruction::IntRemainder {
-            dst, left, right, ..
-        } => {
-            typed!(false, Int, left, right);
-            typed!(true, Int, dst);
-        }
-        Instruction::FloatMultiplyAdd {
-            dst,
-            left,
-            right,
-            addend,
-        } => {
-            typed!(false, Float, left, right, addend);
-            typed!(true, Float, dst);
-        }
-        Instruction::FloatMultiplyAddConst {
-            dst, value, addend, ..
-        } => {
-            typed!(false, Float, value, addend);
-            typed!(true, Float, dst);
-        }
-        Instruction::FloatMultiplySmoothstep { dst, left, right } => {
-            typed!(false, Float, left, right);
-            typed!(true, Float, dst);
-        }
-        Instruction::FloatCompare {
-            dst, left, right, ..
-        } => {
-            typed!(false, Float, left, right);
-            typed!(true, Bool, dst);
-        }
-        Instruction::IntCompare {
-            dst, left, right, ..
-        } => {
-            typed!(false, Int, left, right);
-            typed!(true, Bool, dst);
-        }
-        Instruction::FloatCompareConst { dst, value, .. } => {
-            typed!(false, Float, value);
-            typed!(true, Bool, dst);
-        }
-        Instruction::ValueEqual {
-            dst, left, right, ..
-        } => {
-            *left = visit(*left, false);
-            *right = visit(*right, false);
-            typed!(true, Bool, dst);
-        }
-        Instruction::IntJumpLess { left, right, .. }
-        | Instruction::IntJumpLessEqual { left, right, .. }
-        | Instruction::IntJumpGreater { left, right, .. }
-        | Instruction::IntJumpGreaterEqual { left, right, .. }
-        | Instruction::IntJumpEqual { left, right, .. } => {
-            typed!(false, Int, left, right);
-        }
-        Instruction::FloatJumpLess { left, right, .. }
-        | Instruction::FloatJumpLessEqual { left, right, .. }
-        | Instruction::FloatJumpGreater { left, right, .. }
-        | Instruction::FloatJumpGreaterEqual { left, right, .. }
-        | Instruction::FloatJumpEqual { left, right, .. } => {
-            typed!(false, Float, left, right);
-        }
-        Instruction::FloatJumpLessConst { value, .. }
-        | Instruction::FloatJumpLessEqualConst { value, .. }
-        | Instruction::FloatJumpGreaterConst { value, .. }
-        | Instruction::FloatJumpGreaterEqualConst { value, .. }
-        | Instruction::FloatJumpEqualConst { value, .. } => {
-            typed!(false, Float, value);
-        }
-        Instruction::JumpIfFalse { condition, .. } | Instruction::JumpIfTrue { condition, .. } => {
-            typed!(false, Bool, condition)
-        }
-        Instruction::LoopRangeStart { count, .. } => typed!(false, Int, count),
-        Instruction::LoopMarksStart { marks, .. } => typed!(false, Marks, marks),
-        Instruction::SectionQuery { dst, width, .. } => {
-            typed!(false, Int, width);
-            typed!(true, Int, dst);
-        }
-        Instruction::SectionPosition {
-            dst,
-            width,
-            inverse,
-        } => {
-            typed!(false, Float, width, inverse);
-            typed!(true, Float, dst);
-        }
-        Instruction::QuerySeconds {
-            dst,
-            seconds: value,
-        }
-        | Instruction::QueryProgress {
-            dst,
-            seconds: value,
-        }
-        | Instruction::FloatAddConst { dst, value, .. }
-        | Instruction::FloatSubtractConst { dst, value, .. }
-        | Instruction::FloatMultiplyConst { dst, value, .. }
-        | Instruction::FloatDivideConst { dst, value, .. }
-        | Instruction::FloatRemainderConst { dst, value, .. }
-        | Instruction::FloatSubtractFromConst { dst, value, .. }
-        | Instruction::FloatDivideIntoConst { dst, value, .. }
-        | Instruction::FloatRemainderFromConst { dst, value, .. }
-        | Instruction::FloatUnary { dst, value, .. }
-        | Instruction::FloatBinaryConst { dst, value, .. }
-        | Instruction::ClampConst { dst, value, .. } => {
-            typed!(false, Float, value);
-            typed!(true, Float, dst);
-        }
-        Instruction::Clamp {
-            dst,
-            value,
-            min,
-            max,
-        } => {
-            typed!(false, Float, value, min, max);
-            typed!(true, Float, dst);
-        }
-        Instruction::Smoothstep { dst, value } => {
-            typed!(false, Float, value);
-            typed!(true, Float, dst);
-        }
-        Instruction::MixFloat {
-            dst,
-            left,
-            right,
-            amount,
-        } => {
-            typed!(false, Float, left, right, amount);
-            typed!(true, Float, dst);
-        }
-        Instruction::MixColor {
-            dst,
-            left,
-            right,
-            amount,
-        } => {
-            typed!(false, Color, left, right);
-            typed!(false, Float, amount);
-            typed!(true, Color, dst);
-        }
-        Instruction::ColorBinary {
-            dst, left, right, ..
-        } => {
-            typed!(false, Color, left, right);
-            typed!(true, Color, dst);
-        }
-        Instruction::ColorScale { dst, color, scale } => {
-            typed!(false, Color, color);
-            typed!(false, Float, scale);
-            typed!(true, Color, dst);
-        }
-        Instruction::ColorComponent { dst, color, .. } => {
-            typed!(false, Color, color);
-            typed!(true, Float, dst);
-        }
-        Instruction::ColorInvert { dst, color } => {
-            typed!(false, Color, color);
-            typed!(true, Color, dst);
-        }
-        Instruction::Rgb {
-            dst,
-            red,
-            green,
-            blue,
-        } => {
-            typed!(false, Float, red, green, blue);
-            typed!(true, Color, dst);
-        }
-        Instruction::Hsv {
-            dst,
-            hue,
-            saturation,
-            value,
-        } => {
-            typed!(false, Float, hue, saturation, value);
-            typed!(true, Color, dst);
-        }
-        Instruction::Rand { dst, seed } => {
-            typed!(false, Float, seed);
-            typed!(true, Float, dst);
-        }
-        Instruction::CurveFloatClamped {
-            dst,
-            curve,
-            position,
-            min,
-            max,
-        } => {
-            typed!(false, Curve, curve);
-            typed!(false, Float, position, min, max);
-            typed!(true, Float, dst);
-        }
-        Instruction::CurveParamFloatClamped {
-            dst,
-            position,
-            min,
-            max,
-            ..
-        } => {
-            typed!(false, Float, position, min, max);
-            typed!(true, Float, dst);
-        }
-        Instruction::GradientColorScaled {
-            dst,
-            gradient,
-            position,
-            scale,
-        } => {
-            typed!(false, Gradient, gradient);
-            typed!(false, Float, position, scale);
-            typed!(true, Color, dst);
-        }
-        Instruction::GradientParamColorScaled {
-            dst,
-            position,
-            scale,
-            ..
-        } => {
-            typed!(false, Float, position, scale);
-            typed!(true, Color, dst);
-        }
-        Instruction::CurveCrossing {
-            dst,
-            curve,
-            value,
-            before,
-        } => {
-            typed!(false, Curve, curve);
-            typed!(false, Float, value);
-            if let Some(before) = before {
-                typed!(false, Float, before);
-            }
-            typed!(true, Float, dst);
-        }
-        Instruction::CurveParamCrossing {
-            dst, value, before, ..
-        } => {
-            typed!(false, Float, value);
-            if let Some(before) = before {
-                typed!(false, Float, before);
-            }
-            typed!(true, Float, dst);
-        }
-        Instruction::Len { dst, value } => {
-            typed!(false, Array, value);
-            typed!(true, Int, dst);
-        }
-        Instruction::Mark { marks, op } => {
-            typed!(false, Marks, marks);
-            match op {
-                MarkOp::Count { dst } => typed!(true, Int, dst),
-                MarkOp::At { dst, index } => {
-                    typed!(false, Int, index);
-                    typed!(true, Float, dst);
-                }
-                MarkOp::Last { dst, seconds } => {
-                    typed!(false, Float, seconds);
-                    typed!(true, Float, dst);
-                }
-                MarkOp::LastIndex { dst, seconds } => {
-                    typed!(false, Float, seconds);
-                    typed!(true, Int, dst);
-                }
-            }
-        }
-        Instruction::ReturnColor(value) => typed!(false, Color, value),
-        Instruction::Jump(_) | Instruction::LoopEnd { .. } => {}
-    }
 }
 
 pub(super) fn comparison_branch(

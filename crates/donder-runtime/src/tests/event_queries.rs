@@ -1,7 +1,7 @@
 use super::evaluation::SampleEvaluation;
 use super::std;
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
 use donder_language::dsl::compile_effects;
@@ -34,7 +34,7 @@ fn sample(parameters: &str, body: &str, values: &[(&str, Value)]) -> Color {
             min: [0.0; 2],
             max: [0.0; 2],
         },
-        &mut VmWorkspace::default(),
+        &mut BatchWorkspace::default(),
     )
 }
 
@@ -131,12 +131,7 @@ fn plateau_arrival_and_exact_touches_are_events_but_endpoint_hold_is_not() {
 #[test]
 fn mark_queries_have_explicit_clocks_inclusive_boundaries_and_missing_values() {
     let beats = Value::Marks(
-        Marks {
-            marks: [250_000, 500_000, 500_000]
-                .map(SampleDuration::from_ticks)
-                .to_vec(),
-        }
-        .into(),
+        Marks::new([250_000, 500_000, 500_000].map(SampleDuration::from_ticks)).into(),
     );
     for predicate in [
         "mark_count(beats) == 3",
@@ -166,23 +161,20 @@ fn mark_queries_have_explicit_clocks_inclusive_boundaries_and_missing_values() {
         assert_query(
             "param marks beats;",
             predicate,
-            &[("beats", Value::Marks(Marks { marks: vec![] }.into()))],
+            &[("beats", Value::Marks(Marks::EMPTY.into()))],
         );
     }
+    // Construction sorts, so indices follow time rather than authoring order.
     let unsorted = Value::Marks(
-        Marks {
-            marks: [500_000, 250_000, 500_000, 125_000]
-                .map(SampleDuration::from_ticks)
-                .to_vec(),
-        }
-        .into(),
+        Marks::new([500_000, 250_000, 500_000, 125_000].map(SampleDuration::from_ticks)).into(),
     );
     for predicate in [
         "mark_last(beats, 0.75) == 0.5",
-        "mark_last_index(beats, 0.75) == 2",
+        "mark_last_index(beats, 0.75) == 3",
         "mark_last(beats, 0.375) == 0.25",
         "mark_last_index(beats, 0.375) == 1",
-        "mark_at(beats, 3) == 0.125",
+        "mark_at(beats, 0) == 0.125",
+        "mark_at(beats, 3) == 0.5",
     ] {
         assert_query(
             "param marks beats;",

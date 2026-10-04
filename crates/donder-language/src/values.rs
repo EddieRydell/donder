@@ -295,10 +295,42 @@ pub struct GradientStop {
     pub color: Color,
 }
 
+/// Mark times in chronological order. Indices therefore mean "nth mark in
+/// time", and lookups can binary-search instead of scanning the collection.
+/// Each mark's seconds value is converted once here; on ESP32 every conversion
+/// is a software division.
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Marks {
     #[rkyv(with = rkyv::with::Map<crate::values::archive::Microseconds>)]
-    pub marks: Vec<SampleDuration>,
+    marks: Vec<SampleDuration>,
+    seconds: Vec<f32>,
+}
+
+impl Marks {
+    pub const EMPTY: Self = Self {
+        marks: Vec::new(),
+        seconds: Vec::new(),
+    };
+
+    pub fn new(marks: impl IntoIterator<Item = SampleDuration>) -> Self {
+        let mut marks: Vec<_> = marks.into_iter().collect();
+        marks.sort_unstable();
+        let seconds = marks
+            .iter()
+            .copied()
+            .map(sample_duration_seconds_f32)
+            .collect();
+        Self { marks, seconds }
+    }
+
+    pub fn as_slice(&self) -> &[SampleDuration] {
+        &self.marks
+    }
+
+    /// `sample_duration_seconds_f32` of each mark, in the same order.
+    pub fn seconds(&self) -> &[f32] {
+        &self.seconds
+    }
 }
 
 impl core::hash::Hash for Marks {

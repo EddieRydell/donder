@@ -266,7 +266,8 @@ impl BytecodeProgram {
                 .is_some_and(|slots| slots.iter().copied().all(valid_slot))
         };
         let uses_pixel_context = self.reads_pixel_context();
-        if !self.has_valid_pixel_entry()
+        if self.layout.exceeded_bank().is_some()
+            || !self.has_valid_pixel_entry()
             || self.uses_pixel_context != uses_pixel_context
             || !self.value_operands.iter().copied().all(valid_slot)
             || !self.has_valid_reference_types()
@@ -330,6 +331,23 @@ impl BytecodeProgram {
                     LoadArrayParam { dst, .. } => valid_slot(ValueSlot::Array(*dst)),
                     ContextRead { dst, .. } => valid_slot(dst.value_slot()),
                     Move { dst, src } => valid_slot(*dst) && valid_slot(dst.with_index(*src)),
+                    Choose {
+                        dst,
+                        condition,
+                        when_true,
+                        when_false,
+                    } => {
+                        matches!(
+                            dst,
+                            ValueSlot::Int(_)
+                                | ValueSlot::Float(_)
+                                | ValueSlot::Bool(_)
+                                | ValueSlot::Color(_)
+                        ) && valid_slot(*dst)
+                            && valid_slot(ValueSlot::Bool(*condition))
+                            && valid_slot(dst.with_index(*when_true))
+                            && valid_slot(dst.with_index(*when_false))
+                    }
                     MakeArray { dst, items } => {
                         valid_slot(ValueSlot::Array(*dst))
                             && valid_pool(*items)
@@ -601,22 +619,6 @@ impl BytecodeProgram {
                             && valid_slot(ValueSlot::Float(*min))
                             && valid_slot(ValueSlot::Float(*max))
                     }
-                    FloatMultiplyAdd {
-                        dst,
-                        left,
-                        right,
-                        addend,
-                    } => [*dst, *left, *right, *addend]
-                        .into_iter()
-                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
-                    FloatMultiplyAddConst {
-                        dst, value, addend, ..
-                    } => [*dst, *value, *addend]
-                        .into_iter()
-                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
-                    FloatMultiplySmoothstep { dst, left, right } => [*dst, *left, *right]
-                        .into_iter()
-                        .all(|slot| valid_slot(ValueSlot::Float(slot))),
                     Smoothstep { dst, value } => {
                         valid_slot(ValueSlot::Float(*dst)) && valid_slot(ValueSlot::Float(*value))
                     }
@@ -785,6 +787,7 @@ impl BytecodeProgram {
         }
         let mut cached = BTreeSet::new();
         let mut query_uniform = BTreeSet::new();
+        let mut references = Vec::new();
         let target_entry = self.target_entry();
         for (ip, instruction) in self.instructions[..entry].iter().enumerate() {
             let mut reads = [None; 4];
@@ -827,29 +830,6 @@ impl BytecodeProgram {
                         | self::ContextRead::TargetMaxX
                         | self::ContextRead::TargetMaxY,
                 } => dst.value_slot(),
-                FloatMultiplyAdd {
-                    dst,
-                    left,
-                    right,
-                    addend,
-                } => {
-                    reads[0] = Some(ValueSlot::Float(*left));
-                    reads[1] = Some(ValueSlot::Float(*right));
-                    reads[2] = Some(ValueSlot::Float(*addend));
-                    ValueSlot::Float(*dst)
-                }
-                FloatMultiplyAddConst {
-                    dst, value, addend, ..
-                } => {
-                    reads[0] = Some(ValueSlot::Float(*value));
-                    reads[1] = Some(ValueSlot::Float(*addend));
-                    ValueSlot::Float(*dst)
-                }
-                FloatMultiplySmoothstep { dst, left, right } => {
-                    reads[0] = Some(ValueSlot::Float(*left));
-                    reads[1] = Some(ValueSlot::Float(*right));
-                    ValueSlot::Float(*dst)
-                }
                 FloatAdd {
                     dst, left, right, ..
                 }
@@ -1024,8 +1004,108 @@ impl BytecodeProgram {
                     reads[1] = before.map(ValueSlot::Float);
                     ValueSlot::Float(*dst)
                 }
+                Move { dst, src }
+                    if matches!(
+                        dst,
+                        ValueSlot::Int(_)
+                            | ValueSlot::Float(_)
+                            | ValueSlot::Bool(_)
+                            | ValueSlot::Color(_)
+                    ) =>
+                {
+                    reads[0] = Some(dst.with_index(*src));
+                    *dst
+                }
+                Choose {
+                    dst,
+                    condition,
+                    when_true,
+                    when_false,
+                } => {
+                    reads[0] = Some(ValueSlot::Bool(*condition));
+                    reads[1] = Some(dst.with_index(*when_true));
+                    reads[2] = Some(dst.with_index(*when_false));
+                    *dst
+                }
+                LoadMarksConst { dst, .. } | LoadMarksParam { dst, .. } => ValueSlot::Marks(*dst),
+                LoadArrayConst { dst, .. } | LoadArrayParam { dst, .. } => ValueSlot::Array(*dst),
+                LoadCurveConst { dst, .. } | LoadCurveParam { dst, .. } => ValueSlot::Curve(*dst),
+                LoadGradientConst { dst, .. } | LoadGradientParam { dst, .. } => {
+                    ValueSlot::Gradient(*dst)
+                }
+                Mark { marks, op } => {
+                    reads[0] = Some(ValueSlot::Marks(*marks));
+                    reads[1] = op.inputs()[0].map(|slot| slot.value_slot());
+                    op.output()
+                }
+                Len { dst, value } => {
+                    reads[0] = Some(ValueSlot::Array(*value));
+                    ValueSlot::Int(*dst)
+                }
+                CurveSample {
+                    dst,
+                    curve,
+                    position,
+                } => {
+                    reads[0] = Some(ValueSlot::Curve(*curve));
+                    reads[1] = Some(ValueSlot::Float(*position));
+                    ValueSlot::Float(*dst)
+                }
+                CurveCrossing {
+                    dst,
+                    curve,
+                    value,
+                    before,
+                } => {
+                    reads[0] = Some(ValueSlot::Curve(*curve));
+                    reads[1] = Some(ValueSlot::Float(*value));
+                    reads[2] = before.map(ValueSlot::Float);
+                    ValueSlot::Float(*dst)
+                }
+                CurveFloatClamped {
+                    dst,
+                    curve,
+                    position,
+                    min,
+                    max,
+                } => {
+                    reads[0] = Some(ValueSlot::Curve(*curve));
+                    reads[1] = Some(ValueSlot::Float(*position));
+                    reads[2] = Some(ValueSlot::Float(*min));
+                    reads[3] = Some(ValueSlot::Float(*max));
+                    ValueSlot::Float(*dst)
+                }
+                GradientSample {
+                    dst,
+                    gradient,
+                    position,
+                } => {
+                    reads[0] = Some(ValueSlot::Gradient(*gradient));
+                    reads[1] = Some(ValueSlot::Float(*position));
+                    ValueSlot::Color(*dst)
+                }
+                GradientColorScaled {
+                    dst,
+                    gradient,
+                    position,
+                    scale,
+                } => {
+                    reads[0] = Some(ValueSlot::Gradient(*gradient));
+                    reads[1] = Some(ValueSlot::Float(*position));
+                    reads[2] = Some(ValueSlot::Float(*scale));
+                    ValueSlot::Color(*dst)
+                }
                 _ => return false,
             };
+            if matches!(
+                dst,
+                ValueSlot::Marks(_)
+                    | ValueSlot::Array(_)
+                    | ValueSlot::Curve(_)
+                    | ValueSlot::Gradient(_)
+            ) {
+                references.push(dst);
+            }
             if !reads
                 .into_iter()
                 .flatten()
@@ -1038,10 +1118,15 @@ impl BytecodeProgram {
                 query_uniform.insert(slot_key(dst));
             }
         }
+        // Reference registers do not survive an invocation, so a resumed pixel
+        // must never read one loaded only by initialization.
         if self.instructions[entry..].iter().any(|instruction| {
             instruction
                 .written_slot()
                 .is_some_and(|slot| cached.contains(&slot_key(slot)))
+                || references
+                    .iter()
+                    .any(|&slot| self.instruction_reads_ref(instruction, slot))
         }) {
             return false;
         }
@@ -1191,6 +1276,7 @@ impl BytecodeProgram {
         };
         match instruction {
             Instruction::Move { dst, src } => is_ref(dst.with_index(*src)),
+            Instruction::Choose { .. } => false,
             Instruction::MakeArray { items, .. } => pool_reads(*items),
             Instruction::Select {
                 dst,
@@ -1552,6 +1638,32 @@ pub struct SlotLayout {
     pub gradients: u32,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PrimitiveBank {
+    Float,
+    Int,
+    Bool,
+}
+
+impl SlotLayout {
+    /// Fixed primitive bank capacities. The interpreter stores these banks
+    /// inline, so each register access is a direct masked index.
+    pub const FLOAT_REGISTERS: u32 = 256;
+    pub const INT_REGISTERS: u32 = 64;
+    pub const BOOL_REGISTERS: u32 = 64;
+
+    /// The first primitive bank that exceeds its fixed capacity, if any.
+    pub fn exceeded_bank(&self) -> Option<(PrimitiveBank, u32, u32)> {
+        [
+            (PrimitiveBank::Float, self.floats, Self::FLOAT_REGISTERS),
+            (PrimitiveBank::Int, self.ints, Self::INT_REGISTERS),
+            (PrimitiveBank::Bool, self.bools, Self::BOOL_REGISTERS),
+        ]
+        .into_iter()
+        .find(|(_, used, limit)| used > limit)
+    }
+}
+
 /// Declaration metadata and a valid initialization value for one enum register.
 /// The VM never needs to inspect Type when allocating or loading this bank.
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -1883,6 +1995,14 @@ instructions! {
         /// Source index in the destination's register bank.
         src: u32,
     },
+    /// Branch-free choice between two primitive registers of the destination's
+    /// bank. If-conversion emits it so conditional assignments stay hoistable.
+    Choose {
+        dst: ValueSlot,
+        condition: BoolSlot,
+        when_true: u32,
+        when_false: u32,
+    },
     MakeArray {
         dst: ArraySlot,
         items: PoolSpan,
@@ -1934,9 +2054,6 @@ instructions! {
     FloatSubtract { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
     FloatMultiply { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
     /// Separate multiply and add semantics in one interpreter dispatch.
-    FloatMultiplyAdd { dst: FloatSlot, left: FloatSlot, right: FloatSlot, addend: FloatSlot },
-    FloatMultiplyAddConst { dst: FloatSlot, value: FloatSlot, constant_bits: u32, addend: FloatSlot },
-    FloatMultiplySmoothstep { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
     FloatDivide { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
     FloatRemainder { dst: FloatSlot, left: FloatSlot, right: FloatSlot },
     IntAdd { dst: IntSlot, left: IntSlot, right: IntSlot },
@@ -2243,7 +2360,7 @@ impl Instruction {
             }
             CurveSample { dst, .. } => ValueSlot::Float(*dst),
             GradientSample { dst, .. } => ValueSlot::Color(*dst),
-            Move { dst, .. } | Index { dst, .. } | Select { dst, .. } => *dst,
+            Move { dst, .. } | Choose { dst, .. } | Index { dst, .. } | Select { dst, .. } => *dst,
             ContextRead { dst, .. } => dst.value_slot(),
             LoadMarksConst { dst, .. } | LoadMarksParam { dst, .. } => ValueSlot::Marks(*dst),
             Mark { op, .. } => op.output(),
@@ -2266,9 +2383,6 @@ impl Instruction {
             | FloatAdd { dst, .. }
             | FloatSubtract { dst, .. }
             | FloatMultiply { dst, .. }
-            | FloatMultiplyAdd { dst, .. }
-            | FloatMultiplyAddConst { dst, .. }
-            | FloatMultiplySmoothstep { dst, .. }
             | FloatDivide { dst, .. }
             | FloatRemainder { dst, .. }
             | FloatAddConst { dst, .. }
@@ -3006,5 +3120,443 @@ impl NumberSlot {
             Self::Int(slot) => ValueSlot::Int(slot),
             Self::Float(slot) => ValueSlot::Float(slot),
         }
+    }
+}
+
+/// One exhaustive register-operand description, shared by compilation and
+/// batch planning.
+/// Operand spans are unique per instruction in compiler output.
+pub(super) fn slots(
+    op: &mut Instruction,
+    operands: &mut [ValueSlot],
+    mut visit: impl FnMut(ValueSlot, bool) -> ValueSlot,
+) {
+    macro_rules! typed {
+        ($write:expr, $kind:ident, $($slot:ident),+) => {{$(
+            let ValueSlot::$kind(mapped) = visit(ValueSlot::$kind(*$slot), $write) else { unreachable!("compiler register remapping preserves types") };
+            *$slot = mapped;
+        )+}};
+    }
+    macro_rules! number {
+        ($operand:expr) => {
+            match $operand {
+                NumberSlot::Int(slot) => typed!(false, Int, slot),
+                NumberSlot::Float(slot) => typed!(false, Float, slot),
+            }
+        };
+    }
+    match op {
+        Instruction::LoadCurveConst { dst, .. } | Instruction::LoadCurveParam { dst, .. } => {
+            typed!(true, Curve, dst)
+        }
+        Instruction::LoadGradientConst { dst, .. } | Instruction::LoadGradientParam { dst, .. } => {
+            typed!(true, Gradient, dst)
+        }
+        Instruction::CurveSample {
+            dst,
+            curve,
+            position,
+        } => {
+            typed!(false, Curve, curve);
+            typed!(false, Float, position);
+            typed!(true, Float, dst);
+        }
+        Instruction::GradientSample {
+            dst,
+            gradient,
+            position,
+        } => {
+            typed!(false, Gradient, gradient);
+            typed!(false, Float, position);
+            typed!(true, Color, dst);
+        }
+        Instruction::ContextRead { dst, .. } => match dst {
+            NumberSlot::Int(slot) => typed!(true, Int, slot),
+            NumberSlot::Float(slot) => typed!(true, Float, slot),
+        },
+        Instruction::LoadIntConst { dst, .. } | Instruction::LoadIntParam { dst, .. } => {
+            typed!(true, Int, dst)
+        }
+        Instruction::LoadFloatConst { dst, .. } | Instruction::LoadFloatParam { dst, .. } => {
+            typed!(true, Float, dst)
+        }
+        Instruction::LoadBoolConst { dst, .. }
+        | Instruction::LoadBoolParam { dst, .. }
+        | Instruction::EnumParamEqualConst { dst, .. } => {
+            typed!(true, Bool, dst)
+        }
+        Instruction::LoadColorConst { dst, .. } | Instruction::LoadColorParam { dst, .. } => {
+            typed!(true, Color, dst)
+        }
+        Instruction::LoadEnumConst { dst, .. } | Instruction::LoadEnumParam { dst, .. } => {
+            typed!(true, Enum, dst);
+        }
+        Instruction::LoadArrayConst { dst, .. } | Instruction::LoadArrayParam { dst, .. } => {
+            typed!(true, Array, dst)
+        }
+        Instruction::LoadMarksConst { dst, .. } | Instruction::LoadMarksParam { dst, .. } => {
+            typed!(true, Marks, dst)
+        }
+        Instruction::Move { dst, src } => {
+            *src = visit(dst.with_index(*src), false).index();
+            *dst = visit(*dst, true);
+        }
+        Instruction::Choose {
+            dst,
+            condition,
+            when_true,
+            when_false,
+        } => {
+            typed!(false, Bool, condition);
+            *when_true = visit(dst.with_index(*when_true), false).index();
+            *when_false = visit(dst.with_index(*when_false), false).index();
+            *dst = visit(*dst, true);
+        }
+        Instruction::MakeArray { dst, items } => {
+            for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
+                *slot = visit(*slot, false);
+            }
+            typed!(true, Array, dst);
+        }
+        Instruction::Index {
+            dst,
+            target,
+            index,
+            default,
+        } => {
+            *default = visit(dst.with_index(*default), false).index();
+            typed!(false, Array, target);
+            number!(index);
+            *dst = visit(*dst, true);
+        }
+        Instruction::Select {
+            dst,
+            items,
+            index,
+            default,
+        } => {
+            *default = visit(dst.with_index(*default), false).index();
+            for slot in &mut operands[items.start as usize..(items.start + items.len) as usize] {
+                *slot = visit(*slot, false);
+            }
+            number!(index);
+            *dst = visit(*dst, true);
+        }
+        Instruction::CurveParamSample { dst, position, .. } => {
+            typed!(false, Float, position);
+            typed!(true, Float, dst);
+        }
+        Instruction::GradientParamSample { dst, position, .. } => {
+            typed!(false, Float, position);
+            typed!(true, Color, dst);
+        }
+        Instruction::SignalSample {
+            dst,
+            seconds,
+            pixel,
+            ..
+        } => {
+            typed!(false, Float, seconds);
+            *pixel = pixel.map(|mut slot| {
+                let index = &mut slot;
+                typed!(false, Int, index);
+                slot
+            });
+            typed!(true, Color, dst);
+        }
+        Instruction::IntToFloat { dst, src } => {
+            typed!(false, Int, src);
+            typed!(true, Float, dst);
+        }
+        Instruction::Not { dst, src } => {
+            typed!(false, Bool, src);
+            typed!(true, Bool, dst);
+        }
+        Instruction::NegInt { dst, src } => {
+            typed!(false, Int, src);
+            typed!(true, Int, dst);
+        }
+        Instruction::NegFloat { dst, src } => {
+            typed!(false, Float, src);
+            typed!(true, Float, dst);
+        }
+        Instruction::FloatAdd {
+            dst, left, right, ..
+        }
+        | Instruction::FloatSubtract {
+            dst, left, right, ..
+        }
+        | Instruction::FloatMultiply {
+            dst, left, right, ..
+        }
+        | Instruction::FloatDivide {
+            dst, left, right, ..
+        }
+        | Instruction::FloatRemainder {
+            dst, left, right, ..
+        }
+        | Instruction::FloatBinary {
+            dst, left, right, ..
+        } => {
+            typed!(false, Float, left, right);
+            typed!(true, Float, dst);
+        }
+        Instruction::IntAdd {
+            dst, left, right, ..
+        }
+        | Instruction::IntSubtract {
+            dst, left, right, ..
+        }
+        | Instruction::IntMultiply {
+            dst, left, right, ..
+        }
+        | Instruction::IntRemainder {
+            dst, left, right, ..
+        } => {
+            typed!(false, Int, left, right);
+            typed!(true, Int, dst);
+        }
+        Instruction::FloatCompare {
+            dst, left, right, ..
+        } => {
+            typed!(false, Float, left, right);
+            typed!(true, Bool, dst);
+        }
+        Instruction::IntCompare {
+            dst, left, right, ..
+        } => {
+            typed!(false, Int, left, right);
+            typed!(true, Bool, dst);
+        }
+        Instruction::FloatCompareConst { dst, value, .. } => {
+            typed!(false, Float, value);
+            typed!(true, Bool, dst);
+        }
+        Instruction::ValueEqual {
+            dst, left, right, ..
+        } => {
+            *left = visit(*left, false);
+            *right = visit(*right, false);
+            typed!(true, Bool, dst);
+        }
+        Instruction::IntJumpLess { left, right, .. }
+        | Instruction::IntJumpLessEqual { left, right, .. }
+        | Instruction::IntJumpGreater { left, right, .. }
+        | Instruction::IntJumpGreaterEqual { left, right, .. }
+        | Instruction::IntJumpEqual { left, right, .. } => {
+            typed!(false, Int, left, right);
+        }
+        Instruction::FloatJumpLess { left, right, .. }
+        | Instruction::FloatJumpLessEqual { left, right, .. }
+        | Instruction::FloatJumpGreater { left, right, .. }
+        | Instruction::FloatJumpGreaterEqual { left, right, .. }
+        | Instruction::FloatJumpEqual { left, right, .. } => {
+            typed!(false, Float, left, right);
+        }
+        Instruction::FloatJumpLessConst { value, .. }
+        | Instruction::FloatJumpLessEqualConst { value, .. }
+        | Instruction::FloatJumpGreaterConst { value, .. }
+        | Instruction::FloatJumpGreaterEqualConst { value, .. }
+        | Instruction::FloatJumpEqualConst { value, .. } => {
+            typed!(false, Float, value);
+        }
+        Instruction::JumpIfFalse { condition, .. } | Instruction::JumpIfTrue { condition, .. } => {
+            typed!(false, Bool, condition)
+        }
+        Instruction::LoopRangeStart { count, .. } => typed!(false, Int, count),
+        Instruction::LoopMarksStart { marks, .. } => typed!(false, Marks, marks),
+        Instruction::SectionQuery { dst, width, .. } => {
+            typed!(false, Int, width);
+            typed!(true, Int, dst);
+        }
+        Instruction::SectionPosition {
+            dst,
+            width,
+            inverse,
+        } => {
+            typed!(false, Float, width, inverse);
+            typed!(true, Float, dst);
+        }
+        Instruction::QuerySeconds {
+            dst,
+            seconds: value,
+        }
+        | Instruction::QueryProgress {
+            dst,
+            seconds: value,
+        }
+        | Instruction::FloatAddConst { dst, value, .. }
+        | Instruction::FloatSubtractConst { dst, value, .. }
+        | Instruction::FloatMultiplyConst { dst, value, .. }
+        | Instruction::FloatDivideConst { dst, value, .. }
+        | Instruction::FloatRemainderConst { dst, value, .. }
+        | Instruction::FloatSubtractFromConst { dst, value, .. }
+        | Instruction::FloatDivideIntoConst { dst, value, .. }
+        | Instruction::FloatRemainderFromConst { dst, value, .. }
+        | Instruction::FloatUnary { dst, value, .. }
+        | Instruction::FloatBinaryConst { dst, value, .. }
+        | Instruction::ClampConst { dst, value, .. } => {
+            typed!(false, Float, value);
+            typed!(true, Float, dst);
+        }
+        Instruction::Clamp {
+            dst,
+            value,
+            min,
+            max,
+        } => {
+            typed!(false, Float, value, min, max);
+            typed!(true, Float, dst);
+        }
+        Instruction::Smoothstep { dst, value } => {
+            typed!(false, Float, value);
+            typed!(true, Float, dst);
+        }
+        Instruction::MixFloat {
+            dst,
+            left,
+            right,
+            amount,
+        } => {
+            typed!(false, Float, left, right, amount);
+            typed!(true, Float, dst);
+        }
+        Instruction::MixColor {
+            dst,
+            left,
+            right,
+            amount,
+        } => {
+            typed!(false, Color, left, right);
+            typed!(false, Float, amount);
+            typed!(true, Color, dst);
+        }
+        Instruction::ColorBinary {
+            dst, left, right, ..
+        } => {
+            typed!(false, Color, left, right);
+            typed!(true, Color, dst);
+        }
+        Instruction::ColorScale { dst, color, scale } => {
+            typed!(false, Color, color);
+            typed!(false, Float, scale);
+            typed!(true, Color, dst);
+        }
+        Instruction::ColorComponent { dst, color, .. } => {
+            typed!(false, Color, color);
+            typed!(true, Float, dst);
+        }
+        Instruction::ColorInvert { dst, color } => {
+            typed!(false, Color, color);
+            typed!(true, Color, dst);
+        }
+        Instruction::Rgb {
+            dst,
+            red,
+            green,
+            blue,
+        } => {
+            typed!(false, Float, red, green, blue);
+            typed!(true, Color, dst);
+        }
+        Instruction::Hsv {
+            dst,
+            hue,
+            saturation,
+            value,
+        } => {
+            typed!(false, Float, hue, saturation, value);
+            typed!(true, Color, dst);
+        }
+        Instruction::Rand { dst, seed } => {
+            typed!(false, Float, seed);
+            typed!(true, Float, dst);
+        }
+        Instruction::CurveFloatClamped {
+            dst,
+            curve,
+            position,
+            min,
+            max,
+        } => {
+            typed!(false, Curve, curve);
+            typed!(false, Float, position, min, max);
+            typed!(true, Float, dst);
+        }
+        Instruction::CurveParamFloatClamped {
+            dst,
+            position,
+            min,
+            max,
+            ..
+        } => {
+            typed!(false, Float, position, min, max);
+            typed!(true, Float, dst);
+        }
+        Instruction::GradientColorScaled {
+            dst,
+            gradient,
+            position,
+            scale,
+        } => {
+            typed!(false, Gradient, gradient);
+            typed!(false, Float, position, scale);
+            typed!(true, Color, dst);
+        }
+        Instruction::GradientParamColorScaled {
+            dst,
+            position,
+            scale,
+            ..
+        } => {
+            typed!(false, Float, position, scale);
+            typed!(true, Color, dst);
+        }
+        Instruction::CurveCrossing {
+            dst,
+            curve,
+            value,
+            before,
+        } => {
+            typed!(false, Curve, curve);
+            typed!(false, Float, value);
+            if let Some(before) = before {
+                typed!(false, Float, before);
+            }
+            typed!(true, Float, dst);
+        }
+        Instruction::CurveParamCrossing {
+            dst, value, before, ..
+        } => {
+            typed!(false, Float, value);
+            if let Some(before) = before {
+                typed!(false, Float, before);
+            }
+            typed!(true, Float, dst);
+        }
+        Instruction::Len { dst, value } => {
+            typed!(false, Array, value);
+            typed!(true, Int, dst);
+        }
+        Instruction::Mark { marks, op } => {
+            typed!(false, Marks, marks);
+            match op {
+                MarkOp::Count { dst } => typed!(true, Int, dst),
+                MarkOp::At { dst, index } => {
+                    typed!(false, Int, index);
+                    typed!(true, Float, dst);
+                }
+                MarkOp::Last { dst, seconds } => {
+                    typed!(false, Float, seconds);
+                    typed!(true, Float, dst);
+                }
+                MarkOp::LastIndex { dst, seconds } => {
+                    typed!(false, Float, seconds);
+                    typed!(true, Int, dst);
+                }
+            }
+        }
+        Instruction::ReturnColor(value) => typed!(false, Color, value),
+        Instruction::Jump(_) | Instruction::LoopEnd { .. } => {}
     }
 }

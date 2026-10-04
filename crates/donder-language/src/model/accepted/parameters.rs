@@ -60,17 +60,13 @@ fn prepare_param_value(
             let collection = collections[key];
             let start = u64::from(timing.start.as_ticks());
             let end = start + u64::from(timing.duration.as_ticks());
-            Value::Marks(Arc::new(Marks {
-                marks: collection
-                    .marks
-                    .iter()
-                    .filter_map(|mark| {
-                        let mark = mark.as_micros_rounded();
-                        (mark >= u128::from(start) && mark < u128::from(end))
-                            .then(|| SampleDuration::from_ticks((mark - u128::from(start)) as u32))
-                    })
-                    .collect(),
-            }))
+            Value::Marks(Arc::new(Marks::new(collection.marks.iter().filter_map(
+                |mark| {
+                    let mark = mark.as_micros_rounded();
+                    (mark >= u128::from(start) && mark < u128::from(end))
+                        .then(|| SampleDuration::from_ticks((mark - u128::from(start)) as u32))
+                },
+            ))))
         }
         EffectParamValue::Curve(source) => Value::Curve(Arc::new(match source {
             CurveSource::Inline(curve) => curve.clone(),

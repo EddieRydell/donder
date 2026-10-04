@@ -1,6 +1,5 @@
 extern crate std;
 
-mod arithmetic_fusion;
 mod array_lowering;
 mod dsl;
 mod evaluation;

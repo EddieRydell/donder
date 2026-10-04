@@ -1,6 +1,7 @@
 //! Statistical interrupted-PC sampling. No shared-runtime instrumentation.
 #![no_std]
 #![no_main]
+#![feature(asm_experimental_arch)]
 
 extern crate alloc;
 
@@ -13,6 +14,8 @@ use esp_hal::{
 };
 use esp_println::println;
 
+#[path = "../fast_divide.rs"]
+mod fast_divide;
 #[path = "../workload.rs"]
 #[allow(dead_code)]
 mod workload;

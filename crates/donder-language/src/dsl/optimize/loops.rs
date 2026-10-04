@@ -136,6 +136,7 @@ pub(super) fn pure(op: &Instruction) -> bool {
             | NegInt { .. }
             | NegFloat { .. }
             | Not { .. }
+            | Choose { .. }
             | IntAdd { .. }
             | IntSubtract { .. }
             | IntMultiply { .. }

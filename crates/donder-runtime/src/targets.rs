@@ -57,6 +57,7 @@ impl TargetPixels {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -74,10 +75,6 @@ impl TargetPixels {
                 runs[run].pixel(index - start)
             }
         }
-    }
-
-    pub(crate) fn first(&self) -> Option<PreparedPixel> {
-        (!self.is_empty()).then(|| self.pixel(0))
     }
 
     #[cfg(test)]
@@ -105,12 +102,64 @@ impl TargetPixels {
         }
     }
 
+    /// Consecutive target pixels that share a fixture, count and contiguous
+    /// physical cells. Indexed targets yield one pixel per segment.
+    pub(crate) fn segments(&self) -> impl Iterator<Item = Segment<'_>> {
+        let (indexed, runs): (&[PreparedPixel], &[PixelRun]) = match self {
+            Self::Indexed(pixels) => (pixels, &[]),
+            Self::Runs(runs) => (&[], runs),
+        };
+        let indexed = indexed.iter().enumerate().map(|(start, pixel)| Segment {
+            start,
+            fixture: pixel.fixture_index,
+            first_cell: pixel.fixture_pixel_index,
+            first_index: pixel.pixel_index,
+            count: pixel.pixel_count,
+            fractions: core::slice::from_ref(&pixel.pixel_fraction),
+        });
+        let runs = runs.iter().scan(0, |start, run| {
+            let segment = Segment {
+                start: *start,
+                fixture: run.fixture,
+                first_cell: run.first_cell,
+                first_index: run.first_index,
+                count: run.count,
+                fractions: &run.fractions[..run.end - *start],
+            };
+            *start = run.end;
+            Some(segment)
+        });
+        indexed.chain(runs)
+    }
+
     pub(crate) fn iter(&self) -> TargetIter<'_> {
         TargetIter {
             pixels: self,
             index: 0,
             run: 0,
             start: 0,
+        }
+    }
+}
+
+pub(crate) struct Segment<'a> {
+    /// Target index of the first pixel.
+    pub start: usize,
+    pub fixture: usize,
+    pub first_cell: u32,
+    pub first_index: usize,
+    pub count: usize,
+    pub fractions: &'a [f32],
+}
+
+impl Segment<'_> {
+    pub(crate) fn pixel(&self, offset: usize) -> PreparedPixel {
+        PreparedPixel {
+            fixture_index: self.fixture,
+            fixture_pixel_index: self.first_cell + offset as u32,
+            pixel_index: self.first_index + offset,
+            pixel_count: self.count,
+            pixel_fraction: self.fractions[offset],
         }
     }
 }

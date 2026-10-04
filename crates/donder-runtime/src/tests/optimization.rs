@@ -2,7 +2,8 @@ use super::evaluation::{OperatorEvaluation, SampleEvaluation, context};
 use super::std;
 use std::prelude::rust_2024::*;
 
-use crate::dsl::{RuntimeError, SignalSampler, VmWorkspace};
+use super::evaluation::SignalSampler;
+use crate::dsl::{BatchWorkspace, RuntimeError};
 use donder_language::dsl::bytecode::{Instruction, SignalPixel};
 use donder_language::dsl::{Color, Identifier, Value, compile_effects, compile_operators};
 use donder_language::execution::SpatialContext;
@@ -44,7 +45,7 @@ fn constant_folding_propagates_through_locals_and_removes_unreachable_sampling()
                 &context(1, 0, 0),
                 &SPATIAL,
                 &mut sampler,
-                &mut VmWorkspace::default()
+                &mut BatchWorkspace::default()
             )
             .unwrap()
             .red,
@@ -74,7 +75,7 @@ fn propagation_merges_branch_values_and_respects_loop_backedges_and_snapshots() 
     .remove(0)
     .bind([])
     .unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for (pixel, red, green) in [(0, 77, 128), (1, 128, 179), (0, 77, 128)] {
         assert_eq!(
             effect.evaluate(&context(2, pixel, 0), &SPATIAL, &mut workspace),
@@ -129,7 +130,11 @@ fn branches_can_reuse_a_previously_materialized_boolean() {
         ),
     ] {
         assert_eq!(
-            effect.evaluate(&context(3, pixel, 0), &SPATIAL, &mut VmWorkspace::default()),
+            effect.evaluate(
+                &context(3, pixel, 0),
+                &SPATIAL,
+                &mut BatchWorkspace::default()
+            ),
             expected
         );
     }
@@ -182,7 +187,7 @@ fn direct_conditions_preserve_short_circuit_order_and_sampling_errors() {
             &context(1, 0, 0),
             &SPATIAL,
             &mut sampler,
-            &mut VmWorkspace::default(),
+            &mut BatchWorkspace::default(),
         );
         assert_eq!(result.is_err(), should_sample, "{condition}");
         assert_eq!(sampler.calls, usize::from(should_sample), "{condition}");
@@ -199,7 +204,7 @@ fn dead_sample_results_preserve_errors() {
                 &context(1, 0, 0),
                 &SPATIAL,
                 &mut sampler,
-                &mut VmWorkspace::default()
+                &mut BatchWorkspace::default()
             )
             .is_err()
     );
@@ -261,7 +266,7 @@ fn monotonic_guards_shorten_ascending_descending_and_nested_loops() {
             effect.sample_program().bytecode().instructions
         );
         let bound = effect.bind([]).unwrap();
-        let mut workspace = VmWorkspace::default();
+        let mut workspace = BatchWorkspace::default();
         for _ in 0..3 {
             assert_eq!(
                 bound
@@ -313,7 +318,7 @@ fn multiplicative_loop_guards_preserve_wraparound_alternation_and_live_outs() {
             effect
                 .bind([])
                 .unwrap()
-                .evaluate(&context(1, 0, 0), &SPATIAL, &mut VmWorkspace::default())
+                .evaluate(&context(1, 0, 0), &SPATIAL, &mut BatchWorkspace::default())
                 .red,
             expected,
             "{source}"
@@ -362,7 +367,7 @@ fn loop_rejection_proofs_preserve_live_values_and_nonmonotonic_conditions() {
             effect
                 .bind([])
                 .unwrap()
-                .evaluate(&context(1, 0, 0), &SPATIAL, &mut VmWorkspace::default())
+                .evaluate(&context(1, 0, 0), &SPATIAL, &mut BatchWorkspace::default())
                 .red,
             expected,
             "{source}"
@@ -395,11 +400,12 @@ fn rejecting_loop_guards_do_not_skip_earlier_sampling_errors() {
                 &context(1, 0, 0),
                 &SPATIAL,
                 &mut sampler,
-                &mut VmWorkspace::default()
+                &mut BatchWorkspace::default()
             )
             .is_err()
     );
-    assert_eq!(sampler.calls, 1);
+    // Every iteration samples; the guard cannot remove observable queries.
+    assert_eq!(sampler.calls, 10);
 }
 
 #[test]
@@ -438,7 +444,7 @@ fn invariant_divisors_are_inverted_before_the_loop_with_either_sign() {
             effect
                 .bind([])
                 .unwrap()
-                .evaluate(&context(1, 0, 0), &SPATIAL, &mut VmWorkspace::default())
+                .evaluate(&context(1, 0, 0), &SPATIAL, &mut BatchWorkspace::default())
                 .red,
             77
         );
@@ -470,7 +476,7 @@ fn smoothstep_normalization_hoists_bounded_edges_and_preserves_boundaries() {
             "{program:#?}"
         );
         let effect = effect.bind([]).unwrap();
-        let mut workspace = VmWorkspace::default();
+        let mut workspace = BatchWorkspace::default();
         for pixel in 0..65 {
             let context = context(65, pixel, 0);
             let (left, right) = if edge0 == "0.0" {
@@ -504,7 +510,7 @@ fn smoothstep_keeps_varying_and_degenerate_edge_semantics() {
     .remove(0)
     .bind([])
     .unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for pixel in 0..65 {
         let context = context(65, pixel, 0);
         let edge = context.pixel_fraction;
@@ -534,7 +540,7 @@ fn uniform_smoothstep_is_admitted_in_query_initialization() {
             .any(|op| matches!(op, Instruction::Smoothstep { .. }))
     );
     let bound = effect.bind([]).unwrap();
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for frame in [0, 1, 15, 30, 60, 0] {
         let context = context(8, 0, frame);
         let t = (crate::values::sample_duration_seconds_f32(context.time) / 0.75).clamp(0.0, 1.0);
@@ -595,7 +601,7 @@ fn loop_hoisting_preserves_zero_trip_and_conditional_live_out_values() {
                 &Value::Int(count),
             )])
             .unwrap();
-        let mut workspace = VmWorkspace::default();
+        let mut workspace = BatchWorkspace::default();
         for pixel in [0, 1, 0] {
             let color = effect.evaluate(&context(2, pixel, 0), &SPATIAL, &mut workspace);
             assert_eq!(
@@ -642,7 +648,7 @@ fn invariant_reciprocals_preserve_missing_values() {
         let bound = effect.bind([(&divisor, &Value::Float(value))]).unwrap();
         assert_eq!(
             bound
-                .evaluate(&context(1, 0, 0), &SPATIAL, &mut VmWorkspace::default())
+                .evaluate(&context(1, 0, 0), &SPATIAL, &mut BatchWorkspace::default())
                 .red,
             expected
         );

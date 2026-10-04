@@ -8,8 +8,8 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
+use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
-use crate::dsl::VmWorkspace;
 use donder_language::dsl::Color;
 use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::compile_effects;
@@ -86,7 +86,7 @@ fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
             .iter()
             .any(|op| matches!(op, Instruction::IntToFloat { .. }))
     );
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for index in [0, 1] {
         let params = [(Identifier::new("index".into()).unwrap(), Value::Int(index))];
         let array_params = array
@@ -138,7 +138,7 @@ fn reference_sampling_keeps_integer_and_float_index_semantics() {
         ],
     };
     let shapes = Value::Array(vec![Value::Curve(curve.clone().into())].into());
-    let mut workspace = VmWorkspace::default();
+    let mut workspace = BatchWorkspace::default();
     for integer in [i32::MIN, -1, 0, 1, i32::MAX] {
         for fraction in [
             f32::NEG_INFINITY,
@@ -198,7 +198,7 @@ fn unused_arrays_with_total_items_need_no_storage() {
     .remove(0);
     assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
     let params = effect.bind(&IndexMap::new()).unwrap();
-    let result = params.evaluate(&context(0.25), &SPATIAL, &mut VmWorkspace::default());
+    let result = params.evaluate(&context(0.25), &SPATIAL, &mut BatchWorkspace::default());
     assert_eq!(result, Color::BLACK);
 }
 
@@ -227,7 +227,7 @@ fn fixed_indices_and_aliases_need_no_calculated_array_storage() {
             ))
     );
     let params = effect.bind(&IndexMap::new()).unwrap();
-    let mut vm = VmWorkspace::default();
+    let mut vm = BatchWorkspace::default();
     for (progress, expected) in [
         (
             0.25,
@@ -295,7 +295,7 @@ fn mutable_values_branches_and_backedges_preserve_array_snapshots() {
         .unwrap()
         .remove(0);
         let params = effect.bind(&IndexMap::new()).unwrap();
-        let mut vm = VmWorkspace::default();
+        let mut vm = BatchWorkspace::default();
         for (progress, red) in [
             (0.25, expected[0]),
             (0.75, expected[1]),
@@ -335,7 +335,7 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
                 .any(|op| matches!(op, Instruction::Select { .. }))
         );
         let params = effect.bind(&IndexMap::new()).unwrap();
-        let mut vm = VmWorkspace::default();
+        let mut vm = BatchWorkspace::default();
         assert_eq!(
             params.evaluate(&context(0.25), &SPATIAL, &mut vm).red,
             expected_red
@@ -352,7 +352,7 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
     .unwrap()
     .remove(0);
     let params = effect.bind(&IndexMap::new()).unwrap();
-    let mut vm = VmWorkspace::default();
+    let mut vm = BatchWorkspace::default();
     assert_eq!(params.evaluate(&context(0.25), &SPATIAL, &mut vm).red, 0);
 
     let effect = compile_effects(
@@ -381,7 +381,7 @@ fn dynamic_selection_preserves_aliases_and_typed_values() {
         let effect = compile_effects(&format!("effect Select {{ color sample() {{ {body} }} }}"))
             .unwrap().remove(0);
         let params = effect.bind(&IndexMap::new()).unwrap();
-        let mut vm = VmWorkspace::default();
+        let mut vm = BatchWorkspace::default();
         for progress in [0.0, 0.5, 1.0, 0.0] {
             for (pixel, red) in [64, (progress * 255.0_f32).round() as u8, 191].into_iter().enumerate() {
                 let mut ctx = context(progress);
