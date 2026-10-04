@@ -206,39 +206,6 @@ impl ObjectKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub enum SequenceEffectParamKind {
-    Int,
-    Float,
-    Bool,
-    Color,
-    Enum,
-    Curve,
-    Gradient,
-    IntArray,
-    FloatArray,
-    BoolArray,
-    ColorArray,
-    CurveArray,
-    GradientArray,
-    Marks,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceEffectScope {
-    PerFixture,
-    WholeTarget,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SequenceResizeEdge {
-    Left,
-    Right,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub enum WorkspaceEntryKind {
     Directory,
     File,
@@ -408,20 +375,6 @@ impl From<donder_project_io::SourceDocumentFormat> for TextDocumentSyntax {
             | donder_project_io::SourceDocumentFormat::Other => Self::Yaml,
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum SequenceEffectReference {
-    Custom {
-        module_id: String,
-        path: String,
-        effect_name: String,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

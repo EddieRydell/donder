@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-output", "crates/donder-project-io", "crates/donder-cli", "crates/donder-preview"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-output", "crates/donder-project-io", "crates/donder-cli", "crates/donder-preview"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -18,6 +18,8 @@ clap = { version = "4.6.6", features = ["derive"] }
 criterion = "0.8.2"
 dur = { version = "0.5.3", default-features = false }
 donder-elaboration = { path = "crates/donder-elaboration" }
+donder-browser = { path = "crates/donder-browser" }
+donder-sequence-api = { path = "crates/donder-sequence-api" }
 donder-language = { path = "crates/donder-language" }
 donder-output = { path = "crates/donder-output" }
 donder-project-io = { path = "crates/donder-project-io" }
@@ -50,6 +52,8 @@ tauri-build = "2.6.3"
 tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
 tempfile = "3.27.0"
 uuid = { version = "1.26.0", features = ["serde", "v4"] }
+serde-wasm-bindgen = "0.6.5"
+wasm-bindgen = "0.2.129"
 webbrowser = "1.2.4"
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }
 winit = "0.30.13"
