@@ -217,12 +217,4 @@ impl ParameterValues {
     pub(super) fn get(&self, index: usize) -> Option<BoundParamValue> {
         self.slots.get(index).map(|address| self.read(*address))
     }
-
-    #[cfg(test)]
-    pub(super) fn gradient(&self, index: usize) -> Option<&GradientRegister> {
-        match self.slots.get(index)? {
-            ParameterAddress::Gradient(slot) => self.gradients.get(*slot),
-            _ => None,
-        }
-    }
 }

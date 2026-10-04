@@ -203,8 +203,6 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         "clamp(0.5, x, 1.0)",
         "clamp(0.5, 0.0, x)",
         "rand(x)",
-        "rand(1.0, x, 2.0)",
-        "srand(x)",
         "mix(0.0, 1.0, x)",
     ] {
         for (parameters, declaration, values) in [

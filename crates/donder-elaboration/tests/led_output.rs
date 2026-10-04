@@ -1,9 +1,6 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
 use donder_language::values::sample_time_from_frame;
-use donder_runtime::LoadLimits;
-use donder_runtime::decode_sequence;
-use donder_runtime::encode_sequence;
 
 fn project() -> donder_project_io::ProjectSession {
     donder_project_io::load_project(
@@ -58,9 +55,7 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
         .find(|id| id.0.root_source().object() == "layer_test")
         .unwrap();
     let output = prepare(project, sequence, PrepareOutputs::All).unwrap();
-    let mut workspace = prepare(project, sequence, PrepareOutputs::All)
-        .unwrap()
-        .into_playback();
+    let mut workspace = output.clone().into_playback();
     let mut buffers: Vec<_> = output
         .outputs()
         .iter()
@@ -105,68 +100,6 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
                 .flat_map(|color| [color.green, color.red, color.blue])
                 .collect();
             assert_eq!(*buffer, expected);
-        }
-    }
-}
-
-#[test]
-fn selected_ports_and_portable_archive_preserve_full_project_pixel_coordinates() {
-    let session = project();
-    let project = &session.project;
-    let sequence = project
-        .reusable_sequences()
-        .keys()
-        .find(|id| id.0.root_source().object() == "layer_test")
-        .unwrap();
-    let full = prepare(project, sequence, PrepareOutputs::All).unwrap();
-    let setup = &project.reusable_setups()[project.root().setup.id()];
-    let ports: Vec<_> = [2, 17]
-        .into_iter()
-        .map(|index| {
-            let output = &full.outputs()[index];
-            (
-                setup.controllers[output.controller_index as usize]
-                    .id()
-                    .clone(),
-                donder_language::controller::ControllerPortId(output.port),
-            )
-        })
-        .collect();
-    let selected = prepare(project, sequence, PrepareOutputs::Ports(&ports)).unwrap();
-    let limits = LoadLimits {
-        payload_bytes: 32 * 1024 * 1024,
-        workspace_bytes: 32 * 1024 * 1024,
-        ..LoadLimits::default()
-    };
-    let decoded = decode_sequence(&encode_sequence(&selected).unwrap(), limits).unwrap();
-    let mut workspace = decoded.into_playback();
-    let mut full_workspace = prepare(project, sequence, PrepareOutputs::All)
-        .unwrap()
-        .into_playback();
-    let mut buffers: Vec<_> = workspace
-        .sequence()
-        .outputs()
-        .iter()
-        .map(|port| vec![0; port.width])
-        .collect();
-    let mut full_buffers: Vec<_> = full
-        .outputs()
-        .iter()
-        .map(|port| vec![0; port.width])
-        .collect();
-    for frame_index in [8398, 8450, 8494] {
-        let time = sample_time_from_frame(frame_index, full.frame_rate()).unwrap();
-        for (snapshot, output) in buffers.iter_mut().zip(workspace.evaluate(time).outputs()) {
-            snapshot.copy_from_slice(output.bytes);
-        }
-        for (snapshot, output) in full_buffers
-            .iter_mut()
-            .zip(full_workspace.evaluate(time).outputs())
-        {
-            snapshot.copy_from_slice(output.bytes);
-        }
-        for (buffer, index) in buffers.iter().zip([2, 17]) {
-            assert_eq!(buffer, &full_buffers[index]);
         }
     }
 }

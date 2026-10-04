@@ -296,7 +296,7 @@ fn real(state: &State, slot: crate::dsl::bytecode::FloatSlot) -> bool {
 fn present_result(op: &Instruction, state: &State) -> Option<Known> {
     use Instruction::*;
     let present = match *op {
-        IntToFloat { .. } => true,
+        IntToFloat { .. } | FloatToInt { .. } => true,
         FloatBinary {
             op: crate::dsl::bytecode::FloatBinary::ValueOr,
             right,
@@ -424,6 +424,7 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
             _ => None,
         },
         IntToFloat { src, .. } => f(int(state, src)? as f32),
+        FloatToInt { src, .. } => i(float(state, src)? as i32),
         Smoothstep { value, .. } => {
             let t = float(state, value)?.clamp(0.0, 1.0);
             f(t * t * (3.0 - 2.0 * t))
@@ -949,6 +950,7 @@ fn removable(op: &Instruction) -> bool {
             | Choose { .. }
             | MakeArray { .. }
             | IntToFloat { .. }
+            | FloatToInt { .. }
             | Not { .. }
             | NegInt { .. }
             | NegFloat { .. }

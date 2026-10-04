@@ -5,7 +5,6 @@ edition = "2024"
 publish = false
 
 [features]
-pc-profile = []
 loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc"]
 i2s-output = ["loader", "donder-runtime/atomic"]
 dig-quad = ["i2s-output"]
@@ -14,11 +13,6 @@ dig-quad = ["i2s-output"]
 name = "loader"
 path = "src/bin/loader.rs"
 required-features = ["loader"]
-
-[[bin]]
-name = "pc_profile"
-path = "src/bin/pc_profile.rs"
-required-features = ["pc-profile"]
 
 [workspace]
 resolver = "2"
@@ -60,13 +54,6 @@ esp-alloc = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d
 esp-println = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
 esp-bootloader-esp-idf = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
 esp-storage = { git = "https://github.com/esp-rs/esp-hal", rev = "0eb3e53b4a2e555d2136ce9dc83e18c6692b9673" }
-
-[build-dependencies]
-crc32fast = "1.5.1"
-donder-elaboration = { path = "../../crates/donder-elaboration" }
-donder-language = { path = "../../crates/donder-language" }
-donder-runtime = { path = "../../crates/donder-runtime" }
-indexmap = "2.14.0"
 
 [profile.release]
 opt-level = 3

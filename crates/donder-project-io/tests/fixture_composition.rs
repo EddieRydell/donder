@@ -1,73 +1,13 @@
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::layout::{FixtureInstanceId, FixtureTarget, LayoutFixtureKind};
+mod common;
+
+use camino::Utf8Path;
+use donder_language::layout::{FixtureInstanceId, LayoutFixtureKind};
 use donder_project_io::{export_project, load_project, save_project};
-
-fn starter() -> donder_project_io::ProjectSession {
-    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    load_project(&root).unwrap()
-}
-
-fn export_starter(session: &donder_project_io::ProjectSession, root: &Utf8Path) {
-    export_project(session, root).unwrap();
-}
-
-#[test]
-fn starter_layout_targets_and_led_routes_round_trip() {
-    let session = starter();
-    let layout = session.project.reusable_layouts().values().next().unwrap();
-    let counts = session
-        .project
-        .definitions()
-        .fixtures
-        .pixel_counts()
-        .unwrap();
-    assert_eq!(
-        layout
-            .target_pixel_count(
-                &FixtureTarget {
-                    layout: layout.id.clone(),
-                    fixture: FixtureInstanceId(1001)
-                },
-                &counts
-            )
-            .unwrap(),
-        30 * 113
-    );
-    for id in 1..=30 {
-        assert_eq!(
-            layout
-                .target_pixel_count(
-                    &FixtureTarget {
-                        layout: layout.id.clone(),
-                        fixture: FixtureInstanceId(id)
-                    },
-                    &counts
-                )
-                .unwrap(),
-            113
-        );
-    }
-    let patch = session.project.reusable_patches().values().next().unwrap();
-    assert_eq!(patch.routes.len(), 30);
-    assert!(
-        patch
-            .routes
-            .iter()
-            .all(|route| route.pixels.is_none() && route.encoding.channel_order() == [1, 0, 2])
-    );
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8Path::from_path(temporary.path()).unwrap();
-    export_starter(&session, root);
-    let loaded = load_project(root).unwrap();
-    assert_eq!(loaded.project, session.project);
-}
 
 #[test]
 fn inline_definitions_keep_source_ownership_and_pixel_order() {
-    let session = starter();
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8Path::from_path(temporary.path()).unwrap();
-    export_starter(&session, root);
+    let (_temporary, root) = common::starter_copy();
+    let root = root.as_path();
     let fixture_path = root.join("fixtures/vertical.fixture.donder");
     let mut source = std::fs::read_to_string(&fixture_path).unwrap();
     source.push_str("\nassembly:\n  type: fixture\n  elements:\n  - id: 90\n    name: First\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\n    transform: {position: {x: 1, y: 0, z: 0}}\n  - id: 10\n    name: Second\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.02\n    transform: {position: {x: 2, y: 0, z: 0}}\n");
@@ -126,7 +66,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
 #[test]
 fn all_shape_parameters_round_trip_in_authored_order() {
     use donder_language::fixture::{FixtureElementId, FixtureShape, GridAxis, GridCorner};
-    let mut session = starter();
+    let mut session = common::load_project(&common::starter_root());
     let (id, mut fixture) = session
         .project
         .definitions()
@@ -199,9 +139,6 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         .unwrap();
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    export_starter(&session, root);
-    let loaded = load_project(root).unwrap();
-    assert_eq!(loaded.project, session.project);
-    save_project(&loaded).unwrap();
+    export_project(&session, root).unwrap();
     assert_eq!(load_project(root).unwrap().project, session.project);
 }

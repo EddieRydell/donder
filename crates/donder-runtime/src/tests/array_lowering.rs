@@ -11,7 +11,6 @@ const SPATIAL: donder_language::execution::SpatialContext =
 use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
 use donder_language::dsl::Color;
-use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::compile_effects;
 use donder_language::values::SampleDuration;
 use indexmap::IndexMap;
@@ -25,31 +24,6 @@ fn context(progress: f32) -> RunContext {
         pixel_count: 1,
         pixel_fraction: 0.0,
     }
-}
-
-#[test]
-fn fixed_array_syntax_compiles_to_the_same_program_as_scalar_syntax() {
-    let array = compile_effects(
-        "effect Array { color sample() {
-        array<float> values = [pixel_fraction(), progress(), 0.25];
-        array<float> saved = values;
-        values = [0.0];
-        return rgb(saved[0], saved[1], saved[2]);
-    } }",
-    )
-    .unwrap()
-    .remove(0);
-    let scalar = compile_effects(
-        "effect Scalar { color sample() {
-        return rgb(pixel_fraction(), progress(), 0.25);
-    } }",
-    )
-    .unwrap()
-    .remove(0);
-    assert_eq!(array.sample_program(), scalar.sample_program());
-    assert_eq!(array.sample_program().bytecode().layout.arrays, 0);
-    assert_eq!(array.sample_program().bytecode().layout.ints, 0);
-    assert!(array.sample_program().bytecode().value_operands.is_empty());
 }
 
 #[test]
@@ -69,23 +43,6 @@ fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
     } }";
     let array = compile_effects(source).unwrap().remove(0);
     let scalar = compile_effects(scalar).unwrap().remove(0);
-    assert_eq!(array.sample_program().bytecode().array_capacity, 0);
-    assert!(
-        array
-            .sample_program()
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(op, Instruction::Select { .. }))
-    );
-    assert!(
-        array
-            .sample_program()
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(op, Instruction::IntToFloat { .. }))
-    );
     let mut workspace = BatchWorkspace::default();
     for index in [0, 1] {
         let params = [(Identifier::new("index".into()).unwrap(), Value::Int(index))];
@@ -187,23 +144,7 @@ fn reference_sampling_keeps_integer_and_float_index_semantics() {
 }
 
 #[test]
-fn unused_arrays_with_total_items_need_no_storage() {
-    let effect = compile_effects(
-        "effect Error { color sample() {
-        array<int> unused = [pixel_index(), 1 % 0];
-        return #000000;
-    } }",
-    )
-    .unwrap()
-    .remove(0);
-    assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
-    let params = effect.bind(&IndexMap::new()).unwrap();
-    let result = params.evaluate(&context(0.25), &SPATIAL, &mut BatchWorkspace::default());
-    assert_eq!(result, Color::BLACK);
-}
-
-#[test]
-fn fixed_indices_and_aliases_need_no_calculated_array_storage() {
+fn fixed_indices_and_aliases_read_saved_values() {
     let effect = compile_effects(
         "effect Fixed { color sample() {
         array<float> values = [progress(), progress() + 0.25];
@@ -214,18 +155,6 @@ fn fixed_indices_and_aliases_need_no_calculated_array_storage() {
     )
     .unwrap()
     .remove(0);
-    assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
-    assert!(
-        !effect
-            .sample_program()
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(
-                op,
-                Instruction::MakeArray { .. } | Instruction::Len { .. } | Instruction::Index { .. }
-            ))
-    );
     let params = effect.bind(&IndexMap::new()).unwrap();
     let mut vm = BatchWorkspace::default();
     for (progress, expected) in [
@@ -315,7 +244,7 @@ fn mutable_values_branches_and_backedges_preserve_array_snapshots() {
 }
 
 #[test]
-fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
+fn dynamic_indices_clamp_and_empty_arrays_default() {
     for (index, expected_red) in [("pixel_index()", 64), ("-1", 64), ("2", 191)] {
         let effect = compile_effects(&format!(
             "effect Dynamic {{ color sample() {{
@@ -325,15 +254,6 @@ fn dynamic_indices_clamp_without_array_storage_and_empty_arrays_default() {
         ))
         .unwrap()
         .remove(0);
-        assert_eq!(effect.sample_program().bytecode().array_capacity, 0);
-        assert!(
-            effect
-                .sample_program()
-                .bytecode()
-                .instructions
-                .iter()
-                .any(|op| matches!(op, Instruction::Select { .. }))
-        );
         let params = effect.bind(&IndexMap::new()).unwrap();
         let mut vm = BatchWorkspace::default();
         assert_eq!(

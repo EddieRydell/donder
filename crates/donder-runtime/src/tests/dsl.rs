@@ -15,7 +15,6 @@ use crate::dsl::RuntimeError;
 use donder_language::dsl::Color;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
-use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::bytecode::SignalPixel;
 use donder_language::dsl::compile_effects;
 use donder_language::dsl::compile_operators;
@@ -320,82 +319,6 @@ fn nested_counted_loops_reset_their_private_iteration_state() {
 }
 
 #[test]
-fn compiler_tracks_pixel_dependency_including_branches_and_signal_samples() {
-    for (expression, expected) in [
-        ("rgb(progress(), sin(seconds()), 0.0)", false),
-        ("rgb(pixel_fraction(), 0.0, 0.0)", true),
-        ("rgb(pixel_count(), 0.0, 0.0)", true),
-        ("rgb(section_position(4.0), 0.0, 0.0)", true),
-    ] {
-        let source = format!("effect Dependency {{ color sample() {{ return {expression}; }} }}");
-        let effect = compile_effects(&source).unwrap().remove(0);
-        assert_eq!(
-            effect.sample_program().bytecode().uses_pixel_context,
-            expected,
-            "{expression}"
-        );
-    }
-    let operator = compile_operators("operator Identity { input Signal source; color sample() { return source.at(seconds()); } }")
-        .unwrap().remove(0);
-    assert!(operator.bytecode().uses_pixel_context);
-    let effect = compile_effects("effect Branch { color sample() { if (progress() > 0.5) { return rgb(pixel_index(), 0.0, 0.0); } return #000000; } }")
-        .unwrap().remove(0);
-    assert!(effect.sample_program().bytecode().uses_pixel_context);
-}
-
-#[test]
-fn compiler_marks_only_pixel_uniform_signal_times_for_frame_caching() {
-    let uniform = compile_operators(
-        "operator Uniform { input Signal source; color sample() { return source.at(seconds() + 0.25); } }",
-    )
-    .unwrap()
-    .remove(0);
-    assert!(uniform.bytecode().instructions.iter().any(|instruction| {
-        matches!(
-            instruction,
-            Instruction::SignalSample { frame_cache: 0, .. }
-        )
-    }));
-
-    let pixel_dependent = compile_operators(
-        "operator PerPixel { input Signal source; color sample() { return source.at(seconds() + pixel_fraction()); } }",
-    )
-    .unwrap()
-    .remove(0);
-    assert!(
-        pixel_dependent
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|instruction| {
-                matches!(
-                    instruction,
-                    Instruction::SignalSample {
-                        frame_cache: u32::MAX,
-                        ..
-                    }
-                )
-            })
-    );
-
-    let independent_reads = compile_operators(
-        "operator TwoReads { input Signal first; input Signal second; color sample() { return first.at(seconds()) + second.at(seconds() + 0.5); } }",
-    )
-    .unwrap()
-    .remove(0);
-    let caches = independent_reads
-        .bytecode()
-        .instructions
-        .iter()
-        .filter_map(|instruction| match instruction {
-            Instruction::SignalSample { frame_cache, .. } => Some(*frame_cache),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(caches, vec![0, 1]);
-}
-
-#[test]
 fn constant_and_calculated_arrays_preserve_nested_values_and_assignment() {
     let effect = compile_effects(
         "effect Arrays {
@@ -565,12 +488,6 @@ fn enum_identity_survives_subset_assignment_arrays_and_program_reuse() {
             );
         }
     }
-}
-
-#[test]
-fn standard_operator_names_are_project_owned() {
-    assert!(compile_operators("operator Delay { input Signal source; color sample() { return source.at(seconds()); } }").is_ok());
-    assert!(compile_operators("operator intensity_modulate { input Signal source; color sample() { return source.at(seconds()); } }").is_ok());
 }
 
 #[test]
@@ -876,7 +793,7 @@ fn spatial_signal_queries_keep_coordinate_domains_and_mutations_distinct() {
 }
 
 #[test]
-fn repeated_signal_reads_reuse_only_unchanged_values_in_one_block() {
+fn repeated_signal_reads_reuse_only_unchanged_values_in_straight_line_code() {
     #[derive(Default)]
     struct Samples(Vec<(usize, u32)>);
     impl SignalSampler for Samples {

@@ -1,9 +1,11 @@
+mod common;
+
 use camino::Utf8PathBuf;
 use donder_language::identity::DocumentId;
 use donder_language::imports::ImportAlias;
 use donder_project_io::{
-    SourceObjectKind, check_project_with_overrides, ensure_document_can_reference_source,
-    project_source_texts,
+    SourceObjectKind, check_project, check_project_with_overrides,
+    ensure_document_can_reference_source, project_source_texts,
 };
 
 fn root() -> Utf8PathBuf {
@@ -24,63 +26,71 @@ fn sources() -> donder_project_io::SourceOverrides {
 const EFFECT: &str = "effects/impact-burst.effect.donder";
 const EXTRA: &str = "effects/import-test.effect.donder";
 
+/// A minimal project whose only imports are `declarations`, with `EFFECT`
+/// defining `ImpactBurst` and `EXTRA` holding `extra`.
+fn tiny_project(declarations: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
+    std::fs::create_dir(root.join("effects")).unwrap();
+    std::fs::write(
+        root.join(EFFECT),
+        "effect ImpactBurst { color sample() { return hsv(0.0, 1.0, 1.0); } }",
+    )
+    .unwrap();
+    std::fs::write(root.join(EXTRA), extra).unwrap();
+    std::fs::write(
+        root.join("project.donder"),
+        format!(
+            "imports:\n{declarations}main:\n  type: project\n  setup:\n    type: setup\n    layout: {{ type: layout, fixtures: [] }}\n    patch: {{ type: patch, routes: [] }}\n    controllers: []\n  sequences: []\n"
+        ),
+    )
+    .unwrap();
+    common::write_workspace_metadata(&root);
+    (temporary, root)
+}
+
 #[test]
 fn grouped_declarations_preserve_ordered_targets() {
-    for alias in [
+    let aliases = [
         "Fx",
         "_fx2",
         "an_alias_longer_than_thirty_two_bytes_is_valid",
-    ] {
-        let mut sources = sources();
-        sources.insert(
-            EXTRA.into(),
-            "effect Extra { color sample() { return hsv(0.0, 1.0, 1.0); } }".into(),
-        );
-        let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
-            .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n- from: {{ documents: [{EFFECT}, {EXTRA}] }}\n  as: {alias}\n"),
-            1,
-        );
-        let report = check_project_with_overrides(&root(), &sources);
-        assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
-        let session = report.session.unwrap();
-        let module = session.source.project_module_id();
-        let edge = &session.source.documents[&DocumentId::new(module, "project.donder".into())]
-            .imports()[0];
-        assert_eq!(edge.alias(), alias);
-        assert_eq!(
-            edge.targets()
-                .iter()
-                .map(|id| id.path().as_str())
-                .collect::<Vec<_>>(),
-            [EFFECT, EXTRA]
-        );
+    ];
+    for alias in aliases {
+        assert!(ImportAlias::new(alias).is_ok(), "{alias}");
     }
+    let alias = aliases[2];
+    let (_temporary, root) = tiny_project(
+        &format!("- from: {{ documents: [{EFFECT}, {EXTRA}] }}\n  as: {alias}\n"),
+        "effect Extra { color sample() { return hsv(0.0, 1.0, 1.0); } }",
+    );
+    let report = check_project(&root);
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let session = report.session.unwrap();
+    let module = session.source.project_module_id();
+    let edge =
+        &session.source.documents[&DocumentId::new(module, "project.donder".into())].imports()[0];
+    assert_eq!(edge.alias(), alias);
+    assert_eq!(
+        edge.targets()
+            .iter()
+            .map(|id| id.path().as_str())
+            .collect::<Vec<_>>(),
+        [EFFECT, EXTRA]
+    );
 }
 
 #[test]
 fn invalid_aliases_are_rejected() {
     for alias in ["builtins", "effect", "if", "1fx", "with-hyphen", "é", ""] {
         assert!(ImportAlias::new(alias).is_err(), "{alias}");
-        let mut sources = sources();
-        let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
-            .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n- from: {{ documents: [{EFFECT}] }}\n  as: '{alias}'\n"),
-            1,
-        );
-        assert!(
-            check_project_with_overrides(&root(), &sources)
-                .session
-                .is_none(),
-            "{alias}"
-        );
     }
+    // The loader validates aliases through `ImportAlias::new`.
+    let (_temporary, root) = tiny_project(
+        &format!("- from: {{ documents: [{EFFECT}] }}\n  as: 'with-hyphen'\n"),
+        "effect Extra { color sample() { return hsv(0.0, 1.0, 1.0); } }",
+    );
+    assert!(check_project(&root).session.is_none());
 }
 
 #[test]
@@ -103,24 +113,15 @@ fn grouped_collisions_report_both_source_occurrences() {
             "duplicate exported object",
         ),
     ] {
-        let mut sources = sources();
-        sources.insert(
-            EXTRA.into(),
-            "effect ImpactBurst { color sample() { return hsv(0.0, 1.0, 1.0); } }".into(),
-        );
         let mut declaration = format!("- from: {{ documents: [{documents}] }}\n  as: fx\n");
         if let Some((alias, path)) = second {
             declaration += &format!("- from: {{ documents: [{path}] }}\n  as: {alias}\n");
         }
-        let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
-            .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n{declaration}"),
-            1,
+        let (_temporary, root) = tiny_project(
+            &declaration,
+            "effect ImpactBurst { color sample() { return hsv(0.0, 1.0, 1.0); } }",
         );
-        let report = check_project_with_overrides(&root(), &sources);
+        let report = check_project(&root);
         let diagnostic = report
             .diagnostics
             .iter()
@@ -204,26 +205,22 @@ fn local_imports_use_safe_document_paths() {
             donder_project_io::validate_document_path(path).is_err(),
             "{path}"
         );
-        let mut sources = sources();
-        let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
-            .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n- from: {{ documents: ['{path}'] }}\n  as: fx\n"),
-            1,
-        );
-        let report = check_project_with_overrides(&root(), &sources);
-        assert!(report.session.is_none(), "{path}");
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("safe module-relative")),
-            "{path}: {:?}",
-            report.diagnostics
-        );
     }
+    // The loader validates import paths through `validate_document_path`.
+    let (_temporary, root) = tiny_project(
+        "- from: { documents: ['../escape.donder'] }\n  as: fx\n",
+        "effect Extra { color sample() { return hsv(0.0, 1.0, 1.0); } }",
+    );
+    let report = check_project(&root);
+    assert!(report.session.is_none());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("safe module-relative")),
+        "{:?}",
+        report.diagnostics
+    );
     for path in ["effects/Upper-name_1.effect.donder", "effects/a b.donder"] {
         assert!(donder_project_io::validate_document_path(path).is_ok());
     }

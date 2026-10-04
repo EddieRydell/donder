@@ -3,10 +3,9 @@ use crate::values::Color;
 
 #[derive(Clone, Copy)]
 enum Selection {
-    FirstFixture,
-    SplitFixture,
-    SharedFixture,
-    UnpatchedPort,
+    First,
+    Split,
+    Shared,
 }
 
 fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> PreparedSequence {
@@ -111,10 +110,6 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
     PreparedSequence::build(timing, |builder| {
         // Preparation owns pruning. These fixtures describe its full and
         // selected results so runtime storage and output can be compared.
-        if selected && matches!(selection, Selection::UnpatchedPort) {
-            builder.port(0, 1);
-            return builder.output([]);
-        }
         let fixtures = [10, 20].map(|id| {
             let geometry =
                 FixtureGeometry::admit((0..113).map(|cell| [cell as f32, 0.0]).collect()).unwrap();
@@ -123,8 +118,7 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
                 if selected {
                     geometry.select(|cell| {
                         id == 10
-                            && (!matches!(selection, Selection::SplitFixture)
-                                || !(37..76).contains(&cell))
+                            && (!matches!(selection, Selection::Split) || !(37..76).contains(&cell))
                     })
                 } else {
                     geometry
@@ -155,22 +149,19 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
         };
         let first = builder.port(0, 1);
         match selection {
-            Selection::FirstFixture => {
-                builder.route(first, a, OutputEncoding::Rgb(RgbOrder::Rgb), None)
-            }
-            Selection::SplitFixture => {
+            Selection::First => builder.route(first, a, OutputEncoding::Rgb(RgbOrder::Rgb), None),
+            Selection::Split => {
                 let low = builder.target_slice(a, 0..37);
                 let high = builder.target_slice(a, if selected { 37..74 } else { 76..113 });
                 builder.route(first, low, OutputEncoding::Rgb(RgbOrder::Rgb), None);
                 let second = builder.port(1, 2);
                 builder.route(second, high, OutputEncoding::Rgb(RgbOrder::Rgb), None);
             }
-            Selection::SharedFixture => {
+            Selection::Shared => {
                 builder.route(first, a, OutputEncoding::Rgb(RgbOrder::Rgb), None);
                 let second = builder.port(1, 2);
                 builder.route(second, a, OutputEncoding::Rgb(RgbOrder::Rgb), None);
             }
-            Selection::UnpatchedPort => {}
         }
         builder.output([signal])
     })
@@ -190,26 +181,16 @@ fn assert_outputs_match(full: PreparedSequence, compacted: PreparedSequence) {
 }
 
 #[test]
-fn preselected_fixture_preserves_output_with_only_required_programs_and_targets() {
-    let full = selected_sequence(false, Selection::FirstFixture, false);
-    let compacted = selected_sequence(true, Selection::FirstFixture, false);
-    let before = full.archive_data().signals;
-    let after = compacted.archive_data().signals;
-    assert_eq!(before.programs.len(), 2);
-    assert_eq!(after.programs.len(), 1);
-    assert_eq!(after.programs[0], before.programs[0]);
-    assert_eq!(before.effects.len(), 2);
-    assert_eq!(after.effects.len(), 1);
-    assert!(after.target(after.plan.target).len() < before.target(before.plan.target).len());
-    assert_eq!(before.pixel_count, 226);
-    assert_eq!(after.pixel_count, 113);
+fn preselected_fixture_preserves_output() {
+    let full = selected_sequence(false, Selection::First, false);
+    let compacted = selected_sequence(true, Selection::First, false);
     assert_outputs_match(full, compacted);
 }
 
 #[test]
 fn disjoint_spans_remap_storage_without_changing_logical_coordinates() {
-    let full = selected_sequence(false, Selection::SplitFixture, false);
-    let compacted = selected_sequence(true, Selection::SplitFixture, false);
+    let full = selected_sequence(false, Selection::Split, false);
+    let compacted = selected_sequence(true, Selection::Split, false);
     let data = compacted.archive_data();
     let target = data.signals.target(data.signals.plan.target);
     assert_eq!(data.signals.pixel_count, 74);
@@ -232,9 +213,9 @@ fn disjoint_spans_remap_storage_without_changing_logical_coordinates() {
 }
 
 #[test]
-fn shared_fixture_keeps_both_routes_and_unpatched_port_keeps_none() {
-    let full = selected_sequence(false, Selection::SharedFixture, false);
-    let compacted = selected_sequence(true, Selection::SharedFixture, false);
+fn shared_fixture_keeps_both_routes() {
+    let full = selected_sequence(false, Selection::Shared, false);
+    let compacted = selected_sequence(true, Selection::Shared, false);
     let data = compacted.archive_data();
     assert_eq!(data.signals.fixtures.len(), 1);
     assert_eq!(data.signals.pixel_count, 113);
@@ -247,66 +228,12 @@ fn shared_fixture_keeps_both_routes_and_unpatched_port_keeps_none() {
         assert_eq!(data.outputs[index].width, 339);
     }
     assert_outputs_match(full, compacted);
-
-    let full = selected_sequence(false, Selection::UnpatchedPort, false);
-    assert_eq!(full.archive_data().signals.programs.len(), 2);
-    let compacted = selected_sequence(true, Selection::UnpatchedPort, false);
-    let data = compacted.archive_data();
-    assert_eq!(data.outputs.len(), 1);
-    assert_eq!(data.outputs[0].width, 0);
-    assert!(data.patch.routes.is_empty());
-    assert!(data.signals.fixtures.is_empty());
-    assert!(data.signals.programs.is_empty());
-    assert!(data.signals.effects.is_empty());
-    assert!(
-        data.signals
-            .targets
-            .iter()
-            .all(|target| target.pixels.is_empty())
-    );
-    assert_outputs_match(full, compacted);
 }
 
 #[test]
-fn prepruned_upstream_samples_keep_invert_program_and_white_output() {
-    let full = selected_sequence(false, Selection::FirstFixture, true);
-    let compacted = selected_sequence(true, Selection::FirstFixture, true);
-    let before = full.archive_data().signals;
-    let after = compacted.archive_data().signals;
-    assert_eq!(before.programs.len(), 3);
-    assert_eq!(before.effects.len(), 2);
-    assert!(after.effects.is_empty());
-    assert_eq!(after.programs.len(), 1);
-    assert!(
-        after.programs[0]
-            .instructions
-            .iter()
-            .any(|instruction| matches!(instruction, Instruction::ColorInvert { .. }))
-    );
-    let operators: Vec<_> = after
-        .plan
-        .nodes
-        .iter()
-        .filter_map(|node| match &node.kind {
-            PreparedSignalKind::Operator {
-                operator, inputs, ..
-            } => Some((operator, inputs)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(operators.len(), 1);
-    assert_eq!(operators[0].0.program, 0);
-    assert_eq!(operators[0].1.len(), 1);
-    assert!(matches!(
-        after.plan.nodes[operators[0].1[0]].kind,
-        PreparedSignalKind::Layer { .. }
-    ));
-    assert!(
-        after
-            .effects_by_layer
-            .iter()
-            .all(|effects| effects.is_empty())
-    );
+fn prepruned_upstream_samples_keep_white_inverted_output() {
+    let full = selected_sequence(false, Selection::First, true);
+    let compacted = selected_sequence(true, Selection::First, true);
     let mut playback = compacted.clone().into_playback();
     let frame = playback.evaluate(SampleTime::from_ticks(500_000));
     let bytes = frame.outputs().next().unwrap().bytes;

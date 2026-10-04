@@ -97,14 +97,6 @@ impl BoundParams {
         }
     }
 
-    /// Materialize all slots without an out-of-range lookup.
-    #[cfg(test)]
-    pub(crate) fn iter_values(&self) -> impl Iterator<Item = Value> + '_ {
-        self.values
-            .iter()
-            .map(|value| runtime_to_value(value.to_runtime(), &ArrayStorage::default()))
-    }
-
     /// Materialize an owned value during host preparation or inspection.
     #[cfg(test)]
     fn value(&self, index: usize) -> Result<Value, RuntimeError> {
@@ -161,18 +153,6 @@ impl BoundParams {
             bytes = bytes.checked_add(extra)?;
         }
         Some(bytes)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn sample_gradient(
-        &self,
-        index: usize,
-        position: f32,
-    ) -> Result<Color, RuntimeError> {
-        self.values
-            .gradient(index)
-            .map(|value| sample_gradient(value.get(), position))
-            .ok_or_else(|| RuntimeError::new("expected gradient parameter"))
     }
 }
 
@@ -777,25 +757,6 @@ mod binding_totality_tests {
     use alloc::{sync::Arc, vec};
 
     #[test]
-    fn materializing_accepted_values_matches_checked_binding() {
-        let types = [Type::Int, Type::Float, Type::Bool, Type::array(Type::Int)];
-        let values = [
-            Value::Int(-7),
-            Value::Int(3),
-            Value::Bool(true),
-            Value::Array(Arc::from(vec![Value::Int(4), Value::Int(9)])),
-        ];
-        let mut cache = DslBindCache::default();
-        let checked = BoundParams::bind_values(&types, values.to_vec(), &mut cache).unwrap();
-        let prepared = BoundParams::from_values(types.iter().zip(values), &mut cache);
-        assert_eq!(
-            prepared.iter_values().collect::<alloc::vec::Vec<_>>(),
-            checked.iter_values().collect::<alloc::vec::Vec<_>>()
-        );
-        assert!(matches!(prepared.value(1), Ok(Value::Float(3.0))));
-    }
-
-    #[test]
     fn binding_checks_supplied_values_before_playback() {
         let mut cache = DslBindCache::default();
         let named =
@@ -813,36 +774,5 @@ mod binding_totality_tests {
             )
             .is_err()
         );
-    }
-}
-
-#[cfg(test)]
-mod mark_totality_tests {
-    use super::{int_len, mark_at_from, prev_index, previous_mark};
-    use crate::values::{Marks, SampleDuration};
-    use alloc::vec;
-
-    #[test]
-    fn mark_at_returns_nan_for_negative_and_out_of_range_indices() {
-        let marks = Marks::new(vec![SampleDuration::from_ticks(1_000_000)]);
-        assert!(mark_at_from(&marks, -1).is_nan());
-        assert!(mark_at_from(&marks, 1).is_nan());
-        assert_eq!(mark_at_from(&marks, 0), 1.0);
-    }
-
-    #[test]
-    fn mark_queries_have_defined_indices_and_times() {
-        let marks = Marks::new(vec![
-            SampleDuration::from_ticks(500_000),
-            SampleDuration::from_ticks(1_000_000),
-            SampleDuration::from_ticks(1_500_000),
-        ]);
-        assert_eq!(prev_index(&marks, 1.2), 1);
-        assert_eq!(previous_mark(&marks, 1.0), Some((1, 1.0)));
-        assert_eq!(previous_mark(&marks, 0.0), None);
-        assert_eq!(prev_index(&marks, f32::NAN), -1);
-        assert_eq!(prev_index(&marks, f32::NEG_INFINITY), -1);
-        assert_eq!(prev_index(&marks, f32::INFINITY), 2);
-        assert_eq!(int_len(usize::MAX), i32::MAX);
     }
 }

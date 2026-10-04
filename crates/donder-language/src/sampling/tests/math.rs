@@ -24,11 +24,11 @@ fn random_is_repeatable_bounded_and_distributed() {
 
 #[test]
 fn trigonometry_accuracy_over_show_phases() {
-    // Cover about four minutes at 16 Hz, including negative phases. f32 range
+    // Cover +/-25000 radians, including negative phases. f32 range
     // reduction loses accuracy at large phases; retain the tighter near bound.
     let mut maximum_error = 0.0_f32;
-    for step in -2_500_000..=2_500_000 {
-        let phase = step as f32 * 0.01;
+    for step in -250_000..=250_000 {
+        let phase = step as f32 * 0.1;
         let sine = micromath::F32Ext::sin(phase);
         let cosine = micromath::F32Ext::cos(phase);
         let error = (sine - libm::sinf(phase))

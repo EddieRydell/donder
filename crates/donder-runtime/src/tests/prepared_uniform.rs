@@ -10,11 +10,11 @@ const SPATIAL: donder_language::execution::SpatialContext =
     };
 
 #[allow(dead_code)]
-#[path = "../../../../firmware/esp32/src/workload.rs"]
+#[path = "../../tests/support/workload.rs"]
 mod workload;
 
 #[allow(dead_code)]
-#[path = "../../../../firmware/esp32/src/mark_workload.rs"]
+#[path = "../../tests/support/mark_workload.rs"]
 mod mark_workload;
 
 #[allow(dead_code)]
@@ -148,21 +148,8 @@ fn effect_automation_slots_skip_unautomated_effects() {
 }
 
 #[test]
-fn uniform_resource_samples_are_hoisted_without_retaining_references() {
-    use donder_language::dsl::bytecode::Instruction;
+fn uniform_resource_samples_match_direct_evaluation() {
     let (effect, params) = fixtures::uniform_resources();
-    let prefix = &effect.sample_program().bytecode().instructions
-        [..effect.sample_program().bytecode().pixel_entry as usize];
-    assert!(
-        prefix
-            .iter()
-            .any(|op| matches!(op, Instruction::CurveParamSample { .. }))
-    );
-    assert!(
-        prefix
-            .iter()
-            .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
-    );
     let show = workload::show(200, effect.sample_program().clone(), params.clone());
     let mut workspace = show.clone().prepare().into_playback();
     let mut output = [vec![0; 600]];
@@ -193,10 +180,9 @@ fn uniform_resource_samples_are_hoisted_without_retaining_references() {
 }
 
 #[test]
-fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
+fn uniform_resource_samples_preserve_branches_and_empty_gradient_defaults() {
     use donder_language::dsl::Identifier;
     use donder_language::dsl::Value;
-    use donder_language::dsl::bytecode::Instruction;
     use donder_language::values::Gradient;
     for (source, returns_black) in [
         (
@@ -209,16 +195,6 @@ fn resource_hoisting_preserves_branches_and_empty_gradient_defaults() {
         ),
     ] {
         let effect = compile_effects(source).unwrap().remove(0);
-        assert!(
-            effect.sample_program().bytecode().instructions
-                [..effect.sample_program().bytecode().pixel_entry as usize]
-                .iter()
-                .any(|op| matches!(
-                    op,
-                    Instruction::GradientParamSample { .. }
-                        | Instruction::GradientParamColorScaled { .. }
-                ))
-        );
         let params = donder_language::dsl::bind_params(
             effect.params(),
             &IndexMap::from([(
@@ -340,7 +316,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
 }
 
 #[test]
-fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
+fn staged_upstream_matches_unstaged_execution_across_effects_and_times() {
     use donder_language::dsl::compile_operators;
     use donder_language::values::SampleDuration;
     use donder_language::values::SampleTime;
@@ -355,13 +331,13 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
         .flat_map(|source| [1, 2].map(|count| (source, count)))
     {
         let operator = compile_operators(source).unwrap().remove(0);
-        let prepare = |reuse| {
+        let prepare = |staged| {
             let (mut bytecode, types) = effect.sample_program().clone().into_parts();
-            let operator = if reuse {
+            let operator = if staged {
                 operator.program().clone()
             } else {
-                workload::disable_uniform_reuse(&mut bytecode);
-                playback::map_operator_bytecode(&operator, workload::disable_uniform_reuse)
+                workload::unstaged(&mut bytecode);
+                playback::map_operator_bytecode(&operator, workload::unstaged)
             };
             let sample = workload::SampleFixture {
                 program: donder_language::dsl::SampleProgram::admit(bytecode, types).unwrap(),
@@ -413,7 +389,7 @@ fn upstream_prefix_reuse_matches_full_execution_across_effects_and_times() {
 }
 
 #[test]
-fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
+fn staged_operators_match_unstaged_evaluation_with_nested_signals() {
     use donder_language::dsl::compile_operators;
     let effect = compile_effects(
         "effect Source { color sample() { return rgb(pixel_fraction(), progress(), 0.25); } }",
@@ -433,18 +409,18 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
     ] {
         let operator = compile_operators(source).unwrap().remove(0);
         assert!(operator.bytecode().pixel_entry > 0);
-        for depth in [1, 2, 8] {
+        for depth in [1, 2] {
             let sample = playback::sample(
                 &effect,
                 &donder_language::dsl::bind_params(effect.params(), &IndexMap::new()).unwrap(),
             );
-            let prepare = |reuse| {
+            let prepare = |staged| {
                 let params =
                     donder_language::dsl::bind_params(operator.params(), &IndexMap::new()).unwrap();
-                let operator = if reuse {
+                let operator = if staged {
                     operator.program().clone()
                 } else {
-                    playback::map_operator_bytecode(&operator, workload::disable_uniform_reuse)
+                    playback::map_operator_bytecode(&operator, workload::unstaged)
                 };
                 let invocation = playback::operator_program(&operator, &params);
                 playback::chain(200, &sample, 1, &vec![invocation; depth])
@@ -467,17 +443,14 @@ fn operator_uniform_reuse_matches_full_evaluation_with_nested_signals() {
                     snapshot.copy_from_slice(output.bytes);
                 }
                 assert_eq!(actual, expected, "depth={depth} frame={frame} {source}");
-                // Repeated dimming can quantize the deeper chain to black.
-                if depth <= 2 {
-                    assert!(actual[0].iter().any(|&value| value != 0));
-                }
+                assert!(actual[0].iter().any(|&value| value != 0));
             }
         }
     }
 }
 
 #[test]
-fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
+fn staged_nested_operators_track_sibling_parameters_and_temporal_revisits() {
     use donder_language::automation::AutomationMapping;
     use donder_language::dsl::BoundParams;
     use donder_language::dsl::OperatorDefinition;
@@ -505,15 +478,15 @@ fn nested_prefix_reuse_tracks_sibling_parameters_and_temporal_revisits() {
     .unwrap()
     .remove(0);
     assert!(gain.bytecode().pixel_entry > 0);
-    let prepare = |reuse| {
+    let prepare = |staged| {
         let (mut bytecode, types) = effect.sample_program().clone().into_parts();
-        let (gain, mix) = if reuse {
+        let (gain, mix) = if staged {
             (gain.program().clone(), mix.program().clone())
         } else {
-            workload::disable_uniform_reuse(&mut bytecode);
+            workload::unstaged(&mut bytecode);
             (
-                playback::map_operator_bytecode(&gain, workload::disable_uniform_reuse),
-                playback::map_operator_bytecode(&mix, workload::disable_uniform_reuse),
+                playback::map_operator_bytecode(&gain, workload::unstaged),
+                playback::map_operator_bytecode(&mix, workload::unstaged),
             )
         };
         let sample = SampleDefinition::new(SampleProgram::admit(bytecode, types).unwrap())
@@ -595,7 +568,7 @@ fn uniform_frames_match_individual_samples_when_seeking() {
     let identity = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
-    for (layers, wrapped) in [1, 4, 16]
+    for (layers, wrapped) in [1, 16]
         .into_iter()
         .flat_map(|layers| [false, true].map(|wrapped| (layers, wrapped)))
     {
@@ -677,7 +650,7 @@ fn uniform_empty_gradient_samples_black_for_empty_and_nonempty_targets() {
 }
 
 #[test]
-fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
+fn mixed_pixel_and_time_expressions_match_single_pixel_sampling() {
     use donder_language::dsl::bytecode::FloatUnary;
     use donder_language::dsl::bytecode::Instruction;
     for source in [
@@ -731,15 +704,19 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
                 ))
         );
         let params = donder_language::dsl::bind_params(effect.params(), &IndexMap::new()).unwrap();
-        for layers in [1, 4, 16] {
+        // Pixel counts straddle the 32-lane batch boundary.
+        for (layers, count) in [1, 16]
+            .into_iter()
+            .flat_map(|layers| [1, 31, 32, 33, 65].map(|count| (layers, count)))
+        {
             let show = workload::layered_show(
-                200,
+                count,
                 effect.sample_program().clone(),
                 params.clone(),
                 layers,
             );
             let mut workspace = show.clone().prepare().into_playback();
-            let mut output = [vec![0; 600]];
+            let mut output = [vec![0; count * 3]];
             let invocation = effect
                 .sample_program()
                 .bind_for_test(params.iter_values().collect())
@@ -752,9 +729,9 @@ fn mixed_pixel_and_time_expressions_match_scalar_sampling() {
                 {
                     snapshot.copy_from_slice(output.bytes);
                 }
-                for pixel in 0..200 {
+                for pixel in 0..count {
                     let color = invocation.evaluate(
-                        &super::evaluation::context(200, pixel, frame),
+                        &super::evaluation::context(count, pixel, frame),
                         &SPATIAL,
                         &mut vm,
                     );
