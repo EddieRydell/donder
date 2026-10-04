@@ -309,6 +309,28 @@ impl BrowserSession {
     /// Replace the source for the demo effect, compile it, and prepare atomically.
     #[wasm_bindgen(js_name = setEffectSource)]
     pub fn set_effect_source(&mut self, source: &str) -> Result<JsValue, JsValue> {
+        self.set_effect_source_for(self.effect_id.0, source)
+    }
+
+    /// Replace the source used by one timeline effect, compile it, and prepare atomically.
+    #[wasm_bindgen(js_name = setEffectSourceFor)]
+    pub fn set_effect_source_for(
+        &mut self,
+        effect_id: u32,
+        source: &str,
+    ) -> Result<JsValue, JsValue> {
+        let definition_id = self
+            .project
+            .sequence(&self.sequence_id)
+            .and_then(|sequence| {
+                sequence
+                    .effects
+                    .iter()
+                    .find(|effect| effect.id.0 == effect_id)
+                    .map(|effect| effect.definition.clone())
+            })
+            .ok_or_else(|| JsValue::from_str("The requested effect clip was not found."))?;
+        let EffectRef::Custom(definition_id) = definition_id;
         let effect = match compile_effects(source) {
             Ok(mut definitions) if definitions.len() == 1 => definitions.remove(0),
             Ok(_) => {
@@ -323,7 +345,7 @@ impl BrowserSession {
                 });
             }
         };
-        if effect.name().as_str() != self.effect_definition_id.0.object() {
+        if effect.name().as_str() != definition_id.0.object() {
             return Err(JsValue::from_str(
                 "The replacement effect must keep the original declaration name.",
             ));
@@ -331,8 +353,8 @@ impl BrowserSession {
         let mut candidate = self.project.clone();
         candidate
             .apply_edits([ProjectEdit::SetEffectDefinition {
-                id: self.effect_definition_id.clone(),
-                value: EffectDefinition::custom(self.effect_definition_id.clone(), effect),
+                id: definition_id.clone(),
+                value: EffectDefinition::custom(definition_id.clone(), effect),
             }])
             .map_err(|error| JsValue::from_str(&error))?;
         let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
@@ -346,7 +368,7 @@ impl BrowserSession {
         self.playback = playback;
         self.revision = revision;
         js_value(&CompileView {
-            definitions: vec![self.effect_definition_id.0.object().to_owned()],
+            definitions: vec![definition_id.0.object().to_owned()],
             diagnostics: Vec::new(),
         })
     }
