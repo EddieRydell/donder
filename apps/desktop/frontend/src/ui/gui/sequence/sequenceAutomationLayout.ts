@@ -429,3 +429,29 @@ export function fitCanvasLabel(ctx: CanvasRenderingContext2D, label: string, max
   }
   return fitted.length > 0 ? `${fitted}${ellipsis}` : ellipsis;
 }
+
+/** Fixture ids of lanes inside collapsed groups. Lanes are depth-first with their depth. */
+export function collapsedLaneTargets(lanes: SequenceLane[], collapsedGroups: ReadonlySet<number>): Set<number> {
+  const hidden = new Set<number>();
+  let collapsedDepth: number | null = null;
+  for (const lane of lanes) {
+    if (collapsedDepth !== null && lane.depth > collapsedDepth) {
+      hidden.add(lane.target.fixture);
+      continue;
+    }
+    collapsedDepth = lane.kind === "group" && collapsedGroups.has(lane.target.fixture) ? lane.depth : null;
+  }
+  return hidden;
+}
+
+/** Rows of hidden lanes take no height; the rows below move up. */
+export function collapseRows(rows: SequenceRowLayout[], hiddenTargets: ReadonlySet<number>): SequenceRowLayout[] {
+  if (hiddenTargets.size === 0) return rows;
+  let top = 0;
+  return rows.map((row) => {
+    const height = hiddenTargets.has(row.target.fixture) ? 0 : row.height;
+    const collapsed = { ...row, top, height, bottom: top + height };
+    top += height;
+    return collapsed;
+  });
+}

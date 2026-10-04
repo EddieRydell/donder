@@ -22,6 +22,8 @@ export type DslSourceLine = { number: number; height: number; characterWidth: nu
  */
 export type DslSourceEditorHandle = {
   measure: () => DslSourceLine[];
+  /** Called after CodeMirror's own layout changes (fonts, wrapping, line heights). */
+  onLayout: (listener: (() => void) | null) => void;
 };
 
 export type DslSourceEditorProps = {
@@ -46,6 +48,7 @@ export function DslSourceEditor({ value, onChange, diagnostics, ariaLabel, class
   useEffect(() => {
     if (!parent.current) return;
     const { onHandle } = initial.current;
+    let layoutListener: (() => void) | null = null;
     const created = new EditorView({
       parent: parent.current,
       state: EditorState.create({
@@ -59,13 +62,15 @@ export function DslSourceEditor({ value, onChange, diagnostics, ariaLabel, class
           EditorView.contentAttributes.of({ "aria-label": initial.current.ariaLabel }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) latestOnChange.current(update.state.doc.toString());
+            if (update.geometryChanged) layoutListener?.();
           })
         ]
       })
     });
     view.current = created;
     onHandle?.({
-      measure: () => measureCharacters(created)
+      measure: () => measureCharacters(created),
+      onLayout: (listener) => { layoutListener = listener; }
     });
     return () => {
       onHandle?.(null);
@@ -122,14 +127,35 @@ function characterColors(view: EditorView): (offset: number) => string {
 
 const SYNTAX_TREE_TIMEOUT_MS = 50;
 
+const PROBE_COLUMNS = 64;
+
+/**
+ * Exact line geometry from a hidden probe line inside the editor, so it holds
+ * whether or not CodeMirror has rendered any text near the viewport.
+ * `defaultCharacterWidth` is an estimate whose error adds up across long lines.
+ */
+function lineMetrics(view: EditorView): { left: number; advance: number } {
+  const probe = document.createElement("div");
+  probe.className = "cm-line dsl-source-probe";
+  probe.textContent = "x".repeat(PROBE_COLUMNS);
+  view.scrollDOM.appendChild(probe);
+  const range = document.createRange();
+  range.selectNodeContents(probe);
+  const advance = range.getBoundingClientRect().width / PROBE_COLUMNS;
+  const padding = Number.parseFloat(getComputedStyle(probe).paddingLeft);
+  probe.remove();
+  const content = view.contentDOM.getBoundingClientRect();
+  const contentPadding = Number.parseFloat(getComputedStyle(view.contentDOM).paddingLeft);
+  return { left: content.left + contentPadding + padding, advance };
+}
+
 /** Positions come from CodeMirror's line layout and the monospace column, so unrendered lines are measured too. */
 function measureCharacters(view: EditorView): DslSourceLine[] {
   const color = characterColors(view);
-  const content = view.contentDOM.getBoundingClientRect();
-  const rendered = view.coordsAtPos(view.viewport.from);
-  const left = (rendered?.left ?? content.left) + window.scrollX;
+  const metrics = lineMetrics(view);
+  const left = metrics.left + window.scrollX;
+  const width = metrics.advance;
   const top = view.documentTop + window.scrollY;
-  const width = view.defaultCharacterWidth;
   const tabSize = view.state.tabSize;
   const doc = view.state.doc;
   const lines: DslSourceLine[] = [];

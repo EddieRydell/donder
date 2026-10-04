@@ -6,6 +6,23 @@ pub use super::{OperatorInputDecl, ParamDecl};
 pub(crate) struct Module {
     pub effects: Vec<EffectDecl>,
     pub operators: Vec<OperatorDecl>,
+    pub declarations: Vec<DeclarationSpan>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeclarationKind {
+    Effect,
+    Operator,
+}
+
+/// A top-level declaration's kind, name, and byte range, from its keyword
+/// through its closing brace.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeclarationSpan {
+    pub kind: DeclarationKind,
+    pub name: Identifier,
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]

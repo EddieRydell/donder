@@ -2,6 +2,8 @@
 mod array_lowering;
 #[cfg(feature = "host")]
 mod ast;
+#[cfg(feature = "host")]
+pub use ast::{DeclarationKind, DeclarationSpan};
 mod bindings;
 mod blocks;
 pub mod bytecode;
@@ -63,6 +65,12 @@ pub mod types;
 
 pub use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop, Marks};
 pub use types::{Identifier, Type, Value};
+
+/// Each top-level declaration's kind, name, and byte range, in source order.
+#[cfg(feature = "host")]
+pub fn declaration_spans(source: &str) -> Result<Vec<DeclarationSpan>, Vec<Diagnostic>> {
+    Ok(parse_module(source)?.declarations)
+}
 
 /// Compile sample effect declarations from a DSL source.
 #[cfg(feature = "host")]

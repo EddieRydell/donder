@@ -849,7 +849,13 @@ export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 export type SequenceLane = {
 	target: FixtureTarget,
 	label: string,
+	kind: SequenceLaneKind,
+	/**  Nesting depth in the layout tree; top-level fixtures and groups are 0.  */
+	depth: number,
 };
+
+/**  Lanes follow the layout tree depth-first; a group lane precedes its members.  */
+export type SequenceLaneKind = "fixture" | "group";
 
 export type SequenceLayer = {
 	id: number,

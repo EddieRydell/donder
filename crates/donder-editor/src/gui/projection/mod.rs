@@ -21,15 +21,9 @@ pub(super) fn project_sequence(
     };
     let lanes = active_layout(session)
         .map(|layout| {
-            layout
-                .iter_fixtures()
-                .map(|fixture| SequenceLane {
-                    target: FixtureTarget {
-                        fixture: fixture.id.0,
-                    },
-                    label: fixture.name.clone(),
-                })
-                .collect()
+            let mut lanes = Vec::new();
+            push_lanes(&layout.fixtures, 0, &mut lanes);
+            lanes
         })
         .unwrap_or_default();
     let effects = sequence
@@ -230,6 +224,35 @@ fn sequence_audio(
         })
 }
 
+/// Lanes in layout order with each lane's depth, so editors can show the tree.
+fn push_lanes(
+    fixtures: &[donder_language::layout::LayoutFixture],
+    depth: u32,
+    lanes: &mut Vec<SequenceLane>,
+) {
+    for fixture in fixtures {
+        let children = match &fixture.kind {
+            donder_language::layout::LayoutFixtureKind::Group { children } => Some(children),
+            donder_language::layout::LayoutFixtureKind::Fixture { .. } => None,
+        };
+        lanes.push(SequenceLane {
+            target: FixtureTarget {
+                fixture: fixture.id.0,
+            },
+            label: fixture.name.clone(),
+            kind: if children.is_some() {
+                SequenceLaneKind::Group
+            } else {
+                SequenceLaneKind::Fixture
+            },
+            depth,
+        });
+        if let Some(children) = children {
+            push_lanes(children, depth + 1, lanes);
+        }
+    }
+}
+
 fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {
     FixtureTarget {
         fixture: target.fixture.0,
@@ -297,7 +320,7 @@ use crate::dto::{
     SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
     SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
     SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectReference,
-    SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLayer,
-    SequenceMarkCollection, SequenceTimelineClipKind,
+    SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
+    SequenceLayer, SequenceMarkCollection, SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

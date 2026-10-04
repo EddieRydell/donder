@@ -423,6 +423,9 @@
   --donder-visual-hairline-offset: 0.5px;
   --donder-sequence-label-x: 12px;
   --donder-sequence-label-y-offset: 4px;
+  --donder-sequence-lane-indent: 12px;
+  --donder-sequence-disclosure-size: 8px;
+  --donder-sequence-disclosure-gap: 6px;
   --donder-sequence-clip-min-width: 12px;
   --donder-sequence-clip-min-height: 8px;
   --donder-sequence-clip-slot-offset: 2px;
@@ -4644,4 +4647,6 @@ button.status-chip:hover {
   border-left: 1px solid var(--donder-border);
 }
 .shared-sequence-workbench [hidden] { display: none; }
+/* Hidden line used to measure DSL editor geometry; it inherits the editor font and line padding. */
+.dsl-source-probe { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }
 .donder-editor-overlays { display: contents; }

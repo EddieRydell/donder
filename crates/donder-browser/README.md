@@ -33,6 +33,9 @@ The desktop adapter uses Tauri; the website adapter uses this WASM session.
   effects or operators; the project check rejects removing a declaration the
   sequence still uses. Invalid source returns diagnostics without replacing the
   last accepted project or playback.
+- `declarationSources(source)` splits a DSL source into one document per
+  declaration (`<Name>.effect.donder` or `<Name>.operator.donder`), using the
+  parser's declaration spans, so a host can show or hide individual declarations.
 - `renderClipRaster(effectId, columns, rows)` uses the prepared runtime sampler
   and the same column timing as desktop clip rasters.
 

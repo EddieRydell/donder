@@ -49,6 +49,7 @@ mod editing;
 mod page_layout;
 mod rasters;
 mod sources;
+pub use sources::declaration_sources;
 
 fn js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
     value
