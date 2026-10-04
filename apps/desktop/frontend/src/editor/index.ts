@@ -7,4 +7,4 @@ export { SequenceEditor } from "../ui/gui/sequence/SequenceEditor";
 export { SequenceInspector } from "../ui/gui/sequence/SequenceInspector";
 export { SequenceTransportControls } from "../ui/gui/sequence/SequenceTransportControls";
 export { OPEN_LAYER_GRAPH_EVENT } from "../ui/uiEvents";
-export { DslSourceEditor, type DslSourceEditorProps, type DslSourceMarkup } from "../ui/source/DslSourceEditor";
+export { DslSourceEditor, type DslSourceEditorHandle, type DslSourceEditorProps } from "../ui/source/DslSourceEditor";

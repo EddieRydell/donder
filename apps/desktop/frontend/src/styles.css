@@ -503,19 +503,23 @@
   box-sizing: border-box;
 }
 
+/* Base element styles belong to Donder surfaces only: the desktop app shell and
+   embedded editors (.donder-editor). Hosts such as the website keep their own.
+   :where() keeps each rule's original specificity. */
+
 /* Default scrollbars for desktop webviews; dedicated editor rails keep their
    diagnostic markers and explicitly hide their underlying native scrollbars. */
-::-webkit-scrollbar {
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar {
   width: var(--donder-scrollbar-width);
   height: var(--donder-scrollbar-width);
 }
 
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-track,
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-corner {
   background: var(--donder-bg-rail);
 }
 
-::-webkit-scrollbar-thumb {
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb {
   min-width: var(--donder-scrollbar-thumb-min-height);
   min-height: var(--donder-scrollbar-thumb-min-height);
   border: var(--donder-scrollbar-thumb-inset) solid var(--donder-bg-rail);
@@ -524,50 +528,66 @@
   background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover,
-::-webkit-scrollbar-thumb:active {
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb:hover,
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-thumb:active {
   background-color: var(--donder-scrollbar-thumb-hover);
 }
 
-::-webkit-scrollbar-button {
+:where(html.donder-app-shell, .donder-editor) ::-webkit-scrollbar-button {
   display: none;
 }
 
-html,
-body,
+/* The desktop window is a fixed app shell. Hosts that embed the editor
+   (the website) keep their own page scrolling. */
+html.donder-app-shell,
+html.donder-app-shell body,
 #root {
   height: 100%;
   margin: var(--donder-space-0);
   overflow: hidden;
 }
 
-body {
+html.donder-app-shell body {
   background: var(--donder-bg-app);
   color: var(--donder-text);
   font-family: var(--donder-font-ui);
 }
 
-button,
-a.neutral-button,
-input,
-select,
-textarea {
+/* An embedded editor owns its typography and scrolling instead of inheriting
+   the host page's, and never chains wheel scrolling out to the page. */
+.donder-editor {
+  color: var(--donder-text);
+  font-family: var(--donder-font-ui);
+  line-height: normal;
+  scrollbar-color: auto;
+}
+
+.donder-editor,
+.donder-editor * {
+  overscroll-behavior: contain;
+}
+
+:where(html.donder-app-shell, .donder-editor) button,
+:where(html.donder-app-shell, .donder-editor) a.neutral-button,
+:where(html.donder-app-shell, .donder-editor) input,
+:where(html.donder-app-shell, .donder-editor) select,
+:where(html.donder-app-shell, .donder-editor) textarea {
   color: var(--donder-text);
   font: inherit;
 }
 
-:where(button, a.neutral-button, input, select, textarea) {
+:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button, input, select, textarea) {
   background: var(--donder-bg);
   accent-color: var(--donder-accent);
 }
 
-:where(button, a.neutral-button, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) {
+:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button, select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])) {
   border: var(--donder-border-width) solid var(--donder-border);
   border-radius: var(--donder-radius-md);
   padding: var(--donder-space-3) var(--donder-space-5);
 }
 
-:where(button, a.neutral-button) {
+:where(html.donder-app-shell, .donder-editor) :where(button, a.neutral-button) {
   border-color: var(--donder-border-control);
   border-radius: var(--donder-radius-lg);
   padding: var(--donder-space-4) var(--donder-space-7);
@@ -575,22 +595,22 @@ textarea {
   text-decoration: none;
 }
 
-:where(button:not(:disabled), a.neutral-button) {
+:where(html.donder-app-shell, .donder-editor) :where(button:not(:disabled), a.neutral-button) {
   cursor: pointer;
 }
 
-:where(button:hover:not(:disabled), a.neutral-button:hover) {
+:where(html.donder-app-shell, .donder-editor) :where(button:hover:not(:disabled), a.neutral-button:hover) {
   filter: brightness(var(--donder-button-hover-brightness));
 }
 
-:where(input, textarea)::placeholder {
+:where(html.donder-app-shell, .donder-editor) :where(input, textarea)::placeholder {
   color: var(--donder-text-muted);
 }
 
-button:focus,
-button:focus-visible,
-[role="menuitem"]:focus,
-[role="menuitem"]:focus-visible {
+:where(html.donder-app-shell, .donder-editor) button:focus,
+:where(html.donder-app-shell, .donder-editor) button:focus-visible,
+:where(html.donder-app-shell, .donder-editor) [role="menuitem"]:focus,
+:where(html.donder-app-shell, .donder-editor) [role="menuitem"]:focus-visible {
   outline: none;
 }
 
@@ -4618,8 +4638,10 @@ button.status-chip:hover {
   align-self: stretch;
 }
 .shared-sequence-inspector {
+  display: grid;
   overflow: hidden;
   min-height: 0;
   border-left: 1px solid var(--donder-border);
 }
 .shared-sequence-workbench [hidden] { display: none; }
+.donder-editor-overlays { display: contents; }

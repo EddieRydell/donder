@@ -1,7 +1,7 @@
 import { useSequenceEditorHost } from "../../../editor/host";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useContext } from "react";
 import { OverlayPortal } from "../../OverlayPortal";
 import { THEME_METRICS } from "../../../theme";
 import type { SequenceEditorDocument } from "../../../editor/types";
@@ -19,6 +19,7 @@ export function GraphEditorModal({
   onClose: () => void;
 }) {
   const host = useSequenceEditorHost();
+  const overlayContainer = useContext(OverlayPortal);
   const { store: useAppStore } = host;
 
   const content = useRef<HTMLDivElement>(null);
@@ -33,7 +34,7 @@ export function GraphEditorModal({
     if (chooser !== null) onClose();
   }, [setAutomationClipChooser, onClose]);
   return <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
-    <Dialog.Portal>
+    <Dialog.Portal container={overlayContainer}>
       <Dialog.Overlay className="graph-modal-backdrop" />
       <Dialog.Content ref={contentRef} className="graph-modal" aria-describedby={undefined} onOpenAutoFocus={(event) => {
         event.preventDefault();

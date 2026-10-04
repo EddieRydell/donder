@@ -1,8 +1,9 @@
 import { markIndexAfterMove } from "./sequenceSelection";
+import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, useContext } from "react";
 
 import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
 
@@ -193,6 +194,7 @@ export function SequenceCanvas({
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
   const host = useSequenceEditorHost();
+  const overlayContainer = useContext(OverlayPortal);
   const { commands, store: useAppStore, runGuiEditCommand, runSnapshotCommand } = host;
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -1442,13 +1444,13 @@ export function SequenceCanvas({
           />
         </ContextMenu.Trigger>
         {sequenceContextMenu !== null && (
-          <ContextMenu.Portal>
+          <ContextMenu.Portal container={overlayContainer}>
             <ContextMenu.Content className="menu-content">
               <ContextMenu.Sub>
                 <ContextMenu.SubTrigger className="menu-item">
                   Add Effect <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
                 </ContextMenu.SubTrigger>
-                <ContextMenu.Portal>
+                <ContextMenu.Portal container={overlayContainer}>
                   <ContextMenu.SubContent className="menu-content">
                     {document.effectDefinitions.length === 0 ? (
                       <ContextMenu.Item className="menu-item" disabled>
@@ -1480,7 +1482,7 @@ export function SequenceCanvas({
                 <ContextMenu.SubTrigger className="menu-item">
                   Add Mark <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
                 </ContextMenu.SubTrigger>
-                <ContextMenu.Portal>
+                <ContextMenu.Portal container={overlayContainer}>
                   <ContextMenu.SubContent className="menu-content">
                     {document.markCollections.length === 0 ? (
                       <ContextMenu.Item className="menu-item" onSelect={() => void addMarkFromContextMenu(null, sequenceContextMenu)}>
@@ -1510,7 +1512,7 @@ export function SequenceCanvas({
                     <ContextMenu.SubTrigger className="menu-item">
                       Retarget Effect <span className="shortcut"><ArrowRight size={THEME_METRICS.iconSizeExtraSmall} aria-hidden="true" /></span>
                     </ContextMenu.SubTrigger>
-                    <ContextMenu.Portal>
+                    <ContextMenu.Portal container={overlayContainer}>
                       <ContextMenu.SubContent className="menu-content">
                         {document.lanes.map((lane) => (
                           <ContextMenu.Item

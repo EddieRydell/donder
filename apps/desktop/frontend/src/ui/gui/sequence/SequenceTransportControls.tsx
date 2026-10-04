@@ -111,7 +111,7 @@ export function SequenceTransportControls({
         <Music size={THEME_METRICS.iconSizeCompact} />
       </button>
       <span className="sequence-time-readout">
-        {formatSeconds(transport.positionSeconds)} / {formatSeconds(transport.durationSeconds || document.durationSeconds)} | Home {formatSeconds(transport.homeSeconds)}
+        <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
       </span>
       {host.exportControls}
@@ -152,6 +152,12 @@ function loadAudioDurationSeconds(host: SequenceEditorHost, path: string): Promi
     };
     audio.src = convertFileSrc(path);
   });
+}
+
+/** The transport snapshot is an anchor; the readout extrapolates it like the playhead. */
+function SequenceTimeReadout({ transport, durationSeconds }: { transport: AppSnapshot["audioTransport"]; durationSeconds: number }) {
+  const live = useSequenceTransport(transport);
+  return <>{formatSeconds(live.positionSeconds)} / {formatSeconds(transport.durationSeconds || durationSeconds)} | Home {formatSeconds(transport.homeSeconds)}</>;
 }
 
 export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): AudioTransportViewSnapshot {

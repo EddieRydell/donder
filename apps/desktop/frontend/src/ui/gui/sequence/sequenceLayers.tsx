@@ -1,6 +1,7 @@
 import { useSequenceEditorHost } from "../../../editor/host";
+import { OverlayPortal } from "../../OverlayPortal";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useContext } from "react";
 import { THEME_COLORS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
@@ -89,6 +90,7 @@ type Deletion = {
 
 export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: () => void) {
   const host = useSequenceEditorHost();
+  const overlayContainer = useContext(OverlayPortal);
   const { commands, store: useAppStore, runGuiEditCommand } = host;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
@@ -138,7 +140,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
     }
   }, [commit, document, editable, useAppStore]);
   const dialog = <Dialog.Root open={pending !== null} onOpenChange={(open) => { if (!open && !busy) setPending(null); }}>
-    <Dialog.Portal>
+    <Dialog.Portal container={overlayContainer}>
       <Dialog.Overlay className="dialog-overlay graph-delete-overlay" />
       <Dialog.Content className="dialog-content graph-delete-dialog" onCloseAutoFocus={(event) => {
         if (returnFocus.current?.isConnected === true) {
