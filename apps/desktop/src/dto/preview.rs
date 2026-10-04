@@ -222,19 +222,6 @@ pub struct GeometryRenderBounds {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceCurvePoint {
-    pub time: f32,
-    pub value: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct FixtureTarget {
-    pub fixture: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum GuiFixtureSource {
     Inline { elements: Vec<GuiFixtureElement> },

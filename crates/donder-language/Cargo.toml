@@ -10,6 +10,7 @@ license = "MIT"
 default = ["host"]
 host = ["atomic", "dep:camino", "dep:glam", "dep:indexmap", "dep:uuid"]
 atomic = []
+browser = ["host", "uuid/js"]
 
 [dependencies]
 camino = { workspace = true, optional = true }

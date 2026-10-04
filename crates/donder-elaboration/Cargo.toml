@@ -6,6 +6,9 @@ description = "Host-side Donder sequence elaboration and output preparation"
 authors = ["Donder"]
 license = "MIT"
 
+[features]
+browser = ["donder-language/browser"]
+
 [dependencies]
 donder-language.workspace = true
 donder-runtime.workspace = true
