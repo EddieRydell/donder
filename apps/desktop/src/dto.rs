@@ -2,6 +2,8 @@ use donder_project_io::SourceObjectKind;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+pub use donder_sequence_api::*;
+
 mod app;
 mod audio;
 mod diagnostics;

@@ -117,13 +117,6 @@ pub enum BufferExternalState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceGradientStop {
-    pub time: f32,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
 pub enum DiagnosticSeverity {
     Error,
     Warning,

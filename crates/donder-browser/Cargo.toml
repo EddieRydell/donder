@@ -1,0 +1,21 @@
+[package]
+name = "donder-browser"
+edition.workspace = true
+version.workspace = true
+description = "Browser-facing Donder sequence compiler and playback API"
+authors = ["Donder"]
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+donder-elaboration = { workspace = true, features = ["browser"] }
+donder-language = { workspace = true, features = ["browser"] }
+donder-runtime.workspace = true
+donder-sequence-api.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+uuid.workspace = true
+wasm-bindgen.workspace = true

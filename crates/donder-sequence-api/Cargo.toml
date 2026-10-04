@@ -1,0 +1,13 @@
+[package]
+name = "donder-sequence-api"
+edition.workspace = true
+version.workspace = true
+description = "Shared sequence editing command contract for Donder clients"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+serde.workspace = true
+specta-serde = "0.0.12"
+specta.workspace = true
+specta-typescript.workspace = true
