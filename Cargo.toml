@@ -59,3 +59,11 @@ webbrowser = "1.2.4"
 wgpu = { version = "30.0.1", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "gles", "vulkan", "wgsl", "webgl", "webgpu"] }
 winit = "0.30.13"
 yaml_serde = "0.10.7"
+
+# Tests load and compile whole projects; unoptimized code makes them several
+# times slower than the extra build time costs.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

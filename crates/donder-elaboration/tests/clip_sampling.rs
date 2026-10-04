@@ -31,7 +31,7 @@ fn target_fixtures(nodes: &[LayoutFixture], target: FixtureInstanceId) -> Vec<u3
 }
 
 #[test]
-fn sparse_clips_match_full_domain_samples_and_survive_wire_roundtrips() {
+fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let project = donder_project_io::load_project(&root).unwrap().project;
     let limits = LoadLimits {

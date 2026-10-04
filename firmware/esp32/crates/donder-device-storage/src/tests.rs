@@ -138,24 +138,23 @@ impl Storage for Flash {
 fn records_survive_remount_and_oversized_reads_are_rejected() {
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
-    assert!(read(&mut flash, Record::Sequence, 100).unwrap().is_none());
-    write(&mut flash, Record::Credentials, b"credentials").unwrap();
-    let sequence = vec![0x42; 32 * 1024 + 16];
-    write(&mut flash, Record::Sequence, &sequence).unwrap();
+    assert!(
+        read(&mut flash, Record::Credentials, 100)
+            .unwrap()
+            .is_none()
+    );
+    let record = vec![0x42; 1024];
+    write(&mut flash, Record::Credentials, &record).unwrap();
     initialize(&mut flash).unwrap();
     assert_eq!(
-        read(&mut flash, Record::Sequence, sequence.len())
+        read(&mut flash, Record::Credentials, record.len())
             .unwrap()
             .unwrap(),
-        sequence
+        record
     );
     assert_eq!(
-        read(&mut flash, Record::Sequence, 100).unwrap_err(),
+        read(&mut flash, Record::Credentials, 100).unwrap_err(),
         Error::FILE_TOO_BIG
-    );
-    assert_eq!(
-        read(&mut flash, Record::Credentials, 100).unwrap().unwrap(),
-        b"credentials"
     );
 }
 
@@ -163,27 +162,22 @@ fn records_survive_remount_and_oversized_reads_are_rejected() {
 fn torn_replacement_keeps_a_complete_old_or_new_record() {
     let mut saved = Flash::blank();
     initialize(&mut saved).unwrap();
-    let old = vec![0x35; 32 * 1024 + 16];
-    let new = vec![0x72; 32 * 1024 + 16];
-    write(&mut saved, Record::Sequence, &old).unwrap();
-    write(&mut saved, Record::Credentials, b"credentials").unwrap();
+    let old = vec![0x35; 1024];
+    let new = vec![0x72; 1024];
+    write(&mut saved, Record::Credentials, &old).unwrap();
     saved.writes = 0;
     let mut complete = saved.clone();
-    write(&mut complete, Record::Sequence, &new).unwrap();
+    write(&mut complete, Record::Credentials, &new).unwrap();
     for failure in 1..=complete.writes {
         let mut flash = saved.clone();
         flash.fail_at = Some(failure);
-        let _ = write(&mut flash, Record::Sequence, &new);
+        let _ = write(&mut flash, Record::Credentials, &new);
         flash.fail_at = None;
         initialize(&mut flash).unwrap();
-        let recovered = read(&mut flash, Record::Sequence, new.len())
+        let recovered = read(&mut flash, Record::Credentials, new.len())
             .unwrap()
             .unwrap();
         assert!(recovered == old || recovered == new, "failure at {failure}");
-        assert_eq!(
-            read(&mut flash, Record::Credentials, 100).unwrap().unwrap(),
-            b"credentials"
-        );
     }
 }
 
@@ -225,8 +219,8 @@ fn credentials_roundtrip_and_invalid_credentials_cannot_replace_saved_values() {
 fn corrupted_record_payload_is_rejected() {
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
-    let bytes = vec![0x42; 32 * 1024];
-    write(&mut flash, Record::Sequence, &bytes).unwrap();
+    let bytes = vec![0x42; 1024];
+    write(&mut flash, Record::Credentials, &bytes).unwrap();
     let offset = flash
         .bytes
         .windows(256)
@@ -234,7 +228,7 @@ fn corrupted_record_payload_is_rejected() {
         .unwrap();
     flash.bytes[offset] ^= 1;
     assert_eq!(
-        read(&mut flash, Record::Sequence, bytes.len()).unwrap_err(),
+        read(&mut flash, Record::Credentials, bytes.len()).unwrap_err(),
         Error::CORRUPTION
     );
 }
@@ -244,7 +238,6 @@ fn explicit_erase_recovers_corruption_and_removes_all_saved_records() {
     let mut flash = Flash::blank();
     initialize(&mut flash).unwrap();
     write(&mut flash, Record::Credentials, b"credentials").unwrap();
-    write(&mut flash, Record::Sequence, b"sequence").unwrap();
     flash.bytes[..4096].fill(0);
     flash.bytes[4096..8192].fill(0);
     assert!(initialize(&mut flash).is_err());
@@ -256,5 +249,4 @@ fn explicit_erase_recovers_corruption_and_removes_all_saved_records() {
             .unwrap()
             .is_none()
     );
-    assert!(read(&mut flash, Record::Sequence, 100).unwrap().is_none());
 }

@@ -29,9 +29,8 @@ effect SparkleComet {
     float core = 1.0 - smoothstep(0.0, max(0.000000001, head_width), distance);
 
     float bucket = floor(seconds() * max(0.000000001, sparkle_speed) + pixel_index() * 0.13);
-    srand(seed + pixel_index() * 19.0 + bucket * 47.0);
     float sparkle = 0.0;
-    if (rand() < clamp(sparkle_density, 0.0, 1.0)) {
+    if (rand(seed + pixel_index() * 19.0 + bucket * 47.0) < clamp(sparkle_density, 0.0, 1.0)) {
       sparkle = (sin(seconds() * sparkle_speed * TAU + pixel_index()) + 1.0) * 0.5;
     }
 

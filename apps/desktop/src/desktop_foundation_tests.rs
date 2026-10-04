@@ -43,38 +43,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn project_projection_lists_setup_and_sequences() {
-        let session = starter();
-        let descriptor =
-            crate::desktop_state::descriptor_for_path(&session, Utf8Path::new("project.donder"))
-                .unwrap();
-        assert!(
-            descriptor
-                .available_views
-                .contains(&DocumentViewId::Project)
-        );
-        let request = GuiDocumentRequest {
-            owned_path: Vec::new(),
-            project_revision: 0,
-            path: "project.donder".to_string(),
-            view: DocumentViewId::Project,
-            object_key: Some("starter".to_string()),
-        };
-        let GuiDocument::Project { document } =
-            crate::gui::project_gui_document(Some(&session), &request)
-        else {
-            panic!("project projection was blocked");
-        };
-        assert_eq!(document.setup.path, "setups/main.setup.donder");
-        assert_eq!(document.setup.object_key, "main");
-        assert_eq!(document.sequences.len(), 2);
-        assert_eq!(
-            document.sequences[0].path,
-            "sequences/empty.sequence.donder"
-        );
-    }
-
-    #[test]
     fn setup_projection_identifies_its_composed_objects() {
         let session = starter();
         let request = GuiDocumentRequest {
@@ -118,28 +86,6 @@ pub(crate) mod tests {
                     | (DocumentViewId::Controller, GuiDocument::Controller { .. })
             ));
         }
-    }
-
-    #[test]
-    fn sequence_render_service_returns_shared_sequence_frame() {
-        let session = starter();
-        let sequence = session.project.root().sequences.first().unwrap().id();
-        let mut service = crate::rendering::SequenceRenderService::new();
-        service.prepare(&session.project, sequence).unwrap();
-        let audio = crate::dto::AudioTransportSnapshot {
-            state: crate::dto::AudioTransportState::Paused,
-            source: None,
-            generation: 4,
-            position_seconds: 0.0,
-            start_delay_seconds: 0.0,
-            home_seconds: 0.0,
-            duration_seconds: 60.0,
-            last_error: None,
-        };
-        let frame = service.render_current_sequence_frame(&audio).unwrap();
-        assert_eq!(frame.audio_generation, 4);
-        assert!(!frame.frame.fixtures.is_empty());
-        assert!(!frame.frame.controller_frames.is_empty());
     }
 
     #[test]

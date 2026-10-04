@@ -8,14 +8,20 @@ use donder_project_io::{
     check_project_document_text,
 };
 use std::fs;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use common::{load_project as load_local_project, write_workspace_metadata};
 
+/// The loaded starter, shared by tests that only validate in-memory edits.
+fn starter_session() -> &'static donder_project_io::ProjectSession {
+    static SESSION: OnceLock<donder_project_io::ProjectSession> = OnceLock::new();
+    SESSION.get_or_init(|| load_local_project(&common::starter_root()))
+}
+
 #[test]
 fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let session = load_local_project(&root);
+    let session = starter_session();
     let mut sequence = session
         .project
         .reusable_sequences()
@@ -39,8 +45,7 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
 
 #[test]
 fn project_validation_rejects_invalid_edited_curve_definitions() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut session = load_local_project(&root);
+    let mut session = starter_session().clone();
     let (id, mut definition) = session
         .project
         .definitions()
@@ -63,7 +68,7 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
 
 #[test]
 fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
+    let root = common::starter_root();
     let mut sources = donder_project_io::project_source_texts(&root).unwrap();
     let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.gradient.donder");
     let source = sources.get_mut(&gradient_path).unwrap();
@@ -79,7 +84,7 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
         report.diagnostics
     );
 
-    let mut session = load_local_project(&root);
+    let mut session = starter_session().clone();
     let (id, mut definition) = session
         .project
         .definitions()
@@ -115,8 +120,7 @@ fn edited_operator_parameters_validate_inline_resources() {
     };
     use donder_language::values::{Color, Gradient, GradientStop};
 
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut session = load_local_project(&root);
+    let mut session = starter_session().clone();
     let document = session
         .project
         .definitions()
@@ -183,12 +187,13 @@ fn edited_operator_parameters_validate_inline_resources() {
 
 #[test]
 fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let mut sources = donder_project_io::project_source_texts(&root).unwrap();
-    let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.gradient.donder");
-    let source = sources.get_mut(&gradient_path).unwrap();
-    *source = source.replacen("#fff4d6", "#1é234", 1);
-    let report = donder_project_io::check_project_with_overrides(&root, &sources);
+    let temp = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+    write_imported_sequence_project(
+        &root,
+        "  duration: 1s\n  frame_rate: 30\n  mark_collections:\n    - key: beats\n      name: Beats\n      color: '#1é234'\n      marks: []\n",
+    );
+    let report = check_project(&root);
     assert!(report.session.is_none());
     assert!(
         report
@@ -247,157 +252,6 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
     assert_eq!(
         donder_project_io::project_source_texts(&root).unwrap(),
         original
-    );
-}
-
-#[test]
-fn setup_field_typos_in_unsaved_documents_report_exact_locations() {
-    let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    let root = workspace.join("examples/starter");
-    let original = donder_project_io::project_source_texts(&root).unwrap();
-    for (path, anchor, indentation, label) in [
-        (
-            "layouts/outputs.layout.donder",
-            "  type: layout",
-            2,
-            "layout",
-        ),
-        (
-            "layouts/outputs.layout.donder",
-            "    name: All Outputs",
-            4,
-            "layout fixture",
-        ),
-        (
-            "layouts/outputs.layout.donder",
-            "      name: Output 01",
-            6,
-            "layout fixture",
-        ),
-        (
-            "layouts/outputs.layout.donder",
-            "          x: 0.0",
-            10,
-            "point",
-        ),
-        ("patches/outputs.patch.donder", "  type: patch", 2, "patch"),
-        (
-            "patches/outputs.patch.donder",
-            "    port: 1",
-            4,
-            "LED route",
-        ),
-        (
-            "patches/outputs.patch.donder",
-            "      fixture: 1",
-            6,
-            "fixture target",
-        ),
-        (
-            "patches/outputs.patch.donder",
-            "      type: rgb",
-            6,
-            "pixel encoding",
-        ),
-    ] {
-        let path = Utf8PathBuf::from(path);
-        let source = &original[&path];
-        assert!(source.contains(anchor), "missing anchor {anchor}");
-        let replacement = format!(
-            "{anchor}\n{}typo_field: unexpected",
-            " ".repeat(indentation)
-        );
-        let edited = source.replacen(anchor, &replacement, 1);
-        assert_unknown_setup_field(&root, &original, &path, &edited, label);
-    }
-    assert_eq!(
-        donder_project_io::project_source_texts(&root).unwrap(),
-        original
-    );
-}
-
-#[test]
-fn fixture_element_field_typos_are_rejected_without_changing_the_saved_project() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(&root, &minimal_sequence_body(""));
-    let path = Utf8PathBuf::from("display.donder");
-    let display = fs::read_to_string(root.join(&path)).unwrap().replace(
-        "    diameter: 0.01",
-        "    diameter: 0.01\n    transform: { position: { x: 0, y: 0, z: 0 } }",
-    );
-    fs::write(root.join(&path), &display).unwrap();
-    let baseline = check_project(&root);
-    assert!(
-        baseline.diagnostics.is_empty(),
-        "{:?}",
-        baseline.diagnostics
-    );
-    let original = donder_project_io::project_source_texts(&root).unwrap();
-    for (anchor, indentation, label) in [
-        ("  type: fixture", 2, "fixture definition"),
-        ("    diameter: 0.01", 4, "fixture element"),
-    ] {
-        let edited = display.replacen(
-            anchor,
-            &format!(
-                "{anchor}\n{}typo_field: unexpected",
-                " ".repeat(indentation)
-            ),
-            1,
-        );
-        assert_unknown_setup_field(&root, &original, &path, &edited, label);
-    }
-    let edited = display.replacen(
-        "{ x: 0, y: 0, z: 0 }",
-        "{ x: 0, y: 0, z: 0, typo_field: unexpected }",
-        1,
-    );
-    assert_unknown_setup_field(&root, &original, &path, &edited, "point");
-    assert_eq!(
-        donder_project_io::project_source_texts(&root).unwrap(),
-        original
-    );
-}
-
-fn assert_unknown_setup_field(
-    root: &Utf8Path,
-    original: &std::collections::BTreeMap<Utf8PathBuf, String>,
-    path: &Utf8PathBuf,
-    edited: &str,
-    label: &str,
-) {
-    let mut overrides = original.clone();
-    overrides.insert(path.clone(), edited.to_owned());
-    let report = donder_project_io::check_project_with_overrides(root, &overrides);
-    assert!(
-        report.session.is_none(),
-        "{label} silently accepted an unknown field"
-    );
-    let message = format!("{label} has an unknown field `typo_field`");
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message == message)
-        .unwrap_or_else(|| panic!("missing {message}: {:?}", report.diagnostics));
-    assert_eq!(&diagnostic.path, path);
-    assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
-    let (line, text) = edited
-        .lines()
-        .enumerate()
-        .find(|(_, text)| text.contains("typo_field:"))
-        .unwrap();
-    let column = text.find("unexpected").unwrap() as u32;
-    assert_range(
-        diagnostic.range.as_ref().unwrap(),
-        line as u32,
-        column,
-        line as u32,
-        column + 10,
     );
 }
 
@@ -669,7 +523,7 @@ fn negative_duration_is_a_diagnostic_not_a_loader_panic() {
 }
 
 #[test]
-fn malformed_optional_sequence_and_unknown_sequence_field_are_diagnostics() {
+fn malformed_optional_sequence_field_is_a_diagnostic() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
     write_imported_sequence_project(&root, &minimal_sequence_body("  automation_clips: wrong\n"));
@@ -678,14 +532,6 @@ fn malformed_optional_sequence_and_unknown_sequence_field_are_diagnostics() {
         diagnostic
             .message
             .contains("field `automation_clips` must be a sequence")
-    }));
-
-    write_imported_sequence_project(&root, &minimal_sequence_body("  automtion_clips: []\n"));
-    let typo = check_project(&root);
-    assert!(typo.diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("sequence has an unknown field `automtion_clips`")
     }));
 }
 

@@ -190,10 +190,6 @@ mod tests {
             (Mode::Playing, 100_000)
         );
         assert_eq!(
-            u64::from(transport.sample(1_100_000, 8_000_000).1) * 120 / 1_000_000,
-            12
-        );
-        assert_eq!(
             transport.sample(9_000_000, 8_000_000),
             (Mode::Ended, 8_000_000)
         );

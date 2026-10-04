@@ -1,109 +1,117 @@
 # Donder ESP32 firmware
 
-This standalone Cargo workspace owns the Xtensa target, ESP SDK dependencies,
-device persistence, profiling harnesses, and the Wi-Fi/I2S loader. Keeping it
-separate prevents embedded-only build scripts and target configuration from
-breaking the host workspace. Its local `crates/donder-device-storage` crate owns
-LittleFS credential storage and two contiguous flash slots for prepared archives.
+This separate Cargo workspace builds the controller loader for the classic ESP32:
+Wi-Fi upload and control, flash storage, and four-output WS281x playback. It
+consumes `donder-runtime` and `donder-language` with default features off;
+parsing, imports, target resolution and output selection stay on the host. The
+local `crates/donder-device-storage` crate owns LittleFS credentials and the two
+show slots. How the controller behaves is described in
+[ESP32 controllers](../../docs/esp32_loading.md).
 
-The firmware consumes `donder-runtime` prepared sequences and portable values,
-DSL bytecode, and execution descriptions from `donder-language` with default
-features disabled. The `i2s-output` feature enables runtime atomic ownership,
-which also enables language atomic ownership. Source parsing,
-imports, target resolution, and controller selection remain
-host concerns. See [prepared sequence loading](../../docs/esp32_loading.md) for
-the archive, transport, install, and verification workflow.
+## Toolchain
 
-## Toolchain and dependencies
+Install the ESP Rust toolchain with [espup](https://github.com/esp-rs/espup) and
+install `espflash`. Set two machine-local environment variables, using the
+locations espup reports:
 
-Install the ESP Rust toolchain with [espup](https://github.com/esp-rs/espup)
-and install `espflash`. Configure these machine-local environment variables:
+- `DONDER_ESP_LIBCLANG_PATH`: ESP's libclang file or its directory.
+- `DONDER_ESP_TOOLCHAIN_BIN`: the directory containing `xtensa-esp32-elf-gcc`.
 
-- `DONDER_ESP_LIBCLANG_PATH`: ESP's libclang file or containing directory.
-- `DONDER_ESP_TOOLCHAIN_BIN`: the directory containing `xtensa-esp32-elf-gcc`
-  (`xtensa-esp32-elf-gcc.exe` on Windows).
+`pnpm firmware:build` and `pnpm firmware:cargo` set PATH, LIBCLANG_PATH and
+CARGO_TARGET_DIR for their child processes only, building into this directory's
+`target/`. Never run host builds with `+esp`.
 
-Use the installation locations reported by espup. These vary by platform and
-toolchain version; do not commit local paths. Node and pnpm use the root
-package's requirements. The firmware runner sets PATH, LIBCLANG_PATH, and
-CARGO_TARGET_DIR only for child processes, with build output in this directory's
-`target/`. No shell activation is required. Host storage tests separately use
-`DONDER_HOST_LIBCLANG_PATH`.
+The esp-hal SDK crates are patched together to upstream revision
+`0eb3e53b4a2e555d2136ce9dc83e18c6692b9673`, because the published radio beta
+targets an older HAL. Keep them on one source, build with `--locked`, and remove
+the patches together once a compatible release exists and the board checks are
+repeated.
 
-The workspace targets the classic ESP32 using the esp-rs toolchain. SDK crates
-are patched together to upstream revision
-`0eb3e53b4a2e555d2136ce9dc83e18c6692b9673` because the published radio beta
-targets an older HAL. Keep the patched SDK crates on one source and use
-`--locked`; remove the patches together only after a compatible published stack
-exists and the board checks are repeated.
+## Features and builds
 
-## Binaries and features
+- `loader`: persistent credentials and Wi-Fi upload.
+- `i2s-output`: adds continuous four-output WS281x playback on the second core,
+  on the reference-board pins. This is the bundled desktop image.
+- `dig-quad`: the same, with QuinLED Dig-Quad pins and a 25/255 brightness cap.
 
-- `donder-esp32` is the standalone prepared-playback benchmark harness. Its
-  `sample_playback` stage builds each sample through `SequenceBuilder` and
-  measures complete playback, including output encoding. All stages require
-  allocation-free first and subsequent frames. Host golden generation compares
-  encoded output with fixture colors and checks composition against a separately
-  prepared single-layer sequence. Frame times and workloads are shared with the
-  device harness; historical standalone VM timings are not comparable.
-- `pc_profile` with `pc-profile` records interrupted instruction addresses for
-  host-side symbolization. It is not a call-stack profiler.
-- `loader` with `loader` enables persistent credentials and Wi-Fi upload.
-- `loader` with `i2s-output` additionally runs continuous four-lane WS281x output
-  on the second core.
-
-Build the installable image from the repository root:
+From the repository root:
 
 ```powershell
-pnpm firmware:build
-```
-
-For focused development builds from the repository root:
-
-```powershell
-pnpm firmware:cargo build --release --bin donder-esp32 --locked
-pnpm firmware:cargo build --release --features pc-profile --bin pc_profile --locked
+pnpm firmware:build                      # bundled image, also refreshes apps/desktop/assets/firmware
+pnpm firmware:build --board dig-quad     # Dig-Quad image (also overwrites the bundled image)
 pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
 ```
 
-Directly flashing the loader must use `partitions.csv`; omitting it loses the
-reserved Donder data layout. Flashing changes the application, bootloader, and
-partition table and is never part of a read-only validation run.
+`firmware:build` refuses an image that would overlap the data partitions.
+Flashing directly must use `partitions.csv`, or the Donder data layout is lost.
+19,200 baud is the rate the desktop installer also uses reliably:
 
-## Capture policy
+```powershell
+cd firmware/esp32
+espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
+```
 
-`capture.py`, `capture_pc.py`, and `upload.py` reject incomplete records,
-duplicate measurements, checksum mismatches, and corrupt serial data. Never
-repair a partial capture by deleting bad bytes. Preserve the matching ELF until
-host symbolization and hash recording are complete.
+## Uploading and measuring
 
-Write ordinary output below `target`, not `results`. Only a complete, reviewed,
-minimal capture supporting a durable claim is promoted to `results/accepted`.
-See the [evidence policy](../../docs/performance.md) and the
-[accepted evidence index](results/README.md).
+Export a selected fragment with checksums, then upload and verify it with
+`upload.py` (run through `uvx --from esptool`, which supplies pyserial):
+
+```powershell
+cargo run -p donder-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.donderseq
+cd firmware/esp32
+uvx --from esptool python upload.py target/loaded-sequence.donderseq --port COM4 --ssid YOUR_SSID
+uvx --from esptool python upload.py target/loaded-sequence.donderseq --checksums target/loaded-sequence.donderseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --windows-profile YOUR_PROFILE --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
+```
+
+- The Wi-Fi password prompt is not echoed. On English Windows,
+  `--windows-profile` reads a saved network profile in memory. Never write
+  credentials or tokens to logs.
+- Claiming that frames are verified requires `--checksums`; `--elf` records the
+  image hash.
+- Uploads stay stopped, so start playback through the desktop or
+  `POST /transport/play` first.
+- `upload.py` rejects incomplete records, checksum mismatches and corrupt serial
+  data. Never repair a capture by deleting bytes.
+- Serial monitoring needs UART0 free, so it is unavailable on the Dig-Quad.
+
+During playback the loader prints a `PLAYBACK` line per window: missed frames and
+average and maximum evaluation, encoding, DMA-wait and total frame times. To
+measure a runtime change, upload a representative show such as
+`examples/stanford_room` and compare those lines. Keep captures under `target/`
+and summarize durable results in [performance](../../docs/performance.md).
+
+## Implementation notes
+
+- Flash reads and writes use aligned 256-byte scratch buffers and the SDK's
+  low-level flash routines.
+- A flash mutation first waits for the renderer to acknowledge its IRAM
+  checkpoint, then takes the cross-core critical section and parks that core.
+  Parking the core in hardware without the checkpoint can freeze an outstanding
+  cache fill. Refreshing the show mapping flushes both caches while the other
+  core is parked, because a flush can disturb that core's fill even when it does
+  not read the show mapping.
+- Upload blackout waits between completed DMA transfers in an interrupt-free IRAM
+  loop.
+- Keep large flash buffers off the core-0 startup and network stack. Show
+  restoration and upload persistence share it with filesystem and SDK calls.
+- The runtime `atomic` feature is enabled only for output builds, so the active
+  sequence and its workspace can cross cores.
+- `rwtext_hook.x` places the interpreter and per-lane helpers in instruction RAM
+  (see [performance](../../docs/performance.md#esp32-memory-placement)).
 
 ## Validation
 
-The root `pnpm check` runs all six device-storage recovery tests through
-`pnpm storage:test`. Run that command from the repository root: it uses the
-host Rust toolchain and does not inherit this directory's Xtensa Cargo config.
-These tests require a host C compiler and host libclang. Configure
-`DONDER_HOST_LIBCLANG_PATH` as described in the root [prerequisites](../../README.md#prerequisites).
-The runner passes that path to Cargo as `LIBCLANG_PATH`, overriding the ESP
-selection without modifying the calling shell. It uses `target/storage-host`
-under the repository root for host storage artifacts. Missing configuration
-fails before Cargo starts; an incompatible library fails during binding generation.
-
-The desktop and ESP32 workspaces have different toolchains. Do not run host
-builds with `+esp`. From the repository root, firmware validation is:
+From the repository root:
 
 ```powershell
+pnpm storage:test
 cargo fmt --manifest-path firmware/esp32/Cargo.toml --check
-pnpm firmware:cargo clippy --release --features pc-profile --bins --locked -- -D warnings
 pnpm firmware:cargo clippy --release --features i2s-output --bin loader --locked -- -D warnings
-uvx --from esptool python -m unittest discover -s firmware/esp32 -p test_capture_pc.py
+pnpm firmware:cargo clippy --release --features dig-quad --bin loader --locked -- -D warnings
 ```
 
-These checks do not flash a board or verify physical LED output. Report source
-checks, on-device frame checksums, deadline measurements, DMA completion, and
-physical electrical/LED validation as separate boundaries.
+`pnpm storage:test` is part of `pnpm check`. It uses the host toolchain and
+`DONDER_HOST_LIBCLANG_PATH` (see the root
+[development setup](../../README.md#development)) and builds in
+`target/storage-host`. These checks do not flash a board. Report source checks,
+device checksums, deadlines, DMA completion and physical LED output separately.

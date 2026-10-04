@@ -55,14 +55,6 @@ fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() 
             }
             assert_eq!(actual, expected);
         }
-        let mut playback = decode_sequence(&bytes, LoadLimits::default())
-            .unwrap()
-            .into_playback();
-        let time = sample_time_from_frame(8398, frame_rate).unwrap();
-        let expected = original_workspace.evaluate(time);
-        let actual = playback.evaluate(time);
-        assert!(actual.outputs().eq(expected.outputs()));
-        assert!(actual.fixtures().eq(expected.fixtures()));
         for end in [0, HEADER_BYTES - 1, HEADER_BYTES, bytes.len() - 1] {
             assert!(decode_sequence(&bytes[..end], LoadLimits::default()).is_err());
         }

@@ -179,22 +179,14 @@ pub(crate) fn new_test_project_files(
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use camino::Utf8PathBuf;
 
     use super::*;
 
     #[test]
     fn new_project_template_loads_as_empty_authoring_project() {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = Utf8PathBuf::from_path_buf(
-            std::env::temp_dir().join(format!("donder-template-{nonce}")),
-        )
-        .unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temporary.path().join("project")).unwrap();
         let files = new_test_project_files("Template Test").unwrap();
         assert_eq!(
             files
@@ -261,7 +253,6 @@ mod tests {
                 "bundled effect {name} must be reachable from the new project"
             );
         }
-        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
@@ -275,7 +266,7 @@ mod tests {
             .find(|file| file.path == PROJECT_ROOT_FILE)
             .unwrap()
             .text;
-        for (name, inputs) in [
+        let operators = [
             ("Max", &["a", "b"][..]),
             ("Add", &["a", "b"][..]),
             ("Multiply", &["a", "b"][..]),
@@ -286,35 +277,42 @@ mod tests {
             ("Delay", &["input"][..]),
             ("Echo", &["input"][..]),
             ("HueShift", &["source"][..]),
-        ] {
-            let mut document: yaml_serde::Value = yaml_serde::from_str(template).unwrap();
-            let graph = &mut document["template_test"]["sequences"][0]["composition_graph"];
+        ];
+        let mut document: yaml_serde::Value = yaml_serde::from_str(template).unwrap();
+        let graph = &mut document["template_test"]["sequences"][0]["composition_graph"];
+        graph["edges"].as_sequence_mut().unwrap().clear();
+        // Chain every operator between the source node and the output node.
+        let mut previous = 1;
+        for (index, (name, inputs)) in operators.iter().enumerate() {
+            let id = index + 3;
             graph["nodes"].as_sequence_mut().unwrap().push(
                 yaml_serde::from_str(&format!(
-                    "id: 3\nposition: {{x: 240.0, y: 80.0}}\ntype: operator\noperator: operators.{name}\n"
+                    "id: {id}\nposition: {{x: 240.0, y: 80.0}}\ntype: operator\noperator: operators.{name}\n"
                 )).unwrap(),
             );
-            let edges = graph["edges"].as_sequence_mut().unwrap();
-            edges.clear();
-            for input in inputs {
-                edges.push(
+            for input in *inputs {
+                graph["edges"].as_sequence_mut().unwrap().push(
                     yaml_serde::from_str(&format!(
-                        "from: 1\nfrom_port: output\nto: 3\nto_port: {input}\n"
+                        "from: {previous}\nfrom_port: output\nto: {id}\nto_port: {input}\n"
                     ))
                     .unwrap(),
                 );
             }
-            edges.push(
-                yaml_serde::from_str("from: 3\nfrom_port: output\nto: 2\nto_port: input\n")
-                    .unwrap(),
-            );
-            fs::write(
-                root.join(PROJECT_ROOT_FILE),
-                yaml_serde::to_string(&document).unwrap(),
-            )
-            .unwrap();
-            let session = donder_project_io::load_project(&root)
-                .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            previous = id;
+        }
+        graph["edges"].as_sequence_mut().unwrap().push(
+            yaml_serde::from_str(&format!(
+                "from: {previous}\nfrom_port: output\nto: 2\nto_port: input\n"
+            ))
+            .unwrap(),
+        );
+        fs::write(
+            root.join(PROJECT_ROOT_FILE),
+            yaml_serde::to_string(&document).unwrap(),
+        )
+        .unwrap();
+        let session = donder_project_io::load_project(&root).unwrap();
+        for (name, _) in operators {
             let definition = session
                 .project
                 .definitions()

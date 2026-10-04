@@ -23,14 +23,12 @@ pub use littlefs2::consts;
 #[derive(Clone, Copy)]
 pub enum Record {
     Credentials,
-    Sequence,
 }
 
 impl Record {
     fn path(self) -> &'static Path {
         match self {
             Self::Credentials => path!("credentials"),
-            Self::Sequence => path!("sequence"),
         }
     }
 }

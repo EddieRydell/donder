@@ -142,13 +142,12 @@ pub(crate) const MARK_CASES: [(&str, bool); 2] = [("MarkPulse200", true), ("Mark
 
 // Profiling fixture: varied, overlapping chases and pulses compiled from the
 // same editable effect document included in new projects.
-#[cfg(not(target_arch = "xtensa"))]
 #[allow(dead_code)] // Normal timing binary uses a different workload subset.
 pub(crate) fn chase_pulse_show(count: usize, layers: usize) -> Workload {
     use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
     use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let definitions = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.effect.donder"
+        "../../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap();
     let chase = definitions
@@ -271,7 +270,6 @@ fn operator_invocation(program: BytecodeProgram) -> OperatorInvocation {
     OperatorDefinition::new(operator).bind(vec![]).unwrap()
 }
 
-#[cfg(not(target_arch = "xtensa"))]
 pub(crate) fn apply_compiled_operator(
     show: &mut Workload,
     operator: donder_language::dsl::CompiledOperator,
@@ -281,7 +279,7 @@ pub(crate) fn apply_compiled_operator(
 
 pub(crate) fn apply_operator(show: &mut Workload, mut program: BytecodeProgram, reuse: bool) {
     if !reuse {
-        disable_uniform_reuse(&mut program);
+        unstaged(&mut program);
     }
     show.operators = vec![operator_invocation(program)];
 }
@@ -399,7 +397,7 @@ pub(crate) const OPERATOR_SOURCE: &str = "operator Wave { input Signal source;
     color sample() { return source.at(seconds()) * (sin(seconds() * 7.0) * 0.5 + 0.5); }
 }";
 
-pub(crate) fn disable_uniform_reuse(program: &mut BytecodeProgram) {
+pub(crate) fn unstaged(program: &mut BytecodeProgram) {
     program.pixel_entry = 0;
     for instruction in &mut program.instructions {
         if let Instruction::SignalSample { frame_cache, .. } = instruction {
@@ -409,7 +407,6 @@ pub(crate) fn disable_uniform_reuse(program: &mut BytecodeProgram) {
 }
 
 // The firmware receives this host-prepared lookup as data.
-#[cfg(not(target_arch = "xtensa"))]
 pub(crate) fn gamma_lookup() -> [u8; 256] {
     core::array::from_fn(|value| ((value as f32 / 255.0).powf(2.2) * 255.0).round() as u8)
 }

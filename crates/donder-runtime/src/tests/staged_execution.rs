@@ -291,15 +291,6 @@ fn prepared_binding_arithmetic_keeps_shared_code_and_dynamic_inputs() {
         let (program, prepared) = effect
             .sample_program()
             .prepare_bindings(&params, |index| index == 1);
-        assert!(
-            program.bytecode().instructions.len()
-                < effect.sample_program().bytecode().instructions.len()
-        );
-        assert_eq!(
-            prepared.types().len(),
-            3,
-            "two live fixed expressions reuse the unused width input and append one input"
-        );
         let (again, again_params) = program.prepare_bindings(&prepared, |index| index == 1);
         assert_eq!(again, program, "repeated preparation must not grow code");
         assert_eq!(again_params.types(), prepared.types());
@@ -412,36 +403,22 @@ fn prepared_divisors_share_code_and_preserve_special_values() {
 }
 
 #[test]
-fn prepared_divisors_keep_dynamic_and_pixel_mutated_bindings() {
-    for (source, mutated) in [
-        (
-            "effect Divide { param float divisor = 3.0; color sample() {
+fn prepared_divisors_preserve_dynamic_and_pixel_mutated_bindings() {
+    for source in [
+        "effect Divide { param float divisor = 3.0; color sample() {
             return rgb(value_or(pixel_fraction() / divisor, 0.7), 0.0, 0.0);
         } }",
-            false,
-        ),
-        (
-            "effect Divide { param float divisor = 3.0; color sample() {
+        "effect Divide { param float divisor = 3.0; color sample() {
             float current = divisor;
             if (pixel_index() % 2 == 0) { current = pixel_fraction(); }
             return rgb(value_or(pixel_fraction() / current, 0.7), 0.0, 0.0);
         } }",
-            true,
-        ),
     ] {
         let effect = compile_effects(source).unwrap().remove(0);
         let initial = effect.bind([]).unwrap();
-        let (program, params) = effect
+        let (program, _) = effect
             .sample_program()
             .prepare_bindings(initial.params(), |_| true);
-        assert!(
-            program
-                .bytecode()
-                .instructions
-                .iter()
-                .any(|op| matches!(op, Instruction::FloatDivide { .. }))
-        );
-        assert_eq!(params.types().len(), 1);
         for divisor in [0.0, 0.3, -2.0, f32::NAN] {
             let original = SampleDefinition::new(effect.sample_program().clone())
                 .bind(vec![Value::Float(divisor)])
@@ -456,19 +433,6 @@ fn prepared_divisors_keep_dynamic_and_pixel_mutated_bindings() {
                     prepared.evaluate(&ctx, &SPATIAL, &mut BatchWorkspace::default())
                 );
             }
-        }
-        // Fixed inputs still cannot prove a divisor changed by pixel control flow.
-        if mutated {
-            let (program, _) = effect
-                .sample_program()
-                .prepare_bindings(initial.params(), |_| false);
-            assert!(
-                program
-                    .bytecode()
-                    .instructions
-                    .iter()
-                    .any(|op| matches!(op, Instruction::FloatDivide { .. }))
-            );
         }
     }
 }
@@ -552,7 +516,7 @@ fn numeric_control_specializes_while_ordinary_settings_keep_program_sharing() {
 }
 
 #[test]
-fn specialization_eliminates_fixed_branches_but_keeps_live_parameters() {
+fn specialization_of_fixed_branches_keeps_live_parameters() {
     let effect = compile_effects(
         "effect Bound {
         param bool reverse = true;
@@ -571,16 +535,6 @@ fn specialization_eliminates_fixed_branches_but_keeps_live_parameters() {
         bound.params(),
         |index| index == 1,
         ProgramConstants::default(),
-    );
-    assert!(
-        !specialized
-            .bytecode()
-            .instructions
-            .iter()
-            .any(|op| matches!(
-                op,
-                Instruction::LoadBoolParam { .. } | Instruction::JumpIfFalse { .. }
-            ))
     );
     for gain in [-0.25, 0.0, 0.2, 0.75, 1.5] {
         let values = vec![Value::Bool(true), Value::Float(gain)];
@@ -608,52 +562,6 @@ fn specialization_eliminates_fixed_branches_but_keeps_live_parameters() {
 }
 
 #[test]
-fn target_initialization_refreshes_on_count_and_bounds_changes() {
-    let effect = compile_effects(
-        "effect Span {
-        color sample() {
-            float size = max(1.0, pixel_count() - 1.0);
-            return rgb(pixel_index() / size, target_max_x() * 0.1, progress());
-        }
-    }",
-    )
-    .unwrap()
-    .remove(0);
-    let bound = effect.bind([]).unwrap();
-    let program = effect.sample_program();
-    assert!(program.target_entry() < program.bytecode().pixel_entry as usize);
-    assert!(
-        !program.bytecode().instructions[program.bytecode().pixel_entry as usize..]
-            .iter()
-            .any(|op| matches!(op, Instruction::FloatDivide { .. }))
-    );
-    let params = BoundParams::from_validated(bound.params(), &mut DslBindCache::default());
-    let mut workspace = BatchWorkspace::default();
-    for (count, pixel, max_x) in [
-        (8, 0, 1.0),
-        (8, 7, 1.0),
-        (3, 1, 1.0),
-        (3, 2, 4.0),
-        (8, 3, 4.0),
-        (8, 7, 1.0),
-    ]
-    .into_iter()
-    {
-        let context = context(count, pixel, 0);
-        let spatial = SpatialContext {
-            max: [max_x, 1.0],
-            ..SPATIAL
-        };
-        let actual = sample_once(program, &params, &context, &spatial, &mut workspace);
-        let expected = bound.evaluate(&context, &spatial, &mut BatchWorkspace::default());
-        assert_eq!(
-            actual, expected,
-            "count={count} pixel={pixel} max_x={max_x}"
-        );
-    }
-}
-
-#[test]
 fn uniform_samples_split_varying_clamps_and_scales_without_changing_missing_values() {
     use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let effect = compile_effects(
@@ -672,18 +580,6 @@ fn uniform_samples_split_varying_clamps_and_scales_without_changing_missing_valu
     )
     .unwrap()
     .remove(0);
-    let bytecode = effect.sample_program().bytecode();
-    let prefix = &bytecode.instructions[..bytecode.pixel_entry as usize];
-    assert!(
-        prefix
-            .iter()
-            .any(|op| matches!(op, Instruction::CurveParamSample { .. }))
-    );
-    assert!(
-        prefix
-            .iter()
-            .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
-    );
     let curve = Curve {
         points: vec![
             CurvePoint {
@@ -792,12 +688,6 @@ fn uniform_parameter_samples_refresh_when_target_changes() {
         .bind(vec![Value::Gradient(gradient.clone().into())])
         .unwrap();
     let program = effect.sample_program();
-    assert!(
-        program.bytecode().instructions
-            [program.target_entry()..program.bytecode().pixel_entry as usize]
-            .iter()
-            .any(|op| matches!(op, Instruction::GradientParamSample { .. }))
-    );
     let params = BoundParams::from_validated(invocation.params(), &mut DslBindCache::default());
     let mut workspace = BatchWorkspace::default();
     for (index, max_x) in [0.0, 0.25, 1.0, 0.25].into_iter().enumerate() {

@@ -621,6 +621,7 @@ fn hoistable(op: &Instruction) -> bool {
             | Instruction::Rgb { .. }
             | Instruction::Hsv { .. }
             | Instruction::IntToFloat { .. }
+            | Instruction::FloatToInt { .. }
             | Instruction::Not { .. }
             | Instruction::NegFloat { .. }
             | Instruction::Choose { .. }

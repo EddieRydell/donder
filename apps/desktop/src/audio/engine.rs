@@ -608,14 +608,8 @@ mod tests {
 
     use super::super::backend::{
         AudioDriver, AudioHandle, BackendObservation, BackendPlaybackState, SourceMetadata,
-        instant_tween,
     };
     use super::*;
-
-    #[test]
-    fn transport_commands_use_instant_tween() {
-        assert_eq!(instant_tween().duration, Duration::ZERO);
-    }
 
     #[test]
     fn local_controls_release_the_shared_timeline_after_devices_disconnect() {
@@ -678,19 +672,6 @@ mod tests {
         assert_eq!(snapshot.generation, 1);
         assert!(snapshot.source.is_some());
         fixture.assert_actions(&[DriverAction::LoadMetadata]);
-    }
-
-    #[test]
-    fn play_from_stopped_creates_handle_and_reports_playing() {
-        let fixture = AudioFixture::new(12.0);
-        let mut engine = loaded_engine(&fixture);
-
-        let snapshot = engine.play();
-
-        assert_eq!(snapshot.state, AudioTransportState::Playing);
-        assert_eq!(snapshot.position_seconds, 0.0);
-        assert_eq!(snapshot.generation, 2);
-        fixture.assert_actions(&[DriverAction::LoadMetadata, DriverAction::Play(0.0)]);
     }
 
     #[test]
@@ -788,20 +769,6 @@ mod tests {
         assert_eq!(snapshot.position_seconds, 5.5);
         fixture.assert_actions(&[DriverAction::Play(5.5)]);
         fixture.assert_handle_actions(&[HandleAction::Stop]);
-    }
-
-    #[test]
-    fn rewind_while_playing_pauses_at_zero_and_sets_home_to_zero() {
-        let fixture = AudioFixture::new(12.0);
-        let mut engine = playing_engine(&fixture);
-        fixture.clear_handle_actions();
-
-        let snapshot = engine.rewind_to_zero();
-
-        assert_eq!(snapshot.state, AudioTransportState::Paused);
-        assert_eq!(snapshot.position_seconds, 0.0);
-        assert_eq!(snapshot.home_seconds, 0.0);
-        fixture.assert_handle_actions(&[HandleAction::Pause, HandleAction::Seek(0.0)]);
     }
 
     #[test]

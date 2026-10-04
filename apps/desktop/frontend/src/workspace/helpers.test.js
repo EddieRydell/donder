@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   buildSemanticTree,
-  locationRange,
   matchesCommand,
   rankQuickOpenFiles,
   remapWorkspacePath,
@@ -61,12 +60,8 @@ test("quick open ranks open files then recent files then the remaining project f
   assert.deepEqual(rankQuickOpenFiles(snapshot), ["open.donder", "recent.donder", "other.donder"]);
 });
 
-test("command filtering, path remapping, and navigation ranges are deterministic", () => {
+test("command filtering and path remapping are deterministic", () => {
   assert.equal(matchesCommand("Focus Problems", "View", ["errors", "sidebar"], "view error"), true);
   assert.equal(matchesCommand("Focus Problems", "View", ["errors"], "package"), false);
   assert.equal(remapWorkspacePath("effects/a.donder", "effects", "library/effects"), "library/effects/a.donder");
-  assert.deepEqual(locationRange(3, 4, 5), {
-    start: { line: 3, character: 4 },
-    end: { line: 3, character: 9 }
-  });
 });

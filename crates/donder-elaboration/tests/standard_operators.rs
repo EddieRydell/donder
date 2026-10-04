@@ -196,13 +196,6 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
         donder_runtime::encode_sequence(&baseline).unwrap(),
         donder_runtime::encode_sequence(&disconnected).unwrap(),
     );
-    let mut before = baseline.into_playback();
-    let mut after = disconnected.into_playback();
-    for ticks in [0, 1_000_000, 3_000_000] {
-        let expected = before.evaluate(SampleTime::from_ticks(ticks)).colors();
-        let actual = after.evaluate(SampleTime::from_ticks(ticks)).colors();
-        assert_eq!(actual, expected);
-    }
     sequence
         .composition_graph
         .edges

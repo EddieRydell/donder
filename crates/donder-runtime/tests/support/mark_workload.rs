@@ -5,10 +5,10 @@ use donder_language::values::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
 
-#[allow(dead_code)] // Shared device-profile and host benchmark fixture.
+#[allow(dead_code)]
 pub(crate) fn mark_show(count: usize, pulse: bool) -> Workload {
     let definitions = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.effect.donder"
+        "../../../../examples/starter/effects/standard.effect.donder"
     ))
     .unwrap();
     let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };

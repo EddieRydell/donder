@@ -22,8 +22,7 @@ effect ShimmerField {
     float level = wave * clamp(shimmer_level, 0.0, 1.0);
 
     float bucket = floor(seconds() * max(0.000000001, sparkle_speed) + section * sparkle_hold);
-    srand(seed + section * 31.0 + bucket * 101.0);
-    float choice = rand();
+    float choice = rand(seed + section * 31.0 + bucket * 101.0);
     float sparkle = 0.0;
     if (choice < clamp(density, 0.0, 1.0)) {
       sparkle = (sin(seconds() * sparkle_speed * TAU + section) + 1.0) * 0.5;

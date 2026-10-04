@@ -71,21 +71,6 @@ fn init(root: &Utf8Path) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
-    fn cli_has_local_workflows_and_no_dependency_commands() {
-        for args in [
-            vec!["donder", "init"],
-            vec!["donder", "check"],
-            vec!["donder", "copy", "destination"],
-        ] {
-            assert!(Cli::try_parse_from(args).is_ok());
-        }
-        for command in [
-            "sync", "update", "add", "remove", "tree", "fork", "publish", "login",
-        ] {
-            assert!(Cli::try_parse_from(["donder", command]).is_err());
-        }
-    }
-    #[test]
     fn init_adds_metadata_to_existing_root_and_rejects_reinitialization() {
         let temp = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temp.path()).unwrap();

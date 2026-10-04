@@ -1,35 +1,10 @@
+mod common;
+
 use std::fs;
 
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
+use common::starter_copy;
 use donder_project_io::{apply_path_change, load_project, plan_path_change};
-
-fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {
-    let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Utf8Path::parent)
-        .expect("workspace");
-    let temporary = tempfile::tempdir().expect("tempdir");
-    let root = Utf8Path::from_path(temporary.path())
-        .expect("utf8")
-        .join("starter");
-    copy_tree(&workspace.join("examples/starter"), &root);
-    (temporary, root)
-}
-
-fn copy_tree(source: &Utf8Path, destination: &Utf8Path) {
-    fs::create_dir_all(destination).expect("destination");
-    for entry in fs::read_dir(source).expect("source") {
-        let entry = entry.expect("entry");
-        let name = entry.file_name().into_string().expect("utf8 name");
-        let source_path = source.join(&name);
-        let destination_path = destination.join(name);
-        if entry.file_type().expect("type").is_dir() {
-            copy_tree(&source_path, &destination_path);
-        } else if source_path.extension() != Some("mp3") {
-            fs::copy(source_path, destination_path).expect("copy");
-        }
-    }
-}
 
 fn move_path(
     session: &donder_project_io::ProjectSession,

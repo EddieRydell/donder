@@ -133,6 +133,7 @@ pub(super) fn pure(op: &Instruction) -> bool {
             | QuerySeconds { .. }
             | QueryProgress { .. }
             | IntToFloat { .. }
+            | FloatToInt { .. }
             | NegInt { .. }
             | NegFloat { .. }
             | Not { .. }

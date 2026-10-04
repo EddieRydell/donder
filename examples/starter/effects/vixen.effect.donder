@@ -75,10 +75,9 @@ effect VixenAlternating {
     float local = age / (interval - 1.0);
     float selected = (floor(pixel_index() / group_level) + cycle * interval_skip_count) % len(colors);
     selected = (selected + len(colors)) % len(colors);
-    for (int i in range(len(colors), 10000)) {
-      if (i + 0.0 == selected) {
-        return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0);
-      }
+    if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+      int i = int(selected);
+      return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0);
     }
     return rgb(0.0, 0.0, 0.0);
   }
@@ -183,8 +182,8 @@ effect VixenPinwheel {
         }
         // Vixen draws arms in order; the last covering arm owns the pixel.
         result = colors[index][color_position] * level;
-        if (color_type == random) { result = hsv(rand(random_seed, index), 1.0, level); }
-        if (color_type == rainbow) { result = hsv(rand(random_seed, arm, floor(seconds() * 1000.0 / frame_interval_ms)), 1.0, level); }
+        if (color_type == random) { result = hsv(rand(random_seed * 31.0 + index), 1.0, level); }
+        if (color_type == rainbow) { result = hsv(rand((random_seed * 31.0 + arm) * 31.0 + floor(seconds() * 1000.0 / frame_interval_ms)), 1.0, level); }
       }
     }
     return result;
@@ -327,8 +326,9 @@ effect VixenPlasma {
     if (color_type == normal) {
       float n = clamp((sin(phase + 2.0943951023931953) + 0.5) / 2.0, 0.0, 0.99999);
       float selected = floor(n * len(colors));
-      for (int i in range(len(colors), 10000)) {
-        if (i + 0.0 == selected) { result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], n * len(colors) - selected); }
+      if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+        int i = int(selected);
+        result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], n * len(colors) - selected);
       }
     } else {
       float r = floor((sin(phase) + 1.0) * 128.0) / 255.0;
@@ -384,8 +384,9 @@ effect VixenBars {
     float selected = floor((n % (len(colors) * bar_size)) / bar_size);
     float local = (n % bar_size) / bar_size;
     color result = rgb(0.0, 0.0, 0.0);
-    for (int i in range(len(colors), 10000)) {
-      if (i + 0.0 == selected) { result = colors[i][local]; }
+    if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+      int i = int(selected);
+      result = colors[i][local];
     }
     float s = saturation(result);
     float v = intensity(result);
@@ -638,8 +639,9 @@ effect VixenGarlands {
     float color_position = selected_ring / height * (len(colors) - 1);
     float selected = floor(color_position);
     color result = rgb(0.0, 0.0, 0.0);
-    for (int i in range(len(colors), 10000)) {
-      if (i + 0.0 == selected) { result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], color_position - selected); }
+    if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+      int i = int(selected);
+      result = mix(colors[i][t], colors[(i + 1) % len(colors)][t], color_position - selected);
     }
     return result * (clamp(intensity, 0.0, 100.0) / 100.0);
   }
@@ -864,17 +866,17 @@ effect VixenCandleFlicker {
     float group = floor(pixel_index() / group_level);
     float low = clamp(minimum_level, 0.0, 100.0) / 100.0;
     float high = clamp(maximum_level, 0.0, 100.0) / 100.0;
-    float current = clamp(rand(random_seed, group, -1.0), low, high);
+    float current = clamp(rand((random_seed * 31.0 + group) * 31.0 - 1.0), low, high);
     float start = 0.0;
     float total = duration() * 1000.0;
     float now = seconds() * 1000.0;
     float frequency_cap = floor(frequency_deviation);
     float change_cap = floor(clamp(change_deviation, 0.0, 100.0));
     for (int event in range(10000, 10000)) {
-      float deviation = floor(min(0.99999994, rand(random_seed, group, event, 0.0)) * 2.0 * change_cap) - change_cap;
-      float sign = floor(min(0.99999994, rand(random_seed, group, event, 1.0)) * 3.0) - 1.0;
+      float deviation = floor(min(0.99999994, rand(((random_seed * 31.0 + group) * 31.0 + event) * 31.0)) * 2.0 * change_cap) - change_cap;
+      float sign = floor(min(0.99999994, rand(((random_seed * 31.0 + group) * 31.0 + event) * 31.0 + 1.0)) * 3.0) - 1.0;
       float next = clamp(current + change_percentage / 100.0 * (1.0 + deviation / 100.0) * sign, low, high);
-      float variation = floor(min(0.99999994, rand(random_seed, group, event, 2.0)) * 2.0 * frequency_cap) - frequency_cap;
+      float variation = floor(min(0.99999994, rand(((random_seed * 31.0 + group) * 31.0 + event) * 31.0 + 2.0)) * 2.0 * frequency_cap) - frequency_cap;
       float length = min(1000.0 / flicker_frequency * (1.0 + variation / 100.0), total - start);
       if (length <= 0.0) { return rgb(0.0, 0.0, 0.0); }
       if (now < start + length) { return light_color * mix(current, next, clamp((now - start) / length, 0.0, 1.0)); }
@@ -989,12 +991,13 @@ effect VixenSpirograph {
       if (yy - ry > 0.5 || (yy - ry == 0.5 && ry % 2.0 != 0.0)) { ry = ry + 1.0; }
       if (rx == x && ry == y) {
         float level = clamp(intensity, 0.0, 100.0) / 100.0;
-        if (color_type == rainbow) { return hsv(floor(rand(random_seed, frame, point) * 1000.0) / 1000.0, 1.0, level); }
+        if (color_type == rainbow) { return hsv(floor(rand((random_seed * 31.0 + frame) * 31.0 + point) * 1000.0) / 1000.0, 1.0, level); }
         float selected = floor(sqrt((rx - cx) * (rx - cx) + (ry - cy) * (ry - cy)) / range_value * 100.0 / rounded_bin);
-        if (color_type == random) { selected = floor(rand(random_seed, frame, point) * len(colors)); }
+        if (color_type == random) { selected = floor(rand((random_seed * 31.0 + frame) * 31.0 + point) * len(colors)); }
         selected = clamp(selected, 0.0, len(colors) - 1.0);
-        for (int i in range(len(colors), 10000)) {
-          if (i + 0.0 == selected) { return colors[i][t] * level; }
+        if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+          int i = int(selected);
+          return colors[i][t] * level;
         }
       }
     }
@@ -1025,11 +1028,11 @@ effect VixenDissolve {
     float rank = ((group - max(0.0, starting_node - 1.0)) % groups + groups) % groups;
     if (random_dissolve) {
       rank = 0.0;
-      float key = rand(random_seed, group, 0.0);
+      float key = rand((random_seed * 31.0 + group) * 31.0);
       for (int candidate in range(pixel_count(), 10000)) {
         if (candidate % group_level == 0) {
           float other = floor(candidate / group_level);
-          float other_key = rand(random_seed, other, 0.0);
+          float other_key = rand((random_seed * 31.0 + other) * 31.0);
           if (other_key < key || (other_key == key && other < group)) { rank = rank + 1.0; }
         }
       }
@@ -1060,9 +1063,10 @@ effect VixenDissolve {
     if (end <= start || now < start || now >= end) { return rgb(0.0, 0.0, 0.0); }
     float local = (now - start) / (end - start);
     float selected = group % len(colors);
-    if (random_color) { selected = min(len(colors) - 1.0, floor(rand(random_seed, group, 1.0) * len(colors))); }
-    for (int i in range(len(colors), 10000)) {
-      if (i + 0.0 == selected) { return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0); }
+    if (random_color) { selected = min(len(colors) - 1.0, floor(rand((random_seed * 31.0 + group) * 31.0 + 1.0) * len(colors))); }
+    if (selected >= 0.0 && selected < len(colors) && selected == floor(selected)) {
+      int i = int(selected);
+      return colors[i][local] * (clamp(value_or(levels[i][local], 100.0), 0.0, 100.0) / 100.0);
     }
     return rgb(0.0, 0.0, 0.0);
   }

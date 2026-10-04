@@ -19,6 +19,10 @@ extern crate alloc;
 
 // This facade is the complete external API. Language values and executable
 // definitions belong to donder-language; the VM is an implementation detail.
+pub use archive::{
+    FORMAT_VERSION, HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence,
+    payload_length,
+};
 pub use clip::{ClipSampler, SequenceClip};
 pub use sequence::{
     EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
@@ -28,13 +32,10 @@ pub use sequence::{
     FixtureFrame, OutputFrame, PreparedOutput, PreparedSequence, SequenceFrame, SequencePlayback,
 };
 pub use signal::PreparedFixture;
-pub use wire::{
-    FORMAT_VERSION, HEADER_BYTES, LoadError, LoadLimits, decode_sequence, encode_sequence,
-    payload_length,
-};
 
 use donder_language::{automation, sampling, values};
 
+mod archive;
 mod clip;
 mod dsl;
 mod evaluation;
@@ -43,7 +44,6 @@ mod sections;
 mod sequence;
 mod signal;
 mod targets;
-mod wire;
 
 #[cfg(test)]
 extern crate self as donder_runtime;
