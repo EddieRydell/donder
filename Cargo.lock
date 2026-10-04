@@ -1491,8 +1491,11 @@ dependencies = [
 name = "donder-browser"
 version = "0.1.0"
 dependencies = [
+ "camino",
+ "donder-editor",
  "donder-elaboration",
  "donder-language",
+ "donder-project-io",
  "donder-runtime",
  "donder-sequence-api",
  "indexmap 2.14.2",
@@ -1500,6 +1503,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "uuid",
  "wasm-bindgen",
+ "yaml_serde",
 ]
 
 [[package]]
@@ -1518,6 +1522,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "camino",
+ "donder-editor",
  "donder-elaboration",
  "donder-language",
  "donder-output",
@@ -1548,6 +1553,20 @@ dependencies = [
  "wgpu",
  "winit",
  "yaml_serde",
+]
+
+[[package]]
+name = "donder-editor"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "donder-language",
+ "donder-project-io",
+ "donder-sequence-api",
+ "glam",
+ "indexmap 2.14.2",
+ "tempfile",
+ "uuid",
 ]
 
 [[package]]
@@ -1635,6 +1654,8 @@ dependencies = [
 name = "donder-sequence-api"
 version = "0.1.0"
 dependencies = [
+ "donder-language",
+ "donder-project-io",
  "serde",
  "specta",
  "specta-serde",

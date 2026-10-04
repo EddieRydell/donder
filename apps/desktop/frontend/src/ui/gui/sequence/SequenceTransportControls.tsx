@@ -1,18 +1,15 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { ChevronLeft, ChevronRight, GitBranch, Monitor, Music, Pause, Play, RadioTower, SkipBack, Square } from "lucide-react";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { commands } from "../../../api";
 
-import type { AppSnapshot, AudioTransportState, SequenceEditorDocument } from "../../../types";
+import type { AppSnapshot, AudioTransportState, SequenceEditorDocument } from "../../../editor/types";
 
-import { runGuiEditCommand, runSnapshotCommand, useAppStore } from "../../../store";
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
-import { SequenceExportDialog } from "./SequenceExportDialog";
 
 export function SequenceTransportControls({
   document,
@@ -21,6 +18,9 @@ export function SequenceTransportControls({
   document: SequenceEditorDocument;
   previewOpen: boolean;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, store: useAppStore, runSnapshotCommand } = host;
+
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
   if (transport === null || liveOutput === null) return null;
@@ -28,14 +28,14 @@ export function SequenceTransportControls({
   const activePlayback = isActiveAudioPlayback(transport.state);
   const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
   const stepFrame = (direction: -1 | 1) => {
-    stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, direction);
+    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, direction);
   };
   return (
     <div
       className="sequence-toolbar"
       aria-label="Sequence transport"
       onKeyDownCapture={(event) => {
-        handleSequencePlaybackShortcut(event, document, transport, unsupported);
+        handleSequencePlaybackShortcut(host, event, document, transport, unsupported);
       }}
     >
       <button
@@ -84,6 +84,7 @@ export function SequenceTransportControls({
         type="button"
         className={liveActive ? "active" : ""}
         title={liveOutput.lastError ?? `Live output: ${liveOutput.state}`}
+        hidden={!host.capabilities.liveOutput}
         disabled={liveOutput.state === "stopping"}
         onClick={() => void runSnapshotCommand(() => commands.setLiveOutputActive(!liveActive))}
       >
@@ -93,6 +94,7 @@ export function SequenceTransportControls({
         type="button"
         className={previewOpen ? "active" : ""}
         title={previewOpen ? "Close preview" : "Open preview"}
+        hidden={!host.capabilities.previewWindow}
         onClick={() => void runSnapshotCommand(() => commands.setPreviewWindowOpen(!previewOpen))}
       >
         <Monitor size={THEME_METRICS.iconSizeCompact} />
@@ -103,7 +105,8 @@ export function SequenceTransportControls({
       <button
         type="button"
         title="Choose audio"
-        onClick={() => void chooseAudioWithResizePrompt(document)}
+        hidden={!host.capabilities.audioFile}
+        onClick={() => void chooseAudioWithResizePrompt(host, document)}
       >
         <Music size={THEME_METRICS.iconSizeCompact} />
       </button>
@@ -111,15 +114,17 @@ export function SequenceTransportControls({
         {formatSeconds(transport.positionSeconds)} / {formatSeconds(transport.durationSeconds || document.durationSeconds)} | Home {formatSeconds(transport.homeSeconds)}
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
       </span>
-      <SequenceExportDialog />
+      {host.exportControls}
     </div>
   );
 }
 
-async function chooseAudioWithResizePrompt(document: SequenceEditorDocument) {
+async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument) {
+  const { commands, runGuiEditCommand } = host;
+
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
   if (result.document.type !== "sequence" || result.document.document.audio === null) return;
-  const durationSeconds = await loadAudioDurationSeconds(result.document.document.audio.resolvedPath);
+  const durationSeconds = await loadAudioDurationSeconds(host, result.document.document.audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
   const resize = window.confirm(
     `Resize sequence to ${formatSeconds(durationSeconds)} to match ${result.document.document.audio.fileName}?`
@@ -133,7 +138,9 @@ async function chooseAudioWithResizePrompt(document: SequenceEditorDocument) {
   );
 }
 
-function loadAudioDurationSeconds(path: string): Promise<number | null> {
+function loadAudioDurationSeconds(host: SequenceEditorHost, path: string): Promise<number | null> {
+  const { resolveAssetUrl: convertFileSrc } = host;
+
   return new Promise((resolve) => {
     const audio = new Audio();
     audio.preload = "metadata";
@@ -199,12 +206,14 @@ function isEditableShortcutTarget(target: EventTarget | null) {
   return target.closest("input, textarea, select") !== null;
 }
 
-export function handleSequencePlaybackShortcut(
+export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
   event: KeyboardEvent<HTMLElement>,
   document: SequenceEditorDocument,
   transport: AppSnapshot["audioTransport"],
   unsupported: boolean
 ) {
+  const { commands, runSnapshotCommand } = host;
+
   if (unsupported || isEditableShortcutTarget(event.target)) return;
   if (event.key === " ") {
     event.preventDefault();
@@ -222,11 +231,11 @@ export function handleSequencePlaybackShortcut(
   } else if (event.key === "ArrowLeft") {
     event.preventDefault();
     event.stopPropagation();
-    stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, -1);
+    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, -1);
   } else if (event.key === "ArrowRight") {
     event.preventDefault();
     event.stopPropagation();
-    stepSequenceFrame(document, transport.positionSeconds, transport.durationSeconds, 1);
+    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, 1);
   }
 }
 
@@ -249,7 +258,9 @@ function transportExtrapolationSeconds(anchoredAt: number) {
   return anchoredAt > 0 ? (performance.now() - anchoredAt) / 1000 : 0;
 }
 
-function stepSequenceFrame(document: SequenceEditorDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
+function stepSequenceFrame(host: SequenceEditorHost, document: SequenceEditorDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
+  const { commands, runSnapshotCommand } = host;
+
   const frameSeconds = 1 / Math.max(1, document.frameRate);
   const nextPositionSeconds = clamp(positionSeconds + direction * frameSeconds, 0, transportDurationSeconds || document.durationSeconds);
   void runSnapshotCommand(() => commands.audioSeek(nextPositionSeconds));

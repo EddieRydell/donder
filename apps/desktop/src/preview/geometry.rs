@@ -1,7 +1,5 @@
-use crate::dto::Point3Meters;
 use donder_language::geometry::PreparedFixtureDefinitions;
 use donder_language::model::DonderProject;
-use donder_language::values::Point3;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PreviewGeometry {
@@ -33,13 +31,5 @@ impl PreviewGeometry {
             instances,
             fixtures,
         })
-    }
-}
-
-pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
-    Point3Meters {
-        x_meters: point.x.as_meters_f32(),
-        y_meters: point.y.as_meters_f32(),
-        z_meters: point.z.as_meters_f32(),
     }
 }

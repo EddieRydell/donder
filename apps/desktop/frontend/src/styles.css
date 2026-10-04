@@ -1,4 +1,7 @@
 :root {
+  --donder-browser-editor-height: 34rem;
+  --donder-browser-editor-min-height: 22rem;
+  --donder-browser-inspector-width: 20rem;
   color-scheme: dark;
   --donder-bg: #17181b;
   --donder-bg-app: #16171a;
@@ -4592,3 +4595,31 @@ button.status-chip:hover {
 
 .spatial-canvas-shell { display: flex; flex-direction: column; }
 .spatial-canvas-shell > .gui-canvas { flex: 1; height: 0; }
+.shared-sequence-workbench {
+  display: flex;
+  flex-direction: column;
+  height: var(--donder-browser-editor-height);
+  min-height: var(--donder-browser-editor-min-height);
+  background: var(--donder-bg-panel);
+  color: var(--donder-text);
+  border: 1px solid var(--donder-border);
+  font: var(--donder-canvas-font);
+}
+.shared-sequence-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--donder-browser-inspector-width);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.shared-sequence-workbench > .sequence-toolbar {
+  flex: none;
+  width: auto;
+  align-self: stretch;
+}
+.shared-sequence-inspector {
+  overflow: hidden;
+  min-height: 0;
+  border-left: 1px solid var(--donder-border);
+}
+.shared-sequence-workbench [hidden] { display: none; }

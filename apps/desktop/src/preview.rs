@@ -15,7 +15,7 @@ mod geometry;
 mod host;
 mod protocol;
 
-pub(crate) use geometry::{PreviewGeometry, point3_meters};
+pub(crate) use geometry::PreviewGeometry;
 use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, write_message};
 
 type PreviewWriter = Arc<Mutex<BufWriter<ChildStdin>>>;

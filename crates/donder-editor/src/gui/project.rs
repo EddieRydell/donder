@@ -33,7 +33,7 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
     }
 }
 
-pub(crate) fn create_sequence(
+pub fn create_sequence(
     session: &mut ProjectSession,
     owner: &super::ResolvedGuiObject,
     request: crate::dto::NewSequenceRequest,

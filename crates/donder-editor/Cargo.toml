@@ -1,0 +1,18 @@
+[package]
+name = "donder-editor"
+edition.workspace = true
+version.workspace = true
+description = "Shared typed project editing and editor projection for Donder hosts"
+license = "MIT"
+
+[dependencies]
+camino.workspace = true
+donder-language.workspace = true
+donder-project-io.workspace = true
+donder-sequence-api.workspace = true
+indexmap.workspace = true
+glam.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

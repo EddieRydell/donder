@@ -1,6 +1,5 @@
-import { commands } from "../../../api";
-import { runGuiEditCommand } from "../../../store";
-import type { SequenceEditorDocument, SequenceGraphNode } from "../../../types";
+import { useSequenceEditorHost } from "../../../editor/host";
+import type { SequenceEditorDocument, SequenceGraphNode } from "../../../editor/types";
 import type { AutomationClipChooser } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
 import { LayerProperties, useSequenceEditable } from "./sequenceLayers";
@@ -11,6 +10,9 @@ export function GraphNodeControls({ node, document, automationClipChooser, setAu
   automationClipChooser: AutomationClipChooser;
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+
   const editable = useSequenceEditable();
   if (node.kind.type === "layer") {
     const layerId = node.kind.layerId;

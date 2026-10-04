@@ -1,5 +1,11 @@
 {
+  "name": "@donder/editor",
+  "version": "0.1.0",
   "private": true,
+  "exports": {
+    ".": "./src/editor/index.ts",
+    "./styles.css": "./src/editor/editor.css"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",

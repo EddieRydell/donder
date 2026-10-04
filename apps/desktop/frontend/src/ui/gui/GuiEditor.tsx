@@ -1,3 +1,4 @@
+import { desktopSequenceEditorHost } from "../../editor/desktopHost";
 import { guiObjectKey, objectViewKey } from "../../workspace/guiIdentity";
 import { CompositionEditor } from "./composition/CompositionEditor";
 import { ReadOnlySourceNotice } from "../ReadOnlySourceNotice";
@@ -164,7 +165,7 @@ function GuiEditorInner({
           const audioTransport = useAppStore.getState().snapshot?.audioTransport;
           if (audioTransport === undefined) return;
           handleSequencePlaybackShortcut(
-            event,
+            desktopSequenceEditorHost, event,
             gui.document,
             audioTransport,
             isSequenceTransportUnsupported(gui.document, audioTransport)
@@ -174,7 +175,7 @@ function GuiEditorInner({
     >
       {gui.type === "sequence" && (
         <SequenceEditor
-         
+
           document={gui.document}
           selected={selected}
           setSelected={setSelected}

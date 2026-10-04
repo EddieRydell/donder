@@ -51,7 +51,7 @@ pub fn apply_edit(
 }
 
 #[derive(Clone)]
-pub(crate) enum SequenceClipboard {
+pub enum SequenceClipboard {
     Clips {
         effects: Vec<ClipboardEffect>,
         automation: Vec<ClipboardAutomation>,
@@ -62,31 +62,31 @@ pub(crate) enum SequenceClipboard {
 }
 
 #[derive(Clone)]
-pub(crate) struct ClipboardEffect {
-    pub(crate) effect: EffectInst,
-    pub(crate) start_seconds: f32,
-    pub(crate) lane_index: usize,
+pub struct ClipboardEffect {
+    pub effect: EffectInst,
+    pub start_seconds: f32,
+    pub lane_index: usize,
 }
 
 #[derive(Clone)]
-pub(crate) struct ClipboardAutomation {
-    pub(crate) clip: donder_language::sequence::AutomationClip,
-    pub(crate) lane_index: usize,
+pub struct ClipboardAutomation {
+    pub clip: donder_language::sequence::AutomationClip,
+    pub lane_index: usize,
 }
 
 #[derive(Clone)]
-pub(crate) struct ClipboardMark {
-    pub(crate) collection_key: String,
-    pub(crate) time_seconds: f32,
+pub struct ClipboardMark {
+    pub collection_key: String,
+    pub time_seconds: f32,
 }
 
-pub(crate) struct SequenceSelectionMutation {
+pub struct SequenceSelectionMutation {
     pub selection: Option<SequenceSelection>,
     pub copied_count: u32,
     pub skipped_count: u32,
 }
 
-pub(crate) fn apply_sequence_selection_edit(
+pub fn apply_sequence_selection_edit(
     session: &mut ProjectSession,
     request: &GuiDocumentRequest,
     edit: SequenceSelectionEdit,

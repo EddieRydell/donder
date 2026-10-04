@@ -1,3 +1,4 @@
+import { useSequenceEditorHost } from "../../../editor/host";
 import { useState } from "react";
 
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -13,9 +14,7 @@ import type {
   SequenceEffectScope,
   SequenceEffectDefinition,
   SequenceEffectCommonEdit
-} from "../../../types";
-import { commands } from "../../../api";
-import { runGuiEditCommand } from "../../../store";
+} from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
@@ -23,7 +22,7 @@ import { TypedParamInput } from "./params/TypedParamInput";
 import { defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
-import { defaultLayerColor, LayerProperties, nextLayerName, reportSequenceEditError, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
+import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
 
 type SequenceInspectorTab = "effect" | "layers" | "marks";
 
@@ -150,6 +149,9 @@ function SelectedEffectsInspector({
   effectIds: number[];
   onDelete: () => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+
   const effects = effectIds
     .map((id) => document.effects.find((effect) => effect.id === id))
     .filter((effect): effect is SequenceEffect => effect !== undefined);
@@ -376,6 +378,9 @@ function EffectInspectorPanel({
   automationClipChooser: AutomationClipChooser;
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+
   if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
     if (sequenceSelection.type !== "clips") {
       return (
@@ -441,7 +446,7 @@ function EffectInspectorPanel({
               <button
                 type="button"
                 disabled={!supportsAutomation(document, binding.target)}
-                onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request, 
+                onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request,
                   automationClip.id,
                   index,
                   binding.target,
@@ -453,7 +458,7 @@ function EffectInspectorPanel({
               <button
                 type="button"
                 className="danger"
-                onClick={() => void runGuiEditCommand((request) => commands.discardDetachedAutomation(request, 
+                onClick={() => void runGuiEditCommand((request) => commands.discardDetachedAutomation(request,
                   automationClip.id,
                   index
                 ))}
@@ -649,13 +654,13 @@ function EffectInspectorPanel({
   );
 }
 
-function automationTargetLabel(target: import("../../../types").SequenceAutomationTarget): string {
+function automationTargetLabel(target: import("../../../editor/types").SequenceAutomationTarget): string {
   return target.type === "effectParam"
     ? `Effect ${target.effectId} · ${target.param}`
     : `Node ${target.nodeId} · ${target.param}`;
 }
 
-function detachmentReasonLabel(reason: import("../../../types").SequenceAutomationDetachmentReason): string {
+function detachmentReasonLabel(reason: import("../../../editor/types").SequenceAutomationDetachmentReason): string {
   switch (reason) {
     case "targetDeleted": return "target deleted";
     case "definitionChanged": return "definition changed";
@@ -663,6 +668,10 @@ function detachmentReasonLabel(reason: import("../../../types").SequenceAutomati
 }
 
 function LayerInspectorPanel({ document }: { document: SequenceEditorDocument }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+  const reportSequenceEditError = useSequenceEditErrorReporter();
+
   const editable = useSequenceEditable();
   const { requestDelete, dialog } = useGraphDeletion(document);
   return <>
@@ -702,6 +711,9 @@ function MarkInspectorPanel({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+
   const [editingCollectionKey, setEditingCollectionKey] = useState<string | null>(null);
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeCollection = document.markCollections.find((collection) => collection.key === activeMarkCollectionKey) ?? document.markCollections[0] ?? null;

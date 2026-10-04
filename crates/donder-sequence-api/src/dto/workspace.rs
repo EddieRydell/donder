@@ -188,7 +188,7 @@ impl From<&SourceObjectKind> for ObjectKind {
 }
 
 impl ObjectKind {
-    pub(crate) fn document_view(&self) -> Option<DocumentViewId> {
+    pub fn document_view(&self) -> Option<DocumentViewId> {
         match self {
             Self::Project => Some(DocumentViewId::Project),
             Self::Setup => Some(DocumentViewId::Setup),
@@ -231,7 +231,7 @@ pub enum WorkspaceEntryRole {
     File,
 }
 
-pub(crate) fn workspace_role_for_source_object(kind: &SourceObjectKind) -> WorkspaceEntryRole {
+pub fn workspace_role_for_source_object(kind: &SourceObjectKind) -> WorkspaceEntryRole {
     match kind {
         SourceObjectKind::Project => WorkspaceEntryRole::Project,
         SourceObjectKind::Setup => WorkspaceEntryRole::Setup,

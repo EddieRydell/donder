@@ -1,3 +1,4 @@
+import { useSequenceEditorHost } from "../../../editor/host";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Layers, SlidersHorizontal, Monitor } from "lucide-react";
 import {
@@ -5,17 +6,15 @@ import {
   useEdgesState, useNodesState, useUpdateNodeInternals, type Edge, type Node, type NodeProps, type ReactFlowInstance
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { commands } from "../../../api";
-import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphNode, SequenceGraphOperator } from "../../../types";
+import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition, graphOperatorKey } from "./graphOperator";
 import { useGraphViewState } from "./graphViewState";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
 import type { AutomationClipChooser } from "../shared";
-import { defaultLayerColor, deletableGraphNodes, nextLayerName, reportSequenceEditError, useSequenceEditable } from "./sequenceLayers";
+import { defaultLayerColor, deletableGraphNodes, nextLayerName, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
 
 export type SelectedGraphItem = { type: "node"; id: string } | { type: "edge"; id: string } | null;
 type GraphNodeData = {
@@ -43,6 +42,10 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   automationClipChooser: AutomationClipChooser;
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, store: useAppStore, runGuiEditCommand } = host;
+  const reportSequenceEditError = useSequenceEditErrorReporter();
+
   const editable = useSequenceEditable();
   const request = useAppStore((state) => state.guiRequest);
   const graph = document.compositionGraph;

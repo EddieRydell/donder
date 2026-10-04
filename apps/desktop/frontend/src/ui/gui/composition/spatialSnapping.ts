@@ -1,4 +1,4 @@
-import type { Point3Meters, SpatialGuide, SpatialSnapSettings, SpatialUnit } from "../../../types";
+import type { Point3Meters, SpatialGuide, SpatialSnapSettings, SpatialUnit } from "../../../editor/types";
 
 export type Modifiers = { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean };
 export const spatialUnits: Record<SpatialUnit, { label: string; meters: number }> = {

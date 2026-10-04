@@ -1,21 +1,21 @@
+import { markIndexAfterMove } from "./sequenceSelection";
+import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 
 import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
 
-import { GUI_HISTORY_CHANGED_EVENT } from "../../../commandRegistry";
+import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
-import { commands } from "../../../api";
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../types";
+import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition } from "../../../editor/types";
 
-import { runGuiEditCommand, runSnapshotCommand, useAppStore } from "../../../store";
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 
-import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, markIndexAfterMove, nextCollectionKey, useMarkDisplayMode } from "./marks";
+import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, nextCollectionKey, useMarkDisplayMode } from "./marks";
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { targetAtLane, targetsEqual } from "./sequenceTargets";
@@ -192,6 +192,9 @@ export function SequenceCanvas({
   visibleMarkCollectionKeys: Set<string>;
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, store: useAppStore, runGuiEditCommand, runSnapshotCommand } = host;
+
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<SequenceDragState>(null);
   const sequenceSelectionRef = useRef<SequenceSelection>(sequenceSelection);
@@ -429,8 +432,8 @@ export function SequenceCanvas({
       activeMarkCollectionKey,
       visibleMarkCollectionKeys: [...visibleMarkCollectionKeys]
     };
-    scheduleSequenceViewportStateSave(document.sourceRef, state);
-  }, [activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
+    scheduleSequenceViewportStateSave(host, document.sourceRef, state);
+  }, [host, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
 
   const visibleClips = useMemo(
     () => buildSequenceClipLayout(
@@ -1584,6 +1587,9 @@ function SequenceTransportOverlay({
   audioStripTop: number;
   canvasSize: { width: number; height: number };
 }) {
+  const host = useSequenceEditorHost();
+  const { store: useAppStore } = host;
+
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   if (transport === null) return null;
   return (
@@ -1671,7 +1677,9 @@ function detachedAutomationTargetLabel(target: SequenceAutomationTarget) {
     : `Operator ${target.nodeId}: ${target.param}`;
 }
 
-function scheduleSequenceViewportStateSave(reference: GuiObjectRef, state: PersistedSequenceViewportState) {
+function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: GuiObjectRef, state: PersistedSequenceViewportState) {
+  const { commands, store: useAppStore } = host;
+
   const { path, objectKey, ownedPath } = reference;
   const store = useAppStore.getState();
   if (store.restoreState !== null) {

@@ -1,9 +1,9 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { useSequenceEditorHost } from "../../../editor/host";
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import SpectrogramPlugin from "wavesurfer.js/plugins/spectrogram";
 
-import type { AppSettings, SequenceAudio } from "../../../types";
+import type { AppSettings, SequenceAudio } from "../../../editor/types";
 import { opaqueRgbBytes } from "../../../color";
 import { clamp } from "../shared";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
@@ -40,6 +40,9 @@ export function SequenceWaveform({
   pxPerSecond,
   scrollXSeconds
 }: SequenceWaveformProps) {
+  const host = useSequenceEditorHost();
+  const { resolveAssetUrl: convertFileSrc } = host;
+
   const container = useRef<HTMLDivElement | null>(null);
   const activeInstance = useRef<WaveSurferInstance | null>(null);
   const previousView = useRef<{ wavesurfer: WaveSurfer; height: number; pxPerSecond: number; scrollXSeconds: number } | null>(null);
@@ -87,7 +90,7 @@ export function SequenceWaveform({
       if (previousView.current?.wavesurfer === wavesurfer) previousView.current = null;
       wavesurfer.destroy();
     };
-  }, [audio?.exists, audio?.resolvedPath]);
+  }, [convertFileSrc, audio?.exists, audio?.resolvedPath]);
 
   useEffect(() => {
     if (instance === null || instance !== activeInstance.current || instance.path !== audio?.resolvedPath || !spectrogramEnabled) return;

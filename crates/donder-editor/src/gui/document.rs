@@ -97,21 +97,21 @@ pub fn affected_paths(
     Ok(BTreeSet::from([resolved.identity.document().to_string()]))
 }
 
-pub(crate) struct ResolvedGuiObject {
-    pub(crate) owned_path: Vec<crate::dto::GuiOwnedStep>,
-    pub(crate) identity: SourceIdentity,
-    pub(crate) kind: SourceObjectKind,
+pub struct ResolvedGuiObject {
+    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub identity: SourceIdentity,
+    pub kind: SourceObjectKind,
 }
 
 impl ResolvedGuiObject {
-    pub(crate) fn object_identity(&self) -> donder_language::identity::ObjectIdentity {
+    pub fn object_identity(&self) -> donder_language::identity::ObjectIdentity {
         self.owned_path.iter().fold(
             self.identity.clone().into(),
             |address: donder_language::identity::ObjectIdentity, step| address.owned(step.into()),
         )
     }
 
-    pub(crate) fn source_ref(&self) -> GuiObjectRef {
+    pub fn source_ref(&self) -> GuiObjectRef {
         GuiObjectRef {
             owned_path: self.owned_path.clone(),
             module_id: self.identity.module_id().to_string(),
@@ -123,7 +123,7 @@ impl ResolvedGuiObject {
     }
 }
 
-pub(crate) fn ensure_owned_gui_document(
+pub fn ensure_owned_gui_document(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
 ) -> Result<(), GuiMutationError> {
@@ -139,7 +139,7 @@ pub(crate) fn ensure_owned_gui_document(
     }
 }
 
-pub(crate) fn resolve_request(
+pub fn resolve_request(
     session: &ProjectSession,
     request: &GuiDocumentRequest,
 ) -> Result<ResolvedGuiObject, String> {
@@ -186,7 +186,7 @@ pub(crate) fn resolve_request(
     Ok(resolved)
 }
 
-pub(crate) fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {
+pub fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {
     ProjectDiagnostic {
         path: path.to_string(),
         code: code.to_string(),

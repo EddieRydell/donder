@@ -1,54 +1,39 @@
 # Donder browser API
 
-`donder-browser` is the WebAssembly boundary for a client-side Donder demo. It
-constructs an in-memory typed project, compiles effect and operator DSL source,
-prepares sequence data with `donder-elaboration`, and evaluates frames with
-`donder-runtime`.
+`donder-browser` owns an in-memory `ProjectSession`, prepares sequences with
+`donder-elaboration`, and evaluates frames with `donder-runtime`. It uses
+`donder-editor` for the same typed projections and mutations as the desktop.
+No project files or runtime server are required.
 
-Sequence edit commands are defined in `donder-sequence-api`. The desktop's
-Tauri bindings and the standalone `bindings.ts` in that crate are both
-generated from those Rust types with `pnpm generate:bindings`; browser clients
-should import their `SequenceGuiEdit` type from the standalone file.
+The shared Rust contract in `donder-sequence-api` generates standalone
+TypeScript types and desktop bindings through `pnpm generate:bindings`.
+The desktop frontend exports `@donder/editor`: the actual timeline, inspector,
+automation controls, graph editor, and playback controls. A
+`SequenceEditorHost` supplies commands, state, asset URLs, and host capabilities.
+The desktop adapter uses Tauri; the website adapter uses this WASM session.
 
-The current API supports one demo text fixture and an effect timeline. The
-website supplies one normalized `[x, y]` position per displayed character; the
-position order is the pixel order returned by `render`. Updating the text's
-character count or measured positions updates fixture geometry and prepares a
-new playback revision.
+## Session API
 
-```ts
-import init, {
-  BrowserSession,
-  compileEffectSource,
-  compileOperatorSource,
-} from "./pkg/donder_browser.js";
+- `editorState()` returns the projected sequence, revision, settings, and undo state.
+- `applyEdit(edit)` accepts the shared `SequenceGuiEdit` contract: effects,
+  parameters, automation clips and bindings, layers, operators, graph edges,
+  and marks. `applySelectionEdit(edit)` handles mixed selections and clipboard.
+- `undo()` and `redo()` restore immutable project snapshots.
+- `sourceDocuments()`, `addSource(kind, source)`, and `setSource(path, source)`
+  expose effect/operator DSL authoring. Invalid source returns diagnostics
+  without replacing the last accepted project or playback.
+- `setCharacterPositions(positions)` replaces the demo fixture geometry using
+  normalized page coordinates. Position order matches `render(seconds).pixels`.
+  Geometry changes do not create history entries; undo preserves current page geometry.
+- `renderClipRaster(effectId, columns, rows)` uses the prepared runtime sampler
+  and the same column timing as desktop clip rasters.
 
-await init();
+Browser audio-file imports and desktop device output are unavailable. View state
+is maintained by the browser host in memory. The current demo uses one fixture
+containing measured page characters; per-line fixtures and nested page groups
+remain a separate layout feature.
 
-const session = new BrowserSession(
-  characterPositions.length,
-  30,
-  12,
-  `effect Glow { color sample() {
-    return rgb(progress(), 0.1, 1.0 - progress());
-  } }`,
-);
-
-session.setCharacterPositions(characterPositions);
-const frame = session.render(1.25);
-console.log(frame.pixels, frame.revision);
-
-const compileResult = compileEffectSource(effectSource);
-if (compileResult.diagnostics.length > 0) {
-  console.error(compileResult.diagnostics);
-}
-
-const addedClip = session.addEffectSource(effectSource, 2, 4);
-session.setEffectWindow(addedClip.id, 3, 5);
-session.deleteEffect(addedClip.id);
-```
-
-Compile the WASM module with:
+## Build
 
 ```sh
 cargo build -p donder-browser --target wasm32-unknown-unknown --release
@@ -56,7 +41,6 @@ wasm-bindgen target/wasm32-unknown-unknown/release/donder_browser.wasm \
   --target web --out-dir target/donder-browser/pkg
 ```
 
-The generated package belongs in the website build pipeline, not in the
-repository's committed source tree. Automation clips, editable layers and
-composition graphs, effect parameter controls, and full multi-fixture stage
-authoring are not yet exposed by this initial bridge.
+Generated WASM and JavaScript belong to the website build pipeline and are not
+committed. In the website, run `pnpm donder:install` after submodule checkout,
+then `pnpm donder:wasm` or `pnpm build`.

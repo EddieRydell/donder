@@ -1,10 +1,10 @@
+import { useSequenceEditorHost } from "../../../editor/host";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { OverlayPortal } from "../../OverlayPortal";
-import { useAppStore } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
-import type { SequenceEditorDocument } from "../../../types";
+import type { SequenceEditorDocument } from "../../../editor/types";
 import type { AutomationClipChooser } from "../shared";
 import { GraphCanvas, type SelectedGraphItem } from "./GraphCanvas";
 import { useGraphDeletion } from "./sequenceLayers";
@@ -18,6 +18,9 @@ export function GraphEditorModal({
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
   onClose: () => void;
 }) {
+  const host = useSequenceEditorHost();
+  const { store: useAppStore } = host;
+
   const content = useRef<HTMLDivElement>(null);
   const [portal, setPortal] = useState<HTMLDivElement | null>(null);
   const contentRef = useCallback((node: HTMLDivElement | null) => { content.current = node; setPortal(node); }, []);

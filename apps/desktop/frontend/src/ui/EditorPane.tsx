@@ -1,3 +1,6 @@
+import { SequenceEditorHostProvider } from "../editor/host";
+import { desktopSequenceEditorHost } from "../editor/desktopHost";
+export function EditorPane(props: Parameters<typeof EditorPaneContent>[0]) { return <SequenceEditorHostProvider host={desktopSequenceEditorHost}><EditorPaneContent {...props} /></SequenceEditorHostProvider>; }
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { cpp } from "@codemirror/lang-cpp";
 import { yaml } from "@codemirror/lang-yaml";
@@ -33,7 +36,7 @@ const sequenceAudioSync = new SequenceAudioSync(async (request) => {
   return request === null || snapshot.projectRevision === request.projectRevision;
 });
 
-export function EditorPane({
+function EditorPaneContent({
   snapshot,
   workspaceLayout,
   onWorkspaceLayoutChange

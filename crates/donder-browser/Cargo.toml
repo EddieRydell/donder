@@ -14,6 +14,10 @@ donder-elaboration = { workspace = true, features = ["browser"] }
 donder-language = { workspace = true, features = ["browser"] }
 donder-runtime.workspace = true
 donder-sequence-api.workspace = true
+donder-editor.workspace = true
+donder-project-io.workspace = true
+camino.workspace = true
+yaml_serde.workspace = true
 indexmap.workspace = true
 serde.workspace = true
 serde-wasm-bindgen.workspace = true

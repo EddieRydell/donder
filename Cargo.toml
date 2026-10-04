@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-output", "crates/donder-project-io", "crates/donder-cli", "crates/donder-preview"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-cli", "crates/donder-preview"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -20,6 +20,7 @@ dur = { version = "0.5.3", default-features = false }
 donder-elaboration = { path = "crates/donder-elaboration" }
 donder-browser = { path = "crates/donder-browser" }
 donder-sequence-api = { path = "crates/donder-sequence-api" }
+donder-editor = { path = "crates/donder-editor" }
 donder-language = { path = "crates/donder-language" }
 donder-output = { path = "crates/donder-output" }
 donder-project-io = { path = "crates/donder-project-io" }

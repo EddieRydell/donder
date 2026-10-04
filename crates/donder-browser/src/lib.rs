@@ -35,62 +35,47 @@ use donder_language::setup::{Setup, SetupId};
 use donder_language::values::{
     Color, Distance, DonderDuration, DonderTime, Point3, sample_time_from_seconds_f32,
 };
+use donder_project_io::ProjectSession;
 use donder_runtime::SequencePlayback;
-use donder_sequence_api::SequenceGuiEdit;
+use std::sync::Arc;
+mod editing;
+mod rasters;
+mod sources;
 use indexmap::IndexMap;
 use serde::Serialize;
 use std::time::Duration;
 use wasm_bindgen::prelude::*;
 
-#[derive(Serialize)]
-struct DiagnosticView {
-    start: usize,
-    end: usize,
-    message: String,
-}
-
-#[derive(Serialize)]
-struct CompileView {
-    definitions: Vec<String>,
-    diagnostics: Vec<DiagnosticView>,
-}
-
-#[derive(Serialize)]
-struct PixelView {
-    red: u8,
-    green: u8,
-    blue: u8,
-}
-
-#[derive(Serialize)]
-struct FrameView {
-    revision: u32,
-    seconds: f32,
-    pixels: Vec<PixelView>,
-}
-
-#[derive(Serialize)]
-struct EffectCreatedView {
-    id: u32,
-    name: String,
-    revision: u32,
-}
+use donder_sequence_api::{
+    BrowserCompileDiagnostic as DiagnosticView, BrowserCompileResult as CompileView,
+    BrowserFrame as FrameView, BrowserPixel as PixelView,
+};
 
 fn js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
-    serde_wasm_bindgen::to_value(value).map_err(|error| {
-        JsValue::from_str(&format!(
-            "Could not serialize browser API response: {error}"
-        ))
-    })
+    value
+        .serialize(&serde_wasm_bindgen::Serializer::json_compatible())
+        .map_err(|error| {
+            JsValue::from_str(&format!(
+                "Could not serialize browser API response: {error}"
+            ))
+        })
 }
 
-fn diagnostics_view(diagnostics: Vec<donder_language::dsl::Diagnostic>) -> Vec<DiagnosticView> {
+fn diagnostics_view(
+    diagnostics: Vec<donder_language::dsl::Diagnostic>,
+) -> Result<Vec<DiagnosticView>, JsValue> {
     diagnostics
         .into_iter()
-        .map(|diagnostic| DiagnosticView {
-            start: diagnostic.span.start,
-            end: diagnostic.span.end,
-            message: diagnostic.message,
+        .map(|diagnostic| {
+            Ok(DiagnosticView {
+                start: u32::try_from(diagnostic.span.start).map_err(|_| {
+                    JsValue::from_str("Diagnostic offset exceeds the browser limit.")
+                })?,
+                end: u32::try_from(diagnostic.span.end).map_err(|_| {
+                    JsValue::from_str("Diagnostic offset exceeds the browser limit.")
+                })?,
+                message: diagnostic.message,
+            })
         })
         .collect()
 }
@@ -108,7 +93,7 @@ pub fn compile_effect_source(source: &str) -> Result<JsValue, JsValue> {
         },
         Err(diagnostics) => CompileView {
             definitions: Vec::new(),
-            diagnostics: diagnostics_view(diagnostics),
+            diagnostics: diagnostics_view(diagnostics)?,
         },
     };
     js_value(&view)
@@ -127,7 +112,7 @@ pub fn compile_operator_source(source: &str) -> Result<JsValue, JsValue> {
         },
         Err(diagnostics) => CompileView {
             definitions: Vec::new(),
-            diagnostics: diagnostics_view(diagnostics),
+            diagnostics: diagnostics_view(diagnostics)?,
         },
     };
     js_value(&view)
@@ -139,13 +124,12 @@ pub fn compile_operator_source(source: &str) -> Result<JsValue, JsValue> {
 /// no project files or server-side runtime are involved.
 #[wasm_bindgen]
 pub struct BrowserSession {
-    project: DonderProject,
+    session: Arc<ProjectSession>,
+    past: Vec<Arc<ProjectSession>>,
+    future: Vec<Arc<ProjectSession>>,
+    clipboard: Option<donder_editor::SequenceClipboard>,
     sequence_id: SequenceId,
     fixture_definition_id: FixtureDefinitionId,
-    effect_definition_id: EffectDefinitionId,
-    target: FixtureTarget,
-    effect_id: EffectInstId,
-    next_effect_id: u32,
     duration_seconds: f32,
     pixel_count: u32,
     character_positions: Vec<[f32; 2]>,
@@ -165,7 +149,7 @@ impl BrowserSession {
         validate_session_values(pixel_count, frame_rate, duration_seconds)?;
         let effect = compile_one_effect(effect_source)?;
         let character_positions = default_character_positions(pixel_count);
-        let document = DocumentId::new(uuid::Uuid::nil(), "browser-demo.donder".into());
+        let document = DocumentId::new(uuid::Uuid::new_v4(), "browser-demo.donder".into());
         let project_source = SourceIdentity::from_document(document, "demo".into());
         let project_object = ObjectIdentity::from(project_source.clone());
         let setup_object = project_object.owned(OwnedObjectSlot::Setup);
@@ -174,10 +158,13 @@ impl BrowserSession {
         let patch_id = PatchId(setup_object.owned(OwnedObjectSlot::Patch));
         let fixture_definition_id = FixtureDefinitionId(SourceIdentity::from_document(
             project_source.document_id().clone(),
-            "page-text".into(),
+            "page_text".into(),
         ));
         let effect_definition_id = EffectDefinitionId(SourceIdentity::from_document(
-            project_source.document_id().clone(),
+            DocumentId::new(
+                project_source.module_id(),
+                format!("{}.effect.donder", effect.name().as_str()).into(),
+            ),
             effect.name().as_str().to_owned(),
         ));
         let effect_id = EffectInstId(1);
@@ -267,14 +254,20 @@ impl BrowserSession {
         let playback = prepare(&project, &sequence_id, PrepareOutputs::All)
             .ok_or_else(|| JsValue::from_str("The demo sequence could not be prepared."))?
             .into_playback();
-        Ok(Self {
+        let session = sources::initial_session(
             project,
+            &project_source,
+            &fixture_definition_id,
+            &effect_definition_id,
+            effect_source,
+        )?;
+        Ok(Self {
+            session: Arc::new(session),
+            past: Vec::new(),
+            future: Vec::new(),
+            clipboard: None,
             sequence_id,
             fixture_definition_id,
-            effect_definition_id,
-            target,
-            effect_id,
-            next_effect_id: 2,
             duration_seconds,
             pixel_count,
             character_positions,
@@ -306,353 +299,6 @@ impl BrowserSession {
         js_value(&view)
     }
 
-    /// Replace the source for the demo effect, compile it, and prepare atomically.
-    #[wasm_bindgen(js_name = setEffectSource)]
-    pub fn set_effect_source(&mut self, source: &str) -> Result<JsValue, JsValue> {
-        self.set_effect_source_for(self.effect_id.0, source)
-    }
-
-    /// Replace the source used by one timeline effect, compile it, and prepare atomically.
-    #[wasm_bindgen(js_name = setEffectSourceFor)]
-    pub fn set_effect_source_for(
-        &mut self,
-        effect_id: u32,
-        source: &str,
-    ) -> Result<JsValue, JsValue> {
-        let definition_id = self
-            .project
-            .sequence(&self.sequence_id)
-            .and_then(|sequence| {
-                sequence
-                    .effects
-                    .iter()
-                    .find(|effect| effect.id.0 == effect_id)
-                    .map(|effect| effect.definition.clone())
-            })
-            .ok_or_else(|| JsValue::from_str("The requested effect clip was not found."))?;
-        let EffectRef::Custom(definition_id) = definition_id;
-        let effect = match compile_effects(source) {
-            Ok(mut definitions) if definitions.len() == 1 => definitions.remove(0),
-            Ok(_) => {
-                return Err(JsValue::from_str(
-                    "Effect source must contain exactly one effect declaration.",
-                ));
-            }
-            Err(diagnostics) => {
-                return js_value(&CompileView {
-                    definitions: Vec::new(),
-                    diagnostics: diagnostics_view(diagnostics),
-                });
-            }
-        };
-        if effect.name().as_str() != definition_id.0.object() {
-            return Err(JsValue::from_str(
-                "The replacement effect must keep the original declaration name.",
-            ));
-        }
-        let mut candidate = self.project.clone();
-        candidate
-            .apply_edits([ProjectEdit::SetEffectDefinition {
-                id: definition_id.clone(),
-                value: EffectDefinition::custom(definition_id.clone(), effect),
-            }])
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        self.project = candidate;
-        self.playback = playback;
-        self.revision = revision;
-        js_value(&CompileView {
-            definitions: vec![definition_id.0.object().to_owned()],
-            diagnostics: Vec::new(),
-        })
-    }
-
-    /// Add a compiled DSL effect as a new timeline clip.
-    #[wasm_bindgen(js_name = addEffectSource)]
-    pub fn add_effect_source(
-        &mut self,
-        source: &str,
-        start_seconds: f32,
-        duration_seconds: f32,
-    ) -> Result<JsValue, JsValue> {
-        let start = DonderTime::try_from_seconds_f32(start_seconds).map_err(|_| {
-            JsValue::from_str("Effect start must be finite, non-negative, and supported.")
-        })?;
-        let duration = DonderDuration::try_from_seconds_f32(duration_seconds).map_err(|_| {
-            JsValue::from_str("Effect duration must be finite, non-negative, and supported.")
-        })?;
-        if duration.is_zero() {
-            return Err(JsValue::from_str(
-                "Effect duration must be greater than zero.",
-            ));
-        }
-        let effect = match compile_effects(source) {
-            Ok(mut definitions) if definitions.len() == 1 => definitions.remove(0),
-            Ok(_) => {
-                return Err(JsValue::from_str(
-                    "Effect source must contain exactly one effect declaration.",
-                ));
-            }
-            Err(diagnostics) => {
-                return js_value(&CompileView {
-                    definitions: Vec::new(),
-                    diagnostics: diagnostics_view(diagnostics),
-                });
-            }
-        };
-        let name = effect.name().as_str().to_owned();
-        let definition_id = EffectDefinitionId(SourceIdentity::from_document(
-            self.effect_definition_id.0.document_id().clone(),
-            name.clone(),
-        ));
-        if self
-            .project
-            .definitions()
-            .effects
-            .definitions
-            .contains_key(&definition_id)
-        {
-            return Err(JsValue::from_str(
-                "An effect with that source name already exists in this demo.",
-            ));
-        }
-        let effect_id = EffectInstId(self.next_effect_id);
-        let mut candidate = self.project.clone();
-        candidate
-            .apply_edits([ProjectEdit::SetEffectDefinition {
-                id: definition_id.clone(),
-                value: EffectDefinition::custom(definition_id.clone(), effect),
-            }])
-            .map_err(|error| JsValue::from_str(&error))?;
-        let mut sequence = candidate
-            .sequence(&self.sequence_id)
-            .cloned()
-            .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
-        sequence.effects.push(EffectInst {
-            id: effect_id.clone(),
-            layer_id: SequenceLayerId(0),
-            start,
-            duration,
-            target: self.target.clone(),
-            scope: EffectScope::WholeTarget,
-            definition: EffectRef::Custom(definition_id),
-            param_overrides: IndexMap::new(),
-        });
-        candidate
-            .replace_sequence(&self.sequence_id, sequence)
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        let next_effect_id = self
-            .next_effect_id
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The effect identity space is exhausted."))?;
-        self.project = candidate;
-        self.playback = playback;
-        self.revision = revision;
-        self.next_effect_id = next_effect_id;
-        js_value(&EffectCreatedView {
-            id: effect_id.0,
-            name,
-            revision,
-        })
-    }
-
-    /// Move or resize one timeline effect clip and rebuild prepared playback.
-    #[wasm_bindgen(js_name = setEffectWindow)]
-    pub fn set_effect_window(
-        &mut self,
-        effect_id: u32,
-        start_seconds: f32,
-        duration_seconds: f32,
-    ) -> Result<(), JsValue> {
-        let start = DonderTime::try_from_seconds_f32(start_seconds).map_err(|_| {
-            JsValue::from_str("Effect start must be finite, non-negative, and supported.")
-        })?;
-        let duration = DonderDuration::try_from_seconds_f32(duration_seconds).map_err(|_| {
-            JsValue::from_str("Effect duration must be finite, non-negative, and supported.")
-        })?;
-        if duration.is_zero() {
-            return Err(JsValue::from_str(
-                "Effect duration must be greater than zero.",
-            ));
-        }
-        let mut candidate = self.project.clone();
-        let mut sequence = candidate
-            .sequence(&self.sequence_id)
-            .cloned()
-            .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
-        let effect = sequence
-            .effects
-            .iter_mut()
-            .find(|effect| effect.id.0 == effect_id)
-            .ok_or_else(|| JsValue::from_str("The requested effect clip was not found."))?;
-        effect.start = start;
-        effect.duration = duration;
-        candidate
-            .replace_sequence(&self.sequence_id, sequence)
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        self.project = candidate;
-        self.playback = playback;
-        self.revision = revision;
-        Ok(())
-    }
-
-    /// Remove one effect clip from the timeline.
-    #[wasm_bindgen(js_name = deleteEffect)]
-    pub fn delete_effect(&mut self, effect_id: u32) -> Result<(), JsValue> {
-        let mut candidate = self.project.clone();
-        let mut sequence = candidate
-            .sequence(&self.sequence_id)
-            .cloned()
-            .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
-        let original_len = sequence.effects.len();
-        sequence.effects.retain(|effect| effect.id.0 != effect_id);
-        if sequence.effects.len() == original_len {
-            return Err(JsValue::from_str(
-                "The requested effect clip was not found.",
-            ));
-        }
-        candidate
-            .replace_sequence(&self.sequence_id, sequence)
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        self.project = candidate;
-        self.playback = playback;
-        self.revision = revision;
-        Ok(())
-    }
-
-    /// Apply a typed desktop sequence edit through the browser bridge.
-    /// The browser supports timeline edits that fit its one-fixture demo model;
-    /// the exhaustive match keeps newly added command variants visible here.
-    #[wasm_bindgen(js_name = applyEdit)]
-    pub fn apply_edit(&mut self, edit: JsValue) -> Result<(), JsValue> {
-        let edit: SequenceGuiEdit = serde_wasm_bindgen::from_value(edit).map_err(|error| {
-            JsValue::from_str(&format!("Invalid sequence edit command: {error}"))
-        })?;
-        match edit {
-            SequenceGuiEdit::MoveEffect {
-                id,
-                start_seconds,
-                target,
-            } => {
-                if target.is_some_and(|target| target.fixture != 1) {
-                    return Err(JsValue::from_str(
-                        "The browser demo has one fixture target (fixture 1).",
-                    ));
-                }
-                let duration_seconds = self
-                    .playback
-                    .sequence()
-                    .clip(id)
-                    .map(|clip| clip.duration().as_ticks() as f32 / 1_000_000.0)
-                    .ok_or_else(|| JsValue::from_str("The requested effect clip was not found."))?;
-                self.set_effect_window(id, start_seconds, duration_seconds)
-            }
-            SequenceGuiEdit::ResizeEffect {
-                id,
-                start_seconds,
-                duration_seconds,
-            } => self.set_effect_window(id, start_seconds, duration_seconds),
-            SequenceGuiEdit::DeleteEffect { id } => self.delete_effect(id),
-            SequenceGuiEdit::SetDuration { .. }
-            | SequenceGuiEdit::SetAudio { .. }
-            | SequenceGuiEdit::AddEffect { .. }
-            | SequenceGuiEdit::CreateLayer { .. }
-            | SequenceGuiEdit::CreateLayerAt { .. }
-            | SequenceGuiEdit::RenameLayer { .. }
-            | SequenceGuiEdit::SetLayerColor { .. }
-            | SequenceGuiEdit::SetLayerEnabled { .. }
-            | SequenceGuiEdit::SetEffectLayer { .. }
-            | SequenceGuiEdit::ChangeEffectDefinition { .. }
-            | SequenceGuiEdit::RetargetEffect { .. }
-            | SequenceGuiEdit::SetEffectScope { .. }
-            | SequenceGuiEdit::UpdateEffectParam { .. }
-            | SequenceGuiEdit::AddGraphOperatorNode { .. }
-            | SequenceGuiEdit::MoveGraphNodes { .. }
-            | SequenceGuiEdit::DeleteGraphItems { .. }
-            | SequenceGuiEdit::ConnectGraphNodes { .. }
-            | SequenceGuiEdit::ReconnectGraphEdge { .. }
-            | SequenceGuiEdit::UpdateGraphOperatorParam { .. }
-            | SequenceGuiEdit::AddAutomationClip { .. }
-            | SequenceGuiEdit::CreateAndBindAutomationClip { .. }
-            | SequenceGuiEdit::MoveAutomationClip { .. }
-            | SequenceGuiEdit::ResizeAutomationClip { .. }
-            | SequenceGuiEdit::UpdateAutomationCurve { .. }
-            | SequenceGuiEdit::UpdateAutomationParamMapping { .. }
-            | SequenceGuiEdit::DeleteAutomationClip { .. }
-            | SequenceGuiEdit::BindAutomationParam { .. }
-            | SequenceGuiEdit::UnbindAutomationParam { .. }
-            | SequenceGuiEdit::RebindDetachedAutomation { .. }
-            | SequenceGuiEdit::DiscardDetachedAutomation { .. }
-            | SequenceGuiEdit::CreateMarkCollection { .. }
-            | SequenceGuiEdit::RenameMarkCollection { .. }
-            | SequenceGuiEdit::DeleteMarkCollection { .. }
-            | SequenceGuiEdit::SetMarkCollectionColor { .. }
-            | SequenceGuiEdit::AddMark { .. }
-            | SequenceGuiEdit::MoveMark { .. }
-            | SequenceGuiEdit::ReassignMarkCollection { .. }
-            | SequenceGuiEdit::DeleteMark { .. } => Err(JsValue::from_str(
-                "This sequence edit is not supported by the browser demo session.",
-            )),
-        }
-    }
-
-    /// Change the number of text-character pixels and rebuild prepared geometry.
-    #[wasm_bindgen(js_name = setPixelCount)]
-    pub fn set_pixel_count(&mut self, pixel_count: u32) -> Result<(), JsValue> {
-        if pixel_count == 0 || pixel_count > 100_000 {
-            return Err(JsValue::from_str(
-                "Pixel count must be between 1 and 100000.",
-            ));
-        }
-        let mut candidate = self.project.clone();
-        candidate
-            .apply_edits([ProjectEdit::SetFixtureDefinition {
-                id: self.fixture_definition_id.clone(),
-                value: fixture_definition_at_positions(&default_character_positions(pixel_count)),
-            }])
-            .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
-            .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
-            .into_playback();
-        let revision = self
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        self.project = candidate;
-        self.playback = playback;
-        self.pixel_count = pixel_count;
-        self.character_positions = default_character_positions(pixel_count);
-        self.revision = revision;
-        Ok(())
-    }
-
     /// Set the stage-space position of every character pixel, in output order.
     /// Coordinates are normalized page-space values, typically derived from each
     /// character's measured rectangle relative to the animated page bounds.
@@ -681,21 +327,22 @@ impl BrowserSession {
         let pixel_count = u32::try_from(positions.len()).map_err(|_| {
             JsValue::from_str("Character position count exceeds the supported range.")
         })?;
-        let mut candidate = self.project.clone();
+        let mut candidate = (*self.session).clone();
         candidate
+            .project
             .apply_edits([ProjectEdit::SetFixtureDefinition {
                 id: self.fixture_definition_id.clone(),
                 value: fixture_definition_at_positions(&positions),
             }])
             .map_err(|error| JsValue::from_str(&error))?;
-        let playback = prepare(&candidate, &self.sequence_id, PrepareOutputs::All)
+        let playback = prepare(&candidate.project, &self.sequence_id, PrepareOutputs::All)
             .ok_or_else(|| JsValue::from_str("The edited sequence could not be prepared."))?
             .into_playback();
         let revision = self
             .revision
             .checked_add(1)
             .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))?;
-        self.project = candidate;
+        self.session = Arc::new(candidate);
         self.playback = playback;
         self.pixel_count = pixel_count;
         self.character_positions = positions;
@@ -726,11 +373,6 @@ impl BrowserSession {
     #[wasm_bindgen(js_name = durationSeconds)]
     pub fn duration_seconds(&self) -> f32 {
         self.duration_seconds
-    }
-
-    #[wasm_bindgen(js_name = effectId)]
-    pub fn effect_id(&self) -> u32 {
-        self.effect_id.0
     }
 }
 

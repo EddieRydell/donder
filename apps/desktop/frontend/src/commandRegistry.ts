@@ -5,7 +5,7 @@ import { navigateToText } from "./workspace/navigation";
 import { runSnapshotCommand, useAppStore } from "./store";
 import type { SidebarView } from "./types";
 
-export const GUI_HISTORY_CHANGED_EVENT = "donder:gui-history-changed";
+import { GUI_HISTORY_CHANGED_EVENT } from "./editor/host";
 
 export const OPEN_COMMAND_PALETTE_EVENT = "donder:open-command-palette";
 export const OPEN_QUICK_OPEN_EVENT = "donder:open-quick-open";
