@@ -660,6 +660,11 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Int, env);
                 Type::Int
             }
+            "int" => {
+                self.require_arg_count(name, args.len(), 1, span);
+                self.require_arg(args, 0, &Type::Float, env);
+                Type::Int
+            }
             "sin" | "cos" | "abs" | "floor" | "sqrt" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
@@ -725,15 +730,9 @@ impl Checker {
                 }
                 Type::Color
             }
-            "srand" => {
+            "rand" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
-                Type::Float
-            }
-            "rand" => {
-                for index in 0..args.len() {
-                    self.require_arg(args, index, &Type::Float, env);
-                }
                 Type::Float
             }
             "curve_first_crossing" | "curve_last_crossing" => {
@@ -838,7 +837,9 @@ impl Checker {
                 }
             }
             BinaryOp::Equal | BinaryOp::NotEqual => {
-                self.require_assignable(left, right, span);
+                if !(numeric(left) && numeric(right)) {
+                    self.require_assignable(left, right, span);
+                }
                 Type::Bool
             }
             BinaryOp::And | BinaryOp::Or => {
@@ -906,7 +907,7 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         "mark_at" if index == 1 => Some(Type::Int),
         "mark_last" | "mark_last_index" if index == 1 => Some(Type::Float),
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
-        "rgb" | "hsv" | "rand" | "srand" | "sin" | "cos" | "abs" | "floor" | "sqrt" | "atan2"
+        "rgb" | "hsv" | "rand" | "int" | "sin" | "cos" | "abs" | "floor" | "sqrt" | "atan2"
         | "min" | "clamp" | "smoothstep" | "section_position" | "is_nan" | "value_or" => {
             Some(Type::Float)
         }

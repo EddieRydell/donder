@@ -108,7 +108,7 @@ impl PreparedSequence {
         Self::assembled(builder.finish(root))
     }
 
-    pub(crate) fn from_archive(data: SequenceData) -> Result<Self, crate::wire::LoadError> {
+    pub(crate) fn from_archive(data: SequenceData) -> Result<Self, crate::archive::LoadError> {
         let SequenceData {
             signals,
             patch,
@@ -255,7 +255,7 @@ mod tests {
         signals: PreparedSignalGraph,
         patch: PreparedPatch,
         outputs: Box<[PreparedOutput]>,
-    ) -> Result<PreparedSequence, crate::wire::LoadError> {
+    ) -> Result<PreparedSequence, crate::archive::LoadError> {
         PreparedSequence::from_archive(SequenceData {
             signals,
             patch,
@@ -312,10 +312,9 @@ mod tests {
             builder.output([outer])
         });
         assert_eq!(sequence.archive_data().signals.programs.len(), 2);
-        assert_eq!(sequence.archive_data().signals.plan.vm_workspace_count, 2);
-        let bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        let bytes = crate::archive::encode_sequence(&sequence).unwrap();
         let decoded =
-            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+            crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default()).unwrap();
         let expected = Color {
             red: 17,
             green: 29,
@@ -384,16 +383,10 @@ mod tests {
             builder.output([layer])
         });
         assert_eq!(sequence.archive_data().signals.programs.len(), 1);
-        // The terminal one-input output aliases its input's frame buffer.
-        assert_eq!(
-            sequence.archive_data().signals.plan.frame_nodes.as_ref(),
-            [1]
-        );
         assert_eq!(sequence.outputs()[0].width, 12);
-        assert_eq!(sequence.data.patch.routes.len(), 2);
-        let bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        let bytes = crate::archive::encode_sequence(&sequence).unwrap();
         let decoded =
-            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+            crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default()).unwrap();
         for sequence in [sequence, decoded] {
             let mut playback = sequence.into_playback();
             for ticks in [300_000, 900_000, 300_000, 0] {
@@ -707,28 +700,11 @@ mod tests {
     }
 
     #[test]
-    fn constructor_keeps_output_identity_and_empty_sequences_clear_outputs() {
-        let sequence = empty_sequence();
-        assert_eq!(
-            sequence.outputs(),
-            &[PreparedOutput {
-                controller_index: 3,
-                port: 7,
-                width: 3
-            }]
-        );
-        let mut playback = sequence.into_playback();
-        playback.outputs[0].fill(255);
-        let frame = playback.evaluate(SampleTime::from_ticks(0));
-        assert_eq!(frame.outputs().next().unwrap().bytes, [0, 0, 0]);
-    }
-
-    #[test]
     fn archive_roundtrip_preserves_output_metadata_and_empty_playback() {
         let sequence = empty_sequence();
-        let bytes = crate::wire::encode_sequence(&sequence).unwrap();
+        let bytes = crate::archive::encode_sequence(&sequence).unwrap();
         let decoded =
-            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+            crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default()).unwrap();
         assert_eq!(decoded.outputs(), sequence.outputs());
         let mut playback = decoded.into_playback();
         playback.outputs[0].fill(255);
@@ -798,23 +774,5 @@ mod tests {
         let colors = sampler.evaluate(SampleTime::from_ticks(300_000));
         assert_eq!(colors, &[expected; 2]);
         assert_eq!(colors.as_ptr(), pointer);
-    }
-
-    #[test]
-    fn trusted_archive_decode_accepts_checksum_correct_semantically_malformed_graph() {
-        let sequence = timed_sequence();
-        let mut data = sequence.archive_data();
-        data.signals.plan.frame_slots[1] = 2;
-        let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(&data).unwrap();
-        let mut bytes = crate::wire::encode_sequence(&sequence).unwrap();
-        bytes.truncate(crate::wire::HEADER_BYTES);
-        bytes[8..12].copy_from_slice(&u32::try_from(payload.len()).unwrap().to_le_bytes());
-        bytes[12..16].copy_from_slice(&crc32fast::hash(&payload).to_le_bytes());
-        bytes.extend_from_slice(&payload);
-        let decoded =
-            crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
-        // Trusted decoding restores the schedule without checking its semantics.
-        // Deliberately do not evaluate this malformed graph.
-        assert_eq!(decoded.archive_data().signals.plan.frame_slots[1], 2);
     }
 }

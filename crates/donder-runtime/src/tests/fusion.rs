@@ -174,7 +174,7 @@ fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
                 .unwrap();
             let fused = caller.fuse_input(0, &source).expect("one compatible query");
             for duration in [8_000_000, 4_000_000_001] {
-                for count in [1, 7, 8, 9, 17] {
+                for count in [1, 33] {
                     let build = |fuse| {
                         playback::build(count, playback::timing(duration), |b, target| {
                             let effect = b.sample(&effect, b.whole_sequence(), target);

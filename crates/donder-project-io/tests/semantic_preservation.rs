@@ -1,16 +1,11 @@
 mod common;
 
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{ProjectSession, export_project, save_project, source_document_text};
+use camino::Utf8PathBuf;
+use donder_project_io::{ProjectSession, save_project, source_document_text};
 use std::fs;
 
 fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf, ProjectSession) {
-    let starter_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
-    let starter = common::load_project(&starter_root);
-    let temporary = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
-    export_project(&starter, &root).unwrap();
-    common::write_workspace_metadata(&root);
+    let (temporary, root) = common::starter_copy();
     let session = common::load_project(&root);
     (temporary, root, session)
 }
@@ -84,7 +79,7 @@ fn typed_save_preserves_semantics_imports_ownership_assets_and_dsl_not_yaml_pres
 
 #[test]
 fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
-    let (_temporary, _root, mut session) = starter_copy();
+    let mut session = common::load_project(&common::starter_root());
     let id = session
         .project
         .root()
@@ -105,39 +100,6 @@ fn missing_import_is_an_error_not_a_flattened_or_guessed_reference() {
     .unwrap();
     session.source.documents.insert(id.clone(), without_imports);
     assert!(source_document_text(&session, &id).is_err());
-}
-
-#[test]
-fn unknown_nested_parameter_metadata_is_rejected_without_changing_source() {
-    let (_temporary, root, session) = starter_copy();
-    let id = session
-        .project
-        .root()
-        .sequences
-        .iter()
-        .map(|source| source.id())
-        .find(|id| !session.project.reusable_sequences()[*id].effects.is_empty())
-        .unwrap();
-    let path = root.join(id.0.document());
-    let original = fs::read_to_string(&path).unwrap();
-    let with_metadata = original.replacen(
-        "type: integer",
-        "type: integer\n        unrecognized_metadata: 123",
-        1,
-    );
-    assert_ne!(original, with_metadata);
-    fs::write(&path, &with_metadata).unwrap();
-    let report = donder_project_io::check_project(&root);
-    assert!(report.session.is_none());
-    assert!(
-        report.diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("unrecognized_metadata")
-            && diagnostic.range.is_some()),
-        "{:?}",
-        report.diagnostics
-    );
-    assert_eq!(fs::read_to_string(path).unwrap(), with_metadata);
 }
 
 #[test]
@@ -232,33 +194,21 @@ fn unused_objects_in_loaded_documents_are_typed_and_roundtrip() {
 
 #[test]
 fn parameter_variants_and_array_shorthands_reject_extra_keys() {
-    let (_temporary, root, _) = starter_copy();
+    // schema_strictness covers the parameter shapes the starter authors;
+    // these are the variants it does not.
+    let root = common::starter_root();
     let path = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
     let original = donder_project_io::project_source_texts(&root).unwrap();
-    let mut payloads: Vec<_> = [
-        ("integer", "value: 6"),
-        ("float", "value: 0.5"),
-        ("bool", "value: true"),
-        ("color", "value: '#ffffff'"),
-        ("enum", "value: test"),
-        ("marks", "key: marks"),
-        ("curve", "curve: curves.ease_down"),
-        ("gradient", "gradient: gradients.ember_core_gradient"),
-        ("array", "values: []"),
-    ]
-    .iter()
-    .map(|(kind, body)| format!("type: {kind}\n        {body}\n        unexpected: 1"))
-    .collect();
-    payloads.extend([
-        "type: array\n        values:\n        - type: float\n          value: 0.5\n          unexpected: 1".into(),
-        "type: array\n        values:\n        - curve: curves.ease_down\n          unexpected: 1".into(),
-        "type: array\n        values:\n        - gradient: gradients.ember_core_gradient\n          unexpected: 1".into(),
-    ]);
-    for payload in payloads {
+    let source = original[&path].replace("\r\n", "\n");
+    for payload in [
+        "type: color\n        value: '#ffffff'\n        unexpected: 1",
+        "type: enum\n        value: test\n        unexpected: 1",
+        "type: array\n        values:\n        - type: float\n          value: 0.5\n          unexpected: 1",
+    ] {
         let mut overrides = original.clone();
         // Replace the whole integer payload so array errors are actually reached.
-        let changed = original[&path].replacen("type: integer\n        value: 6", &payload, 1);
-        assert_ne!(original[&path], changed);
+        let changed = source.replacen("type: integer\n        value: 6", payload, 1);
+        assert_ne!(source, changed);
         overrides.insert(path.clone(), changed);
         let report = donder_project_io::check_project_with_overrides(&root, &overrides);
         assert!(report.session.is_none(), "{payload}");

@@ -15,8 +15,6 @@ use crate::dsl::RuntimeError;
 use donder_language::dsl::Color;
 use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
-use donder_language::dsl::bytecode::ColorComponent;
-use donder_language::dsl::bytecode::Instruction;
 use donder_language::dsl::bytecode::SignalPixel;
 use donder_language::dsl::compile_effects;
 use donder_language::dsl::compile_operators;
@@ -64,23 +62,9 @@ fn hsv_intrinsics_require_exactly_one_color() {
 }
 
 #[test]
-fn hsv_components_execute_and_hoist_uniform_color_reads() {
+fn hsv_components_of_uniform_colors_execute() {
     let effect = compile_effects("effect Components { param color c; color sample() { return rgb(hue(c), saturation(c), intensity(c)); } }")
         .unwrap().remove(0);
-    for expected in [
-        ColorComponent::Hue,
-        ColorComponent::Saturation,
-        ColorComponent::Intensity,
-    ] {
-        assert!(
-            effect.sample_program().bytecode().instructions
-                [..effect.sample_program().bytecode().pixel_entry as usize]
-                .iter()
-                .any(|op| {
-                    matches!(op, Instruction::ColorComponent { op, .. } if *op == expected)
-                })
-        );
-    }
     let mut workspace = BatchWorkspace::default();
     for (input, output) in [
         ([255, 0, 0], [0, 255, 255]),

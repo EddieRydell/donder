@@ -144,8 +144,8 @@ membership retain their original target and layout coordinates.
 
 ## Measurement and checks
 
-See [performance and hardware evidence](performance.md) for measurement and
-retention policy. The starter has 30 instances of 113 pixels each;
+See [performance and hardware evidence](performance.md) for measurement
+practice. The starter has 30 instances of 113 pixels each;
 selecting its first port retains 113 output pixels instead of 3,390. Spatial
 operator dependencies can retain additional unpatched pixels.
 

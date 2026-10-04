@@ -57,11 +57,6 @@ impl TargetPixels {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     #[inline]
     pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
         match self {

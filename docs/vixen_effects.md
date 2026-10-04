@@ -102,7 +102,7 @@ All computation stays within the existing `sample()` interface. Reconstructing
 an effect's own event history or geometric points does not read another pixel's
 color. The definitions use target-wide indices/bounds, never controller-local
 buffer dimensions. Split-output equivalence has not been exercised for these
-new definitions.
+definitions.
 
 Arrays and explicit iteration counts must fit the DSL's 10,000-iteration limit;
 Spiral additionally requires `len(colors) * repeat <= 10000`. Invalid/unsupported
@@ -152,9 +152,10 @@ outside this library's current contract, notably mark-driven/hierarchy modes,
 accumulated speed, Bars zigzags/rotation, Border marquee, non-circular Shockwave,
 non-cardinal Wipe, nonmonotonic Dissolve and arbitrary Chase movement.
 
-The source formulas and defaults were compared while authoring. These ports are
-experimental: compilation, project validity, renderer parity, split-output
-equivalence and playback performance have not been validated.
+The source formulas and defaults follow the pinned Vixen sources. The ports
+compile and load as part of the starter project, which the tests cover.
+Renderer parity with Vixen, split-output equivalence and playback performance
+have not been validated.
 
 ## Shared contract differences
 

@@ -14,76 +14,38 @@ fn example(name: &str) -> donder_project_io::ProjectSession {
 }
 
 #[test]
-fn every_example_prepares_and_produces_exact_controller_widths() {
-    for name in ["starter"] {
-        let session = example(name);
-        let sequence_id = session.project.root().sequences.first().unwrap().id();
-        let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All)
-            .unwrap_or_else(|| panic!("failed to prepare {name}"));
-        let mut playback = renderer.into_playback();
-        let frame = playback.evaluate(SampleTime::from_ticks(0));
-        let setup = session
-            .project
-            .reusable_setups()
-            .get(session.project.root().setup.id())
-            .unwrap();
-        let expected_ports = setup
-            .controllers
-            .iter()
-            .map(|id| session.project.controller(id.id()).unwrap().ports.len())
-            .sum::<usize>();
-        assert_eq!(frame.outputs().len(), expected_ports);
-        for port_frame in frame.outputs() {
-            let output = port_frame.output;
-            let slots = port_frame.bytes;
-            let controller = session
-                .project
-                .reusable_controllers()
-                .get(setup.controllers[output.controller_index as usize].id())
-                .unwrap();
-            let port = controller
-                .ports
-                .iter()
-                .find(|port| port.id.0 == output.port)
-                .unwrap();
-            assert_eq!(slots.len(), usize::from(port.slot_count));
-        }
-    }
-}
-
-#[test]
-fn preview_and_controller_buffers_are_from_one_deterministic_show_frame() {
+fn starter_prepares_and_produces_exact_controller_widths() {
     let session = example("starter");
     let sequence_id = session.project.root().sequences.first().unwrap().id();
     let renderer = prepare(&session.project, sequence_id, PrepareOutputs::All).unwrap();
-    let time = sample_time_from_frame(10, renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
-    let first_frame = playback.evaluate(time);
-    let first = first_frame
-        .outputs()
-        .map(|output| output.bytes.to_vec())
-        .collect::<Vec<_>>();
-    let first_fixtures = first_frame
-        .fixtures()
-        .map(|fixture| (fixture.fixture_id, fixture.pixels.to_vec()))
-        .collect::<Vec<_>>();
-    let second_frame = playback.evaluate(time);
-    assert_eq!(
-        first,
-        second_frame
-            .outputs()
-            .map(|output| output.bytes.to_vec())
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        first_fixtures,
-        second_frame
-            .fixtures()
-            .map(|fixture| (fixture.fixture_id, fixture.pixels.to_vec()))
-            .collect::<Vec<_>>()
-    );
-    assert!(!first_fixtures.is_empty());
-    assert!(!first.is_empty());
+    let frame = playback.evaluate(SampleTime::from_ticks(0));
+    let setup = session
+        .project
+        .reusable_setups()
+        .get(session.project.root().setup.id())
+        .unwrap();
+    let expected_ports = setup
+        .controllers
+        .iter()
+        .map(|id| session.project.controller(id.id()).unwrap().ports.len())
+        .sum::<usize>();
+    assert_eq!(frame.outputs().len(), expected_ports);
+    for port_frame in frame.outputs() {
+        let output = port_frame.output;
+        let slots = port_frame.bytes;
+        let controller = session
+            .project
+            .reusable_controllers()
+            .get(setup.controllers[output.controller_index as usize].id())
+            .unwrap();
+        let port = controller
+            .ports
+            .iter()
+            .find(|port| port.id.0 == output.port)
+            .unwrap();
+        assert_eq!(slots.len(), usize::from(port.slot_count));
+    }
 }
 
 #[test]

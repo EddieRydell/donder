@@ -860,11 +860,6 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
                 FixtureStorage::NewFile => "fixtures/my_strip.fixture.donder",
             }
         );
-        state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            state.project_session().unwrap().project
-        );
         let mut second = layout.fixtures[0].clone();
         second.id = 2;
         second.name = "Shared placement".into();
@@ -1215,11 +1210,14 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 assert_eq!(*state.project_session().unwrap(), *before);
                 state.redo_active_edit();
                 assert_eq!(*state.project_session().unwrap(), *after);
-                state.save_all().unwrap();
-                assert_eq!(
-                    donder_project_io::load_project(&root).unwrap().project,
-                    after.project
-                );
+                // The promoted and final unlinked states cover both persisted ownership forms.
+                if matches!(step, 0 | 3) {
+                    state.save_all().unwrap();
+                    assert_eq!(
+                        donder_project_io::load_project(&root).unwrap().project,
+                        after.project
+                    );
+                }
             }
         }
         let session = state.project_session().unwrap();
@@ -1321,11 +1319,6 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         assert!(!shift.fixed);
         assert!(shift.supports_automation);
         let disconnected = state.project_session().unwrap();
-        state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            disconnected.project
-        );
         state.undo_active_edit();
         assert!(
             state

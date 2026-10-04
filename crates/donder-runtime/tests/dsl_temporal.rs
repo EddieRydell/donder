@@ -1,11 +1,11 @@
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/mark_workload.rs"]
+#[path = "support/mark_workload.rs"]
 mod mark_workload;
 #[allow(dead_code)]
 #[path = "support/playback.rs"]
 mod playback;
 #[allow(dead_code)]
-#[path = "../../../firmware/esp32/src/workload.rs"]
+#[path = "support/workload.rs"]
 mod workload;
 
 use donder_language::dsl::BoundParams;
@@ -14,7 +14,7 @@ use donder_language::dsl::Value;
 use donder_language::dsl::bytecode::Instruction;
 
 #[test]
-fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
+fn temporal_frame_caches_match_uncached_sampling_through_nested_operators() {
     let bases = [
         workload::chase_pulse_show(200, 4),
         mark_workload::mark_show(200, true),
@@ -95,11 +95,11 @@ fn dsl_effect_temporal_frames_match_scalar_sampling_through_nested_operators() {
                 })
                 .into_playback()
         };
-        let mut graph = prepare(true);
-        let mut scalar = prepare(false);
+        let mut cached = prepare(true);
+        let mut uncached = prepare(false);
         for frame in [0, 1, 4, 31, 12, 4, 0, 31] {
-            let actual = graph.evaluate(workload::time(frame));
-            let expected = scalar.evaluate(workload::time(frame));
+            let actual = cached.evaluate(workload::time(frame));
+            let expected = uncached.evaluate(workload::time(frame));
             assert_eq!(actual.colors(), expected.colors(), "{name} frame {frame}");
         }
     }

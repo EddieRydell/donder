@@ -53,5 +53,5 @@ impl ReadContext for ContextRead {
 }
 
 /// Effects never query signals; sample admission rejects every signal
-/// instruction, including trusted-wire conversion.
+/// instruction, including trusted-archive conversion.
 pub(crate) struct NoSignals;

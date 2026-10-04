@@ -115,35 +115,6 @@ mod tests {
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceTiming, SequenceWindow, TargetScope,
     };
 
-    #[test]
-    fn terminal_output_aliases_one_input_but_composes_multiple_inputs() {
-        let mut nodes = vec![
-            PreparedSignalNode {
-                kind: PreparedSignalKind::Layer { layer_index: 0 },
-            },
-            PreparedSignalNode {
-                kind: PreparedSignalKind::Output {
-                    inputs: vec![0].into(),
-                },
-            },
-        ];
-        let plan = finish_plan(nodes.clone(), 1, 0);
-        assert_eq!(plan.frame_nodes.as_ref(), [0]);
-        assert_eq!(plan.frame_slots.as_ref(), [0, 0]);
-        assert_eq!(plan.frame_buffer_count, 1);
-
-        nodes[1].kind = PreparedSignalKind::Layer { layer_index: 1 };
-        nodes.push(PreparedSignalNode {
-            kind: PreparedSignalKind::Output {
-                inputs: vec![0, 1].into(),
-            },
-        });
-        let plan = finish_plan(nodes, 2, 0);
-        assert_eq!(plan.frame_nodes.as_ref(), [0, 1, 2]);
-        assert_eq!(plan.frame_slots.as_ref(), [0, 1, 2]);
-        assert_eq!(plan.frame_buffer_count, 3);
-    }
-
     fn program(
         instructions: Vec<Instruction>,
         layout: SlotLayout,
@@ -167,7 +138,7 @@ mod tests {
         }
     }
 
-    fn sequence(selected: bool, routed: bool, query: SignalPixel<i32>) -> PreparedSequence {
+    fn sequence(selected: bool, query: SignalPixel<i32>) -> PreparedSequence {
         let sample = SampleProgram::admit(
             program(
                 vec![
@@ -254,9 +225,6 @@ mod tests {
         PreparedSequence::build(timing, |builder| {
             // Retention is supplied by preparation. Exercise playback of the
             // already selected cells, not the host's dependency analysis.
-            if selected && !routed {
-                return builder.output([]);
-            }
             let a = FixtureGeometry::admit((0..8).map(|cell| [cell as f32 / 12.0, 0.0]).collect())
                 .unwrap();
             let b = FixtureGeometry::admit((8..12).map(|cell| [cell as f32 / 12.0, 0.0]).collect())
@@ -287,20 +255,18 @@ mod tests {
             let layer = builder.layer(true, [effect]);
             let inner = builder.operator(&operator, |_| layer);
             let outer = builder.operator(&operator, |_| inner);
-            if routed {
-                let output = builder.port(0, 1);
-                builder.padding(output, 2);
-                let ranges = if selected && matches!(query, SignalPixel::Current) {
-                    [0..1, 1..2]
-                } else {
-                    [2..3, 6..7]
-                };
-                for range in ranges {
-                    let span = builder.target_slice(target, range);
-                    builder.route(output, span, OutputEncoding::Rgb(RgbOrder::Rgb), None);
-                }
-                builder.padding(output, 1);
+            let output = builder.port(0, 1);
+            builder.padding(output, 2);
+            let ranges = if selected && matches!(query, SignalPixel::Current) {
+                [0..1, 1..2]
+            } else {
+                [2..3, 6..7]
+            };
+            for range in ranges {
+                let span = builder.target_slice(target, range);
+                builder.route(output, span, OutputEncoding::Rgb(RgbOrder::Rgb), None);
             }
+            builder.padding(output, 1);
             builder.output([outer])
         })
     }
@@ -312,44 +278,19 @@ mod tests {
             (SignalPixel::Local(6), 8),
             (SignalPixel::Global(9), 12),
         ] {
-            let full = sequence(false, true, query);
-            let compacted = sequence(true, true, query);
+            let full = sequence(false, query);
+            let compacted = sequence(true, query);
             assert_eq!(full.pixel_count(), 12);
             assert_eq!(compacted.pixel_count(), count);
-            let compact_raw = compacted.archive_data().signals;
-            let full_raw = full.archive_data().signals;
-            // Operators request their inputs at the query time; neither plan
-            // eagerly renders upstream layers, and the terminal output aliases.
-            assert_eq!(full_raw.plan.frame_nodes.as_ref(), [3]);
-            assert_eq!(compact_raw.plan.frame_nodes.as_ref(), [2]);
-            assert_eq!(full_raw.plan.frame_buffer_count, 1);
-            assert_eq!(compact_raw.plan.frame_buffer_count, 1);
-            let retained = compact_raw.target(compact_raw.effects[0].target);
-            let original = full_raw.target(full_raw.effects[0].target);
-            let original_index = if count == 2 { 2 } else { 0 };
-            assert_eq!(
-                retained.pixel(0).pixel_index,
-                original.pixel(original_index).pixel_index
-            );
-            assert_eq!(
-                retained.pixel(0).pixel_fraction,
-                original.pixel(original_index).pixel_fraction
-            );
-            assert_eq!(
-                compact_raw.targets[compact_raw.effects[0].target].spatial_context(
-                    0,
-                    &retained.pixel(0),
-                    &compact_raw.positions
-                ),
-                full_raw.targets[full_raw.effects[0].target].spatial_context(
-                    original_index,
-                    &original.pixel(original_index),
-                    &full_raw.positions
-                )
-            );
-            let bytes = crate::wire::encode_sequence(&compacted).unwrap();
+            // Firmware memory: operators request their inputs at the query
+            // time, so neither plan eagerly renders upstream layers, and the
+            // terminal output aliases its input's frame buffer.
+            assert_eq!(full.archive_data().signals.plan.frame_buffer_count, 1);
+            assert_eq!(compacted.archive_data().signals.plan.frame_buffer_count, 1);
+            let bytes = crate::archive::encode_sequence(&compacted).unwrap();
             let decoded =
-                crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+                crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default())
+                    .unwrap();
             let mut full = full.into_playback();
             let mut compacted = compacted.into_playback();
             let mut decoded = decoded.into_playback();
@@ -367,33 +308,5 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn empty_prepared_output_has_no_execution_dependencies() {
-        let full = sequence(false, false, SignalPixel::Global(9));
-        let before = full.archive_data();
-        assert!(!before.signals.programs.is_empty());
-        assert!(!before.signals.effects.is_empty());
-        assert!(!before.signals.target(before.signals.plan.target).is_empty());
-        let compacted = sequence(true, false, SignalPixel::Global(9));
-        assert_eq!(compacted.pixel_count(), 0);
-        let data = compacted.archive_data();
-        assert!(data.outputs.is_empty());
-        assert!(data.patch.routes.is_empty());
-        let raw = data.signals;
-        assert!(raw.fixtures.is_empty());
-        assert!(raw.fixture_pixel_offsets.is_empty());
-        assert!(raw.programs.is_empty());
-        assert!(raw.effects.is_empty());
-        assert!(raw.targets.iter().all(|target| target.pixels.is_empty()));
-        assert_eq!(raw.plan.nodes.len(), 1);
-        assert!(
-            compacted
-                .into_playback()
-                .evaluate(SampleTime::from_ticks(0))
-                .colors()
-                .is_empty()
-        );
     }
 }

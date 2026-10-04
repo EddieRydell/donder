@@ -977,6 +977,13 @@ impl FunctionCompiler {
                     index: name.as_str() == "section_index",
                 });
             }
+            "int" => {
+                let src = self.compile_float_args(args)[0];
+                self.emit(Instruction::FloatToInt {
+                    dst: self.int_slot(dst),
+                    src,
+                });
+            }
             "sin" | "cos" | "abs" | "floor" | "sqrt" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
@@ -1188,36 +1195,15 @@ impl FunctionCompiler {
                     value: args[2],
                 });
             }
-            "srand" | "rand" => {
-                let args = self.compile_float_args(args);
+            "rand" => {
+                let seed = self.compile_float_args(args)[0];
                 let dst = self.float_slot(dst);
-                // Argument count and types are known here. Lower the seed fold
-                // to ordinary float arithmetic, leaving one total scalar hash
-                // in the VM. Preserve the original evaluation order, including
-                // the initial +0.0 operation for signed zero and NaN inputs.
-                if args.is_empty() {
-                    self.emit_default(ValueSlot::Float(dst), &Type::Float);
-                }
-                for (index, arg) in args.into_iter().enumerate() {
-                    if index == 0 {
-                        self.emit(Instruction::FloatAddConst {
-                            dst,
-                            value: arg,
-                            constant_bits: 0.0_f32.to_bits(),
-                        });
-                    } else {
-                        self.emit(Instruction::FloatMultiplyConst {
-                            dst,
-                            value: dst,
-                            constant_bits: 31.0_f32.to_bits(),
-                        });
-                        self.emit(Instruction::FloatAdd {
-                            dst,
-                            left: dst,
-                            right: arg,
-                        });
-                    }
-                }
+                // Adding zero maps a negative-zero seed to the same hash as zero.
+                self.emit(Instruction::FloatAddConst {
+                    dst,
+                    value: seed,
+                    constant_bits: 0.0_f32.to_bits(),
+                });
                 self.emit(Instruction::Rand { dst, seed: dst });
             }
             "curve_clamped" if args.len() == 4 => {

@@ -1,12 +1,12 @@
 //! Executable program banks. Trusted archival addresses are translated once;
 //! playback stores the role-specific instruction representations.
+use crate::archive::LoadError;
 use crate::dsl::AutomationPlan;
 use crate::dsl::{OperatorProgram, SampleProgram};
 use crate::signal::{
     PreparedEffect, PreparedEffectAutomation, PreparedSignalGraph, PreparedSignalKind,
     PreparedSignalNode,
 };
-use crate::wire::LoadError;
 use alloc::{boxed::Box, vec, vec::Vec};
 
 #[derive(Clone, Debug)]

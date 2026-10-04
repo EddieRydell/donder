@@ -170,7 +170,7 @@ effect MarkPulse {
     int current_section = section_index(section_width_pixels);
     if (total_sections <= 0 || current_section < 0) { return rgb(0.0, 0.0, 0.0); }
     for (int section in range(sections_per_mark, 10000)) {
-      float choice = floor(rand(seed + hit_time * 1000.0, section) * total_sections);
+      float choice = floor(rand((seed + hit_time * 1000.0) * 31.0 + section) * total_sections);
       // Keep the random choice inside the available section range.
       choice = clamp(choice, 0.0, total_sections - 1.0);
       if (choice == current_section) {

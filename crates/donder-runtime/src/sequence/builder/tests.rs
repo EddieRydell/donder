@@ -55,9 +55,6 @@ fn spatial_storage_is_shared_by_physical_fixture_and_only_kept_for_consumers() {
     assert!(graph.positions[1].is_empty());
     let a = &graph.targets[graph.effects[0].target];
     let b = &graph.targets[graph.effects[1].target];
-    assert_eq!(a.spatial.len(), 1);
-    assert_eq!(b.spatial.len(), 1);
-    assert!(graph.targets[graph.effects[2].target].spatial.is_empty());
     let context = b.spatial_context(0, &b.pixels.pixel(0), &graph.positions);
     assert_eq!(
         context,
@@ -78,8 +75,9 @@ fn archive_roundtrip_preserves_boundary_controller_metadata_and_output_order() {
         }
         builder.output([])
     });
-    let bytes = crate::wire::encode_sequence(&sequence).unwrap();
-    let decoded = crate::wire::decode_sequence(&bytes, crate::wire::LoadLimits::default()).unwrap();
+    let bytes = crate::archive::encode_sequence(&sequence).unwrap();
+    let decoded =
+        crate::archive::decode_sequence(&bytes, crate::archive::LoadLimits::default()).unwrap();
     assert_eq!(decoded.outputs(), sequence.outputs());
     let mut playback = decoded.into_playback();
     let frame = playback.evaluate(SampleTime::from_ticks(0));

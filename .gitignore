@@ -49,10 +49,4 @@ Thumbs.db
 *.orig
 *~
 
-# ESP32 captures are working data. Promote only reviewed evidence under accepted/.
-firmware/esp32/results/*
-!firmware/esp32/results/README.md
-!firmware/esp32/results/accepted/
-!firmware/esp32/results/accepted/**
-
 *.mp3
