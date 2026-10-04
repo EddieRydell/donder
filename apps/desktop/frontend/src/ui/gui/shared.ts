@@ -8,7 +8,7 @@ import type {
   SequenceAutomationMapping,
   SequenceAutomationTarget,
   SequenceSelection as WireSequenceSelection
-} from "../../types";
+} from "../../editor/types";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../theme";
 
 export type Point3 = { x: number; y: number; z: number };

@@ -135,7 +135,7 @@ pub(in crate::gui) fn project_layout(
     }
 }
 
-pub(crate) fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
+pub fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
     ResolvedGuiObject {
         owned_path: Vec::new(),
         identity: id.0.clone(),

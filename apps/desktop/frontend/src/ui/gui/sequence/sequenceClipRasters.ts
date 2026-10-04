@@ -1,13 +1,11 @@
+import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 // Runtime evaluates effects, the desktop worker schedules/caches and exposes
 // RGBA payloads, and this hook decodes and draws them for the sequence UI.
 
-import { commands } from "../../../api";
-import type { AppSettings, SequenceClipRaster, SequenceEditorDocument } from "../../../types";
-import { useAppStore } from "../../../store";
+import type { AppSettings, SequenceClipRaster, SequenceEditorDocument } from "../../../editor/types";
 import type { SequenceClipLayout } from "./sequenceSelection";
 
 type ClipRasterState = {
@@ -45,6 +43,9 @@ export function useSequenceClipRasters(
   laneHeight: number,
   settings: AppSettings | null
 ): ClipRasterState {
+  const host = useSequenceEditorHost();
+  const { commands, store: useAppStore } = host;
+
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
   const requestKey = guiObjectKey(document.sourceRef);
   const rasterSettings = settings?.effectRaster ?? null;
@@ -147,7 +148,7 @@ export function useSequenceClipRasters(
           if (queued === undefined) break;
           const raster = queued.payload;
           try {
-            const image = await decodeClipRaster(raster);
+            const image = await decodeClipRaster(host, raster);
             if (clipRasterRequestCancelled(abortController.signal)) return;
             if (!Object.is(nextProjectRevision, projectRevisionRef.current)) return;
             const rasterKey = clipRasterKey(requestKey, raster.effectId, raster.signature, queued.keyContext);
@@ -273,7 +274,7 @@ export function useSequenceClipRasters(
       window.clearTimeout(requestTimeout);
       if (decodeFrame !== null) window.cancelAnimationFrame(decodeFrame);
     };
-  }, [requestKey, document.sourceRef.ownedPath, document.objectKey, document.path, effectIds, effectIdsKey, laneHeight, projectRevision, rasterRequestKey, rasterSettings, rasterSettingsKey, visibleRequestItemsKey]);
+  }, [commands, host, requestKey, document.sourceRef.ownedPath, document.objectKey, document.path, effectIds, effectIdsKey, laneHeight, projectRevision, rasterRequestKey, rasterSettings, rasterSettingsKey, visibleRequestItemsKey]);
 
   return state.requestKey === rasterRequestKey ? state : {
     requestKey: rasterRequestKey,
@@ -323,7 +324,9 @@ export function drawClipRaster(ctx: CanvasRenderingContext2D, raster: DecodedCli
   ctx.imageSmoothingEnabled = true;
 }
 
-async function decodeClipRaster(payload: SequenceClipRaster): Promise<CanvasImageSource> {
+async function decodeClipRaster(host: SequenceEditorHost, payload: SequenceClipRaster): Promise<CanvasImageSource> {
+  const { resolveAssetUrl: convertFileSrc } = host;
+
   const raster = window.document.createElement("canvas");
   raster.width = payload.columns;
   raster.height = payload.rows;

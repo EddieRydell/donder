@@ -13,6 +13,28 @@ pub struct SequenceClip<'a> {
 }
 
 impl<'a> SequenceClip<'a> {
+    /// Sample the center frame of a raster column inside the authored clip.
+    pub fn raster_column_time(
+        &self,
+        column: usize,
+        columns: usize,
+    ) -> Result<SampleTime, crate::values::SampleTimeError> {
+        if columns == 0 || column >= columns {
+            return Err(crate::values::SampleTimeError::OutOfRange);
+        }
+        let rate = u64::from(self.frame_rate());
+        let ticks = u64::from(self.start_time().as_ticks());
+        let end = ticks + u64::from(self.duration().as_ticks());
+        let micros = u64::from(crate::values::MICROS_PER_SECOND);
+        let start_frame = (ticks * rate).div_ceil(micros);
+        let end_frame = (end * rate).div_ceil(micros);
+        let active_frames = end_frame.saturating_sub(start_frame).max(1);
+        let offset = (((column as f32 + 0.5) * active_frames as f32 / columns as f32).floor()
+            as u64)
+            .min(active_frames - 1);
+        let frame = (start_frame + offset).min(u64::from(self.frame_count().saturating_sub(1)));
+        crate::values::sample_time_from_frame(frame as u32, self.frame_rate())
+    }
     fn effect(&self) -> &'a PreparedEffect<AutomationPlan> {
         &self.graph.data.effects[self.clip.effect]
     }

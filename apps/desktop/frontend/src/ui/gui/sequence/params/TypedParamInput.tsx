@@ -1,15 +1,13 @@
+import { useSequenceEditorHost, type SequenceEditorHost } from "../../../../editor/host";
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { OverlayPortal } from "../../../OverlayPortal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
 import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2, Link2Off, Minus, Plus, Trash2, X } from "lucide-react";
 
-import { commands } from "../../../../api";
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationMapping, SequenceAutomationTarget, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../types";
+import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationMapping, SequenceAutomationTarget, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../editor/types";
 
-import { runGuiEditCommand } from "../../../../store";
-import { navigateToGuiObject } from "../../../../workspace/navigation";
 
 import { ColorPicker } from "../../../ColorPicker";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
@@ -55,6 +53,9 @@ function TypedParamValue({
   markCollections: SequenceMarkCollection[];
   automation?: ParamAutomationControls | null;
 }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+
   const commit = (value: SequenceEffectParamValue) => {
     return commitParam(param.name, value);
   };
@@ -82,7 +83,7 @@ function TypedParamValue({
   const automationActions =
     automation === null || !param.supportsAutomation
       ? null
-      : automationBindingControl(
+      : automationBindingControl(host,
           automation.target,
           param,
           automation.automationClips,
@@ -248,7 +249,7 @@ function NumberArrayParam({ name, values, step, commit }: { name: string; values
   );
 }
 
-function automationBindingControl(
+function automationBindingControl(host: SequenceEditorHost,
   target: SequenceAutomationTarget,
   param: SequenceEffectParam,
   clips: SequenceAutomationClip[],
@@ -256,6 +257,8 @@ function automationBindingControl(
   automationClipChooser: AutomationClipChooser,
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void
 ) {
+  const { commands, runGuiEditCommand } = host;
+
   const mapping = defaultAutomationMapping(param);
   if (mapping === null) return null;
   const choosing = automationClipChooser !== null && automationTargetsEqual(automationClipChooser.target, target);
@@ -565,6 +568,9 @@ function LibraryValueShell<T extends { time: number }, S extends LibraryItem>({
   flipVerticalPoints?: (points: T[]) => T[];
   render: (props: CurveEditorProps<T>) => ReactNode;
 }) {
+  const host = useSequenceEditorHost();
+  const { navigateToGuiObject } = host;
+
   const [pendingUnlinkAction, setPendingUnlinkAction] = useState<UnlinkAction | null>(null);
   const librarySource = source.type === "library" ? source : null;
   const linked = librarySource !== null;

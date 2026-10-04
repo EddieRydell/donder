@@ -1,17 +1,20 @@
+import { useSequenceEditorHost } from "../../../editor/host";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useCallback, useRef, useState } from "react";
-import { commands } from "../../../api";
-import { runGuiEditCommand, useAppStore } from "../../../store";
 import { THEME_COLORS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphEdge, SequenceLayer } from "../../../types";
+import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
 import { graphEdgeId } from "./graphEdge";
 
-export function reportSequenceEditError(error: unknown) {
-  useAppStore.getState().setError(String(error));
+export function useSequenceEditErrorReporter() {
+ const host = useSequenceEditorHost();
+ return useCallback((error: unknown) => { host.store.getState().setError(String(error)); }, [host]);
 }
 
 export function useSequenceEditable() {
+  const host = useSequenceEditorHost();
+  const { store: useAppStore } = host;
+
   return useAppStore((state) => state.guiRequest !== null
     && state.guiRequest.projectRevision === state.guiDocumentRevision
     && !state.guiEditPending && state.snapshot?.activeBuffer?.readOnly !== true);
@@ -42,6 +45,10 @@ export function deletableGraphNodes(document: SequenceEditorDocument, nodeIds: s
 }
 
 export function LayerProperties({ layer, onDelete }: { layer: SequenceLayer; onDelete?: () => void }) {
+  const host = useSequenceEditorHost();
+  const { commands, runGuiEditCommand } = host;
+  const reportSequenceEditError = useSequenceEditErrorReporter();
+
   const editable = useSequenceEditable();
   return <fieldset className="sequence-layer-row" disabled={!editable}>
     <input type="checkbox" checked={layer.enabled} aria-label={`${layer.name} enabled`} onChange={(event) => {
@@ -81,6 +88,10 @@ type Deletion = {
 };
 
 export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: () => void) {
+  const host = useSequenceEditorHost();
+  const { commands, store: useAppStore, runGuiEditCommand } = host;
+  const reportSequenceEditError = useSequenceEditErrorReporter();
+
   const returnFocus = useRef<HTMLElement | null>(null);
   const [pending, setPending] = useState<Deletion | null>(null);
   const [destination, setDestination] = useState<number | null>(null);
@@ -99,7 +110,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
       setError(String(error));
       reportSequenceEditError(error);
     }
-  }, [onDeleted]);
+  }, [commands, reportSequenceEditError, runGuiEditCommand, onDeleted]);
   const requestDelete = useCallback((nodeIds: string[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
     if (!editable) return;
     const origin = useAppStore.getState().guiRequest;
@@ -125,7 +136,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
       setDestination(defaultLayer?.id ?? null);
       setPending(deletion);
     }
-  }, [commit, document, editable]);
+  }, [commit, document, editable, useAppStore]);
   const dialog = <Dialog.Root open={pending !== null} onOpenChange={(open) => { if (!open && !busy) setPending(null); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="dialog-overlay graph-delete-overlay" />

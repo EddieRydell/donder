@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type { SequenceMarkCollection } from "../../../types";
+import type { SequenceMarkCollection } from "../../../editor/types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type { GuiFocus } from "../shared";
@@ -108,16 +108,6 @@ export function committedMarkDrafts(collections: SequenceMarkCollection[], draft
     }
   }
   return next;
-}
-
-export function markIndexAfterMove(collection: SequenceMarkCollection, index: number, timeSeconds: number) {
-  const sorted = collection.marksSeconds
-    .map((markTimeSeconds, markIndex) => ({
-      markIndex,
-      timeSeconds: markIndex === index ? timeSeconds : markTimeSeconds
-    }))
-    .sort((left, right) => left.timeSeconds - right.timeSeconds || left.markIndex - right.markIndex);
-  return Math.max(0, sorted.findIndex((mark) => mark.markIndex === index));
 }
 
 export function nextCollectionKey(name: string, collections: SequenceMarkCollection[]) {

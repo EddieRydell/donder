@@ -21,7 +21,7 @@ pub(super) fn required_operator_param_value(
     })
 }
 
-pub(crate) fn copy_sequence_selection(
+pub fn copy_sequence_selection(
     session: &ProjectSession,
     sequence_id: &SequenceId,
     selection: &SequenceSelection,

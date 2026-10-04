@@ -1,8 +1,8 @@
-import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../types";
+import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
 
 import { clamp, type GuiFocus } from "../shared";
 
-import { markIndexAfterMove, type MarkDisplayMode } from "./marks";
+import type { MarkDisplayMode } from "./marks";
 
 import { targetAtLane, targetsEqual } from "./sequenceTargets";
 import { THEME_METRICS } from "../../../theme";
@@ -518,4 +518,14 @@ export function setMarkDraft(lookup: MarkDraftLookup, mark: SequenceMarkRef, dra
 
 export function markDraftEntries(lookup: MarkDraftLookup): MarkDraft[] {
   return [...lookup.values()].flatMap((collection) => [...collection.values()]);
+}
+
+export function markIndexAfterMove(collection: SequenceMarkCollection, index: number, timeSeconds: number) {
+  const sorted = collection.marksSeconds
+    .map((markTimeSeconds, markIndex) => ({
+      markIndex,
+      timeSeconds: markIndex === index ? timeSeconds : markTimeSeconds
+    }))
+    .sort((left, right) => left.timeSeconds - right.timeSeconds || left.markIndex - right.markIndex);
+  return Math.max(0, sorted.findIndex((mark) => mark.markIndex === index));
 }

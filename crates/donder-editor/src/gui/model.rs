@@ -210,7 +210,7 @@ pub(super) fn graph_operator_from_gui(
     })
 }
 
-pub(crate) fn source_identity_from_gui(
+pub fn source_identity_from_gui(
     module_id: &str,
     path: &str,
     object: &str,
@@ -267,7 +267,7 @@ pub(super) fn layout_target_to_effect_target(
     }
 }
 
-pub(crate) fn effect_param_value_from_gui(
+pub fn effect_param_value_from_gui(
     session: &mut ProjectSession,
     owner: &SourceIdentity,
     value: SequenceEffectParamValue,
@@ -491,6 +491,14 @@ pub(super) fn scale3(scale: Scale3) -> DomainScale3 {
     }
 }
 
+pub fn point3_meters(point: Point3) -> Point3Meters {
+    Point3Meters {
+        x_meters: point.x.as_meters_f32(),
+        y_meters: point.y.as_meters_f32(),
+        z_meters: point.z.as_meters_f32(),
+    }
+}
+
 use std::fs;
 
 use camino::Utf8PathBuf;
@@ -554,7 +562,7 @@ pub(super) fn create_object_document(
     ))
 }
 
-pub(crate) fn object_identity_from_gui(
+pub fn object_identity_from_gui(
     reference: &crate::dto::GuiObjectRef,
 ) -> Result<donder_language::identity::ObjectIdentity, GuiMutationError> {
     let root =

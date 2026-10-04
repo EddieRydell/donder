@@ -8,7 +8,7 @@ The typed `DonderProject` is authoritative after loading. `SourceProject` record
 The preservation contract is semantic, not lossless YAML editing: preserve typed meaning, meaningful list order, imports, document/object identity, ownership, and asset references. Comments, whitespace, quoting, mapping key order, and original YAML spelling are not requirements. Do not add CST round-tripping or per-scalar provenance without a concrete new requirement. See `docs/sequence_as_code.md` for the contract and current limitations.
 Project/source metadata and ownership live in `crates/donder-project-io/src/source.rs`. Canonical import declarations, aliases, and symbolic references belong to `donder-language::imports`; project configuration and safe document paths are validated in `donder-project-io/src/project_config.rs`. Project import expansion, scopes, linking, reverse reference formatting, and edit-time visibility belong to `crates/donder-project-io/src/imports.rs`. Project loading and checking live in `project_loading.rs`; diagnostics and YAML source indexing in `diagnostics.rs`; project save/export and sequence insertion in `project_edit.rs`. Keep `lib.rs` as the public facade.
 
-Desktop state orchestration is split by workflow under `apps/desktop/src/desktop_state`, and typed GUI behavior is split into projection, editing, selection, and model conversion under `apps/desktop/src/gui`. Keep new behavior with the owning workflow instead of growing the module roots.
+Desktop state orchestration is split by workflow under `apps/desktop/src/desktop_state`. Shared typed GUI behavior is split into projection, editing, selection, and model conversion under `crates/donder-editor/src/gui`; shared DTOs live in `crates/donder-sequence-api`. The desktop GUI and DTO modules reexport those crates. Keep new behavior with the owning workflow instead of growing the module roots.
 Mutual Donder document imports are valid. The loader indexes a document's local objects before following imports; do not reject an in-progress document as a cycle error.
 Keep import identity and path remapping in project loading and editing, never in per-frame evaluation. YAML imports use `from: { documents: [...] }` with the shared identifier alias policy.
 
@@ -22,7 +22,7 @@ the host gate; `storage:test` passes it to Cargo as `LIBCLANG_PATH` and uses
 `pnpm firmware:build` and `pnpm firmware:cargo` select ESP tools in child processes
 using `DONDER_ESP_LIBCLANG_PATH` and `DONDER_ESP_TOOLCHAIN_BIN`.
 
-Rust integration tests live under `crates/*/tests`, and desktop service tests may live beside the service modules. Do not add or modify tests unless specifically requested. 
+Rust integration tests live under `crates/*/tests`, and desktop service tests may live beside the service modules. Do not add or modify tests unless specifically requested.
 When tests are requested for project analysis, document edits, diagnostics, or model behavior, prefer fixtures from `examples/starter` for realistic project flows and use temporary test directories for invalid or synthetic Donder documents.
 
 ## Benchmark Guidelines
@@ -86,11 +86,11 @@ All static color literals must be defined in `apps/desktop/frontend/src/styles.c
 Always use `apps/desktop/frontend/src/styles.css` as the styling source of truth and `apps/desktop/frontend/src/theme.ts` as the runtime bridge for CSS-backed values. Never hardcode styling values in TypeScript or JSX. Reuse existing CSS classes and tokens whenever they fit; when they do not, add a clearly named semantic style or token to `styles.css` and expose it through `theme.ts` when runtime code needs it.
 All static frontend styling values—including typography, spacing, dimensions, shape, elevation, layering, motion, opacity, form geometry, icon sizes, scrollbar geometry, visualization metrics, responsive breakpoints, and accessibility geometry—must be defined in `apps/desktop/frontend/src/styles.css`. TypeScript and JSX may only use CSS-backed values or genuinely runtime/data-dependent values such as measured geometry, coordinates, and user/project colors.
 `apps/desktop/frontend/src/generated/bindings.ts` and `apps/desktop/gen/schemas/` are committed generated API artifacts. Regenerate bindings with `pnpm generate:bindings` and schemas through the Tauri tooling; never hand-edit either.
-Avoid unrelated edits to lockfiles, IDE files, or generated assets. 
+Avoid unrelated edits to lockfiles, IDE files, or generated assets.
 Keep temporary Donder scripts, profiling captures, and build artifacts under an ignored `target/` directory inside this repository, not in the user's home directory. Do not commit raw logs, failed captures, profiler output, screenshots, or step-by-step implementation journals. Promote only the smallest reviewed evidence needed to support a current claim under `firmware/esp32/results/accepted/`, and summarize it in the documentation. Shared installed toolchains and package caches may remain in their standard locations.
 Documentation describes current behavior and durable contracts. Consolidate superseded investigation notes into the current architecture or performance reference, then remove the journal; links are not a reason to retain stale documents.
 Check both Rust and desktop manifests before assuming a command or dependency belongs at the workspace root. `firmware/esp32/crates/donder-device-storage` is firmware-only and belongs to the ESP32 workspace. Keep embedded-only dependencies out of the root host workspace, and validate them with the firmware manifest and toolchain.
-Do not add compatibility layers, shims, fallbacks, or allow for legacy code when adding features or refactoring. 
+Do not add compatibility layers, shims, fallbacks, or allow for legacy code when adding features or refactoring.
 Do not add fallbacks when something doesn't work. This hides errors and makes debugging harder.
 The goal is fast development, not support. Minimize clutter and favor having a single way of doing things. SSOT is your friend.
 Put authoring semantics in `donder-language`, preparation in `donder-elaboration`, and portable frame-evaluation semantics in `donder-runtime`; desktop projection code must not reimplement any of them.

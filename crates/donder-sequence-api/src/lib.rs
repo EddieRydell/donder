@@ -1,7 +1,20 @@
 #![deny(unsafe_code)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::expect_used,
+        clippy::panic,
+        clippy::todo,
+        clippy::unimplemented,
+        clippy::unwrap_used
+    )
+)]
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
+
+mod dto;
+pub use dto::*;
 
 // Shared serialized edit contract for desktop and browser clients.
 // Tauri-Specta exports the TypeScript representation in bindings.ts.

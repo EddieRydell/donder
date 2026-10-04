@@ -210,10 +210,6 @@ pub struct SetupControllerPort {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-#[expect(
-    clippy::enum_variant_names,
-    reason = "Setup wire actions identify the child being edited."
-)]
 pub enum SetupGuiEdit {
     AddController {
         config: SetupControllerConfig,

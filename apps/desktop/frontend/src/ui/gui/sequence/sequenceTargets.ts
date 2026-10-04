@@ -1,4 +1,4 @@
-import type { FixtureTarget, SequenceEditorDocument } from "../../../types";
+import type { FixtureTarget, SequenceEditorDocument } from "../../../editor/types";
 
 export function targetsEqual(left: FixtureTarget, right: FixtureTarget) {
   return left.fixture === right.fixture;

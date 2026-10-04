@@ -1,4 +1,4 @@
-import type { FixtureTarget, SequenceLane, SequenceAutomationClip, PersistedSequenceViewportState } from "../../../types";
+import type { FixtureTarget, SequenceLane, SequenceAutomationClip, PersistedSequenceViewportState } from "../../../editor/types";
 
 import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";

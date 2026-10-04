@@ -24,7 +24,7 @@ state is then shared with history, persistence, rendering, and waveform work.
   prepared sequences. Its VM and scratch storage are private. It does not compile
   source or resolve names, imports, layouts, or device selection per frame.
 - `apps/desktop/src/desktop_state` owns application workflows and background
-  scheduling. `apps/desktop/src/gui` owns typed projection, edits, selection, and
+  scheduling. `crates/donder-editor/src/gui` owns typed projection, edits, selection, and
   DTO conversion. The frontend renders those typed contracts.
 
 The typed project is authoritative after load. Saving derives canonical YAML

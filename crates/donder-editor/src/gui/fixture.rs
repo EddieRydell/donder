@@ -241,7 +241,7 @@ pub(super) fn domain_element(
     Ok(element)
 }
 
-pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
+pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     let shape = match &element.shape {
         FixtureShape::Pixel => GuiFixtureShape::Pixel,
         FixtureShape::Line { length, count } => GuiFixtureShape::Line {
@@ -251,7 +251,7 @@ pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
         FixtureShape::Polyline { points, count } => GuiFixtureShape::Polyline {
             points: points
                 .iter()
-                .map(|point| crate::preview::point3_meters(*point))
+                .map(|point| super::model::point3_meters(*point))
                 .collect(),
             count: *count,
         },
@@ -304,9 +304,9 @@ pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     }
 }
 
-pub(crate) fn gui_transform(value: &FixtureTransform) -> Transform {
+pub fn gui_transform(value: &FixtureTransform) -> Transform {
     Transform {
-        position: crate::preview::point3_meters(value.position),
+        position: super::model::point3_meters(value.position),
         rotation: Rotation3Degrees {
             x_degrees: value.rotation.x,
             y_degrees: value.rotation.y,
@@ -481,7 +481,7 @@ fn pixel_diameter(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
     Ok(DistanceSpan::from_meters(diameter))
 }
 
-pub(crate) fn checked_point(
+pub fn checked_point(
     point: Point3Meters,
 ) -> Result<donder_language::values::Point3, GuiMutationError> {
     if [point.x_meters, point.y_meters, point.z_meters]

@@ -108,16 +108,6 @@ fn raster_column_time(
     column: usize,
     columns: usize,
 ) -> Result<donder_language::values::SampleTime, RasterRenderFailure> {
-    let rate = u64::from(clip.frame_rate());
-    let ticks = u64::from(clip.start_time().as_ticks());
-    let end = ticks + u64::from(clip.duration().as_ticks());
-    let micros = u64::from(donder_language::values::MICROS_PER_SECOND);
-    let start_frame = (ticks * rate).div_ceil(micros);
-    let end_frame = (end * rate).div_ceil(micros);
-    let active_frames = end_frame.saturating_sub(start_frame).max(1);
-    let offset = (((column as f32 + 0.5) * active_frames as f32 / columns as f32).floor() as u64)
-        .min(active_frames - 1);
-    let frame = (start_frame + offset).min(u64::from(clip.frame_count().saturating_sub(1)));
-    donder_language::values::sample_time_from_frame(frame as u32, clip.frame_rate())
+    clip.raster_column_time(column, columns)
         .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))
 }

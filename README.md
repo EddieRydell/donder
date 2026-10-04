@@ -47,7 +47,7 @@ That makes the project useful as a technical showcase for:
 apps/desktop/                 Tauri desktop app
 apps/desktop/src/             Rust desktop service, app state, commands, persistence
 apps/desktop/src/desktop_state/ Desktop audio, workspace, GUI edit, project, render, and filesystem workflows
-apps/desktop/src/gui/         Typed GUI projection, edit, selection, and domain-conversion modules
+crates/donder-editor/src/gui/         Typed GUI projection, edit, selection, and domain-conversion modules
 apps/desktop/src/state_tasks/ Background save/render scheduling and GUI history
 apps/desktop/src/preview/geometry.rs Read-only preview-prop geometry projection
 apps/desktop/frontend/        React/TypeScript frontend

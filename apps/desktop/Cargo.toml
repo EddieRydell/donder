@@ -12,6 +12,7 @@ camino.workspace = true
 bytemuck.workspace = true
 donder-project-io.workspace = true
 donder-sequence-api.workspace = true
+donder-editor.workspace = true
 sha2.workspace = true
 donder-language.workspace = true
 donder-output.workspace = true
