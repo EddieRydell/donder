@@ -139,9 +139,9 @@ impl Default for EffectRasterSettings {
     fn default() -> Self {
         Self {
             render_scale: 1.0,
-            max_columns: 256,
+            max_columns: 1024,
             max_rows: 50,
-            min_frame_stride: 4,
+            min_frame_stride: 1,
         }
     }
 }

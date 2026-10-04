@@ -1,11 +1,12 @@
 import { useSequenceEditorHost } from "../../../editor/host";
+import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Layers, SlidersHorizontal, Monitor } from "lucide-react";
 import {
   Background, Controls, Handle, MarkerType, MiniMap, NodeResizeControl, Position, ReactFlow,
   useEdgesState, useNodesState, useUpdateNodeInternals, type Edge, type Node, type NodeProps, type ReactFlowInstance
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
@@ -43,6 +44,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
   const host = useSequenceEditorHost();
+  const overlayContainer = useContext(OverlayPortal);
   const { commands, store: useAppStore, runGuiEditCommand } = host;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
@@ -253,7 +255,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
           </ReactFlow>
         </div>
       </ContextMenu.Trigger>
-      <ContextMenu.Portal><ContextMenu.Content className="menu-content graph-menu">
+      <ContextMenu.Portal container={overlayContainer}><ContextMenu.Content className="menu-content graph-menu">
         {context?.type === "selection" ? <ContextMenu.Item className="menu-item danger" disabled={!editable || !removable(context.selection)} onSelect={() => { deleteSelection(context.selection); }}>Delete selected</ContextMenu.Item> :
           context?.type === "pane" && <>
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => { add(null, context.position); }}>Add layer</ContextMenu.Item>
