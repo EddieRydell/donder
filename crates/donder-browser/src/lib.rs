@@ -89,6 +89,11 @@ fn prepare_playback(
         .into_playback())
 }
 
+/// Every browser session is the same module, so saved operations, which name
+/// definitions by module, still resolve when a later session replays them.
+const BROWSER_PROJECT_MODULE: uuid::Uuid =
+    uuid::Uuid::from_u128(0x0d0d_e000_b0b0_4000_8000_0000_0000_0001);
+
 /// An in-memory project built from the website's page, sources, and audio.
 /// No project files or server-side runtime are involved.
 #[wasm_bindgen]
@@ -103,6 +108,8 @@ pub struct BrowserSession {
     duration_seconds: f32,
     revision: u32,
     playback: SequencePlayback,
+    /// While replaying saved operations, playback is prepared once at the end.
+    replaying: bool,
 }
 
 #[wasm_bindgen]
@@ -113,7 +120,7 @@ impl BrowserSession {
             .map_err(|error| JsValue::from_str(&format!("Invalid session config: {error}")))?;
         validate_session_values(config.frame_rate, config.duration_seconds)?;
         page_layout::validate_page(&config.page)?;
-        let document = DocumentId::new(uuid::Uuid::new_v4(), "browser-demo.donder".into());
+        let document = DocumentId::new(BROWSER_PROJECT_MODULE, "browser-demo.donder".into());
         let project_source = SourceIdentity::from_document(document, "demo".into());
         let project_object = ObjectIdentity::from(project_source.clone());
         let setup_object = project_object.owned(OwnedObjectSlot::Setup);
@@ -175,6 +182,7 @@ impl BrowserSession {
         if let Some(url) = &config.audio_url {
             audio::set_audio(&mut session, &sequence_id, url)?;
         }
+        set_mark_collections(&mut session.project, &sequence_id, &config.mark_collections)?;
         let playback = prepare_playback(&session.project, &sequence_id)?;
         Ok(Self {
             session: Arc::new(session),
@@ -187,6 +195,7 @@ impl BrowserSession {
             duration_seconds: config.duration_seconds,
             revision: 0,
             playback,
+            replaying: false,
         })
     }
 
@@ -249,6 +258,46 @@ impl BrowserSession {
             .checked_add(1)
             .ok_or_else(|| JsValue::from_str("The demo revision counter is exhausted."))
     }
+}
+
+fn set_mark_collections(
+    project: &mut DonderProject,
+    sequence_id: &SequenceId,
+    collections: &[donder_sequence_api::SequenceMarkCollection],
+) -> Result<(), JsValue> {
+    let mut sequence = project
+        .sequence(sequence_id)
+        .cloned()
+        .ok_or_else(|| JsValue::from_str("The demo sequence was not found."))?;
+    sequence.mark_collections = collections
+        .iter()
+        .map(|collection| {
+            Ok(donder_language::sequence::MarkCollection {
+                key: donder_language::sequence::MarkCollectionKey {
+                    name: collection.key.clone(),
+                },
+                name: collection.name.clone(),
+                display_color: Color::from_hex(&collection.color).ok_or_else(|| {
+                    JsValue::from_str(&format!(
+                        "Mark color {} is not a hex color.",
+                        collection.color
+                    ))
+                })?,
+                marks: collection
+                    .marks_seconds
+                    .iter()
+                    .map(|&seconds| {
+                        donder_language::values::DonderTime::try_from_seconds_f32(seconds).map_err(
+                            |_| JsValue::from_str("Mark times must be non-negative seconds."),
+                        )
+                    })
+                    .collect::<Result<_, _>>()?,
+            })
+        })
+        .collect::<Result<_, JsValue>>()?;
+    project
+        .replace_sequence(sequence_id, sequence)
+        .map_err(|error| JsValue::from_str(&error))
 }
 
 fn validate_session_values(frame_rate: u32, duration_seconds: f32) -> Result<(), JsValue> {

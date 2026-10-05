@@ -82,10 +82,23 @@ export type BrowserEditorState = {
 };
 
 /**
+ *  An accepted change to a browser session, in the form a host can save and
+ *  replay to restore the session later.
+ */
+export type BrowserOperation = { type: "edit"; edit: SequenceGuiEdit } | { type: "selection"; edit: SequenceSelectionEdit } | { type: "source"; path: string; source: string };
+
+/**
  *  A page element tree measured by the website. Groups become layout groups and
  *  fixtures become inline fixtures. Pixel order is depth-first and matches `render`.
  */
 export type BrowserPageNode = { type: "group"; id: number; name: string; children: BrowserPageNode[] } | { type: "fixture"; id: number; name: string; pixels: ([number, number])[] };
+
+export type BrowserReplayResult = {
+	/**  How many operations were applied, in order. */
+	applied: number,
+	/**  Why the next operation could not be applied, when replay stopped early. */
+	error: string | null,
+};
 
 export type BrowserSelectionResult = {
 	state: BrowserEditorState,
@@ -105,6 +118,7 @@ export type BrowserSessionConfig = {
 	sources: BrowserSourceDocument[],
 	/**  A URL served by the website, used for waveform and playback. */
 	audioUrl: string | null,
+	markCollections: SequenceMarkCollection[],
 };
 
 export type BrowserSourceDocument = {

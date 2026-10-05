@@ -15,8 +15,8 @@ The desktop adapter uses Tauri; the website adapter uses this WASM session.
 ## Session API
 
 - `new BrowserSession(config)` takes a `BrowserSessionConfig`: frame rate,
-  duration, the measured page tree, effect/operator source documents, and an
-  optional website audio URL. These are the starting point, not history entries.
+  duration, the measured page tree, effect/operator source documents, an
+  optional website audio URL, and mark collections. These are the starting point, not history entries.
 - The page tree (`BrowserPageNode`) becomes the layout: groups become layout
   groups, and each fixture becomes an inline fixture with one pixel per point.
   The website owns node ids so effect targets stay stable as the page changes.
@@ -28,14 +28,18 @@ The desktop adapter uses Tauri; the website adapter uses this WASM session.
   parameters, automation clips and bindings, layers, operators, graph edges,
   and marks. `applySelectionEdit(edit)` handles mixed selections and clipboard.
 - `undo()` and `redo()` restore immutable project snapshots.
-- `sourceDocuments()`, `addSource(kind, path, source)`, and `setSource(path, source)`
-  expose effect/operator DSL authoring. A document may declare any number of
+- `sourceDocuments()` and `setSource(path, source)` expose effect/operator DSL
+  editing. A document may declare any number of
   effects or operators; the project check rejects removing a declaration the
   sequence still uses. Invalid source returns diagnostics without replacing the
   last accepted project or playback.
 - `declarationSources(source)` splits a DSL source into one document per
   declaration (`<Name>.effect.donder` or `<Name>.operator.donder`), using the
   parser's declaration spans, so a host can show or hide individual declarations.
+- `replay(operations)` applies saved `BrowserOperation`s (edits, selection edits,
+  and source changes) as history entries and prepares playback once, so a host
+  can restore a session it saved. It stops at the first operation that no
+  longer applies and reports why.
 - `renderClipRaster(effectId, columns, rows)` uses the prepared runtime sampler
   and the same column timing as desktop clip rasters.
 

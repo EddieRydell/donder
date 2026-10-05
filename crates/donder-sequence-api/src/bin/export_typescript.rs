@@ -37,6 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<BrowserCompileResult>()
         .register::<BrowserPageNode>()
         .register::<BrowserSessionConfig>()
+        .register::<BrowserOperation>()
+        .register::<BrowserReplayResult>()
         .register::<BrowserEditorState>()
         .register::<BrowserSourceKind>()
         .register::<BrowserSourceDocument>()
