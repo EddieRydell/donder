@@ -226,19 +226,34 @@ pub(super) fn install_source(
 }
 
 impl BrowserSession {
-    fn update_source(
+    /// Replace an existing document's text. Invalid source keeps the last
+    /// accepted project and playback.
+    pub(super) fn replace_source(
         &mut self,
         path: &str,
-        kind: BrowserSourceKind,
         text: &str,
-        install: SourceInstall,
-    ) -> Result<JsValue, JsValue> {
+    ) -> Result<CompileView, JsValue> {
+        let kind = self
+            .session
+            .source
+            .documents
+            .get(&self.session.source.project_document(path.into()))
+            .ok_or_else(|| JsValue::from_str(&format!("{path} was not found.")))
+            .map(source_kind)?
+            .ok_or_else(|| JsValue::from_str(&format!("{path} is not DSL source.")))?;
         let mut candidate = (*self.session).clone();
-        let outcome = install_source(&mut candidate, &self.sequence_id, path, kind, text, install)?;
+        let outcome = install_source(
+            &mut candidate,
+            &self.sequence_id,
+            path,
+            kind,
+            text,
+            SourceInstall::Replace,
+        )?;
         if matches!(outcome, SourceOutcome::Compiled(_)) {
             self.accept(candidate)?;
         }
-        js_value(&outcome.view())
+        Ok(outcome.view())
     }
 }
 
@@ -267,33 +282,11 @@ impl BrowserSession {
         js_value(&sources)
     }
 
-    /// Add a new effect or operator document. Returns compile diagnostics without
-    /// changing the project when the source is invalid.
-    #[wasm_bindgen(js_name = addSource)]
-    pub fn add_source(
-        &mut self,
-        kind: JsValue,
-        path: &str,
-        source: &str,
-    ) -> Result<JsValue, JsValue> {
-        let kind: BrowserSourceKind = serde_wasm_bindgen::from_value(kind)
-            .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        self.update_source(path, kind, source, SourceInstall::Create)
-    }
-
-    /// Replace an existing document's text. Invalid source keeps the last
-    /// accepted project and playback.
+    /// Replace an existing document's text. Invalid source returns diagnostics
+    /// and keeps the last accepted project and playback.
     #[wasm_bindgen(js_name = setSource)]
     pub fn set_source(&mut self, path: &str, source: &str) -> Result<JsValue, JsValue> {
-        let kind = self
-            .session
-            .source
-            .documents
-            .get(&self.session.source.project_document(path.into()))
-            .ok_or_else(|| JsValue::from_str(&format!("{path} was not found.")))
-            .map(source_kind)?
-            .ok_or_else(|| JsValue::from_str(&format!("{path} is not DSL source.")))?;
-        self.update_source(path, kind, source, SourceInstall::Replace)
+        js_value(&self.replace_source(path, source)?)
     }
 }
 

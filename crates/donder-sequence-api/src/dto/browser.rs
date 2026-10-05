@@ -45,6 +45,30 @@ pub struct BrowserSessionConfig {
     pub sources: Vec<BrowserSourceDocument>,
     /// A URL served by the website, used for waveform and playback.
     pub audio_url: Option<String>,
+    pub mark_collections: Vec<SequenceMarkCollection>,
+}
+
+/// An accepted change to a browser session, in the form a host can save and
+/// replay to restore the session later.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum BrowserOperation {
+    Edit { edit: SequenceGuiEdit },
+    Selection { edit: SequenceSelectionEdit },
+    Source { path: String, source: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserReplayResult {
+    /// How many operations were applied, in order.
+    pub applied: u32,
+    /// Why the next operation could not be applied, when replay stopped early.
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

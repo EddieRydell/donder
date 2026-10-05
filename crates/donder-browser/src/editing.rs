@@ -1,7 +1,8 @@
 use super::*;
 use donder_sequence_api::{
-    AppSettings, BrowserEditorState, BrowserSelectionResult, DocumentViewId, GuiDocument,
-    GuiDocumentRequest, GuiEditCommand, SequenceGuiEdit, SequenceSelectionEdit,
+    AppSettings, BrowserEditorState, BrowserOperation, BrowserReplayResult, BrowserSelectionResult,
+    DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand, SequenceGuiEdit,
+    SequenceSelectionEdit,
 };
 
 impl BrowserSession {
@@ -35,8 +36,12 @@ impl BrowserSession {
         }
     }
 
+    /// Accept an edited project as a history entry. During replay, playback is
+    /// prepared once at the end instead of after every operation.
     pub(super) fn accept(&mut self, candidate: ProjectSession) -> Result<(), JsValue> {
-        let playback = prepare_playback(&candidate.project, &self.sequence_id)?;
+        if !self.replaying {
+            self.playback = prepare_playback(&candidate.project, &self.sequence_id)?;
+        }
         let revision = self.next_revision()?;
         self.past.push(Arc::clone(&self.session));
         if self.past.len() > 100 {
@@ -50,9 +55,78 @@ impl BrowserSession {
             .duration
             .as_seconds_f32();
         self.session = Arc::new(candidate);
-        self.playback = playback;
         self.revision = revision;
         Ok(())
+    }
+
+    fn edit(&mut self, edit: SequenceGuiEdit) -> Result<(), JsValue> {
+        if matches!(
+            &edit,
+            SequenceGuiEdit::SetAudio {
+                import_path: Some(_)
+            }
+        ) {
+            return Err(JsValue::from_str(
+                "Audio file imports require a desktop host.",
+            ));
+        }
+        let mut candidate = (*self.session).clone();
+        donder_editor::apply_edit(
+            &mut candidate,
+            &self.request(),
+            GuiEditCommand::Sequence { edit },
+        )
+        .map_err(|error| JsValue::from_str(error.message()))?;
+        self.accept(candidate)
+    }
+
+    fn selection_edit(
+        &mut self,
+        edit: SequenceSelectionEdit,
+    ) -> Result<donder_editor::SequenceSelectionMutation, JsValue> {
+        if let SequenceSelectionEdit::Copy { selection } = edit {
+            let (clipboard, copied_count, skipped_count) = donder_editor::copy_sequence_selection(
+                &self.session,
+                &self.sequence_id,
+                &selection,
+            )
+            .map_err(|error| JsValue::from_str(error.message()))?;
+            self.clipboard = clipboard;
+            return Ok(donder_editor::SequenceSelectionMutation {
+                selection: Some(selection),
+                copied_count,
+                skipped_count,
+            });
+        }
+        let mut candidate = (*self.session).clone();
+        let mut clipboard = self.clipboard.clone();
+        let mutation = donder_editor::apply_sequence_selection_edit(
+            &mut candidate,
+            &self.request(),
+            edit,
+            &mut clipboard,
+        )
+        .map_err(|error| JsValue::from_str(error.message()))?;
+        self.accept(candidate)?;
+        self.clipboard = clipboard;
+        Ok(mutation)
+    }
+
+    fn operation(&mut self, operation: BrowserOperation) -> Result<(), JsValue> {
+        match operation {
+            BrowserOperation::Edit { edit } => self.edit(edit),
+            BrowserOperation::Selection { edit } => self.selection_edit(edit).map(|_| ()),
+            BrowserOperation::Source { path, source } => {
+                let diagnostics = self.replace_source(&path, &source)?.diagnostics;
+                match diagnostics.first() {
+                    None => Ok(()),
+                    Some(diagnostic) => Err(JsValue::from_str(&format!(
+                        "{path} does not compile: {}",
+                        diagnostic.message
+                    ))),
+                }
+            }
+        }
     }
 
     /// History holds project snapshots; the current page always wins.
@@ -90,24 +164,7 @@ impl BrowserSession {
     pub fn apply_edit(&mut self, edit: JsValue) -> Result<JsValue, JsValue> {
         let edit: SequenceGuiEdit = serde_wasm_bindgen::from_value(edit)
             .map_err(|error| JsValue::from_str(&format!("Invalid sequence edit: {error}")))?;
-        if matches!(
-            &edit,
-            SequenceGuiEdit::SetAudio {
-                import_path: Some(_)
-            }
-        ) {
-            return Err(JsValue::from_str(
-                "Audio file imports require a desktop host.",
-            ));
-        }
-        let mut candidate = (*self.session).clone();
-        donder_editor::apply_edit(
-            &mut candidate,
-            &self.request(),
-            GuiEditCommand::Sequence { edit },
-        )
-        .map_err(|error| JsValue::from_str(error.message()))?;
-        self.accept(candidate)?;
+        self.edit(edit)?;
         self.editor_state()
     }
 
@@ -115,39 +172,38 @@ impl BrowserSession {
     pub fn apply_selection_edit(&mut self, edit: JsValue) -> Result<JsValue, JsValue> {
         let edit: SequenceSelectionEdit = serde_wasm_bindgen::from_value(edit)
             .map_err(|error| JsValue::from_str(&format!("Invalid selection edit: {error}")))?;
-        let mutation = if let SequenceSelectionEdit::Copy { selection } = edit {
-            let (clipboard, copied_count, skipped_count) = donder_editor::copy_sequence_selection(
-                &self.session,
-                &self.sequence_id,
-                &selection,
-            )
-            .map_err(|error| JsValue::from_str(error.message()))?;
-            self.clipboard = clipboard;
-            donder_editor::SequenceSelectionMutation {
-                selection: Some(selection),
-                copied_count,
-                skipped_count,
-            }
-        } else {
-            let mut candidate = (*self.session).clone();
-            let mut clipboard = self.clipboard.clone();
-            let mutation = donder_editor::apply_sequence_selection_edit(
-                &mut candidate,
-                &self.request(),
-                edit,
-                &mut clipboard,
-            )
-            .map_err(|error| JsValue::from_str(error.message()))?;
-            self.accept(candidate)?;
-            self.clipboard = clipboard;
-            mutation
-        };
+        let mutation = self.selection_edit(edit)?;
         js_value(&BrowserSelectionResult {
             state: self.editor_state_view(),
             selection: mutation.selection,
             copied_count: mutation.copied_count,
             skipped_count: mutation.skipped_count,
         })
+    }
+
+    /// Apply saved operations in order, as history entries, preparing playback
+    /// once at the end. Stops at the first operation that no longer applies.
+    #[wasm_bindgen(js_name = replay)]
+    pub fn replay(&mut self, operations: JsValue) -> Result<JsValue, JsValue> {
+        let operations: Vec<BrowserOperation> = serde_wasm_bindgen::from_value(operations)
+            .map_err(|error| JsValue::from_str(&format!("Invalid saved operations: {error}")))?;
+        self.replaying = true;
+        let mut applied = 0;
+        let mut error = None;
+        for operation in operations {
+            if let Err(failure) = self.operation(operation) {
+                error = Some(
+                    failure
+                        .as_string()
+                        .unwrap_or_else(|| format!("{failure:?}")),
+                );
+                break;
+            }
+            applied += 1;
+        }
+        self.replaying = false;
+        self.playback = prepare_playback(&self.session.project, &self.sequence_id)?;
+        js_value(&BrowserReplayResult { applied, error })
     }
 
     #[wasm_bindgen(js_name = undo)]
