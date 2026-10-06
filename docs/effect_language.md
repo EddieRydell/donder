@@ -277,6 +277,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | HueShift | `source` | Adds `shift = 0.0` turns to the hue |
 | Delay | `input` | Samples `seconds = 0.1` earlier |
 | Echo | `input` | Maximum of the input and `repeats = 3` copies spaced `seconds = 0.1` apart, scaled by powers of `decay = 0.5` |
+| Blur | `input` | Tent-weighted average of `radius = 2` pixels on each side along each fixture's pixel order, renormalized at fixture ends |
 
 Samples before the sequence are black. The starter adds Gain and TimeWarp as
 separate operator documents. `examples/stanford_room` carries its own copy of the

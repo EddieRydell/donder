@@ -75,3 +75,19 @@ operator Echo {
     }
   }
 }
+
+operator Blur {
+  input input;
+  // Pixels averaged on each side, along each fixture's pixel order.
+  param radius: int in 1..16 = 2;
+
+  // Tent weights, renormalized where a fixture ends so its edges keep their level.
+  sample {
+    let first = int(max(-radius, -pixel.index));
+    let last = int(min(radius, target.count - 1 - pixel.index));
+    let total = sum for offset in first..=last { radius + 1 - abs(offset) };
+    sum for offset in first..=last {
+      input.at(time, pixel.index + offset) * ((radius + 1 - abs(offset)) / total)
+    }
+  }
+}
