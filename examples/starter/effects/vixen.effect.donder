@@ -122,13 +122,9 @@ effect VixenPinwheel {
     float ox = x_offset * 2.0 - 100.0;
     float oy = y_offset * 2.0 - 100.0;
     if (offset_percentage) { ox = ox * w / 100.0; oy = -oy * h / 100.0; }
-    // Math.Round's midpoint-to-even rule, including negative offsets.
-    float fx = floor(ox);
-    float fy = floor(oy);
-    if (ox - fx > 0.5 || (ox - fx == 0.5 && fx % 2.0 != 0.0)) { fx = fx + 1.0; }
-    if (oy - fy > 0.5 || (oy - fy == 0.5 && fy % 2.0 != 0.0)) { fy = fy + 1.0; }
-    float cx = floor(w / 2.0) + fx;
-    float cy = floor(h / 2.0) + fy;
+    // C# Math.Round rounds midpoints to even.
+    float cx = floor(w / 2.0) + round_even(ox);
+    float cy = floor(h / 2.0) + round_even(oy);
     float dx = x - cx;
     float dy = y - cy;
     float radius = sqrt(dx * dx + dy * dy);
@@ -140,9 +136,7 @@ effect VixenPinwheel {
     if (radius > max_radius || radius <= center_hub * max_radius / 100.0) { return rgb(0.0, 0.0, 0.0); }
     float angle = (270.0 - atan2(-dy, -dx) * 57.29577951308232) % 360.0;
     float separation = floor(360.0 / arms);
-    float rounded = floor(thickness);
-    if (thickness - rounded > 0.5 || (thickness - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
-    float half_angle = max(1.0, rounded) * separation / 200.0;
+    float half_angle = max(1.0, round_even(thickness)) * separation / 200.0;
     float movement_speed = max(1.0, (1.0 + movement * 0.49) * frame_interval_ms / 50.0);
     float position = t * movement_speed * 360.0;
     if (motion == speed) { position = t * movement_speed * floor(duration() * 1000.0 / frame_interval_ms); }
@@ -396,16 +390,9 @@ effect VixenBorder {
     float inset_x = floor((100.0 - border_size) * w / 200.0);
     float inset_y = floor((100.0 - border_height) * h / 200.0);
     float thick = (2.0 + thickness * (min(w, h) - 2.0) / 100.0) / 2.0;
-    float rounded = floor(thick);
-    if (thick - rounded > 0.5 || (thick - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
-    float ox = x_offset * 2.0 - 100.0;
-    float oy = y_offset * 2.0 - 100.0;
-    float rx = floor(ox);
-    float ry = floor(oy);
-    if (ox - rx > 0.5 || (ox - rx == 0.5 && rx % 2.0 != 0.0)) { rx = rx + 1.0; }
-    if (oy - ry > 0.5 || (oy - ry == 0.5 && ry % 2.0 != 0.0)) { ry = ry + 1.0; }
-    float shift_x = trunc(rx * (w - inset_x) / 100.0);
-    float shift_y = trunc(ry * (h - inset_y) / 100.0);
+    float rounded = round_even(thick);
+    float shift_x = trunc(round_even(x_offset * 2.0 - 100.0) * (w - inset_x) / 100.0);
+    float shift_y = trunc(round_even(y_offset * 2.0 - 100.0) * (h - inset_y) / 100.0);
     if (border_mode == simple) { rounded = simple_border_width; inset_x = 0.0; inset_y = 0.0; shift_x = 0.0; shift_y = 0.0; }
     x = x - shift_x;
     y = y - shift_y;
@@ -454,10 +441,7 @@ effect VixenSpiral {
     float y = h - 1.0 - floor((pixel_y() - target_min_y()) / pixel_size);
     int count = len(colors) * repeat;
     float delta = floor(w / count);
-    float thick_percent = 1.0 + thickness * 0.99;
-    float rounded = floor(thick_percent);
-    if (thick_percent - rounded > 0.5 || (thick_percent - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
-    float thick = floor(delta * rounded / 100.0) + 1.0;
+    float thick = floor(delta * round_even(1.0 + thickness * 0.99) / 100.0) + 1.0;
     float gap = delta - thick;
     float position = (t * iterations) % 1.0;
     float growth = 0.0;
@@ -563,10 +547,7 @@ effect VixenGarlands {
       height = w; across = y; row = x;
       if (direction == left) { row = w - x - 1.0; }
     }
-    float spacing_value = 1.0 + spacing * 0.19;
-    float rounded = floor(spacing_value);
-    if (spacing_value - rounded > 0.5 || (spacing_value - rounded == 0.5 && rounded % 2.0 != 0.0)) { rounded = rounded + 1.0; }
-    float separation = floor(rounded * h / 100.0) + 3.0;
+    float separation = floor(round_even(1.0 + spacing * 0.19) * h / 100.0) + 3.0;
     float limit = height * separation * 4.0;
     float step = floor(limit / frames) * iterations;
     float cycle_frame = frame;
@@ -879,13 +860,11 @@ effect VixenSpirograph {
     if (animate) { d = floor(d + state / 2.0) % 100.0; }
     if (sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) > outer - inner + d + 0.707107) { return rgb(0.0, 0.0, 0.0); }
     float state_mod = state % 1440.0;
-    float rounded_state = floor(state_mod);
-    if (state_mod - rounded_state > 0.5 || (state_mod - rounded_state == 0.5 && rounded_state % 2.0 != 0.0)) { rounded_state = rounded_state + 1.0; }
+    float rounded_state = round_even(state_mod);
     float samples = floor((1.0 + spirograph_range * 2.99) * 18.0);
     float range_value = 1.0 + color_range * 1.99;
     float bin = range_value / len(colors);
-    float rounded_bin = floor(bin);
-    if (bin - rounded_bin > 0.5 || (bin - rounded_bin == 0.5 && rounded_bin % 2.0 != 0.0)) { rounded_bin = rounded_bin + 1.0; }
+    float rounded_bin = round_even(bin);
     // More colors than the color range leaves standard colors no distance bins.
     if (color_type == standard && rounded_bin <= 0.0) { return rgb(0.0, 0.0, 0.0); }
     for (int ordinal in range(int(samples))) {
@@ -893,10 +872,8 @@ effect VixenSpirograph {
       float angle = (point + rounded_state) * 0.017453292519943295;
       float xx = (outer - inner) * cos(angle) + d * cos((outer - inner) / inner * angle) + cx;
       float yy = (outer - inner) * sin(angle) + d * sin((outer - inner) / inner * angle) + cy;
-      float rx = floor(xx);
-      float ry = floor(yy);
-      if (xx - rx > 0.5 || (xx - rx == 0.5 && rx % 2.0 != 0.0)) { rx = rx + 1.0; }
-      if (yy - ry > 0.5 || (yy - ry == 0.5 && ry % 2.0 != 0.0)) { ry = ry + 1.0; }
+      float rx = round_even(xx);
+      float ry = round_even(yy);
       if (rx == x && ry == y) {
         float level = intensity / 100.0;
         if (color_type == rainbow) { return hsv(floor(rand((random_seed * 31.0 + frame) * 31.0 + point) * 1000.0) / 1000.0, 1.0, level); }

@@ -3047,6 +3047,8 @@ pub enum FloatUnary {
     Floor,
     Ceil,
     Trunc,
+    /// Rounds to the nearest integer, ties to even.
+    RoundEven,
     Sqrt,
 }
 

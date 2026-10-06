@@ -949,7 +949,7 @@ impl FunctionCompiler {
                     src,
                 });
             }
-            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "sqrt" => {
+            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "round_even" | "sqrt" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
                 self.emit(Instruction::FloatUnary {
@@ -961,6 +961,7 @@ impl FunctionCompiler {
                         "floor" => FloatUnary::Floor,
                         "ceil" => FloatUnary::Ceil,
                         "trunc" => FloatUnary::Trunc,
+                        "round_even" => FloatUnary::RoundEven,
                         "sqrt" => FloatUnary::Sqrt,
                         _ => unreachable!("matched float unary builtin"),
                     },

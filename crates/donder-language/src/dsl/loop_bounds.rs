@@ -104,6 +104,7 @@ impl Interval {
             BoundUnary::Floor => self.widened().map(f64::floor),
             BoundUnary::Ceil => self.widened().map(f64::ceil),
             BoundUnary::Trunc => self.widened().map(f64::trunc),
+            BoundUnary::RoundEven => self.widened().map(libm::roundeven),
             BoundUnary::Sqrt if self.low >= 0.0 => self.map(f64::sqrt),
             BoundUnary::Sqrt => Self::TOP,
             // Saturating truncation; NaN becomes zero. An unbounded maximum stays
@@ -147,6 +148,7 @@ enum BoundUnary {
     Floor,
     Ceil,
     Trunc,
+    RoundEven,
     Sqrt,
     ToInt,
     Wrapping,
@@ -445,6 +447,7 @@ impl Analyzer<'_> {
                     "floor" => unary(BoundUnary::Floor),
                     "ceil" => unary(BoundUnary::Ceil),
                     "trunc" => unary(BoundUnary::Trunc),
+                    "round_even" => unary(BoundUnary::RoundEven),
                     "sqrt" => unary(BoundUnary::Sqrt),
                     "int" => unary(BoundUnary::ToInt),
                     "len" | "mark_count" => arg(0),

@@ -667,6 +667,7 @@ fn float_unary(op: FloatUnary, value: f32) -> f32 {
         FloatUnary::Floor => libm::floorf(value),
         FloatUnary::Ceil => libm::ceilf(value),
         FloatUnary::Trunc => libm::truncf(value),
+        FloatUnary::RoundEven => libm::roundevenf(value),
         FloatUnary::Sqrt => libm::sqrtf(value),
     }
 }

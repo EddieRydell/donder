@@ -1844,6 +1844,9 @@ impl<'a> Batch<'a> {
                 FloatUnary::Floor => float1!(dst, value, |v| float_unary(FloatUnary::Floor, v)),
                 FloatUnary::Ceil => float1!(dst, value, |v| float_unary(FloatUnary::Ceil, v)),
                 FloatUnary::Trunc => float1!(dst, value, |v| float_unary(FloatUnary::Trunc, v)),
+                FloatUnary::RoundEven => {
+                    float1!(dst, value, |v| float_unary(FloatUnary::RoundEven, v))
+                }
                 FloatUnary::Sqrt => float1!(dst, value, |v| float_unary(FloatUnary::Sqrt, v)),
             },
             Instruction::FloatBinary {

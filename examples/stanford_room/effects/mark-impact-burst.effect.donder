@@ -18,8 +18,8 @@ effect MarkImpactBurst {
     int mark = mark_last_index(beats, seconds() - offset_seconds);
     float hit_time = mark_at(beats, mark);
     float age = seconds() - hit_time - offset_seconds;
-    // Before the first mark the hit time is missing.
-    if (is_nan(age) || hit_time + offset_seconds < 0.0 || age < 0.0 || age >= burst_seconds) { return rgb(0.0, 0.0, 0.0); }
+    // Before the first mark the hit time is NaN, which renders black.
+    if (hit_time + offset_seconds < 0.0 || age < 0.0 || age >= burst_seconds) { return rgb(0.0, 0.0, 0.0); }
     float child_progress = age / burst_seconds;
     gradient selected_gradient = gradients[mark % len(gradients)];
     float distance = abs(pixel_fraction() - center_position);
