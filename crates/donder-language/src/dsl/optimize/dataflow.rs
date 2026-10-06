@@ -541,6 +541,7 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
                 UnaryFloat::Floor => f(value.floor()),
                 UnaryFloat::Ceil => f(value.ceil()),
                 UnaryFloat::Trunc => f(value.trunc()),
+                UnaryFloat::RoundEven => f(libm::roundevenf(value)),
                 UnaryFloat::Sqrt => f(libm::sqrtf(value)),
                 // Transcendental implementations differ between host and device.
                 UnaryFloat::Sin | UnaryFloat::Cos => None,

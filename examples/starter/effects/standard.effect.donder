@@ -139,8 +139,8 @@ effect MarkPulse {
     float hit_time = mark_last(beats, seconds() - offset_seconds);
     float child_start = hit_time + offset_seconds;
     float age = seconds() - child_start;
-    // Before the first mark the hit time is missing.
-    if (is_nan(age) || child_start < 0.0 || age < 0.0 || age >= decay_seconds) {
+    // Before the first mark the hit time is NaN, which renders black.
+    if (child_start < 0.0 || age < 0.0 || age >= decay_seconds) {
       return rgb(0.0, 0.0, 0.0);
     }
     int total_sections = section_count(section_width_pixels);
@@ -179,8 +179,8 @@ effect MarkChase {
     int mark = mark_last_index(beats, seconds() - offset_seconds - chase_seconds * hit);
     float hit_time = mark_at(beats, mark);
     float age = seconds() - hit_time - offset_seconds;
-    // Before the first mark the hit time is missing.
-    if (is_nan(age) || hit_time + offset_seconds < 0.0 || age < 0.0 || age >= chase_seconds) { return rgb(0.0, 0.0, 0.0); }
+    // Before the first mark the hit time is NaN, which renders black.
+    if (hit_time + offset_seconds < 0.0 || age < 0.0 || age >= chase_seconds) { return rgb(0.0, 0.0, 0.0); }
     float child_progress = age / chase_seconds;
     gradient selected_gradient = gradients[mark % len(gradients)];
     float pulse_progress = (child_progress - hit) / pulse_duration;
@@ -212,8 +212,8 @@ effect MarkWipe {
     int mark = mark_last_index(beats, seconds() - offset_seconds);
     float hit_time = mark_at(beats, mark);
     float age = seconds() - hit_time - offset_seconds;
-    // Before the first mark the hit time is missing.
-    if (is_nan(age) || hit_time + offset_seconds < 0.0 || age < 0.0 || age >= wipe_seconds) { return rgb(0.0, 0.0, 0.0); }
+    // Before the first mark the hit time is NaN, which renders black.
+    if (hit_time + offset_seconds < 0.0 || age < 0.0 || age >= wipe_seconds) { return rgb(0.0, 0.0, 0.0); }
     float child_progress = age / wipe_seconds;
     gradient selected_gradient = gradients[mark % len(gradients)];
     curve wipe_position = wipe_positions[mark % len(wipe_positions)];

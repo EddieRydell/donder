@@ -67,7 +67,7 @@ values.
 | Pixel | `pixel_index()`, `pixel_count()`, `pixel_fraction()` |
 | Space (meters) | `pixel_x()`, `pixel_y()`, `target_min_x()`, `target_min_y()`, `target_max_x()`, `target_max_y()` |
 | Sections | `section_count(width)`, `section_index(width)`, `section_position(width)` |
-| Math | `sin`, `cos`, `abs`, `floor`, `ceil`, `trunc`, `sqrt`, `atan2(y, x)`, `min`, `max`, `clamp`, `smoothstep`, `mix`, constants `PI` and `TAU` |
+| Math | `sin`, `cos`, `abs`, `floor`, `ceil`, `trunc`, `round_even` (ties to even), `sqrt`, `atan2(y, x)`, `min`, `max`, `clamp`, `smoothstep`, `mix`, constants `PI` and `TAU` |
 | Conversion | `int(x)` |
 | Missing values | `is_nan(x)`, `value_or(x, replacement)` |
 | Color | `rgb(r, g, b)`, `hsv(h, s, v)`, `hue(c)`, `saturation(c)`, `intensity(c)`, `invert(c)`, `mix(a, b, t)`, `max(a, b)` |
@@ -116,7 +116,7 @@ fragment is prepared, even if they are patched elsewhere; see
 - `for (int i in range(count)) { ... }` runs `max(0, count)` times. The compiler
   bounds `count` from literals, parameter ranges, `len()` of array and marks
   parameters, and enclosing loop indices, through arithmetic, `min`, `max`,
-  `clamp`, `abs`, `floor`, `ceil`, `trunc` and `int`. A count with no such bound,
+  `clamp`, `abs`, `floor`, `ceil`, `trunc`, `round_even` and `int`. A count with no such bound,
   or a bound above 10,000, is rejected. A bound that depends on a length is
   checked when an instance supplies its values.
 - C-style `for` loops need a trip count the compiler can prove constant and at

@@ -663,7 +663,7 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Int
             }
-            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "sqrt" => {
+            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "round_even" | "sqrt" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Float
@@ -906,8 +906,8 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         "mark_last" | "mark_last_index" if index == 1 => Some(Type::Float),
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
         "rgb" | "hsv" | "rand" | "int" | "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc"
-        | "sqrt" | "atan2" | "min" | "clamp" | "smoothstep" | "section_position" | "is_nan"
-        | "value_or" => Some(Type::Float),
+        | "round_even" | "sqrt" | "atan2" | "min" | "clamp" | "smoothstep" | "section_position"
+        | "is_nan" | "value_or" => Some(Type::Float),
         "curve_first_crossing" | "curve_last_crossing" if index == 0 => Some(Type::Curve),
         "curve_clamped" if index == 0 => Some(Type::Curve),
         "gradient_color_scaled" if index == 0 => Some(Type::Gradient),

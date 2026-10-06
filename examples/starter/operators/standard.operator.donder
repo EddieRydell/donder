@@ -63,12 +63,11 @@ operator Colorize {
 
 operator HueShift {
   input Signal source;
-  // Turns; a whole turn leaves the hue unchanged.
+  // Turns.
   param float shift in 0.0..1.0 = 0.0;
 
   color sample() {
     color value = source.at(seconds());
-    if (shift == floor(shift)) { return value; }
     return hsv(hue(value) + shift, saturation(value), intensity(value));
   }
 }
