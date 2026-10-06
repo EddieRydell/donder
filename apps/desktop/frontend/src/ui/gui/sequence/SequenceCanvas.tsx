@@ -290,7 +290,7 @@ export function SequenceCanvas({
       const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
       const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(current.rowHeights, revealAutomation)) - visibleHeight);
       // Trackpad pinches arrive as wheel events with ctrlKey set.
-      const zoom = event.ctrlKey || event.metaKey;
+      const zoom = hasPrimaryModifier(event) || (isMac && event.ctrlKey);
       const zoomScale = isMac && event.ctrlKey ? SEQUENCE_CANVAS.pinchZoomScale : SEQUENCE_CANVAS.wheelZoomScale;
       if (zoom && event.shiftKey) {
         const scale = Math.exp(-zoomDelta * zoomScale);

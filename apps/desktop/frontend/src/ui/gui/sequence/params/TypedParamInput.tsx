@@ -750,11 +750,12 @@ export function CurveParam({
         role="img"
         aria-label={`${name} curve`}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
           }
-          if (event.target instanceof SVGCircleElement || isSecondaryClick(event)) return;
+          if (event.target instanceof SVGCircleElement) return;
           const point = pointFromPointer(event);
           update([...draftsRef.current, point]);
           setSelectedIndex(nearestFloatPointIndex(draftsRef.current, point));
@@ -1028,11 +1029,12 @@ export function GradientParam({
         className="color-curve-gradient"
         style={{ background: gradient }}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
           }
-          if (event.target !== event.currentTarget || isSecondaryClick(event)) return;
+          if (event.target !== event.currentTarget) return;
           const previous = draftsRef.current[draftsRef.current.length - 1]?.value ?? CURVE_EDITOR.defaultColor;
           const point = pointFromPointer(event, previous);
           update([...draftsRef.current, point]);

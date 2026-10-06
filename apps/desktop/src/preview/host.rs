@@ -345,8 +345,8 @@ impl PreviewHostApplication {
             return;
         }
         match event.logical_key.as_ref() {
-            Key::Character("w") => self.close(event_loop),
-            Key::Character("q") => {
+            Key::Character(key) if key.eq_ignore_ascii_case("w") => self.close(event_loop),
+            Key::Character(key) if key.eq_ignore_ascii_case("q") => {
                 let _ = emit(&PreviewEvent::QuitRequested);
             }
             _ => {}

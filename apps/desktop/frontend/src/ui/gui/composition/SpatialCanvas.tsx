@@ -196,7 +196,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onPointerUp={(event) => {
         pointerActive.current = false; setDragging(false);
         const rect = event.currentTarget.getBoundingClientRect();
-        if (gesture.current === null && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
+        if (gesture.current === null && !isSecondaryClick(event) && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
         const active = gesture.current;
         gesture.current = null;
         if (active?.type === "box") {
