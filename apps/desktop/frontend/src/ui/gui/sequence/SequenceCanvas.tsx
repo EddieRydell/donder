@@ -766,8 +766,7 @@ export function SequenceCanvas({
       commands.applySequenceGuiEdit(request, {
         type: "bindAutomationParam",
         clipId,
-        target: chooser.target,
-        mapping: chooser.mapping
+        target: chooser.target
       })
     ).then(() => {
       setAutomationClipChooser(null);

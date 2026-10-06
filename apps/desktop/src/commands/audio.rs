@@ -85,3 +85,19 @@ pub(crate) async fn audio_seek(
         .map_err(|error| format!("Audio transport worker failed: {error}"))?;
     Ok(publish_audio_snapshot(&app, snapshot))
 }
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn audio_set_playback_speed(
+    speed: PlaybackSpeed,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let rate = donder_runtime::PlaybackRate::try_from(speed)?;
+    let owned = state.inner().clone();
+    let snapshot =
+        tauri::async_runtime::spawn_blocking(move || owned.audio_set_playback_rate(rate))
+            .await
+            .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
+}

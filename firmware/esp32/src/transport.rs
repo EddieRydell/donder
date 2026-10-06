@@ -1,5 +1,7 @@
 //! Show time follows a clock, never the number of completed render iterations.
 
+use donder_runtime::PlaybackRate;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Playing,
@@ -51,6 +53,7 @@ pub struct Scheduled {
     pub mode: Mode,
     pub position: u32,
     pub looping: bool,
+    pub rate: PlaybackRate,
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +62,7 @@ pub struct Transport {
     anchor_time: u64,
     anchor_position: u32,
     looping: bool,
+    rate: PlaybackRate,
     pub pending: Option<Scheduled>,
     pub command_id: u32,
     pub generation: u32,
@@ -71,17 +75,26 @@ impl Transport {
             anchor_time: 0,
             anchor_position: 0,
             looping: false,
+            rate: PlaybackRate::NORMAL,
             pending: None,
             command_id: 0,
             generation: 0,
         }
     }
-    pub fn apply(&mut self, mode: Mode, position: u32, now: u64, looping: bool) {
+    pub fn apply(
+        &mut self,
+        mode: Mode,
+        position: u32,
+        now: u64,
+        looping: bool,
+        rate: PlaybackRate,
+    ) {
         self.generation = self.generation.wrapping_add(1);
         self.mode = mode;
         self.anchor_time = now;
         self.anchor_position = position;
         self.looping = looping;
+        self.rate = rate;
         self.pending = None;
     }
     pub fn schedule(&mut self, command: Scheduled) -> bool {
@@ -93,17 +106,37 @@ impl Transport {
         self.pending = Some(command);
         true
     }
-    pub fn sample(&self, now: u64, duration: u32) -> (Mode, u32) {
+    /// The rate in effect at `now`, after any due pending command.
+    pub fn rate(&self, now: u64) -> PlaybackRate {
+        self.at(now).rate
+    }
+    fn at(&self, now: u64) -> Self {
         let mut current = *self;
-        if let Some(pending) = current.pending
+        current.apply_due(now);
+        current
+    }
+    fn apply_due(&mut self, now: u64) {
+        if let Some(pending) = self.pending
             && now >= pending.at
         {
-            current.apply(pending.mode, pending.position, pending.at, pending.looping);
+            self.apply(
+                pending.mode,
+                pending.position,
+                pending.at,
+                pending.looping,
+                pending.rate,
+            );
         }
+    }
+    pub fn sample(&self, now: u64, duration: u32) -> (Mode, u32) {
+        let current = self.at(now);
         if current.mode != Mode::Playing {
             return (current.mode, current.anchor_position);
         }
-        let position = u64::from(current.anchor_position) + now.saturating_sub(current.anchor_time);
+        let position = u64::from(current.anchor_position)
+            + current
+                .rate
+                .show_elapsed(now.saturating_sub(current.anchor_time));
         if current.looping {
             (Mode::Playing, (position % u64::from(duration)) as u32)
         } else if position >= u64::from(duration) {
@@ -113,14 +146,10 @@ impl Transport {
         }
     }
     pub fn refresh(&mut self, now: u64, duration: u32) {
-        if let Some(pending) = self.pending
-            && now >= pending.at
-        {
-            self.apply(pending.mode, pending.position, pending.at, pending.looping);
-        }
+        self.apply_due(now);
         let (mode, position) = self.sample(now, duration);
         if mode == Mode::Ended && self.mode != Mode::Ended {
-            self.apply(mode, position, now, false);
+            self.apply(mode, position, now, false, self.rate);
         }
     }
     pub fn cancel(&mut self, id: u32, now: u64) -> bool {
@@ -149,6 +178,7 @@ mod tests {
             mode: Mode::Playing,
             position: 0,
             looping: false,
+            rate: PlaybackRate::NORMAL,
         });
         let generation = transport.generation;
         assert_eq!(
@@ -165,6 +195,7 @@ mod tests {
             mode: Mode::Playing,
             position: 0,
             looping: false,
+            rate: PlaybackRate::NORMAL,
         });
         assert!(!transport.cancel(2, 2_000_000));
         assert_eq!(
@@ -180,7 +211,8 @@ mod tests {
             at: 1_000_000,
             mode: Mode::Playing,
             position: 0,
-            looping: false
+            looping: false,
+            rate: PlaybackRate::NORMAL,
         }));
         assert_eq!(transport.sample(999_999, 8_000_000), (Mode::Stopped, 0));
         assert_eq!(
@@ -195,13 +227,14 @@ mod tests {
     #[test]
     fn pause_seek_stop_and_replaced_schedules() {
         let mut transport = Transport::new();
-        transport.apply(Mode::Playing, 0, 1_000_000, false);
+        transport.apply(Mode::Playing, 0, 1_000_000, false, PlaybackRate::NORMAL);
         transport.schedule(Scheduled {
             id: 2,
             at: 1_100_000,
             mode: Mode::Paused,
             position: 100_000,
             looping: false,
+            rate: PlaybackRate::NORMAL,
         });
         assert_eq!(
             transport.sample(1_099_999, 8_000_000),
@@ -216,16 +249,23 @@ mod tests {
             at: 3_000_000,
             mode: Mode::Playing,
             position: 0,
-            looping: true
+            looping: true,
+            rate: PlaybackRate::NORMAL,
         }));
-        transport.apply(Mode::Paused, 7_000_000, 2_000_000, false);
+        transport.apply(
+            Mode::Paused,
+            7_000_000,
+            2_000_000,
+            false,
+            PlaybackRate::NORMAL,
+        );
         assert_eq!(
             transport.sample(3_000_000, 8_000_000),
             (Mode::Paused, 7_000_000)
         );
-        transport.apply(Mode::Stopped, 0, 3_000_000, false);
+        transport.apply(Mode::Stopped, 0, 3_000_000, false, PlaybackRate::NORMAL);
         assert_eq!(transport.sample(4_000_000, 8_000_000), (Mode::Stopped, 0));
-        transport.apply(Mode::Playing, 0, 0, true);
+        transport.apply(Mode::Playing, 0, 0, true, PlaybackRate::NORMAL);
         assert_eq!(
             transport.sample(9_000_000, 8_000_000),
             (Mode::Playing, 1_000_000)
@@ -247,7 +287,7 @@ mod tests {
         assert!(!clock.usable(2, 100_000));
         assert!(!clock.usable(1, 10_100_000));
         let mut transport = Transport::new();
-        transport.apply(Mode::Playing, 0, 0, false);
+        transport.apply(Mode::Playing, 0, 0, false, PlaybackRate::NORMAL);
         transport.refresh(8_000_000, 8_000_000);
         assert_eq!(transport.mode, Mode::Ended);
     }

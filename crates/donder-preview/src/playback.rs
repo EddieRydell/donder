@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use donder_language::values::sample_time_from_seconds_f32;
-use donder_runtime::SequencePlayback;
 use donder_runtime::{LoadError, LoadLimits, decode_sequence};
+use donder_runtime::{PlaybackRate, SequencePlayback};
 
 use crate::PreviewColor;
 
@@ -31,6 +31,7 @@ pub struct PreviewClockSnapshot {
     pub state: PreviewPlaybackState,
     pub position_seconds: f32,
     pub start_delay_seconds: f32,
+    pub rate: PlaybackRate,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -42,12 +43,13 @@ struct ClockAnchor {
 impl ClockAnchor {
     fn position_at(self, now: Instant) -> f32 {
         if self.snapshot.state == PreviewPlaybackState::Playing {
+            let wall = (now
+                .saturating_duration_since(self.received_at)
+                .as_secs_f32()
+                - self.snapshot.start_delay_seconds)
+                .max(0.0);
             self.snapshot.position_seconds
-                + (now
-                    .saturating_duration_since(self.received_at)
-                    .as_secs_f32()
-                    - self.snapshot.start_delay_seconds)
-                    .max(0.0)
+                + self.snapshot.rate.show_elapsed((wall * 1_000_000.0) as u64) as f32 / 1_000_000.0
         } else {
             self.snapshot.position_seconds
         }
@@ -59,7 +61,7 @@ pub struct PreviewPlayback {
     colors: Vec<PreviewColor>,
     unlit: PreviewColor,
     clock: ClockAnchor,
-    last_frame: Option<(u32, u32)>,
+    last_frame: Option<(u32, u64)>,
 }
 
 impl PreviewPlayback {
@@ -74,6 +76,7 @@ impl PreviewPlayback {
                     state: PreviewPlaybackState::Unavailable,
                     position_seconds: 0.0,
                     start_delay_seconds: 0.0,
+                    rate: PlaybackRate::NORMAL,
                 },
                 received_at: Instant::now(),
             },
@@ -148,15 +151,16 @@ impl PreviewPlayback {
             return Ok(changed);
         }
         let position = self.clock.position_at(now).max(0.0);
-        let frame_rate = sequence.sequence().frame_rate();
-        let frame_count = sequence.sequence().frame_count();
-        let frame = frame_at_position(position, frame_rate, frame_count);
+        let sample_time = sample_time_from_seconds_f32(position)
+            .map_err(|_| PreviewPlaybackError::ClockPosition)?;
+        let frame = self.clock.snapshot.rate.frame_at(
+            u64::from(sample_time.as_ticks()),
+            sequence.sequence().frame_rate(),
+        );
         let key = (self.clock.snapshot.generation, frame);
         if self.last_frame == Some(key) {
             return Ok(false);
         }
-        let sample_time = sample_time_from_seconds_f32(position)
-            .map_err(|_| PreviewPlaybackError::ClockPosition)?;
         let evaluated = sequence.evaluate(sample_time);
         for (target, color) in self.colors.iter_mut().zip(evaluated.colors()) {
             *target = PreviewColor::opaque([color.red, color.green, color.blue]);
@@ -178,21 +182,11 @@ impl PreviewPlayback {
         if frame_rate == 0 {
             return None;
         }
-        let position = self.clock.position_at(now).max(0.0);
-        let next_position = (position * frame_rate as f32)
-            .floor()
-            .mul_add(1.0 / frame_rate as f32, 1.0 / frame_rate as f32);
-        let delay = Duration::from_secs_f32((next_position - position).max(0.001));
+        let rate = self.clock.snapshot.rate;
+        let position = (self.clock.position_at(now).max(0.0) * 1_000_000.0) as u64;
+        let next_position = rate.frame_start(rate.frame_at(position, frame_rate) + 1, frame_rate);
+        let delay = Duration::from_micros(rate.wall_elapsed(next_position - position).max(1_000));
         Some(now + delay)
-    }
-}
-
-fn frame_at_position(position: f32, frame_rate: u32, frame_count: u32) -> u32 {
-    let frame = (position * frame_rate as f32).floor();
-    if !frame.is_finite() || frame <= 0.0 {
-        0
-    } else {
-        (frame as u32).min(frame_count.saturating_sub(1))
     }
 }
 

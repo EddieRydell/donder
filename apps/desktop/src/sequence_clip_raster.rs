@@ -20,9 +20,7 @@ use donder_language::effect::{
     EffectParamValue, EffectScope, GradientDefinition, GradientId, GradientSource,
 };
 use donder_language::model::DonderProject;
-use donder_language::sequence::{
-    AutomationBinding, AutomationMapping, MarkCollectionKey, Sequence, SequenceId,
-};
+use donder_language::sequence::{AutomationBinding, MarkCollectionKey, Sequence, SequenceId};
 use donder_language::setup::SetupId;
 use donder_language::values::{Curve, DonderTime, Gradient};
 use donder_project_io::ProjectSession;

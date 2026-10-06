@@ -270,6 +270,8 @@ impl Range {
                 self.low.abs().max(self.high.abs()),
             ),
             FloatUnary::Floor => Self::new(self.low.floor(), self.high.floor()),
+            FloatUnary::Ceil => Self::new(self.low.ceil(), self.high.ceil()),
+            FloatUnary::Trunc => Self::new(self.low.trunc(), self.high.trunc()),
             FloatUnary::Sqrt if self.low >= 0.0 => {
                 Self::new(libm::sqrtf(self.low), libm::sqrtf(self.high))
             }

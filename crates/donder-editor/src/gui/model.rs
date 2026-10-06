@@ -359,32 +359,12 @@ fn library_identity(
     Ok(Some(id))
 }
 
-pub(super) fn automation_mapping_from_gui(
-    mapping: SequenceAutomationMapping,
-) -> Result<AutomationMapping, GuiMutationError> {
-    Ok(match mapping {
-        SequenceAutomationMapping::Float { min, max } => AutomationMapping::Float { min, max },
-        SequenceAutomationMapping::Int { min, max } => AutomationMapping::Int {
-            min: min.round() as i32,
-            max: max.round() as i32,
-        },
-        SequenceAutomationMapping::Bool => AutomationMapping::Bool,
-        SequenceAutomationMapping::Enum { values } => AutomationMapping::Enum {
-            values: values
-                .into_iter()
-                .map(|value| identifier(&value))
-                .collect::<Result<Vec<_>, _>>()?,
-        },
-        SequenceAutomationMapping::Curve { min, max } => AutomationMapping::Curve { min, max },
-    })
-}
-
 pub(super) fn automation_binding_value_at(
     clip: &AutomationClip,
-    binding: &AutomationBinding,
+    mapping: &AutomationMapping,
     seconds: f32,
 ) -> Result<EffectParamValue, GuiMutationError> {
-    automation_value_at(clip, binding, seconds)
+    automation_value_at(clip, mapping, seconds)
         .map(|value| match value {
             AutomationValue::Int(value) => EffectParamValue::Int(value),
             AutomationValue::Float(value) => EffectParamValue::Float(value),
@@ -510,10 +490,9 @@ use donder_language::identity::SourceIdentity;
 use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
 use donder_language::operator::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
 use donder_language::sequence::{
-    AssetId, AutomationBinding, AutomationClip, AutomationMapping, AutomationValue,
-    CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
-    GraphNodePosition, GraphPortId, MarkCollection, MarkCollectionKey, SequenceLayerId,
-    automation_value_at,
+    AssetId, AutomationClip, AutomationMapping, AutomationValue, CompositionGraphNode,
+    CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge, GraphNodePosition,
+    GraphPortId, MarkCollection, MarkCollectionKey, SequenceLayerId, automation_value_at,
 };
 use donder_language::values::{
     Color, Curve, CurvePoint, Distance, Gradient, GradientStop, Point3,
@@ -523,9 +502,9 @@ use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
 
 use super::GuiMutationError;
 use crate::dto::{
-    FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceAutomationMapping,
-    SequenceCurvePoint, SequenceEffectParamValue, SequenceEffectScope, SequenceGradientStop,
-    SequenceGraphOperator, SequenceLibrarySource,
+    FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceCurvePoint,
+    SequenceEffectParamValue, SequenceEffectScope, SequenceGradientStop, SequenceGraphOperator,
+    SequenceLibrarySource,
 };
 
 pub(super) fn create_object_document(

@@ -1,6 +1,6 @@
 mod params;
 use params::{
-    automation_mapping_to_gui, curve_library, effect_params, gradient_library, graph_node_id,
+    curve_library, effect_params, gradient_library, graph_node_id,
     graph_operator_definition_to_gui, param_kind, sequence_composition_graph_node,
 };
 
@@ -152,7 +152,6 @@ fn automation_clips(sequence: &donder_language::sequence::Sequence) -> Vec<Seque
                 .iter()
                 .map(|binding| SequenceAutomationBinding {
                     target: automation_target_to_gui(&binding.target),
-                    mapping: automation_mapping_to_gui(&binding.mapping),
                 })
                 .collect(),
             detached_bindings: clip
@@ -160,7 +159,6 @@ fn automation_clips(sequence: &donder_language::sequence::Sequence) -> Vec<Seque
                 .iter()
                 .map(|binding| SequenceDetachedAutomationBinding {
                     target: automation_target_to_gui(&binding.target),
-                    mapping: automation_mapping_to_gui(&binding.mapping),
                     reason: match binding.reason {
                         AutomationDetachmentReason::TargetDeleted => {
                             SequenceAutomationDetachmentReason::TargetDeleted

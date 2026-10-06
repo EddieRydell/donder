@@ -76,14 +76,12 @@ pub struct SequenceAutomationClip {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceAutomationBinding {
     pub target: SequenceAutomationTarget,
-    pub mapping: SequenceAutomationMapping,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceDetachedAutomationBinding {
     pub target: SequenceAutomationTarget,
-    pub mapping: SequenceAutomationMapping,
     pub reason: SequenceAutomationDetachmentReason,
 }
 
@@ -256,6 +254,7 @@ pub struct SequenceEffectParam {
     pub name: String,
     pub kind: SequenceEffectParamKind,
     pub options: Vec<String>,
+    pub range: Option<SequenceParamRange>,
     pub editable: bool,
     pub value: SequenceEffectParamValue,
     pub automation: Option<SequenceParamAutomation>,
@@ -265,7 +264,14 @@ pub struct SequenceEffectParam {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceParamAutomation {
     pub clip_id: u32,
-    pub mapping: SequenceAutomationMapping,
+}
+
+/// Inclusive declared range of an `int`, `float`, or `curve` param.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceParamRange {
+    pub min: f64,
+    pub max: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

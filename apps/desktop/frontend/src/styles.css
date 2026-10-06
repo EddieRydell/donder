@@ -257,6 +257,8 @@
   --donder-control-height-sm: 24px;
   --donder-control-height-md: 28px;
   --donder-control-height-lg: 30px;
+  --donder-sequence-speed-slider-width: 96px;
+  --donder-sequence-speed-input-width: 64px;
   --donder-icon-button-size: 28px;
   --donder-icon-size-sm: 14px;
   --donder-icon-size-md: 16px;
@@ -1268,6 +1270,39 @@ html.donder-app-shell body {
   white-space: nowrap;
 }
 
+.sequence-speed-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--donder-space-4);
+  height: var(--donder-toolbar-height);
+  border-left: var(--donder-border-width) solid var(--donder-border);
+  padding: var(--donder-space-0) var(--donder-space-6);
+}
+
+.sequence-speed-slider {
+  width: var(--donder-sequence-speed-slider-width);
+  padding: var(--donder-space-0);
+}
+
+.sequence-speed-controls .sequence-speed-input {
+  width: var(--donder-sequence-speed-input-width);
+  height: var(--donder-control-height-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sequence-speed-unit {
+  color: var(--donder-text-muted-alt);
+}
+
+.sequence-toolbar .sequence-frame-timing button {
+  display: block;
+  flex: 0 0 auto;
+  width: auto;
+  height: var(--donder-control-height-sm);
+  padding: var(--donder-space-0) var(--donder-space-6);
+}
+
 .sequence-audio-status {
   margin-left: var(--donder-space-6);
   font-weight: var(--donder-font-weight-semibold);
@@ -1968,18 +2003,6 @@ html.donder-app-shell body {
 
 .effect-param-value-control {
   min-width: 0;
-}
-
-.effect-param-automation-range {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--donder-space-3);
-  color: var(--donder-text-soft);
-}
-
-.effect-param-automation-range input {
-  opacity: var(--donder-opacity-full);
 }
 
 .effect-param-value-control > label,

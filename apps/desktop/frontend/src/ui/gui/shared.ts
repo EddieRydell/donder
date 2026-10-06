@@ -5,7 +5,6 @@ import type {
   AppSnapshot,
   GeometryRenderBounds,
   Point3Meters,
-  SequenceAutomationMapping,
   SequenceAutomationTarget,
   SequenceSelection as WireSequenceSelection
 } from "../../editor/types";
@@ -22,7 +21,6 @@ export type SequenceSelection = WireSequenceSelection | null;
 
 export type AutomationClipChooser = {
   target: SequenceAutomationTarget;
-  mapping: SequenceAutomationMapping;
 } | null;
 
 export function automationTargetsEqual(

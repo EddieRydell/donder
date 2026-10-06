@@ -5,7 +5,8 @@ use donder_language::sequence::SequenceId;
 use donder_language::setup::SetupId;
 use donder_language::values::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
 use donder_output::ControllerPortFrame;
-use donder_runtime::SequencePlayback;
+use donder_runtime::{PlaybackRate, SequencePlayback};
+use std::time::Duration;
 
 use crate::dto::{AudioTransportSnapshot, AudioTransportState};
 
@@ -32,8 +33,11 @@ pub(crate) struct RenderedFixture {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RenderedSequenceFrame {
+    /// Index on the playback frame grid, which follows the playback speed.
     pub frame_index: u32,
     pub frame_rate: u32,
+    /// Wall time between playback frames.
+    pub frame_interval: Duration,
     pub sample_time: SampleTime,
     pub fixtures: Vec<RenderedFixture>,
     pub controller_frames: Vec<ControllerPortFrame>,
@@ -80,6 +84,7 @@ pub(crate) enum SequenceRenderError {
     NoSequenceRenderSession,
     ClockUnavailable { state: AudioTransportState },
     InvalidClock(SampleTimeError),
+    InvalidPlaybackSpeed(String),
 }
 
 impl SequenceRenderService {
@@ -132,27 +137,26 @@ impl SequenceRenderService {
             .as_mut()
             .ok_or(SequenceRenderError::NoSequenceRenderSession)?;
         require_audio_clock(audio)?;
-        let sequence = session.playback.sequence();
-        let frame_rate = sequence.frame_rate();
-        let frame_index = frame_index_for_audio_seconds(
-            audio.position_seconds,
-            frame_rate,
-            sequence.frame_count(),
-        );
+        let rate = playback_rate(audio)?;
+        let frame_rate = session.playback.sequence().frame_rate();
+        let sample_time = sample_time_from_seconds_f32(audio.position_seconds)
+            .map_err(SequenceRenderError::InvalidClock)?;
+        let frame_index = playback_frame_index(rate, sample_time, frame_rate);
         if let Some(cached) = &session.cached
             && cached.audio_generation == audio.generation
             && cached.frame.frame_index == frame_index
         {
             return Ok(cached.clone());
         }
-        let sample_time = sample_time_from_seconds_f32(audio.position_seconds)
-            .map_err(SequenceRenderError::InvalidClock)?;
         let rendered = session.playback.evaluate(sample_time);
         let frame = AudioClockRenderedFrame {
             audio_generation: audio.generation,
             frame: RenderedSequenceFrame {
                 frame_index,
                 frame_rate,
+                frame_interval: Duration::from_micros(
+                    rate.wall_elapsed(rate.frame_start(1, frame_rate)),
+                ),
                 sample_time,
                 fixtures: rendered
                     .fixtures()
@@ -194,10 +198,11 @@ impl SequenceRenderService {
             position_seconds: audio.position_seconds,
             frame_rate: sequence.frame_rate(),
             frame_count: sequence.frame_count(),
-            frame_index: frame_index_for_audio_seconds(
-                audio.position_seconds,
+            frame_index: playback_frame_index(
+                playback_rate(audio)?,
+                sample_time_from_seconds_f32(audio.position_seconds)
+                    .map_err(SequenceRenderError::InvalidClock)?,
                 sequence.frame_rate(),
-                sequence.frame_count(),
             ),
         })
     }
@@ -275,6 +280,11 @@ fn require_audio_clock(audio: &AudioTransportSnapshot) -> Result<(), SequenceRen
     }
 }
 
-fn frame_index_for_audio_seconds(audio_seconds: f32, frame_rate: u32, frame_count: u32) -> u32 {
-    ((audio_seconds * frame_rate as f32).floor() as u32).min(frame_count.saturating_sub(1))
+fn playback_rate(audio: &AudioTransportSnapshot) -> Result<PlaybackRate, SequenceRenderError> {
+    PlaybackRate::try_from(audio.playback_speed).map_err(SequenceRenderError::InvalidPlaybackSpeed)
+}
+
+fn playback_frame_index(rate: PlaybackRate, sample_time: SampleTime, frame_rate: u32) -> u32 {
+    rate.frame_at(u64::from(sample_time.as_ticks()), frame_rate)
+        .min(u64::from(u32::MAX)) as u32
 }

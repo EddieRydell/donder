@@ -10,6 +10,7 @@ import type { AppSnapshot, AudioTransportState, SequenceEditorDocument } from ".
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
+import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 
 export function SequenceTransportControls({
   document,
@@ -110,6 +111,7 @@ export function SequenceTransportControls({
       >
         <Music size={THEME_METRICS.iconSizeCompact} />
       </button>
+      {host.capabilities.playbackSpeed ? <SequencePlaybackSpeedControls speed={transport.playbackSpeed} /> : null}
       <span className="sequence-time-readout">
         <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
@@ -187,7 +189,7 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
         setAnimatedPositionSeconds(latest.positionSeconds);
         return;
       }
-      const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(current.anchoredAt) - current.transport.startDelaySeconds);
+      const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(current.anchoredAt) - current.transport.startDelaySeconds) * playbackSpeedRatio(current.transport.playbackSpeed);
       setAnimatedPositionSeconds(clamp(current.positionSeconds + elapsedSeconds, 0, current.transport.durationSeconds));
       frame = window.requestAnimationFrame(tick);
     };

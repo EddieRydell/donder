@@ -81,6 +81,10 @@ impl ProjectInputs {
                         ),
                     },
                 )?;
+                let EffectImplementation::Dsl(compiled) = definition.implementation();
+                compiled
+                    .check_values(&values)
+                    .map_err(|error| invalid(error.message))?;
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
@@ -111,6 +115,10 @@ impl ProjectInputs {
                         ),
                     },
                 )?;
+                let OperatorImplementation::Dsl(compiled) = definition.implementation();
+                compiled
+                    .check_values(&values)
+                    .map_err(|error| invalid(error.message))?;
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),

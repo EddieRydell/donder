@@ -38,7 +38,7 @@ fn declaration_kinds_are_source_specific() {
 fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
     let effect = compile_effects(
         "effect Assigned {
-        param float amount = 0.25;
+        param float amount in 0.0..1.0 = 0.25;
         color sample() {
             if (progress() > 0.5) { amount = amount + 0.25; }
             for (int i = 0; i < 2; i = i + 1) { amount = amount + 0.1; }
@@ -169,8 +169,8 @@ fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
 fn integer_comparisons_do_not_round_through_float() {
     let effect = compile_effects(
         "effect Exact {
-            param int left = 16777217;
-            param int right = 16777216;
+            param int left in 0..16777217 = 16777217;
+            param int right in 0..16777216 = 16777216;
             color sample() {
                 if (left > 16777216 && left > right && right < left) {
                     return #ffffff;
@@ -213,7 +213,7 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
     .remove(0);
 
     let dynamic = compile_effects(
-        "effect Dynamic { param int count = 3; color sample() {
+        "effect Dynamic { param int count in 0..10 = 3; color sample() {
             int total = 0;
             for (int i = 0; i < count; i = i + 1) { total = total + i; }
             return rgb(total / 10.0, 0.0, 0.0);
@@ -227,9 +227,9 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
     }));
 
     let capped = compile_effects(
-        "effect Capped { param int count = 3; color sample() {
+        "effect Capped { param int count in -3..4 = 3; color sample() {
             int total = 0;
-            for (int i in range(count, 4)) { total = total + i; }
+            for (int i in range(count)) { total = total + i; }
             return rgb(total / 10.0, 0.0, 0.0);
         } }",
     )
@@ -243,13 +243,11 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
         pixel_count: 1,
         pixel_fraction: 0.0,
     };
+    // Positional binding reaches counts past the declared range; the VM caps them.
     let sample = |count| {
-        let mut values = IndexMap::new();
-        values.insert(
-            Identifier::new("count".to_string()).unwrap(),
-            Value::Int(count),
-        );
-        let params = capped.bind(&values).unwrap();
+        let params = donder_language::dsl::SampleDefinition::new(capped.sample_program().clone())
+            .bind(vec![Value::Int(count)])
+            .unwrap();
         params
             .evaluate(&context, &SPATIAL, &mut BatchWorkspace::default())
             .red
@@ -271,27 +269,15 @@ fn c_style_loops_require_static_bounds_and_dynamic_ranges_are_capped() {
             .message
             .contains("compile-time-proven trip count")
     }));
-
-    for cap in ["0", "10001", "count"] {
-        let source = format!(
-            "effect Bad {{ param int count = 3; color sample() {{ for (int i in range(count, {cap})) {{ }} return rgb(0.0, 0.0, 0.0); }} }}"
-        );
-        assert!(
-            compile_effects(&source)
-                .unwrap_err()
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("range cap"))
-        );
-    }
 }
 
 #[test]
 fn nested_counted_loops_reset_their_private_iteration_state() {
     let effect = compile_effects(
-        "effect Nested { param int count = 2; color sample() {
+        "effect Nested { param int count in 0..3 = 2; color sample() {
             int total = 0;
             for (int outer = 0; outer < 2; outer = outer + 1) {
-                for (int inner in range(count, 3)) { total = total + 1; }
+                for (int inner in range(count)) { total = total + 1; }
             }
             if (total == 4) { return #ffffff; }
             return #000000;
@@ -571,7 +557,7 @@ fn source_numeric_overflow_and_integer_division_report_diagnostics() {
 #[test]
 fn required_parameters_bind_and_integer_remainder_by_zero_is_total() {
     let effect = compile_effects(
-        "effect Required { param float amount; color sample() { int value = 1 % 0; return #000000; } }",
+        "effect Required { param float amount in 0.0..1.0; color sample() { int value = 1 % 0; return #000000; } }",
     )
     .expect("effect compiles")
     .into_iter()
@@ -618,8 +604,8 @@ fn integer_arithmetic_wraps_and_remainder_is_total() {
     ] {
         let source = format!(
             "effect Arithmetic {{
-                param int a;
-                param int b;
+                param int a in -2147483647..2147483647;
+                param int b in -2147483647..2147483647;
                 color sample() {{
                     if (({expression}) == ({expected})) {{ return #ffffff; }}
                     return #000000;
@@ -627,11 +613,9 @@ fn integer_arithmetic_wraps_and_remainder_is_total() {
             }}"
         );
         let effect = compile_effects(&source).unwrap().remove(0);
-        let params = effect
-            .bind(&IndexMap::from([
-                (Identifier::new("a".into()).unwrap(), Value::Int(left)),
-                (Identifier::new("b".into()).unwrap(), Value::Int(right)),
-            ]))
+        // Positional binding: `i32::MIN` lies outside any declarable range.
+        let params = donder_language::dsl::SampleDefinition::new(effect.sample_program().clone())
+            .bind(vec![Value::Int(left), Value::Int(right)])
             .unwrap();
         let color = params.evaluate(
             &crate::dsl::RunContext {
@@ -664,7 +648,7 @@ fn signal_sampling_outside_the_portable_clock_returns_black() {
     let operator = compile_operators(
         "operator Query {
             input Signal source;
-            param float query_seconds;
+            param float query_seconds in -1.0..1.0;
             color sample() { return source.at(query_seconds); }
         }",
     )
@@ -691,11 +675,9 @@ fn signal_sampling_outside_the_portable_clock_returns_black() {
         (f32::NEG_INFINITY, Color::BLACK),
         (f32::MAX, Color::BLACK),
     ] {
-        let params = operator
-            .bind(&IndexMap::from([(
-                Identifier::new("query_seconds".into()).unwrap(),
-                Value::Float(seconds),
-            )]))
+        // Positional binding: non-finite times lie outside any declarable range.
+        let params = donder_language::dsl::OperatorDefinition::new(operator.program().clone())
+            .bind(vec![Value::Float(seconds)])
             .unwrap();
         let color = params
             .evaluate(

@@ -7,6 +7,7 @@ use donder_preview::{
     PreviewPlaybackState, PreviewRenderOutcome, PreviewRenderer, PreviewScene, PreviewSize,
     PreviewStyle,
 };
+use donder_runtime::PlaybackRate;
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::WindowEvent;
@@ -174,7 +175,8 @@ impl PreviewHostApplication {
                 state,
                 position_seconds,
                 start_delay_seconds,
-            } => {
+                playback_speed,
+            } => PlaybackRate::try_from(playback_speed).map(|rate| {
                 let now = Instant::now();
                 let update = self.playback.set_clock(
                     PreviewClockSnapshot {
@@ -182,14 +184,15 @@ impl PreviewHostApplication {
                         state: playback_state(state),
                         position_seconds,
                         start_delay_seconds,
+                        rate,
                     },
                     now,
                 );
-                Ok(match update {
+                match update {
                     PreviewClockUpdate::Reanchored => CommandEffect::Evaluate(now),
                     PreviewClockUpdate::Absorbed => CommandEffect::Unchanged,
-                })
-            }
+                }
+            }),
             PreviewCommand::SetAppearance { appearance } => self
                 .set_appearance(appearance)
                 .map(|()| CommandEffect::Redraw),

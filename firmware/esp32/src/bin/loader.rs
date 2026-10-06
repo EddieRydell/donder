@@ -32,6 +32,8 @@ use core::{
 use donder_language::values::SampleTime;
 #[cfg(feature = "i2s-output")]
 use donder_language::values::sample_time_from_frame;
+#[cfg(feature = "i2s-output")]
+use donder_runtime::FrameTiming;
 use donder_runtime::{HEADER_BYTES, LoadError, LoadLimits, SequencePlayback, decode_sequence};
 use embassy_net::StackResources;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
@@ -132,8 +134,15 @@ impl Playback {
         if matches!(mode, transport::Mode::Stopped | transport::Mode::Ended) {
             return None;
         }
-        let frame = (u64::from(position) * u64::from(OUTPUT_FRAME_RATE) / 1_000_000) as u32;
-        let time = sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap();
+        // Scaled timing holds each grid frame; constant timing samples every latch exactly.
+        let rate = self.transport.rate(display_time);
+        let time = match rate.frame_timing() {
+            FrameTiming::Scaled => {
+                let frame = rate.frame_at(u64::from(position), OUTPUT_FRAME_RATE) as u32;
+                sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap()
+            }
+            FrameTiming::Constant => SampleTime::from_ticks(position),
+        };
         Some(self.show.evaluate(time))
     }
 }
@@ -908,7 +917,13 @@ impl RequestHandlerService<LoaderState> for DeviceTransport {
                     .sample(now, playback.show.sequence().duration().as_ticks())
                     .1
             };
-            playback.transport.apply(mode, position, now, true);
+            playback.transport.apply(
+                mode,
+                position,
+                now,
+                true,
+                donder_runtime::PlaybackRate::NORMAL,
+            );
         }
         let status = TransportStatus {
             playback: active.as_ref().map(|playback| PlaybackStatus {

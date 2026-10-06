@@ -28,7 +28,7 @@ pub use compiled_effect::CompiledEffect;
 #[cfg(feature = "host")]
 mod declarations;
 #[cfg(feature = "host")]
-pub use declarations::{CompiledOperator, OperatorInputDecl, ParamDecl, bind_params};
+pub use declarations::{CompiledOperator, OperatorInputDecl, ParamDecl, ParamRange, bind_params};
 #[cfg(feature = "host")]
 mod diagnostic;
 #[cfg(feature = "host")]
@@ -142,6 +142,19 @@ fn hash_param_decls<H: Hasher>(params: &[ParamDecl], state: &mut H) {
     for param in params {
         param.name.hash(state);
         param.ty.hash(state);
+        match param.range {
+            None => 0u8.hash(state),
+            Some(ParamRange::Int { min, max }) => {
+                1u8.hash(state);
+                min.hash(state);
+                max.hash(state);
+            }
+            Some(ParamRange::Float { min, max }) => {
+                2u8.hash(state);
+                min.to_bits().hash(state);
+                max.to_bits().hash(state);
+            }
+        }
         hash_optional_value(&param.default, state);
     }
 }

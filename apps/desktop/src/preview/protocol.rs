@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::dto::{AudioTransportState, PreviewAppearance};
+use crate::dto::{AudioTransportState, PlaybackSpeed, PreviewAppearance};
 use crate::persistence::PersistedWindowState;
 
 pub(crate) const PREVIEW_HOST_ARGUMENT: &str = "--donder-preview-host";
@@ -63,6 +63,7 @@ pub(crate) enum PreviewCommand {
         state: AudioTransportState,
         position_seconds: f32,
         start_delay_seconds: f32,
+        playback_speed: PlaybackSpeed,
     },
     SetAppearance {
         appearance: PreviewAppearance,

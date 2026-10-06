@@ -236,7 +236,14 @@ impl Iterator for Lexer<'_> {
             ':' => TokenKind::Colon,
             ';' => TokenKind::Semicolon,
             ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
+            '.' => {
+                if self.peek() == Some('.') {
+                    self.bump();
+                    TokenKind::DotDot
+                } else {
+                    TokenKind::Dot
+                }
+            }
             '=' => {
                 if self.peek() == Some('=') {
                     self.bump();
@@ -321,6 +328,7 @@ pub enum TokenKind {
     Semicolon,
     Comma,
     Dot,
+    DotDot,
     Equals,
     EqualEqual,
     Bang,

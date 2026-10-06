@@ -69,7 +69,7 @@ pub(crate) fn prepared_effect(
 pub(crate) fn uniform_resources() -> (CompiledEffect, BoundParams) {
     prepared_effect(
         "UniformResources",
-        "effect UniformResources { param curve shape; param gradient colors; color sample() {
+        "effect UniformResources { param curve shape in 0.0..1.0; param gradient colors; color sample() {
             float pixel = pixel_fraction(); float level = shape[progress()];
             color tint = colors[level]; return tint * pixel;
         } }",

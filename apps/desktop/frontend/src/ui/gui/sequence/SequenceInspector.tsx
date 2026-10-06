@@ -449,8 +449,7 @@ function EffectInspectorPanel({
                 onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request,
                   automationClip.id,
                   index,
-                  binding.target,
-                  binding.mapping
+                  binding.target
                 ))}
               >
                 Rebind

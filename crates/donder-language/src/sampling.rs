@@ -12,6 +12,32 @@ pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
     }
 }
 
+/// Floored remainder: a nonzero result takes the divisor's sign. Remainder by
+/// zero and `i32::MIN % -1` are zero.
+#[inline(always)]
+pub fn int_remainder(value: i32, divisor: i32) -> i32 {
+    let remainder = value.checked_rem(divisor).unwrap_or(0);
+    if remainder != 0 && (remainder < 0) != (divisor < 0) {
+        remainder + divisor
+    } else {
+        remainder
+    }
+}
+
+/// Floored remainder, within `[0, divisor)` for a positive divisor. Remainder
+/// by zero is NaN.
+#[inline(always)]
+pub fn float_remainder(value: f32, divisor: f32) -> f32 {
+    let remainder = value % divisor;
+    if remainder != 0.0 && (remainder < 0.0) != (divisor < 0.0) {
+        // A tiny negative remainder can round onto the divisor itself.
+        let wrapped = remainder + divisor;
+        if wrapped == divisor { 0.0 } else { wrapped }
+    } else {
+        remainder
+    }
+}
+
 /// Round a byte-domain value to a channel, saturating to 0..=255; NaN becomes 0.
 /// Equal to `(value.clamp(0.0, 255.0) + 0.5) as u8` for every f32, but clamps
 /// the converted integer, which avoids float compares on Xtensa.

@@ -1,9 +1,9 @@
 use super::DesktopState;
 use crate::dto::{
     DocumentViewId, FixtureTarget, GuiDocument, GuiDocumentRequest, GuiEditCommand, LayoutGuiEdit,
-    SequenceAutomationMapping, SequenceAutomationResize, SequenceAutomationTarget,
-    SequenceEffectReference, SequenceGuiEdit, SequencePasteAnchor, SequenceResizeEdge,
-    SequenceSelection, SequenceSelectionEdit, SequenceSelectionEditResult,
+    SequenceAutomationResize, SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit,
+    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection, SequenceSelectionEdit,
+    SequenceSelectionEditResult,
 };
 use donder_language::sequence::{AutomationTarget, Sequence, SequenceId};
 use std::sync::Arc;
@@ -113,7 +113,7 @@ impl Timeline {
         let (temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         let path = root.join("effects/mark-impact-burst.effect.donder");
         let mut source = std::fs::read_to_string(&path).unwrap();
-        source.push_str("\neffect RowTest { param float level = 0.5; color sample() { return rgb(level, level, level); } }\n");
+        source.push_str("\neffect RowTest { param float level in 0.0..1.0 = 0.5; color sample() { return rgb(level, level, level); } }\n");
         std::fs::write(path, source).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
@@ -149,7 +149,6 @@ impl Timeline {
                 effect_id: timeline.effect,
                 param: "level".into(),
             },
-            mapping: SequenceAutomationMapping::Float { min: 0.0, max: 1.0 },
         });
         timeline.automation = timeline.sequence().automation_clips.iter().find(|clip| clip.bindings.iter().any(|binding|
             matches!(&binding.target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == timeline.effect)

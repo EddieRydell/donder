@@ -1,22 +1,20 @@
 effect ImpactBurst {
   param gradient gradient;
-  param curve intensity;
+  param curve intensity in 0.0..1.0;
   param enum direction { outward, inward } = outward;
   param enum color_mode { through_effect, from_center, from_edge } = through_effect;
-  param float center_position = 0.5;
-  param float start_radius = 0.0;
-  param float end_radius = 0.75;
-  param float edge_width = 0.08;
-  param float glow_width = 0.25;
-  param float glow_level = 0.35;
+  param float center_position in 0.0..1.0 = 0.5;
+  param float start_radius in 0.0..2.0 = 0.0;
+  param float end_radius in 0.01..2.0 = 0.75;
+  param float edge_width in 0.001..1.0 = 0.08;
+  param float glow_width in 0.0..1.0 = 0.25;
+  param float glow_level in 0.0..1.0 = 0.35;
   param bool mirror = false;
 
   color sample() {
-    float position = pixel_fraction();
-    float center = clamp(center_position, 0.0, 1.0);
-    float distance = abs(position - center);
+    float distance = abs(pixel_fraction() - center_position);
     if (mirror) {
-      distance = abs(abs(position - center) * 2.0);
+      distance = distance * 2.0;
     }
 
     float travel = progress();
@@ -24,21 +22,19 @@ effect ImpactBurst {
       travel = 1.0 - progress();
     }
 
-    float radius = mix(max(0.0, start_radius), max(0.0, end_radius), clamp(travel, 0.0, 1.0));
-    float edge = max(0.000000001, edge_width);
-    float ring = 1.0 - smoothstep(0.0, edge, abs(distance - radius));
-    float glow = 1.0 - smoothstep(0.0, max(edge, glow_width), abs(distance - radius));
-    float level = max(ring, glow * clamp(glow_level, 0.0, 1.0));
-    level = level * curve_clamped(intensity, progress(), 0.0, 1.0);
+    float radius = mix(start_radius, end_radius, travel);
+    float ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
+    float glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
+    float level = max(ring, glow * glow_level) * intensity[progress()];
 
     float color_position = progress();
     if (color_mode == from_center) {
-      color_position = clamp(distance / max(0.000000001, end_radius), 0.0, 1.0);
+      color_position = distance / end_radius;
     }
     if (color_mode == from_edge) {
-      color_position = 1.0 - clamp(distance / max(0.000000001, end_radius), 0.0, 1.0);
+      color_position = 1.0 - distance / end_radius;
     }
 
-    return gradient_color_scaled(gradient, clamp(color_position, 0.0, 1.0), level);
+    return gradient_color_scaled(gradient, color_position, level);
   }
 }

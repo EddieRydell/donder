@@ -42,7 +42,7 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
             return value + second.at(seconds() + 0.25);
         }
     }
-    operator Outer { input Signal other; input Signal source; param float at = 1.0;
+    operator Outer { input Signal other; input Signal source; param float at in -10.0..10.0 = 1.0;
         color sample() {
             if (pixel_index() == -1) { return #000000; }
             color value = other.at(0.25);
@@ -145,7 +145,7 @@ fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
     operator Constant { input Signal source; color sample() { return #123456; } }").unwrap();
     let caller = compile_operators(
         "operator Query { input Signal source;
-        param float at = 0.0;
+        param float at in -10.0..10.0 = 0.0;
         color sample() { return source.at(at); }
     }",
     )
@@ -208,7 +208,7 @@ fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
 fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
     let definitions = compile_operators(
         "operator Inner { input Signal a; input Signal b;
-        param float gain = 0.7; param bool first = true; param color tint = #314159;
+        param float gain in 0.0..1.0 = 0.7; param bool first = true; param color tint = #314159;
         color sample() {
             if (pixel_index() % 3 == 0) { return tint; }
             color value = #000000;
@@ -220,7 +220,7 @@ fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
         }
     }
     operator Outer { input Signal other; input Signal source;
-        param float gain = 0.4;
+        param float gain in 0.0..1.0 = 0.4;
         color sample() {
             if (pixel_index() == -1) { return #000000; }
             return max(source.at(seconds()) * gain, other.at(seconds()));
@@ -285,7 +285,7 @@ fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
 fn fusion_preserves_resource_banks_and_array_snapshots() {
     let definitions = compile_operators(
         "operator Inner { input Signal source;
-        param array<float> levels = [0.2, 0.8]; param curve shape;
+        param array<float> levels = [0.2, 0.8]; param curve shape in 0.0..1.0;
         param gradient colors; param enum mode { first, second } = second;
         param marks beats;
         color sample() {
@@ -298,7 +298,7 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
         }
     }
     operator Outer { input Signal source;
-        param array<float> unused = [0.4]; param curve unused_shape;
+        param array<float> unused = [0.4]; param curve unused_shape in 0.0..1.0;
         param gradient unused_colors; param enum unused_mode { first, second } = first;
         param marks unused_beats;
         color sample() { return source.at(seconds()) * 0.7; }
@@ -412,10 +412,10 @@ fn fusion_keeps_caller_automation_and_preserves_source_automation_boundaries() {
     use donder_language::execution::PreparedAutomation;
     use donder_language::values::{Curve, CurvePoint, SampleDuration};
     let definitions = compile_operators(
-        "operator Gain { input Signal source; param float gain = 0.7;
+        "operator Gain { input Signal source; param float gain in 0.0..1.0 = 0.7;
         color sample() { return source.at(seconds()) * gain; }
     }
-    operator Delayed { input Signal source; param float gain = 0.4;
+    operator Delayed { input Signal source; param float gain in 0.0..1.0 = 0.4;
         color sample() { return source.at(seconds() - 0.125) * gain; }
     }",
     )

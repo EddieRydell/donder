@@ -355,10 +355,6 @@ fn detached_automation_binding_value(
         automation_target_value(&binding.target)?,
     );
     value.insert(
-        string_value("mapping"),
-        automation_mapping_value(&binding.mapping)?,
-    );
-    value.insert(
         string_value("reason"),
         Value::String(
             match binding.reason {
@@ -399,10 +395,6 @@ pub(super) fn automation_binding_value(
         string_value("target"),
         automation_target_value(&binding.target)?,
     );
-    value.insert(
-        string_value("mapping"),
-        automation_mapping_value(&binding.mapping)?,
-    );
     Ok(Value::Mapping(value))
 }
 
@@ -432,45 +424,6 @@ pub(super) fn automation_target_value(
                 string_value("param"),
                 Value::String(param.as_str().to_string()),
             );
-        }
-    }
-    Ok(Value::Mapping(value))
-}
-
-pub(super) fn automation_mapping_value(
-    mapping: &AutomationMapping,
-) -> Result<Value, ExportProjectError> {
-    let mut value = Mapping::new();
-    match mapping {
-        AutomationMapping::Float { min, max } => {
-            value.insert(string_value("type"), Value::String("float".to_string()));
-            value.insert(string_value("min"), serialized_value(*min)?);
-            value.insert(string_value("max"), serialized_value(*max)?);
-        }
-        AutomationMapping::Int { min, max } => {
-            value.insert(string_value("type"), Value::String("int".to_string()));
-            value.insert(string_value("min"), serialized_value(*min)?);
-            value.insert(string_value("max"), serialized_value(*max)?);
-        }
-        AutomationMapping::Bool => {
-            value.insert(string_value("type"), Value::String("bool".to_string()));
-        }
-        AutomationMapping::Enum { values } => {
-            value.insert(string_value("type"), Value::String("enum".to_string()));
-            value.insert(
-                string_value("values"),
-                Value::Sequence(
-                    values
-                        .iter()
-                        .map(|value| Value::String(value.as_str().to_string()))
-                        .collect(),
-                ),
-            );
-        }
-        AutomationMapping::Curve { min, max } => {
-            value.insert(string_value("type"), Value::String("curve".to_string()));
-            value.insert(string_value("min"), serialized_value(*min)?);
-            value.insert(string_value("max"), serialized_value(*max)?);
         }
     }
     Ok(Value::Mapping(value))
@@ -604,10 +557,10 @@ use donder_language::effect::{
 use donder_language::identity::DocumentId;
 use donder_language::operator::OperatorRef;
 use donder_language::sequence::{
-    AutomationBinding, AutomationClip, AutomationDetachmentReason, AutomationMapping,
-    AutomationTarget, CompositionGraphNode, CompositionGraphNodeKind, DetachedAutomationBinding,
-    EffectGraphEdge, GraphNodePosition, MarkCollection, Sequence, SequenceAudio,
-    SequenceCompositionGraph, SequenceLayer,
+    AutomationBinding, AutomationClip, AutomationDetachmentReason, AutomationTarget,
+    CompositionGraphNode, CompositionGraphNodeKind, DetachedAutomationBinding, EffectGraphEdge,
+    GraphNodePosition, MarkCollection, Sequence, SequenceAudio, SequenceCompositionGraph,
+    SequenceLayer,
 };
 use donder_language::values::Curve;
 use indexmap::IndexMap;

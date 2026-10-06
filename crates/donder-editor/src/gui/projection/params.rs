@@ -41,6 +41,7 @@ pub(in crate::gui) fn effect_params(
                 name: param.name.as_str().to_string(),
                 kind,
                 options: param_options(&param.ty),
+                range: param_range(param),
                 editable: automation.is_none(),
                 automation,
                 value,
@@ -130,6 +131,7 @@ fn graph_operator_params(
                 name: declaration.name.as_str().to_string(),
                 kind,
                 options: param_options(&declaration.ty),
+                range: param_range(declaration),
                 editable: automation.is_none(),
                 value,
                 automation,
@@ -245,36 +247,7 @@ fn param_automation(
     if let SequenceEffectParamValue::Curve { value } = value {
         value.points = curve_points(&envelope.curve_in_range(start, duration));
     }
-    Some(SequenceParamAutomation {
-        clip_id: clip.id.0,
-        mapping: automation_mapping_to_gui(envelope.mapping),
-    })
-}
-
-pub(in crate::gui) fn automation_mapping_to_gui(
-    mapping: &AutomationMapping,
-) -> SequenceAutomationMapping {
-    match mapping {
-        AutomationMapping::Float { min, max } => SequenceAutomationMapping::Float {
-            min: *min,
-            max: *max,
-        },
-        AutomationMapping::Int { min, max } => SequenceAutomationMapping::Int {
-            min: *min as f32,
-            max: *max as f32,
-        },
-        AutomationMapping::Bool => SequenceAutomationMapping::Bool,
-        AutomationMapping::Enum { values } => SequenceAutomationMapping::Enum {
-            values: values
-                .iter()
-                .map(|value| value.as_str().to_string())
-                .collect(),
-        },
-        AutomationMapping::Curve { min, max } => SequenceAutomationMapping::Curve {
-            min: *min,
-            max: *max,
-        },
-    }
+    Some(SequenceParamAutomation { clip_id: clip.id.0 })
 }
 
 pub(in crate::gui) fn curve_library(
@@ -351,6 +324,19 @@ pub(in crate::gui) fn param_kind(ty: &Type) -> Option<SequenceEffectParamKind> {
         Type::Void | Type::Signal => {
             return None;
         }
+    })
+}
+
+fn param_range(param: &ParamDecl) -> Option<SequenceParamRange> {
+    param.range.map(|range| match range {
+        ParamRange::Int { min, max } => SequenceParamRange {
+            min: f64::from(min),
+            max: f64::from(max),
+        },
+        ParamRange::Float { min, max } => SequenceParamRange {
+            min: f64::from(min),
+            max: f64::from(max),
+        },
     })
 }
 
@@ -550,22 +536,21 @@ fn array_param_from_sequence_values(
         },
     }
 }
-use donder_language::dsl::{Type, Value as EffectValue};
+use donder_language::dsl::{ParamDecl, ParamRange, Type, Value as EffectValue};
 use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
 use donder_language::operator::{
     GraphOperatorNode, OperatorDefinition, OperatorPortCardinality, OperatorPortDefinition,
     OperatorRef,
 };
 use donder_language::sequence::{
-    AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind,
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
 };
 use donder_project_io::ProjectSession;
 
 use crate::dto::{
-    SequenceAutomationMapping, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
-    SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
-    SequenceGradientValue, SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperator,
+    SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind,
+    SequenceEffectParamValue, SequenceGradientLibraryItem, SequenceGradientValue,
+    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperator,
     SequenceGraphOperatorDefinition, SequenceGraphPortCardinality, SequenceGraphPortDefinition,
-    SequenceLibrarySource, SequenceParamAutomation,
+    SequenceLibrarySource, SequenceParamAutomation, SequenceParamRange,
 };

@@ -19,7 +19,21 @@ fn sample(parameters: &str, body: &str, values: &[(&str, Value)]) -> Color {
         .iter()
         .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))
         .collect::<IndexMap<_, _>>();
-    let invocation = effect.bind(&values).unwrap();
+    // Positional binding: queries probe values outside any declared range.
+    let values = effect
+        .params()
+        .iter()
+        .map(|param| {
+            values
+                .get(&param.name)
+                .cloned()
+                .or_else(|| param.default.clone())
+                .unwrap()
+        })
+        .collect();
+    let invocation = donder_language::dsl::SampleDefinition::new(effect.sample_program().clone())
+        .bind(values)
+        .unwrap();
     invocation.evaluate(
         &RunContext {
             progress: 0.75,
@@ -70,7 +84,7 @@ fn curve(points: &[(f32, f32)]) -> Value {
 fn crossing_queries_distinguish_first_and_latest_for_parameter_and_selected_curves() {
     let shape = curve(&[(0.125, 0.0), (0.375, 1.0), (0.625, 0.0), (0.875, 1.0)]);
     for (parameters, expression, value) in [
-        ("param curve shape;", "shape", shape.clone()),
+        ("param curve shape in 0.0..1.0;", "shape", shape.clone()),
         (
             "param array<curve> shape;",
             "shape[pixel_index()]",
@@ -118,11 +132,15 @@ fn plateau_arrival_and_exact_touches_are_events_but_endpoint_hold_is_not() {
         "curve_last_crossing(shape, 1.0, 2.0) == 1.0",
         "curve_last_crossing(shape, 0.0, 0.75) == 0.75",
     ] {
-        assert_query("param curve shape;", predicate, &[("shape", shape.clone())]);
+        assert_query(
+            "param curve shape in 0.0..1.0;",
+            predicate,
+            &[("shape", shape.clone())],
+        );
     }
     let shape = curve(&[(0.25, 1.0), (0.75, 1.0)]);
     assert_query(
-        "param curve shape;",
+        "param curve shape in 0.0..1.0;",
         "curve_last_crossing(shape, 1.0, 2.0) == 0.25",
         &[("shape", shape)],
     );
@@ -206,7 +224,11 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         "mix(0.0, 1.0, x)",
     ] {
         for (parameters, declaration, values) in [
-            ("param float x;", "", vec![("x", Value::Float(f32::NAN))]),
+            (
+                "param float x in 0.0..1.0;",
+                "",
+                vec![("x", Value::Float(f32::NAN))],
+            ),
             ("", "float x = 0.0 / 0.0;", vec![]),
         ] {
             assert_eq!(
@@ -233,7 +255,7 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         (f32::NEG_INFINITY, f32::NEG_INFINITY),
     ] {
         assert_query(
-            "param float x; param float expected;",
+            "param float x in 0.0..1.0; param float expected in 0.0..1.0;",
             "value_or(x, 0.25) == expected",
             &[
                 ("x", Value::Float(value)),
@@ -248,7 +270,7 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         "value_or(0.0 / 0.0, 0.75) == 0.75",
     ] {
         assert_query(
-            "param float x;",
+            "param float x in 0.0..1.0;",
             predicate,
             &[("x", Value::Float(f32::NAN))],
         );
@@ -264,7 +286,7 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
             "is_nan(curve_first_crossing(shape, x))",
         ] {
             assert_query(
-                "param curve shape; param float x;",
+                "param curve shape in 0.0..1.0; param float x in 0.0..1.0;",
                 predicate,
                 &[("shape", shape.clone()), ("x", Value::Float(f32::NAN))],
             );
@@ -276,11 +298,15 @@ fn scalar_missingness_survives_arithmetic_sampling_and_builtins_until_explicit_d
         "is_nan(curve_last_crossing(shape, 0.0, 1.0))",
         "value_or(curve_first_crossing(shape, 0.0), 0.25) == 0.25",
     ] {
-        assert_query("param curve shape;", predicate, &[("shape", curve(&[]))]);
+        assert_query(
+            "param curve shape in 0.0..1.0;",
+            predicate,
+            &[("shape", curve(&[]))],
+        );
     }
     for position in [f32::NEG_INFINITY, -1.0, 2.0, f32::INFINITY] {
         assert_query(
-            "param curve shape; param float x;",
+            "param curve shape in 0.0..1.0; param float x in 0.0..1.0;",
             if position < 0.0 {
                 "shape[x] == 0.25"
             } else {
@@ -302,7 +328,7 @@ fn latest_crossing_handles_finite_extreme_values_without_intermediate_overflow()
     ] {
         let shape = curve(&points);
         for (parameters, expression, value) in [
-            ("param curve shape;", "shape", shape.clone()),
+            ("param curve shape in 0.0..1.0;", "shape", shape.clone()),
             (
                 "param array<curve> shape;",
                 "shape[pixel_index()]",
@@ -341,7 +367,7 @@ fn color_boundaries_consume_nan_as_whole_black() {
     ] {
         assert_eq!(
             sample(
-                "param float x; param gradient gradient;",
+                "param float x in 0.0..1.0; param gradient gradient;",
                 &format!("return {expression};"),
                 &[
                     ("x", Value::Float(f32::NAN)),

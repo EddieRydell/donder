@@ -80,8 +80,10 @@ impl Checker {
                 );
             }
         }
-        let (body, returns) =
+        let (mut body, returns) =
             self.check_block(operator.entrypoint.body.clone(), &mut env, &Type::Color);
+        let loop_bounds =
+            super::loop_bounds::bound_loops(&operator.params, &mut body, &mut self.diagnostics);
         if !returns {
             self.error(
                 TextSpan { start: 0, end: 0 },
@@ -92,6 +94,7 @@ impl Checker {
             name: operator.name,
             inputs: operator.inputs,
             params: operator.params,
+            loop_bounds,
             body,
         }
     }
@@ -154,8 +157,10 @@ impl Checker {
                 );
             }
         }
-        let (body, returns) =
+        let (mut body, returns) =
             self.check_block(effect.entrypoint.body.clone(), &mut env, &expected_return);
+        let loop_bounds =
+            super::loop_bounds::bound_loops(&effect.params, &mut body, &mut self.diagnostics);
         if is_sample && !returns {
             self.error(
                 TextSpan { start: 0, end: 0 },
@@ -165,6 +170,7 @@ impl Checker {
         CheckedEffectDecl {
             name: effect.name,
             params: effect.params,
+            loop_bounds,
             body,
         }
     }
@@ -209,6 +215,18 @@ impl Checker {
                     ),
                 );
             }
+        }
+        if let Some(default) = &param.default
+            && param.ty.accepts_value(default)
+            && !param.accepts_value(default)
+        {
+            self.error(
+                TextSpan { start: 0, end: 0 },
+                format!(
+                    "default for `{}` is outside its declared range",
+                    param.name.as_str()
+                ),
+            );
         }
     }
 
@@ -337,7 +355,7 @@ impl Checker {
                 )
                 .is_none()
                 {
-                    self.error(condition.span, "C-style for loop requires a compile-time-proven trip count; use `for (int i in range(count, cap))` for a dynamic count");
+                    self.error(condition.span, "C-style for loop requires a compile-time-proven trip count; use `for (int i in range(count))` for a bounded dynamic count");
                 }
                 (
                     CheckedStmt::For {
@@ -360,23 +378,9 @@ impl Checker {
                 }
                 (CheckedStmt::ForMarks { index, marks, body }, false)
             }
-            Stmt::ForRange {
-                index,
-                count,
-                cap,
-                body,
-            } => {
+            Stmt::ForRange { index, count, body } => {
                 let count = self.check_expr(count, env, Some(&Type::Int));
                 self.require_assignable(&Type::Int, &count.ty, count.span);
-                let cap = self.check_expr(cap, env, Some(&Type::Int));
-                self.require_assignable(&Type::Int, &cap.ty, cap.span);
-                if !matches!(&cap.kind, CheckedExprKind::Literal(Value::Int(value)) if *value > 0 && (*value as usize) <= super::MAX_DSL_LOOP_ITERATIONS)
-                {
-                    self.error(
-                        cap.span,
-                        "range cap must be a positive integer literal at most 10000",
-                    );
-                }
                 let mut loop_env = env.clone();
                 loop_env.insert(index.clone(), Type::Int);
                 let (body, _) = self.check_block(body, &mut loop_env, return_type);
@@ -387,7 +391,7 @@ impl Checker {
                     CheckedStmt::ForRange {
                         index,
                         count,
-                        cap,
+                        cap: super::MAX_DSL_LOOP_ITERATIONS as i32,
                         body,
                     },
                     false,
@@ -659,7 +663,7 @@ impl Checker {
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Int
             }
-            "sin" | "cos" | "abs" | "floor" | "sqrt" => {
+            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "sqrt" => {
                 self.require_arg_count(name, args.len(), 1, span);
                 self.require_arg(args, 0, &Type::Float, env);
                 Type::Float
@@ -901,10 +905,9 @@ fn builtin_arg_type(name: &str, index: usize) -> Option<Type> {
         "mark_at" if index == 1 => Some(Type::Int),
         "mark_last" | "mark_last_index" if index == 1 => Some(Type::Float),
         "hue" | "saturation" | "intensity" | "invert" => Some(Type::Color),
-        "rgb" | "hsv" | "rand" | "int" | "sin" | "cos" | "abs" | "floor" | "sqrt" | "atan2"
-        | "min" | "clamp" | "smoothstep" | "section_position" | "is_nan" | "value_or" => {
-            Some(Type::Float)
-        }
+        "rgb" | "hsv" | "rand" | "int" | "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc"
+        | "sqrt" | "atan2" | "min" | "clamp" | "smoothstep" | "section_position" | "is_nan"
+        | "value_or" => Some(Type::Float),
         "curve_first_crossing" | "curve_last_crossing" if index == 0 => Some(Type::Curve),
         "curve_clamped" if index == 0 => Some(Type::Curve),
         "gradient_color_scaled" if index == 0 => Some(Type::Gradient),

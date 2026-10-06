@@ -5,7 +5,7 @@ use std::prelude::rust_2024::*;
 use super::evaluation::SignalSampler;
 use crate::dsl::{BatchWorkspace, RuntimeError};
 use donder_language::dsl::bytecode::{Instruction, SignalPixel};
-use donder_language::dsl::{Color, Identifier, Value, compile_effects, compile_operators};
+use donder_language::dsl::{Color, Value, compile_effects, compile_operators};
 use donder_language::execution::SpatialContext;
 use donder_language::values::SampleTime;
 
@@ -327,7 +327,7 @@ fn rejecting_loop_guards_do_not_skip_earlier_sampling_errors() {
 fn invariant_loop_divisors_divide_correctly_with_either_sign() {
     for denominator in ["max(scale, 0.01)", "-max(scale, 0.01)"] {
         let source = format!(
-            "effect Divide {{ param float scale = 2.0;
+            "effect Divide {{ param float scale in 0.0..10.0 = 2.0;
             color sample() {{ float total = 0.0;
                 for (int i = 0; i < 4; i = i + 1) {{
                     float d = {denominator};
@@ -353,7 +353,7 @@ fn invariant_loop_divisors_divide_correctly_with_either_sign() {
 fn smoothstep_with_bounded_edges_preserves_boundaries() {
     for (edge0, edge1) in [("0.0", "max(width, 0.01)"), ("max(width, 0.01)", "0.0")] {
         let effect = compile_effects(&format!(
-            "effect Smooth {{ param float width = 0.75;
+            "effect Smooth {{ param float width in 0.0..1.0 = 0.75;
             color sample() {{ return rgb(smoothstep({edge0}, {edge1}, pixel_fraction()), 0.0, 0.0); }} }}"
         ))
         .unwrap()
@@ -409,7 +409,7 @@ fn smoothstep_keeps_varying_and_degenerate_edge_semantics() {
 #[test]
 fn uniform_smoothstep_is_admitted_in_query_initialization() {
     let effect = compile_effects(
-        "effect Smooth { param float width = 0.75;
+        "effect Smooth { param float width in 0.0..1.0 = 0.75;
         color sample() { return rgb(smoothstep(0.0, width, seconds()), 0.0, 0.0); } }",
     )
     .unwrap()
@@ -435,23 +435,25 @@ fn uniform_smoothstep_is_admitted_in_query_initialization() {
 #[test]
 fn loop_hoisting_preserves_zero_trip_and_conditional_live_out_values() {
     for count in [-1, 0, 3, 100] {
-        let source = "effect Zero { param int count; color sample() {
+        let source = "effect Zero { param int count in -1..4; color sample() {
             float last = 0.25; float result = 0.0;
-            for (int i in range(count, 4)) {
+            for (int i in range(count)) {
                 float d = max(pixel_count() + 1.0, 1.0);
                 if (pixel_index() == 0) { last = 1.0 / d; }
                 result = result + i / d;
             }
             return rgb(last, result / 10.0, 0.0);
         } }";
-        let effect = compile_effects(source)
-            .unwrap()
-            .remove(0)
-            .bind([(
-                &Identifier::new("count".into()).unwrap(),
-                &Value::Int(count),
-            )])
-            .unwrap();
+        // Positional binding reaches counts past the declared range; the VM caps them.
+        let effect = donder_language::dsl::SampleDefinition::new(
+            compile_effects(source)
+                .unwrap()
+                .remove(0)
+                .sample_program()
+                .clone(),
+        )
+        .bind(vec![Value::Int(count)])
+        .unwrap();
         let mut workspace = BatchWorkspace::default();
         for pixel in [0, 1, 0] {
             let color = effect.evaluate(&context(2, pixel, 0), &SPATIAL, &mut workspace);
@@ -476,7 +478,7 @@ fn loop_hoisting_preserves_zero_trip_and_conditional_live_out_values() {
 #[test]
 fn invariant_reciprocals_preserve_missing_values() {
     let effect = compile_effects(
-        "effect Missing { param float divisor;
+        "effect Missing { param float divisor in 0.0..10.0;
         color sample() {
             float d = max(divisor, 0.01); float total = 0.0;
             for (int i = 0; i < 4; i = i + 1) { total = total + i / d; }
@@ -486,9 +488,11 @@ fn invariant_reciprocals_preserve_missing_values() {
     )
     .unwrap()
     .remove(0);
-    let divisor = Identifier::new("divisor".into()).unwrap();
     for (value, expected) in [(f32::NAN, 64), (2.0, 255), (f32::INFINITY, 0)] {
-        let bound = effect.bind([(&divisor, &Value::Float(value))]).unwrap();
+        // Positional binding: non-finite values lie outside any declared range.
+        let bound = donder_language::dsl::SampleDefinition::new(effect.sample_program().clone())
+            .bind(vec![Value::Float(value)])
+            .unwrap();
         assert_eq!(
             bound
                 .evaluate(&context(1, 0, 0), &SPATIAL, &mut BatchWorkspace::default())

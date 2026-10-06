@@ -13,6 +13,7 @@ pub(crate) struct CheckedOperatorDecl {
     pub name: Identifier,
     pub inputs: Vec<OperatorInputDecl>,
     pub params: Vec<ParamDecl>,
+    pub loop_bounds: Vec<super::loop_bounds::LoopBound>,
     pub body: CheckedBlock,
 }
 
@@ -20,6 +21,7 @@ pub(crate) struct CheckedOperatorDecl {
 pub(crate) struct CheckedEffectDecl {
     pub name: Identifier,
     pub params: Vec<ParamDecl>,
+    pub loop_bounds: Vec<super::loop_bounds::LoopBound>,
     pub body: CheckedBlock,
 }
 
@@ -56,10 +58,12 @@ pub(crate) enum CheckedStmt {
         marks: CheckedExpr,
         body: CheckedBlock,
     },
+    /// `cap` is the proven trip-count bound: the loop-bound pass narrows the
+    /// ceiling to a compile-time bound, or checks a length-dependent bound at binding.
     ForRange {
         index: Identifier,
         count: CheckedExpr,
-        cap: CheckedExpr,
+        cap: i32,
         body: CheckedBlock,
     },
     Return(CheckedExpr),

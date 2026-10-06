@@ -157,7 +157,7 @@ fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
             checked += 1;
         }
     }
-    assert!(checked >= 54, "only exercised {checked} mapping shapes");
+    assert!(checked >= 53, "only exercised {checked} mapping shapes");
     assert_eq!(original, project_source_texts(&root).unwrap());
 }
 
@@ -214,7 +214,7 @@ show:
 "#,
     )
     .unwrap();
-    std::fs::write(root.join("effect.effect.donder"), "effect Defaults { param float level = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
+    std::fs::write(root.join("effect.effect.donder"), "effect Defaults { param float level in 0.0..1.0 = 0.5; color sample() { return rgb(level, level, level); } }").unwrap();
     common::write_workspace_metadata(&root);
     common::load_project(&root);
     (temporary, root)

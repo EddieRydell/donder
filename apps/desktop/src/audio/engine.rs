@@ -1,4 +1,5 @@
 use crate::dto::{AudioTransportSnapshot, AudioTransportState, SequenceAudio};
+use donder_runtime::PlaybackRate;
 use std::time::Instant;
 
 use super::backend::{
@@ -18,6 +19,7 @@ struct ScheduledTimeline {
     start: Instant,
     position: f32,
     duration: f32,
+    rate: PlaybackRate,
 }
 struct ScheduledHold {
     at: Instant,
@@ -40,6 +42,7 @@ pub(crate) struct AudioEngine {
     scheduled_timeline: Option<ScheduledTimeline>,
     scheduled_hold: Option<ScheduledHold>,
     sequence_duration: Option<f32>,
+    rate: PlaybackRate,
 }
 
 impl AudioEngine {
@@ -69,6 +72,7 @@ impl AudioEngine {
             scheduled_timeline: None,
             scheduled_hold: None,
             sequence_duration: None,
+            rate: PlaybackRate::NORMAL,
         }
     }
 
@@ -81,6 +85,7 @@ impl AudioEngine {
             home_seconds: 0.0,
             start_delay_seconds: 0.0,
             duration_seconds: 0.0,
+            playback_speed: PlaybackRate::NORMAL.into(),
             last_error: None,
         }
     }
@@ -235,6 +240,7 @@ impl AudioEngine {
         deadline: Instant,
         position: f32,
         duration: f32,
+        rate: PlaybackRate,
     ) -> Result<AudioTransportSnapshot, String> {
         if self.source.is_none()
             || !position.is_finite()
@@ -248,13 +254,14 @@ impl AudioEngine {
         self.lifecycle_stop_handle();
         self.state = AudioTransportState::Stopped;
         self.sequence_duration = Some(duration);
+        self.rate = rate;
         if let Some(TransportSource::Audio(source)) = &self.source {
             let result = self
                 .driver
                 .as_mut()
                 .ok_or_else(|| "Audio manager is not available".to_string())
                 .and_then(|driver| {
-                    driver.play(&source.audio.resolved_path, position, Some(deadline))
+                    driver.play(&source.audio.resolved_path, position, Some(deadline), rate)
                 });
             match result {
                 Ok(handle) => self.handle = Some(handle),
@@ -275,6 +282,7 @@ impl AudioEngine {
             start: deadline,
             position,
             duration,
+            rate,
         });
         self.state = AudioTransportState::Playing;
         self.last_error = None;
@@ -350,6 +358,39 @@ impl AudioEngine {
         self.seek_to(position_seconds, AudioTransportState::Paused)
     }
 
+    pub(crate) fn playback_rate(&self) -> PlaybackRate {
+        self.rate
+    }
+
+    /// Keeps the current position; playing sources continue from it at the new rate.
+    pub fn set_playback_rate(&mut self, rate: PlaybackRate) -> AudioTransportSnapshot {
+        self.observe_backend();
+        if self.rate == rate {
+            return self.current_snapshot();
+        }
+        let now = Instant::now();
+        if let Some(TransportSource::Silent {
+            anchor: Some(anchor),
+            ..
+        }) = &mut self.source
+        {
+            *anchor = (now, self.position_seconds);
+        }
+        if let Some(timeline) = &mut self.scheduled_timeline {
+            if now >= timeline.start {
+                timeline.start = now;
+                timeline.position = self.position_seconds;
+            }
+            timeline.rate = rate;
+        }
+        if let Some(handle) = self.handle.as_mut() {
+            handle.set_playback_rate(rate);
+        }
+        self.rate = rate;
+        self.bump_generation();
+        self.current_snapshot()
+    }
+
     fn seek_to(
         &mut self,
         position_seconds: f32,
@@ -388,7 +429,12 @@ impl AudioEngine {
         let Some(TransportSource::Audio(source)) = self.source.as_ref() else {
             return;
         };
-        match driver.play(&source.audio.resolved_path, self.position_seconds, None) {
+        match driver.play(
+            &source.audio.resolved_path,
+            self.position_seconds,
+            None,
+            self.rate,
+        ) {
             Ok(handle) => {
                 self.handle = Some(handle);
                 self.state = AudioTransportState::Playing;
@@ -426,7 +472,7 @@ impl AudioEngine {
         }
         if let Some(timeline) = &self.scheduled_timeline {
             self.position_seconds = (timeline.position
-                + now.saturating_duration_since(timeline.start).as_secs_f32())
+                + show_seconds_between(timeline.rate, timeline.start, now))
             .min(timeline.duration);
             if let Some(handle) = &mut self.handle
                 && let Some(error) = handle.observe().error
@@ -466,8 +512,8 @@ impl AudioEngine {
             if matches!(self.state, AudioTransportState::Playing)
                 && let Some((started, position)) = anchor
             {
-                self.position_seconds =
-                    (position + started.elapsed().as_secs_f32()).min(*duration_seconds);
+                self.position_seconds = (position + show_seconds_between(self.rate, *started, now))
+                    .min(*duration_seconds);
                 if self.position_seconds >= *duration_seconds {
                     self.state = AudioTransportState::Ended;
                     self.bump_generation();
@@ -551,6 +597,7 @@ impl AudioEngine {
             }),
             home_seconds: self.home_seconds,
             duration_seconds: self.duration_seconds(),
+            playback_speed: self.rate.into(),
             last_error: self.last_error.clone(),
         }
     }
@@ -595,6 +642,10 @@ impl AudioEngine {
     }
 }
 
+fn show_seconds_between(rate: PlaybackRate, start: Instant, now: Instant) -> f32 {
+    rate.show_elapsed(now.saturating_duration_since(start).as_micros() as u64) as f32 / 1_000_000.0
+}
+
 impl Drop for AudioEngine {
     fn drop(&mut self) {
         self.lifecycle_stop_handle();
@@ -616,15 +667,21 @@ mod tests {
         let fixture = AudioFixture::new(12.0);
         let mut engine = loaded_engine(&fixture);
         let start = Instant::now() + Duration::from_secs(1);
-        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine
+            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
+            .unwrap();
         engine.pause();
         engine.observe_backend_at(start + Duration::from_secs(2));
         assert_eq!(engine.current_snapshot().position_seconds, 2.0);
-        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine
+            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
+            .unwrap();
         engine.stop();
         engine.observe_backend_at(start + Duration::from_secs(2));
         assert_eq!(engine.current_snapshot().position_seconds, 0.0);
-        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine
+            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
+            .unwrap();
         engine.seek(4.0);
         engine.observe_backend_at(start + Duration::from_secs(2));
         assert_eq!(engine.current_snapshot().position_seconds, 4.0);
@@ -636,7 +693,9 @@ mod tests {
         let fixture = AudioFixture::new(12.0);
         let mut engine = loaded_engine(&fixture);
         let start = Instant::now() + Duration::from_secs(1);
-        engine.play_at(start, 2.0, 8.0).unwrap();
+        engine
+            .play_at(start, 2.0, 8.0, PlaybackRate::NORMAL)
+            .unwrap();
         engine.observe_backend_at(start - Duration::from_millis(1));
         assert_eq!(engine.current_snapshot().position_seconds, 2.0);
         engine.observe_backend_at(start + Duration::from_millis(350));
@@ -966,6 +1025,7 @@ mod tests {
             _path: &str,
             position_seconds: f32,
             _deadline: Option<Instant>,
+            _rate: PlaybackRate,
         ) -> Result<Box<dyn AudioHandle>, String> {
             let mut shared = self.shared.lock().expect("fake shared");
             shared
@@ -1012,6 +1072,8 @@ mod tests {
                 .push(HandleAction::Seek(position_seconds));
             shared.handle_position = position_seconds;
         }
+
+        fn set_playback_rate(&mut self, _rate: PlaybackRate) {}
 
         fn stop(&mut self) {
             let mut shared = self.shared.lock().expect("fake shared");

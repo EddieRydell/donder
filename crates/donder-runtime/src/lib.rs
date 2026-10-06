@@ -24,6 +24,7 @@ pub use archive::{
     payload_length,
 };
 pub use clip::{ClipSampler, SequenceClip};
+pub use playback_rate::{FrameTiming, PlaybackRate};
 pub use sequence::{
     EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
     SignalHandle, TargetHandle, WindowHandle,
@@ -40,6 +41,7 @@ mod clip;
 mod dsl;
 mod evaluation;
 mod patch;
+mod playback_rate;
 mod sections;
 mod sequence;
 mod signal;

@@ -106,10 +106,10 @@ content:
 
 Every layout fixture or group has one effect row and one automation row. A
 clip's row is only placement: moving it between rows does not change its
-bindings. One clip can bind several parameters, each with its own mapping:
-a float, int or curve range, a bool (on at 0.5), or a list of enum values.
-Several clips may bind the same parameter if they do not overlap in time; they
-share its mapping, and changing it on one clip changes it on all. Preparation
+bindings. One clip can bind several parameters. The curve's `0..1` value maps onto
+each parameter's declared range (a curve parameter's point values), an enum's
+options in order, or a bool (on at 0.5). Several clips may bind the same
+parameter if they do not overlap in time. Preparation
 merges them into one envelope: before the first clip the parameter holds that
 clip's first value, and in a gap it holds the value the previous clip ended on.
 Splitting a clip therefore leaves playback unchanged.
@@ -153,13 +153,15 @@ preparation does not repeat it.
 - Layer, effect, mark-collection and automation-clip IDs are unique, and timed
   objects fit within the sequence.
 - Effects reference an existing layer, a compatible target and a defined effect,
-  supply every required parameter and no unknown ones.
+  and supply every required parameter and no unknown ones, each within its
+  declared range. Loop bounds that depend on an array or marks length must fit
+  the 10,000-iteration limit with the supplied values.
 - The graph has one output, typed acyclic connections, and layer nodes that
   reference distinct layers. Operator definitions, parameters, port types and
   cardinality are checked even on disconnected branches.
-- Active automation bindings target existing, compatible parameters. A clip
-  binds a target at most once (active or detached), clips that bind the same
-  target do not overlap, and their active mappings agree.
+- Active automation bindings target existing parameters that support
+  automation. A clip binds a target at most once (active or detached), and clips
+  that bind the same target do not overlap.
 
 Fixture rules are in [fixture authoring](fixture_authoring.md).
 

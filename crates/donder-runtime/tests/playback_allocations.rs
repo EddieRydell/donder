@@ -629,7 +629,7 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
     use donder_language::values::Curve;
     use donder_language::values::SampleDuration;
     use donder_language::values::SampleTime;
-    let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0);
+    let effect = donder_language::dsl::compile_effects("effect Empty { param curve shape in 0.0..1.0; color sample() { return rgb(shape[progress()], 0.0, 0.0); } }").unwrap().remove(0);
     let params = donder_language::dsl::bind_params(
         effect.params(),
         &IndexMap::from([(

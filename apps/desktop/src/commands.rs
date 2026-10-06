@@ -8,8 +8,8 @@ use tauri_specta::{Builder, collect_commands};
 use crate::desktop_state::DesktopState;
 use crate::dto::{
     AppSettings, AppSnapshot, AudioTransportState, DocumentViewId, EditorViewMode,
-    GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, ProjectSearchRequest,
-    ProjectSearchResponse, SequenceAutomationMapping, SequenceAutomationTarget,
+    GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, PlaybackSpeed,
+    ProjectSearchRequest, ProjectSearchResponse, SequenceAutomationTarget,
     SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
     SequenceGuiEdit, SequenceSelectionEdit, SequenceSelectionEditResult, WorkspaceExplorerState,
     WorkspaceLayoutState, WorkspacePathChangePlan, WorkspacePathChangeRequest,
@@ -96,6 +96,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         audio_stop,
         audio_rewind_to_zero,
         audio_seek,
+        audio_set_playback_speed,
         set_preview_appearance,
         set_live_output_active,
         start_output_test,

@@ -1,6 +1,6 @@
 operator Gain {
   input Signal source;
-  param float amount = 1.0;
+  param float amount in 0.0..10.0 = 1.0;
 
   color sample() {
     return source.at(seconds()) * amount;
