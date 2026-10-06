@@ -1,6 +1,6 @@
 use donder_test_support::fixtures;
 use donder_test_support::fixtures::layered;
-use donder_test_support::playback;
+use donder_test_support::playback::{self, compile_effect};
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -174,10 +174,6 @@ fn curve(points: &[(f32, f32)]) -> Arc<Curve> {
             .map(|&(position, value)| CurvePoint { position, value })
             .collect(),
     })
-}
-
-fn compile_effect(source: &str) -> CompiledEffect {
-    compile_effects(source).unwrap().remove(0)
 }
 
 const RAMP_SOURCE: &str = "effect Ramp { sample { rgb(pixel.fraction, progress, 0.25) } }";
@@ -545,10 +541,13 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
 
 #[test]
 fn dsl_curve_automation_releases_previous_sample_before_update() {
-    let pulse = compile_effect(include_str!(
+    let pulse = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.effect.donder"
-    ));
-    assert_eq!(pulse.name().as_str(), "Pulse");
+    ))
+    .unwrap()
+    .into_iter()
+    .find(|effect| effect.name().as_str() == "Pulse")
+    .unwrap();
     let shape = curve(&[(0.0, 0.0), (0.4, 1.0), (1.0, 0.0)]);
     let gradient = Value::Gradient(Arc::new(Gradient {
         stops: vec![GradientStop {

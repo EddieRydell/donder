@@ -225,6 +225,29 @@ mod tests {
         );
     }
     #[test]
+    fn a_scheduled_rate_takes_effect_at_its_start() {
+        let half = PlaybackRate::new(
+            core::num::NonZeroU32::new(500_000).unwrap(),
+            donder_runtime::FrameTiming::Constant,
+        );
+        let mut transport = Transport::new();
+        transport.apply(Mode::Playing, 0, 0, false, PlaybackRate::NORMAL);
+        transport.schedule(Scheduled {
+            id: 1,
+            at: 1_000_000,
+            mode: Mode::Playing,
+            position: 1_000_000,
+            looping: false,
+            rate: half,
+        });
+        assert_eq!(transport.rate(999_999), PlaybackRate::NORMAL);
+        assert_eq!(transport.rate(1_000_000), half);
+        assert_eq!(
+            transport.sample(3_000_000, 8_000_000),
+            (Mode::Playing, 2_000_000)
+        );
+    }
+    #[test]
     fn pause_seek_stop_and_replaced_schedules() {
         let mut transport = Transport::new();
         transport.apply(Mode::Playing, 0, 1_000_000, false, PlaybackRate::NORMAL);

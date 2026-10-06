@@ -7,8 +7,8 @@ use donder_language::dsl::bytecode::{
     BytecodeProgram, ContextRead, FloatUnary, Instruction, STRIP,
 };
 use donder_language::dsl::{
-    CompiledEffect, CompiledOperator, OperatorDefinition, OperatorInvocation, OperatorProgram,
-    SampleDefinition, SampleInvocation, SampleProgram, Value, compile_effects, compile_operators,
+    OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition, SampleInvocation,
+    SampleProgram, Value,
 };
 use donder_language::execution::{PreparedAutomation, SequenceTiming, SequenceWindow, TargetScope};
 use donder_language::values::{
@@ -16,16 +16,9 @@ use donder_language::values::{
 };
 use donder_runtime::{PreparedSequence, SequencePlayback};
 use donder_test_support::marks as mark_workload;
+use donder_test_support::playback::{compile_effect, compile_operator};
 use donder_test_support::{fixtures, playback, workload};
 use std::num::NonZeroU32;
-
-fn compile_effect(source: &str) -> CompiledEffect {
-    compile_effects(source).unwrap().remove(0)
-}
-
-fn compile_operator(source: &str) -> CompiledOperator {
-    compile_operators(source).unwrap().remove(0)
-}
 
 /// The sequence's first output, as bytes.
 fn frame(playback: &mut SequencePlayback, time: SampleTime) -> Vec<u8> {

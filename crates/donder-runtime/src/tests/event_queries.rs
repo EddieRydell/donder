@@ -1,13 +1,11 @@
-use super::evaluation::{PixelContext, SampleEvaluation, compile_effect};
+use super::evaluation::{PixelContext, SampleEvaluation, compile_effect, curve, marks};
 use super::playback;
 use super::std;
 use crate::dsl::RunContext;
 use crate::dsl::StripWorkspace;
 use donder_language::dsl::Value;
 use donder_language::execution::SpatialContext;
-use donder_language::values::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration,
-};
+use donder_language::values::{Color, Gradient, GradientStop, SampleDuration};
 use std::prelude::rust_2024::*;
 
 /// One parameter: its name, its declared type and range, and its value.
@@ -91,22 +89,6 @@ fn assert_query(params: &[Param], predicate: &str) {
         },
         "{predicate}"
     );
-}
-
-fn curve(points: &[(f32, f32)]) -> Value {
-    Value::Curve(
-        Curve {
-            points: points
-                .iter()
-                .map(|&(position, value)| CurvePoint { position, value })
-                .collect(),
-        }
-        .into(),
-    )
-}
-
-fn marks(ticks: &[u32]) -> Value {
-    Value::Marks(Marks::new(ticks.iter().copied().map(SampleDuration::from_ticks)).into())
 }
 
 #[test]

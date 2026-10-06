@@ -129,6 +129,18 @@ mod tests {
         assert!(matches!(command, Command::Cancel { command_id: 3 }));
     }
     #[test]
+    fn a_stopped_speed_has_no_rate() {
+        let speed = |show_micros_per_second| Speed {
+            show_micros_per_second,
+            frame_timing: FrameTiming::Scaled,
+        };
+        assert_eq!(speed(0).rate(), None);
+        assert_eq!(
+            speed(1_000_000).rate(),
+            Some(donder_runtime::PlaybackRate::NORMAL)
+        );
+    }
+    #[test]
     fn malformed_commands_are_rejected_by_the_embedded_parser() {
         for payload in [
             &br#"{"cancel":{"commandId":3,"extra":true}}"#[..],

@@ -1,6 +1,6 @@
 //! Array literals and array parameters: indexing, measuring and conversions.
 use super::evaluation::{
-    PixelContext, SampleEvaluation, bind, compile_effect, effect, runtime_effect,
+    SampleEvaluation, bind, compile_effect, effect, one_pixel, runtime_effect,
 };
 use super::playback;
 use super::std;
@@ -12,24 +12,9 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
-use crate::dsl::RunContext;
 use crate::dsl::StripWorkspace;
 use donder_language::dsl::Color;
 use donder_language::dsl::Value;
-use donder_language::values::SampleDuration;
-
-fn context(progress: f32) -> PixelContext {
-    PixelContext {
-        run: RunContext {
-            progress,
-            time: SampleDuration::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            pixel_count: 1,
-        },
-        index: 0,
-        fraction: 0.0,
-    }
-}
 
 fn red(red: u8) -> Color {
     Color {
@@ -62,7 +47,7 @@ fn selecting_array_items_keeps_integer_to_float_conversion() {
             runtime_effect(&array, &[], &params),
         ] {
             for progress in [0.0, 0.25, 0.75, 1.0] {
-                let context = context(progress);
+                let context = one_pixel(progress);
                 assert_eq!(
                     actual.evaluate(&context, &SPATIAL, &mut workspace),
                     expected.evaluate(&context, &SPATIAL, &mut workspace)
@@ -118,7 +103,7 @@ fn curve_items_sample_at_integer_and_float_positions() {
                     ("fraction", Value::Float(fraction)),
                 ],
             )
-            .evaluate(&context(0.0), &SPATIAL, &mut workspace);
+            .evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace);
             let channel = |position| {
                 (donder_language::sampling::sample_curve(&curve, position) * 255.0).round() as u8
             };
@@ -152,7 +137,7 @@ fn lets_keep_the_items_they_bound() {
     let mut workspace = StripWorkspace::default();
     for progress in [0.25, 0.0, 0.25] {
         assert_eq!(
-            fixed.evaluate(&context(progress), &SPATIAL, &mut workspace),
+            fixed.evaluate(&one_pixel(progress), &SPATIAL, &mut workspace),
             crate::sampling::rgb(progress, progress + 0.25, 0.5)
         );
     }
@@ -182,7 +167,7 @@ fn lets_keep_the_items_they_bound() {
         ] {
             assert_eq!(
                 effect
-                    .evaluate(&context(progress), &SPATIAL, &mut workspace)
+                    .evaluate(&one_pixel(progress), &SPATIAL, &mut workspace)
                     .red,
                 expected,
                 "{body}"
@@ -206,7 +191,7 @@ fn indices_clamp_and_empty_arrays_produce_defaults() {
         ));
         assert_eq!(
             effect
-                .evaluate(&context(0.25), &SPATIAL, &mut workspace)
+                .evaluate(&one_pixel(0.25), &SPATIAL, &mut workspace)
                 .red,
             expected_red,
             "{index}"
@@ -232,7 +217,7 @@ fn indices_clamp_and_empty_arrays_produce_defaults() {
         ],
     ));
     assert_eq!(
-        invocation.evaluate(&context(0.25), &SPATIAL, &mut workspace),
+        invocation.evaluate(&one_pixel(0.25), &SPATIAL, &mut workspace),
         Color::BLACK
     );
 }
@@ -267,7 +252,7 @@ fn dynamic_selection_preserves_typed_values() {
                 .into_iter()
                 .enumerate()
             {
-                let mut ctx = context(progress);
+                let mut ctx = one_pixel(progress);
                 ctx.index = pixel as i32;
                 ctx.run.pixel_count = 3;
                 assert_eq!(

@@ -81,29 +81,41 @@ pub(crate) struct RunPixel {
 }
 
 /// The shared shape of a strip.
-struct RunShape {
+struct StripShape {
     len: usize,
     pixel_count: usize,
     min: [f32; 2],
     max: [f32; 2],
 }
 
-/// Fill a strip from `pixel(start..end)`. A strip ends after [`STRIP`]
-/// pixels or, for a program that reads them, where the pixel count or target
-/// bounds change.
-#[allow(clippy::too_many_arguments)]
-fn fill_strip(
-    pixels: &mut Pixels,
-    renderer: SignalGraph<'_>,
+/// What a program reads of a target's pixels.
+#[derive(Clone, Copy)]
+struct StripLayout<'a> {
     target: usize,
     spatial: bool,
-    sections: Option<&crate::sections::PreparedSections>,
+    sections: Option<&'a crate::sections::PreparedSections>,
+    /// Strips must not mix pixel counts or bounds.
     split: bool,
-    start: usize,
-    end: usize,
+}
+
+/// Fill a strip from `pixel(pixels)`. A strip ends after [`STRIP`] pixels or,
+/// for a program that reads them, where the pixel count or target bounds
+/// change.
+fn fill_strip(
+    strip: &mut Pixels,
+    renderer: SignalGraph<'_>,
+    layout: StripLayout<'_>,
+    pixels: core::ops::Range<usize>,
     pixel: &impl Fn(usize) -> RunPixel,
-) -> RunShape {
-    let mut shape = RunShape {
+) -> StripShape {
+    let StripLayout {
+        target,
+        spatial,
+        sections,
+        split,
+    } = layout;
+    let (start, end) = (pixels.start, pixels.end);
+    let mut shape = StripShape {
         len: 0,
         pixel_count: 0,
         min: [0.0; 2],
@@ -119,8 +131,8 @@ fn fill_strip(
             } else if split && pixel.pixel_count != shape.pixel_count {
                 break;
             }
-            pixels.index[offset].set(pixel.pixel_index as i32);
-            pixels.fraction[offset].set(pixel.pixel_fraction);
+            strip.index[offset].set(pixel.pixel_index as i32);
+            strip.fraction[offset].set(pixel.pixel_fraction);
             shape.len += 1;
         }
         return shape;
@@ -134,8 +146,8 @@ fn fill_strip(
         let (mut min, mut max) = ([0.0; 2], [0.0; 2]);
         if spatial {
             let geometry = renderer.spatial_context(true, target, target_index, &pixel);
-            pixels.x[offset].set(geometry.position[0]);
-            pixels.y[offset].set(geometry.position[1]);
+            strip.x[offset].set(geometry.position[0]);
+            strip.y[offset].set(geometry.position[1]);
             (min, max) = (geometry.min, geometry.max);
         }
         if offset == 0 {
@@ -145,10 +157,10 @@ fn fill_strip(
         {
             break;
         }
-        pixels.index[offset].set(pixel.pixel_index as i32);
-        pixels.fraction[offset].set(pixel.pixel_fraction);
+        strip.index[offset].set(pixel.pixel_index as i32);
+        strip.fraction[offset].set(pixel.pixel_fraction);
         if let Some(sections) = sections {
-            pixels.sections[offset] = sections.pixel(target_index);
+            strip.sections[offset] = sections.pixel(target_index);
         }
         shape.len += 1;
     }
@@ -191,17 +203,13 @@ impl EffectSampler<'_> {
         let mut colors = [black(); STRIP];
         let mut start = 0;
         while start < end {
-            let shape = fill_strip(
-                strip.pixels(),
-                renderer,
+            let layout = StripLayout {
                 target,
-                self.spatial,
+                spatial: self.spatial,
                 sections,
-                self.program.reads_target(),
-                start,
-                end,
-                &pixel,
-            );
+                split: self.program.reads_target(),
+            };
+            let shape = fill_strip(strip.pixels(), renderer, layout, start..end, &pixel);
             strip.run(
                 shape.pixel_count,
                 shape.min,
@@ -263,9 +271,11 @@ pub(crate) fn sample_signal_graph<'a>(
                 node_index,
                 sample_time,
                 &mut buffers[destination],
-                workspace,
-                operator_automation,
-                operator_vms,
+                Lent {
+                    sampling: &mut *workspace,
+                    automation: &mut *operator_automation,
+                    strips: &mut *operator_vms,
+                },
             ),
         }
     }
@@ -383,17 +393,14 @@ fn sample_layer_frame(
                         offset += cached_len;
                         continue;
                     }
-                    let shape = fill_strip(
-                        strip.pixels(),
-                        renderer,
-                        effect.target,
+                    let layout = StripLayout {
+                        target: effect.target,
                         spatial,
                         sections,
-                        true,
-                        offset,
-                        length,
-                        &pixel,
-                    );
+                        split: true,
+                    };
+                    let shape =
+                        fill_strip(strip.pixels(), renderer, layout, offset..length, &pixel);
                     let count = shape.len;
                     strip.run(
                         shape.pixel_count,
@@ -421,6 +428,24 @@ fn sample_layer_frame(
     }
 }
 
+/// The workspaces nested sampling borrows: the shared sampling workspace, and
+/// the automation states and strip workspaces of the operators upstream.
+struct Lent<'a> {
+    sampling: &'a mut SamplingWorkspace,
+    automation: &'a mut [EffectAutomationWorkspace],
+    strips: &'a mut [StripWorkspace],
+}
+
+impl Lent<'_> {
+    fn reborrow(&mut self) -> Lent<'_> {
+        Lent {
+            sampling: self.sampling,
+            automation: self.automation,
+            strips: self.strips,
+        }
+    }
+}
+
 /// Signal queries of an operator strip. Pixel `n` of the strip is plan-target pixel
 /// `first + n`; whole-frame caches are used only at frame scope.
 struct GraphSignals<'a> {
@@ -429,9 +454,7 @@ struct GraphSignals<'a> {
     first: usize,
     count: usize,
     frames: Option<usize>,
-    workspace: &'a mut SamplingWorkspace,
-    operator_automation: &'a mut [EffectAutomationWorkspace],
-    operator_vms: &'a mut [StripWorkspace],
+    lent: Lent<'a>,
 }
 
 impl GraphSignals<'_> {
@@ -444,9 +467,9 @@ impl GraphSignals<'_> {
         time: SampleTime,
     ) -> &[Color] {
         let key = Some((node, time));
-        if self.workspace.operator_frames[slot][cache].key != key {
+        if self.lent.sampling.operator_frames[slot][cache].key != key {
             let mut stored = core::mem::replace(
-                &mut self.workspace.operator_frames[slot][cache],
+                &mut self.lent.sampling.operator_frames[slot][cache],
                 CachedSignalFrame {
                     key: None,
                     colors: Box::new([]),
@@ -457,14 +480,12 @@ impl GraphSignals<'_> {
                 node,
                 time,
                 &mut stored.colors,
-                self.workspace,
-                self.operator_automation,
-                self.operator_vms,
+                self.lent.reborrow(),
             );
             stored.key = key;
-            self.workspace.operator_frames[slot][cache] = stored;
+            self.lent.sampling.operator_frames[slot][cache] = stored;
         }
-        &self.workspace.operator_frames[slot][cache].colors
+        &self.lent.sampling.operator_frames[slot][cache].colors
     }
 }
 
@@ -494,9 +515,7 @@ impl StripSignals for GraphSignals<'_> {
             time,
             self.first,
             &mut output[..count],
-            self.workspace,
-            self.operator_automation,
-            self.operator_vms,
+            self.lent.reborrow(),
         );
     }
 
@@ -525,9 +544,7 @@ impl StripSignals for GraphSignals<'_> {
             time,
             index,
             &mut color,
-            self.workspace,
-            self.operator_automation,
-            self.operator_vms,
+            self.lent.reborrow(),
         );
         color[0]
     }
@@ -555,7 +572,6 @@ fn signal_pixel(
 
 /// Evaluate operator `node` over plan-target pixels `first..first + output.len()`.
 /// Frame scope (`frames`) lets the operator use its whole-frame input caches.
-#[allow(clippy::too_many_arguments)]
 fn sample_operator(
     renderer: SignalGraph<'_>,
     node: usize,
@@ -563,9 +579,7 @@ fn sample_operator(
     first: usize,
     output: &mut [Color],
     frame_scope: bool,
-    workspace: &mut SamplingWorkspace,
-    operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [StripWorkspace],
+    lent: Lent<'_>,
 ) {
     let PreparedSignalKind::Operator {
         operator,
@@ -577,8 +591,13 @@ fn sample_operator(
         unreachable!("operator node");
     };
     let program = renderer.operator_program(operator.program);
-    let (params, upstream) = operator_params(operator, automation, time, operator_automation);
-    let (upstream_vms, current) = operator_vms.split_at_mut(*vm_slot);
+    let Lent {
+        sampling,
+        automation: states,
+        strips,
+    } = lent;
+    let (params, upstream) = operator_params(operator, automation, time, states);
+    let (upstream_strips, current) = strips.split_at_mut(*vm_slot);
     let duration = renderer.duration;
     let context = RunContext {
         progress: if program.uses_progress() && duration.as_ticks() != 0 {
@@ -605,33 +624,27 @@ fn sample_operator(
         first,
         count: 0,
         frames: frame_scope.then_some(*vm_slot),
-        workspace,
-        operator_automation: upstream,
-        operator_vms: upstream_vms,
+        lent: Lent {
+            sampling,
+            automation: upstream,
+            strips: upstream_strips,
+        },
     };
     let pixels = renderer.target(target);
     let pixel = |index: usize| RunPixel {
         target_index: index,
         pixel: pixels.pixel(index),
     };
-    let (spatial, sections) = (
-        program.uses_spatial_context(),
-        program.uses_sections().then_some(sections),
-    );
+    let layout = StripLayout {
+        target,
+        spatial: program.uses_spatial_context(),
+        sections: program.uses_sections().then_some(sections),
+        split: program.reads_target(),
+    };
     let end = first + output.len();
     let mut start = first;
     while start < end {
-        let shape = fill_strip(
-            strip.pixels(),
-            renderer,
-            target,
-            spatial,
-            sections,
-            program.reads_target(),
-            start,
-            end,
-            &pixel,
-        );
+        let shape = fill_strip(strip.pixels(), renderer, layout, start..end, &pixel);
         signals.first = start;
         signals.count = shape.len;
         let colors = &mut output[start - first..start - first + shape.len];
@@ -647,32 +660,21 @@ fn sample_operator(
 }
 
 /// Evaluate `node` over plan-target pixels `first..first + output.len()`.
-#[allow(clippy::too_many_arguments)]
 fn sample_signal_run(
     renderer: SignalGraph<'_>,
     node: usize,
     time: SampleTime,
     first: usize,
     output: &mut [Color],
-    workspace: &mut SamplingWorkspace,
-    operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [StripWorkspace],
+    mut lent: Lent<'_>,
 ) {
     match &renderer.plan.nodes[node].kind {
         PreparedSignalKind::Layer { layer_index } => {
-            sample_layer_run(renderer, *layer_index, time, first, output, workspace);
+            sample_layer_run(renderer, *layer_index, time, first, output, lent.sampling);
         }
-        PreparedSignalKind::Operator { .. } => sample_operator(
-            renderer,
-            node,
-            time,
-            first,
-            output,
-            false,
-            workspace,
-            operator_automation,
-            operator_vms,
-        ),
+        PreparedSignalKind::Operator { .. } => {
+            sample_operator(renderer, node, time, first, output, false, lent);
+        }
         PreparedSignalKind::Output { inputs } => {
             output.fill(black());
             let mut colors = [black(); STRIP];
@@ -685,9 +687,7 @@ fn sample_signal_run(
                         time,
                         first + chunk,
                         &mut colors[..length],
-                        workspace,
-                        operator_automation,
-                        operator_vms,
+                        lent.reborrow(),
                     );
                     for (target, color) in output[chunk..chunk + length].iter_mut().zip(&colors) {
                         compose_max(target, *color);
@@ -776,70 +776,42 @@ fn sample_layer_run(
 }
 
 /// A whole plan-target frame of `node`.
-#[allow(clippy::too_many_arguments)]
 fn sample_signal_frame(
     renderer: SignalGraph<'_>,
     node_index: usize,
     sample_time: SampleTime,
     output: &mut [Color],
-    workspace: &mut SamplingWorkspace,
-    operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [StripWorkspace],
+    mut lent: Lent<'_>,
 ) {
     match &renderer.plan.nodes[node_index].kind {
         PreparedSignalKind::Layer { layer_index } => {
-            sample_layer_frame(renderer, *layer_index, sample_time, output, workspace);
+            sample_layer_frame(renderer, *layer_index, sample_time, output, lent.sampling);
         }
         PreparedSignalKind::Operator { .. } => {
             let pixels = renderer.target(renderer.plan.target).len();
-            sample_operator(
-                renderer,
-                node_index,
-                sample_time,
-                0,
-                &mut output[..pixels],
-                true,
-                workspace,
-                operator_automation,
-                operator_vms,
-            );
+            let output = &mut output[..pixels];
+            sample_operator(renderer, node_index, sample_time, 0, output, true, lent);
         }
         PreparedSignalKind::Output { inputs } => {
             output.fill(black());
             let Some((&first, rest)) = inputs.split_first() else {
                 return;
             };
-            sample_signal_frame(
-                renderer,
-                first,
-                sample_time,
-                output,
-                workspace,
-                operator_automation,
-                operator_vms,
-            );
+            sample_signal_frame(renderer, first, sample_time, output, lent.reborrow());
             if rest.is_empty() {
                 return;
             }
-            let slot = workspace.frame_scratch_used;
-            workspace.frame_scratch_used += 1;
-            let mut frame = core::mem::take(&mut workspace.frame_scratch[slot]);
+            let slot = lent.sampling.frame_scratch_used;
+            lent.sampling.frame_scratch_used += 1;
+            let mut frame = core::mem::take(&mut lent.sampling.frame_scratch[slot]);
             for &input in rest {
-                sample_signal_frame(
-                    renderer,
-                    input,
-                    sample_time,
-                    &mut frame,
-                    workspace,
-                    operator_automation,
-                    operator_vms,
-                );
+                sample_signal_frame(renderer, input, sample_time, &mut frame, lent.reborrow());
                 for (a, b) in output.iter_mut().zip(frame.iter()) {
                     compose_max(a, *b);
                 }
             }
-            workspace.frame_scratch[slot] = frame;
-            workspace.frame_scratch_used -= 1;
+            lent.sampling.frame_scratch[slot] = frame;
+            lent.sampling.frame_scratch_used -= 1;
         }
     }
 }
