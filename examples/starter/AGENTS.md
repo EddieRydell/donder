@@ -24,8 +24,8 @@ all Vixen effects or modes. Random modes use Donder's seeded random values.
 
 Effects declare typed parameters and produce colors in `color sample()`.
 Operators declare signal inputs and sample them to transform or combine output.
-Ordinary parameters can vary during playback where their types support
-automation; `fixed param` values are resolved during preparation. Mark-driven
+Parameters can vary during playback where their types support automation.
+Mark-driven
 effects query marks and curves directly in `sample()`.
 
 Imports are explicit and scoped to the consuming document, not inherited from

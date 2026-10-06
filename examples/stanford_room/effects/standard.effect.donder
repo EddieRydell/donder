@@ -66,7 +66,7 @@ effect Wipe {
   param gradient gradient;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
   param float pulse_width = 0.15;
-  fixed param float direction_angle = 0.0;
+  param float direction_angle = 0.0;
   param curve wipe_position;
   param bool reverse = false;
   param bool extend_to_start = false;
@@ -147,14 +147,14 @@ effect Spin {
 }
 
 effect MarkPulse {
-  fixed param marks beats;
+  param marks beats;
   param gradient accent;
   param curve pulse_shape;
-  fixed param float offset_seconds = 0.0;
-  fixed param float decay_seconds = 0.18;
-  fixed param int section_width_pixels = 5;
-  fixed param int sections_per_mark = 3;
-  fixed param float seed = 0.0;
+  param float offset_seconds = 0.0;
+  param float decay_seconds = 0.18;
+  param int section_width_pixels = 5;
+  param int sections_per_mark = 3;
+  param float seed = 0.0;
 
   // Prepared section queries preserve fixture boundaries and short final sections.
   // A new mark retriggers the entire selection, discarding every older pulse.
@@ -183,14 +183,14 @@ effect MarkPulse {
 }
 
 effect MarkChase {
-  fixed param marks beats;
+  param marks beats;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
-  fixed param array<gradient> gradients;
-  fixed param float offset_seconds = 0.0;
-  fixed param float chase_seconds = 0.5;
+  param array<gradient> gradients;
+  param float offset_seconds = 0.0;
+  param float chase_seconds = 0.5;
   param float pulse_overlap = 8.0;
   param int section_width_pixels = 5;
-  fixed param curve chase_position;
+  param curve chase_position;
   param curve pulse_shape;
 
   // One arrival per mark and pixel: a new mark replaces this pulse only on arrival.
@@ -224,15 +224,15 @@ effect MarkChase {
 }
 
 effect MarkWipe {
-  fixed param marks beats;
+  param marks beats;
   param enum gradient_mode { through_effect, across_items, per_pulse } = per_pulse;
-  fixed param array<gradient> gradients;
-  fixed param float offset_seconds = 0.0;
-  fixed param float wipe_seconds = 0.5;
+  param array<gradient> gradients;
+  param float offset_seconds = 0.0;
+  param float wipe_seconds = 0.5;
   param float pulse_width = 0.15;
   // Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
-  fixed param curve direction_angle;
-  fixed param array<curve> wipe_positions;
+  param curve direction_angle;
+  param array<curve> wipe_positions;
   param curve pulse_shape;
 
   // Direction is sampled at the mark's time.

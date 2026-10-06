@@ -3,8 +3,9 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use donder_preview::{
-    PreviewClockSnapshot, PreviewInstance, PreviewPlayback, PreviewPlaybackState,
-    PreviewRenderOutcome, PreviewRenderer, PreviewScene, PreviewSize, PreviewStyle,
+    PreviewClockSnapshot, PreviewClockUpdate, PreviewInstance, PreviewPlayback,
+    PreviewPlaybackState, PreviewRenderOutcome, PreviewRenderer, PreviewScene, PreviewSize,
+    PreviewStyle,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -18,6 +19,12 @@ enum HostEvent {
     Command(PreviewCommand),
     InputError(String),
     InputClosed,
+}
+
+enum CommandEffect {
+    Redraw,
+    Evaluate(Instant),
+    Unchanged,
 }
 
 pub(crate) fn startup_from_arguments() -> Result<Option<PreviewStartup>, String> {
@@ -158,30 +165,39 @@ impl PreviewHostApplication {
                 revision,
                 instances,
                 sequence,
-            } => self.replace_content(revision, instances, sequence),
+            } => self
+                .replace_content(revision, instances, sequence)
+                .and_then(|()| self.evaluate(Instant::now()))
+                .map(|_| CommandEffect::Redraw),
             PreviewCommand::SetClock {
                 generation,
                 state,
                 position_seconds,
                 start_delay_seconds,
             } => {
-                self.playback.set_clock(
+                let now = Instant::now();
+                let update = self.playback.set_clock(
                     PreviewClockSnapshot {
                         generation,
                         state: playback_state(state),
                         position_seconds,
                         start_delay_seconds,
                     },
-                    Instant::now(),
+                    now,
                 );
-                Ok(())
+                Ok(match update {
+                    PreviewClockUpdate::Reanchored => CommandEffect::Evaluate(now),
+                    PreviewClockUpdate::Absorbed => CommandEffect::Unchanged,
+                })
             }
-            PreviewCommand::SetAppearance { appearance } => self.set_appearance(appearance),
+            PreviewCommand::SetAppearance { appearance } => self
+                .set_appearance(appearance)
+                .map(|()| CommandEffect::Redraw),
             PreviewCommand::Focus => {
                 if let Some(window) = self.window.as_ref() {
                     window.focus_window();
                 }
-                Ok(())
+                Ok(CommandEffect::Unchanged)
             }
             PreviewCommand::Close => {
                 self.close(event_loop);
@@ -189,12 +205,14 @@ impl PreviewHostApplication {
             }
         };
         match result {
-            Ok(()) => {
+            Ok(CommandEffect::Redraw) => {
                 self.next_wake = None;
                 if let Some(window) = self.window.as_ref() {
                     window.request_redraw();
                 }
             }
+            Ok(CommandEffect::Evaluate(now)) => self.next_wake = Some(now),
+            Ok(CommandEffect::Unchanged) => {}
             Err(message) => self.report_error(message),
         }
     }
@@ -231,11 +249,14 @@ impl PreviewHostApplication {
         Ok(())
     }
 
-    fn render(&mut self) -> Result<(), String> {
-        let now = Instant::now();
+    fn evaluate(&mut self, now: Instant) -> Result<bool, String> {
         self.playback
             .evaluate(now)
-            .map_err(|error| format!("Cannot evaluate Preview frame: {error:?}"))?;
+            .map_err(|error| format!("Cannot evaluate Preview frame: {error:?}"))
+    }
+
+    fn render(&mut self) -> Result<(), String> {
+        let now = Instant::now();
         let window = self
             .window
             .as_ref()
@@ -342,14 +363,19 @@ impl ApplicationHandler<HostEvent> for PreviewHostApplication {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         let now = Instant::now();
-        match self.next_wake {
-            Some(deadline) if deadline <= now => {
-                self.next_wake = None;
-                if let Some(window) = self.window.as_ref() {
-                    window.request_redraw();
+        if self.next_wake.is_some_and(|deadline| deadline <= now) {
+            self.next_wake = None;
+            match self.evaluate(now) {
+                Ok(true) => {
+                    if let Some(window) = self.window.as_ref() {
+                        window.request_redraw();
+                    }
                 }
-                event_loop.set_control_flow(ControlFlow::Wait);
+                Ok(false) => self.next_wake = self.playback.next_deadline(now),
+                Err(error) => self.report_error(error),
             }
+        }
+        match self.next_wake {
             Some(deadline) => event_loop.set_control_flow(ControlFlow::WaitUntil(deadline)),
             None => event_loop.set_control_flow(ControlFlow::Wait),
         }

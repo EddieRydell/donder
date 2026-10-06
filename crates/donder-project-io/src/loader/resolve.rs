@@ -260,6 +260,12 @@ impl DomainResolver<'_> {
                                 }
                             },
                         }),
+                        "donder" => ControllerProtocol::Donder(DonderConfig {
+                            device: DonderDeviceId::parse(protocol_fields.string("device")?)
+                                .ok_or_else(|| {
+                                    invalid(&path, "Donder device must be 12 lowercase hex digits")
+                                })?,
+                        }),
                         other => {
                             return Err(invalid(
                                 &path,
@@ -286,6 +292,10 @@ impl DomainResolver<'_> {
                                 u16::try_from(port_fields.u32("port_address")?).map_err(|_| {
                                     invalid(&path, "Art-Net port address must be a u16")
                                 })?,
+                            ),
+                            ControllerProtocol::Donder(_) => ControllerPortAddress::DonderOutput(
+                                u8::try_from(port_fields.u32("output")?)
+                                    .map_err(|_| invalid(&path, "Donder output must be a u8"))?,
                             ),
                         };
                         Ok(ControllerPort {
@@ -1222,7 +1232,7 @@ fn invalid(path: &Utf8Path, message: &str) -> LoadProjectError {
 
 use donder_language::controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, E131Config, E131Mode,
+    ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
 use donder_language::dsl::Identifier;
 use donder_language::effect::{

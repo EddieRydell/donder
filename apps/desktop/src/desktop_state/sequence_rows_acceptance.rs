@@ -1,9 +1,9 @@
 use super::DesktopState;
 use crate::dto::{
     DocumentViewId, FixtureTarget, GuiDocument, GuiDocumentRequest, GuiEditCommand, LayoutGuiEdit,
-    SequenceAutomationMapping, SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit,
-    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection, SequenceSelectionEdit,
-    SequenceSelectionEditResult,
+    SequenceAutomationMapping, SequenceAutomationResize, SequenceAutomationTarget,
+    SequenceEffectReference, SequenceGuiEdit, SequencePasteAnchor, SequenceResizeEdge,
+    SequenceSelection, SequenceSelectionEdit, SequenceSelectionEditResult,
 };
 use donder_language::sequence::{AutomationTarget, Sequence, SequenceId};
 use std::sync::Arc;
@@ -57,6 +57,7 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
         effect_ids: vec![timeline.effect],
         automation_ids: vec![timeline.automation],
         edge: SequenceResizeEdge::Right,
+        automation: SequenceAutomationResize::Crop,
         time_delta_seconds: 1.0,
     });
     let resized = timeline.sequence();

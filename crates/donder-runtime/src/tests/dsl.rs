@@ -74,7 +74,7 @@ fn assigned_parameters_are_invocation_local_across_branches_and_loops() {
 fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
     let effect = compile_effects(
         "effect Iterate {
-            fixed param marks beats;
+            param marks beats;
             color sample() {
                 float total = 0.0;
                 for (int mark in beats) { total = total + mark_at(beats, mark); }
@@ -118,7 +118,7 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
     );
     assert!(
         compile_effects(
-            "effect Invalid { fixed param marks beats; color sample() {
+            "effect Invalid { param marks beats; color sample() {
             for (int mark in beats) { mark = mark + 1; }
             return #000000;
         } }"
@@ -131,7 +131,7 @@ fn marks_iteration_captures_its_bound_and_rejects_index_assignment() {
 fn marks_iteration_uses_collection_length_not_numeric_range_cap() {
     let effect = compile_effects(
         "effect CountMarks {
-            fixed param marks beats;
+            param marks beats;
             color sample() {
                 int count = 0;
                 for (int mark in beats) { count = count + 1; }

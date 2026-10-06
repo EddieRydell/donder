@@ -37,7 +37,6 @@ pub(in crate::gui) fn effect_params(
                 &mut value,
             );
             Some(SequenceEffectParam {
-                fixed: param.fixed,
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
                 kind,
@@ -127,7 +126,6 @@ fn graph_operator_params(
                 &mut value,
             );
             Some(SequenceEffectParam {
-                fixed: declaration.fixed,
                 supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
                 kind,
@@ -155,7 +153,6 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
             .iter()
             .filter_map(|param| {
                 Some(crate::dto::SequenceEffectDefinitionParam {
-                    fixed: param.fixed,
                     supports_automation: param.supports_automation(),
                     name: param.name.as_str().to_string(),
                     kind: param_kind(&param.ty)?,
@@ -239,18 +236,18 @@ fn param_automation(
     duration: &donder_language::values::DonderDuration,
     value: &mut SequenceEffectParamValue,
 ) -> Option<SequenceParamAutomation> {
-    sequence.automation_clips.iter().find_map(|clip| {
-        let binding = clip
-            .bindings
+    let envelope = sequence.automation_envelope(target)?;
+    let clip = sequence.automation_clips.iter().find(|clip| {
+        clip.bindings
             .iter()
-            .find(|binding| &binding.target == target)?;
-        if let SequenceEffectParamValue::Curve { value } = value {
-            value.points = curve_points(&clip.curve_in_range(start, duration));
-        }
-        Some(SequenceParamAutomation {
-            clip_id: clip.id.0,
-            mapping: automation_mapping_to_gui(&binding.mapping),
-        })
+            .any(|binding| &binding.target == target)
+    })?;
+    if let SequenceEffectParamValue::Curve { value } = value {
+        value.points = curve_points(&envelope.curve_in_range(start, duration));
+    }
+    Some(SequenceParamAutomation {
+        clip_id: clip.id.0,
+        mapping: automation_mapping_to_gui(envelope.mapping),
     })
 }
 

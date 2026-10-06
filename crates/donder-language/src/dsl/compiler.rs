@@ -95,7 +95,6 @@ mod parameter_slot_tests {
             name: super::Identifier::new("parameter".into()).unwrap(),
             ty: super::Type::Float,
             default: None,
-            fixed: false,
         };
         let mut params = vec![declaration.clone(); usize::from(u16::MAX) + 1];
         assert!(super::check_parameter_count(&params).is_ok());

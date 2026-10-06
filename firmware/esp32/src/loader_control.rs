@@ -72,13 +72,11 @@ impl RequestHandlerService<LoaderState> for Control {
                 local_micros,
                 master_micros,
                 rate_ppb,
-                uncertainty_micros,
                 valid_for_micros,
             } => {
                 if boot_id != state.boot_id
                     || clock_id == 0
                     || rate_ppb.unsigned_abs() > 200_000
-                    || uncertainty_micros > 2_000
                     || valid_for_micros > 15_000_000
                     || valid_for_micros == 0
                     || now.abs_diff(local_micros) > 2_000_000
@@ -107,7 +105,6 @@ impl RequestHandlerService<LoaderState> for Control {
                             local_anchor: local_micros,
                             master_anchor: master_micros,
                             rate_ppb,
-                            uncertainty: uncertainty_micros,
                             valid_until: now + u64::from(valid_for_micros),
                         };
                         Ok(())

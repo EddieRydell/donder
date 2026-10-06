@@ -13,7 +13,6 @@ pub struct OperatorInputDecl {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParamDecl {
-    pub fixed: bool,
     pub name: Identifier,
     pub ty: Type,
     pub default: Option<Value>,
@@ -21,11 +20,10 @@ pub struct ParamDecl {
 
 impl ParamDecl {
     pub fn supports_automation(&self) -> bool {
-        !self.fixed
-            && matches!(
-                self.ty,
-                Type::Float | Type::Int | Type::Bool | Type::Enum(_) | Type::Curve
-            )
+        matches!(
+            self.ty,
+            Type::Float | Type::Int | Type::Bool | Type::Enum(_) | Type::Curve
+        )
     }
 }
 

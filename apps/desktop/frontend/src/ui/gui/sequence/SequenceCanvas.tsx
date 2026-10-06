@@ -5,7 +5,7 @@ import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, useContext } from "react";
 
-import { ArrowRight, ChevronRight, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronRight, Scissors, Trash2 } from "lucide-react";
 
 import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
@@ -44,15 +44,21 @@ import {
   collapsedLaneTargets,
   type SequenceRowLayout,
   type SequenceRowKind,
-  type SequenceRowHeightMap,
   removeAutomationCurvePoint,
-  replaceAutomationCurvePointByIdentity,
-  sortAutomationCurve,
+  insertAutomationCurvePoint,
+  moveAutomationCurvePoint,
+  alignAutomationCurvePoint,
+  hitAutomationCurveLine,
+  type AutomationClipLayout,
+  type AutomationGuide,
+  type AutomationCurvePoint,
+  type SequenceRowHeightMap,
   type AutomationCurveDraft,
   type AutomationDraft,
   type AutomationHover
 } from "./sequenceAutomationLayout";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
+import { markSnapTimes, snapDeltaToMarks, snapToMark } from "./sequenceSnap";
 
 import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
@@ -116,38 +122,10 @@ type SequenceDragState =
   | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; rowTarget: FixtureTarget; resize: "none" | "left" | "right" }
-  | { kind: "automationPoint"; clipId: number; pointTime: number; pointValue: number; pointOccurrence: number; active: boolean }
+  | { kind: "automationPoint"; clipId: number; index: number; active: boolean; inserted: boolean }
   | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
   | { kind: "marquee"; state: SequenceMarquee }
   | { kind: "sequenceScrub" };
-
-function automationCurvePointIdentity(
-  curve: Array<{ time: number; value: number }>,
-  index: number
-) {
-  const point = curve[index];
-  if (point === undefined) throw new Error("Automation curve point is missing");
-  const pointOccurrence = curve
-    .slice(0, index)
-    .filter((candidate) => candidate.time === point.time && candidate.value === point.value)
-    .length;
-  return { pointTime: point.time, pointValue: point.value, pointOccurrence };
-}
-
-function automationCurvePointIndex(
-  curve: Array<{ time: number; value: number }>,
-  identity: { pointTime: number; pointValue: number; pointOccurrence: number }
-) {
-  let occurrence = 0;
-  const sorted = sortAutomationCurve(curve);
-  for (let index = 0; index < sorted.length; index += 1) {
-    const point = sorted[index];
-    if (point?.time !== identity.pointTime || point.value !== identity.pointValue) continue;
-    if (occurrence === identity.pointOccurrence) return index;
-    occurrence += 1;
-  }
-  return null;
-}
 
 function rowResizeHit(
   y: number,
@@ -259,6 +237,7 @@ export function SequenceCanvas({
     () => document.markCollections.filter((collection) => visibleMarkCollectionKeys.has(collection.key)),
     [document.markCollections, visibleMarkCollectionKeys]
   );
+  const markTimes = useMemo(() => markSnapTimes(visibleMarkCollections), [visibleMarkCollections]);
   const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
   const canvasCursor =
     dragCursor ??
@@ -636,20 +615,21 @@ export function SequenceCanvas({
         ctx.fillRect(handleX - THEME_METRICS.sequenceClipHandleHalfWidth, clip.rect.y + THEME_METRICS.sequenceClipHandleInset, THEME_METRICS.sequenceClipHandleHalfWidth * 2, Math.max(THEME_METRICS.sequenceClipHandleHeight, clip.rect.height - THEME_METRICS.sequenceClipHandleInset * 2));
       }
     }
+    const markXs = markTimes.map((time) => left + (time - scrollXSeconds) * viewport.pxPerSecond);
     for (const clip of visibleAutomationClips) {
       const selectedClip = sequenceSelection?.type === "clips" && sequenceSelection.automationIds.includes(clip.clip.id);
       const hoverResize = automationHover?.clipId === clip.clip.id ? automationHover.resize : null;
       const choosingCandidate = automationClipChooser !== null;
-      const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.clipId === clip.clip.id
-        ? automationCurvePointIndex(clip.clip.curve, drag.current)
-        : null;
-      drawAutomationClip(ctx, clip.clip, clip.rect, {
+      const activePointIndex = drag.current?.kind === "automationPoint" && drag.current.clipId === clip.clip.id ? drag.current.index : null;
+      drawAutomationClip(ctx, clip, {
         label: automationClipLabel(document, clip.clip),
         selected: selectedClip,
         hovered: hoverResize !== null,
         choosing: choosingCandidate,
         resize: hoverResize ?? "none",
-        activePointIndex
+        activePointIndex,
+        guide: automationCurveDraft?.id === clip.clip.id ? automationCurveDraft.guide : null,
+        markXs
       });
     }
     ctx.restore();
@@ -674,7 +654,7 @@ export function SequenceCanvas({
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
 
-  }, [activeAutomationTargetEffectIds, audioResizeHover, collapsedGroups, automationClipChooser, automationHover, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, audioResizeHover, automationCurveDraft, collapsedGroups, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
 
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
     const x = event.nativeEvent.offsetX;
@@ -802,6 +782,53 @@ export function SequenceCanvas({
     await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteAutomationClip", id: clipId }));
     setSelected(null);
     updateSequenceSelection(null);
+  };
+
+  const splitAutomationClip = async (clipId: number, timeSeconds: number) => {
+    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "splitAutomationClip", id: clipId, timeSeconds }));
+  };
+
+  const commitAutomationCurve = (clipId: number, curve: AutomationCurvePoint[], origin: GuiDocumentRequest | null) => {
+    setAutomationCurveDraft({ id: clipId, curve, guide: { time: null, value: null } });
+    void runGuiEditCommand((request) =>
+      commands.applySequenceGuiEdit(request, { type: "updateAutomationCurve", id: clipId, curve }), origin
+    ).finally(() => {
+      setAutomationCurveDraft(null);
+    });
+  };
+
+  /** The clip-drag delta, snapped to marks while Alt is held. */
+  const clipGestureDelta = (current: Extract<SequenceDragState, { kind: "sequence" | "automation" }>, event: { altKey: boolean; nativeEvent: { offsetX: number } }) => {
+    const delta = roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond);
+    if (!event.altKey) return delta;
+    const clip = current.kind === "automation"
+      ? document.automationClips.find((candidate) => candidate.id === current.id)
+      : document.effects.find((candidate) => candidate.id === current.id);
+    if (clip === undefined) return delta;
+    const end = clip.startSeconds + clip.durationSeconds;
+    const edges = current.resize === "left" ? [clip.startSeconds] : current.resize === "right" ? [end] : [clip.startSeconds, end];
+    return roundToNanosecond(snapDeltaToMarks(edges, delta, markTimes, viewport.pxPerSecond));
+  };
+
+  /** Move a curve point, aligning it to neighbors with Shift and snapping its time to marks with Alt. */
+  const dragAutomationPoint = (layout: AutomationClipLayout, index: number, x: number, y: number, modifiers: { shiftKey: boolean; altKey: boolean }) => {
+    const { clip } = layout;
+    let point = automationCurvePointFromCanvas(layout.curveRect, x, y);
+    let guide: AutomationGuide = { time: null, value: null };
+    if (modifiers.altKey) {
+      const mark = snapToMark(clip.contentStartSeconds + point.time * clip.contentDurationSeconds, markTimes, viewport.pxPerSecond);
+      const time = mark === null ? null : (mark - clip.contentStartSeconds) / clip.contentDurationSeconds;
+      if (time !== null && time >= 0 && time <= 1) {
+        point = { ...point, time };
+        guide = { ...guide, time };
+      }
+    }
+    if (modifiers.shiftKey) {
+      const aligned = alignAutomationCurvePoint(clip.curve, index, point, layout.curveRect);
+      point = aligned.point;
+      guide = { time: aligned.guide.time ?? guide.time, value: aligned.guide.value };
+    }
+    setAutomationCurveDraft({ id: clip.id, curve: moveAutomationCurvePoint(clip.curve, index, point), guide });
   };
   const deleteContextMark = async (menu: Extract<SequenceContextMenu, { kind: "mark" }>) => {
     await runGuiEditCommand((request) =>
@@ -953,24 +980,6 @@ export function SequenceCanvas({
         setSelectedTimeSeconds(startSeconds);
         const automationHit = hitTimelineClip(visibleAutomationClips, x, y);
         if (automationHit !== null) {
-          if (event.ctrlKey) {
-            event.preventDefault();
-            const pointHit = hitAutomationCurvePoint(automationHit, x, y);
-            if (pointHit !== null && automationHit.clip.curve.length > 1) {
-              const curve = removeAutomationCurvePoint(automationHit.clip.curve, pointHit);
-              setAutomationCurveDraft({ id: automationHit.clip.id, curve });
-              void runGuiEditCommand((request) =>
-                commands.applySequenceGuiEdit(request, {
-                  type: "updateAutomationCurve",
-                  id: automationHit.clip.id,
-                  curve
-                })
-              ).finally(() => {
-                setAutomationCurveDraft(null);
-              });
-            }
-            return;
-          }
           setSelected({ type: "automationClip", id: automationHit.clip.id });
           const active = sequenceSelectionRef.current;
           updateSequenceSelection(active?.type === "clips" && active.automationIds.includes(automationHit.clip.id) ? active : { type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
@@ -1001,6 +1010,15 @@ export function SequenceCanvas({
         setSelected(null);
         updateSequenceSelection(null);
         setSequenceContextMenu({ kind: "blank", laneIndex, startSeconds });
+      }}
+      onDoubleClick={(event) => {
+        const x = event.nativeEvent.offsetX;
+        const y = event.nativeEvent.offsetY;
+        const automationHit = x >= left && automationClipChooser === null ? hitTimelineClip(visibleAutomationClips, x, y) : null;
+        if (automationHit === null || automationHit.clip.curve.length <= 1) return;
+        const pointHit = hitAutomationCurvePoint(automationHit, x, y);
+        if (pointHit === null) return;
+        commitAutomationCurve(automationHit.clip.id, removeAutomationCurvePoint(automationHit.clip.curve, pointHit), null);
       }}
       onPointerDown={(event) => {
         gestureRequest.current = useAppStore.getState().guiRequest;
@@ -1072,36 +1090,22 @@ export function SequenceCanvas({
         }
         const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
         if (automationHit !== null) {
-          if (event.ctrlKey && y > automationHit.rect.y + Math.min(THEME_METRICS.automationClipHeaderHeight, automationHit.rect.height)) {
-            event.preventDefault();
-            event.stopPropagation();
-            const point = automationCurvePointFromCanvas(automationHit.rect, x, y);
-            const curve = [...automationHit.clip.curve, point]
-              .filter((candidate) => Number.isFinite(candidate.time) && Number.isFinite(candidate.value))
-              .sort((leftPoint, rightPoint) => leftPoint.time - rightPoint.time);
+          const editsCurve = !event.shiftKey && !event.ctrlKey && !event.metaKey && (sequenceSelection?.type !== "clips" || selectionCount(sequenceSelection) <= 1);
+          const belowHeader = y > automationHit.rect.y + Math.min(THEME_METRICS.automationClipHeaderHeight, automationHit.rect.height);
+          const pointHit = editsCurve ? hitAutomationCurvePoint(automationHit, x, y) : null;
+          const lineHit = editsCurve && pointHit === null && belowHeader && automationHit.resize === "none" ? hitAutomationCurveLine(automationHit, x, y) : null;
+          if (pointHit !== null || lineHit !== null) {
             setSelected({ type: "automationClip", id: automationHit.clip.id });
             updateSequenceSelection({ type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
-            setAutomationCurveDraft({ id: automationHit.clip.id, curve });
-            void runGuiEditCommand((request) =>
-              commands.applySequenceGuiEdit(request, {
-                type: "updateAutomationCurve",
-                id: automationHit.clip.id,
-                curve
-              })
-            ).finally(() => {
-              setAutomationCurveDraft(null);
-            });
-            return;
-          }
-          const pointHit = hitAutomationCurvePoint(automationHit, x, y);
-          if (pointHit !== null && !event.shiftKey && !event.ctrlKey && !event.metaKey && (sequenceSelection?.type !== "clips" || selectionCount(sequenceSelection) <= 1)) {
-            setSelected({ type: "automationClip", id: automationHit.clip.id });
-            updateSequenceSelection({ type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
+            if (lineHit !== null) {
+              setAutomationCurveDraft({ id: automationHit.clip.id, curve: insertAutomationCurvePoint(automationHit.clip.curve, lineHit.index, lineHit.point), guide: { time: null, value: null } });
+            }
             drag.current = {
               kind: "automationPoint",
               clipId: automationHit.clip.id,
-              ...automationCurvePointIdentity(sortAutomationCurve(automationHit.clip.curve), pointHit),
-              active: false
+              index: pointHit ?? lineHit?.index ?? 0,
+              active: false,
+              inserted: lineHit !== null
             };
             return;
           }
@@ -1273,11 +1277,7 @@ export function SequenceCanvas({
         if (current?.kind === "automationPoint") {
           const layout = visibleAutomationClips.find((candidate) => candidate.clip.id === current.clipId);
           if (layout === undefined) return;
-          const point = automationCurvePointFromCanvas(layout.rect, event.nativeEvent.offsetX, event.nativeEvent.offsetY);
-          const curve = replaceAutomationCurvePointByIdentity(sortAutomationCurve(layout.clip.curve), current, point);
-          setAutomationCurveDraft({ id: current.clipId, curve });
-          const pointIndex = curve.indexOf(point);
-          if (pointIndex >= 0) Object.assign(current, automationCurvePointIdentity(curve, pointIndex));
+          dragAutomationPoint(layout, current.index, event.nativeEvent.offsetX, event.nativeEvent.offsetY, event);
           current.active = true;
           return;
         }
@@ -1340,7 +1340,7 @@ export function SequenceCanvas({
         if (selection?.type !== "clips") return;
         const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond), destinationLane - sourceLane);
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, event.ctrlKey ? "stretch" : "crop");
         setGroupDraft(gesture.effects);
         setAutomationDrafts(gesture.automation);
       }}
@@ -1411,19 +1411,11 @@ export function SequenceCanvas({
         }
         if (current?.kind === "automationPoint") {
           const committedDraft = automationCurveDraft;
-          if (!current.active || committedDraft === null) {
+          if (!(current.active || current.inserted) || committedDraft === null) {
             setAutomationCurveDraft(null);
             return;
           }
-          void runGuiEditCommand((request) =>
-            commands.applySequenceGuiEdit(request, {
-              type: "updateAutomationCurve",
-              id: committedDraft.id,
-              curve: committedDraft.curve
-            }), gestureRequest.current
-          ).finally(() => {
-            setAutomationCurveDraft(null);
-          });
+          commitAutomationCurve(committedDraft.id, committedDraft.curve, gestureRequest.current);
           return;
         }
         if (current?.kind !== "sequence" && current?.kind !== "automation") return;
@@ -1432,7 +1424,7 @@ export function SequenceCanvas({
         if (!current.active || selection?.type !== "clips") { clearDrafts(); return; }
         const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, roundToNanosecond((event.nativeEvent.offsetX - current.startX) / viewport.pxPerSecond), destinationLane - sourceLane);
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, event.ctrlKey ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
         void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, gesture.edit), gestureRequest.current).then((result) => {
           updateSequenceSelection(result.selection);
@@ -1555,6 +1547,9 @@ export function SequenceCanvas({
               {sequenceContextMenu.kind === "automation" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
+                  <ContextMenu.Item className="menu-item" onSelect={() => void splitAutomationClip(sequenceContextMenu.clipId, sequenceContextMenu.startSeconds)}>
+                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Automation Clip Here
+                  </ContextMenu.Item>
                   <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteAutomationClip(sequenceContextMenu.clipId)}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Automation Clip
                   </ContextMenu.Item>

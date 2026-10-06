@@ -242,6 +242,9 @@ pub enum SetupControllerConfig {
         destination: String,
         broadcast: bool,
     },
+    Donder {
+        device: String,
+    },
 }
 
 impl From<&donder_language::controller::ControllerProtocol> for SetupControllerConfig {
@@ -261,6 +264,9 @@ impl From<&donder_language::controller::ControllerProtocol> for SetupControllerC
                 bind_address: config.bind_address.to_string(),
                 destination: config.destination.to_string(),
                 broadcast: matches!(config.mode, ArtNetMode::Broadcast),
+            },
+            ControllerProtocol::Donder(config) => Self::Donder {
+                device: config.device.as_str().to_string(),
             },
         }
     }

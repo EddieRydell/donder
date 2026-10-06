@@ -287,7 +287,7 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
         "operator Inner { input Signal source;
         param array<float> levels = [0.2, 0.8]; param curve shape;
         param gradient colors; param enum mode { first, second } = second;
-        fixed param marks beats;
+        param marks beats;
         color sample() {
             array<float> values = [levels[0], value_or(shape[progress()], 0.3), levels[1]];
             array<float> saved = values; values = [0.0];
@@ -300,7 +300,7 @@ fn fusion_preserves_resource_banks_and_array_snapshots() {
     operator Outer { input Signal source;
         param array<float> unused = [0.4]; param curve unused_shape;
         param gradient unused_colors; param enum unused_mode { first, second } = first;
-        fixed param marks unused_beats;
+        param marks unused_beats;
         color sample() { return source.at(seconds()) * 0.7; }
     }",
     )

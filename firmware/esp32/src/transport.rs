@@ -14,7 +14,6 @@ pub struct Clock {
     pub local_anchor: u64,
     pub master_anchor: u64,
     pub rate_ppb: i32,
-    pub uncertainty: u32,
     pub valid_until: u64,
 }
 
@@ -25,7 +24,6 @@ impl Clock {
             local_anchor: 0,
             master_anchor: 0,
             rate_ppb: 0,
-            uncertainty: u32::MAX,
             valid_until: 0,
         }
     }
@@ -42,7 +40,7 @@ impl Clock {
         (i128::from(self.local_anchor) + elapsed).clamp(0, i128::from(u64::MAX)) as u64
     }
     pub fn usable(&self, id: u32, local: u64) -> bool {
-        id != 0 && self.id == id && local < self.valid_until && self.uncertainty <= 2_000
+        id != 0 && self.id == id && local < self.valid_until
     }
 }
 
@@ -241,7 +239,6 @@ mod tests {
             local_anchor: 100_000,
             master_anchor: 200_000,
             rate_ppb: 100_000,
-            uncertainty: 500,
             valid_until: 10_100_000,
         };
         assert_eq!(clock.master_at(10_100_000), 10_201_000);

@@ -12,7 +12,7 @@ effect Wash {
   param gradient colors;
   param curve level;
   param enum direction { forward, backward } = forward;
-  fixed param int bands = 4;
+  param int bands = 4;
 
   color sample() {
     float position = pixel_fraction();
@@ -38,10 +38,9 @@ are `int`, `float`, `bool`, `color`, `enum`, `curve`, `gradient`, `marks` and
 arrays of them. Required parameters have no default and must be supplied by every
 instance.
 
-Ordinary `param` values of type float, int, bool, enum and curve can be automated.
-`fixed param` values are fixed when the sequence is prepared. They cannot be
-automated, and the compiler can specialize control flow on them. The editor marks
-them as requiring preparation.
+Parameters of type float, int, bool, enum and curve can be automated. Preparation
+specializes control flow on every parameter that an effect instance does not
+automate.
 
 Curves and gradients are indexed by a normalized position: `level[0.5]`,
 `colors[t]`. Arrays are indexed by an integer that clamps to the first or last
@@ -193,7 +192,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
   `pulse_width` is the fraction of the effect each pixel's pulse lasts.
 - **MarkPulse, MarkWipe and MarkImpactBurst** restart from the latest mark.
   MarkPulse lights fixture-aware sections. MarkWipe cycles its gradients and
-  positions by mark index; its fixed `direction_angle` curve is in turns, sampled
+  positions by mark index; its `direction_angle` curve is in turns, sampled
   at the mark's time.
 - **MarkChase** shares one chase curve across marks: a pixel's travel delay is
   where the curve first reaches it, so a new mark replaces the old pulse only when

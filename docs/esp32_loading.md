@@ -12,24 +12,42 @@ desktop installer checks all of this before writing.
 
 ## Install from Donder
 
-1. Connect the board over USB and install the bundled firmware from the
-   controller editor. The image is
+1. Connect the board over USB and install the bundled firmware from **USB setup**
+   in a Donder controller's editor or the new-controller form. The image is
    `apps/desktop/assets/firmware/donder-esp32.bin`; the installer checks its
-   SHA-256 and that its partition table matches `firmware/esp32/partitions.csv`.
-   Installation does not overwrite the credential and show partitions.
-2. Provision the board's 2.4 GHz Wi-Fi credentials from Donder. Provisioning
-   returns a device token over USB serial, stored with the credentials; uploads
-   and control requests use it.
-3. Export a compiled sequence for the controller's ports and upload it. Uploaded
-   and restored shows stay stopped and black until **Play** is requested.
+   SHA-256 and that its partition table matches `firmware/esp32/partitions.csv`,
+   then writes at 460,800 baud in about half a minute. Installation keeps the
+   configuration and show partitions.
+2. Power the controller. With no saved network it hosts an open 2.4 GHz access
+   point named `Donder-XXXX` (the last four hex digits of its MAC address) at
+   `192.168.4.1`. Join it from the computer; its DHCP server offers no gateway,
+   so a wired connection keeps the computer's internet route.
+3. In Display Setup, add a **Donder controller**, choose the discovered device,
+   and claim it. The first claim wins: the controller returns a token that the
+   editor saves in its desktop settings, keyed by device ID. Every later request
+   uses it. A USB factory reset erases the claim.
+
+The controller's ID is its factory MAC address. A rename changes only the name
+the editor shows, never the access point's name. **Join network** saves a
+2.4 GHz WPA2 network and restarts; the controller then joins that network at
+boot and falls back to its own access point if it cannot join within 20 seconds.
 
 Rebuild the bundled image with `pnpm firmware:build` and commit it whenever
-loader or archive code changes. The desktop rejects a controller whose
-`sequence_format` differs from its own, but only after installation.
+loader or archive code changes. The editor connects only to controllers that
+advertise its own `sequence_format`.
+
+## Discovery
+
+Each controller advertises `_donder._tcp` over mDNS as `donder-<id>.local`.
+TXT records carry `id`, `name`, `claimed` (`0` or `1`), `format` and
+`network` (`accessPoint` or `station`). The editor lists every advertised
+controller; it connects editor playback to each Donder controller in the open
+setup that it has claimed and that runs a matching format.
 
 ## Storage and upload
 
-Credentials live in LittleFS. Archives use two 128 KiB slots in a separate
+The configuration record (name, optional station network and claim token) lives
+in LittleFS. Archives use two 128 KiB slots in a separate
 256 KiB partition. An upload:
 1. blacks out output and releases the current show;
 2. streams the archive to the inactive slot;
@@ -37,7 +55,9 @@ Credentials live in LittleFS. Archives use two 128 KiB slots in a separate
 4. commits the slot only after admission succeeds.
 
 A failed or interrupted upload leaves no show loaded, but the previous committed
-archive stays saved. Reboot restores the newest committed slot, stopped.
+archive stays saved. Reboot restores the newest committed slot, stopped. A saved
+show that the current firmware rejects is left in place and the controller boots
+without one; the editor uploads a current show on its next Play.
 Concurrent uploads are rejected, and an explicit erase clears both partitions.
 
 Admission checks the header, version and CRC, the archive structure, and these
@@ -45,7 +65,10 @@ limits:
 - 96 KiB of payload;
 - 1,600 pixels;
 - 128 graph nodes;
-- 96 KiB of estimated workspace, derived from the remaining heap.
+- 96 KiB of estimated workspace, and no more than the heap left after decoding
+  minus 10 KiB for the network. The loader decodes once to measure that, then
+  again to admit. Wi-Fi keeps four static receive buffers to leave heap for
+  shows.
 
 It also checks bytecode register references, operand spans, constants, jump
 targets, parameter types and return paths, signal reads within an operator's
@@ -53,7 +76,10 @@ inputs, and prepared automation mappings. The limits are conservative policy,
 not a proof that memory will never run out.
 
 HTTP endpoints:
+- unauthenticated `POST /claim`, which answers only an unclaimed controller;
 - `GET /capabilities`, `PUT /sequence` and `POST /frame`;
+- `PUT /name` with a 1-32 byte UTF-8 name, and `PUT /network` with
+  `{"ssid": ..., "password": ...}` or an empty body for the access point;
 - with output enabled, `GET /transport` and `POST /transport/play`, `/pause` or
   `/stop`;
 - authenticated `GET /clock` and JSON `POST /control` for clock sync, scheduling
@@ -63,10 +89,11 @@ TCP sockets disable Nagle.
 
 ## Editor playback
 
-In a sequence's export dialog, select each controller's ordered outputs, enter
-its address and token, and choose **Connect to editor playback**. Connections
-last for the desktop session and belong to the current project. Connecting stops
-the controller's standalone show.
+A setup's Donder controller names its device ID and numbers its ports as outputs
+1..n, which map in order onto the controller's physical outputs. The editor
+connects to each claimed controller as it appears on the network and whenever
+the open project changes, never during playback. Connecting stops the
+controller's standalone show and synchronizes its clock.
 
 The editor's Play button then:
 1. prepares each connected controller's fragment;
@@ -77,8 +104,9 @@ The editor's Play button then:
 Each controller evaluates its own frames, and no per-frame pixels cross the
 network. Edits apply on the next Play. Pause holds the position reached at its
 deadline, seek pauses at the new position, Stop returns home and blacks out, and
-playback ends at the sequence duration. The standalone HTTP Play endpoint loops
-instead.
+playback ends at the sequence duration. **Loop saved show** in the controller's
+editor, or the standalone HTTP Play endpoint, loops the last uploaded show
+without the editor instead.
 
 Clock synchronization:
 - **Exchanges.** Eight authenticated UDP four-timestamp exchanges keep the
@@ -89,11 +117,12 @@ Clock synchronization:
 - **Control commands.** JSON commands are externally tagged (`syncClock`,
   `schedule`, `cancel`) with camel-case fields; unknown fields are rejected.
 - **Freshness.** Sync refreshes every 5 s, and drift is estimated over at least
-  30 s. Scheduling needs an estimated one-way uncertainty of at most 2 ms. A
+  30 s. The editor shows the estimated one-way uncertainty but never refuses to
+  play over a slow network; a larger value only loosens light-to-audio sync. A
   sync older than 15 s blocks new commands, but a running show continues
   through a network outage.
 - **Scheduling.** Starts use 250–1000 ms of lead time depending on the number of
-  devices and round up to the 120 Hz output frame grid. The desktop needs every
+  devices, plus eight times the slowest clock uncertainty per device, and round up to the 120 Hz output frame grid. The desktop needs every
   acknowledgment with at least 40 ms to spare. A failed setup cancels every
   command that may have been armed.
 - **Command checks.** Boot identity, clock-master identity, command order and
@@ -106,7 +135,11 @@ multi-controller alignment and speaker latency have not been measured.
 
 ## Output
 
-Sequence evaluation, encoding and DMA run on core 1; Wi-Fi and HTTP on core 0.
+Sequence evaluation, encoding and DMA run on core 1; Wi-Fi, HTTP, DHCP, mDNS and
+flash storage on core 0. Core 1 starts before the network, so joining a missing
+network never delays a restored show. The UDP buffers for DHCP and mDNS live in
+the 8 KiB RTC fast memory, which only core 0 can address, leaving main DRAM to
+the core 0 stack and the show heap.
 Four WS281x outputs of up to 200 RGB pixels each are driven by I2S1 in 8-bit
 parallel mode at 2.4 MHz. Each bit is three samples (`100` for zero, `110` for
 one), and two DMA buffers let the next frame be encoded while the current one
@@ -116,9 +149,10 @@ transmits.
 - **QuinLED Dig-Quad v2/v3** (`pnpm firmware:build --board dig-quad`): LED1–LED4
   on GPIO16, GPIO3, GPIO1 and GPIO4. Confirm the module first, because other
   modules may swap GPIO1 and GPIO3.
-  - Unplug the ESP32 module from the Dig-Quad to flash and provision it over USB.
-  - UART0 is handed over to LED output after provisioning, so serial capture is
-    unavailable on this board.
+  - Unplug the ESP32 module from the Dig-Quad to install firmware or factory
+    reset it over USB.
+  - UART0 is handed over to LED output one second after boot, so serial capture
+    is unavailable on this board.
   - This build caps output at 25/255 of authored values as a brightness ceiling,
     not a current limit.
 

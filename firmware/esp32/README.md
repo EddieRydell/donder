@@ -4,8 +4,8 @@ This separate Cargo workspace builds the controller loader for the classic ESP32
 Wi-Fi upload and control, flash storage, and four-output WS281x playback. It
 consumes `donder-runtime` and `donder-language` with default features off;
 parsing, imports, target resolution and output selection stay on the host. The
-local `crates/donder-device-storage` crate owns LittleFS credentials and the two
-show slots. How the controller behaves is described in
+local `crates/donder-device-storage` crate owns the LittleFS configuration record
+(name, station network and claim token) and the two show slots. How the controller behaves is described in
 [ESP32 controllers](../../docs/esp32_loading.md).
 
 ## Toolchain
@@ -29,7 +29,8 @@ repeated.
 
 ## Features and builds
 
-- `loader`: persistent credentials and Wi-Fi upload.
+- `loader`: access point or station networking, mDNS discovery, claiming and
+  Wi-Fi upload.
 - `i2s-output`: adds continuous four-output WS281x playback on the second core,
   on the reference-board pins. This is the bundled desktop image.
 - `dig-quad`: the same, with QuinLED Dig-Quad pins and a 25/255 brightness cap.
@@ -44,11 +45,11 @@ pnpm firmware:cargo build --release --features i2s-output --bin loader --locked
 
 `firmware:build` refuses an image that would overlap the data partitions.
 Flashing directly must use `partitions.csv`, or the Donder data layout is lost.
-19,200 baud is the rate the desktop installer also uses reliably:
+460,800 baud matches the desktop installer:
 
 ```powershell
 cd firmware/esp32
-espflash flash --port COM4 --baud 19200 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
+espflash flash --port COM4 --baud 460800 --chip esp32 --non-interactive --flash-size 4mb --flash-mode dio --flash-freq 40mhz --partition-table partitions.csv --target-app-partition factory target/xtensa-esp32-none-elf/release/loader
 ```
 
 ## Uploading and measuring
@@ -59,13 +60,14 @@ Export a selected fragment with checksums, then upload and verify it with
 ```powershell
 cargo run -p donder-elaboration --example export_sequence -- examples/starter firmware/esp32/target/loaded-sequence.donderseq
 cd firmware/esp32
-uvx --from esptool python upload.py target/loaded-sequence.donderseq --port COM4 --ssid YOUR_SSID
-uvx --from esptool python upload.py target/loaded-sequence.donderseq --checksums target/loaded-sequence.donderseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --windows-profile YOUR_PROFILE --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
+uvx --from esptool python upload.py target/loaded-sequence.donderseq
+uvx --from esptool python upload.py target/loaded-sequence.donderseq --checksums target/loaded-sequence.donderseq.checksums --elf target/xtensa-esp32-none-elf/release/loader --port COM4 --uploads 3 --exercise-rejections --repeat 1 --monitor-seconds 75 --log target/i2s-playback.txt
 ```
 
-- The Wi-Fi password prompt is not echoed. On English Windows,
-  `--windows-profile` reads a saved network profile in memory. Never write
-  credentials or tokens to logs.
+- Join the controller's `Donder-XXXX` access point first, or pass
+  `--address` for a controller on another network. An unclaimed controller is
+  claimed and its token saved to `target/device-token`; a controller that the
+  editor claimed needs that token copied there. Never write tokens to logs.
 - Claiming that frames are verified requires `--checksums`; `--elf` records the
   image hash.
 - Uploads stay stopped, so start playback through the desktop or

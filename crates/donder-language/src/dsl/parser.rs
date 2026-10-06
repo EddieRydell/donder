@@ -124,9 +124,7 @@ impl<'source> Parser<'source> {
                     self.error_here("operator inputs must have type `Signal`");
                 }
                 inputs.push(OperatorInputDecl { name });
-            } else if self.at(TokenKind::Keyword(Keyword::Param))
-                || self.at(TokenKind::Keyword(Keyword::Fixed))
-            {
+            } else if self.at(TokenKind::Keyword(Keyword::Param)) {
                 if let Some(param) = self.parse_param() {
                     params.push(param);
                 }
@@ -168,9 +166,7 @@ impl<'source> Parser<'source> {
 
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
             let start_cursor = self.cursor;
-            if self.at(TokenKind::Keyword(Keyword::Param))
-                || self.at(TokenKind::Keyword(Keyword::Fixed))
-            {
+            if self.at(TokenKind::Keyword(Keyword::Param)) {
                 if let Some(param) = self.parse_param() {
                     params.push(param);
                 }
@@ -213,9 +209,8 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_param(&mut self) -> Option<ParamDecl> {
-        let fixed = self.consume_keyword(Keyword::Fixed);
         if !self.consume_keyword(Keyword::Param) {
-            self.error_here("expected `param` after `fixed`");
+            self.error_here("expected `param`");
             return None;
         }
         if self.consume_keyword(Keyword::Enum) {
@@ -228,12 +223,7 @@ impl<'source> Parser<'source> {
                 None
             };
             self.expect(TokenKind::Semicolon, "expected `;` after param");
-            return Some(ParamDecl {
-                name,
-                ty,
-                default,
-                fixed,
-            });
+            return Some(ParamDecl { name, ty, default });
         }
 
         let ty = self.parse_type()?;
@@ -245,12 +235,7 @@ impl<'source> Parser<'source> {
             None
         };
         self.expect(TokenKind::Semicolon, "expected `;` after param");
-        Some(ParamDecl {
-            name,
-            ty,
-            default,
-            fixed,
-        })
+        Some(ParamDecl { name, ty, default })
     }
 
     fn parse_function(&mut self) -> Option<FunctionDecl> {

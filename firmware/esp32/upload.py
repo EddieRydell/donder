@@ -1,16 +1,13 @@
-"""Provision Wi-Fi, upload a prepared sequence over HTTP, and verify frames."""
+"""Upload a prepared sequence to a controller over HTTP and verify frames."""
 
 import argparse
-import getpass
 import hashlib
 import http.client
 import json
 import logging
 import pathlib
-import re
 import socket
 import struct
-import subprocess
 import sys
 import time
 
@@ -19,11 +16,17 @@ import serial
 
 parser = argparse.ArgumentParser()
 parser.add_argument("sequence", type=pathlib.Path)
-parser.add_argument("--port", default="COM4")
-parser.add_argument("--ssid")
+parser.add_argument("--port", default="COM4", help="USB serial port for --monitor-seconds")
 parser.add_argument(
-    "--windows-profile",
-    help="Provision this saved Windows Wi-Fi profile without logging its password",
+    "--address",
+    default="192.168.4.1:80",
+    help="Controller HTTP address; the default is the controller's own access point",
+)
+parser.add_argument(
+    "--token-file",
+    type=pathlib.Path,
+    default=pathlib.Path(__file__).parent / "target" / "device-token",
+    help="Claim token; an unclaimed controller is claimed and its token saved here",
 )
 parser.add_argument("--checksums", type=pathlib.Path, help="Verify frames against this checksum file after uploading")
 parser.add_argument("--repeat", type=int, default=1, help="Repeat explicitly requested checksum verification")
@@ -51,8 +54,6 @@ args = parser.parse_args()
 
 if args.repeat < 1 or args.uploads < 1 or args.monitor_seconds < 0:
     parser.error("--repeat and --uploads must be positive; --monitor-seconds cannot be negative")
-if not args.ssid and not args.windows_profile:
-    parser.error("provide --ssid or --windows-profile")
 if args.checksums is None and (args.repeat != 1 or args.exercise_rejections):
     parser.error("--repeat and --exercise-rejections require --checksums")
 
@@ -81,88 +82,26 @@ logging.info(
 )
 
 
-def credentials():
-    if args.windows_profile:
-        result = subprocess.run(
-            [
-                "netsh",
-                "wlan",
-                "show",
-                "profile",
-                f"name={args.windows_profile}",
-                "key=clear",
-            ],
-            capture_output=True,
-            check=True,
-        )
-        profile = result.stdout.decode(errors="replace")
-        match = re.search(r"Key Content\s*:\s*(.+)", profile)
-        if not match:
-            raise RuntimeError("Saved Wi-Fi profile has no accessible personal-network key")
-        ssid = (args.ssid or args.windows_profile).encode()
-        password = match[1].strip().encode()
-        del profile, result, match
-    else:
-        ssid = args.ssid.encode()
-        password = getpass.getpass("Wi-Fi password: ").encode()
-    if not 0 < len(ssid) <= 32 or len(password) > 64:
-        raise ValueError("Invalid Wi-Fi credential lengths")
-    return ssid, password
+def claim_or_load_token():
+    if args.token_file.exists():
+        return args.token_file.read_text(encoding="ascii").strip()
+    claim = http.client.HTTPConnection(address, port, timeout=20)
+    claim.request("POST", "/claim", body=b"")
+    response = claim.getresponse()
+    token = response.read().decode("ascii").strip()
+    if response.status != 200:
+        raise RuntimeError(f"Claim failed with HTTP {response.status}: {token!r}")
+    if len(token) != 32 or any(character not in "0123456789abcdef" for character in token):
+        raise RuntimeError("Controller returned an invalid claim token")
+    args.token_file.parent.mkdir(parents=True, exist_ok=True)
+    args.token_file.write_text(token, encoding="ascii")
+    logging.info("claimed controller; token saved to %s", args.token_file)
+    return token
 
 
-def provision():
-    ssid, password = credentials()
-    transcript = []
-    with serial.Serial(port=None, baudrate=115200, timeout=0.1) as port:
-        port.port = args.port
-        port.dtr = False
-        port.rts = False
-        port.open()
-        port.rts = True
-        time.sleep(0.1)
-        port.reset_input_buffer()
-        port.rts = False
-
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            port.write(b"P")
-            line = port.readline()
-            if line:
-                transcript.append(line)
-                if line == b"DONDER PROVISION READY\n":
-                    break
-        else:
-            recent = b"".join(transcript[-20:])
-            raise RuntimeError(f"Provisioning handshake timed out: {recent!r}")
-
-        port.write(b"W" + bytes([len(ssid), len(password)]) + ssid + password)
-        del password
-
-        token_line = port.readline().strip()
-        if not token_line.startswith(b"TOKEN "):
-            raise RuntimeError(f"Device did not return an HTTP token: {token_line!r}")
-        token = token_line.removeprefix(b"TOKEN ").decode("ascii")
-        if len(token) != 32 or any(character not in "0123456789abcdef" for character in token):
-            raise RuntimeError("Device returned an invalid HTTP token")
-
-        deadline = time.monotonic() + 60
-        transcript.clear()
-        while time.monotonic() < deadline:
-            line = port.readline()
-            if not line:
-                continue
-            transcript.append(line)
-            marker = line.find(b"WIFI READY ")
-            if marker >= 0:
-                text = line[marker:].decode("ascii").strip()
-                _, _, address, http_port, *_ = text.split()
-                logging.info(text)
-                return address, int(http_port), token
-        recent = b"".join(transcript[-20:])
-        raise RuntimeError(f"Wi-Fi did not become ready: {recent!r}")
-
-
-address, port, token = provision()
+address, _, http_port = args.address.rpartition(":")
+port = int(http_port)
+token = claim_or_load_token()
 connection = http.client.HTTPConnection(address, port, timeout=20)
 
 

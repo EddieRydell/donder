@@ -29,9 +29,9 @@ impl<'a> SequenceClip<'a> {
         let start_frame = (ticks * rate).div_ceil(micros);
         let end_frame = (end * rate).div_ceil(micros);
         let active_frames = end_frame.saturating_sub(start_frame).max(1);
-        let offset = (((column as f32 + 0.5) * active_frames as f32 / columns as f32).floor()
-            as u64)
-            .min(active_frames - 1);
+        // floor((column + 0.5) * active_frames / columns), exactly.
+        let offset =
+            ((2 * column as u64 + 1) * active_frames / (2 * columns as u64)).min(active_frames - 1);
         let frame = (start_frame + offset).min(u64::from(self.frame_count().saturating_sub(1)));
         crate::values::sample_time_from_frame(frame as u32, self.frame_rate())
     }

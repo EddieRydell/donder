@@ -1316,7 +1316,6 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         };
         let shift = params.iter().find(|param| param.name == "shift").unwrap();
         assert!(shift.editable);
-        assert!(!shift.fixed);
         assert!(shift.supports_automation);
         let disconnected = state.project_session().unwrap();
         state.undo_active_edit();

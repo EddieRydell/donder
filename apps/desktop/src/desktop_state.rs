@@ -51,6 +51,10 @@ pub(crate) struct DesktopServices {
     sequence_render: Arc<Mutex<crate::rendering::SequenceRenderService>>,
     live_output: Mutex<crate::output::LiveOutputService>,
     device_playback: crate::device::playback::DevicePlaybackService,
+    discovery: crate::device::discovery::DeviceDiscovery,
+    device_reconcile: LatestScheduler<()>,
+    device_failures:
+        Mutex<std::collections::BTreeMap<donder_language::controller::DonderDeviceId, String>>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
     sequence_clipboard: Mutex<Option<crate::gui::SequenceClipboard>>,
@@ -129,6 +133,23 @@ impl DesktopState {
                             }
                         }
                     }),
+                    discovery: crate::device::discovery::DeviceDiscovery::new({
+                        let weak = weak.clone();
+                        move || {
+                            if let Some(inner) = weak.upgrade() {
+                                DesktopState(inner).schedule_device_reconcile();
+                            }
+                        }
+                    }),
+                    device_reconcile: LatestScheduler::new({
+                        let weak = weak.clone();
+                        move |()| {
+                            if let Some(inner) = weak.upgrade() {
+                                DesktopState(inner).reconcile_devices();
+                            }
+                        }
+                    }),
+                    device_failures: Mutex::new(std::collections::BTreeMap::new()),
                     transport_operation: Mutex::new(()),
                     sequence_clip_raster: Mutex::new(
                         crate::sequence_clip_raster::SequenceClipRasterService::new(),
@@ -293,10 +314,19 @@ impl DesktopState {
                 .project
                 .setup(project.project.root().setup.id())
                 .map(|setup| {
+                    // Donder controllers play uploaded shows instead of streamed frames.
                     setup
                         .controllers
                         .iter()
                         .map(|source| source.id().clone())
+                        .filter(|id| {
+                            project.project.controller(id).is_some_and(|controller| {
+                                !matches!(
+                                    controller.protocol,
+                                    donder_language::controller::ControllerProtocol::Donder(_)
+                                )
+                            })
+                        })
                         .collect::<Vec<_>>()
                 });
             let render_ready = lock_unpoisoned(&self.sequence_render)
@@ -304,7 +334,7 @@ impl DesktopState {
                 .is_some();
             let Some(active) = active.filter(|active| render_ready && !active.is_empty()) else {
                 return Err(
-                    "Live output requires a prepared sequence and at least one active controller."
+                    "Live output requires a prepared sequence and at least one E1.31 or Art-Net controller."
                         .into(),
                 );
             };
@@ -398,6 +428,7 @@ fn empty_snapshot() -> AppSnapshot {
         preview_open: false,
         audio_transport: crate::audio::AudioEngine::empty_snapshot(),
         live_output: crate::output::disabled_snapshot(0),
+        devices: Vec::new(),
     }
 }
 

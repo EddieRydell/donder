@@ -1740,47 +1740,6 @@ main:
         type: float
         value: 0.4000000059604645
     effect: effects.MarkWipe
-  - id: 42
-    layer_id: 3
-    start: 113.921364s
-    duration: 8.391655s
-    target:
-      layout: layouts.main
-      fixture: 4
-    scope: whole_target
-    params:
-      gradient:
-        type: gradient
-        gradient:
-          type: gradient
-          stops:
-          - position: 0.0
-            color: '#ffffff'
-      chase_position:
-        type: curve
-        curve:
-          type: curve
-          points:
-          - position: 0.0
-            value: 0.0
-          - position: 1.0
-            value: 1.0
-      pulse_shape:
-        type: curve
-        curve:
-          type: curve
-          points:
-          - position: 0.0
-            value: 1.0
-          - position: 1.0
-            value: 0.0
-      pulse_overlap:
-        type: float
-        value: 80.0
-      revolutions:
-        type: integer
-        value: 20
-    effect: effects.Spin
   - id: 43
     layer_id: 2
     start: 74.380547s

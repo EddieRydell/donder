@@ -276,7 +276,8 @@ pub(super) fn paste_sequence_clipboard(
                         anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
                     )?;
                     // Copy bindings only within the copied selection. Cut may retain existing bindings
-                    // in the same sequence when no other clip has claimed them since the cut.
+                    // in the same sequence when no overlapping clip has claimed them since the cut.
+                    let placed = clip.clone();
                     let remap = |target: &mut AutomationTarget| {
                         if let AutomationTarget::EffectParam { effect_id, .. } = target
                             && let Some(id) = id_map.get(&effect_id.0)
@@ -285,14 +286,9 @@ pub(super) fn paste_sequence_clipboard(
                             return true;
                         }
                         *cut && source == sequence_id
-                            && !sequence.automation_clips.iter().any(|clip| {
-                                clip.bindings
-                                    .iter()
-                                    .any(|binding| &binding.target == target)
-                                    || clip
-                                        .detached_bindings
-                                        .iter()
-                                        .any(|binding| &binding.target == target)
+                            && !sequence.automation_clips.iter().any(|other| {
+                                other.overlaps(&placed)
+                                    && other.targets().any(|claimed| claimed == target)
                             })
                     };
                     clip.bindings
@@ -587,6 +583,7 @@ pub(super) fn resize_clip_selection(
     effect_ids: &[u32],
     automation_ids: &[u32],
     edge: SequenceResizeEdge,
+    automation: SequenceAutomationResize,
     time_delta_seconds: f32,
 ) -> Result<(), GuiMutationError> {
     let mut draft = session
@@ -623,7 +620,15 @@ pub(super) fn resize_clip_selection(
             .iter_mut()
             .find(|clip| clip.id.0 == *id)
             .ok_or_else(|| GuiMutationError::Invalid("Automation clip is missing.".into()))?;
-        resize(&mut clip.start, &mut clip.duration)?;
+        let (mut start, mut duration) = (clip.start.clone(), clip.duration.clone());
+        resize(&mut start, &mut duration)?;
+        match automation {
+            SequenceAutomationResize::Crop => clip.crop(start, duration),
+            SequenceAutomationResize::Stretch => {
+                clip.start = start;
+                clip.duration = duration;
+            }
+        }
     }
     session
         .project
@@ -780,6 +785,6 @@ use super::{
     SequenceSelectionMutation,
 };
 use crate::dto::{
-    SequenceEffectCommonEdit, SequenceEffectReference, SequenceMarkRef, SequencePasteAnchor,
-    SequenceResizeEdge, SequenceSelection,
+    SequenceAutomationResize, SequenceEffectCommonEdit, SequenceEffectReference, SequenceMarkRef,
+    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,
 };

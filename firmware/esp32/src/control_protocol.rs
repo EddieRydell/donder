@@ -14,7 +14,6 @@ pub enum Command {
         local_micros: u64,
         master_micros: u64,
         rate_ppb: i32,
-        uncertainty_micros: u32,
         valid_for_micros: u32,
     },
     Schedule {
@@ -59,7 +58,7 @@ mod tests {
     use super::*;
     #[test]
     fn clock_command_decodes_with_the_embedded_parser() {
-        let payload = br#"{"syncClock":{"bootId":1,"clockId":2,"localMicros":4294967300,"masterMicros":100000,"ratePpb":-100,"uncertaintyMicros":1230,"validForMicros":15000000}}"#;
+        let payload = br#"{"syncClock":{"bootId":1,"clockId":2,"localMicros":4294967300,"masterMicros":100000,"ratePpb":-100,"validForMicros":15000000}}"#;
         let (command, used) = serde_json_core::from_slice::<Command>(payload)
             .expect("Clock command must decode with the firmware parser");
         assert_eq!(used, payload.len());
@@ -71,7 +70,6 @@ mod tests {
                 local_micros: 4294967300,
                 master_micros: 100000,
                 rate_ppb: -100,
-                uncertainty_micros: 1230,
                 valid_for_micros: 15000000
             }
         ));

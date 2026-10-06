@@ -15,7 +15,7 @@ mod fast_divide;
 
 #[path = "../storage.rs"]
 mod storage;
-use donder_device_storage::{credentials::Credentials, show_slots};
+use donder_device_storage::{device_config::DeviceConfig, show_slots};
 type SharedStorage = Mutex<CriticalSectionRawMutex, storage::DeviceStorage>;
 
 #[cfg(feature = "i2s-output")]
@@ -60,14 +60,17 @@ static SERIAL_DIAGNOSTICS: core::sync::atomic::AtomicBool =
 // UART0 after those pins have been handed to the LED peripheral.
 macro_rules! println {
     ($($arg:tt)*) => {
-        if SERIAL_DIAGNOSTICS.load(Relaxed) {
+        if $crate::SERIAL_DIAGNOSTICS.load(core::sync::atomic::Ordering::Relaxed) {
             esp_println::println!($($arg)*);
         }
     };
 }
+#[path = "../network.rs"]
+mod network;
+
 #[cfg(all(feature = "i2s-output", not(feature = "dig-quad")))]
 use esp_hal::i2s::parallel::TxEightBits;
-use esp_radio::wifi::{self, AuthenticationMethodConfig, PowerSaveMode, sta::StationConfig};
+use esp_radio::wifi;
 use picoserve::{
     AppBuilder, AppRouter,
     response::{IntoResponse, Json, StatusCode},
@@ -207,18 +210,32 @@ async fn uart_reply(
     uart.write_all(line.as_bytes()).await.map_err(|_| ())
 }
 
+/// Heap left for the network after a show loads. Wi-Fi allocates buffers on
+/// demand, and an allocation failure there freezes the controller. The
+/// workspace estimate exceeds the real allocation (by about 7 KiB for
+/// stanford_room), so more than this stays free in practice.
+const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
+
 #[inline(never)]
 fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
-    println!(
-        "LOAD archive_bytes={} heap_free={}",
-        bytes.len(),
-        esp_alloc::HEAP.free()
-    );
-    let workspace_bytes = esp_alloc::HEAP.free().saturating_sub(16 * 1024);
+    let free = esp_alloc::HEAP.free();
+    println!("LOAD archive_bytes={} heap_free={}", bytes.len(), free);
+    // Measure the decoded show first: the workspace must fit in what remains
+    // after both the decoded data and the network reserve.
+    let decoded = {
+        let _measured = decode_sequence(bytes, LIMITS)?;
+        free.saturating_sub(esp_alloc::HEAP.free())
+    };
     let limits = LoadLimits {
-        workspace_bytes: LIMITS.workspace_bytes.min(workspace_bytes),
+        workspace_bytes: LIMITS
+            .workspace_bytes
+            .min(free.saturating_sub(decoded + NETWORK_HEAP_RESERVE)),
         ..LIMITS
     };
+    println!(
+        "LOAD decoded_bytes={} workspace_limit={}",
+        decoded, limits.workspace_bytes
+    );
     let sequence = decode_sequence(bytes, limits)?;
     println!("LOAD decoded heap_free={}", esp_alloc::HEAP.free());
     #[cfg(feature = "i2s-output")]
@@ -249,24 +266,227 @@ struct LoaderState {
     playback: &'static SharedPlayback,
     upload: &'static UploadGate,
     storage: &'static SharedStorage,
-    token: [u8; 32],
     #[cfg(feature = "i2s-output")]
     clock: &'static SharedClock,
     #[cfg(feature = "i2s-output")]
     boot_id: u32,
 }
 
-fn authorized(state: &LoaderState, request: &picoserve::request::RequestParts<'_>) -> bool {
-    let Some(supplied) = request.headers().get("x-donder-token") else {
-        return false;
+/// An unclaimed controller authorizes nothing but `POST /claim`.
+fn token_matches(supplied: &[u8]) -> bool {
+    network::token().is_some_and(|token| {
+        supplied.len() == token.len()
+            && supplied
+                .iter()
+                .zip(token)
+                .fold(0, |difference, (&left, right)| difference | (left ^ right))
+                == 0
+    })
+}
+
+fn authorized(_: &LoaderState, request: &picoserve::request::RequestParts<'_>) -> bool {
+    request
+        .headers()
+        .get("x-donder-token")
+        .is_some_and(|supplied| token_matches(supplied.as_raw()))
+}
+
+/// Apply one change to the saved controller configuration. Flash writes park
+/// the rendering core, so output pauses briefly.
+async fn update_config(
+    state: &LoaderState,
+    change: impl FnOnce(&mut DeviceConfig),
+) -> Result<(), &'static str> {
+    let Ok(_upload) = state.upload.try_lock() else {
+        return Err("Another upload or configuration change is in progress\n");
     };
-    let supplied = supplied.as_raw();
-    supplied.len() == state.token.len()
-        && supplied
-            .iter()
-            .zip(state.token)
-            .fold(0, |difference, (&left, right)| difference | (left ^ right))
-            == 0
+    let Ok(_output_suspension) = storage::suspend_output().await else {
+        return Err("Rendering core did not release flash access\n");
+    };
+    let mut storage = state.storage.lock().await;
+    let mut config = DeviceConfig::load(&mut *storage)
+        .map_err(|_| "Saved configuration is damaged\n")?
+        .unwrap_or_else(network::default_config);
+    change(&mut config);
+    config
+        .save(&mut *storage)
+        .map_err(|_| "Configuration is invalid or could not be saved\n")
+}
+
+async fn read_body<R: picoserve::io::Read, const N: usize>(
+    body: &mut picoserve::request::RequestBodyConnection<'_, R>,
+) -> Result<Option<heapless::Vec<u8, N>>, R::Error> {
+    let length = body.content_length();
+    if length > N {
+        return Ok(None);
+    }
+    let mut bytes = heapless::Vec::<u8, N>::new();
+    bytes.resize(length, 0).unwrap();
+    let mut reader = body.body().reader();
+    let mut offset = 0;
+    while offset < length {
+        let read = reader.read(&mut bytes[offset..]).await?;
+        if read == 0 {
+            return Ok(None);
+        }
+        offset += read;
+    }
+    Ok(Some(bytes))
+}
+
+/// First claim wins. The token authorizes every later request.
+struct Claim;
+
+impl RequestHandlerService<LoaderState> for Claim {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        let connection = request.body_connection.finalize().await?;
+        if network::token().is_some() {
+            return (StatusCode::CONFLICT, "Controller is already claimed\n")
+                .write_to(connection, response_writer)
+                .await;
+        }
+        let rng = Rng::new();
+        let mut raw = [0; 16];
+        for word in raw.chunks_exact_mut(4) {
+            word.copy_from_slice(&rng.random().to_le_bytes());
+        }
+        let token = token_ascii(raw);
+        if let Err(error) = update_config(state, |config| config.token = Some(token)).await {
+            return (StatusCode::SERVICE_UNAVAILABLE, error)
+                .write_to(connection, response_writer)
+                .await;
+        }
+        network::IDENTITY.lock(|identity| identity.borrow_mut().token = Some(token));
+        network::ANNOUNCE.signal(());
+        (
+            StatusCode::OK,
+            core::str::from_utf8(&token).unwrap_or_default(),
+        )
+            .write_to(connection, response_writer)
+            .await
+    }
+}
+
+/// `PUT /name` with the new UTF-8 name as the body.
+struct Rename;
+
+impl RequestHandlerService<LoaderState> for Rename {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        mut request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if !authorized(state, &request.parts) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid X-Donder-Token\n",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        let body = read_body::<_, { donder_device_storage::device_config::MAX_NAME_BYTES }>(
+            &mut request.body_connection,
+        )
+        .await?;
+        let connection = request.body_connection.finalize().await?;
+        let Some(name) = body
+            .as_deref()
+            .and_then(|bytes| core::str::from_utf8(bytes).ok())
+            .filter(|name| donder_device_storage::device_config::valid_name(name))
+            .and_then(|name| network::Name::try_from(name).ok())
+        else {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Name must be 1-32 bytes of UTF-8 without control characters\n",
+            )
+                .write_to(connection, response_writer)
+                .await;
+        };
+        if let Err(error) = update_config(state, |config| config.name = name.as_str().into()).await
+        {
+            return (StatusCode::SERVICE_UNAVAILABLE, error)
+                .write_to(connection, response_writer)
+                .await;
+        }
+        network::IDENTITY.lock(|identity| identity.borrow_mut().name = name);
+        network::ANNOUNCE.signal(());
+        (StatusCode::OK, "OK\n")
+            .write_to(connection, response_writer)
+            .await
+    }
+}
+
+/// `PUT /network` with `{"ssid": ..., "password": ...}` joins that network
+/// after a restart; an empty body returns to the controller's access point.
+struct SetNetwork;
+
+impl RequestHandlerService<LoaderState> for SetNetwork {
+    async fn call_request_handler_service<
+        R: picoserve::io::Read,
+        W: picoserve::response::ResponseWriter<Error = R::Error>,
+    >(
+        &self,
+        state: &LoaderState,
+        (): (),
+        mut request: picoserve::request::Request<'_, R>,
+        response_writer: W,
+    ) -> Result<picoserve::ResponseSent, W::Error> {
+        if !authorized(state, &request.parts) {
+            return (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid X-Donder-Token\n",
+            )
+                .write_to(request.body_connection.finalize().await?, response_writer)
+                .await;
+        }
+        let body = read_body::<_, 192>(&mut request.body_connection).await?;
+        let connection = request.body_connection.finalize().await?;
+        let network = match body.as_deref() {
+            Some([]) => None,
+            Some(bytes) => match donder_device_storage::device_config::Network::from_json(bytes) {
+                Ok(network) => Some(network),
+                Err(_) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        "Network needs a 1-32 byte name and an 8-64 byte WPA2 password\n",
+                    )
+                        .write_to(connection, response_writer)
+                        .await;
+                }
+            },
+            None => {
+                return (
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Network request is too large\n",
+                )
+                    .write_to(connection, response_writer)
+                    .await;
+            }
+        };
+        if let Err(error) = update_config(state, |config| config.network = network).await {
+            return (StatusCode::SERVICE_UNAVAILABLE, error)
+                .write_to(connection, response_writer)
+                .await;
+        }
+        network::RESTART.signal(());
+        (StatusCode::OK, "OK; restarting\n")
+            .write_to(connection, response_writer)
+            .await
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -727,7 +947,10 @@ impl AppBuilder for WebApp {
         let router = picoserve::Router::new()
             .route("/capabilities", get_service(DeviceCapabilities))
             .route("/sequence", put_service(UploadSequence))
-            .route("/frame", post_service(EvaluateFrame));
+            .route("/frame", post_service(EvaluateFrame))
+            .route("/claim", post_service(Claim))
+            .route("/name", put_service(Rename))
+            .route("/network", put_service(SetNetwork));
         #[cfg(feature = "i2s-output")]
         let router = router
             .route(
@@ -764,25 +987,8 @@ static SERVER_CONFIG: picoserve::Config = picoserve::Config::new(picoserve::Time
 .keep_connection_alive();
 
 #[embassy_executor::task]
-async fn network(mut runner: embassy_net::Runner<'static, wifi::Interface>) {
+async fn network_runner(mut runner: embassy_net::Runner<'static, wifi::Interface>) {
     runner.run().await;
-}
-
-#[embassy_executor::task]
-async fn reconnect(mut controller: wifi::WifiController<'static>) {
-    loop {
-        if controller.is_connected() {
-            let _ = controller.wait_for_disconnect_async().await;
-            println!("WIFI DISCONNECTED");
-        }
-        match controller.connect_async().await {
-            Ok(_) => println!("WIFI CONNECTED"),
-            Err(_) => {
-                println!("WIFI RETRY");
-                Timer::after_secs(5).await;
-            }
-        }
-    }
 }
 
 #[embassy_executor::task(pool_size = HTTP_WORKERS)]
@@ -826,7 +1032,7 @@ fn token_ascii(token: [u8; 16]) -> [u8; 32] {
 
 #[cfg(feature = "i2s-output")]
 #[embassy_executor::task]
-async fn clock_server(stack: embassy_net::Stack<'static>, token: [u8; 32], boot_id: u32) -> ! {
+async fn clock_server(stack: embassy_net::Stack<'static>, boot_id: u32) -> ! {
     use embassy_net::udp::{PacketMetadata, UdpSocket};
     let mut rx_meta = [PacketMetadata::EMPTY; 4];
     let mut tx_meta = [PacketMetadata::EMPTY; 4];
@@ -840,14 +1046,7 @@ async fn clock_server(stack: embassy_net::Stack<'static>, token: [u8; 32], boot_
             continue;
         };
         let received = local_micros();
-        if length != request.len()
-            || &request[..4] != b"DCLK"
-            || request[4..36]
-                .iter()
-                .zip(token)
-                .fold(0, |different, (&a, b)| different | (a ^ b))
-                != 0
-        {
+        if length != request.len() || &request[..4] != b"DCLK" || !token_matches(&request[4..36]) {
             continue;
         }
         let mut reply = [0; 32];
@@ -1017,6 +1216,33 @@ async fn render_outputs(
     }
 }
 
+/// Load the newest saved show, stopped. This runs after the network has
+/// allocated its buffers, so releasing the show for an upload frees one
+/// contiguous region instead of gaps between network buffers.
+async fn restore_show(storage: &SharedStorage, playback: &SharedPlayback) {
+    let Ok(_output_suspension) = storage::suspend_output().await else {
+        println!("DONDER rendering core did not release flash access; starting without a show");
+        return;
+    };
+    let mut storage = storage.lock().await;
+    let restored = match show_slots::latest(&mut storage.shows()) {
+        Ok(Some(slot)) => storage
+            .mapped_show(slot)
+            .ok()
+            .and_then(|bytes| load(bytes).ok()),
+        Ok(None) => return,
+        Err(_) => None,
+    };
+    // The editor uploads a current show on its next Play; the slot is
+    // replaced then, not erased now.
+    if restored.is_none() {
+        println!(
+            "DONDER saved show is unreadable or invalid for this firmware; starting without it"
+        );
+    }
+    *playback.lock().await = restored;
+}
+
 async fn storage_error(uart: &mut Uart<'_, esp_hal::Async>, error: &'static str) -> ! {
     loop {
         let _ = uart_reply(uart, format_args!("DONDER ERROR {error}")).await;
@@ -1093,7 +1319,7 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
     EVALUATION_TASK.store(0, Relaxed);
     assert_eq!(EVALUATION_ALLOCATIONS.load(Relaxed), 1);
 
-    // USB serial is provisioning and diagnostics only. The host initiates the
+    // USB serial is factory reset and diagnostics only. The host initiates the
     // handshake, so a damaged boot log cannot be mistaken for a failed boot.
     let mut uart = Uart::new(p.UART0.reborrow(), Config::default())
         .unwrap()
@@ -1112,194 +1338,64 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         )
         .await;
     }
-    let saved = match Credentials::load(&mut storage) {
-        Ok(saved) => saved,
+    let config = match DeviceConfig::load(&mut storage) {
+        Ok(saved) => saved.unwrap_or_else(network::default_config),
         Err(_) => {
             recover_storage(
                 &mut uart,
                 &mut storage,
-                "Saved credentials are damaged; data was not erased",
+                "Saved configuration is damaged; data was not erased",
             )
             .await
         }
     };
-    // A reset gives the USB provisioner a short window to request new credentials.
-    // Otherwise a configured controller boots without waiting for a computer.
+    // A reset gives the USB host a short window to request a factory reset.
     let mut command = [0];
-    let provision = saved.is_none()
-        || matches!(
-            embassy_time::with_timeout(Duration::from_secs(3), uart.read_exact(&mut command)).await,
-            Ok(Ok(()))
-        ) && matches!(command[0], b'P' | b'R');
-    let rng = Rng::new();
-    let credentials = if provision {
-        let mut erase_requested = false;
+    if matches!(
+        embassy_time::with_timeout(Duration::from_secs(1), uart.read_exact(&mut command)).await,
+        Ok(Ok(()))
+    ) && command[0] == b'R'
+    {
+        let _ = uart_reply(&mut uart, format_args!("DONDER RESET READY")).await;
+        // The host repeats R until it sees READY, then confirms with F.
         loop {
-            if command[0] == b'P' {
-                erase_requested = false;
-                let _ = uart_reply(&mut uart, format_args!("DONDER PROVISION READY")).await;
-            }
-            if command[0] == b'R' {
-                erase_requested = true;
-                let _ = uart_reply(&mut uart, format_args!("DONDER RESET READY")).await;
-            }
-            if command[0] == b'F' && erase_requested {
-                erase_storage(&mut uart, &mut storage).await;
-            }
-            if uart.read_exact(&mut command).await.is_err() {
-                continue;
-            }
-            if command[0] == b'W' {
-                break;
-            }
-        }
-        let mut lengths = [0; 2];
-        if uart.read_exact(&mut lengths).await.is_err()
-            || !(1..=32).contains(&lengths[0])
-            || !(8..=64).contains(&lengths[1])
-        {
-            storage_error(&mut uart, "Invalid Wi-Fi credential lengths").await;
-        }
-        let mut bytes = [0; 96];
-        let split = usize::from(lengths[0]);
-        let length = split + usize::from(lengths[1]);
-        if uart.read_exact(&mut bytes[..length]).await.is_err() {
-            storage_error(&mut uart, "Incomplete Wi-Fi credentials").await;
-        }
-        let Ok(ssid) = core::str::from_utf8(&bytes[..split]) else {
-            storage_error(&mut uart, "Invalid Wi-Fi network encoding").await;
-        };
-        let Ok(password) = core::str::from_utf8(&bytes[split..length]) else {
-            storage_error(&mut uart, "Invalid Wi-Fi password encoding").await;
-        };
-        let mut raw_token = [0; 16];
-        for word in raw_token.chunks_exact_mut(4) {
-            word.copy_from_slice(&rng.random().to_le_bytes());
-        }
-        let credentials = Credentials {
-            ssid: ssid.into(),
-            password: password.into(),
-            token: token_ascii(raw_token),
-        };
-        raw_token.fill(0);
-        bytes.fill(0);
-        credentials
-    } else {
-        saved.unwrap()
-    };
-    let token = credentials.token;
-    let config = StationConfig::default()
-        .with_ssid(credentials.ssid.as_str().try_into().unwrap())
-        .with_authentication(AuthenticationMethodConfig::Wpa2Personal(
-            credentials.password.as_str().try_into().unwrap(),
-        ));
-    let interface = wifi::Interface::station();
-    let mut controller = wifi::WifiController::new(
-        p.WIFI,
-        wifi::ControllerConfig::default().with_initial_config(wifi::Config::Station(config)),
-    )
-    .unwrap();
-    controller.set_power_saving(PowerSaveMode::None).unwrap();
-
-    let seed = (u64::from(rng.random()) << 32) | u64::from(rng.random());
-    uart.write_all(b"TOKEN ").await.unwrap();
-    uart.write_all(&token).await.unwrap();
-    uart.write_all(b"\n").await.unwrap();
-
-    let resources = Box::leak(Box::new(StackResources::<4>::new()));
-    let (stack, runner) = embassy_net::new(
-        interface,
-        embassy_net::Config::dhcpv4(Default::default()),
-        resources,
-        seed,
-    );
-    spawner.spawn(network(runner).unwrap());
-    spawner.spawn(reconnect(controller).unwrap());
-    let restored = match show_slots::latest(&mut storage.shows()) {
-        Ok(Some(slot)) => match storage
-            .mapped_show(slot)
-            .ok()
-            .and_then(|bytes| load(bytes).ok())
-        {
-            Some(playback) => Some(playback),
-            None => {
-                storage_error(
-                    &mut uart,
-                    "Saved sequence is invalid for this firmware; data was not erased",
-                )
+            match embassy_time::with_timeout(Duration::from_secs(2), uart.read_exact(&mut command))
                 .await
+            {
+                Ok(Ok(())) if command[0] == b'F' => erase_storage(&mut uart, &mut storage).await,
+                Ok(Ok(())) if command[0] == b'R' => {}
+                _ => break,
             }
-        },
-        Ok(None) => None,
-        Err(_) => storage_error(&mut uart, "Cannot read saved show; data was not erased").await,
-    };
+        }
+    }
+    network::IDENTITY.lock(|identity| {
+        let mut identity = identity.borrow_mut();
+        identity.name = network::Name::try_from(config.name.as_str()).unwrap();
+        identity.token = config.token;
+    });
+    let rng = Rng::new();
     let storage: &'static SharedStorage =
         picoserve::make_static!(SharedStorage, Mutex::new(storage));
     let playback: &'static SharedPlayback =
-        picoserve::make_static!(SharedPlayback, Mutex::new(restored));
+        picoserve::make_static!(SharedPlayback, Mutex::new(None));
     let upload = picoserve::make_static!(UploadGate, Mutex::new(()));
     #[cfg(feature = "i2s-output")]
     let boot_id = rng.random();
     #[cfg(feature = "i2s-output")]
     let clock: &'static SharedClock =
         picoserve::make_static!(SharedClock, Mutex::new(transport::Clock::new()));
-    let app = picoserve::make_static!(
-        AppRouter<WebApp>,
-        WebApp {
-            state: LoaderState {
-                playback,
-                upload,
-                storage,
-                token,
-                #[cfg(feature = "i2s-output")]
-                clock,
-                #[cfg(feature = "i2s-output")]
-                boot_id,
-            }
-        }
-        .build_app()
-    );
-    // Requests may arrive during the UART handoff. Require the output task's
-    // checkpoint before permitting flash access even while core 1 is starting.
-    #[cfg(feature = "i2s-output")]
-    storage::output_started();
-    for task_id in 0..HTTP_WORKERS {
-        spawner.spawn(web_server(task_id, stack, app).unwrap());
-    }
-    #[cfg(feature = "i2s-output")]
-    spawner.spawn(clock_server(stack, token, boot_id).unwrap());
 
-    // Provisioning completes on UART before the shared Dig-Quad pins switch
-    // to LEDs. A configured Dig-Quad boots black without waiting for Wi-Fi.
-    if provision || !cfg!(feature = "dig-quad") {
-        stack.wait_config_up().await;
-        if provision && credentials.save(&mut *storage.lock().await).is_err() {
-            storage_error(
-                &mut uart,
-                "Wi-Fi connected but credentials could not be saved; retry provisioning",
-            )
-            .await;
-        }
-        uart_reply(
-            &mut uart,
-            format_args!(
-                "WIFI READY {} {} i2s={} heap_free={}",
-                stack.config_v4().unwrap().address.address(),
-                HTTP_PORT,
-                OUTPUT_DESCRIPTION,
-                esp_alloc::HEAP.free()
-            ),
-        )
-        .await
-        .unwrap();
-    }
-    drop(credentials);
     embedded_io_async::Write::flush(&mut uart).await.unwrap();
     #[cfg(feature = "dig-quad")]
     SERIAL_DIAGNOSTICS.store(false, Relaxed);
     // Disable the async UART interrupt before the LED peripheral takes its pins,
     // while retaining UART0's clock for ROM routines that use its transmitter.
     core::mem::forget(uart.into_blocking());
+
+    // Start output before the network: joining a missing network must not
+    // delay a restored show.
+    #[cfg(feature = "i2s-output")]
+    storage::output_started();
 
     #[cfg(feature = "i2s-output")]
     esp_rtos::start_second_core(
@@ -1344,10 +1440,60 @@ async fn main(spawner: embassy_executor::Spawner) -> ! {
         Timer::after_millis(1).await;
     }
 
+    let (controller, interface, mode) = network::start(p.WIFI, &config).await;
+    drop(config);
+    let id: &'static str = picoserve::make_static!(heapless::String<12>, network::device_id());
+    let hostname: &'static str = picoserve::make_static!(heapless::String<19>, {
+        let mut hostname = heapless::String::new();
+        write!(hostname, "donder-{id}").unwrap();
+        hostname
+    });
+    let seed = (u64::from(rng.random()) << 32) | u64::from(rng.random());
+    // HTTP workers, clock, mDNS, and the DHCP client or server.
+    let resources = Box::leak(Box::new(StackResources::<{ HTTP_WORKERS + 3 }>::new()));
+    let (stack, runner) = embassy_net::new(interface, network::stack_config(mode), resources, seed);
+    let udp_pool = network::udp_pool();
+    spawner.spawn(network_runner(runner).unwrap());
+    spawner.spawn(network::reconnect(controller, mode).unwrap());
+    spawner.spawn(network::restart_after_change().unwrap());
+    if mode == network::Mode::AccessPoint {
+        spawner.spawn(network::dhcp_server(stack, udp_pool).unwrap());
+    }
+    spawner.spawn(network::mdns_responder(stack, udp_pool, id, hostname, mode).unwrap());
+    restore_show(storage, playback).await;
+    let app = picoserve::make_static!(
+        AppRouter<WebApp>,
+        WebApp {
+            state: LoaderState {
+                playback,
+                upload,
+                storage,
+                #[cfg(feature = "i2s-output")]
+                clock,
+                #[cfg(feature = "i2s-output")]
+                boot_id,
+            }
+        }
+        .build_app()
+    );
+    for task_id in 0..HTTP_WORKERS {
+        spawner.spawn(web_server(task_id, stack, app).unwrap());
+    }
+    #[cfg(feature = "i2s-output")]
+    spawner.spawn(clock_server(stack, boot_id).unwrap());
+    println!(
+        "NETWORK mode={} id={} output={} heap_free={}",
+        mode.label(),
+        id,
+        OUTPUT_DESCRIPTION,
+        esp_alloc::HEAP.free()
+    );
+
     loop {
         Timer::after_secs(60).await;
     }
 }
+
 #[cfg(feature = "i2s-output")]
 fn encode_frame(frame: Option<donder_runtime::SequenceFrame<'_>>, buffer: &mut [u8]) {
     let mut lanes: [&[u8]; OUTPUT_LANES] = [&[]; OUTPUT_LANES];

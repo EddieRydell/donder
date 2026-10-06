@@ -22,6 +22,7 @@ pub(super) struct WorkspaceView {
     pub preview_open: bool,
     pub audio_transport: AudioTransportSnapshot,
     pub live_output: LiveOutputSnapshot,
+    pub devices: Vec<DonderDeviceStatus>,
 }
 
 pub(super) struct WorkingDocument {
@@ -87,6 +88,7 @@ impl WorkspaceState {
             preview_open: self.view.preview_open,
             audio_transport: self.view.audio_transport.clone(),
             live_output: self.view.live_output.clone(),
+            devices: self.view.devices.clone(),
 
             pending_saves: self
                 .documents
@@ -206,6 +208,7 @@ impl WorkspaceView {
             preview_open: snapshot.preview_open,
             audio_transport: snapshot.audio_transport,
             live_output: snapshot.live_output,
+            devices: snapshot.devices,
         }
     }
 }

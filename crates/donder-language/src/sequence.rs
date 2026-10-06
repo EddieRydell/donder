@@ -7,7 +7,8 @@ use crate::dsl::types::Identifier;
 use crate::effect::{EffectInst, EffectInstId};
 use crate::identity::ObjectIdentity;
 use crate::operator::GraphOperatorNode;
-use crate::values::{Color, Curve, DonderDuration, DonderTime};
+use crate::sampling::sample_curve;
+use crate::values::{Color, Curve, CurvePoint, DonderDuration, DonderTime};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SequenceId(pub ObjectIdentity);
@@ -108,32 +109,91 @@ pub struct AutomationClip {
     pub detached_bindings: Vec<DetachedAutomationBinding>,
 }
 
+/// Well under one frame at any supported frame rate.
+const CROP_TOLERANCE_SECONDS: f64 = 1e-4;
+
 impl AutomationClip {
-    /// The authored envelope over a target's time range, with target-relative positions.
-    /// Preserve coincident points: they encode steps, and the last point wins at a boundary.
-    pub fn curve_in_range(&self, start: &DonderTime, duration: &DonderDuration) -> Curve {
-        let clip_duration = self.duration.as_seconds_f32().max(f32::EPSILON);
-        let range_duration = duration.as_seconds_f32().max(f32::EPSILON);
-        let start_position = (start.as_seconds_f32() - self.start.as_seconds_f32()) / clip_duration;
-        let end_position = start_position + range_duration / clip_duration;
-        let mut points = vec![crate::values::CurvePoint {
-            position: 0.0,
-            value: crate::sampling::sample_curve(&self.curve, start_position),
-        }];
-        points.extend(self.curve.points.iter().filter_map(|point| {
-            let position = (point.position - start_position) * clip_duration / range_duration;
-            (position > 0.0 && position <= 1.0).then_some(crate::values::CurvePoint {
-                position,
-                value: point.value,
-            })
-        }));
-        if points.last().is_none_or(|point| point.position < 1.0) {
-            points.push(crate::values::CurvePoint {
-                position: 1.0,
-                value: crate::sampling::sample_curve(&self.curve, end_position),
-            });
+    pub fn end(&self) -> core::time::Duration {
+        self.start.0.saturating_add(self.duration.0)
+    }
+
+    pub fn overlaps(&self, other: &AutomationClip) -> bool {
+        self.start.0 < other.end() && other.start.0 < self.end()
+    }
+
+    /// Active and detached binding targets.
+    pub fn targets(&self) -> impl Iterator<Item = &AutomationTarget> {
+        self.bindings
+            .iter()
+            .map(|binding| &binding.target)
+            .chain(self.detached_bindings.iter().map(|binding| &binding.target))
+    }
+
+    /// Move the clip window over fixed content. Points outside the window are
+    /// dropped, and an edge that cuts through content gains a point holding the
+    /// value it cut through.
+    pub fn crop(&mut self, start: DonderTime, duration: DonderDuration) {
+        let old_start = self.start.0.as_secs_f64();
+        let old_duration = self.duration.0.as_secs_f64();
+        let new_start = start.0.as_secs_f64();
+        let new_duration = duration.0.as_secs_f64();
+        let new_end = new_start + new_duration;
+        // GUI timing passes through f32 seconds, so an edge that did not move can
+        // shift slightly. Points this close to an edge stay inside it.
+        let (inner_start, inner_end) = (
+            new_start - CROP_TOLERANCE_SECONDS,
+            new_end + CROP_TOLERANCE_SECONDS,
+        );
+        let time = |position: f32| old_start + f64::from(position) * old_duration;
+        let value_at =
+            |seconds: f64| sample_curve(&self.curve, ((seconds - old_start) / old_duration) as f32);
+        let cut_left = self
+            .curve
+            .points
+            .iter()
+            .any(|point| time(point.position) < inner_start);
+        let cut_right = self
+            .curve
+            .points
+            .iter()
+            .any(|point| time(point.position) > inner_end);
+        let kept = self
+            .curve
+            .points
+            .iter()
+            .map(|point| (time(point.position), point.value))
+            .filter(|(seconds, _)| (inner_start..=inner_end).contains(seconds))
+            .collect::<Vec<_>>();
+        let mut points = Vec::with_capacity(kept.len() + 2);
+        if cut_left && kept.first().is_none_or(|(seconds, _)| *seconds > new_start) {
+            points.push((new_start, value_at(new_start)));
         }
-        Curve { points }
+        points.extend(kept.iter().copied());
+        if cut_right && kept.last().is_none_or(|(seconds, _)| *seconds < new_end) {
+            points.push((new_end, value_at(new_end)));
+        }
+        self.curve.points = points
+            .into_iter()
+            .map(|(seconds, value)| CurvePoint {
+                position: ((seconds - new_start) / new_duration).clamp(0.0, 1.0) as f32,
+                value,
+            })
+            .collect();
+        self.start = start;
+        self.duration = duration;
+    }
+
+    /// Keep the part before `at` and return the part after it as clip `id`.
+    pub fn split_off(&mut self, at: DonderTime, id: AutomationClipId) -> Option<AutomationClip> {
+        let end = self.end();
+        if at.0 <= self.start.0 || at.0 >= end {
+            return None;
+        }
+        let mut right = self.clone();
+        right.id = id;
+        right.crop(at.clone(), DonderDuration(end - at.0));
+        self.crop(self.start.clone(), DonderDuration(at.0 - self.start.0));
+        Some(right)
     }
 
     pub fn detach_bindings(
@@ -160,6 +220,127 @@ impl AutomationClip {
         self.detached_bindings
             .retain(|binding| binding.target != target);
         self.bindings.push(AutomationBinding { target, mapping });
+    }
+}
+
+/// Every clip actively bound to one target, merged into a single curve.
+pub struct AutomationEnvelope<'a> {
+    pub start: DonderTime,
+    pub duration: DonderDuration,
+    pub curve: Curve,
+    pub mapping: &'a AutomationMapping,
+}
+
+impl Sequence {
+    /// The active mapping shared by every clip bound to `target`.
+    pub fn automation_mapping(&self, target: &AutomationTarget) -> Option<&AutomationMapping> {
+        self.automation_clips.iter().find_map(|clip| {
+            clip.bindings
+                .iter()
+                .find(|binding| &binding.target == target)
+                .map(|binding| &binding.mapping)
+        })
+    }
+
+    /// Clips bound to one target never overlap. Before the first clip the
+    /// envelope holds its first value, and each gap holds the value the
+    /// previous clip ended on.
+    pub fn automation_envelope(&self, target: &AutomationTarget) -> Option<AutomationEnvelope<'_>> {
+        let mut clips = self
+            .automation_clips
+            .iter()
+            .filter(|clip| {
+                clip.bindings
+                    .iter()
+                    .any(|binding| &binding.target == target)
+            })
+            .collect::<Vec<_>>();
+        let mapping = self.automation_mapping(target)?;
+        if let [clip] = clips.as_slice() {
+            return Some(AutomationEnvelope {
+                start: clip.start.clone(),
+                duration: clip.duration.clone(),
+                curve: clip.curve.clone(),
+                mapping,
+            });
+        }
+        clips.sort_by_key(|clip| clip.start.0);
+        let start = clips.first()?.start.0;
+        let end = clips.iter().map(|clip| clip.end()).max()?;
+        let span = (end - start).as_secs_f64();
+        let position =
+            |seconds: f64| ((seconds - start.as_secs_f64()) / span).clamp(0.0, 1.0) as f32;
+        let last = clips.len() - 1;
+        let mut points = Vec::new();
+        let mut held = None;
+        for (index, clip) in clips.iter().enumerate() {
+            if clip.curve.points.is_empty() {
+                continue;
+            }
+            let clip_start = clip.start.0.as_secs_f64();
+            let clip_duration = clip.duration.0.as_secs_f64();
+            if index > 0 {
+                let start_position = position(clip_start);
+                if let Some(value) = held {
+                    points.push(CurvePoint {
+                        position: start_position,
+                        value,
+                    });
+                }
+                points.push(CurvePoint {
+                    position: start_position,
+                    value: sample_curve(&clip.curve, 0.0),
+                });
+            }
+            points.extend(clip.curve.points.iter().map(|point| CurvePoint {
+                position: position(clip_start + f64::from(point.position) * clip_duration),
+                value: point.value,
+            }));
+            if index < last {
+                let value = sample_curve(&clip.curve, 1.0);
+                points.push(CurvePoint {
+                    position: position(clip_start + clip_duration),
+                    value,
+                });
+                held = Some(value);
+            }
+        }
+        Some(AutomationEnvelope {
+            start: DonderTime(start),
+            duration: DonderDuration(end - start),
+            curve: Curve { points },
+            mapping,
+        })
+    }
+}
+
+impl AutomationEnvelope<'_> {
+    /// The envelope over a target's time range, with target-relative positions.
+    /// Preserve coincident points: they encode steps, and the last point wins at a boundary.
+    pub fn curve_in_range(&self, start: &DonderTime, duration: &DonderDuration) -> Curve {
+        let envelope_duration = self.duration.as_seconds_f32().max(f32::EPSILON);
+        let range_duration = duration.as_seconds_f32().max(f32::EPSILON);
+        let start_position =
+            (start.as_seconds_f32() - self.start.as_seconds_f32()) / envelope_duration;
+        let end_position = start_position + range_duration / envelope_duration;
+        let mut points = vec![CurvePoint {
+            position: 0.0,
+            value: sample_curve(&self.curve, start_position),
+        }];
+        points.extend(self.curve.points.iter().filter_map(|point| {
+            let position = (point.position - start_position) * envelope_duration / range_duration;
+            (position > 0.0 && position <= 1.0).then_some(CurvePoint {
+                position,
+                value: point.value,
+            })
+        }));
+        if points.last().is_none_or(|point| point.position < 1.0) {
+            points.push(CurvePoint {
+                position: 1.0,
+                value: sample_curve(&self.curve, end_position),
+            });
+        }
+        Curve { points }
     }
 }
 

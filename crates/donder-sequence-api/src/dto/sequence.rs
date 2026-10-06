@@ -252,7 +252,6 @@ pub enum SequenceGraphPortCardinality {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectParam {
-    pub fixed: bool,
     pub supports_automation: bool,
     pub name: String,
     pub kind: SequenceEffectParamKind,
@@ -282,7 +281,6 @@ pub struct SequenceEffectDefinition {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinitionParam {
-    pub fixed: bool,
     pub supports_automation: bool,
     pub name: String,
     pub kind: SequenceEffectParamKind,

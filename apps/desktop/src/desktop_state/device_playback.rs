@@ -1,50 +1,265 @@
 use super::{DesktopState, lock_unpoisoned};
+use crate::device::DeviceClient;
+use crate::device::playback::{DevicePorts, WantedDevice};
 use crate::dto::{
-    AppSnapshot, AudioTransportState, DevicePlaybackMode, GuiDocumentRequest, SequenceDeviceStatus,
+    AppSnapshot, AudioTransportState, DevicePlaybackMode, DonderDeviceClaim,
+    DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
+use donder_language::controller::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
 
 impl DesktopState {
-    pub(crate) fn connect_sequence_device(
-        &self,
-        request: &GuiDocumentRequest,
-        selected: &[u32],
-        address: &str,
-        token: &str,
-    ) -> Result<Vec<SequenceDeviceStatus>, String> {
+    pub(super) fn schedule_device_reconcile(&self) {
+        self.device_reconcile.schedule(());
+    }
+
+    /// Connect editor playback to every Donder controller in the open setup
+    /// that is on the network and claimed by this computer, then publish the
+    /// device list. Performs network I/O on the reconcile task.
+    pub(super) fn reconcile_devices(&self) {
         let _operation = lock_unpoisoned(&self.transport_operation);
-        if matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
-            return Err("Pause the sequence editor before connecting another device".into());
+        // New bindings stop the controller's show; never interrupt a running one.
+        if !matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
+            self.connect_setup_devices();
         }
-        let (session, _) = self.sequence_export_session(request)?;
-        if selected.is_empty() {
-            return Err("Select the outputs to map to this device".into());
+        self.publish_devices();
+    }
+
+    pub(super) fn has_setup_devices(&self) -> bool {
+        !self.setup_devices().is_empty()
+    }
+
+    /// Play drives every Donder controller in the open setup. Connect any that
+    /// are not yet connected, and name each one that still cannot play.
+    /// The caller holds the transport operation lock.
+    fn require_setup_devices(&self) -> Result<(), String> {
+        self.connect_setup_devices();
+        self.publish_devices();
+        let devices = self.snapshot().devices;
+        let problems = self
+            .setup_devices()
+            .into_iter()
+            .filter_map(
+                |(id, _)| match devices.iter().find(|device| device.id == id.as_str()) {
+                    None => Some(format!("controller {} is not on the network", id.as_str())),
+                    Some(device) => match &device.connection {
+                        DonderDeviceConnection::Connected { .. } => None,
+                        DonderDeviceConnection::Failed { error } => {
+                            Some(format!("{}: {error}", device.name))
+                        }
+                        DonderDeviceConnection::Unused => {
+                            Some(format!("{} is not connected", device.name))
+                        }
+                    },
+                },
+            )
+            .collect::<Vec<_>>();
+        if problems.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("Cannot play on {}", problems.join("; ")))
         }
-        let available = super::sequence_export::outputs(&session)?;
-        let mut unique = std::collections::BTreeSet::new();
-        let ports = selected
-            .iter()
-            .map(|index| {
-                if !unique.insert(*index) {
-                    return Err("An output was selected more than once".to_string());
+    }
+
+    /// The caller holds the transport operation lock.
+    fn connect_setup_devices(&self) {
+        {
+            let advertised = self.discovery.devices();
+            let tokens = self.persistence.device_tokens();
+            let wanted = self
+                .setup_devices()
+                .into_iter()
+                .filter_map(|(id, ports)| {
+                    let device = advertised.get(&id)?;
+                    let token = tokens.get(id.as_str())?.clone();
+                    (device.format == donder_runtime::FORMAT_VERSION).then_some(WantedDevice {
+                        id,
+                        address: device.address,
+                        token,
+                        ports,
+                    })
+                })
+                .collect();
+            let failures = self
+                .device_playback
+                .sync(self.snapshot().project_epoch, wanted)
+                .into_iter()
+                .filter_map(|(id, result)| result.err().map(|error| (id, error)))
+                .collect();
+            *lock_unpoisoned(&self.device_failures) = failures;
+        }
+    }
+
+    pub(super) fn publish_devices(&self) {
+        let advertised = self.discovery.devices();
+        let tokens = self.persistence.device_tokens();
+        let used = self
+            .setup_devices()
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect::<Vec<_>>();
+        let connections = self.device_playback.connections();
+        let failures = lock_unpoisoned(&self.device_failures).clone();
+        let devices = advertised
+            .into_iter()
+            .map(|(id, device)| {
+                let claimed_here = tokens.contains_key(id.as_str());
+                let firmware_current = device.format == donder_runtime::FORMAT_VERSION;
+                let connection = match (connections.get(&id), failures.get(&id)) {
+                    (Some(Ok(uncertainty)), _) => DonderDeviceConnection::Connected {
+                        clock_uncertainty_micros: *uncertainty,
+                    },
+                    (Some(Err(error)), _) | (None, Some(error)) => DonderDeviceConnection::Failed {
+                        error: error.clone(),
+                    },
+                    (None, None) if !used.contains(&id) => DonderDeviceConnection::Unused,
+                    (None, None) if !claimed_here => DonderDeviceConnection::Failed {
+                        error: "Claim this controller to use it for playback.".into(),
+                    },
+                    (None, None) if !firmware_current => DonderDeviceConnection::Failed {
+                        error: "Controller firmware does not match this editor. Install the bundled firmware over USB.".into(),
+                    },
+                    (None, None) => DonderDeviceConnection::Failed {
+                        error: "Connecting...".into(),
+                    },
+                };
+                DonderDeviceStatus {
+                    claim: match (device.claimed, claimed_here) {
+                        (false, _) => DonderDeviceClaim::Unclaimed,
+                        (true, true) => DonderDeviceClaim::Claimed,
+                        (true, false) => DonderDeviceClaim::ClaimedElsewhere,
+                    },
+                    id: id.as_str().to_string(),
+                    name: device.name,
+                    address: device.address.to_string(),
+                    network: device.network,
+                    firmware_current,
+                    connection,
                 }
-                available
-                    .get(*index as usize)
-                    .map(|(controller, port, _)| (controller.clone(), *port))
-                    .ok_or_else(|| "Selected output is unavailable".into())
             })
-            .collect::<Result<Vec<_>, String>>()?;
-        self.device_playback
-            .register(self.snapshot().project_epoch, address, token, ports)
+            .collect::<Vec<_>>();
+        let error = self.discovery.error().map(str::to_string);
+        if self.snapshot().devices != devices || error.is_some() {
+            self.update_snapshot(|snapshot| {
+                snapshot.devices = devices;
+                if let Some(error) = error {
+                    snapshot.status = error;
+                }
+            });
+        }
     }
-    pub(crate) fn disconnect_sequence_device(
+
+    /// Donder controllers in the open setup with their ports in output order.
+    fn setup_devices(&self) -> Vec<(DonderDeviceId, DevicePorts)> {
+        let Some(session) = self.project_session() else {
+            return Vec::new();
+        };
+        let project = &session.project;
+        let Some(setup) = project.setup(project.root().setup.id()) else {
+            return Vec::new();
+        };
+        setup
+            .controllers
+            .iter()
+            .filter_map(|source| project.controller(source.id()))
+            .filter_map(|controller| {
+                let ControllerProtocol::Donder(config) = &controller.protocol else {
+                    return None;
+                };
+                let mut ports = controller
+                    .ports
+                    .iter()
+                    .filter_map(|port| match port.address {
+                        ControllerPortAddress::DonderOutput(output) => Some((output, port.id)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                ports.sort();
+                Some((
+                    config.device.clone(),
+                    ports
+                        .into_iter()
+                        .map(|(_, port)| (controller.id.clone(), port))
+                        .collect(),
+                ))
+            })
+            .collect()
+    }
+
+    fn device_client(&self, id: &str) -> Result<DeviceClient, String> {
+        let id = DonderDeviceId::parse(id).ok_or("Invalid controller ID.")?;
+        let device = self
+            .discovery
+            .devices()
+            .remove(&id)
+            .ok_or("Controller is not on the network.")?;
+        let token = self
+            .persistence
+            .device_tokens()
+            .remove(id.as_str())
+            .ok_or("Claim this controller first.")?;
+        DeviceClient::new(device.address, &token)
+    }
+
+    pub(crate) fn claim_device(&self, id: &str) -> Result<AppSnapshot, String> {
+        let device_id = DonderDeviceId::parse(id).ok_or("Invalid controller ID.")?;
+        let device = self
+            .discovery
+            .devices()
+            .remove(&device_id)
+            .ok_or("Controller is not on the network.")?;
+        let token = crate::device::claim(device.address)?;
+        self.persistence.record_device_token(id, token)?;
+        self.schedule_device_reconcile();
+        self.publish_devices();
+        Ok(self.snapshot())
+    }
+
+    pub(crate) fn rename_device(&self, id: &str, name: &str) -> Result<AppSnapshot, String> {
+        self.device_client(id)?.rename(name)?;
+        Ok(self.snapshot())
+    }
+
+    /// Loop the controller's saved show without the editor, or stop it.
+    pub(crate) fn set_device_standalone(
         &self,
-        address: &str,
-    ) -> Result<Vec<SequenceDeviceStatus>, String> {
-        let _operation = lock_unpoisoned(&self.transport_operation);
-        self.device_playback.unregister(address)
+        id: &str,
+        playing: bool,
+    ) -> Result<AppSnapshot, String> {
+        let client = self.device_client(id)?;
+        if client.transport(None)?.playback.is_none() {
+            return Err(
+                "The controller has no saved show. Press Play in a sequence to upload one.".into(),
+            );
+        }
+        client.transport(Some(if playing {
+            DevicePlaybackMode::Playing
+        } else {
+            DevicePlaybackMode::Stopped
+        }))?;
+        Ok(self.update_snapshot(|snapshot| {
+            snapshot.status = if playing {
+                "Controller is looping its saved show.".into()
+            } else {
+                "Controller stopped its saved show.".into()
+            }
+        }))
     }
-    pub(crate) fn sequence_devices(&self) -> Vec<SequenceDeviceStatus> {
-        self.device_playback.statuses()
+
+    pub(crate) fn set_device_network(
+        &self,
+        id: &str,
+        network: Option<DonderDeviceNetworkRequest>,
+    ) -> Result<AppSnapshot, String> {
+        self.device_client(id)?.set_network(network.as_ref())?;
+        Ok(self.update_snapshot(|snapshot| {
+            snapshot.status = match network {
+                Some(network) => format!(
+                    "Controller is restarting to join {}. Connect this computer to that network.",
+                    network.ssid
+                ),
+                None => "Controller is restarting with its own access point.".into(),
+            }
+        }))
     }
 
     fn prepare_device_sequence(&self) -> Result<u32, String> {
@@ -103,6 +318,7 @@ impl DesktopState {
         if matches!(self.audio_snapshot().state, AudioTransportState::Playing) {
             return Ok(self.snapshot());
         }
+        self.require_setup_devices()?;
         let duration = self.prepare_device_sequence()?;
         let audio = self.audio_snapshot();
         let position = if matches!(audio.state, AudioTransportState::Ended) {
@@ -193,111 +409,4 @@ fn seconds_to_micros(seconds: f32) -> Result<u32, String> {
     donder_language::values::sample_time_from_seconds_f32(seconds)
         .map(|time| time.as_ticks())
         .map_err(|error| format!("Invalid playback position: {error:?}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::device::DeviceClient;
-    use std::time::Duration;
-
-    #[test]
-    #[ignore = "requires the commissioned controller and session credentials"]
-    fn live_controller_follows_editor_transport() {
-        let address =
-            std::env::var("DONDER_TEST_DEVICE_ADDRESS").expect("Device address is required");
-        let token = std::env::var("DONDER_TEST_DEVICE_TOKEN").expect("Device token is required");
-        let project =
-            std::env::var("DONDER_TEST_PROJECT").expect("Commissioning project is required");
-        let client = DeviceClient::new(&address, &token).unwrap();
-        let state = DesktopState::new(|_| {});
-        state.open_project_path(&project);
-        let session = state.project_session().unwrap();
-        let sequence = session.project.root().sequences[0].id();
-        let request = state
-            .resolve_gui_source(
-                &sequence.0.module_id().to_string(),
-                sequence.0.document().as_str(),
-                sequence.0.root_source().object(),
-            )
-            .unwrap();
-        state.load_sequence_audio(request.clone());
-        state.render_refresh.finish_pending();
-        let ports = state
-            .sequence_export_ports(&request)
-            .unwrap()
-            .into_iter()
-            .map(|port| port.index)
-            .collect::<Vec<_>>();
-        state
-            .connect_sequence_device(&request, &ports, &address, &token)
-            .unwrap();
-        let started = state.audio_play();
-        assert_eq!(
-            started.audio_transport.state,
-            AudioTransportState::Playing,
-            "{}",
-            started.status
-        );
-        assert!(started.audio_transport.start_delay_seconds > 0.0);
-        std::thread::sleep(Duration::from_millis(600));
-        let playing = client.transport(None).unwrap().playback.unwrap();
-        assert!(matches!(playing.mode, DevicePlaybackMode::Playing));
-        assert!(playing.position_micros > 0);
-        let paused = state.audio_pause();
-        assert_eq!(
-            paused.audio_transport.state,
-            AudioTransportState::Paused,
-            "{}",
-            paused.status
-        );
-        let held = client.transport(None).unwrap().playback.unwrap();
-        assert!(matches!(held.mode, DevicePlaybackMode::Paused));
-        assert!(
-            held.position_micros
-                .abs_diff(seconds_to_micros(paused.audio_transport.position_seconds).unwrap())
-                <= 2
-        );
-        let sought = state.audio_seek(2.0);
-        assert_eq!(
-            sought.audio_transport.position_seconds, 2.0,
-            "{}",
-            sought.status
-        );
-        assert_eq!(
-            client
-                .transport(None)
-                .unwrap()
-                .playback
-                .unwrap()
-                .position_micros,
-            2_000_000
-        );
-        let stopped = state.audio_stop();
-        assert_eq!(
-            stopped.audio_transport.state,
-            AudioTransportState::Stopped,
-            "{}",
-            stopped.status
-        );
-        let before = client.transport(None).unwrap().playback.unwrap();
-        assert!(matches!(before.mode, DevicePlaybackMode::Stopped));
-        let resumed = state.audio_play();
-        assert_eq!(
-            resumed.audio_transport.state,
-            AudioTransportState::Playing,
-            "{}",
-            resumed.status
-        );
-        std::thread::sleep(Duration::from_millis(400));
-        let after = client.transport(None).unwrap().playback.unwrap();
-        assert!(
-            after.command_id > before.command_id,
-            "Unchanged replay must reuse the uploaded archive and command counter"
-        );
-        assert_eq!(after.archive_crc, before.archive_crc);
-        assert_eq!(after.archive_bytes, before.archive_bytes);
-        state.audio_stop();
-        state.disconnect_sequence_device(&address).unwrap();
-    }
 }

@@ -15,20 +15,20 @@ use littlefs2::io::{Read, Write};
 pub use littlefs2::{driver::Storage, io::Error};
 use littlefs2::{fs::Filesystem, path, path::Path};
 
-pub mod credentials;
+pub mod device_config;
 pub mod show_slots;
 
 pub use littlefs2::consts;
 
 #[derive(Clone, Copy)]
 pub enum Record {
-    Credentials,
+    Device,
 }
 
 impl Record {
     fn path(self) -> &'static Path {
         match self {
-            Self::Credentials => path!("credentials"),
+            Self::Device => path!("device"),
         }
     }
 }

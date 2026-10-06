@@ -1,15 +1,15 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
-use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode, SequenceDeviceStatus};
+use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode};
 use donder_language::{
-    controller::{ControllerId, ControllerPortId},
+    controller::{ControllerId, ControllerPortId, DonderDeviceId},
     sequence::SequenceId,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::hash_map::RandomState,
+    collections::{BTreeMap, hash_map::RandomState},
     hash::{BuildHasher, Hasher},
     net::{SocketAddr, UdpSocket},
     sync::{Arc, Condvar, Mutex},
@@ -18,6 +18,14 @@ use std::{
 };
 
 pub(crate) type DevicePorts = Vec<(ControllerId, ControllerPortId)>;
+
+/// A controller in the open setup that should follow editor playback.
+pub(crate) struct WantedDevice {
+    pub id: DonderDeviceId,
+    pub address: SocketAddr,
+    pub token: String,
+    pub ports: DevicePorts,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct ClockSample {
@@ -36,7 +44,6 @@ enum Control {
         local_micros: u64,
         master_micros: u64,
         rate_ppb: i32,
-        uncertainty_micros: u32,
         valid_for_micros: u32,
     },
     Schedule {
@@ -152,6 +159,7 @@ struct Prepared {
     hash: [u8; 32],
 }
 struct Binding {
+    id: DonderDeviceId,
     client: DeviceClient,
     frame_rate: u32,
     clock_socket: UdpSocket,
@@ -202,12 +210,9 @@ impl Binding {
             }
         }
         let sample = best.ok_or("No clock samples")?;
+        // Reported, not enforced: a slow network loosens light-to-audio sync
+        // but must not prevent playback.
         let uncertainty = sample.delay / 2 + 100;
-        if uncertainty > 2_000 {
-            return Err(format!(
-                "Clock uncertainty is {uncertainty} us; needs at most 2000 us. Check the local Wi-Fi connection."
-            ));
-        }
         let mut rate = self.rate_ppb;
         if let Some(previous) = self
             .sample
@@ -230,7 +235,6 @@ impl Binding {
             local_micros: sample.local,
             master_micros: sample.master,
             rate_ppb: rate,
-            uncertainty_micros: uncertainty as u32,
             valid_for_micros: 15_000_000,
         })?;
         if self.sample.is_none_or(|previous| {
@@ -296,88 +300,58 @@ impl DevicePlaybackService {
             worker: Some(worker),
         }
     }
-    pub(crate) fn register(
+    /// Match bindings to the controllers the open setup wants. Unchanged
+    /// bindings keep their clock state and uploaded show; new ones stop the
+    /// controller's standalone show and synchronize clocks.
+    pub(crate) fn sync(
         &self,
         epoch: u32,
-        address: &str,
-        token: &str,
-        ports: DevicePorts,
-    ) -> Result<Vec<SequenceDeviceStatus>, String> {
-        let client = DeviceClient::new(address, token)?;
-        let (frame_rate, clock_udp_port) = match client.capabilities()?.output {
-            DeviceOutputCapabilities::Ws281x {
-                frame_rate,
-                clock_udp_port,
-                ..
-            } if frame_rate > 0 && clock_udp_port > 0 => (frame_rate, clock_udp_port),
-            _ => return Err("Device does not advertise a valid physical output frame rate".into()),
-        };
-        let bind_address = if client.address.is_ipv4() {
-            "0.0.0.0:0"
-        } else {
-            "[::]:0"
-        };
-        let clock_socket =
-            UdpSocket::bind(bind_address).map_err(|error| format!("Clock socket: {error}"))?;
-        clock_socket
-            .connect(SocketAddr::new(client.address.ip(), clock_udp_port))
-            .map_err(|error| format!("Clock endpoint: {error}"))?;
-        clock_socket
-            .set_read_timeout(Some(Duration::from_secs(2)))
-            .map_err(|error| error.to_string())?;
-        clock_socket
-            .set_write_timeout(Some(Duration::from_secs(2)))
-            .map_err(|error| error.to_string())?;
+        wanted: Vec<WantedDevice>,
+    ) -> BTreeMap<DonderDeviceId, Result<(), String>> {
         let mut core = lock_unpoisoned(&self.shared.core);
-        if core
+        if core.epoch != epoch {
+            core.epoch = epoch;
+            for binding in std::mem::take(&mut core.bindings) {
+                // An unreachable controller cannot be playing this editor's show.
+                let _ = binding.client.stop_loaded();
+            }
+        }
+        for binding in std::mem::take(&mut core.bindings) {
+            match wanted.iter().find(|device| device.id == binding.id) {
+                Some(device)
+                    if device.address == binding.client.address
+                        && device.ports == binding.ports =>
+                {
+                    core.bindings.push(binding);
+                }
+                Some(_) => {}
+                None => {
+                    let _ = binding.client.stop_loaded();
+                }
+            }
+        }
+        let mut results = BTreeMap::new();
+        for device in wanted {
+            let result = if core.bindings.iter().any(|binding| binding.id == device.id) {
+                Ok(())
+            } else {
+                bind(&core, &device).map(|binding| core.bindings.push(binding))
+            };
+            results.insert(device.id, result);
+        }
+        results
+    }
+    pub(crate) fn connections(&self) -> BTreeMap<DonderDeviceId, Result<Option<u32>, String>> {
+        lock_unpoisoned(&self.shared.core)
             .bindings
             .iter()
-            .any(|binding| binding.frame_rate != frame_rate)
-        {
-            return Err("Grouped devices must use the same output frame rate".into());
-        }
-        if core.epoch != epoch && !core.bindings.is_empty() {
-            return Err(
-                "Disconnect the previous project's devices before connecting this project".into(),
-            );
-        }
-        core.epoch = epoch;
-        // Changing clock masters while an old standalone show runs would move its time origin.
-        client.stop_loaded()?;
-        let mut binding = Binding {
-            client,
-            clock_socket,
-            frame_rate,
-            ports,
-            prepared: None,
-            uploaded: None,
-            sample: None,
-            rate_ppb: 0,
-            uncertainty: None,
-            error: None,
-        };
-        binding.synchronize(core.origin, core.clock_id)?;
-        core.bindings
-            .retain(|previous| previous.client.address != binding.client.address);
-        core.bindings.push(binding);
-        Ok(statuses(&core))
-    }
-    pub(crate) fn unregister(&self, address: &str) -> Result<Vec<SequenceDeviceStatus>, String> {
-        let address: SocketAddr = address.parse().map_err(|_| "Invalid device address")?;
-        let mut core = lock_unpoisoned(&self.shared.core);
-        if let Some(binding) = core
-            .bindings
-            .iter()
-            .find(|binding| binding.client.address == address)
-        {
-            binding.client.stop_loaded()?;
-        }
-        core.bindings
-            .retain(|binding| binding.client.address != address);
-        Ok(statuses(&core))
-    }
-    pub(crate) fn statuses(&self) -> Vec<SequenceDeviceStatus> {
-        statuses(&lock_unpoisoned(&self.shared.core))
+            .map(|binding| {
+                (
+                    binding.id.clone(),
+                    binding.error.clone().map_or(Ok(binding.uncertainty), Err),
+                )
+            })
+            .collect()
     }
     pub(crate) fn has_devices(&self) -> bool {
         !lock_unpoisoned(&self.shared.core).bindings.is_empty()
@@ -508,7 +482,16 @@ impl DevicePlaybackService {
             }
             samples.push((sample, status));
         }
-        let lead = Duration::from_millis((core.bindings.len() as u64 * 50).clamp(250, 1_000));
+        // Each schedule acknowledgment costs a few network round trips; slow
+        // links get a later start instead of a missed deadline.
+        let slowest = core
+            .bindings
+            .iter()
+            .filter_map(|binding| binding.uncertainty)
+            .max()
+            .unwrap_or(0);
+        let lead = Duration::from_millis((core.bindings.len() as u64 * 50).clamp(250, 1_000))
+            + Duration::from_micros(u64::from(slowest) * 8 * core.bindings.len() as u64);
         let frame_rate = u128::from(
             core.bindings
                 .first()
@@ -594,16 +577,56 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
         )
     }
 }
-fn statuses(core: &Core) -> Vec<SequenceDeviceStatus> {
-    core.bindings
+fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
+    let client = DeviceClient::new(device.address, &device.token)?;
+    let (frame_rate, clock_udp_port) = match client.capabilities()?.output {
+        DeviceOutputCapabilities::Ws281x {
+            frame_rate,
+            clock_udp_port,
+            ..
+        } if frame_rate > 0 && clock_udp_port > 0 => (frame_rate, clock_udp_port),
+        _ => return Err("Device does not advertise a valid physical output frame rate".into()),
+    };
+    if core
+        .bindings
         .iter()
-        .map(|binding| SequenceDeviceStatus {
-            address: binding.client.address.to_string(),
-            output_count: binding.ports.len() as u32,
-            clock_uncertainty_micros: binding.uncertainty,
-            last_error: binding.error.clone(),
-        })
-        .collect()
+        .any(|binding| binding.frame_rate != frame_rate)
+    {
+        return Err("Grouped devices must use the same output frame rate".into());
+    }
+    let bind_address = if client.address.is_ipv4() {
+        "0.0.0.0:0"
+    } else {
+        "[::]:0"
+    };
+    let clock_socket =
+        UdpSocket::bind(bind_address).map_err(|error| format!("Clock socket: {error}"))?;
+    clock_socket
+        .connect(SocketAddr::new(client.address.ip(), clock_udp_port))
+        .map_err(|error| format!("Clock endpoint: {error}"))?;
+    clock_socket
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| error.to_string())?;
+    clock_socket
+        .set_write_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| error.to_string())?;
+    // Changing clock masters while an old standalone show runs would move its time origin.
+    client.stop_loaded()?;
+    let mut binding = Binding {
+        id: device.id.clone(),
+        client,
+        clock_socket,
+        frame_rate,
+        ports: device.ports.clone(),
+        prepared: None,
+        uploaded: None,
+        sample: None,
+        rate_ppb: 0,
+        uncertainty: None,
+        error: None,
+    };
+    binding.synchronize(core.origin, core.clock_id)?;
+    Ok(binding)
 }
 impl Drop for DevicePlaybackService {
     fn drop(&mut self) {

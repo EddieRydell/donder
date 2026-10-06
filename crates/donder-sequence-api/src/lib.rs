@@ -167,10 +167,9 @@ pub enum SequenceGuiEdit {
         start_seconds: f32,
         row_target: FixtureTarget,
     },
-    ResizeAutomationClip {
+    SplitAutomationClip {
         id: u32,
-        start_seconds: f32,
-        duration_seconds: f32,
+        time_seconds: f32,
     },
     UpdateAutomationCurve {
         id: u32,
@@ -323,6 +322,7 @@ pub enum SequenceSelectionEdit {
         effect_ids: Vec<u32>,
         automation_ids: Vec<u32>,
         edge: SequenceResizeEdge,
+        automation: SequenceAutomationResize,
         time_delta_seconds: f32,
     },
     EditEffects {
@@ -450,6 +450,16 @@ pub enum SequenceEffectScope {
 pub enum SequenceResizeEdge {
     Left,
     Right,
+}
+
+/// How a resize treats an automation clip's curve.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SequenceAutomationResize {
+    /// The edge moves over fixed content.
+    Crop,
+    /// The content scales with the clip.
+    Stretch,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

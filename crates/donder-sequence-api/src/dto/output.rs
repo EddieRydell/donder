@@ -90,13 +90,6 @@ pub enum DeviceSequenceStorage {
     Persistent,
 }
 
-#[derive(Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ProvisionedDevice {
-    pub address: String,
-    pub token: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceSerialPort {
@@ -125,13 +118,58 @@ pub struct DevicePlaybackStatus {
     pub command_id: u32,
 }
 
+/// A Donder controller seen on the network, merged with this editor's claim
+/// and editor-playback connection.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DonderDeviceStatus {
+    pub id: String,
+    pub name: String,
+    pub address: String,
+    pub network: DonderDeviceNetwork,
+    pub claim: DonderDeviceClaim,
+    /// False when the controller's sequence format differs from this editor's.
+    pub firmware_current: bool,
+    pub connection: DonderDeviceConnection,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum DonderDeviceNetwork {
+    AccessPoint,
+    Station,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum DonderDeviceClaim {
+    Unclaimed,
+    Claimed,
+    ClaimedElsewhere,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "state",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum DonderDeviceConnection {
+    /// No controller in the open setup uses this device.
+    Unused,
+    Connected {
+        clock_uncertainty_micros: Option<u32>,
+    },
+    Failed {
+        error: String,
+    },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct SequenceDeviceStatus {
-    pub address: String,
-    pub output_count: u32,
-    pub clock_uncertainty_micros: Option<u32>,
-    pub last_error: Option<String>,
+pub struct DonderDeviceNetworkRequest {
+    pub ssid: String,
+    pub password: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

@@ -156,6 +156,7 @@ pub fn apply_sequence_selection_edit(
             effect_ids,
             automation_ids,
             edge,
+            automation,
             time_delta_seconds,
         } => {
             resize_clip_selection(
@@ -164,6 +165,7 @@ pub fn apply_sequence_selection_edit(
                 &effect_ids,
                 &automation_ids,
                 edge,
+                automation,
                 time_delta_seconds,
             )?;
             Ok(SequenceSelectionMutation {

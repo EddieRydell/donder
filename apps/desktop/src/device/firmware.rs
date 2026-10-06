@@ -146,8 +146,8 @@ pub(crate) fn install(
             Err(reset) => format!("{error} Reset also failed: {reset}."),
         });
     }
-    // Match the reliable transfer rate used by the controller acceptance runs.
-    if let Err(error) = flasher.change_baud(19_200) {
+    // The ESP flasher stub and a CH340 bridge write the 1.1 MB image in about 25 s at this rate.
+    if let Err(error) = flasher.change_baud(460_800) {
         let message =
             format!("Could not set installation speed: {error}. No firmware was written.");
         return Err(match flasher.connection().reset() {

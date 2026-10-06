@@ -56,10 +56,10 @@ effect VixenPulse {
 effect VixenAlternating {
   param array<gradient> colors;
   param array<curve> levels;
-  fixed param float interval_ms = 500.0;
-  fixed param bool enable_static = false;
-  fixed param int group_level = 1;
-  fixed param int interval_skip_count = 1;
+  param float interval_ms = 500.0;
+  param bool enable_static = false;
+  param int group_level = 1;
+  param int interval_skip_count = 1;
   color sample() {
     if (len(colors) == 0 || len(colors) != len(levels) || group_level <= 0 || (!enable_static && interval_ms <= 1.0)) {
       return rgb(0.0, 0.0, 0.0);
@@ -88,7 +88,7 @@ effect VixenAlternating {
 effect VixenStrobe {
   param gradient colors;
   param curve intensity_curve;
-  fixed param float cycle_time_ms = 150.0;
+  param float cycle_time_ms = 150.0;
   color sample() {
     if (cycle_time_ms <= 2.0) { return rgb(0.0, 0.0, 0.0); }
     float age = (seconds() * 1000.0) % cycle_time_ms;
@@ -120,9 +120,9 @@ effect VixenPinwheel {
   param enum size_scale_basis { largest_dimension, height, width } = largest_dimension;
   param enum blade_type { flat, three_d, inverted_three_d, fan } = flat;
   param float intensity = 100.0;
-  fixed param float random_seed = 0.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float random_seed = 0.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || arms < 1 || arms > 20 || len(colors) == 0 || len(colors) != len(levels)) {
       return rgb(0.0, 0.0, 0.0);
@@ -203,8 +203,8 @@ effect VixenButterfly {
   param bool use_base_color = false;
   param color base_color = #000000;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || background_skips <= 0) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -262,8 +262,8 @@ effect VixenColorwash {
   param bool vertical_fade = false;
   param bool shimmer = false;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
     float frame = floor(seconds() * 1000.0 / frame_interval_ms);
@@ -303,8 +303,8 @@ effect VixenPlasma {
   param float speed = 10.0;
   param float line_density = 10.0;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -354,8 +354,8 @@ effect VixenBars {
   param bool highlight = false;
   param bool show_3d = false;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || repeat < 1) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -414,8 +414,8 @@ effect VixenBorder {
   param float x_offset = 50.0;
   param float y_offset = 50.0;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -478,8 +478,8 @@ effect VixenSpiral {
   param bool blend = false;
   param bool show_3d = false;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || repeat < 1) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -544,8 +544,8 @@ effect VixenShockwave {
   param enum acceleration { linear, gentle_in, gentle_out, strong_out } = gentle_in;
   param bool blend_edges = true;
   param bool scaled_radius = true;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0) { return rgb(0.0, 0.0, 0.0); }
     float t = floor(seconds() * 1000.0 / frame_interval_ms) * frame_interval_ms / (duration() * 1000.0);
@@ -585,11 +585,11 @@ effect VixenGarlands {
   param array<gradient> colors;
   param enum direction { up, down, left, right } = up;
   param enum garland_type { type_0, type_1, type_2, type_3, type_4 } = type_0;
-  fixed param int iterations = 1;
-  fixed param float spacing = 10.0;
+  param int iterations = 1;
+  param float spacing = 10.0;
   param float intensity = 100.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0 || iterations < 1) { return rgb(0.0, 0.0, 0.0); }
     float frame = floor(seconds() * 1000.0 / frame_interval_ms);
@@ -659,8 +659,8 @@ effect VixenCurtain {
   param int iterations = 1;
   param int swag = 1;
   param bool intensity_per_iteration = false;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || swag < 0) { return rgb(0.0, 0.0, 0.0); }
     float frame = floor(seconds() * 1000.0 / frame_interval_ms);
@@ -728,7 +728,7 @@ effect VixenChase {
   param curve pulse_curve;
   param color static_color = #ffffff;
   param enum color_handling { single_color, gradient_per_pulse, gradient_through_effect, gradient_across_items } = single_color;
-  fixed param float pulse_overlap_ms = 0.0;
+  param float pulse_overlap_ms = 0.0;
   param bool enable_default_level = false;
   param float default_level = 0.0;
   param bool extend_pulse_to_start = false;
@@ -776,15 +776,15 @@ effect VixenSpin {
   param curve pulse_curve;
   param color static_color = #ffffff;
   param enum color_handling { single_color, gradient_per_pulse, gradient_through_effect, gradient_across_items } = single_color;
-  fixed param enum speed_format { revolution_count, revolution_frequency, fixed_time } = revolution_count;
-  fixed param enum pulse_length_format { distribute_evenly, percent_revolution, pulse_time } = distribute_evenly;
-  fixed param float revolutions = 3.0;
-  fixed param float frequency_hz = 2.0;
-  fixed param float revolution_time_ms = 500.0;
-  fixed param float pulse_time_ms = 100.0;
-  fixed param float pulse_overlap_ms = 0.0;
-  fixed param float pulse_percentage = 10.0;
-  fixed param bool reverse_spin = false;
+  param enum speed_format { revolution_count, revolution_frequency, fixed_time } = revolution_count;
+  param enum pulse_length_format { distribute_evenly, percent_revolution, pulse_time } = distribute_evenly;
+  param float revolutions = 3.0;
+  param float frequency_hz = 2.0;
+  param float revolution_time_ms = 500.0;
+  param float pulse_time_ms = 100.0;
+  param float pulse_overlap_ms = 0.0;
+  param float pulse_percentage = 10.0;
+  param bool reverse_spin = false;
   param bool enable_default_level = false;
   param float default_level = 0.0;
   color sample() {
@@ -853,14 +853,14 @@ effect VixenSpin {
 // nodes. Replays up to 10,000 transitions per sample; see the duration bound below.
 effect VixenCandleFlicker {
   param color light_color = #ffffff;
-  fixed param int group_level = 1;
-  fixed param int flicker_frequency = 20;
-  fixed param float change_percentage = 20.0;
-  fixed param float minimum_level = 10.0;
-  fixed param float maximum_level = 100.0;
-  fixed param float frequency_deviation = 25.0;
-  fixed param float change_deviation = 50.0;
-  fixed param float random_seed = 0.0;
+  param int group_level = 1;
+  param int flicker_frequency = 20;
+  param float change_percentage = 20.0;
+  param float minimum_level = 10.0;
+  param float maximum_level = 100.0;
+  param float frequency_deviation = 25.0;
+  param float change_deviation = 50.0;
+  param float random_seed = 0.0;
   color sample() {
     if (group_level <= 0 || flicker_frequency <= 0 || frequency_deviation < 0.0 || frequency_deviation >= 100.0 || minimum_level > maximum_level) { return rgb(0.0, 0.0, 0.0); }
     float group = floor(pixel_index() / group_level);
@@ -896,13 +896,13 @@ effect VixenWipe {
   param curve pulse_curve;
   param enum direction { horizontal, vertical } = horizontal;
   param enum color_handling { gradient_through_effect, color_across_items } = gradient_through_effect;
-  fixed param int pass_count = 1;
-  fixed param float pulse_percent = 33.0;
-  fixed param bool reverse_direction = false;
+  param int pass_count = 1;
+  param float pulse_percent = 33.0;
+  param bool reverse_direction = false;
   param bool color_across_item_per_count = true;
   param bool wipe_on = false;
   param bool wipe_off = false;
-  fixed param float pixel_size = 1.0;
+  param float pixel_size = 1.0;
   color sample() {
     if (pixel_size <= 0.0 || pass_count < 1 || duration() <= 0.0 || pulse_percent <= 0.0) { return rgb(0.0, 0.0, 0.0); }
     float steps = floor((target_max_x() - target_min_x()) / pixel_size);
@@ -950,9 +950,9 @@ effect VixenSpirograph {
   param float spirograph_range = 33.0;
   param bool animate = true;
   param float intensity = 100.0;
-  fixed param float random_seed = 0.0;
-  fixed param float pixel_size = 1.0;
-  fixed param float frame_interval_ms = 50.0;
+  param float random_seed = 0.0;
+  param float pixel_size = 1.0;
+  param float frame_interval_ms = 50.0;
   color sample() {
     if (pixel_size <= 0.0 || frame_interval_ms <= 0.0 || duration() <= 0.0 || len(colors) == 0) { return rgb(0.0, 0.0, 0.0); }
     float frame = floor(seconds() * 1000.0 / frame_interval_ms);
@@ -1013,14 +1013,14 @@ effect VixenSpirograph {
 effect VixenDissolve {
   param array<gradient> colors;
   param array<curve> levels;
-  fixed param curve dissolve_curve;
-  fixed param enum method { clear, fill } = clear;
-  fixed param bool random_dissolve = true;
-  fixed param bool dissolve_flip = true;
-  fixed param bool random_color = true;
-  fixed param int group_level = 1;
-  fixed param int starting_node = 1;
-  fixed param float random_seed = 0.0;
+  param curve dissolve_curve;
+  param enum method { clear, fill } = clear;
+  param bool random_dissolve = true;
+  param bool dissolve_flip = true;
+  param bool random_color = true;
+  param int group_level = 1;
+  param int starting_node = 1;
+  param float random_seed = 0.0;
   color sample() {
     if (duration() <= 0.0 || group_level <= 0 || pixel_count() > 10000 || len(colors) == 0 || len(colors) != len(levels)) { return rgb(0.0, 0.0, 0.0); }
     float groups = -floor(-pixel_count() / group_level);

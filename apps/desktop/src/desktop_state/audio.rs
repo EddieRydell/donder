@@ -75,7 +75,7 @@ impl DesktopState {
     }
 
     pub fn audio_play(&self) -> AppSnapshot {
-        if self.device_playback.has_devices() {
+        if self.device_playback.has_devices() || self.has_setup_devices() {
             return self
                 .device_audio_play()
                 .unwrap_or_else(|error| self.device_transport_error(error));

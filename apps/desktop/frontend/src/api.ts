@@ -1,5 +1,6 @@
 import { commands as generatedCommands } from "./generated/bindings";
 import type {
+  DonderDeviceNetworkRequest,
   FixtureGuiEdit,
   GuiDocumentRequest,
   LayoutGuiEdit,
@@ -24,6 +25,12 @@ export const commands = {
     unwrapResult(await generatedCommands.setLiveOutputActive(active)),
   startOutputTest: async (request: GuiDocumentRequest, test: import("./types").ControllerOutputTest) =>
     unwrapResult(await generatedCommands.startOutputTest(request, test)),
+  claimDevice: async (id: string) => unwrapResult(await generatedCommands.claimDevice(id)),
+  renameDevice: async (id: string, name: string) => unwrapResult(await generatedCommands.renameDevice(id, name)),
+  setDeviceStandalone: async (id: string, playing: boolean) =>
+    unwrapResult(await generatedCommands.setDeviceStandalone(id, playing)),
+  setDeviceNetwork: async (id: string, network: DonderDeviceNetworkRequest | null) =>
+    unwrapResult(await generatedCommands.setDeviceNetwork(id, network)),
   searchProject: async (request: import("./types").ProjectSearchRequest) =>
     unwrapResult(await generatedCommands.searchProject(request)),
   planWorkspacePathChange: async (request: import("./types").WorkspacePathChangeRequest) =>
