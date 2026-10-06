@@ -146,6 +146,18 @@ impl DesktopState {
         })
     }
 
+    pub fn audio_set_playback_rate(&self, rate: donder_runtime::PlaybackRate) -> AppSnapshot {
+        if self.device_playback.has_devices() {
+            return self
+                .device_audio_set_rate(rate)
+                .unwrap_or_else(|error| self.device_transport_error(error));
+        }
+        let audio_transport = lock_unpoisoned(&self.audio).set_playback_rate(rate);
+        self.update_snapshot(|snapshot| {
+            snapshot.audio_transport = audio_transport;
+        })
+    }
+
     #[cfg(test)]
     pub fn render_current_sequence_frame(
         &self,

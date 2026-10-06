@@ -123,20 +123,6 @@ impl<'a> MappingReader<'a> {
             })
             .transpose()
     }
-    pub(crate) fn strings(&self, key: &str) -> Result<Vec<String>, LoadProjectError> {
-        self.sequence(key)?
-            .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| LoadProjectError::InvalidDocument {
-                        path: self.path.to_owned(),
-                        range: source_range_for_value(self.path, v),
-                        message: format!("field `{key}` values must be strings"),
-                    })
-            })
-            .collect()
-    }
     /// Dynamic names are deliberate. Every entry is passed through the parser.
     pub(crate) fn dictionary<T>(
         &self,

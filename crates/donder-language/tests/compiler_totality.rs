@@ -4,15 +4,15 @@ use donder_language::dsl::{compile_effects, compile_operators};
 fn malformed_source_never_panics_during_compilation() {
     let templates = [
         (
-            "effect Probe { param float amount = 0.5; color sample() { float x = amount; for (int i = 0; i < 3; i = i + 1) { x = x * 0.5; } return rgb(x, 0.0, 0.0); } }",
+            "effect Probe { param float amount in 0.0..1.0 = 0.5; color sample() { float x = amount; for (int i = 0; i < 3; i = i + 1) { x = x * 0.5; } return rgb(x, 0.0, 0.0); } }",
             true,
         ),
         (
-            "operator Probe { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds() - gain); } }",
+            "operator Probe { input Signal source; param float gain in 0.0..1.0 = 0.5; color sample() { return source.at(seconds() - gain); } }",
             false,
         ),
         (
-            "effect Probe { param marks beats; param int count = 2; color sample() { float sum = 0.0; for (int i in range(count, 10000)) { for (int mark in beats) { sum = sum + mark_at(beats, mark); } } return rgb(sum, 0.0, 0.0); } }",
+            "effect Probe { param marks beats; param int count in 0..100 = 2; color sample() { float sum = 0.0; for (int i in range(count)) { for (int mark in beats) { sum = sum + mark_at(beats, mark); } } return rgb(sum, 0.0, 0.0); } }",
             true,
         ),
     ];

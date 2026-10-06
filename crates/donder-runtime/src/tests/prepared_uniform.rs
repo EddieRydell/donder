@@ -237,7 +237,7 @@ fn recursive_operator_automation_matches_frame_sampling_after_seeks_and_edits() 
     )
     .unwrap()
     .remove(0);
-    let gain = compile_operators("operator Gain { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds()) * gain; } }").unwrap().remove(0);
+    let gain = compile_operators("operator Gain { input Signal source; param float gain in 0.0..1.0 = 0.5; color sample() { return source.at(seconds()) * gain; } }").unwrap().remove(0);
     let sample = playback::sample(
         &effect,
         &donder_language::dsl::bind_params(effect.params(), &IndexMap::new()).unwrap(),
@@ -468,7 +468,7 @@ fn staged_nested_operators_track_sibling_parameters_and_temporal_revisits() {
     )
     .unwrap()
     .remove(0);
-    let gain = compile_operators("operator Gain { input Signal source; param float gain = 0.5; color sample() { return source.at(seconds()) * (gain * progress()); } }").unwrap().remove(0);
+    let gain = compile_operators("operator Gain { input Signal source; param float gain in 0.0..1.0 = 0.5; color sample() { return source.at(seconds()) * (gain * progress()); } }").unwrap().remove(0);
     let mix = compile_operators(
         "operator Mix { input Signal a; input Signal b; color sample() {
         float now = seconds(); float past = now * 0.5;
@@ -670,7 +670,7 @@ fn mixed_pixel_and_time_expressions_match_single_pixel_sampling() {
             float phase = sin(seconds() * 7.0) * 0.5 + 0.5;
             return rgb(x * phase, progress(), phase);
         } }",
-        "effect Mixed { param float gain = 0.7; color sample() {
+        "effect Mixed { param float gain in 0.0..1.0 = 0.7; color sample() {
             float phase = sin(seconds()) * 0.5 + 0.5;
             gain = gain * progress();
             if (pixel_index() % 2 == 0) { gain = gain * pixel_fraction(); }

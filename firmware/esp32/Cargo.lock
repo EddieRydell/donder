@@ -485,6 +485,7 @@ name = "donder-device-storage"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
+ "donder-runtime",
  "littlefs2",
  "serde",
  "serde-json-core",

@@ -12,16 +12,16 @@ files, and the controller runs the same engine as the preview.
 
 Effects and operators are written in Donder's effect language and compiled to
 bytecode. The bundled libraries (Chase, Wipe, Spin, mark-triggered pulses, and
-[about twenty Vixen effects](docs/vixen_effects.md)) are ordinary source files in
+[eighteen Vixen effects](docs/vixen_effects.md)) are ordinary source files in
 your project. Open one, change it, or write your own:
 
 ```c
 effect Pulse {
   param gradient gradient;
-  param curve pulse_shape;
+  param curve pulse_shape in 0.0..1.0;
 
   color sample() {
-    return gradient_color_scaled(gradient, progress(), curve_clamped(pulse_shape, progress(), 0.0, 1.0));
+    return gradient_color_scaled(gradient, progress(), pulse_shape[progress()]);
   }
 }
 ```
@@ -29,7 +29,7 @@ effect Pulse {
 An effect samples one color per pixel per frame. It can read the pixel's index,
 its position in layout space, the target's bounds, curves, gradients, beat marks
 and time. Parameters declared with `param` appear as editable, automatable
-controls in the editor.
+controls in the editor, bounded by their declared ranges.
 
 ## Composition is a graph
 
@@ -40,7 +40,7 @@ and any pixel:
 ```c
 operator TimeWarp {
   input Signal source;
-  param float offset_seconds = 0.0;
+  param float offset_seconds in -1.0..1.0 = 0.0;
 
   color sample() {
     return source.at(seconds() + offset_seconds);
@@ -58,7 +58,7 @@ graph while you work on them.
 
 An automation clip is a curve placed on the timeline. It is not tied to one
 parameter: each clip binds to any number of parameters on any effects or graph
-operators, with a mapping for each. One clip can sweep a hue shift, push a time
+operators, mapped onto each parameter's declared range. One clip can sweep a hue shift, push a time
 warp and fade an effect together, and moving the clip moves all of them.
 
 ```yaml
@@ -70,7 +70,6 @@ automation_clips:
   curve: { points: [{ position: 0.0, value: 0.0 }, { position: 1.0, value: 1.0 }] }
   bindings:
   - target: { type: composition_node_param, node_id: 5, param: offset_seconds }
-    mapping: { type: float, min: -1.0, max: 1.0 }
 ```
 
 Mark collections place beats and cues on the timeline. Mark effects retrigger

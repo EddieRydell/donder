@@ -58,10 +58,7 @@ pub(crate) fn parse_automation_binding(
 ) -> Result<AutomationBinding, LoadProjectError> {
     parse_mapping(path, value, "automation binding", |fields| {
         let target = parse_automation_target(path, fields.required("target")?)?;
-        Ok(AutomationBinding {
-            target,
-            mapping: parse_automation_mapping(path, fields.required("mapping")?)?,
-        })
+        Ok(AutomationBinding { target })
     })
 }
 
@@ -82,11 +79,7 @@ pub(crate) fn parse_detached_automation_binding(
                 });
             }
         };
-        Ok(DetachedAutomationBinding {
-            target,
-            mapping: parse_automation_mapping(path, fields.required("mapping")?)?,
-            reason,
-        })
+        Ok(DetachedAutomationBinding { target, reason })
     })
 }
 
@@ -109,49 +102,6 @@ pub(crate) fn parse_automation_target(
                     path: path.to_path_buf(),
                     range: source_range_for_field_value(path, value, "type"),
                     message: format!("unsupported automation target `{other}`"),
-                });
-            }
-        })
-    })
-}
-
-pub(crate) fn parse_automation_mapping(
-    path: &Utf8Path,
-    value: &Value,
-) -> Result<AutomationMapping, LoadProjectError> {
-    parse_mapping(path, value, "automation mapping", |fields| {
-        Ok(match fields.string("type")? {
-            "float" => AutomationMapping::Float {
-                min: fields.f32("min")?,
-                max: fields.f32("max")?,
-            },
-            "int" => AutomationMapping::Int {
-                min: fields.i32("min")?,
-                max: fields.i32("max")?,
-            },
-            "bool" => AutomationMapping::Bool,
-            "enum" => AutomationMapping::Enum {
-                values: fields
-                    .strings("values")?
-                    .into_iter()
-                    .map(|enum_value| {
-                        Identifier::new(enum_value).map_err(|_| LoadProjectError::InvalidDocument {
-                            path: path.to_path_buf(),
-                            range: source_range_for_field_value(path, value, "values"),
-                            message: "enum automation values must be identifiers".to_string(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            },
-            "curve" => AutomationMapping::Curve {
-                min: fields.f32("min")?,
-                max: fields.f32("max")?,
-            },
-            other => {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: source_range_for_field_value(path, value, "type"),
-                    message: format!("unsupported automation mapping `{other}`"),
                 });
             }
         })
@@ -523,9 +473,9 @@ use donder_language::model::ProjectId;
 use donder_language::operator::OperatorDefinitionId;
 use donder_language::patch::PatchId;
 use donder_language::sequence::{
-    AutomationBinding, AutomationDetachmentReason, AutomationMapping, AutomationTarget,
-    CompositionGraphNodeId, DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition,
-    GraphPortId, MarkCollection, MarkCollectionKey, SequenceId, SequenceLayer, SequenceLayerId,
+    AutomationBinding, AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeId,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
+    MarkCollectionKey, SequenceId, SequenceLayer, SequenceLayerId,
 };
 use donder_language::setup::SetupId;
 use donder_language::values::{
@@ -542,32 +492,6 @@ use crate::{LoadProjectError, SourceObjectKind};
 #[cfg(test)]
 mod strict_mapping_tests {
     use super::*;
-
-    #[test]
-    fn automation_mappings_only_accept_their_own_variant_fields() {
-        let path = Utf8Path::new("test.donder");
-        for (source, forbidden) in [
-            ("{type: bool}", "min"),
-            ("{type: float, min: 0, max: 1}", "values"),
-            ("{type: int, min: 0, max: 1}", "values"),
-            ("{type: curve, min: 0, max: 1}", "values"),
-            ("{type: enum, values: [one, two]}", "max"),
-        ] {
-            let mut value: Value = yaml_serde::from_str(source).unwrap();
-            parse_automation_mapping(path, &value).unwrap();
-            value
-                .as_mapping_mut()
-                .unwrap()
-                .insert(Value::String(forbidden.into()), Value::Null);
-            let error = parse_automation_mapping(path, &value).unwrap_err();
-            assert!(
-                error
-                    .to_string()
-                    .contains(&format!("unknown field `{forbidden}`")),
-                "{error}"
-            );
-        }
-    }
 
     #[test]
     fn automation_targets_only_accept_their_own_variant_fields() {

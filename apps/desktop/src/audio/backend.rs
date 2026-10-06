@@ -5,6 +5,7 @@ use kira::sound::{FromFileError, PlaybackState};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 
 use crate::dto::SequenceAudio;
+use donder_runtime::PlaybackRate;
 
 type KiraManager = AudioManager<DefaultBackend>;
 type KiraStreamingHandle = StreamingSoundHandle<FromFileError>;
@@ -26,6 +27,7 @@ pub(super) trait AudioDriver: Send {
         path: &str,
         position_seconds: f32,
         deadline: Option<Instant>,
+        rate: PlaybackRate,
     ) -> Result<Box<dyn AudioHandle>, String>;
     fn debug_observe(&mut self) {}
 }
@@ -44,6 +46,7 @@ pub(super) trait AudioHandle: Send {
     fn pause(&mut self, deadline: Option<Instant>);
     fn resume(&mut self);
     fn seek_to(&mut self, position_seconds: f32);
+    fn set_playback_rate(&mut self, rate: PlaybackRate);
     fn stop(&mut self);
 }
 
@@ -116,6 +119,7 @@ impl AudioDriver for KiraAudioDriver {
         path: &str,
         position_seconds: f32,
         deadline: Option<Instant>,
+        rate: PlaybackRate,
     ) -> Result<Box<dyn AudioHandle>, String> {
         audio_debug(format_args!(
             "create sound path={path:?} position={position_seconds}"
@@ -123,7 +127,8 @@ impl AudioDriver for KiraAudioDriver {
         let sound = StreamingSoundData::from_file(path)
             .inspect_err(|error| audio_debug(format_args!("open sound failed: {error:?}")))
             .map_err(|error| error.to_string())?
-            .start_position(f64::from(position_seconds));
+            .start_position(f64::from(position_seconds))
+            .playback_rate(f64::from(rate.speed()));
         if deadline.is_some_and(|deadline| deadline <= Instant::now()) {
             return Err("Audio start deadline passed while opening the source".into());
         }
@@ -176,6 +181,11 @@ impl AudioHandle for KiraAudioHandle {
 
     fn seek_to(&mut self, position_seconds: f32) {
         self.handle.seek_to(f64::from(position_seconds));
+    }
+
+    fn set_playback_rate(&mut self, rate: PlaybackRate) {
+        self.handle
+            .set_playback_rate(f64::from(rate.speed()), instant_tween());
     }
 
     fn stop(&mut self) {

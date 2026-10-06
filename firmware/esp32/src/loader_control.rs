@@ -118,6 +118,7 @@ impl RequestHandlerService<LoaderState> for Control {
                 at_micros,
                 mode,
                 position_micros,
+                speed,
                 looping,
                 archive_crc,
                 archive_bytes,
@@ -142,19 +143,23 @@ impl RequestHandlerService<LoaderState> for Control {
                     {
                         Err("Start deadline is late or too far ahead")
                     }
-                    Some(p) => {
-                        if p.transport.schedule(transport::Scheduled {
-                            id: command_id,
-                            at: at_micros,
-                            mode,
-                            position: position_micros,
-                            looping,
-                        }) {
-                            Ok(())
-                        } else {
-                            Err("Stale transport command")
+                    Some(p) => match speed.rate() {
+                        None => Err("Playback speed must be positive"),
+                        Some(rate) => {
+                            if p.transport.schedule(transport::Scheduled {
+                                id: command_id,
+                                at: at_micros,
+                                mode,
+                                position: position_micros,
+                                looping,
+                                rate,
+                            }) {
+                                Ok(())
+                            } else {
+                                Err("Stale transport command")
+                            }
                         }
-                    }
+                    },
                 }
             }
             Command::Cancel { command_id } => {

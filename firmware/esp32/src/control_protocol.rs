@@ -23,6 +23,7 @@ pub enum Command {
         at_micros: u64,
         mode: transport::Mode,
         position_micros: u32,
+        speed: Speed,
         looping: bool,
         archive_crc: u32,
         archive_bytes: u32,
@@ -30,6 +31,32 @@ pub enum Command {
     Cancel {
         command_id: u32,
     },
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Speed {
+    pub show_micros_per_second: u32,
+    pub frame_timing: FrameTiming,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FrameTiming {
+    Scaled,
+    Constant,
+}
+
+impl Speed {
+    pub fn rate(&self) -> Option<donder_runtime::PlaybackRate> {
+        Some(donder_runtime::PlaybackRate::new(
+            core::num::NonZeroU32::new(self.show_micros_per_second)?,
+            match self.frame_timing {
+                FrameTiming::Scaled => donder_runtime::FrameTiming::Scaled,
+                FrameTiming::Constant => donder_runtime::FrameTiming::Constant,
+            },
+        ))
+    }
 }
 
 impl<'de> serde::Deserialize<'de> for transport::Mode {
@@ -76,7 +103,7 @@ mod tests {
     }
     #[test]
     fn scheduled_and_cancel_commands_decode_with_the_embedded_parser() {
-        let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"looping":false,"archiveCrc":123,"archiveBytes":11860}}"#;
+        let payload = br#"{"schedule":{"bootId":1,"clockId":2,"commandId":3,"atMicros":4294967400,"mode":"playing","positionMicros":1000000,"speed":{"showMicrosPerSecond":500000,"frameTiming":"constant"},"looping":false,"archiveCrc":123,"archiveBytes":11860}}"#;
         let (command, used) = serde_json_core::from_slice::<Command>(payload).unwrap();
         assert_eq!(used, payload.len());
         assert!(matches!(
@@ -88,6 +115,10 @@ mod tests {
                 at_micros: 4294967400,
                 mode: transport::Mode::Playing,
                 position_micros: 1000000,
+                speed: Speed {
+                    show_micros_per_second: 500000,
+                    frame_timing: FrameTiming::Constant
+                },
                 looping: false,
                 archive_crc: 123,
                 archive_bytes: 11860

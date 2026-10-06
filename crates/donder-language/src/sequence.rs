@@ -206,7 +206,6 @@ impl AutomationClip {
             if matches(&binding.target) {
                 self.detached_bindings.push(DetachedAutomationBinding {
                     target: binding.target,
-                    mapping: binding.mapping,
                     reason: reason.clone(),
                 });
             } else {
@@ -216,36 +215,25 @@ impl AutomationClip {
         self.bindings = retained;
     }
 
-    pub fn bind(&mut self, target: AutomationTarget, mapping: AutomationMapping) {
+    pub fn bind(&mut self, target: AutomationTarget) {
         self.detached_bindings
             .retain(|binding| binding.target != target);
-        self.bindings.push(AutomationBinding { target, mapping });
+        self.bindings.push(AutomationBinding { target });
     }
 }
 
 /// Every clip actively bound to one target, merged into a single curve.
-pub struct AutomationEnvelope<'a> {
+pub struct AutomationEnvelope {
     pub start: DonderTime,
     pub duration: DonderDuration,
     pub curve: Curve,
-    pub mapping: &'a AutomationMapping,
 }
 
 impl Sequence {
-    /// The active mapping shared by every clip bound to `target`.
-    pub fn automation_mapping(&self, target: &AutomationTarget) -> Option<&AutomationMapping> {
-        self.automation_clips.iter().find_map(|clip| {
-            clip.bindings
-                .iter()
-                .find(|binding| &binding.target == target)
-                .map(|binding| &binding.mapping)
-        })
-    }
-
     /// Clips bound to one target never overlap. Before the first clip the
     /// envelope holds its first value, and each gap holds the value the
     /// previous clip ended on.
-    pub fn automation_envelope(&self, target: &AutomationTarget) -> Option<AutomationEnvelope<'_>> {
+    pub fn automation_envelope(&self, target: &AutomationTarget) -> Option<AutomationEnvelope> {
         let mut clips = self
             .automation_clips
             .iter()
@@ -255,13 +243,11 @@ impl Sequence {
                     .any(|binding| &binding.target == target)
             })
             .collect::<Vec<_>>();
-        let mapping = self.automation_mapping(target)?;
         if let [clip] = clips.as_slice() {
             return Some(AutomationEnvelope {
                 start: clip.start.clone(),
                 duration: clip.duration.clone(),
                 curve: clip.curve.clone(),
-                mapping,
             });
         }
         clips.sort_by_key(|clip| clip.start.0);
@@ -309,12 +295,11 @@ impl Sequence {
             start: DonderTime(start),
             duration: DonderDuration(end - start),
             curve: Curve { points },
-            mapping,
         })
     }
 }
 
-impl AutomationEnvelope<'_> {
+impl AutomationEnvelope {
     /// The envelope over a target's time range, with target-relative positions.
     /// Preserve coincident points: they encode steps, and the last point wins at a boundary.
     pub fn curve_in_range(&self, start: &DonderTime, duration: &DonderDuration) -> Curve {
@@ -350,13 +335,11 @@ pub struct AutomationClipId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutomationBinding {
     pub target: AutomationTarget,
-    pub mapping: AutomationMapping,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetachedAutomationBinding {
     pub target: AutomationTarget,
-    pub mapping: AutomationMapping,
     pub reason: AutomationDetachmentReason,
 }
 
@@ -394,15 +377,8 @@ pub enum AutomationTarget {
     },
 }
 
+/// `mapping` comes from the target parameter declaration.
 pub fn automation_value_at<'a>(
-    clip: &AutomationClip,
-    binding: &'a AutomationBinding,
-    sample_seconds: f32,
-) -> Option<AutomationValue<'a>> {
-    automation_mapping_value_at(clip, &binding.mapping, sample_seconds)
-}
-
-pub fn automation_mapping_value_at<'a>(
     clip: &AutomationClip,
     mapping: &'a AutomationMapping,
     sample_seconds: f32,

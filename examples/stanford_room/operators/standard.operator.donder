@@ -48,10 +48,10 @@ operator IntensityModulate {
 
 operator Dim {
   input Signal input;
-  param float amount = 0.5;
+  param float amount in 0.0..1.0 = 0.5;
 
   color sample() {
-    return input.at(seconds()) * clamp(amount, 0.0, 1.0);
+    return input.at(seconds()) * amount;
   }
 }
 
@@ -74,7 +74,8 @@ operator Colorize {
 
 operator HueShift {
   input Signal source;
-  param float shift = 0.0;
+  // Turns; a whole turn leaves the hue unchanged.
+  param float shift in 0.0..1.0 = 0.0;
 
   color sample() {
     color value = source.at(seconds());
@@ -85,42 +86,26 @@ operator HueShift {
 
 operator Delay {
   input Signal input;
-  param float seconds = 0.1;
+  param float seconds in 0.0..60.0 = 0.1;
 
   color sample() {
-    return input.at(seconds() - max(0.0, seconds));
+    return input.at(seconds() - seconds);
   }
 }
 
 operator Echo {
   input Signal input;
-  param float seconds = 0.1;
-  param int repeats = 3;
-  param float decay = 0.5;
+  param float seconds in 0.0..60.0 = 0.1;
+  param int repeats in 1..32 = 3;
+  param float decay in 0.0..1.0 = 0.5;
 
+  // Samples before the sequence are black, so early echoes add nothing.
   color sample() {
-    float delay = max(0.0, seconds);
-    int count = repeats;
-    if (count < 1) { count = 1; }
-    if (count > 32) { count = 32; }
-    float fade = clamp(decay, 0.0, 1.0);
     color result = rgb(0.0, 0.0, 0.0);
-    for (int repeat = 0; repeat <= 32; repeat = repeat + 1) {
-      if (repeat <= count) {
-        float time = seconds() - delay * repeat;
-        if (time >= 0.0) {
-          // Exponentiation by squaring preserves the decay multiplication order.
-          float amount = 1.0;
-          float base = fade;
-          for (int bit = 1; bit <= 32; bit = bit * 2) {
-            if (bit <= repeat) {
-              if (repeat % (bit * 2) >= bit) { amount = amount * base; }
-              base = base * base;
-            }
-          }
-          result = max(result, input.at(time) * amount);
-        }
-      }
+    float amount = 1.0;
+    for (int repeat in range(repeats + 1)) {
+      result = max(result, input.at(seconds() - seconds * repeat) * amount);
+      amount = amount * decay;
     }
     return result;
   }
@@ -128,21 +113,20 @@ operator Echo {
 
 operator FreezeFrame {
   input Signal input;
-  param float interval_seconds = 0.01;
-  param float fade_seconds = 1.0;
+  param float interval_seconds in 0.001..10.0 = 0.01;
+  param float fade_seconds in 0.001..60.0 = 1.0;
 
+  // Keeps at most 32 snapshots; samples before the sequence are black.
   color sample() {
-    float interval = max(0.000001, interval_seconds);
-    float fade = max(0.000001, fade_seconds);
     float now = seconds();
-    float capture_index = floor(now / interval);
+    float capture_index = floor(now / interval_seconds);
     color result = rgb(0.0, 0.0, 0.0);
-    for (int snapshot = 0; snapshot < 32; snapshot = snapshot + 1) {
-      float snapshot_time = (capture_index - snapshot) * interval;
+    int snapshots = int(min(32.0, ceil(fade_seconds / interval_seconds)));
+    for (int snapshot in range(snapshots)) {
+      float snapshot_time = (capture_index - snapshot) * interval_seconds;
       float age = now - snapshot_time;
-      if (snapshot_time >= 0.0 && age < fade) {
-        float amount = 1.0 - age / fade;
-        result = max(result, input.at(snapshot_time) * amount);
+      if (age < fade_seconds) {
+        result = max(result, input.at(snapshot_time) * (1.0 - age / fade_seconds));
       }
     }
     return result;

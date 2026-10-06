@@ -30,6 +30,6 @@ export const desktopSequenceEditorHost: SequenceEditorHost = {
   runSnapshotCommand: (command) => runSnapshotCommand(async () => completeSnapshot(await command())),
   resolveAssetUrl: convertFileSrc,
   navigateToGuiObject,
-  capabilities: { audioFile: true, liveOutput: true, previewWindow: true },
+  capabilities: { audioFile: true, liveOutput: true, previewWindow: true, playbackSpeed: true },
   exportControls: <SequenceExportDialog />
 };

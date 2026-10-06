@@ -8,7 +8,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bindings.ts");
     let types = Types::default()
         .register::<SequenceAutomationTarget>()
-        .register::<SequenceAutomationMapping>()
         .register::<SequenceGuiEdit>()
         .register::<SequenceMarkRef>()
         .register::<SequencePasteAnchor>()
@@ -119,6 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<SequenceGraphPortCardinality>()
         .register::<SequenceEffectParam>()
         .register::<SequenceParamAutomation>()
+        .register::<SequenceParamRange>()
         .register::<SequenceEffectDefinition>()
         .register::<SequenceEffectDefinitionParam>()
         .register::<SequenceLane>()

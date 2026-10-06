@@ -15,7 +15,9 @@ use super::{
     BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ContextRead, FloatBinary,
     FloatUnary, Instruction, MarkOp, NumberSlot, SignalPixel, ValueSlot,
 };
-use crate::sampling::{add_colors, max_colors, mix_colors, multiply_colors};
+use crate::sampling::{
+    add_colors, float_remainder, int_remainder, max_colors, mix_colors, multiply_colors,
+};
 use crate::sections::{PreparedSections, SectionContext, SectionPixel};
 use crate::values::{Color, Curve, Gradient, Marks, SampleTime};
 use alloc::vec::Vec;
@@ -1477,7 +1479,7 @@ impl<'a> Batch<'a> {
                 float2!(dst, left, right, |a, b| a / b)
             }
             Instruction::FloatRemainder { dst, left, right } => {
-                float2!(dst, left, right, |a, b| a % b)
+                float2!(dst, left, right, |a, b| float_remainder(a, b))
             }
             Instruction::FloatAddConst {
                 dst,
@@ -1517,7 +1519,7 @@ impl<'a> Batch<'a> {
                 constant_bits,
             } => {
                 let constant = f32::from_bits(*constant_bits);
-                float1!(dst, value, |value| value % constant)
+                float1!(dst, value, |value| float_remainder(value, constant))
             }
             Instruction::FloatSubtractFromConst {
                 dst,
@@ -1541,7 +1543,7 @@ impl<'a> Batch<'a> {
                 constant_bits,
             } => {
                 let constant = f32::from_bits(*constant_bits);
-                float1!(dst, value, |value| constant % value)
+                float1!(dst, value, |value| float_remainder(constant, value))
             }
             Instruction::IntAdd { dst, left, right } => {
                 int2!(dst, left, right, |a, b| a.wrapping_add(b))
@@ -1553,7 +1555,7 @@ impl<'a> Batch<'a> {
                 int2!(dst, left, right, |a, b| a.wrapping_mul(b))
             }
             Instruction::IntRemainder { dst, left, right } => {
-                int2!(dst, left, right, |a, b| a.checked_rem(b).unwrap_or(0))
+                int2!(dst, left, right, |a, b| int_remainder(a, b))
             }
             Instruction::FloatCompare {
                 dst,
@@ -1840,6 +1842,8 @@ impl<'a> Batch<'a> {
                 FloatUnary::Cos => float1!(dst, value, |v| float_unary(FloatUnary::Cos, v)),
                 FloatUnary::Abs => float1!(dst, value, |v| float_unary(FloatUnary::Abs, v)),
                 FloatUnary::Floor => float1!(dst, value, |v| float_unary(FloatUnary::Floor, v)),
+                FloatUnary::Ceil => float1!(dst, value, |v| float_unary(FloatUnary::Ceil, v)),
+                FloatUnary::Trunc => float1!(dst, value, |v| float_unary(FloatUnary::Trunc, v)),
                 FloatUnary::Sqrt => float1!(dst, value, |v| float_unary(FloatUnary::Sqrt, v)),
             },
             Instruction::FloatBinary {

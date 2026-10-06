@@ -390,6 +390,7 @@ fn send_clock(writer: &PreviewWriter, clock: AudioTransportSnapshot) -> Result<(
             state: clock.state,
             position_seconds: clock.position_seconds,
             start_delay_seconds: clock.start_delay_seconds,
+            playback_speed: clock.playback_speed,
         },
     )
 }

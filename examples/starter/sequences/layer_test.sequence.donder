@@ -200,7 +200,7 @@ layer_test:
         value: 80.0
       section_width_pixels:
         type: integer
-        value: 0
+        value: 1
     effect: effects.Spin
   - id: 7
     layer_id: 0
@@ -1146,8 +1146,4 @@ layer_test:
         type: composition_node_param
         node_id: 5
         param: offset_seconds
-      mapping:
-        type: float
-        min: -1.0
-        max: 1.0
     detached_bindings: []

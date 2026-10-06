@@ -36,20 +36,6 @@ pub enum SequenceAutomationTarget {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum SequenceAutomationMapping {
-    Float { min: f32, max: f32 },
-    Int { min: f32, max: f32 },
-    Bool,
-    Enum { values: Vec<String> },
-    Curve { min: f32, max: f32 },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(
-    tag = "type",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
 pub enum SequenceGuiEdit {
     SetDuration {
         duration_seconds: f32,
@@ -160,7 +146,6 @@ pub enum SequenceGuiEdit {
     },
     CreateAndBindAutomationClip {
         target: SequenceAutomationTarget,
-        mapping: SequenceAutomationMapping,
     },
     MoveAutomationClip {
         id: u32,
@@ -175,18 +160,12 @@ pub enum SequenceGuiEdit {
         id: u32,
         curve: Vec<SequenceCurvePoint>,
     },
-    UpdateAutomationParamMapping {
-        clip_id: u32,
-        target: SequenceAutomationTarget,
-        mapping: SequenceAutomationMapping,
-    },
     DeleteAutomationClip {
         id: u32,
     },
     BindAutomationParam {
         clip_id: u32,
         target: SequenceAutomationTarget,
-        mapping: SequenceAutomationMapping,
     },
     UnbindAutomationParam {
         clip_id: u32,
@@ -196,7 +175,6 @@ pub enum SequenceGuiEdit {
         clip_id: u32,
         detached_index: u32,
         target: SequenceAutomationTarget,
-        mapping: SequenceAutomationMapping,
     },
     DiscardDetachedAutomation {
         clip_id: u32,

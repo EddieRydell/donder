@@ -90,7 +90,6 @@ pub(crate) enum Stmt {
     ForRange {
         index: Identifier,
         count: Expr,
-        cap: Expr,
         body: Block,
     },
     Return(Expr),

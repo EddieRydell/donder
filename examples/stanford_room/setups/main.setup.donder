@@ -16,9 +16,12 @@ main:
 dig_quad:
   type: controller
   protocol:
-    type: donder
-    device: b0cbd8030790
+    type: e131
+    source_name: Donder
+    bind_address: 0.0.0.0
+    priority: 100
+    mode: multicast
   ports:
   - id: 1
-    output: 1
+    universe: 1
     slot_count: 450

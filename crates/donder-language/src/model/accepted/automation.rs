@@ -30,10 +30,15 @@ pub(super) fn admit(
                 AutomationTarget::EffectParam { param, .. }
                 | AutomationTarget::CompositionNodeParam { param, .. } => param,
             };
-            let param_index = params
+            let (param_index, mapping) = params
                 .iter()
                 .position(|param| &param.name == name)
-                .and_then(|index| u16::try_from(index).ok())
+                .and_then(|index| {
+                    Some((
+                        u16::try_from(index).ok()?,
+                        params[index].automation_mapping()?,
+                    ))
+                })
                 .ok_or_else(|| {
                     ProjectValidationError::InvalidRelationship(
                         "Unknown automation parameter".into(),
@@ -50,7 +55,7 @@ pub(super) fn admit(
                 start: SampleTime::from_ticks(envelope.start.as_micros_rounded() as u32),
                 duration: SampleDuration::from_ticks(envelope.duration.as_micros_rounded() as u32),
                 curve: Arc::new(curve),
-                mapping: envelope.mapping.clone(),
+                mapping,
                 param_index,
             })
         })

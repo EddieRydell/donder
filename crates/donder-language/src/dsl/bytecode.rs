@@ -3045,6 +3045,8 @@ pub enum FloatUnary {
     Cos,
     Abs,
     Floor,
+    Ceil,
+    Trunc,
     Sqrt,
 }
 

@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 donder-language.workspace = true
 donder-project-io.workspace = true
+donder-runtime.workspace = true
 serde.workspace = true
 specta-serde = "0.0.12"
 specta.workspace = true

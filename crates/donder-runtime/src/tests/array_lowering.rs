@@ -30,13 +30,13 @@ fn context(progress: f32) -> RunContext {
 fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
     use donder_language::dsl::Identifier;
     use donder_language::dsl::Value;
-    let source = "effect Array { param int index = 0; color sample() {
+    let source = "effect Array { param int index in 0..1 = 0; color sample() {
         array<float> values = [progress(), pixel_index() + 1];
         float assigned = progress();
         assigned = pixel_index() + 1;
         return rgb(values[1], values[index], assigned);
     } }";
-    let scalar = "effect Scalar { param int index = 0; color sample() {
+    let scalar = "effect Scalar { param int index in 0..1 = 0; color sample() {
         float selected = progress();
         if (index == 1) { selected = pixel_index() + 1; }
         return rgb(pixel_index() + 1, selected, pixel_index() + 1);
@@ -65,15 +65,14 @@ fn copying_and_selecting_array_items_keep_integer_to_float_conversion() {
 
 #[test]
 fn reference_sampling_keeps_integer_and_float_index_semantics() {
-    use donder_language::dsl::Identifier;
     use donder_language::dsl::Value;
     use donder_language::values::{Curve, CurvePoint};
 
     let effect = compile_effects(
         "effect Indexed {
             param array<curve> shapes;
-            param int integer;
-            param float fraction;
+            param int integer in -2147483647..2147483647;
+            param float fraction in -1.0..1.0;
             color sample() {
                 curve shape = shapes[0];
                 return rgb(shape[integer], shape[fraction], 0.0);
@@ -106,23 +105,15 @@ fn reference_sampling_keeps_integer_and_float_index_semantics() {
             f32::INFINITY,
             f32::NAN,
         ] {
-            let params = effect
-                .bind(
-                    [
-                        (Identifier::new("shapes".into()).unwrap(), shapes.clone()),
-                        (
-                            Identifier::new("integer".into()).unwrap(),
-                            Value::Int(integer),
-                        ),
-                        (
-                            Identifier::new("fraction".into()).unwrap(),
-                            Value::Float(fraction),
-                        ),
-                    ]
-                    .iter()
-                    .map(|(name, value)| (name, value)),
-                )
-                .unwrap();
+            // Positional binding: these extremes lie outside any declared range.
+            let params =
+                donder_language::dsl::SampleDefinition::new(effect.sample_program().clone())
+                    .bind(vec![
+                        shapes.clone(),
+                        Value::Int(integer),
+                        Value::Float(fraction),
+                    ])
+                    .unwrap();
             let sampled = params.evaluate(&context(0.0), &SPATIAL, &mut workspace);
             let channel = |position| {
                 (donder_language::sampling::sample_curve(&curve, position) * 255.0).round() as u8

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::dsl::Type;
+use crate::dsl::ParamDecl;
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
 use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
 use crate::layout::LayoutError;
@@ -497,18 +497,12 @@ pub fn validate_sequence(
                 .push(clip);
         }
         for binding in &clip.bindings {
-            let ty = automation_target_type(project, sequence, &binding.target)?;
-            if !binding.mapping.accepts_type(ty) {
-                return Err(sequence_error(
-                    "automation mapping does not match its target parameter",
-                ));
-            }
-            if sequence
-                .automation_mapping(&binding.target)
-                .is_some_and(|mapping| mapping != &binding.mapping)
+            if automation_target_param(project, sequence, &binding.target)?
+                .automation_mapping()
+                .is_none()
             {
                 return Err(sequence_error(
-                    "automation clips bound to one target must share its mapping",
+                    "automation target parameter does not support automation",
                 ));
             }
         }
@@ -621,11 +615,12 @@ fn validate_param_references(
     }
 }
 
-pub fn automation_target_type<'a>(
+/// The declaration an automation target addresses.
+pub fn automation_target_param<'a>(
     project: &'a DonderProject,
     sequence: &'a Sequence,
     target: &AutomationTarget,
-) -> Result<&'a Type, SequenceValidationError> {
+) -> Result<&'a ParamDecl, SequenceValidationError> {
     match target {
         AutomationTarget::EffectParam { effect_id, param } => {
             let effect = sequence
@@ -643,7 +638,6 @@ pub fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
-                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
         }
         AutomationTarget::CompositionNodeParam { node_id, param } => {
@@ -667,7 +661,6 @@ pub fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
-                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
         }
     }

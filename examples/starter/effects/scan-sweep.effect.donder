@@ -1,18 +1,17 @@
 effect ScanSweep {
   param gradient gradient;
-  param curve intensity;
+  param curve intensity in 0.0..1.0;
   param enum direction { left_to_right, right_to_left, center_out, edges_in } = left_to_right;
   param enum color_mode { through_effect, across_pixels, scan_head } = through_effect;
-  param float repeats = 1.0;
-  param float width = 0.12;
-  param float edge_width = 0.04;
-  param float background_level = 0.0;
-  param float section_width_pixels = 1.0;
+  param float repeats in 1.0..100.0 = 1.0;
+  param float width in 0.0..1.0 = 0.12;
+  param float edge_width in 0.001..1.0 = 0.04;
+  param float background_level in 0.0..1.0 = 0.0;
+  param float section_width_pixels in 1.0..1000.0 = 1.0;
 
   color sample() {
     float position = section_position(section_width_pixels);
-    float scan_progress = progress() * max(1.0, repeats);
-    scan_progress = scan_progress - floor(scan_progress);
+    float scan_progress = (progress() * repeats) % 1.0;
 
     float scan_position = scan_progress;
     float target_position = position;
@@ -27,9 +26,8 @@ effect ScanSweep {
     }
 
     float distance = abs(target_position - scan_position);
-    float body = 1.0 - smoothstep(max(0.0, width), max(0.0, width) + max(0.000000001, edge_width), distance);
-    float level = max(clamp(background_level, 0.0, 1.0), body);
-    level = level * curve_clamped(intensity, progress(), 0.0, 1.0);
+    float body = 1.0 - smoothstep(width, width + edge_width, distance);
+    float level = max(background_level, body) * intensity[progress()];
 
     float color_position = progress();
     if (color_mode == across_pixels) {
@@ -39,6 +37,6 @@ effect ScanSweep {
       color_position = scan_progress;
     }
 
-    return gradient_color_scaled(gradient, clamp(color_position, 0.0, 1.0), level);
+    return gradient_color_scaled(gradient, color_position, level);
   }
 }

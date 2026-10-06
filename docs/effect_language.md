@@ -10,9 +10,9 @@ files; `examples/starter` contains every bundled effect and operator.
 ```c
 effect Wash {
   param gradient colors;
-  param curve level;
+  param curve level in 0.0..1.0;
   param enum direction { forward, backward } = forward;
-  param int bands = 4;
+  param int bands in 1..16 = 4;
 
   color sample() {
     float position = pixel_fraction();
@@ -38,9 +38,15 @@ are `int`, `float`, `bool`, `color`, `enum`, `curve`, `gradient`, `marks` and
 arrays of them. Required parameters have no default and must be supplied by every
 instance.
 
-Parameters of type float, int, bool, enum and curve can be automated. Preparation
-specializes control flow on every parameter that an effect instance does not
-automate.
+`int`, `float` and `curve` parameters declare an inclusive range with `in min..max`;
+a curve's range bounds its point values. Defaults, authored values and edits
+outside the range are rejected, never clamped, so code can rely on it instead of
+re-validating its inputs.
+
+Parameters of type float, int, bool, enum and curve can be automated. Automation
+maps its normalized curve onto the declared range, an enum's options in order, or
+a bool's false and true halves. Preparation specializes control flow on every
+parameter that an effect instance does not automate.
 
 Curves and gradients are indexed by a normalized position: `level[0.5]`,
 `colors[t]`. Arrays are indexed by an integer that clamps to the first or last
@@ -61,7 +67,7 @@ values.
 | Pixel | `pixel_index()`, `pixel_count()`, `pixel_fraction()` |
 | Space (meters) | `pixel_x()`, `pixel_y()`, `target_min_x()`, `target_min_y()`, `target_max_x()`, `target_max_y()` |
 | Sections | `section_count(width)`, `section_index(width)`, `section_position(width)` |
-| Math | `sin`, `cos`, `abs`, `floor`, `sqrt`, `atan2(y, x)`, `min`, `max`, `clamp`, `smoothstep`, `mix`, constants `PI` and `TAU` |
+| Math | `sin`, `cos`, `abs`, `floor`, `ceil`, `trunc`, `sqrt`, `atan2(y, x)`, `min`, `max`, `clamp`, `smoothstep`, `mix`, constants `PI` and `TAU` |
 | Conversion | `int(x)` |
 | Missing values | `is_nan(x)`, `value_or(x, replacement)` |
 | Color | `rgb(r, g, b)`, `hsv(h, s, v)`, `hue(c)`, `saturation(c)`, `intensity(c)`, `invert(c)`, `mix(a, b, t)`, `max(a, b)` |
@@ -107,8 +113,12 @@ fragment is prepared, even if they are patched elsewhere; see
 
 - `for (int mark in beats) { ... }` visits the indices of a `marks` value in
   order.
-- `for (int i in range(count, cap)) { ... }` runs `max(0, min(count, cap))`
-  times. The cap must be a positive integer literal of at most 10,000.
+- `for (int i in range(count)) { ... }` runs `max(0, count)` times. The compiler
+  bounds `count` from literals, parameter ranges, `len()` of array and marks
+  parameters, and enclosing loop indices, through arithmetic, `min`, `max`,
+  `clamp`, `abs`, `floor`, `ceil`, `trunc` and `int`. A count with no such bound,
+  or a bound above 10,000, is rejected. A bound that depends on a length is
+  checked when an instance supplies its values.
 - C-style `for` loops need a trip count the compiler can prove constant and at
   most 10,000; other loops are rejected.
 
@@ -126,7 +136,10 @@ Loop indices cannot be assigned in the body.
 - `value_or` evaluates both arguments; use `if` when the replacement is
   expensive.
 - Integer division produces a float. Integer `+`, `-`, `*` and negation wrap at
-  32 bits; remainder by zero and `i32::MIN % -1` return zero. Integer comparisons
+  32 bits. `%` is a floored remainder for ints and floats: a nonzero result takes
+  the divisor's sign, so `x % n` wraps into `[0, n)` for a positive `n`. Integer
+  remainder by zero and `i32::MIN % -1` return zero; float remainder by zero is
+  NaN. Integer comparisons
   stay in integers.
 - Curves are piecewise linear with strictly increasing positions in `[0, 1]`.
   Sampling outside the authored range holds the end values, so a pulse shape must
@@ -208,14 +221,13 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Add | `a`, `b` | Saturating RGB addition |
 | Multiply | `a`, `b` | Component-wise multiplication |
 | IntensityModulate | `source`, `mask` | Scales `source` by the mask's brightest channel |
-| Dim | `input` | Scales by `amount = 0.5`, clamped to `[0, 1]` |
+| Dim | `input` | Scales by `amount = 0.5` |
 | Invert | `input` | Complements each channel |
 | Colorize | `input` | Scales `tint = #ffffff` by the input's brightest channel |
 | HueShift | `source` | Adds `shift = 0.0` turns to the hue |
 | Delay | `input` | Samples `seconds = 0.1` earlier |
 | Echo | `input` | Maximum of the input and `repeats = 3` copies spaced `seconds = 0.1` apart, scaled by powers of `decay = 0.5` |
 
-Echo clamps repeats to `[1, 32]` and decay to `[0, 1]`; samples before the
-sequence are black. The starter adds Gain and TimeWarp as separate operator
-documents. `examples/stanford_room` carries its own copy of the library with
-FreezeFrame and HueMap added.
+Samples before the sequence are black. The starter adds Gain and TimeWarp as
+separate operator documents. `examples/stanford_room` carries its own copy of the
+library with FreezeFrame and HueMap added.

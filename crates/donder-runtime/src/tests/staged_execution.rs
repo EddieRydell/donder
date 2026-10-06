@@ -119,7 +119,7 @@ fn frame_caches_preserve_control_arrays_loops_and_seeks() {
         } }",
         "operator P { input Signal source; color sample() {
             color result = #000000;
-            for (int i in range(pixel_index() % 4, 4)) {
+            for (int i in range(pixel_index() % 4)) {
                 color c = source.at(seconds());
                 array<float> channels = [hue(c), saturation(c), intensity(c)];
                 result = max(result, hsv(channels[0] + i * 0.1, channels[1], channels[2]));
@@ -225,7 +225,7 @@ fn batches_preserve_local_global_and_subset_target_addressing() {
 #[test]
 fn constant_colors_use_the_same_quantization_as_runtime_expressions() {
     let dynamic = compile_effects(
-        "effect Color { param float amount = 0.0; color sample() {
+        "effect Color { param float amount in -1.0..2.0 = 0.0; color sample() {
         return mix(invert(rgb(0.25, -0.2, 1.5)), hsv(0.4, 0.7, 0.8), amount) * amount;
     } }",
     )
@@ -274,8 +274,8 @@ const SPATIAL: SpatialContext = SpatialContext {
 fn prepared_binding_arithmetic_keeps_shared_code_and_dynamic_inputs() {
     let effect = compile_effects(
         "effect Prepared {
-            param float width = 0.3;
-            param float gain = 0.5;
+            param float width in -1.0..2.0 = 0.3;
+            param float gain in 0.0..1.0 = 0.5;
             color sample() {
                 float scale = 1.0 / max(abs(width), 0.01);
                 return rgb(pixel_fraction() * scale * gain, clamp(width, 0.0, 1.0), seconds() * 0.1);
@@ -326,9 +326,9 @@ fn prepared_binding_arithmetic_keeps_shared_code_and_dynamic_inputs() {
 #[test]
 fn prepared_divisors_share_code_and_preserve_special_values() {
     let effect = compile_effects(
-        "effect Divide { param float divisor = 3.0; color sample() {
+        "effect Divide { param float divisor in -10.0..10.0 = 3.0; color sample() {
             float value = 0.0;
-            for (int i in range(pixel_index() % 4, 4)) {
+            for (int i in range(pixel_index() % 4)) {
                 value = value + pixel_fraction() / divisor;
             }
             if (pixel_index() % 2 == 0) { return rgb(value_or(value, 0.7), 0.0, 0.0); }
@@ -405,10 +405,10 @@ fn prepared_divisors_share_code_and_preserve_special_values() {
 #[test]
 fn prepared_divisors_preserve_dynamic_and_pixel_mutated_bindings() {
     for source in [
-        "effect Divide { param float divisor = 3.0; color sample() {
+        "effect Divide { param float divisor in -10.0..10.0 = 3.0; color sample() {
             return rgb(value_or(pixel_fraction() / divisor, 0.7), 0.0, 0.0);
         } }",
-        "effect Divide { param float divisor = 3.0; color sample() {
+        "effect Divide { param float divisor in -10.0..10.0 = 3.0; color sample() {
             float current = divisor;
             if (pixel_index() % 2 == 0) { current = pixel_fraction(); }
             return rgb(value_or(pixel_fraction() / current, 0.7), 0.0, 0.0);
@@ -443,8 +443,8 @@ fn prepared_binding_arithmetic_preserves_branches_loops_and_temporal_operators()
     let operator = compile_operators(
         "operator Prepared {
             input Signal source;
-            param float delay = 0.08;
-            param float gain = 0.4;
+            param float delay in 0.0..1.0 = 0.08;
+            param float gain in 0.0..1.0 = 0.4;
             color sample() {
                 float offset = max(delay, 0.0) * 0.5;
                 color result = rgb(0.0, 0.0, 0.0);
@@ -491,8 +491,8 @@ fn prepared_binding_arithmetic_preserves_branches_loops_and_temporal_operators()
 fn numeric_control_specializes_while_ordinary_settings_keep_program_sharing() {
     let effect = compile_effects(
         "effect Choice {
-        param float mode = 1.0;
-        param float gain = 0.5;
+        param float mode in -1.0..1.0 = 1.0;
+        param float gain in 0.0..1.0 = 0.5;
         color sample() {
             if (mode < 0.0) { return rgb(gain, 0.0, 0.0); }
             return rgb(0.0, gain * pixel_fraction(), 0.0);
@@ -520,7 +520,7 @@ fn specialization_of_fixed_branches_keeps_live_parameters() {
     let effect = compile_effects(
         "effect Bound {
         param bool reverse = true;
-        param float gain = 0.5;
+        param float gain in 0.0..1.0 = 0.5;
         color sample() {
             float position = pixel_fraction();
             if (reverse) { position = 1.0 - position; }
@@ -566,7 +566,7 @@ fn uniform_samples_split_varying_clamps_and_scales_without_changing_missing_valu
     use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let effect = compile_effects(
         "effect Samples {
-        param curve shape;
+        param curve shape in -1.0..2.0;
         param gradient colors;
         color sample() {
             float lower = pixel_fraction() * 3.0 - 1.0;
@@ -705,7 +705,7 @@ fn uniform_parameter_samples_refresh_when_target_changes() {
 fn section_reciprocal_preserves_boundaries_and_missing_values() {
     let effect = compile_effects(
         "effect Sections {
-        param float width = 4.0;
+        param float width in 0.0..20.0 = 4.0;
         color sample() { return rgb(value_or(section_position(width), 0.75), 0.0, 0.0); }
     }",
     )

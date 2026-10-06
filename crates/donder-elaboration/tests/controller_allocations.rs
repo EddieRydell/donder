@@ -130,7 +130,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
     ] {
         let compiled = donder_language::dsl::compile_operators(&format!(
-            "operator TimeWarp {{ input Signal source; param float offset_seconds = 0.0; color sample() {{ return {query}; }} }}"
+            "operator TimeWarp {{ input Signal source; param float offset_seconds in -1.0..1.0 = 0.0; color sample() {{ return {query}; }} }}"
         )).unwrap().remove(0);
         let definition_id = project
             .definitions()

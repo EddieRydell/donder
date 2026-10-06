@@ -6,6 +6,7 @@ use crate::dto::{
     DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
 use donder_language::controller::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_runtime::PlaybackRate;
 
 impl DesktopState {
     pub(super) fn schedule_device_reconcile(&self) {
@@ -326,10 +327,40 @@ impl DesktopState {
         } else {
             audio.position_seconds
         };
+        let rate = lock_unpoisoned(&self.audio).playback_rate();
+        self.device_audio_schedule_playing(position, None, rate, duration)
+    }
+
+    /// Playing devices restart together from the position reached at the shared deadline.
+    pub(super) fn device_audio_set_rate(&self, rate: PlaybackRate) -> Result<AppSnapshot, String> {
+        let _operation = lock_unpoisoned(&self.transport_operation);
+        let audio = self.audio_snapshot();
+        if !matches!(audio.state, AudioTransportState::Playing) {
+            let transport = lock_unpoisoned(&self.audio).set_playback_rate(rate);
+            return Ok(self.update_snapshot(|snapshot| snapshot.audio_transport = transport));
+        }
+        let current = lock_unpoisoned(&self.audio).playback_rate();
+        self.device_audio_schedule_playing(
+            audio.position_seconds,
+            Some(current),
+            rate,
+            seconds_to_micros(audio.duration_seconds)?,
+        )
+    }
+
+    /// The caller holds the transport operation lock.
+    fn device_audio_schedule_playing(
+        &self,
+        position: f32,
+        advancing: Option<PlaybackRate>,
+        rate: PlaybackRate,
+        duration: u32,
+    ) -> Result<AppSnapshot, String> {
         let schedule = self.device_playback.schedule(
             DevicePlaybackMode::Playing,
             seconds_to_micros(position)?,
-            false,
+            advancing,
+            rate,
             duration,
             std::time::Instant::now(),
         )?;
@@ -337,6 +368,7 @@ impl DesktopState {
             schedule.deadline,
             schedule.position as f32 / 1_000_000.0,
             duration as f32 / 1_000_000.0,
+            rate,
         );
         match result {
             Ok(transport) => Ok(self.update_snapshot(|snapshot| {
@@ -365,13 +397,16 @@ impl DesktopState {
             self.prepare_device_sequence()?
         };
         let position = position.unwrap_or(audio.position_seconds);
+        let rate = lock_unpoisoned(&self.audio).playback_rate();
         let schedule = self.device_playback.schedule(
             mode,
             seconds_to_micros(position)?,
-            position == audio.position_seconds
+            (position == audio.position_seconds
                 && matches!(audio.state, AudioTransportState::Playing)
                 && matches!(mode, DevicePlaybackMode::Paused)
-                && !set_home,
+                && !set_home)
+                .then_some(rate),
+            rate,
             duration,
             observed_at,
         )?;

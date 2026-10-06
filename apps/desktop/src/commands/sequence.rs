@@ -91,7 +91,6 @@ pub(crate) fn rebind_detached_automation(
     clip_id: u32,
     detached_index: u32,
     target: SequenceAutomationTarget,
-    mapping: SequenceAutomationMapping,
     state: State<'_, DesktopState>,
 ) -> GuiEditResult {
     state.apply_gui_edit(
@@ -101,7 +100,6 @@ pub(crate) fn rebind_detached_automation(
                 clip_id,
                 detached_index,
                 target,
-                mapping,
             },
         },
     )

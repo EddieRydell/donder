@@ -2,6 +2,7 @@ use super::ast::{
     BinaryOp, Block, DeclarationKind, DeclarationSpan, EffectDecl, Expr, ExprKind, FunctionDecl,
     FunctionParam, Module, OperatorDecl, OperatorInputDecl, ParamDecl, Stmt, UnaryOp,
 };
+use super::declarations::ParamRange;
 use super::diagnostic::Diagnostic;
 use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
 use super::types::{Identifier, Type, Value};
@@ -223,11 +224,17 @@ impl<'source> Parser<'source> {
                 None
             };
             self.expect(TokenKind::Semicolon, "expected `;` after param");
-            return Some(ParamDecl { name, ty, default });
+            return Some(ParamDecl {
+                name,
+                ty,
+                range: None,
+                default,
+            });
         }
 
         let ty = self.parse_type()?;
         let name = self.parse_identifier()?;
+        let range = self.parse_param_range(&ty, &name);
         let default = if self.consume(TokenKind::Equals) {
             let expr = self.parse_expression();
             self.const_value(&expr)
@@ -235,7 +242,70 @@ impl<'source> Parser<'source> {
             None
         };
         self.expect(TokenKind::Semicolon, "expected `;` after param");
-        Some(ParamDecl { name, ty, default })
+        Some(ParamDecl {
+            name,
+            ty,
+            range,
+            default,
+        })
+    }
+
+    /// `in min..max`: required for `int`, `float`, and `curve` params, inclusive.
+    fn parse_param_range(&mut self, ty: &Type, name: &Identifier) -> Option<ParamRange> {
+        let start = self.current().span;
+        let ranged = matches!(ty, Type::Int | Type::Float | Type::Curve);
+        if !self.consume_keyword(Keyword::In) {
+            if ranged {
+                self.error(
+                    start,
+                    format!(
+                        "param `{}` must declare its range, for example `in 0..10`",
+                        name.as_str()
+                    ),
+                );
+            }
+            return None;
+        }
+        let min = self.parse_unary();
+        self.expect(TokenKind::DotDot, "expected `..` in param range");
+        let max = self.parse_unary();
+        let span = TextSpan {
+            start: start.start,
+            end: max.span.end,
+        };
+        let (min, max) = (self.const_value(&min)?, self.const_value(&max)?);
+        let float = |value: &Value| match *value {
+            Value::Int(value) => Some(value as f32),
+            Value::Float(value) => Some(value),
+            _ => None,
+        };
+        let range = match (ty, &min, &max) {
+            (Type::Int, Value::Int(min), Value::Int(max)) => ParamRange::Int {
+                min: *min,
+                max: *max,
+            },
+            (Type::Float | Type::Curve, _, _) if float(&min).is_some() && float(&max).is_some() => {
+                ParamRange::Float {
+                    min: float(&min)?,
+                    max: float(&max)?,
+                }
+            }
+            _ => {
+                self.error(
+                    span,
+                    "only `int`, `float`, and `curve` params take a range, bounded by literals of their type",
+                );
+                return None;
+            }
+        };
+        if !range.fits(ty) {
+            self.error(
+                span,
+                "param range must be finite, with its minimum at most its maximum",
+            );
+            return None;
+        }
+        Some(range)
     }
 
     fn parse_function(&mut self) -> Option<FunctionDecl> {
@@ -323,16 +393,13 @@ impl<'source> Parser<'source> {
                 if let ExprKind::Call { callee, args } = &collection.kind
                     && matches!(&callee.kind, ExprKind::Variable(name) if name.as_str() == "range")
                 {
-                    if args.len() != 2 {
-                        self.error(collection.span, "range requires a count and literal cap");
+                    let [count] = args.as_slice() else {
+                        self.error(collection.span, "range takes exactly one count");
                         return None;
-                    }
-                    let count = args.first()?.clone();
-                    let cap = args.get(1)?.clone();
+                    };
                     return Some(Stmt::ForRange {
                         index,
-                        count,
-                        cap,
+                        count: count.clone(),
                         body,
                     });
                 }
@@ -772,6 +839,20 @@ impl<'source> Parser<'source> {
     fn const_value(&mut self, expr: &Expr) -> Option<Value> {
         match &expr.kind {
             ExprKind::Literal(value) => Some(value.clone()),
+            ExprKind::Unary {
+                op: UnaryOp::Negate,
+                expr: operand,
+            } => match &operand.kind {
+                ExprKind::Literal(Value::Int(value)) => Some(Value::Int(value.wrapping_neg())),
+                ExprKind::Literal(Value::Float(value)) => Some(Value::Float(-value)),
+                _ => {
+                    self.error(
+                        expr.span,
+                        "param defaults and ranges must be literal values",
+                    );
+                    None
+                }
+            },
             ExprKind::Variable(identifier) => Some(Value::Enum(identifier.clone())),
             ExprKind::Array(items) => {
                 let mut values = Vec::with_capacity(items.len());
@@ -785,7 +866,10 @@ impl<'source> Parser<'source> {
                 Some(Value::Array(Arc::from(values)))
             }
             _ => {
-                self.error(expr.span, "param defaults must be literal values");
+                self.error(
+                    expr.span,
+                    "param defaults and ranges must be literal values",
+                );
                 None
             }
         }

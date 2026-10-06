@@ -207,7 +207,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         ),
     ] {
         let compiled = donder_language::dsl::compile_operators(&format!(
-            "operator TimeWarp {{ input Signal source; param float offset_seconds = 0.0; color sample() {{ return {query}; }} }}"
+            "operator TimeWarp {{ input Signal source; param float offset_seconds in -1.0..1.0 = 0.0; color sample() {{ return {query}; }} }}"
         )).unwrap().remove(0);
         let definition_id = project
             .definitions()

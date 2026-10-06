@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, ChevronRight, FlipHorizontal2, FlipVertical2, Link2
 
 import { THEME_COLORS, THEME_METRICS } from "../../../../theme";
 
-import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationMapping, SequenceAutomationTarget, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../editor/types";
+import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, SequenceAutomationTarget, SequenceParamRange, SequenceCurveLibraryItem, SequenceGradientLibraryItem, SequenceEffectParam, SequenceEffectParamValue, SequenceMarkCollection, SequenceCurveValue, SequenceGradientValue, SequenceLibrarySource } from "../../../../editor/types";
 
 
 import { ColorPicker } from "../../../ColorPicker";
@@ -54,21 +54,9 @@ function TypedParamValue({
   automation?: ParamAutomationControls | null;
 }) {
   const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
 
   const commit = (value: SequenceEffectParamValue) => {
     return commitParam(param.name, value);
-  };
-  const commitAutomationMapping = async (mapping: SequenceAutomationMapping) => {
-    if (automation === null || param.automation === null) return;
-    await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "updateAutomationParamMapping",
-        clipId: param.automation?.clipId ?? 0,
-        target: automation.target,
-        mapping
-      })
-    );
   };
   const automated = param.automation !== null;
 
@@ -92,14 +80,10 @@ function TypedParamValue({
           automation.setAutomationClipChooser
         );
   switch (param.value.type) {
-    case "int": {
-      const mapping = param.automation?.mapping.type === "int" ? param.automation.mapping : null;
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}>{mapping === null ? <NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /> : <AutomationRangeParam mapping={mapping} step={1} commit={commitAutomationMapping} />}</ParamValueRow></ParamShell>;
-    }
-    case "float": {
-      const mapping = param.automation?.mapping.type === "float" ? param.automation.mapping : null;
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}>{mapping === null ? <NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} disabled={automated} commit={(value) => commit({ type: "float", value })} /> : <AutomationRangeParam mapping={mapping} step={0.05} commit={commitAutomationMapping} />}</ParamValueRow></ParamShell>;
-    }
+    case "int":
+      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+    case "float":
+      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -259,8 +243,6 @@ function automationBindingControl(host: SequenceEditorHost,
 ) {
   const { commands, runGuiEditCommand } = host;
 
-  const mapping = defaultAutomationMapping(param);
-  if (mapping === null) return null;
   const choosing = automationClipChooser !== null && automationTargetsEqual(automationClipChooser.target, target);
   if (param.automation !== null) {
     return (
@@ -290,7 +272,7 @@ function automationBindingControl(host: SequenceEditorHost,
         title="Link existing automation"
         disabled={clips.length === 0}
         onClick={() => {
-          setAutomationClipChooser({ target, mapping });
+          setAutomationClipChooser({ target });
         }}
       >
         <Link2 size={THEME_METRICS.iconSizeSmall} />
@@ -304,8 +286,7 @@ function automationBindingControl(host: SequenceEditorHost,
           void runGuiEditCommand((request) =>
             commands.applySequenceGuiEdit(request, {
               type: "createAndBindAutomationClip",
-              target,
-              mapping
+              target
             })
           )
         }
@@ -319,33 +300,6 @@ function automationBindingControl(host: SequenceEditorHost,
       )}
     </>
   );
-}
-
-function defaultAutomationMapping(param: SequenceEffectParam): SequenceAutomationMapping | null {
-  switch (param.value.type) {
-    case "float":
-      return { type: "float", min: Math.min(0, param.value.value), max: Math.max(1, param.value.value) };
-    case "int":
-      return { type: "int", min: Math.min(0, param.value.value), max: Math.max(1, param.value.value) };
-    case "bool":
-      return { type: "bool" };
-    case "enum":
-      return { type: "enum", values: param.options };
-    case "curve":
-      return { type: "curve", min: 0, max: 1 };
-    case "color":
-    case "marks":
-    case "gradient":
-    case "intArray":
-    case "floatArray":
-    case "boolArray":
-    case "colorArray":
-    case "curveArray":
-    case "gradientArray":
-      return null;
-    default:
-      return null;
-  }
 }
 
 function BoolArrayParam({ name, values, commit }: { name: string; values: boolean[]; commit: (values: boolean[]) => Promise<void> }) {
@@ -437,11 +391,13 @@ function ArrayShell<T>({
 function NumberParam({
   value,
   step,
+  range,
   disabled = false,
   commit
 }: {
   value: number;
   step: number;
+  range: SequenceParamRange | null;
   disabled?: boolean;
   commit: (value: number) => Promise<void>;
 }) {
@@ -449,7 +405,7 @@ function NumberParam({
   const lastCommitted = useRef(value);
   const commitText = () => {
     const next = Number(text);
-    if (!Number.isFinite(next)) {
+    if (!Number.isFinite(next) || (range !== null && (next < range.min || next > range.max))) {
       setText(String(value));
       return;
     }
@@ -463,6 +419,8 @@ function NumberParam({
       <input
         type="number"
         step={step}
+        min={range?.min}
+        max={range?.max}
         value={text}
         disabled={disabled}
         onChange={(event) => { setText(event.currentTarget.value); }}
@@ -475,25 +433,6 @@ function NumberParam({
         }}
       />
     </label>
-  );
-}
-
-function AutomationRangeParam({
-  mapping,
-  step,
-  commit
-}: {
-  mapping: Extract<SequenceAutomationMapping, { type: "float" } | { type: "int" }>;
-  step: number;
-  commit: (mapping: SequenceAutomationMapping) => Promise<void>;
-}) {
-  return (
-    <div className="effect-param-automation-range">
-      <span>Min</span>
-      <NumberParam value={mapping.min} step={step} commit={(min) => commit({ ...mapping, min })} />
-      <span>Max</span>
-      <NumberParam value={mapping.max} step={step} commit={(max) => commit({ ...mapping, max })} />
-    </div>
   );
 }
 

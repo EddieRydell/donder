@@ -25,7 +25,7 @@ export type SequenceEditorStore = {
 export type SequenceEditorCommands = {
   applySequenceGuiEdit: (request: Wire.GuiDocumentRequest, edit: Wire.SequenceGuiEdit) => Promise<EditorEditResult>;
   applySequenceSelectionEdit: (request: Wire.GuiDocumentRequest, edit: Wire.SequenceSelectionEdit) => Promise<EditorSelectionResult>;
-  rebindDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number, target: Wire.SequenceAutomationTarget, mapping: Wire.SequenceAutomationMapping) => Promise<EditorEditResult>;
+  rebindDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number, target: Wire.SequenceAutomationTarget) => Promise<EditorEditResult>;
   discardDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number) => Promise<EditorEditResult>;
   saveGraphViewState: (state: Wire.PersistedGraphViewStateUpdate) => Promise<EditorSnapshot>;
   saveSequenceViewportState: (state: Wire.PersistedSequenceViewportStateUpdate) => Promise<EditorSnapshot>;
@@ -37,6 +37,7 @@ export type SequenceEditorCommands = {
   audioStop: () => Promise<EditorSnapshot>;
   audioRewindToZero: () => Promise<EditorSnapshot>;
   audioSeek: (seconds: number) => Promise<EditorSnapshot>;
+  audioSetPlaybackSpeed: (speed: Wire.PlaybackSpeed) => Promise<EditorSnapshot>;
   chooseSequenceAudio: (request: Wire.GuiDocumentRequest) => Promise<EditorEditResult>;
   setLiveOutputActive: (active: boolean) => Promise<EditorSnapshot>;
   setPreviewWindowOpen: (open: boolean) => Promise<EditorSnapshot>;
@@ -48,7 +49,7 @@ export type SequenceEditorHost = {
   runSnapshotCommand: (command: () => Promise<EditorSnapshot>) => Promise<EditorSnapshot>;
   resolveAssetUrl: (path: string, protocol?: string) => string;
   navigateToGuiObject: (reference: Pick<Wire.GuiObjectRef, "moduleId" | "path" | "objectKey" | "ownedPath">) => Promise<void>;
-  capabilities: { audioFile: boolean; liveOutput: boolean; previewWindow: boolean };
+  capabilities: { audioFile: boolean; liveOutput: boolean; previewWindow: boolean; playbackSpeed: boolean };
   exportControls?: ReactNode;
 };
 

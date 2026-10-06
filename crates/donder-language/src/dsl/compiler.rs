@@ -38,6 +38,7 @@ fn compile_effect(effect: CheckedEffectDecl) -> Result<CompiledEffect, super::Di
     Ok(CompiledEffect {
         name: effect.name,
         params: effect.params,
+        loop_bounds: effect.loop_bounds,
         program: std::sync::Arc::new(program),
     })
 }
@@ -47,8 +48,14 @@ fn compile_operator(operator: CheckedOperatorDecl) -> Result<CompiledOperator, s
     let bytecode = FunctionCompiler::new_operator(&operator.params, &operator.inputs)
         .compile(operator.body)?;
     check_register_capacity(&bytecode)?;
-    CompiledOperator::admit(operator.name, operator.inputs, operator.params, bytecode)
-        .ok_or_else(invalid_compiled_program)
+    CompiledOperator::admit(
+        operator.name,
+        operator.inputs,
+        operator.params,
+        operator.loop_bounds,
+        bytecode,
+    )
+    .ok_or_else(invalid_compiled_program)
 }
 
 fn invalid_compiled_program() -> super::Diagnostic {
@@ -94,6 +101,7 @@ mod parameter_slot_tests {
         let declaration = super::super::ParamDecl {
             name: super::Identifier::new("parameter".into()).unwrap(),
             ty: super::Type::Float,
+            range: Some(super::super::declarations::ParamRange::Float { min: 0.0, max: 1.0 }),
             default: None,
         };
         let mut params = vec![declaration.clone(); usize::from(u16::MAX) + 1];
@@ -139,44 +147,6 @@ fn constant_array_item(expr: &CheckedExpr) -> Option<Value> {
 enum Binding {
     Param(ParamId),
     Local(LocalId),
-}
-
-fn collect_assigned_names(block: &CheckedBlock, assigned: &mut HashSet<Identifier>) {
-    for statement in &block.statements {
-        collect_statement_assigned_names(statement, assigned);
-    }
-}
-
-fn collect_statement_assigned_names(statement: &CheckedStmt, assigned: &mut HashSet<Identifier>) {
-    match statement {
-        CheckedStmt::Assign { name, .. } => {
-            assigned.insert(name.clone());
-        }
-        CheckedStmt::If {
-            then_block,
-            else_block,
-            ..
-        } => {
-            collect_assigned_names(then_block, assigned);
-            if let Some(else_block) = else_block {
-                collect_assigned_names(else_block, assigned);
-            }
-        }
-        CheckedStmt::For {
-            initializer,
-            update,
-            body,
-            ..
-        } => {
-            collect_statement_assigned_names(initializer, assigned);
-            collect_statement_assigned_names(update, assigned);
-            collect_assigned_names(body, assigned);
-        }
-        CheckedStmt::ForMarks { body, .. } | CheckedStmt::ForRange { body, .. } => {
-            collect_assigned_names(body, assigned)
-        }
-        CheckedStmt::Local { .. } | CheckedStmt::Expr(_) | CheckedStmt::Return(_) => {}
-    }
 }
 
 fn context_read(name: &Identifier) -> Option<ContextRead> {
@@ -282,7 +252,7 @@ impl FunctionCompiler {
     }
 
     fn compile(&mut self, block: CheckedBlock) -> Result<BytecodeProgram, super::Diagnostic> {
-        collect_assigned_names(&block, &mut self.assigned_names);
+        super::loop_bounds::collect_assigned_names(&block, &mut self.assigned_names);
         // Parameters are immutable inputs. Assignment uses an ordinary local,
         // initialized once on entry, including assignments inside branches/loops.
         let assigned_params = self.scopes[0]
@@ -484,7 +454,7 @@ impl FunctionCompiler {
                 let count = self.allocate_slot(&Type::Int);
                 self.emit_constant(count, Value::Int(iterations as i32));
                 let Some((id, loop_start)) =
-                    self.emit_range_start(count, super::MAX_DSL_LOOP_ITERATIONS as i32)
+                    self.emit_range_start(count, (iterations as i32).max(1))
                 else {
                     return;
                 };
@@ -539,10 +509,6 @@ impl FunctionCompiler {
                     dst: count,
                     src: source.index(),
                 });
-                let CheckedExprKind::Literal(Value::Int(cap)) = cap.kind else {
-                    self.invalid_loop = true;
-                    return;
-                };
                 let index_slot = self.allocate_local(index, &Type::Int);
                 self.emit_constant(index_slot, Value::Int(0));
                 let one_slot = self.allocate_slot(&Type::Int);
@@ -983,7 +949,7 @@ impl FunctionCompiler {
                     src,
                 });
             }
-            "sin" | "cos" | "abs" | "floor" | "sqrt" => {
+            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "sqrt" => {
                 let args = self.compile_float_args(args);
                 let dst = self.float_slot(dst);
                 self.emit(Instruction::FloatUnary {
@@ -993,6 +959,8 @@ impl FunctionCompiler {
                         "cos" => FloatUnary::Cos,
                         "abs" => FloatUnary::Abs,
                         "floor" => FloatUnary::Floor,
+                        "ceil" => FloatUnary::Ceil,
+                        "trunc" => FloatUnary::Trunc,
                         "sqrt" => FloatUnary::Sqrt,
                         _ => unreachable!("matched float unary builtin"),
                     },

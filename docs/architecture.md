@@ -71,7 +71,10 @@ controller bytes for that frame. It cannot fail and does not allocate. The VM,
 execution plan and storage layout are private to the runtime; callers build
 sequences only through `SequenceBuilder`'s owner-bound handles.
 
-The same `PreparedSequence` runs in three places:
+The same `PreparedSequence` runs in three places. All three map wall time to
+show time and choose rendered frames through the runtime's `PlaybackRate`, so a
+playback speed and its frame timing (scaled or constant) behave identically
+everywhere:
 
 - **Preview.** The desktop sends the encoded archive, projected fixture
   geometry and clock anchors to a separate winit/wgpu process when their

@@ -1,11 +1,12 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
-use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode};
+use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
 use donder_language::{
     controller::{ControllerId, ControllerPortId, DonderDeviceId},
     sequence::SequenceId,
 };
+use donder_runtime::PlaybackRate;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -53,6 +54,7 @@ enum Control {
         at_micros: u64,
         mode: DevicePlaybackMode,
         position_micros: u32,
+        speed: PlaybackSpeed,
         looping: bool,
         archive_crc: u32,
         archive_bytes: u32,
@@ -442,11 +444,14 @@ impl DevicePlaybackService {
         }
         Ok(())
     }
+    /// `advancing` is the rate `position` is moving at as of `observed_at`;
+    /// `rate` is the playback rate the devices follow after the deadline.
     pub(crate) fn schedule(
         &self,
         mode: DevicePlaybackMode,
         position: u32,
-        advancing: bool,
+        advancing: Option<PlaybackRate>,
+        rate: PlaybackRate,
         duration: u32,
         observed_at: Instant,
     ) -> Result<GroupSchedule, String> {
@@ -503,12 +508,13 @@ impl DevicePlaybackService {
         let at = u64::try_from((frame * 1_000_000).div_ceil(frame_rate))
             .map_err(|_| "Playback clock overflow")?;
         let deadline = origin + Duration::from_micros(at);
-        let position = if advancing {
-            (u64::from(position)
-                + deadline.saturating_duration_since(observed_at).as_micros() as u64)
-                .min(u64::from(duration)) as u32
-        } else {
-            position.min(duration)
+        let position = match advancing {
+            Some(current) => (u64::from(position)
+                + current.show_elapsed(
+                    deadline.saturating_duration_since(observed_at).as_micros() as u64
+                ))
+            .min(u64::from(duration)) as u32,
+            None => position.min(duration),
         };
         let mut commands = Vec::new();
         for (binding, (sample, status)) in core.bindings.iter().zip(samples) {
@@ -523,6 +529,7 @@ impl DevicePlaybackService {
                 at_micros: at,
                 mode,
                 position_micros: position,
+                speed: rate.into(),
                 looping: false,
                 archive_crc: status.archive_crc,
                 archive_bytes: status.archive_bytes,

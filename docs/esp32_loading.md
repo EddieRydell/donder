@@ -104,7 +104,12 @@ The editor's Play button then:
 Each controller evaluates its own frames, and no per-frame pixels cross the
 network. Edits apply on the next Play. Pause holds the position reached at its
 deadline, seek pauses at the new position, Stop returns home and blacks out, and
-playback ends at the sequence duration. **Loop saved show** in the controller's
+playback ends at the sequence duration. Each schedule carries the editor's
+playback speed (show microseconds per wall second) and frame timing. Scaled
+timing holds each 120 Hz show-time frame for longer when slowed down; constant
+timing evaluates the exact show time at every 120 Hz output latch. Changing
+speed during playback reschedules every controller and the audio from the
+position reached at a new shared deadline. **Loop saved show** in the controller's
 editor, or the standalone HTTP Play endpoint, loops the last uploaded show
 without the editor instead.
 

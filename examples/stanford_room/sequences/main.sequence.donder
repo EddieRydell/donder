@@ -182,6 +182,7 @@ main:
     - 92.83886s
     - 92.881195s
     - 92.981842s
+    - 93.087181s
   layers:
   - id: 0
     name: Default
@@ -1865,8 +1866,8 @@ main:
       to_port: input
   automation_clips:
   - id: 1
-    start: 0s
-    duration: 330.489624s
+    start: 64.515915s
+    duration: 33.408813s
     row_target:
       layout: layouts.main
       fixture: 4
@@ -1874,89 +1875,89 @@ main:
       points:
       - position: 0.0
         value: 0.0
-      - position: 0.20571036636829376
+      - position: 0.10384166240692139
         value: 0.0
-      - position: 0.20675413310527802
+      - position: 0.11416690051555634
         value: 0.03400000184774399
-      - position: 0.20779788494110107
+      - position: 0.12449199706315994
         value: 0.0
-      - position: 0.20882156491279602
+      - position: 0.13461853563785553
         value: 0.03400000184774399
-      - position: 0.20936352014541626
+      - position: 0.13997972011566162
         value: 0.009999999776482582
-      - position: 0.21077413856983185
+      - position: 0.15393395721912384
         value: 0.0
-      - position: 0.21080870926380157
+      - position: 0.15427593886852264
         value: 0.49799999594688416
-      - position: 0.21279585361480713
+      - position: 0.17393334209918976
         value: 0.47699999809265137
-      - position: 0.2154654562473297
+      - position: 0.2003418207168579
         value: 0.5770000219345093
-      - position: 0.21557219326496124
+      - position: 0.20139770209789276
         value: 0.27799999713897705
-      - position: 0.21707704663276672
+      - position: 0.2162841409444809
         value: 0.28700000047683716
-      - position: 0.2190835177898407
+      - position: 0.23613272607326508
         value: 0.19099999964237213
-      - position: 0.2197255939245224
+      - position: 0.24248433113098145
         value: 0.22100000083446503
-      - position: 0.2206284999847412
+      - position: 0.2514161467552185
         value: 0.2029999941587448
-      - position: 0.22096960246562958
+      - position: 0.25479042530059814
         value: 0.9139999747276306
-      - position: 0.22261491417884827
+      - position: 0.2710663378238678
         value: 0.8659999966621399
-      - position: 0.224440798163414
+      - position: 0.28912851214408875
         value: 0.8899999856948853
-      - position: 0.22505322098731995
+      - position: 0.29518675804138184
         value: 0.859000027179718
-      - position: 0.22535434365272522
+      - position: 0.29816552996635437
         value: 0.4620000123977661
-      - position: 0.22971151769161224
+      - position: 0.34126797318458557
         value: 0.4359999895095825
-      - position: 0.2301151603460312
+      - position: 0.34526094794273376
         value: 0.47099998593330383
-      - position: 0.23034389317035675
+      - position: 0.34752359986305237
         value: 0.12600000202655792
-      - position: 0.23471668362617493
+      - position: 0.390780508518219
         value: 0.24699999392032623
-      - position: 0.23492000997066498
+      - position: 0.39279186725616455
         value: 0.4950000047683716
-      - position: 0.24182695150375366
+      - position: 0.46111732721328735
         value: 0.0
-      - position: 0.24357901513576508
+      - position: 0.478449285030365
         value: 0.0
-      - position: 0.2455187737941742
+      - position: 0.49763789772987366
         value: 0.17100000381469727
-      - position: 0.24724693596363068
+      - position: 0.5147333741188049
         value: 0.6129999756813049
-      - position: 0.2490161657333374
+      - position: 0.5322351455688477
         value: 0.17100000381469727
-      - position: 0.24982191622257233
+      - position: 0.5402058959007263
         value: 1.0
-      - position: 0.2540346384048462
+      - position: 0.5818793177604675
         value: 0.4749999940395355
-      - position: 0.25477808713912964
+      - position: 0.5892336964607239
         value: 0.4740000069141388
-      - position: 0.2549126446247101
+      - position: 0.5905647873878479
         value: 0.06199999898672104
-      - position: 0.2588389217853546
+      - position: 0.6294046640396118
         value: 0.05299999937415123
-      - position: 0.25953739881515503
+      - position: 0.6363142132759094
         value: 0.5450000166893005
-      - position: 0.26408085227012634
+      - position: 0.6812593340873718
         value: 0.5669999718666077
-      - position: 0.2641367018222809
+      - position: 0.6818118095397949
         value: 0.0
-      - position: 0.26877352595329285
+      - position: 0.7276806235313416
         value: 0.10100000351667404
-      - position: 0.2694997787475586
+      - position: 0.7348649501800537
         value: 0.9390000104904175
-      - position: 0.27363380789756775
+      - position: 0.7757599353790283
         value: 0.9390000104904175
-      - position: 0.274080753326416
+      - position: 0.7801812291145325
         value: 0.28700000047683716
-      - position: 0.28373175859451294
+      - position: 0.8756517767906189
         value: 1.0
       - position: 1.0
         value: 1.0
@@ -1965,10 +1966,6 @@ main:
         type: composition_node_param
         node_id: 4
         param: shift
-      mapping:
-        type: float
-        min: 0.0
-        max: 1.0
     detached_bindings: []
   - id: 2
     start: 64.443359s
@@ -1980,8 +1977,10 @@ main:
       points:
       - position: 0.0
         value: 0.0
-      - position: 0.12209853529930115
-        value: 0.8619999885559082
+      - position: 0.1306629627943039
+        value: 1.0
+      - position: 0.20126168429851532
+        value: 0.5460000038146973
       - position: 0.2910083830356598
         value: 0.07699999958276749
       - position: 0.48856377601623535
@@ -1997,8 +1996,12 @@ main:
         type: effect_param
         effect_id: 35
         param: angle
-      mapping:
-        type: float
-        min: 0.0
-        max: 1.0
+    - target:
+        type: effect_param
+        effect_id: 43
+        param: angle
+    - target:
+        type: effect_param
+        effect_id: 44
+        param: angle
     detached_bindings: []

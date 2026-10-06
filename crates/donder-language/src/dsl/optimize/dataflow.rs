@@ -6,6 +6,7 @@ use super::{comparison_branch, slots};
 use crate::dsl::bytecode::{
     CompareOp, FloatBinary, FloatUnary as UnaryFloat, Instruction, ValueSlot,
 };
+use crate::sampling::{float_remainder, int_remainder};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Known {
@@ -458,14 +459,14 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
         IntAdd { left, right, .. } => i(int(state, left)?.wrapping_add(int(state, right)?)),
         IntSubtract { left, right, .. } => i(int(state, left)?.wrapping_sub(int(state, right)?)),
         IntMultiply { left, right, .. } => i(int(state, left)?.wrapping_mul(int(state, right)?)),
-        IntRemainder { left, right, .. } => i(int(state, left)?
-            .checked_rem(int(state, right)?)
-            .unwrap_or(0)),
+        IntRemainder { left, right, .. } => i(int_remainder(int(state, left)?, int(state, right)?)),
         FloatAdd { left, right, .. } => f(float(state, left)? + float(state, right)?),
         FloatSubtract { left, right, .. } => f(float(state, left)? - float(state, right)?),
         FloatMultiply { left, right, .. } => f(float(state, left)? * float(state, right)?),
         FloatDivide { left, right, .. } => f(float(state, left)? / float(state, right)?),
-        FloatRemainder { left, right, .. } => f(float(state, left)? % float(state, right)?),
+        FloatRemainder { left, right, .. } => {
+            f(float_remainder(float(state, left)?, float(state, right)?))
+        }
         FloatAddConst {
             value,
             constant_bits,
@@ -490,7 +491,10 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
             value,
             constant_bits,
             ..
-        } => f(float(state, value)? % f32::from_bits(constant_bits)),
+        } => f(float_remainder(
+            float(state, value)?,
+            f32::from_bits(constant_bits),
+        )),
         FloatSubtractFromConst {
             value,
             constant_bits,
@@ -505,7 +509,10 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
             value,
             constant_bits,
             ..
-        } => f(f32::from_bits(constant_bits) % float(state, value)?),
+        } => f(float_remainder(
+            f32::from_bits(constant_bits),
+            float(state, value)?,
+        )),
         FloatCompare {
             op, left, right, ..
         } => b(compare(op, float(state, left)?, float(state, right)?)),
@@ -532,6 +539,8 @@ fn result(op: &Instruction, state: &State) -> Option<Known> {
             match op {
                 UnaryFloat::Abs => f(value.abs()),
                 UnaryFloat::Floor => f(value.floor()),
+                UnaryFloat::Ceil => f(value.ceil()),
+                UnaryFloat::Trunc => f(value.trunc()),
                 UnaryFloat::Sqrt => f(libm::sqrtf(value)),
                 // Transcendental implementations differ between host and device.
                 UnaryFloat::Sin | UnaryFloat::Cos => None,

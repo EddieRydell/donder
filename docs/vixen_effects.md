@@ -20,7 +20,7 @@ standard library is not a Vixen compatibility library.
 ## Bundled library
 
 [`examples/starter/effects/vixen.effect.donder`](../examples/starter/effects/vixen.effect.donder)
-contains **20 procedural ports: 9 Basic and 11 Pixel effects**. The starter
+contains **18 procedural ports: 7 Basic and 11 Pixel effects**. The starter
 imports it as `vixen`; the desktop new-project template embeds that same source
 file. Definitions are prefixed `Vixen`, for example `vixen.VixenPinwheel`.
 This is partial coverage of the 46-effect inventory, with explicit mode limits.
@@ -34,9 +34,7 @@ It is not a sequence importer or a claim of complete interface/render parity.
 | `VixenStrobe` | Simple time-interval mode, 50% duty and per-pulse gradient/intensity. |
 | `VixenChase` | Ascending linear movement, millisecond overlap, four RGB color modes, default level and pulse extensions. |
 | `VixenSpin` | Revolution count/frequency/time, three pulse-length formats, reverse, four RGB color modes and default level. |
-| `VixenCandleFlicker` | Bounded random walk, linear transitions, frequency/change deviations and consecutive-pixel groups. |
 | `VixenWipe` | Horizontal/vertical Count mode, pass count, pulse percentage, two color modes, reverse and wipe on/off. |
-| `VixenDissolve` | One monotonic fill or clear over the effect duration, sequential/random ordering, starting node, flip, groups and random colors. |
 | `VixenPinwheel` | Location geometry, both motion modes, all four blade/color modes, twist, hub, offsets and size basis. |
 | `VixenButterfly` | All five formulas, iteration motion, gradient/rainbow, direction, repeat, background chunks/skips and base color. |
 | `VixenColorwash` | Iteration motion, center/outer/invert fades and alternating-frame shimmer. |
@@ -68,7 +66,8 @@ adaptations apply throughout:
 
 - Curve positions are normalized to `0..1`, but values retain Vixen's `0..100`
   percentage scale. A flat full-intensity curve therefore has value `100`, not
-  `1`. Empty/NaN curve samples use Vixen's value of 100 before percentage clamping.
+  `1`. Curve parameters declare that `0..100` range, so samples need no clamping;
+  an empty curve reads as Vixen's value of 100.
 - Scalar controls such as Pinwheel `twist` and `size` use the percentage values
   of Vixen's control curves and can use Donder automation. Their defaults match
   Vixen's default flat curves. This replaces Vixen's curve-valued control UI;
@@ -77,8 +76,9 @@ adaptations apply throughout:
   one invocation, such as blade color levels, remain actual curve parameters.
 - Curves and gradients are required inputs because the DSL cannot declare
   their resource defaults inline. File comments identify Vixen's default
-  palettes/shapes. `colors` and `levels` are parallel arrays with equal lengths;
-  each gradient is paired with the curve at the same index.
+  palettes/shapes. `colors` and `levels` are parallel arrays:
+  each gradient is paired with the curve at the same index. Array indexes clamp,
+  so a shorter `levels` array reuses its last curve.
 - `frame_interval_ms` defaults to 50 and quantizes the pixel-effect clock.
   Set it to the source show's interval. It is a port parameter, not a new
   runtime builtin. It does not change the sequence's output frame rate.
@@ -92,8 +92,7 @@ adaptations apply throughout:
   channel composition rather than reproducing Vixen's complete intent pipeline.
 - Random modes use an explicit fixed `random_seed` and Donder random samples.
   They are repeatable for the same inputs, but do not reproduce Vixen's random
-  stream. Dissolve uses sorted random keys with index tie-breaking to construct
-  a permutation; it does not simply give every pixel an independent threshold.
+  stream.
 
 ### Limits and work per pixel
 
@@ -104,21 +103,14 @@ color. The definitions use target-wide indices/bounds, never controller-local
 buffer dimensions. Split-output equivalence has not been exercised for these
 definitions.
 
-Arrays and explicit iteration counts must fit the DSL's 10,000-iteration limit;
-Spiral additionally requires `len(colors) * repeat <= 10000`. Invalid/unsupported
-inputs guarded in the source return black; they are not diagnosed by a custom
-parameter validator. In particular:
+Parameters declare Vixen's control ranges, so an out-of-range value is rejected
+when the project loads instead of being clamped by the source. Loop counts are
+bounded by those ranges and the DSL's 10,000-iteration limit. Spiral's
+`len(colors) * repeat` must fit that limit; it is checked when an instance
+supplies its colors. In particular:
 
-- Candle replays at most 10,000 transitions per pixel evaluation. A conservative
-  supported duration in seconds is
-  `10000 / flicker_frequency * (1 - floor(frequency_deviation) / 100)`:
-  375 seconds at its defaults. It does progressively more work as the effect
-  advances; split longer effects or add preparation support before extending
-  this contract.
-- Dissolve accepts at most 10,000 target pixels and only a single monotonic
-  `0..100` fill or `100..0` clear curve. Random rank selection scans the target's
-  indices for each evaluated pixel. Full-frame work therefore grows quadratically
-  with target size. This is an implementation cost, not cross-pixel color sampling.
+- Spin combines at most 10,000 overlapping revolutions at one pixel. Its overlap
+  depends on the effect duration and pixel count, which no parameter bounds.
 - Spirograph may examine 5,400 parametric points per evaluated pixel. It preserves
   the last covering point's color by searching backward. Preparation of the point
   set would be useful for larger displays; no playback performance claim is made.
@@ -132,9 +124,9 @@ parameter validator. In particular:
 
 ### Not included
 
-The remaining **26 named effects** have no declarations in this file:
+The remaining **28 named effects** have no declarations in this file:
 
-- Basic: LipSync, State, Twinkle.
+- Basic: Candle Flicker, Dissolve, LipSync, State, Twinkle.
 - Pixel: Balls, Circles, Count Down, Fire, Fireworks, Glediator, Life, Liquid,
   Meteors, Morph, Pattern, Picture, Shapes, Snowflakes, Snowstorm, Text, Tree,
   Vertical Meter, Video, VU Meter, Wave, Waveform, Whirlpool.
@@ -150,7 +142,7 @@ and Whirlpool need further source/parameter mapping; they are not implemented
 by a same-named substitute. Remaining modes of the included effects are also
 outside this library's current contract, notably mark-driven/hierarchy modes,
 accumulated speed, Bars zigzags/rotation, Border marquee, non-circular Shockwave,
-non-cardinal Wipe, nonmonotonic Dissolve and arbitrary Chase movement.
+non-cardinal Wipe and arbitrary Chase movement.
 
 The source formulas and defaults follow the pinned Vixen sources. The ports
 compile and load as part of the starter project, which the tests cover.
@@ -165,10 +157,10 @@ These differences apply even to effects whose main formula is procedural:
 | --- | --- | --- |
 | Pixel domain | `PixelEffectBase` constructs a virtual integer matrix from string/group structure or preview locations, with orientation, offsets and string lengths. | Pixel index/count, physical coordinates, target bounds and section queries; no Vixen matrix or original Vixen element hierarchy. |
 | Pixel-effect clock | `BaseEffect.FrameTime` comes from the update interval. `GetNumberFrames()` truncates duration/frame interval; progress is frame time divided by duration. | Arbitrary sample time and progress; no frame interval/count builtin. A manually supplied interval would be an additional authoring parameter, not automatic compatibility. |
-| Curves | Percentage positions and values; `Curve.GetValue` clamps to 0–100 and substitutes 100 for NaN. | Normalized positions, unrestricted scalar values, and NaN for an empty curve. Percentage values can be represented explicitly, but must not be mistaken for existing normalized starter curves. |
+| Curves | Percentage positions and values; `Curve.GetValue` clamps to 0–100 and substitutes 100 for NaN. | Normalized positions, values within the parameter's declared range, and NaN for an empty curve. Percentage values can be represented explicitly, but must not be mistaken for existing normalized starter curves. |
 | Gradients | Includes alpha and interpolation behavior; `ColorGradient.Interpolate` truncates interpolated RGB channels. | RGB only; gradient channel interpolation rounds to nearest. A black-to-white midpoint is 127 in Vixen and 128 in Donder. |
 | Lighting intensity | `LightingValue.FullColor` truncates channels after applying intensity. | Ordinary color multiplication rounds. An effect can explicitly calculate truncated channels using existing scalar arithmetic. |
-| Parameter interface | Display labels, units, bounds, conditionally visible controls, resource defaults, and structured collections such as gradient/level pairs. | Named typed parameters and literal defaults; no equivalent complete metadata/structured-collection contract. Curve and gradient defaults cannot be declared as literals in an effect file. |
+| Parameter interface | Display labels, units, bounds, conditionally visible controls, resource defaults, and structured collections such as gradient/level pairs. | Named typed parameters with declared numeric ranges and literal defaults; no labels, units, conditional visibility or structured-collection contract. Curve and gradient defaults cannot be declared as literals in an effect file. |
 | Randomness | Renderers consume Vixen's random stream, often while creating or stepping objects. | Deterministic scalar random sampling; substituting it changes the generated realization. |
 | Persistent state | Several renderers evolve grids, particles or accumulated motion across frames. | One `sample()` entrypoint, without persistent effect state or simulation-step entrypoints. |
 

@@ -506,17 +506,9 @@ pub(super) fn edit_sequence(
                 detached_bindings: Vec::new(),
             });
         }
-        SequenceGuiEdit::CreateAndBindAutomationClip { target, mapping } => {
+        SequenceGuiEdit::CreateAndBindAutomationClip { target } => {
             let target = automation_target_from_gui(target)?;
-            donder_language::validation::automation_target_type(
-                &session.project,
-                session.project.sequence(&sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?,
-                &target,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.message))?;
-            let mapping = automation_mapping_from_gui(mapping)?;
+            automation_target_mapping(session, &sequence_id, &target)?;
             let (start, duration, row_target) = {
                 let sequence = session.project.sequence(&sequence_id).ok_or_else(|| {
                     GuiMutationError::Invalid("Sequence was not found.".to_string())
@@ -539,8 +531,8 @@ pub(super) fn edit_sequence(
                 bindings: Vec::new(),
                 detached_bindings: Vec::new(),
             };
-            let mapping = available_automation_mapping(&draft, &target, &clip, mapping)?;
-            clip.bindings.push(AutomationBinding { target, mapping });
+            require_available_automation_target(&draft, &target, &clip)?;
+            clip.bindings.push(AutomationBinding { target });
             draft.automation_clips.push(clip);
         }
         SequenceGuiEdit::MoveAutomationClip {
@@ -582,65 +574,15 @@ pub(super) fn edit_sequence(
             curve.collapse_coincident_points();
             automation_clip_mut(&mut draft, id)?.curve = curve;
         }
-        SequenceGuiEdit::UpdateAutomationParamMapping {
-            clip_id,
-            target,
-            mapping,
-        } => {
-            let target = automation_target_from_gui(target)?;
-            donder_language::validation::automation_target_type(
-                &session.project,
-                session.project.sequence(&sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?,
-                &target,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.message))?;
-            if !automation_clip_mut(&mut draft, clip_id)?
-                .bindings
-                .iter()
-                .any(|binding| binding.target == target)
-            {
-                return Err(GuiMutationError::Invalid(
-                    "Automation binding was not found.".to_string(),
-                ));
-            }
-            // Every clip bound to a target shares its mapping.
-            let mapping = automation_mapping_from_gui(mapping)?;
-            for binding in draft
-                .automation_clips
-                .iter_mut()
-                .flat_map(|clip| &mut clip.bindings)
-                .filter(|binding| binding.target == target)
-            {
-                binding.mapping = mapping.clone();
-            }
-        }
         SequenceGuiEdit::DeleteAutomationClip { id } => {
             draft.automation_clips.retain(|clip| clip.id.0 != id);
         }
-        SequenceGuiEdit::BindAutomationParam {
-            clip_id,
-            target,
-            mapping,
-        } => {
+        SequenceGuiEdit::BindAutomationParam { clip_id, target } => {
             let target = automation_target_from_gui(target)?;
-            donder_language::validation::automation_target_type(
-                &session.project,
-                session.project.sequence(&sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?,
-                &target,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.message))?;
+            automation_target_mapping(session, &sequence_id, &target)?;
             let clip = automation_clip_mut(&mut draft, clip_id)?.clone();
-            let mapping = available_automation_mapping(
-                &draft,
-                &target,
-                &clip,
-                automation_mapping_from_gui(mapping)?,
-            )?;
-            automation_clip_mut(&mut draft, clip_id)?.bind(target, mapping);
+            require_available_automation_target(&draft, &target, &clip)?;
+            automation_clip_mut(&mut draft, clip_id)?.bind(target);
         }
         SequenceGuiEdit::UnbindAutomationParam { clip_id, target } => {
             let target = automation_target_from_gui(target)?;
@@ -674,7 +616,8 @@ pub(super) fn edit_sequence(
                     })?,
                 AutomationTarget::CompositionNodeParam { .. } => clip.start.as_seconds_f32(),
             };
-            let value = automation_binding_value_at(&clip, &binding, sample_seconds)?;
+            let mapping = automation_target_mapping(session, &sequence_id, &binding.target)?;
+            let value = automation_binding_value_at(&clip, &mapping, sample_seconds)?;
             match &target {
                 AutomationTarget::EffectParam { effect_id, param } => {
                     effect_mut(sequence, effect_id.0)?
@@ -699,24 +642,11 @@ pub(super) fn edit_sequence(
             clip_id,
             detached_index,
             target,
-            mapping,
         } => {
             let target = automation_target_from_gui(target)?;
-            donder_language::validation::automation_target_type(
-                &session.project,
-                session.project.sequence(&sequence_id).ok_or_else(|| {
-                    GuiMutationError::Invalid("Sequence was not found.".to_string())
-                })?,
-                &target,
-            )
-            .map_err(|error| GuiMutationError::Invalid(error.message))?;
+            automation_target_mapping(session, &sequence_id, &target)?;
             let clip = automation_clip_mut(&mut draft, clip_id)?.clone();
-            let mapping = available_automation_mapping(
-                &draft,
-                &target,
-                &clip,
-                automation_mapping_from_gui(mapping)?,
-            )?;
+            require_available_automation_target(&draft, &target, &clip)?;
             let clip = automation_clip_mut(&mut draft, clip_id)?;
             if detached_index as usize >= clip.detached_bindings.len() {
                 return Err(GuiMutationError::Invalid(
@@ -724,7 +654,7 @@ pub(super) fn edit_sequence(
                 ));
             }
             clip.detached_bindings.remove(detached_index as usize);
-            clip.bind(target, mapping);
+            clip.bind(target);
         }
         SequenceGuiEdit::DiscardDetachedAutomation {
             clip_id,
@@ -819,13 +749,28 @@ fn automation_target_timing(
     }
 }
 
-/// Clips may share a target when they do not overlap; they share its mapping.
-fn available_automation_mapping(
+/// The target param's declared automation mapping.
+fn automation_target_mapping(
+    session: &ProjectSession,
+    sequence_id: &SequenceId,
+    target: &AutomationTarget,
+) -> Result<AutomationMapping, GuiMutationError> {
+    let sequence = session
+        .project
+        .sequence(sequence_id)
+        .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
+    donder_language::validation::automation_target_param(&session.project, sequence, target)
+        .map_err(|error| GuiMutationError::Invalid(error.message))?
+        .automation_mapping()
+        .ok_or_else(|| GuiMutationError::Invalid("Param does not support automation.".to_string()))
+}
+
+/// Clips may share a target when they do not overlap.
+fn require_available_automation_target(
     sequence: &donder_language::sequence::Sequence,
     target: &AutomationTarget,
     clip: &AutomationClip,
-    mapping: AutomationMapping,
-) -> Result<AutomationMapping, GuiMutationError> {
+) -> Result<(), GuiMutationError> {
     if sequence.automation_clips.iter().any(|other| {
         if other.id == clip.id {
             other
@@ -840,10 +785,7 @@ fn available_automation_mapping(
             "Param is already automated here.".to_string(),
         ));
     }
-    Ok(sequence
-        .automation_mapping(target)
-        .cloned()
-        .unwrap_or(mapping))
+    Ok(())
 }
 
 fn effect_ref_from_gui(
@@ -882,9 +824,9 @@ use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_re
 use indexmap::IndexMap;
 
 use super::model::{
-    automation_binding_value_at, automation_clip_mut, automation_mapping_from_gui,
-    composition_graph_node_mut, create_sequence_layer, curve_from_points, default_automation_curve,
-    effect_mut, effect_param_value_from_gui, effect_scope, graph_operator_from_gui, identifier,
+    automation_binding_value_at, automation_clip_mut, composition_graph_node_mut,
+    create_sequence_layer, curve_from_points, default_automation_curve, effect_mut,
+    effect_param_value_from_gui, effect_scope, graph_operator_from_gui, identifier,
     layout_target_to_effect_target, mark_collection_mut, next_composition_node_id, parse_color,
     parse_graph_node_id, register_sequence_audio_asset, source_identity_from_gui,
 };

@@ -242,37 +242,6 @@ pub(super) fn hash_automation_input_signature<H: Hasher>(
     clip.bindings.len().hash(state);
     for binding in &clip.bindings {
         binding.target.hash(state);
-        hash_automation_mapping(&binding.mapping, state);
-    }
-}
-
-pub(super) fn hash_automation_mapping<H: Hasher>(mapping: &AutomationMapping, state: &mut H) {
-    match mapping {
-        AutomationMapping::Float { min, max } => {
-            0u8.hash(state);
-            min.to_bits().hash(state);
-            max.to_bits().hash(state);
-        }
-        AutomationMapping::Int { min, max } => {
-            1u8.hash(state);
-            min.hash(state);
-            max.hash(state);
-        }
-        AutomationMapping::Bool => {
-            2u8.hash(state);
-        }
-        AutomationMapping::Enum { values } => {
-            3u8.hash(state);
-            values.len().hash(state);
-            for value in values {
-                value.hash(state);
-            }
-        }
-        AutomationMapping::Curve { min, max } => {
-            4u8.hash(state);
-            min.to_bits().hash(state);
-            max.to_bits().hash(state);
-        }
     }
 }
 

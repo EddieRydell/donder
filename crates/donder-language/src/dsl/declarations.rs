@@ -1,9 +1,11 @@
 //! Authoring declarations and named parameter resolution.
 //! Playback programs receive positional, typed values rather than source names.
 use super::OperatorProgram;
+use super::loop_bounds::LoopBound;
 use super::{
     BindingError, BoundParams, BytecodeProgram, Identifier, OperatorInvocation, Type, Value,
 };
+use crate::automation::AutomationMapping;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -15,7 +17,49 @@ pub struct OperatorInputDecl {
 pub struct ParamDecl {
     pub name: Identifier,
     pub ty: Type,
+    /// Present exactly for `int`, `float`, and `curve` params.
+    pub range: Option<ParamRange>,
     pub default: Option<Value>,
+}
+
+/// Inclusive declared range. A curve param's range bounds its point values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ParamRange {
+    Int { min: i32, max: i32 },
+    Float { min: f32, max: f32 },
+}
+
+impl ParamRange {
+    /// Whether this range is well formed and fits a param of `ty`.
+    pub fn fits(&self, ty: &Type) -> bool {
+        match (self, ty) {
+            (Self::Int { min, max }, Type::Int) => min <= max,
+            (Self::Float { min, max }, Type::Float | Type::Curve) => {
+                min.is_finite() && max.is_finite() && min <= max
+            }
+            _ => false,
+        }
+    }
+
+    fn contains_float(&self, value: f32) -> bool {
+        match *self {
+            Self::Int { min, max } => (min as f32..=max as f32).contains(&value),
+            Self::Float { min, max } => (min..=max).contains(&value),
+        }
+    }
+
+    fn contains(&self, value: &Value) -> bool {
+        match (self, value) {
+            (Self::Int { min, max }, Value::Int(value)) => (*min..=*max).contains(value),
+            (Self::Float { .. }, Value::Int(value)) => self.contains_float(*value as f32),
+            (Self::Float { .. }, Value::Float(value)) => self.contains_float(*value),
+            (Self::Float { .. }, Value::Curve(curve)) => curve
+                .points
+                .iter()
+                .all(|point| self.contains_float(point.value)),
+            _ => false,
+        }
+    }
 }
 
 impl ParamDecl {
@@ -25,6 +69,29 @@ impl ParamDecl {
             Type::Float | Type::Int | Type::Bool | Type::Enum(_) | Type::Curve
         )
     }
+
+    /// The value has this param's type and lies within its declared range.
+    pub fn accepts_value(&self, value: &Value) -> bool {
+        self.ty.accepts_value(value) && self.range.is_none_or(|range| range.contains(value))
+    }
+
+    /// Automation maps its normalized curve onto the declared range or options.
+    pub fn automation_mapping(&self) -> Option<AutomationMapping> {
+        Some(match (&self.ty, self.range) {
+            (Type::Int, Some(ParamRange::Int { min, max })) => AutomationMapping::Int { min, max },
+            (Type::Float, Some(ParamRange::Float { min, max })) => {
+                AutomationMapping::Float { min, max }
+            }
+            (Type::Curve, Some(ParamRange::Float { min, max })) => {
+                AutomationMapping::Curve { min, max }
+            }
+            (Type::Bool, None) => AutomationMapping::Bool,
+            (Type::Enum(options), None) => AutomationMapping::Enum {
+                values: options.clone(),
+            },
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -32,6 +99,7 @@ pub struct CompiledOperator {
     name: Identifier,
     inputs: Vec<OperatorInputDecl>,
     params: Vec<ParamDecl>,
+    loop_bounds: Vec<LoopBound>,
     program: Arc<OperatorProgram>,
 }
 
@@ -40,6 +108,7 @@ impl CompiledOperator {
         name: Identifier,
         inputs: Vec<OperatorInputDecl>,
         params: Vec<ParamDecl>,
+        loop_bounds: Vec<LoopBound>,
         bytecode: BytecodeProgram,
     ) -> Option<Self> {
         let program = OperatorProgram::admit(
@@ -51,6 +120,7 @@ impl CompiledOperator {
             name,
             inputs,
             params,
+            loop_bounds,
             program: Arc::new(program),
         })
     }
@@ -82,12 +152,18 @@ impl CompiledOperator {
         &self.params
     }
 
+    /// Positional `values` respect every declared range and loop bound.
+    pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
+        check_values(&self.params, &self.loop_bounds, values)
+    }
+
     pub fn bind<'p, P>(&self, params: P) -> Result<OperatorInvocation, BindingError>
     where
         P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
     {
-        super::OperatorDefinition::new(Arc::clone(&self.program))
-            .bind(resolve_params(&self.params, params)?)
+        let values = resolve_params(&self.params, params)?;
+        self.check_values(&values)?;
+        super::OperatorDefinition::new(Arc::clone(&self.program)).bind(values)
     }
 }
 
@@ -100,8 +176,36 @@ where
     P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
 {
     let values = resolve_params(declarations, params)?;
+    check_values(declarations, &[], &values)?;
     let types: Vec<_> = declarations.iter().map(|param| param.ty.clone()).collect();
     BoundParams::bind_values(&types, values)
+}
+
+/// Declared ranges, then the loop bounds that depend on parameter lengths.
+pub(super) fn check_values(
+    declarations: &[ParamDecl],
+    loop_bounds: &[LoopBound],
+    values: &[Value],
+) -> Result<(), BindingError> {
+    for (param, value) in declarations.iter().zip(values) {
+        if param.ty.accepts_value(value) && !param.accepts_value(value) {
+            return Err(BindingError {
+                message: format!(
+                    "parameter `{}` is outside its declared range",
+                    param.name.as_str()
+                ),
+            });
+        }
+    }
+    if let Some(iterations) = loop_bounds.iter().find_map(|bound| bound.exceeded(values)) {
+        return Err(BindingError {
+            message: format!(
+                "a loop can run {iterations} times with these parameter values; the limit is {}",
+                super::MAX_DSL_LOOP_ITERATIONS
+            ),
+        });
+    }
+    Ok(())
 }
 
 pub(super) fn resolve_params<'p, P>(

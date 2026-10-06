@@ -1657,6 +1657,7 @@ version = "0.1.0"
 dependencies = [
  "donder-language",
  "donder-project-io",
+ "donder-runtime",
  "serde",
  "specta",
  "specta-serde",

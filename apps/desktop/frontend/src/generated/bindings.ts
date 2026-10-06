@@ -49,7 +49,7 @@ export const commands = {
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, requestId: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, requestId }).then((v) => (({...v,ready:v.ready.map(i=>i)}) as typeof v)),
 	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditResult>("apply_gui_edit", { request, edit }),
 	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing"),
-	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget, mapping: SequenceAutomationMapping) => __TAURI_INVOKE<GuiEditResult>("rebind_detached_automation", { request, clipId, detachedIndex, target, mapping }),
+	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditResult>("rebind_detached_automation", { request, clipId, detachedIndex, target }),
 	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditResult>("discard_detached_automation", { request, clipId, detachedIndex }),
 	applySequenceSelectionEdit: (request: GuiDocumentRequest, edit: SequenceSelectionEdit) => __TAURI_INVOKE<SequenceSelectionEditResult>("apply_sequence_selection_edit", { request, edit }),
 	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditResult>("choose_sequence_audio", { request }),
@@ -64,6 +64,7 @@ export const commands = {
 	audioStop: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_stop")),
 	audioRewindToZero: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_rewind_to_zero")),
 	audioSeek: (positionSeconds: number) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_seek", { positionSeconds })),
+	audioSetPlaybackSpeed: (speed: PlaybackSpeed) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_playback_speed", { speed })),
 	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })),
 	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })),
 	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })),
@@ -120,6 +121,7 @@ export type AudioTransportSnapshot = {
 	startDelaySeconds: number,
 	homeSeconds: number,
 	durationSeconds: number,
+	playbackSpeed: PlaybackSpeed,
 	lastError: string | null,
 };
 
@@ -493,6 +495,14 @@ export type PersistedSpatialViewStateUpdate = {
 	state: PersistedSpatialViewState,
 };
 
+export type PlaybackFrameTiming = "scaled" | "constant";
+
+/**  Show microseconds per wall second; 1_000_000 is normal speed. */
+export type PlaybackSpeed = {
+	showMicrosPerSecond: number,
+	frameTiming: PlaybackFrameTiming,
+};
+
 export type Point3Meters = {
 	xMeters: number,
 	yMeters: number,
@@ -590,7 +600,6 @@ export type SequenceAudio = {
 
 export type SequenceAutomationBinding = {
 	target: SequenceAutomationTarget,
-	mapping: SequenceAutomationMapping,
 };
 
 export type SequenceAutomationClip = {
@@ -604,8 +613,6 @@ export type SequenceAutomationClip = {
 };
 
 export type SequenceAutomationDetachmentReason = "targetDeleted" | "definitionChanged";
-
-export type SequenceAutomationMapping = { type: "float"; min: number; max: number } | { type: "int"; min: number; max: number } | { type: "bool" } | { type: "enum"; values: string[] } | { type: "curve"; min: number; max: number };
 
 /**  How a resize treats an automation clip's curve. */
 export type SequenceAutomationResize = 
@@ -693,7 +700,6 @@ export type SequenceCurveValue = {
 
 export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
-	mapping: SequenceAutomationMapping,
 	reason: SequenceAutomationDetachmentReason,
 };
 
@@ -732,6 +738,7 @@ export type SequenceEffectParam = {
 	name: string,
 	kind: SequenceEffectParamKind,
 	options: string[],
+	range: SequenceParamRange | null,
 	editable: boolean,
 	value: SequenceEffectParamValue,
 	automation: SequenceParamAutomation | null,
@@ -830,7 +837,7 @@ export type SequenceGuiDocument = {
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "updateAutomationParamMapping"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget; mapping: SequenceAutomationMapping } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | { type: "createMarkCollection"; key: string; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
+export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | { type: "createMarkCollection"; key: string; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
@@ -869,7 +876,12 @@ export type SequenceMarkRef = {
 
 export type SequenceParamAutomation = {
 	clipId: number,
-	mapping: SequenceAutomationMapping,
+};
+
+/**  Inclusive declared range of an `int`, `float`, or `curve` param. */
+export type SequenceParamRange = {
+	min: number,
+	max: number,
 };
 
 export type SequencePasteAnchor = {
