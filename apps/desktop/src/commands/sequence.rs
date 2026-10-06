@@ -185,97 +185,53 @@ pub(crate) fn choose_sequence_audio(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn device_capabilities(
-    address: String,
-    token: String,
-) -> Result<crate::dto::DeviceCapabilities, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::device::DeviceClient::new(&address, &token)?.capabilities()
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn connect_sequence_device(
-    request: GuiDocumentRequest,
-    outputs: Vec<u32>,
-    address: String,
-    token: String,
+pub(crate) async fn claim_device(
+    id: String,
     state: State<'_, DesktopState>,
-) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
+) -> Result<AppSnapshot, String> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        state.connect_sequence_device(&request, &outputs, &address, &token)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn disconnect_sequence_device(
-    address: String,
-    state: State<'_, DesktopState>,
-) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || state.disconnect_sequence_device(&address))
-        .await
-        .map_err(|error| error.to_string())?
-}
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn sequence_devices(
-    state: State<'_, DesktopState>,
-) -> Result<Vec<crate::dto::SequenceDeviceStatus>, String> {
-    let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || Ok(state.sequence_devices()))
+    tauri::async_runtime::spawn_blocking(move || state.claim_device(&id))
         .await
         .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn device_transport(
-    address: String,
-    token: String,
-    mode: Option<crate::dto::DevicePlaybackMode>,
-) -> Result<crate::dto::DeviceTransportStatus, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::device::DeviceClient::new(&address, &token)?.transport(mode)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+pub(crate) async fn rename_device(
+    id: String,
+    name: String,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.rename_device(&id, &name))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn upload_sequence_device(
-    request: GuiDocumentRequest,
-    outputs: Vec<u32>,
-    address: String,
-    token: String,
+pub(crate) async fn set_device_standalone(
+    id: String,
+    playing: bool,
     state: State<'_, DesktopState>,
-) -> Result<String, String> {
+) -> Result<AppSnapshot, String> {
     let state = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let client = crate::device::DeviceClient::new(&address, &token)?;
-        let available = state.sequence_export_ports(&request)?;
-        let widths = outputs
-            .iter()
-            .map(|index| {
-                available
-                    .iter()
-                    .find(|port| port.index == *index)
-                    .map(|port| port.channels)
-                    .ok_or("Selected output is unavailable.")
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let bytes = state.prepare_sequence_export(&request, &outputs)?;
-        client.upload(bytes, &widths)
-    })
-    .await
-    .map_err(|error| error.to_string())?
+    tauri::async_runtime::spawn_blocking(move || state.set_device_standalone(&id, playing))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn set_device_network(
+    id: String,
+    network: Option<crate::dto::DonderDeviceNetworkRequest>,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || state.set_device_network(&id, network))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -313,20 +269,6 @@ pub(crate) async fn install_device_firmware(
 pub(crate) async fn erase_device_saved_data(port: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::device::provisioning::erase_saved_data(&port)
-    })
-    .await
-    .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-#[specta::specta]
-pub(crate) async fn provision_device(
-    port: String,
-    ssid: String,
-    password: String,
-) -> Result<crate::dto::ProvisionedDevice, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::device::provisioning::provision(&port, &ssid, &password)
     })
     .await
     .map_err(|error| error.to_string())?

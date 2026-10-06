@@ -96,6 +96,7 @@ impl DesktopState {
             Ok(()) => {
                 self.clear_render_error_if_set();
                 self.resume_live_output_after_prepare();
+                self.schedule_device_reconcile();
             }
             Err(error) => {
                 self.suspend_live_output();
@@ -108,5 +109,6 @@ impl DesktopState {
     pub(super) fn unload_render_session(&self) {
         self.disable_live_output();
         lock_unpoisoned(&self.sequence_render).unload();
+        self.schedule_device_reconcile();
     }
 }

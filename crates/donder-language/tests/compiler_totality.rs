@@ -12,7 +12,7 @@ fn malformed_source_never_panics_during_compilation() {
             false,
         ),
         (
-            "effect Probe { fixed param marks beats; param int count = 2; color sample() { float sum = 0.0; for (int i in range(count, 10000)) { for (int mark in beats) { sum = sum + mark_at(beats, mark); } } return rgb(sum, 0.0, 0.0); } }",
+            "effect Probe { param marks beats; param int count = 2; color sample() { float sum = 0.0; for (int i in range(count, 10000)) { for (int mark in beats) { sum = sum + mark_at(beats, mark); } } return rgb(sum, 0.0, 0.0); } }",
             true,
         ),
     ];

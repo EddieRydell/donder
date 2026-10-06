@@ -4,23 +4,38 @@ import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 import type { SequenceViewport } from "./sequenceSelection";
 
+/** The content window is the time span the curve positions cover. A crop moves the clip window over fixed content. */
 export type AutomationDraft = {
   id: number;
   startSeconds: number;
   durationSeconds: number;
   rowTarget: FixtureTarget;
+  contentStartSeconds: number;
+  contentDurationSeconds: number;
 };
 
 export type AutomationHover = { kind: "automation"; clipId: number; resize: "left" | "right" | "none" };
 
+export type AutomationCurvePoint = { time: number; value: number };
+
+/** Clip-relative time and normalized value the dragged point aligned to. */
+export type AutomationGuide = { time: number | null; value: number | null };
+
 export type AutomationCurveDraft = {
   id: number;
-  curve: Array<{ time: number; value: number }>;
+  curve: AutomationCurvePoint[];
+  guide: AutomationGuide;
 };
 
+export type AutomationClipView = SequenceAutomationClip & { contentStartSeconds: number; contentDurationSeconds: number };
+
+type CanvasRect = { x: number; y: number; width: number; height: number };
+
 export type AutomationClipLayout = {
-  clip: SequenceAutomationClip;
-  rect: { x: number; y: number; width: number; height: number };
+  clip: AutomationClipView;
+  rect: CanvasRect;
+  /** Canvas span of the content window; shares the clip's vertical extent. */
+  curveRect: CanvasRect;
 };
 
 export type AutomationClipVisualState = {
@@ -30,6 +45,8 @@ export type AutomationClipVisualState = {
   choosing: boolean;
   resize: "left" | "right" | "none";
   activePointIndex: number | null;
+  guide: AutomationGuide | null;
+  markXs: number[];
 };
 
 export type SequenceRowKind = "effects" | "automation";
@@ -101,10 +118,10 @@ export function laneIndexFromCanvasY(y: number, top: number, scrollY: number, la
   return rowFromCanvasY(y, top, scrollY, rows)?.laneIndex ?? Math.max(0, laneCount - 1);
 }
 
-export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows: SequenceRowLayout[], viewport: SequenceViewport, left: number, top: number, bounds: { width: number; height: number }): AutomationClipLayout[] {
+export function buildAutomationClipLayout(clips: AutomationClipView[], rows: SequenceRowLayout[], viewport: SequenceViewport, left: number, top: number, bounds: { width: number; height: number }): AutomationClipLayout[] {
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
-  const byAutomationLane = new Map<number, SequenceAutomationClip[]>();
+  const byAutomationLane = new Map<number, AutomationClipView[]>();
   for (const clip of clips) {
     if (clip.startSeconds + clip.durationSeconds < visibleStartSeconds || clip.startSeconds > visibleEndSeconds) continue;
     const key = clip.rowTarget.fixture;
@@ -125,13 +142,19 @@ export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows:
       for (const clip of assigned) {
         const slotHeight = row.height / slotCount;
         const x = left + (clip.startSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
+        const rect = {
+          x,
+          y: top + row.top - viewport.scrollY + clip.slot * slotHeight + THEME_METRICS.sequenceClipSlotOffset,
+          width: Math.max(THEME_METRICS.sequenceClipMinWidth, clip.durationSeconds * viewport.pxPerSecond),
+          height: Math.max(THEME_METRICS.sequenceClipMinHeight, slotHeight - THEME_METRICS.sequenceClipHandleInset)
+        };
         layouts.push({
           clip,
-          rect: {
-            x,
-            y: top + row.top - viewport.scrollY + clip.slot * slotHeight + THEME_METRICS.sequenceClipSlotOffset,
-            width: Math.max(THEME_METRICS.sequenceClipMinWidth, clip.durationSeconds * viewport.pxPerSecond),
-            height: Math.max(THEME_METRICS.sequenceClipMinHeight, slotHeight - THEME_METRICS.sequenceClipHandleInset)
+          rect,
+          curveRect: {
+            ...rect,
+            x: left + (clip.contentStartSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond,
+            width: Math.max(THEME_METRICS.visualMinSize, clip.contentDurationSeconds * viewport.pxPerSecond)
           }
         });
       }
@@ -140,11 +163,17 @@ export function buildAutomationClipLayout(clips: SequenceAutomationClip[], rows:
   return layouts;
 }
 
-export function automationClipsWithDrafts(clips: SequenceAutomationClip[], drafts: AutomationDraft[], curveDraft: AutomationCurveDraft | null): SequenceAutomationClip[] {
+export function automationClipsWithDrafts(clips: SequenceAutomationClip[], drafts: AutomationDraft[], curveDraft: AutomationCurveDraft | null): AutomationClipView[] {
   const byId = new Map(drafts.map((draft) => [draft.id, draft]));
   return clips.map((clip) => {
     const draft = byId.get(clip.id);
-    return { ...clip, ...draft, curve: curveDraft?.id === clip.id ? curveDraft.curve : clip.curve };
+    return {
+      ...clip,
+      contentStartSeconds: clip.startSeconds,
+      contentDurationSeconds: clip.durationSeconds,
+      ...draft,
+      curve: curveDraft?.id === clip.id ? curveDraft.curve : clip.curve
+    };
   });
 }
 
@@ -203,67 +232,97 @@ export function hitTimelineClip<T extends { rect: AutomationClipLayout["rect"] }
   return null;
 }
 
-function automationCurveGraphRect(rect: { x: number; y: number; width: number; height: number }) {
+/** The curve spans the full clip width so curve time matches timeline time. */
+function automationCurveGraphRect(rect: CanvasRect) {
   const padding = Math.min(THEME_METRICS.automationGraphPaddingMax, Math.max(THEME_METRICS.automationGraphPaddingMin, rect.height * THEME_METRICS.automationGraphPaddingRatio));
   const headerHeight = Math.min(THEME_METRICS.automationClipHeaderHeight, rect.height);
   return {
-    x: rect.x + padding,
+    x: rect.x,
     y: rect.y + headerHeight + padding,
-    width: Math.max(THEME_METRICS.visualMinSize, rect.width - padding * 2),
+    width: Math.max(THEME_METRICS.visualMinSize, rect.width),
     height: Math.max(THEME_METRICS.visualMinSize, rect.height - headerHeight - padding * 2)
   };
 }
 
-export function sortAutomationCurve(curve: Array<{ time: number; value: number }>) {
-  return [...curve].sort((left, right) => left.time - right.time);
-}
-
-function automationCurveCanvasPoints(curve: Array<{ time: number; value: number }>, rect: { x: number; y: number; width: number; height: number }) {
-  const graph = automationCurveGraphRect(rect);
-  return sortAutomationCurve(curve).map((point) => ({ x: graph.x + clamp(point.time, 0, 1) * graph.width, y: graph.y + (1 - clamp(point.value, 0, 1)) * graph.height }));
+function automationCurveCanvasPoints(curve: AutomationCurvePoint[], curveRect: CanvasRect) {
+  const graph = automationCurveGraphRect(curveRect);
+  return curve.map((point) => ({ x: graph.x + clamp(point.time, 0, 1) * graph.width, y: graph.y + (1 - clamp(point.value, 0, 1)) * graph.height }));
 }
 
 export function hitAutomationCurvePoint(clip: AutomationClipLayout, x: number, y: number): number | null {
-  const points = automationCurveCanvasPoints(clip.clip.curve, clip.rect);
+  const points = automationCurveCanvasPoints(clip.clip.curve, clip.curveRect);
   for (let index = points.length - 1; index >= 0; index -= 1) {
     const point = points[index];
-    if (point !== undefined && Math.hypot(point.x - x, point.y - y) <= 7) return index;
+    if (point !== undefined && Math.hypot(point.x - x, point.y - y) <= THEME_METRICS.automationHitRadius) return index;
   }
   return null;
 }
 
-export function automationCurvePointFromCanvas(rect: { x: number; y: number; width: number; height: number }, x: number, y: number) {
-  const graph = automationCurveGraphRect(rect);
+/** The point on the drawn line under the cursor, and the curve index it would be inserted at. */
+export function hitAutomationCurveLine(clip: AutomationClipLayout, x: number, y: number): { index: number; point: AutomationCurvePoint } | null {
+  const line = automationCurveDisplayPoints(automationCurveCanvasPoints(clip.clip.curve, clip.curveRect), clip.rect);
+  // Segment i runs from the point before curve index i to curve index i.
+  for (let index = 0; index < line.length - 1; index += 1) {
+    const start = line[index];
+    const end = line[index + 1];
+    if (start === undefined || end === undefined) continue;
+    if (distanceToSegment(x, y, start, end) > THEME_METRICS.automationHitRadius) continue;
+    const vertical = Math.abs(end.x - start.x) < THEME_METRICS.visualLineWidth;
+    const lineY = vertical ? y : start.y + ((end.y - start.y) * (x - start.x)) / (end.x - start.x);
+    return { index, point: automationCurvePointFromCanvas(clip.curveRect, x, lineY) };
+  }
+  return null;
+}
+
+function distanceToSegment(x: number, y: number, start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const amount = lengthSquared === 0 ? 0 : clamp(((x - start.x) * dx + (y - start.y) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(x - (start.x + amount * dx), y - (start.y + amount * dy));
+}
+
+export function automationCurvePointFromCanvas(curveRect: CanvasRect, x: number, y: number): AutomationCurvePoint {
+  const graph = automationCurveGraphRect(curveRect);
   return { time: roundToNanosecond(clamp((x - graph.x) / graph.width, 0, 1)), value: Math.round(clamp(1 - (y - graph.y) / graph.height, 0, 1) * 1000) / 1000 };
 }
 
-export function replaceAutomationCurvePointByIdentity(
-  curve: Array<{ time: number; value: number }>,
-  identity: { pointTime: number; pointValue: number; pointOccurrence: number },
-  point: { time: number; value: number }
-) {
-  let occurrence = 0;
-  return curve
-    .map((candidate) => {
-      const matches = candidate.time === identity.pointTime && candidate.value === identity.pointValue;
-      const isTarget = matches && occurrence++ === identity.pointOccurrence;
-      return isTarget ? point : candidate;
-    })
-    .filter((candidate) => Number.isFinite(candidate.time) && Number.isFinite(candidate.value))
-    .sort((left, right) => left.time - right.time);
+/** Points keep their order: a moved point stays between its neighbors, so stacked steps never swap. */
+export function moveAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint) {
+  const time = clamp(point.time, curve[index - 1]?.time ?? 0, curve[index + 1]?.time ?? 1);
+  return curve.map((candidate, candidateIndex) => candidateIndex === index ? { time, value: point.value } : candidate);
 }
 
-export function removeAutomationCurvePoint(curve: Array<{ time: number; value: number }>, index: number) {
-  return sortAutomationCurve(curve).filter((_, candidateIndex) => candidateIndex !== index).filter((candidate) => Number.isFinite(candidate.time) && Number.isFinite(candidate.value));
+export function insertAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint) {
+  const time = clamp(point.time, curve[index - 1]?.time ?? 0, curve[index]?.time ?? 1);
+  return [...curve.slice(0, index), { time, value: point.value }, ...curve.slice(index)];
+}
+
+export function removeAutomationCurvePoint(curve: AutomationCurvePoint[], index: number) {
+  return curve.filter((_, candidateIndex) => candidateIndex !== index);
+}
+
+/** Align the dragged point's time or value with a neighbor that is close on screen. */
+export function alignAutomationCurvePoint(curve: AutomationCurvePoint[], index: number, point: AutomationCurvePoint, curveRect: CanvasRect): { point: AutomationCurvePoint; guide: AutomationGuide } {
+  const graph = automationCurveGraphRect(curveRect);
+  const neighbors = [curve[index - 1], curve[index + 1]].filter((neighbor): neighbor is AutomationCurvePoint => neighbor !== undefined);
+  const nearest = (axis: "time" | "value", scale: number) => {
+    const candidate = neighbors.reduce<AutomationCurvePoint | null>((best, neighbor) => best === null || Math.abs(neighbor[axis] - point[axis]) < Math.abs(best[axis] - point[axis]) ? neighbor : best, null);
+    return candidate !== null && Math.abs(candidate[axis] - point[axis]) * scale <= THEME_METRICS.automationAlignDistance ? candidate[axis] : null;
+  };
+  const time = nearest("time", graph.width);
+  const value = nearest("value", graph.height);
+  return { point: { time: time ?? point.time, value: value ?? point.value }, guide: { time, value } };
 }
 
 export function drawAutomationClip(
   ctx: CanvasRenderingContext2D,
-  clip: SequenceAutomationClip,
-  rect: { x: number; y: number; width: number; height: number },
+  layout: AutomationClipLayout,
   state: AutomationClipVisualState
 ) {
+  const { clip, rect } = layout;
   const graph = automationCurveGraphRect(rect);
+  const curveGraph = automationCurveGraphRect(layout.curveRect);
   const headerHeight = Math.min(THEME_METRICS.automationClipHeaderHeight, rect.height);
   const radius = Math.min(THEME_METRICS.automationClipRadius, rect.width / 2, rect.height / 2);
 
@@ -282,8 +341,9 @@ export function drawAutomationClip(
   ctx.lineWidth = THEME_METRICS.visualLineWidth;
   ctx.strokeStyle = THEME_COLORS.automationGraphGrid;
   ctx.beginPath();
-  for (let column = 1; column < THEME_METRICS.automationGridColumns; column += 1) {
-    const x = graph.x + (graph.width * column) / THEME_METRICS.automationGridColumns + THEME_METRICS.visualHairlineOffset;
+  for (const markX of state.markXs) {
+    if (markX <= rect.x || markX >= rect.x + rect.width) continue;
+    const x = Math.round(markX) + THEME_METRICS.visualHairlineOffset;
     ctx.moveTo(x, graph.y); ctx.lineTo(x, graph.y + graph.height);
   }
   for (let row = 1; row < THEME_METRICS.automationGridRows; row += 1) {
@@ -295,13 +355,11 @@ export function drawAutomationClip(
   ctx.beginPath();
   ctx.moveTo(graph.x, graph.y + graph.height / 2 + THEME_METRICS.visualHairlineOffset);
   ctx.lineTo(graph.x + graph.width, graph.y + graph.height / 2 + THEME_METRICS.visualHairlineOffset);
-  ctx.moveTo(graph.x + graph.width / 2 + THEME_METRICS.visualHairlineOffset, graph.y);
-  ctx.lineTo(graph.x + graph.width / 2 + THEME_METRICS.visualHairlineOffset, graph.y + graph.height);
   ctx.stroke();
 
-  const points = automationCurveCanvasPoints(clip.curve, rect);
+  const points = automationCurveCanvasPoints(clip.curve, layout.curveRect);
   if (points.length > 0) {
-    const displayPoints = automationCurveDisplayPoints(points, graph);
+    const displayPoints = automationCurveDisplayPoints(points, rect);
     ctx.beginPath();
     ctx.moveTo(displayPoints[0]?.x ?? graph.x, graph.y + graph.height);
     for (const point of displayPoints) ctx.lineTo(point.x, point.y);
@@ -309,6 +367,23 @@ export function drawAutomationClip(
     ctx.closePath();
     ctx.fillStyle = THEME_COLORS.automationCurveFill;
     ctx.fill();
+
+    if (state.guide !== null && state.activePointIndex !== null) {
+      ctx.setLineDash([THEME_METRICS.automationGuideDash]);
+      ctx.strokeStyle = THEME_COLORS.automation;
+      ctx.lineWidth = THEME_METRICS.visualLineWidth;
+      ctx.beginPath();
+      if (state.guide.time !== null) {
+        const x = curveGraph.x + state.guide.time * curveGraph.width;
+        ctx.moveTo(x, graph.y); ctx.lineTo(x, graph.y + graph.height);
+      }
+      if (state.guide.value !== null) {
+        const y = curveGraph.y + (1 - state.guide.value) * curveGraph.height;
+        ctx.moveTo(rect.x, y); ctx.lineTo(rect.x + rect.width, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -329,6 +404,18 @@ export function drawAutomationClip(
     }
     ctx.lineCap = "butt";
     ctx.lineJoin = "miter";
+
+    const activePoint = state.activePointIndex === null ? undefined : points[state.activePointIndex];
+    const activeValue = state.activePointIndex === null ? undefined : clip.curve[state.activePointIndex]?.value;
+    if (activePoint !== undefined && activeValue !== undefined) {
+      const label = `${Math.round(activeValue * 100)}%`;
+      ctx.font = THEME_TYPOGRAPHY.canvasLabel;
+      ctx.fillStyle = THEME_COLORS.automationClipLabel;
+      ctx.textBaseline = "middle";
+      const width = ctx.measureText(label).width;
+      const rightX = activePoint.x + THEME_METRICS.automationValueLabelOffset;
+      ctx.fillText(label, rightX + width > rect.x + rect.width ? activePoint.x - THEME_METRICS.automationValueLabelOffset - width : rightX, activePoint.y);
+    }
   }
 
   ctx.strokeStyle = THEME_COLORS.automationGraphMajorGrid;
@@ -390,17 +477,15 @@ export function drawAutomationClip(
   }
 }
 
-function automationCurveDisplayPoints(
-  points: Array<{ x: number; y: number }>,
-  graph: { x: number; y: number; width: number; height: number }
-) {
+/** The authored curve holds its first and last values out to the clip edges. */
+function automationCurveDisplayPoints(points: Array<{ x: number; y: number }>, rect: CanvasRect) {
   const first = points[0];
   const last = points[points.length - 1];
   if (first === undefined || last === undefined) return [];
   return [
-    { x: graph.x, y: first.y },
+    { x: Math.min(rect.x, first.x), y: first.y },
     ...points,
-    { x: graph.x + graph.width, y: last.y }
+    { x: Math.max(rect.x + rect.width, last.x), y: last.y }
   ];
 }
 

@@ -1,9 +1,11 @@
+pub(crate) mod discovery;
 pub(crate) mod firmware;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 
 use crate::dto::{
     DeviceCapabilities, DeviceOutputCapabilities, DevicePlaybackMode, DeviceTransportStatus,
+    DonderDeviceNetworkRequest,
 };
 use reqwest::{
     blocking::Client,
@@ -17,13 +19,48 @@ pub(crate) struct DeviceClient {
     token: [u8; 32],
 }
 
+/// First claim wins: an unclaimed controller returns the token that
+/// authorizes every later request.
+pub(crate) fn claim(address: SocketAddr) -> Result<String, String> {
+    let response = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("Could not initialize device connection: {error}"))?
+        .post(format!("http://{address}/claim"))
+        .body(Vec::new())
+        .send()
+        .map_err(|error| format!("Could not contact device: {error}"))?;
+    let token = read_response(response)?;
+    if token.len() != 32 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err("Device returned an invalid claim token.".into());
+    }
+    Ok(token)
+}
+
+fn read_response(response: reqwest::blocking::Response) -> Result<String, String> {
+    let status = response.status();
+    let mut bytes = Vec::new();
+    response
+        .take(8193)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Could not read device response: {error}"))?;
+    if bytes.len() > 8192 {
+        return Err("Device response exceeded its expected size.".into());
+    }
+    let text = String::from_utf8(bytes).map_err(|_| "Device returned invalid response text.")?;
+    if !status.is_success() {
+        return Err(format!("Device returned HTTP {status}: {}", text.trim()));
+    }
+    Ok(text)
+}
+
 impl DeviceClient {
-    pub(crate) fn new(address: &str, token: &str) -> Result<Self, String> {
-        let address = address
-            .parse::<SocketAddr>()
-            .map_err(|_| "Enter the device IP address and port, for example 192.168.1.50:80.")?;
+    pub(crate) fn new(address: SocketAddr, token: &str) -> Result<Self, String> {
         if token.len() != 32 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err("Enter the 32-character token returned during device provisioning.".into());
+            return Err("Saved device token is invalid; claim the controller again.".into());
         }
         let mut value = HeaderValue::from_str(token).map_err(|_| "Invalid device token.")?;
         value.set_sensitive(true);
@@ -49,21 +86,41 @@ impl DeviceClient {
     }
 
     fn response(&self, response: reqwest::blocking::Response) -> Result<String, String> {
-        let status = response.status();
-        let mut bytes = Vec::new();
-        response
-            .take(8193)
-            .read_to_end(&mut bytes)
-            .map_err(|error| format!("Could not read device response: {error}"))?;
-        if bytes.len() > 8192 {
-            return Err("Device response exceeded its expected size.".into());
-        }
-        let text =
-            String::from_utf8(bytes).map_err(|_| "Device returned invalid response text.")?;
-        if !status.is_success() {
-            return Err(format!("Device returned HTTP {status}: {}", text.trim()));
-        }
-        Ok(text)
+        read_response(response)
+    }
+
+    pub(crate) fn rename(&self, name: &str) -> Result<(), String> {
+        let response = self
+            .client
+            .put(format!("http://{}/name", self.address))
+            .body(name.to_string())
+            .send()
+            .map_err(|error| format!("Could not contact device: {error}"))?;
+        self.response(response).map(|_| ())
+    }
+
+    /// Join `network` after the controller restarts, or return to its own
+    /// access point when `None`.
+    pub(crate) fn set_network(
+        &self,
+        network: Option<&DonderDeviceNetworkRequest>,
+    ) -> Result<(), String> {
+        let body = match network {
+            Some(network) => serde_json::to_vec(&serde_json::json!({
+                "ssid": network.ssid,
+                "password": network.password,
+            }))
+            .map_err(|error| error.to_string())?,
+            None => Vec::new(),
+        };
+        let response = self
+            .client
+            .put(format!("http://{}/network", self.address))
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .map_err(|error| format!("Could not contact device: {error}"))?;
+        self.response(response).map(|_| ())
     }
 
     pub(crate) fn capabilities(&self) -> Result<DeviceCapabilities, String> {
@@ -202,8 +259,7 @@ mod tests {
                 .unwrap();
             }
         });
-        let client =
-            DeviceClient::new(&address.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
         assert!(client.transport(None).unwrap().playback.is_none());
         let playing = client
             .transport(Some(DevicePlaybackMode::Playing))
@@ -281,9 +337,7 @@ mod tests {
                     .unwrap();
                 }
             });
-            let client =
-                DeviceClient::new(&address.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-                    .unwrap();
+            let client = DeviceClient::new(address, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
             let mut bytes = vec![0; 16];
             bytes[..4].copy_from_slice(b"DOND");
             bytes[4..8].copy_from_slice(&6u32.to_le_bytes());

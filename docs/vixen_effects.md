@@ -114,7 +114,7 @@ parameter validator. In particular:
   `10000 / flicker_frequency * (1 - floor(frequency_deviation) / 100)`:
   375 seconds at its defaults. It does progressively more work as the effect
   advances; split longer effects or add preparation support before extending
-  this contract. Parameters affecting event generation are fixed.
+  this contract.
 - Dissolve accepts at most 10,000 target pixels and only a single monotonic
   `0..100` fill or `100..0` clear curve. Random rank selection scans the target's
   indices for each evaluated pixel. Full-frame work therefore grows quadratically

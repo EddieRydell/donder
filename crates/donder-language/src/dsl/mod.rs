@@ -32,8 +32,6 @@ pub use declarations::{CompiledOperator, OperatorInputDecl, ParamDecl, bind_para
 #[cfg(feature = "host")]
 mod diagnostic;
 #[cfg(feature = "host")]
-mod fixed_params;
-#[cfg(feature = "host")]
 mod fusion;
 #[cfg(feature = "host")]
 mod loop_bounds;
@@ -142,7 +140,6 @@ fn hash_bytecode<H: Hasher, C: Hash, S: Hash, A: Hash>(
 fn hash_param_decls<H: Hasher>(params: &[ParamDecl], state: &mut H) {
     params.len().hash(state);
     for param in params {
-        param.fixed.hash(state);
         param.name.hash(state);
         param.ty.hash(state);
         hash_optional_value(&param.default, state);

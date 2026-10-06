@@ -25,6 +25,7 @@ pub struct AppSnapshot {
     pub preview_open: bool,
     pub audio_transport: AudioTransportSnapshot,
     pub live_output: LiveOutputSnapshot,
+    pub devices: Vec<DonderDeviceStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

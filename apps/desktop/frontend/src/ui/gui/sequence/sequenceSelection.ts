@@ -1,4 +1,4 @@
-import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
+import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceAutomationResize, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
 
 import { clamp, type GuiFocus } from "../shared";
 
@@ -404,7 +404,7 @@ export function selectionFromMarqueeMarks(
   return { type: "marks", marks };
 }
 
-export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, requestedLaneDelta: number) {
+export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
   const clips = [
     ...document.effects.filter((clip) => selection.effectIds.includes(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "effects" as const })),
     ...document.automationClips.filter((clip) => selection.automationIds.includes(clip.id)).map((clip) => ({ ...clip, kind: "automation" as const }))
@@ -429,11 +429,14 @@ export function clipSelectionGesture(document: SequenceEditorDocument, selection
     const laneIndex = document.lanes.findIndex((lane) => targetsEqual(lane.target, clip.rowTarget)) + laneDelta;
     const timing = { id: clip.id, startSeconds: clip.startSeconds + (edge === "right" ? 0 : timeDeltaSeconds), durationSeconds: clip.durationSeconds + (edge === "none" ? 0 : edge === "left" ? -timeDeltaSeconds : timeDeltaSeconds) };
     if (clip.kind === "effects") effects.push({ ...timing, laneIndex });
-    else automation.push({ ...timing, rowTarget: targetAtLane(document, laneIndex) });
+    else {
+      const content = edge !== "none" && automationResize === "crop" ? clip : timing;
+      automation.push({ ...timing, rowTarget: targetAtLane(document, laneIndex), contentStartSeconds: content.startSeconds, contentDurationSeconds: content.durationSeconds });
+    }
   }
   const edit = edge === "none"
     ? { type: "moveClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, timeDeltaSeconds, laneDelta }
-    : { type: "resizeClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, edge, timeDeltaSeconds };
+    : { type: "resizeClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, edge, automation: automationResize, timeDeltaSeconds };
   return { effects, automation, edit, changed: timeDeltaSeconds !== 0 || laneDelta !== 0 };
 }
 

@@ -41,10 +41,10 @@ generation.
 
 ## Preparation
 
-- **Specialization.** Fixed parameters that decide control flow are specialized
-  away. Fixed primitive expressions in the initialization prefix are evaluated,
-  and only their results become bound inputs, so differently configured
-  instances still share code. Equal specialized programs are interned.
+- **Specialization.** Parameters without automation that decide control flow
+  are specialized away. Primitive expressions over those parameters in the
+  initialization prefix are evaluated, and only their results become bound
+  inputs, so differently configured instances still share code. Equal specialized programs are interned.
 - **Reciprocals.** A fixed finite nonzero divisor becomes multiplication by a
   prepared reciprocal.
 - **Register reuse.** Registers whose lifetimes do not overlap are reused after

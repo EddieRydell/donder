@@ -16,13 +16,9 @@ main:
 dig_quad:
   type: controller
   protocol:
-    type: e131
-    source_name: Donder Stanford Room
-    bind_address: 0.0.0.0
-    priority: 100
-    mode: unicast
-    destination: 127.0.0.1
+    type: donder
+    device: b0cbd8030790
   ports:
   - id: 1
-    universe: 1
+    output: 1
     slot_count: 450

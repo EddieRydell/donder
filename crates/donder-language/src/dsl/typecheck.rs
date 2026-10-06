@@ -88,9 +88,6 @@ impl Checker {
                 "`sample` must return a color on all paths",
             );
         }
-        if let Err(diagnostics) = super::fixed_params::check(&operator.params, &body) {
-            self.diagnostics.extend(diagnostics);
-        }
         CheckedOperatorDecl {
             name: operator.name,
             inputs: operator.inputs,
@@ -164,9 +161,6 @@ impl Checker {
                 TextSpan { start: 0, end: 0 },
                 "`sample` must return a color on all paths",
             );
-        }
-        if let Err(diagnostics) = super::fixed_params::check(&effect.params, &body) {
-            self.diagnostics.extend(diagnostics);
         }
         CheckedEffectDecl {
             name: effect.name,

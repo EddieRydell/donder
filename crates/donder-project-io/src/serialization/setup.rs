@@ -109,6 +109,13 @@ pub(super) fn controller_value(controller: &Controller) -> Result<Value, ExportP
                 ),
             );
         }
+        ControllerProtocol::Donder(config) => {
+            protocol.insert(string_value("type"), Value::String("donder".to_string()));
+            protocol.insert(
+                string_value("device"),
+                Value::String(config.device.as_str().to_string()),
+            );
+        }
     }
     value.insert(string_value("protocol"), Value::Mapping(protocol));
     value.insert(
@@ -126,6 +133,9 @@ pub(super) fn controller_value(controller: &Controller) -> Result<Value, ExportP
                         }
                         ControllerPortAddress::ArtNetPort(address) => {
                             item.insert(string_value("port_address"), serialized_value(address)?)
+                        }
+                        ControllerPortAddress::DonderOutput(output) => {
+                            item.insert(string_value("output"), serialized_value(output)?)
                         }
                     };
                     item.insert(

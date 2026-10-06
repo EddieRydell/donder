@@ -108,6 +108,11 @@ Every layout fixture or group has one effect row and one automation row. A
 clip's row is only placement: moving it between rows does not change its
 bindings. One clip can bind several parameters, each with its own mapping:
 a float, int or curve range, a bool (on at 0.5), or a list of enum values.
+Several clips may bind the same parameter if they do not overlap in time; they
+share its mapping, and changing it on one clip changes it on all. Preparation
+merges them into one envelope: before the first clip the parameter holds that
+clip's first value, and in a gap it holds the value the previous clip ended on.
+Splitting a clip therefore leaves playback unchanged.
 When the GUI deletes a bound effect or operator, or replaces its definition so a
 parameter no longer fits, the binding moves to `detached_bindings` with that
 reason, so it can be reattached rather than silently lost.
@@ -119,6 +124,16 @@ In the editor:
   pastes unbound.
 - A paste that does not fit is rejected as a whole. Moving, resizing, cutting or
   pasting a selection is one history entry.
+- Resizing an automation clip crops it: the edge moves over fixed content,
+  points outside the new window are dropped, and a cut edge gains a point at the
+  value it cut through. Holding Ctrl while resizing stretches the curve instead.
+  Splitting crops the clip into two clips with the same bindings.
+- Curve points keep their authored order. Clicking the line adds a point,
+  double-clicking a point removes it, and a dragged point stays between its
+  neighbors, so a step (two points at one time) never reorders. Shift aligns
+  the dragged point's time or value with a neighbor; Alt snaps clip edges and
+  point times to visible marks. Committing a curve drops points that cannot
+  affect sampling.
 - In the graph, operator parameters and automation controls live inside each
   node, and layer controls inside layer nodes. Right-click to add or delete;
   deleting a layer asks where its effects should move. Default and Output cannot
@@ -142,8 +157,9 @@ preparation does not repeat it.
 - The graph has one output, typed acyclic connections, and layer nodes that
   reference distinct layers. Operator definitions, parameters, port types and
   cardinality are checked even on disconnected branches.
-- Active automation bindings target existing, compatible, non-fixed parameters,
-  each at most once (including relative to detached bindings).
+- Active automation bindings target existing, compatible parameters. A clip
+  binds a target at most once (active or detached), clips that bind the same
+  target do not overlap, and their active mappings agree.
 
 Fixture rules are in [fixture authoring](fixture_authoring.md).
 

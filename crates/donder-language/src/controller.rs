@@ -24,6 +24,32 @@ pub struct Controller {
 pub enum ControllerProtocol {
     E131(E131Config),
     ArtNet(ArtNetConfig),
+    /// A Donder controller plays prepared shows itself; the editor uploads
+    /// them and schedules playback instead of streaming frames.
+    Donder(DonderConfig),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DonderConfig {
+    pub device: DonderDeviceId,
+}
+
+/// A Donder controller's factory MAC address as 12 lowercase hex digits.
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct DonderDeviceId(String);
+
+impl DonderDeviceId {
+    pub fn parse(value: &str) -> Option<Self> {
+        (value.len() == 12
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+        .then(|| Self(value.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,6 +90,8 @@ pub struct ControllerPort {
 pub enum ControllerPortAddress {
     E131Universe(u16),
     ArtNetPort(u16),
+    /// A Donder controller's physical output, numbered from 1.
+    DonderOutput(u8),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,6 +112,10 @@ pub enum ControllerValidationError {
     InvalidArtNetPort {
         port: ControllerPortId,
         address: u16,
+    },
+    InvalidDonderOutput {
+        port: ControllerPortId,
+        output: u8,
     },
     DuplicateProtocolAddress(ControllerPortAddress),
 }
@@ -107,7 +139,10 @@ impl Controller {
             if port.slot_count == 0 {
                 return Err(ControllerValidationError::EmptyPort(port.id));
             }
-            if port.slot_count > DMX_SLOT_LIMIT {
+            // A Donder controller reports its own output widths when it admits a show.
+            if !matches!(self.protocol, ControllerProtocol::Donder(_))
+                && port.slot_count > DMX_SLOT_LIMIT
+            {
                 return Err(ControllerValidationError::TooManySlots {
                     port: port.id,
                     slots: port.slot_count,
@@ -132,6 +167,15 @@ impl Controller {
                         return Err(ControllerValidationError::InvalidArtNetPort {
                             port: port.id,
                             address,
+                        });
+                    }
+                }
+                // Unique outputs within 1..=ports map one-to-one onto device lanes.
+                (ControllerProtocol::Donder(_), ControllerPortAddress::DonderOutput(output)) => {
+                    if output == 0 || usize::from(output) > self.ports.len() {
+                        return Err(ControllerValidationError::InvalidDonderOutput {
+                            port: port.id,
+                            output,
                         });
                     }
                 }

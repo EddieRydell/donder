@@ -83,12 +83,13 @@ into a compact archive of prepared data and bytecode. The same portable runtime
 evaluates that archive in the preview window, for live E1.31 and Art-Net output,
 and on an ESP32. Frame checksums from the controller match the desktop's.
 
-- **Standalone playback.** Install the bundled firmware over USB, provision Wi-Fi,
-  and upload. The controller stores the show in flash and plays it on four
-  parallel WS281x outputs, with no computer attached.
-- **Editor playback.** Connect controllers to the sequence editor and press Play.
-  Each controller receives its own compiled fragment and starts at a shared,
-  clock-synchronized time. No per-frame pixels cross the network.
+- **Editor playback.** Install the bundled firmware over USB. The controller
+  hosts its own Wi-Fi network and advertises itself; add it to the setup, claim
+  it and press Play. Each controller receives its own compiled fragment and
+  starts at a shared, clock-synchronized time. No per-frame pixels cross the
+  network.
+- **Standalone playback.** The controller stores the last show in flash and can
+  loop it on four parallel WS281x outputs, with no computer attached.
 - **Supported today:** classic ESP32 boards with 4 MB flash, including the
   QuinLED Dig-Quad, up to 1,600 pixels per controller. See
   [controller setup](docs/esp32_loading.md#install-from-donder).

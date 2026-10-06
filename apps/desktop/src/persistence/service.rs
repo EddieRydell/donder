@@ -345,6 +345,19 @@ impl PersistenceService {
         self.inner().store.preview_window.clone()
     }
 
+    pub fn device_tokens(&self) -> std::collections::BTreeMap<String, String> {
+        self.inner().store.device_tokens.clone()
+    }
+
+    pub fn record_device_token(&self, device: &str, token: String) -> Result<(), String> {
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Err("Desktop settings are not loaded; the claim token cannot be saved.".into());
+        }
+        inner.store.device_tokens.insert(device.to_string(), token);
+        inner.save_now()
+    }
+
     fn inner(&self) -> MutexGuard<'_, PersistenceInner> {
         match self.inner.lock() {
             Ok(inner) => inner,

@@ -235,6 +235,25 @@ pub enum CurveValidationError {
 }
 
 impl Curve {
+    /// Drop points that cannot affect sampling: exact repeats of the previous
+    /// point and the interior of three or more points at one position. A step
+    /// needs only the first and last point at its position.
+    pub fn collapse_coincident_points(&mut self) {
+        let mut points: Vec<CurvePoint> = Vec::with_capacity(self.points.len());
+        for point in self.points.drain(..) {
+            match points.as_mut_slice() {
+                [.., previous] if previous == &point => {}
+                [.., first, last]
+                    if first.position == point.position && last.position == point.position =>
+                {
+                    *last = point;
+                }
+                _ => points.push(point),
+            }
+        }
+        self.points = points;
+    }
+
     pub fn validate(&self) -> Result<(), CurveValidationError> {
         let Some(first) = self.points.first() else {
             return Ok(());

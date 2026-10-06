@@ -49,9 +49,11 @@ and pixel order, then enable live output and play. Setup's channel test sends a
 chosen raw channel value for ten seconds and blackouts on stop or expiry. This
 test bypasses the patch and does not edit the project.
 
-For supported ESP32 standalone playback, choose **Export compiled sequence**,
-select output ports, install the bundled firmware, provision Wi-Fi, and upload.
-See [controller setup](esp32_loading.md#install-from-donder).
+For a supported ESP32, install the bundled firmware over USB, join the
+controller's `Donder-XXXX` Wi-Fi network, and add a **Donder controller** to the
+setup. Claim it, then press Play: the editor uploads the sequence and starts the
+controller in sync with the audio. See
+[controller setup](esp32_loading.md#install-from-donder).
 
 From here, the composition graph, operators and automation clips are described
 in [project format](project_format.md#sequences), and writing your own effects

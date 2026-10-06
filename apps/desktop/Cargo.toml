@@ -30,6 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 serialport.workspace = true
 espflash.workspace = true
+mdns-sd.workspace = true
 esp-idf-part.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true

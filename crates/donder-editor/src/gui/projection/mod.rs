@@ -296,7 +296,6 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
                     .iter()
                     .filter_map(|param| {
                         Some(SequenceEffectDefinitionParam {
-                            fixed: param.fixed,
                             supports_automation: param.supports_automation(),
                             name: param.name.as_str().to_string(),
                             kind: param_kind(&param.ty)?,

@@ -54,6 +54,8 @@ pub enum OutputError {
         controller: ControllerId,
         message: String,
     },
+    /// Donder controllers play uploaded shows; they are never streamed.
+    NotStreamed(ControllerId),
 }
 
 pub enum ControllerSender {
@@ -70,6 +72,7 @@ impl ControllerSender {
             ControllerProtocol::ArtNet(config) => {
                 ArtNetSender::open(id, config, &controller.ports).map(Self::ArtNet)
             }
+            ControllerProtocol::Donder(_) => Err(OutputError::NotStreamed(id)),
         }
     }
 

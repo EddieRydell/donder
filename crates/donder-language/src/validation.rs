@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::dsl::Type;
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
@@ -445,7 +445,7 @@ pub fn validate_sequence(
         }
     }
 
-    let mut automation_targets = HashSet::new();
+    let mut automation_targets = HashMap::<_, Vec<_>>::new();
     let sequence_layout = sequence
         .effects
         .first()
@@ -484,17 +484,17 @@ pub fn validate_sequence(
         clip.curve
             .validate()
             .map_err(|error| sequence_error(format!("automation curve is invalid: {error:?}")))?;
-        for target in clip
-            .bindings
-            .iter()
-            .map(|binding| &binding.target)
-            .chain(clip.detached_bindings.iter().map(|binding| &binding.target))
-        {
-            if !automation_targets.insert(target) {
+        let mut clip_targets = HashSet::new();
+        for target in clip.targets() {
+            if !clip_targets.insert(target) {
                 return Err(sequence_error(
-                    "automation targets must be unique across active and detached bindings",
+                    "an automation clip binds the same target more than once",
                 ));
             }
+            automation_targets
+                .entry(target)
+                .or_insert_with(Vec::new)
+                .push(clip);
         }
         for binding in &clip.bindings {
             let ty = automation_target_type(project, sequence, &binding.target)?;
@@ -503,6 +503,25 @@ pub fn validate_sequence(
                     "automation mapping does not match its target parameter",
                 ));
             }
+            if sequence
+                .automation_mapping(&binding.target)
+                .is_some_and(|mapping| mapping != &binding.mapping)
+            {
+                return Err(sequence_error(
+                    "automation clips bound to one target must share its mapping",
+                ));
+            }
+        }
+    }
+    for clips in automation_targets.values() {
+        if clips
+            .iter()
+            .enumerate()
+            .any(|(index, clip)| clips[index + 1..].iter().any(|other| clip.overlaps(other)))
+        {
+            return Err(sequence_error(
+                "automation clips bound to one target must not overlap",
+            ));
         }
     }
 
@@ -624,14 +643,8 @@ pub fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
+                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
-                .and_then(|declaration| {
-                    if declaration.fixed {
-                        Err(sequence_error(format!("fixed parameter `{}` requires preparation and cannot receive automation", declaration.name.as_str())))
-                    } else {
-                        Ok(&declaration.ty)
-                    }
-                })
         }
         AutomationTarget::CompositionNodeParam { node_id, param } => {
             let operator = sequence
@@ -654,14 +667,8 @@ pub fn automation_target_type<'a>(
                         .iter()
                         .find(|declaration| &declaration.name == param)
                 })
+                .map(|declaration| &declaration.ty)
                 .ok_or_else(|| sequence_error("automation parameter is missing"))
-                .and_then(|declaration| {
-                    if declaration.fixed {
-                        Err(sequence_error(format!("fixed parameter `{}` requires preparation and cannot receive automation", declaration.name.as_str())))
-                    } else {
-                        Ok(&declaration.ty)
-                    }
-                })
         }
     }
 }

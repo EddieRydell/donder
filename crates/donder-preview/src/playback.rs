@@ -15,6 +15,16 @@ pub enum PreviewPlaybackState {
     Ended,
 }
 
+/// Audio positions advance once per output buffer and arrive after pipe delay,
+/// so smaller differences within one playback run are noise, not drift.
+const CLOCK_RESYNC_TOLERANCE_SECONDS: f32 = 0.025;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PreviewClockUpdate {
+    Absorbed,
+    Reanchored,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct PreviewClockSnapshot {
     pub generation: u32,
@@ -105,12 +115,26 @@ impl PreviewPlayback {
         Ok(())
     }
 
-    pub fn set_clock(&mut self, snapshot: PreviewClockSnapshot, received_at: Instant) {
-        self.clock = ClockAnchor {
+    pub fn set_clock(
+        &mut self,
+        snapshot: PreviewClockSnapshot,
+        received_at: Instant,
+    ) -> PreviewClockUpdate {
+        let anchor = ClockAnchor {
             snapshot,
             received_at,
         };
-        self.last_frame = None;
+        let current = self.clock.snapshot;
+        if snapshot.state == PreviewPlaybackState::Playing
+            && snapshot.state == current.state
+            && snapshot.generation == current.generation
+            && (anchor.position_at(received_at) - self.clock.position_at(received_at)).abs()
+                <= CLOCK_RESYNC_TOLERANCE_SECONDS
+        {
+            return PreviewClockUpdate::Absorbed;
+        }
+        self.clock = anchor;
+        PreviewClockUpdate::Reanchored
     }
 
     pub fn evaluate(&mut self, now: Instant) -> Result<bool, PreviewPlaybackError> {

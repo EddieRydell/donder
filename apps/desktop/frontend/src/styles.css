@@ -445,15 +445,19 @@
   --donder-automation-point-radius-selected: 4px;
   --donder-curve-point-radius: 4px;
   --donder-curve-point-radius-selected: 5px;
-  --donder-automation-grid-columns: 4;
+  --donder-automation-hit-radius: 7px;
+  --donder-automation-align-distance: 8px;
+  --donder-automation-guide-dash: 3px;
+  --donder-automation-value-label-offset: 8px;
+  --donder-sequence-mark-snap-distance: 8px;
   --donder-automation-grid-rows: 4;
   --donder-automation-row-min-height: 36px;
   --donder-automation-row-max-height: 96px;
   --donder-automation-row-height-ratio: 0.76;
   --donder-automation-clip-radius: 4px;
-  --donder-automation-clip-header-height: 18px;
+  --donder-automation-clip-header-height: 14px;
   --donder-automation-clip-label-inset: 6px;
-  --donder-automation-clip-label-baseline: 13px;
+  --donder-automation-clip-label-baseline: 10px;
   --donder-automation-clip-label-min-width: 40px;
   --donder-automation-detached-stripe-width: 3px;
   --donder-spectrogram-highlight-threshold: 0.68;
@@ -2822,7 +2826,7 @@ html.donder-app-shell body {
 
 .dialog-actions button,
 .setup-editor button,
-.sequence-device-form button {
+.device-form button {
   border: var(--donder-border-width) solid var(--donder-border);
   border-radius: var(--donder-radius-lg);
   background: var(--donder-surface-control);
@@ -2831,7 +2835,7 @@ html.donder-app-shell body {
 
 .dialog-actions button:disabled,
 .setup-editor button:disabled,
-.sequence-device-form button:disabled {
+.device-form button:disabled {
   opacity: var(--donder-opacity-muted);
 }
 
@@ -2842,14 +2846,14 @@ html.donder-app-shell body {
 
 .new-project-form,
 .new-sequence-form,
-.sequence-device-form {
+.device-form {
   display: grid;
   gap: var(--donder-space-9);
 }
 
 .new-project-form label,
 .new-sequence-form label,
-.sequence-device-form label {
+.device-form label {
   display: grid;
   gap: var(--donder-space-3);
   color: var(--donder-text-muted);
@@ -2858,8 +2862,8 @@ html.donder-app-shell body {
 
 .new-project-form input,
 .new-sequence-form input,
-.sequence-device-form input:not([type="checkbox"]),
-.sequence-device-form select {
+.device-form input:not([type="checkbox"]),
+.device-form select {
   min-width: 0;
   height: var(--donder-control-height-lg);
   border: var(--donder-border-width) solid var(--donder-border);
@@ -3853,14 +3857,24 @@ fieldset.sequence-layer-row {
   overflow-y: auto;
 }
 
-.sequence-device-form {
+.device-form {
   margin: var(--donder-space-9) 0 0;
   padding: var(--donder-space-7);
   min-width: 0;
   border: var(--donder-border-width) solid var(--donder-border);
 }
 
-.sequence-device-form .device-erase-confirmation {
+.device-form form,
+.device-form fieldset {
+  display: grid;
+  gap: var(--donder-space-9);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.device-form .device-erase-confirmation {
   display: flex;
   align-items: flex-start;
   gap: var(--donder-space-5);

@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [features]
-loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc"]
+loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc", "dep:edge-dhcp", "dep:edge-mdns", "dep:edge-nal", "dep:edge-nal-embassy"]
 i2s-output = ["loader", "donder-runtime/atomic"]
 dig-quad = ["i2s-output"]
 
@@ -27,7 +27,12 @@ esp-radio-rtos-driver = { version = "0.4.1", optional = true }
 esp-radio = { version = "1.0.0-beta.0", features = ["esp32", "wifi", "unstable"], optional = true }
 esp-rtos = { version = "0.4.0", features = ["esp32", "esp-radio", "embassy", "esp-alloc"], optional = true }
 embassy-executor = { version = "0.10.0", optional = true }
-embassy-net = { version = "0.9.1", features = ["tcp", "udp", "dhcpv4", "medium-ethernet"], optional = true }
+embassy-net = { version = "0.9.1", features = ["tcp", "udp", "dhcpv4", "medium-ethernet", "multicast"], optional = true }
+# Access-point DHCP and mDNS discovery for the desktop editor.
+edge-dhcp = { version = "0.8.0", default-features = false, features = ["io"], optional = true }
+edge-mdns = { version = "0.8.0", default-features = false, features = ["io"], optional = true }
+edge-nal = { version = "0.7.0", optional = true }
+edge-nal-embassy = { version = "0.9.0", default-features = false, features = ["proto-ipv4", "udp", "medium-ethernet", "multicast"], optional = true }
 embassy-sync = { version = "0.8.0", optional = true }
 embassy-time = { version = "0.5.1", optional = true }
 embedded-io-async = { version = "0.7.0", optional = true }

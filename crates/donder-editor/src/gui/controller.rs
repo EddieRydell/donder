@@ -1,6 +1,6 @@
 use donder_language::controller::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, E131Config, E131Mode,
+    ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -18,6 +18,7 @@ pub(super) fn project_controller(
         label: match &controller.protocol {
             ControllerProtocol::E131(config) => config.source_name.clone(),
             ControllerProtocol::ArtNet(config) => format!("Art-Net {}", config.destination),
+            ControllerProtocol::Donder(config) => format!("Donder {}", config.device.as_str()),
         },
         source_ref: super::patch::object_ref(&id.0, SourceObjectKind::Controller),
         read_only: !session.source.is_project_owned(id.0.document_id()),
@@ -30,6 +31,7 @@ pub(super) fn project_controller(
                 address: match port.address {
                     ControllerPortAddress::E131Universe(address)
                     | ControllerPortAddress::ArtNetPort(address) => address,
+                    ControllerPortAddress::DonderOutput(output) => u16::from(output),
                 },
                 slot_count: port.slot_count,
             })
@@ -104,6 +106,11 @@ pub(super) fn domain_controller(
                 ArtNetMode::Unicast
             },
         }),
+        SetupControllerConfig::Donder { device } => ControllerProtocol::Donder(DonderConfig {
+            device: DonderDeviceId::parse(&device).ok_or_else(|| {
+                GuiMutationError::Invalid("Donder device must be 12 lowercase hex digits.".into())
+            })?,
+        }),
     };
     if ports.is_empty() {
         return Err(GuiMutationError::Invalid(
@@ -112,15 +119,26 @@ pub(super) fn domain_controller(
     }
     let ports = ports
         .into_iter()
-        .map(|port| ControllerPort {
-            id: ControllerPortId(port.id),
-            slot_count: port.slot_count,
-            address: match protocol {
-                ControllerProtocol::E131(_) => ControllerPortAddress::E131Universe(port.address),
-                ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(port.address),
-            },
+        .map(|port| {
+            Ok(ControllerPort {
+                id: ControllerPortId(port.id),
+                slot_count: port.slot_count,
+                address: match protocol {
+                    ControllerProtocol::E131(_) => {
+                        ControllerPortAddress::E131Universe(port.address)
+                    }
+                    ControllerProtocol::ArtNet(_) => {
+                        ControllerPortAddress::ArtNetPort(port.address)
+                    }
+                    ControllerProtocol::Donder(_) => {
+                        ControllerPortAddress::DonderOutput(u8::try_from(port.address).map_err(
+                            |_| GuiMutationError::Invalid("Donder output must be 1-255.".into()),
+                        )?)
+                    }
+                },
+            })
         })
-        .collect();
+        .collect::<Result<_, GuiMutationError>>()?;
     let controller = Controller {
         id,
         protocol,

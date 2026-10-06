@@ -325,7 +325,6 @@ mod tests {
                 let shift = &definition.params()[0];
                 assert_eq!(shift.name.as_str(), "shift");
                 assert_eq!(shift.ty, donder_language::dsl::Type::Float);
-                assert!(!shift.fixed);
                 assert_eq!(shift.default, Some(donder_language::dsl::Value::Float(0.0)));
             }
         }

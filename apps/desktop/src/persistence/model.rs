@@ -33,6 +33,10 @@ pub(crate) struct PersistedStore {
     pub(crate) projects: BTreeMap<String, PersistedProjectSession>,
     pub(crate) main_window: Option<PersistedWindowState>,
     pub(crate) preview_window: PersistedPreviewWindowState,
+    /// Claim tokens for Donder controllers, keyed by device ID. They belong to
+    /// this computer, not to a project.
+    #[serde(default)]
+    pub(crate) device_tokens: BTreeMap<String, String>,
 }
 
 impl PersistedStore {
@@ -60,6 +64,7 @@ impl Default for PersistedStore {
                 open: false,
                 geometry: None,
             },
+            device_tokens: BTreeMap::new(),
         }
     }
 }
