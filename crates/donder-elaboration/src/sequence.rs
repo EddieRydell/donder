@@ -105,15 +105,14 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                     .next()
                     .filter(|first| counts.all(|count| count == *first)),
             };
-            let invocation = programs.sample(
-                accepted.execution(),
+            let invocation = programs.sample(&accepted.execution().instance(
                 donder_language::dsl::ProgramConstants {
                     pixel_count,
                     duration_seconds: Some(donder_language::values::sample_duration_seconds_f32(
                         donder_language::values::SampleDuration::from_ticks(timing.duration.get()),
                     )),
                 },
-            );
+            ));
             let prepared = builder.sample(&invocation, window, target);
             builder.clip(effect.id.0, prepared);
             layer_effects[&effect.layer_id].push(prepared);
@@ -129,10 +128,17 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                 )
             })
             .collect::<IndexMap<_, _>>();
+        // A disabled or empty layer is black everywhere.
+        let black = sequence
+            .layers
+            .iter()
+            .filter(|layer| !layer.enabled || layer_effects[&layer.id].is_empty())
+            .map(|layer| &layer.id)
+            .collect::<std::collections::HashSet<_>>();
         let root = if compact && !has_pixels {
             builder.output([])
         } else {
-            composition::prepare(builder, selected.sequence, &layers, &mut programs)
+            composition::prepare(builder, selected.sequence, &layers, &black, &mut programs)
         };
         routing::prepare(builder, &selected, &geometry, &targets, &cells, &fixtures);
         root

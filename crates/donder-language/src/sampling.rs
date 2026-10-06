@@ -301,6 +301,10 @@ const CHANNEL_RECIPROCALS: [f32; 256] = {
 pub fn color_hue(color: Color) -> f32 {
     let max = color.red.max(color.green).max(color.blue);
     let min = color.red.min(color.green).min(color.blue);
+    hue_between(color, max, min)
+}
+
+fn hue_between(color: Color, max: u8, min: u8) -> f32 {
     let chroma = max - min;
     if chroma == 0 {
         return 0.0;
@@ -323,11 +327,33 @@ pub fn color_hue(color: Color) -> f32 {
 pub fn color_saturation(color: Color) -> f32 {
     let max = color.red.max(color.green).max(color.blue);
     let min = color.red.min(color.green).min(color.blue);
+    saturation_between(max, min)
+}
+
+fn saturation_between(max: u8, min: u8) -> f32 {
     if max == 0 {
         0.0
     } else {
         f32::from(max - min) * CHANNEL_RECIPROCALS[usize::from(max)]
     }
+}
+
+/// `color` with its hue replaced by `hue`, or shifted by it when `shift`:
+/// `hsv(hue, saturation(color), intensity(color))`, or the same with
+/// `hue(color) + hue`, computing the color's components once.
+pub fn recolor(color: Color, hue: f32, shift: bool) -> Color {
+    let max = color.red.max(color.green).max(color.blue);
+    let min = color.red.min(color.green).min(color.blue);
+    let hue = if shift {
+        hue_between(color, max, min) + hue
+    } else {
+        hue
+    };
+    hsv(
+        hue,
+        saturation_between(max, min),
+        f32::from(max) * (1.0 / 255.0),
+    )
 }
 
 #[inline]
@@ -383,4 +409,132 @@ pub fn deterministic_random_seed(seed: f32) -> f32 {
     value ^= value >> 16;
     // The upper 24 bits convert exactly to f32 and cannot round up to 1.
     (value >> 8) as f32 * (1.0 / 16_777_216.0)
+}
+
+/// Unary math propagates NaN before its implementation sees it; negation,
+/// smoothstep and random seeds take NaN as it is.
+#[inline(always)]
+pub fn float_unary(op: crate::dsl::bytecode::FloatUnary, value: f32) -> f32 {
+    use crate::dsl::bytecode::FloatUnary;
+    let math = |function: fn(f32) -> f32| {
+        if value.is_nan() {
+            f32::NAN
+        } else {
+            function(value)
+        }
+    };
+    match op {
+        FloatUnary::Negate => -value,
+        FloatUnary::Smoothstep => smoothstep(value),
+        FloatUnary::Rand => deterministic_random_seed(value),
+        FloatUnary::Sin => math(micromath::F32Ext::sin),
+        FloatUnary::Cos => math(micromath::F32Ext::cos),
+        FloatUnary::Abs => math(f32::abs),
+        FloatUnary::Floor => math(libm::floorf),
+        FloatUnary::Ceil => math(libm::ceilf),
+        FloatUnary::Trunc => math(libm::truncf),
+        FloatUnary::RoundEven => math(libm::roundevenf),
+        FloatUnary::Sqrt => math(libm::sqrtf),
+    }
+}
+
+pub fn float_binary(op: crate::dsl::bytecode::FloatBinary, left: f32, right: f32) -> f32 {
+    use crate::dsl::bytecode::FloatBinary;
+    match op {
+        FloatBinary::Add => left + right,
+        FloatBinary::Subtract => left - right,
+        FloatBinary::Multiply => left * right,
+        FloatBinary::Divide => left / right,
+        FloatBinary::Remainder => float_remainder(left, right),
+        FloatBinary::ValueOr => {
+            if left.is_nan() {
+                right
+            } else {
+                left
+            }
+        }
+        FloatBinary::Min | FloatBinary::Max if left.is_nan() || right.is_nan() => f32::NAN,
+        FloatBinary::Min => left.min(right),
+        FloatBinary::Max => left.max(right),
+        FloatBinary::Atan2 => libm::atan2f(left, right),
+    }
+}
+
+/// Clamped cubic interpolation of an already normalized position.
+#[inline(always)]
+pub fn smoothstep(value: f32) -> f32 {
+    let t = value.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// A source query inside the effect duration, in seconds; NaN outside it.
+pub fn query_seconds(seconds: f32, duration: crate::values::SampleDuration) -> f32 {
+    crate::values::sample_time_from_seconds_f32(seconds)
+        .ok()
+        .filter(|time| time.as_ticks() < duration.as_ticks())
+        .map_or(f32::NAN, crate::values::sample_time_seconds_f32)
+}
+
+pub fn query_progress(seconds: f32, duration: crate::values::SampleDuration) -> f32 {
+    let duration = duration.as_ticks();
+    crate::values::sample_time_from_seconds_f32(seconds)
+        .ok()
+        .filter(|time| time.as_ticks() < duration)
+        .map_or(f32::NAN, |time| {
+            (time.as_ticks() as f32 / duration as f32).clamp(0.0, 1.0)
+        })
+}
+
+/// Position within a section of `width` pixels, given the width's reciprocal.
+#[inline(always)]
+pub fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
+    let index = pixel_index as f32;
+    (index - libm::floorf(index * inverse) * width) * inverse
+}
+
+#[inline(always)]
+pub fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> Color {
+    let scale = scale.clamp(0.0, 1.0);
+    if scale <= 0.0 {
+        Color::BLACK
+    } else {
+        scale_color(sample_gradient(gradient, position), scale)
+    }
+}
+
+/// Time of the mark at `index`, or NaN for a missing index.
+pub fn mark_at(marks: &crate::values::Marks, index: i32) -> f32 {
+    usize::try_from(index)
+        .ok()
+        .and_then(|index| marks.seconds().get(index))
+        .copied()
+        .unwrap_or(f32::NAN)
+}
+
+/// Marks are chronological and seconds conversion is monotonic, so the marks
+/// at or before `seconds` form a prefix. A NaN query matches no mark.
+/// Returns the mark's index and its time in seconds.
+pub fn previous_mark(marks: &crate::values::Marks, seconds: f32) -> Option<(usize, f32)> {
+    let times = marks.seconds();
+    let index = times
+        .partition_point(|&mark| mark <= seconds)
+        .checked_sub(1)?;
+    Some((index, times[index]))
+}
+
+pub fn previous_mark_index(marks: &crate::values::Marks, seconds: f32) -> i32 {
+    previous_mark(marks, seconds)
+        .map(|(index, _)| length_int(index))
+        .unwrap_or(-1)
+}
+
+#[inline(always)]
+pub fn length_int(length: usize) -> i32 {
+    i32::try_from(length).unwrap_or(i32::MAX)
+}
+
+/// Array indices clamp to the first or last element of a nonempty array.
+#[inline(always)]
+pub fn clamp_array_index(index: i32, nonempty_length: usize) -> usize {
+    (index.max(0) as usize).min(nonempty_length - 1)
 }

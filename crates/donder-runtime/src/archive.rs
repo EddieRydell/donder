@@ -1,6 +1,7 @@
 //! Portable prepared-sequence archives. The format uses 32-bit little-endian
-//! fields; rkyv owns pointer relocation, sharing, and structural archive validation.
-//! Semantic validity is trusted to the Donder producer.
+//! fields; rkyv owns pointer relocation, sharing, and structural archive
+//! validation, and program admission checks every program's slots and
+//! structure. The rest of the graph's meaning is trusted to the Donder producer.
 
 use crate::sequence::{PreparedSequence, SequenceData};
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -9,7 +10,7 @@ use rkyv::Archived;
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 50;
+pub const FORMAT_VERSION: u32 = 52;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -125,7 +126,8 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
 /// Estimate playback storage using references and layouts supplied by the trusted
 /// producer. This checks resource budgets, not graph or program validity.
 fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<(), LoadError> {
-    use crate::dsl::{AutomationPlan, BatchWorkspace};
+    use crate::dsl::bytecode::Banks;
+    use crate::dsl::{AutomationPlan, StripWorkspace};
     use crate::signal::{
         CachedEffectSample, CachedSignalFrame, EffectAutomationWorkspace, PreparedOperatorNode,
         PreparedSignalKind,
@@ -150,42 +152,21 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
             .checked_mul(size_of::<Color>())
             .ok_or(LoadError::Limit)?,
     )?;
-    // Every batch workspace (effects plus one per operator depth) reserves the
-    // component-wise largest layout it can execute. Budgeting that maximum for
-    // every slot also covers a program reused by several operators.
-    let mut layout = crate::dsl::bytecode::SlotLayout::default();
-    let mut array_capacity = 0usize;
-    let mut array_width = 0usize;
-    let mut loop_count = 0u32;
+    // Every strip workspace (effects plus one per operator depth) reserves the
+    // bankwise largest slot counts it can execute. Budgeting that maximum for
+    // every workspace also covers a program reused by several operators.
+    let (mut scalars, mut rows, mut depth) = (Banks::default(), Banks::default(), 0);
     for program in &signal.programs {
-        let program_layout = program.layout;
-        if program_layout.exceeded_bank().is_some() {
-            return Err(LoadError::Archive);
-        }
-        for (maximum, count) in [
-            (&mut layout.ints, program_layout.ints),
-            (&mut layout.floats, program_layout.floats),
-            (&mut layout.bools, program_layout.bools),
-            (&mut layout.colors, program_layout.colors),
-            (&mut layout.arrays, program_layout.arrays),
-            (&mut layout.enums, program_layout.enums),
-            (&mut layout.marks, program_layout.marks),
-            (&mut layout.curves, program_layout.curves),
-            (&mut layout.gradients, program_layout.gradients),
-        ] {
-            *maximum = (*maximum).max(count);
-        }
-        array_capacity = array_capacity.max(program.array_capacity as usize);
-        array_width = array_width.max(program.array_width as usize);
-        loop_count = loop_count.max(program.loop_count);
+        scalars = scalars.max(program.scalars);
+        rows = rows.max(program.rows);
+        depth = depth.max(program.depth);
     }
     reserve(plan.vm_workspace_count, size_of::<Vec<CachedSignalFrame>>())?;
     reserve(
         plan.vm_workspace_count
             .checked_add(1)
             .ok_or(LoadError::Limit)?,
-        BatchWorkspace::storage_estimate(layout, loop_count, array_capacity, array_width)
-            .ok_or(LoadError::Limit)?,
+        StripWorkspace::storage_estimate(scalars, rows, depth).ok_or(LoadError::Limit)?,
     )?;
     let mut operator_frame_counts = vec![0usize; plan.vm_workspace_count];
     for node in &plan.nodes {
@@ -270,4 +251,106 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         reserve(output.width, 1)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dsl::BoundParams;
+    use crate::dsl::bytecode::{Instruction, Slot};
+    use donder_language::dsl::{ProgramConstants, compile_effects, compile_operators};
+    use donder_language::execution::{FixtureGeometry, SequenceTiming, TargetScope};
+
+    /// `data` framed as an archive of the current format.
+    fn framed(data: &SequenceData) -> Vec<u8> {
+        let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(data).unwrap();
+        let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len());
+        bytes.extend_from_slice(&MAGIC);
+        bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&crc32fast::hash(&payload).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        bytes
+    }
+
+    /// A tinted effect under an operator of two cached samples. Its archive
+    /// holds the effect's program, then the operator's.
+    fn sequence() -> PreparedSequence {
+        let effect = compile_effects(
+            "effect Tint { param tint: color = #204060; sample { tint * pixel.fraction } }",
+        )
+        .unwrap()
+        .remove(0)
+        .bind(core::iter::empty())
+        .unwrap()
+        .instance(ProgramConstants::default())
+        .sample();
+        let operator = compile_operators(
+            "operator Echo { input source; sample { max(source, source.at(time - 0.1)) } }",
+        )
+        .unwrap()
+        .remove(0)
+        .bind(core::iter::empty())
+        .unwrap()
+        .instance(ProgramConstants::default())
+        .operator();
+        let timing = SequenceTiming::admit(
+            core::num::NonZeroU32::new(60).unwrap(),
+            core::num::NonZeroU32::new(60).unwrap(),
+            core::num::NonZeroU32::new(1_000_000).unwrap(),
+            Box::new([]),
+        )
+        .unwrap();
+        PreparedSequence::build(timing, |builder| {
+            let fixture = builder.fixture(
+                0,
+                FixtureGeometry::admit((0..4).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
+            );
+            let target = builder.target([fixture], TargetScope::WholeTarget);
+            let effect = builder.sample(&effect, builder.whole_sequence(), target);
+            let layer = builder.layer(true, [effect]);
+            let echo = builder.operator(&operator, |_| layer);
+            builder.output([echo])
+        })
+    }
+
+    #[test]
+    fn decoding_rejects_programs_that_are_not_well_formed() {
+        let data = sequence().archive_data();
+        assert_eq!(data.signals.programs.len(), 2);
+        assert!(decode_sequence(&framed(&data), LoadLimits::default()).is_ok());
+        // Each malformation, and an edit of a valid archive that makes it.
+        type Edit = (&'static str, fn(&mut SequenceData));
+        let edits: [Edit; 5] = [
+            ("result beyond the color slots", |data| {
+                let program = &mut data.signals.programs[0];
+                program.result = Slot::row(program.rows.colors);
+            }),
+            ("signal sample in an effect", |data| {
+                data.signals.programs[0] = data.signals.programs[1].clone();
+            }),
+            ("parameter beyond the bound values", |data| {
+                data.signals.effects[0].bound_params = BoundParams::default();
+            }),
+            ("frame cache beyond the program's", |data| {
+                data.signals.programs[1].frame_caches = 0;
+            }),
+            ("input beyond the operator's", |data| {
+                for instruction in &mut data.signals.programs[1].code {
+                    if let Instruction::Sample { input, .. } = instruction {
+                        *input = 1;
+                    }
+                }
+            }),
+        ];
+        for (what, edit) in edits {
+            let mut data = sequence().archive_data();
+            edit(&mut data);
+            assert_eq!(
+                decode_sequence(&framed(&data), LoadLimits::default()).err(),
+                Some(LoadError::Archive),
+                "{what}"
+            );
+        }
+    }
 }

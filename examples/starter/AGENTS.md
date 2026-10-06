@@ -22,11 +22,11 @@ comments before using a definition: its curves use percentage values `0..100`,
 pixel effects have explicit frame/coordinate settings, and it does not implement
 all Vixen effects or modes. Random modes use Donder's seeded random values.
 
-Effects declare typed parameters and produce colors in `color sample()`.
-Operators declare signal inputs and sample them to transform or combine output.
-Parameters can vary during playback where their types support automation.
-Mark-driven
-effects query marks and curves directly in `sample()`.
+Effects declare typed parameters and produce colors in a `sample` block of
+immutable `let` bindings, guards and reductions. Operators declare `input`
+signals and sample them to transform or combine output. Parameters can vary
+during playback where their types support automation. Mark-driven effects query
+marks and curves directly in `sample`.
 
 Imports are explicit and scoped to the consuming document, not inherited from
 the root or caller. Paths are relative to the project root and must stay inside

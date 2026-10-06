@@ -14,6 +14,6 @@ pub(crate) use vm::AutomationPlan;
 #[cfg(test)]
 pub(crate) use vm::RuntimeError;
 pub(crate) use vm::{
-    BATCH_LANES, Batch, BatchMask, BatchSignals, BatchWorkspace, BoundParams, DslBindCache, Lanes,
-    NoSignals, RunContext,
+    BoundParams, DslBindCache, NoSignals, Pixels, RunContext, STRIP, Strip, StripSignals,
+    StripWorkspace,
 };

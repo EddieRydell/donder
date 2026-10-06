@@ -1,4 +1,4 @@
-use super::lexer::TextSpan;
+use super::syntax::lexer::TextSpan;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Diagnostic {

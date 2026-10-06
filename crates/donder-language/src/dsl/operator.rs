@@ -1,83 +1,43 @@
-//! Admitted operators require a signal provider. Its error type is carried into
-//! the interpreter, so the playback provider can make execution infallible.
-use super::bytecode::{BytecodeProgram, ColorSlot, ContextRead, ParameterKind, ProgramContext};
+//! Admitted operator programs, which also sample their input signals.
+use super::bytecode::{BytecodeProgram, ParameterKind, ProgramContext};
 use super::{BindingError, BoundParams, Type, Value};
 use alloc::{boxed::Box, vec::Vec};
-use core::convert::Infallible;
-
-/// A signal instruction admitted in an operator program.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SignalAccess(());
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorProgram {
-    bytecode: BytecodeProgram<ContextRead, SignalAccess, ColorSlot>,
+    bytecode: BytecodeProgram,
     inputs: usize,
     parameters: Box<[Type]>,
     uses_spatial_context: bool,
     uses_sections: bool,
-    target_entry: usize,
+    reads_target: bool,
     uses_progress: bool,
-    batch: super::BatchPlan,
 }
 
 impl OperatorProgram {
+    /// A well-formed operator program over `inputs` signals and parameters of
+    /// `parameters`' types.
     pub fn admit(
         bytecode: BytecodeProgram,
         inputs: usize,
         parameters: Box<[Type]>,
     ) -> Option<Self> {
-        if !bytecode.has_valid_structure()
-            || !bytecode.has_valid_context(ProgramContext::Operator { inputs })
-            || !bytecode.has_valid_parameter_reads(|index| {
-                parameters.get(index).map(ParameterKind::for_type)
-            })
-            || !bytecode.has_valid_reference_parameter_reads(|index, expected| {
-                parameters
-                    .get(index)
-                    .is_some_and(|actual| expected.accepts(actual))
-            })
-        {
+        let kinds: Vec<ParameterKind> = parameters.iter().map(ParameterKind::for_type).collect();
+        if !bytecode.is_well_formed(ProgramContext::Operator { inputs }, &kinds) {
             return None;
         }
-        Some(Self::from_trusted_bytecode(bytecode, inputs, parameters))
-    }
-
-    /// Restore a program emitted by a compatible Donder compiler. Operand
-    /// addresses, parameter types, and control flow are the producer's contract.
-    pub fn from_trusted_bytecode(
-        bytecode: BytecodeProgram,
-        inputs: usize,
-        parameters: Box<[Type]>,
-    ) -> Self {
-        let uses_spatial_context = bytecode.uses_spatial_context();
-        let target_entry = bytecode.target_entry();
-        let uses_progress = bytecode.reads_progress();
-        let batch = super::blocks::batch_plan(&bytecode);
-        let uses_sections = bytecode.instructions.iter().any(|instruction| {
-            matches!(
-                instruction,
-                super::bytecode::Instruction::SectionQuery { .. }
-            )
-        });
-        let bytecode =
-            match bytecode.try_map_execution(Ok::<_, Infallible>, |()| Ok(SignalAccess(())), Ok) {
-                Ok(bytecode) => bytecode,
-                Err(never) => match never {},
-            };
-        Self {
+        Some(Self {
+            uses_spatial_context: bytecode.uses_spatial_context(),
+            uses_sections: bytecode.uses_sections(),
+            reads_target: bytecode.reads_target(),
+            uses_progress: bytecode.uses_progress(),
             bytecode,
             inputs,
             parameters,
-            uses_spatial_context,
-            uses_sections,
-            target_entry,
-            uses_progress,
-            batch,
-        }
+        })
     }
 
-    pub fn bytecode(&self) -> &BytecodeProgram<ContextRead, SignalAccess, ColorSlot> {
+    pub fn bytecode(&self) -> &BytecodeProgram {
         &self.bytecode
     }
 
@@ -101,26 +61,16 @@ impl OperatorProgram {
         self.uses_sections
     }
 
-    pub fn target_entry(&self) -> usize {
-        self.target_entry
+    /// Strips must not mix target pixel counts or bounds.
+    pub fn reads_target(&self) -> bool {
+        self.reads_target
     }
 
     pub fn uses_progress(&self) -> bool {
         self.uses_progress
     }
 
-    pub fn batch(&self) -> &super::BatchPlan {
-        &self.batch
-    }
-
-    pub fn into_parts(self) -> (BytecodeProgram, usize, Box<[Type]>) {
-        let bytecode = match self
-            .bytecode
-            .try_map_execution(Ok::<_, Infallible>, |_| Ok(()), Ok)
-        {
-            Ok(bytecode) => bytecode,
-            Err(never) => match never {},
-        };
-        (bytecode, self.inputs, self.parameters)
+    pub fn into_bytecode(self) -> BytecodeProgram {
+        self.bytecode
     }
 }

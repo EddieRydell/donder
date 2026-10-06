@@ -18,9 +18,9 @@ libm.workspace = true
 micromath.workspace = true
 
 [dev-dependencies]
+donder-test-support.workspace = true
 donder-language = { path = "../donder-language", features = ["host"] }
 criterion.workspace = true
-indexmap.workspace = true
 
 [[bench]]
 name = "prepared_playback_bench"

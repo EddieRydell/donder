@@ -241,15 +241,44 @@ impl SequencePlayback {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dsl::bytecode::{Banks, BytecodeProgram, Instruction, Slot};
     use crate::signal::{PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan};
     use crate::values::SampleDuration;
     use alloc::vec;
+    use alloc::vec::Vec;
     use donder_language::dsl::{OperatorDefinition, SampleDefinition};
     use donder_language::execution::{
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceWindow, TargetScope,
     };
 
     mod routing;
+
+    /// A resource-free program whose first `prefix` instructions are its
+    /// query block and the rest its body.
+    pub(super) fn program(
+        code: Vec<Instruction>,
+        prefix: u16,
+        result: Slot,
+        scalars: Banks,
+        rows: Banks,
+    ) -> BytecodeProgram {
+        BytecodeProgram {
+            code: code.into(),
+            query_end: prefix,
+            target_end: prefix,
+            result,
+            scalars,
+            rows,
+            depth: 0,
+            curves: Box::new([]),
+            gradients: Box::new([]),
+            marks: Box::new([]),
+            arrays: Box::new([]),
+            enums: Box::new([]),
+            operands: Box::new([]),
+            frame_caches: 0,
+        }
+    }
 
     fn restore_fixture(
         signals: PreparedSignalGraph,
@@ -415,7 +444,6 @@ mod tests {
 
     fn timed_sequence() -> PreparedSequence {
         use crate::dsl::BoundParams;
-        use crate::dsl::bytecode::{BytecodeProgram, ColorSlot, Instruction, SlotLayout};
         use crate::patch::{PixelEncoding, PreparedPixelRoute};
         use crate::signal::{
             PreparedClip, PreparedEffect, PreparedFixture, PreparedLayer, PreparedPixel,
@@ -440,36 +468,23 @@ mod tests {
             PreparedPixel::try_new(0, 1, 1, 2, 1.0).unwrap(),
             PreparedPixel::try_new(1, 0, 0, 1, 0.0).unwrap(),
         ]);
-        data.signals.programs = vec![BytecodeProgram {
-            instructions: vec![
-                Instruction::LoadColorConst {
-                    dst: ColorSlot(0),
-                    value: Color {
-                        red: 17,
-                        green: 29,
-                        blue: 43,
-                    },
+        data.signals.programs = vec![program(
+            vec![Instruction::ColorConst {
+                dst: Slot::scalar(0),
+                value: Color {
+                    red: 17,
+                    green: 29,
+                    blue: 43,
                 },
-                Instruction::ReturnColor(ColorSlot(0)),
-            ]
-            .into(),
-            array_constants: Box::new([]),
-            enums: Box::new([]),
-            enum_types: Box::new([]),
-            curves: Box::new([]),
-            gradients: Box::new([]),
-            value_operands: Box::new([]),
-            array_types: Box::new([]),
-            layout: SlotLayout {
+            }],
+            1,
+            Slot::scalar(0),
+            Banks {
                 colors: 1,
-                ..SlotLayout::default()
+                ..Banks::default()
             },
-            uses_pixel_context: false,
-            pixel_entry: 0,
-            array_capacity: 0,
-            array_width: 0,
-            loop_count: 0,
-        }]
+            Banks::default(),
+        )]
         .into();
         data.signals.effects = vec![PreparedEffect {
             start_time: SampleTime::from_ticks(200_000),
@@ -566,13 +581,12 @@ mod tests {
     }
 
     fn queried_sequence(pixel: crate::dsl::bytecode::SignalPixel<i32>) -> PreparedSequence {
-        use crate::dsl::bytecode::{ColorSlot, FloatSlot, Instruction, IntSlot};
         use crate::signal::PreparedOperatorNode;
         let mut data = timed_sequence().archive_data();
         let mut programs = data.signals.programs.into_vec();
         let mut second = programs[0].clone();
-        second.instructions[0] = Instruction::LoadColorConst {
-            dst: ColorSlot(0),
+        second.code[0] = Instruction::ColorConst {
+            dst: Slot::scalar(0),
             value: Color {
                 red: 5,
                 green: 101,
@@ -580,32 +594,40 @@ mod tests {
             },
         };
         programs.push(second);
-        let mut query = programs[0].clone();
-        query.layout.floats = 1;
-        query.layout.ints = 1;
-        query.instructions = vec![
-            Instruction::LoadFloatConst {
-                dst: FloatSlot(0),
-                bits: 0.3f32.to_bits(),
-            },
-            Instruction::LoadIntConst {
-                dst: IntSlot(0),
-                value: pixel.index().copied().unwrap_or(0),
-            },
-            Instruction::SignalSample {
-                capability: (),
-                dst: ColorSlot(0),
-                input: 0,
-                seconds: FloatSlot(0),
-                pixel: pixel.map(|_| IntSlot(0)),
-                frame_cache: 0,
-            },
-            Instruction::ReturnColor(ColorSlot(0)),
-        ]
-        .into();
-        query.uses_pixel_context = true;
-        query.pixel_entry = 2;
-        programs.push(query);
+        // The query block loads the sample's time and pixel; the body samples.
+        programs.push(BytecodeProgram {
+            frame_caches: 1,
+            ..program(
+                vec![
+                    Instruction::FloatConst {
+                        dst: Slot::scalar(0),
+                        bits: 0.3f32.to_bits(),
+                    },
+                    Instruction::IntConst {
+                        dst: Slot::scalar(0),
+                        value: pixel.index().copied().unwrap_or(0),
+                    },
+                    Instruction::Sample {
+                        dst: Slot::row(0),
+                        input: 0,
+                        seconds: Slot::scalar(0),
+                        pixel: pixel.map(|_| Slot::scalar(0)),
+                        frame_cache: 0,
+                    },
+                ],
+                2,
+                Slot::row(0),
+                Banks {
+                    floats: 1,
+                    ints: 1,
+                    ..Banks::default()
+                },
+                Banks {
+                    colors: 1,
+                    ..Banks::default()
+                },
+            )
+        });
         data.signals.programs = programs.into();
         let mut targets = data.signals.targets.into_vec();
         let mut interner = crate::targets::TargetInterner::default();

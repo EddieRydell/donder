@@ -154,7 +154,7 @@ preparation does not repeat it.
   objects fit within the sequence.
 - Effects reference an existing layer, a compatible target and a defined effect,
   and supply every required parameter and no unknown ones, each within its
-  declared range. Loop bounds that depend on an array or marks length must fit
+  declared range. Reduction bounds that depend on an array or marks length must fit
   the 10,000-iteration limit with the supplied values.
 - The graph has one output, typed acyclic connections, and layer nodes that
   reference distinct layers. Operator definitions, parameters, port types and

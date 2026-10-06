@@ -8,116 +8,125 @@ worthwhile; microbenchmarks only help find work. Benchmark commands are in
 
 Effects stay portable bytecode. Speed comes from what the compiler and
 preparation can prove, and from the interpreter design, never from native code
-generation.
+generation. The pipeline is described in [effect compiler](effect_compiler.md).
 
 ## Compiler
 
-- **Typed operations.** Arithmetic has one opcode per type and operand shape,
-  and numeric comparisons fuse with their branch, so the interpreter dispatches
-  once per operation.
-- **Dataflow.** Constant and copy propagation across control flow, folding,
-  dead-code removal, and liveness-directed destinations. `&&`, `||` and `!`
-  lower to branches. A conditional assignment whose skipped side is one pure
-  instruction becomes a `Choose`.
-- **Staging.** Each program has query, target and pixel stages. Work depending
-  only on time and parameters runs once per query; work depending on pixel count
-  or target bounds runs when that changes; only pixel-varying work runs per
-  pixel. Uniform curve, gradient, mark and array reads are lifted the same way.
-  Programs record whether they read progress, spatial coordinates or sections,
-  so unused context is never computed.
-- **Loops.** Invariant scalar work moves out of loops. A monotonic rejection
-  guard can exit a loop early when no later iteration can pass it. The proof
-  is structural and never depends on effect names.
-- **Division.** Repeated division by an unchanged, provably nonzero denominator
-  shares one reciprocal. Smoothstep normalization lowers to arithmetic that this
-  proof can simplify. HSV extraction uses a 1 KiB table of byte reciprocals.
-  Firmware links a hardware-assisted `__divsf3` that is bit-identical to software
-  division (about 75 cycles instead of 200).
+- **Dataflow IR.** Definitions compile to a hash-consed graph, so equal
+  subexpressions are computed once. Constants fold as nodes are built.
+- **Domains and stages.** Each node knows whether it varies per instance, per
+  query, per target run or per pixel. Work that depends only on time and
+  parameters runs once per query; work that depends on pixel count or target
+  bounds runs when that changes; only pixel-varying work is a row, and every
+  other value in a strip is computed once. Programs record whether they read
+  progress, spatial coordinates or sections, so unused context is never
+  computed.
+- **Laziness.** Branch arms keep their exclusive work, and a test of `a && b` or
+  `a || b` branches on `a` first. A uniform condition runs only its taken arm;
+  on a per-pixel condition, arms with at most two cheap operations become a
+  branch-free select.
+- **Reductions.** Loop-invariant work moves out of reduction bodies. `first`,
+  `last`, `any` and `all` stop for each pixel that decides.
+- **Typed operations.** Arithmetic has one opcode per type. Single-use curve
+  clamps, gradient scales and hue replacements become one instruction: `hsv(h,
+  saturation(c), intensity(c))`, or the same with `hue(c) + t`, computes the
+  color's components once.
+- **Division.** Division by a constant or by a value fixed for the instance
+  multiplies by its reciprocal. HSV extraction uses a 1 KiB table of byte
+  reciprocals. Firmware links a hardware-assisted `__divsf3` that is
+  bit-identical to software division (about 75 cycles instead of 200).
 - **Float policy.** Real-number algebra may change intermediate rounding and
   signed zero. Identities that would hide a missing value (such as `x * 0`)
-  need proof the value is present. Transcendental functions are never folded,
-  because host and device implementations differ. Integer arithmetic keeps
-  wrapping semantics.
+  are not applied. Transcendental functions are never folded, because host and
+  device implementations differ. Integer arithmetic keeps wrapping semantics.
 
 ## Preparation
 
-- **Specialization.** Parameters without automation that decide control flow
-  are specialized away. Primitive expressions over those parameters in the
-  initialization prefix are evaluated, and only their results become bound
-  inputs, so differently configured instances still share code. Equal specialized programs are interned.
-- **Reciprocals.** A fixed finite nonzero divisor becomes multiplication by a
-  prepared reciprocal.
-- **Register reuse.** Registers whose lifetimes do not overlap are reused after
-  specialization and staging. Doing it earlier would hide single-assignment
-  values from staging, so the order matters.
-- **Operator input fusion.** When an operator has one current-pixel source, the
-  source's body is inlined into the operator and the combined program is
-  re-optimized. The source's clock is preserved: seconds quantize to the native
-  clock, progress uses the original query, and invalid queries return black.
-  Fusion is skipped for shared sources, automated sources, multiple source
-  sites, explicit pixel addressing, or when the result would overflow a register
-  bank.
+- **Specialization.** A choice whose condition is fixed for an instance, but
+  whose result varies during playback, keeps only its taken arm; fixed reduction
+  bounds become constants. Every other fixed value is evaluated during
+  preparation and becomes a parameter slot, so differently configured instances
+  share one program. Equal programs are interned.
+- **Black signals.** An operator whose input is a disabled or empty layer is
+  simplified with that input black; one that becomes black is not prepared.
+- **Operator input fusion.** An operator consumed once is substituted into its
+  consumer at its only current-pixel sample. Its clock is preserved: seconds
+  quantize to the native clock, progress uses the original query, and invalid
+  queries return black. Fusion keeps the boundary for shared sources, automated
+  sources sampled at another time, several sample sites, explicit pixel
+  addressing, or a result beyond the row or nesting limits.
+- **Slot reuse.** Liveness over each emitted program shares slots whose
+  lifetimes do not overlap. Query and target slots persist across strips and
+  are never shared.
 - **Compact targets.** Physical positions are stored once for each fixture with
   a spatial consumer. Pixel mappings are run descriptors, or indexed records when
   those are smaller. They stay compact in playback memory and are never expanded
-  into tables. Identical mappings share storage. This took the Stanford archive
-  from 63,584 to 35,568 bytes and its ESP32 playback memory from 78,308 to
-  50,512 bytes.
+  into tables. Identical mappings share storage.
 
-## Batched interpreter
+## Strip interpreter
 
-There is one interpreter, and it runs every program over up to 32 pixels per
-instruction dispatch; a single sample is a one-lane run.
+There is one interpreter, and it runs every program over strips of up to 128
+pixels; a single sample is a one-pixel strip.
 
-- Each primitive register is a row of 32 lanes, and bools are lane masks.
-- Initialization runs once and is copied to every lane. Runs span fixtures
-  unless the program reads pixel count or target bounds.
-- Lanes follow their own control flow. A divergent branch parks one side, the
-  lowest parked instruction runs next, and lanes rejoin at joins and loop exits.
-  Every instruction is supported; there is no language restriction.
-- An instruction whose inputs are all uniform runs once and is copied to the
-  other lanes. Preparation marks registers that can never be uniform so their
-  instructions skip the check.
-- A reference register written by one load holds one value for all lanes; other
-  references are per lane, and lanes share one local-array arena.
-- Operators evaluate their inputs over the same run when the query time is equal
-  in every lane, and fall back to one-pixel runs otherwise. Query-uniform times
-  use whole-frame input caches. Nested layers reuse a gathered cell map for each
-  run.
+- A scalar instruction runs once per strip; a row instruction runs one loop over
+  the strip's selected pixels. Strips span fixtures unless the program reads
+  pixel count or target bounds.
+- Selections are ascending pixel ranges. A whole strip is one range; a branch on
+  a row condition partitions the ranges, and reductions keep their running,
+  participating and contributing pixels the same way.
+- Operands are branch-free windows of each bank (see the
+  [effect compiler](effect_compiler.md#interpreter)), so one loop body serves
+  every kind of operand. Costly per-pixel functions are called rather than
+  inlined into every loop.
+- Resources are references to parameters, constants or array items; nothing is
+  reference-counted while a frame runs.
+- Operators evaluate their inputs over the same strip when the sample time is
+  uniform, and per pixel otherwise. Query-uniform times use whole-frame input
+  caches. Nested layers reuse a gathered cell map for each strip.
 - Each operator depth has a preallocated workspace, and graph depths order
   upstream slots first, so evaluation needs no allocation.
 
-Device evaluation on October 3, 2026 (one core, Wi-Fi off, mean over 32 frames
-including first use; every frame matched host checksums):
+Host evaluation on October 6, 2026 (Windows, Criterion and a release harness
+over every frame):
 
-| Workload | Mean ms per frame |
+| Workload | Result |
 | --- | ---: |
-| Stanford section | 5.67 |
-| Four layers, three operators, 600 pixels | 72.6 |
-| MarkChase, 1,200 pixels | 8.45 |
-| MarkPulse, 1,200 pixels | 5.55 |
-| ShimmerField, 1,200 pixels | 10.3 |
-| Chase/Pulse, 16 layers | 6.82 |
-| Trivial pixel-varying effect, 1,200 pixels | 1.86 |
-| Selected starter port | 0.20 |
+| Stanford show, 150 pixels, mean per frame | 7.6 µs |
+| Stanford preparation | 5.6 ms |
+| Stanford archive | 29,081 bytes |
+| `prepare_starter` | 3.06 ms |
+| `prepared_effect_suite_4x512_pixels` | 96.9 µs |
+| `prepared_600_pixels_4_layers_3_operators` | 432.7 µs |
+| `prepared_temporal/standard_echo/1600` | 259.2 µs |
+| `prepared_marks/chase` | 15.7 µs |
+| `render_playback_dense_60_frames` | 2.89 ms |
 
-Stanford's cost is dominated by its FreezeFrame operator, which loops over
-mostly uniform arithmetic. It uses about 9,100 cycles per output pixel against
-the 2,000-cycle target.
+Stanford's FreezeFrame samples an empty layer, so preparation removes it; the
+rest of the show is its mark effects, gradients and hue operators.
 
 ## ESP32 memory placement
 
 The ESP32 runs code from flash through a small cache, so hot code lives in
 instruction RAM. `firmware/esp32/rwtext_hook.x` places these there, by mangled
 symbol prefix:
-- the batched interpreter and graph evaluation;
+- the strip interpreter, its kernels and graph evaluation;
 - target lookup;
-- the per-lane helpers: curve crossing, mark search, color component, clamp,
-  floor, sine and division.
+- the per-pixel helpers: curve sampling and crossing, gradient sampling, mark
+  search, color components, clamp, floor, sine and division.
 
-Drop glue stays in flash. On October 3, 2026 the loader used 75,052 bytes of
-`.rwtext` beside 51,796 bytes of Wi-Fi code, about 2 KB below the limit. Check
-the linker output after growing the interpreter.
+Drop glue stays in flash. On October 6, 2026 the loader used 74,196 bytes of
+`.rwtext` beside 51,796 bytes of Wi-Fi code, about 4 KB below the limit. Check
+the linker output after growing the interpreter: code size, not speed, decides
+what the interpreter may specialize. Operand lookups stay out of line, one
+bounds check each rather than one per instruction arm, and only the cheapest
+operations have loops per operand kind. Graph evaluation borrows its frame
+buffers and operator workspaces apart from the shared sampling workspace rather
+than taking and restoring them; the restores inlined about 15 KB of drop glue
+into instruction RAM.
+
+Large parts of the evaluation workspace are boxed, because firmware task
+futures hold playback by value and those futures live in `.bss`, which takes
+DRAM from the core-0 stack.
 
 Controller and release images use opt-level 3, fat LTO, one codegen unit and
 abort on panic. `debug = 2` keeps symbols without affecting optimization.
@@ -137,6 +146,14 @@ firmware of its date.
   replacement, damaged-upload rejection, frame checksums, and scheduled playback
   with audio, and played visibly on LED1. Clock skew and audio alignment were
   not measured.
+- **October 6, 2026:** the strip interpreter played the whole Stanford show
+  (150 pixels, 41,520 frames at 120 Hz, `i2s-output` image) with matching frame
+  checksums and no evaluation allocations: evaluation averaged 960 µs, the
+  busiest 5% of one-second windows averaged up to 2.9 ms, and the slowest frame
+  took 5.7 ms. One frame missed its deadline while playback started. At least
+  39.2 KB of heap stayed free. The previous 32-lane interpreter, measured the
+  same day on the same show, averaged 1,250 µs (3.4 ms busy windows, 6.2 ms
+  slowest frame).
 
 ## Measuring
 

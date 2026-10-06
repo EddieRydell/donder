@@ -7,7 +7,7 @@ mod geometry;
 mod inputs;
 mod parameters;
 mod patch;
-use crate::dsl::{OperatorInvocation, SampleInvocation};
+use crate::dsl::Invocation;
 pub(super) use inputs::ProjectInputs;
 
 /// A sequence borrowed from the same accepted project as all its dependencies.
@@ -21,14 +21,14 @@ pub struct AcceptedSequence<'a> {
 #[derive(Clone, Copy)]
 pub struct AcceptedEffectInputs<'a> {
     instance: &'a EffectInst,
-    execution: &'a SampleInvocation,
+    execution: &'a Invocation,
 }
 
 #[derive(Clone, Copy)]
 pub struct AcceptedOperatorInputs<'a> {
     node: &'a CompositionGraphNode,
     definition: &'a OperatorDefinition,
-    invocation: &'a OperatorInvocation,
+    invocation: &'a Invocation,
 }
 
 impl DonderProject {
@@ -110,7 +110,7 @@ impl<'a> AcceptedSequence<'a> {
 }
 
 impl<'a> AcceptedEffectInputs<'a> {
-    pub fn execution(self) -> &'a SampleInvocation {
+    pub fn execution(self) -> &'a Invocation {
         self.execution
     }
 
@@ -120,7 +120,7 @@ impl<'a> AcceptedEffectInputs<'a> {
 }
 
 impl<'a> AcceptedOperatorInputs<'a> {
-    pub fn invocation(self) -> &'a crate::dsl::OperatorInvocation {
+    pub fn invocation(self) -> &'a Invocation {
         self.invocation
     }
 

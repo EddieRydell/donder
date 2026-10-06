@@ -198,16 +198,16 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     // fixtures. This also exercises nested temporal/spatial operator sampling.
     for (query, expected_pixels) in [
         (
-            "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
+            "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
             113,
         ),
         (
-            "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
+            "source.at_global(time + offset_seconds, 226 + pixel.index)",
             3390,
         ),
     ] {
         let compiled = donder_language::dsl::compile_operators(&format!(
-            "operator TimeWarp {{ input Signal source; param float offset_seconds in -1.0..1.0 = 0.0; color sample() {{ return {query}; }} }}"
+            "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
         )).unwrap().remove(0);
         let definition_id = project
             .definitions()

@@ -1,6 +1,5 @@
 //! Selected output cells and the additional input domain reachable operators need.
 use crate::selection::Selection;
-use donder_language::dsl::bytecode::{Instruction, SignalPixel};
 use donder_language::execution::{FixtureGeometry, TargetGeometry};
 use donder_language::patch::PixelRouteId;
 use donder_language::sequence::CompositionGraphNodeId;
@@ -33,12 +32,9 @@ pub(super) fn cells(
         .operators()
         .filter(|operator| dependencies.contains(&operator.node().id))
     {
-        for instruction in &operator.invocation().program().bytecode().instructions {
-            if let Instruction::SignalSample { pixel, .. } = instruction {
-                local |= matches!(pixel, SignalPixel::Local(_));
-                global |= matches!(pixel, SignalPixel::Global(_));
-            }
-        }
+        let addressing = operator.invocation().addressing();
+        local |= addressing.local;
+        global |= addressing.global;
     }
     // Local reads can address every original cell of selected fixtures. Global
     // reads can address unpatched fixtures, so preserve the original full rig.

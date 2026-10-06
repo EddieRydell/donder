@@ -138,7 +138,7 @@ impl AutomationPlan {
     /// Materialize automation already checked with the language invocation.
     /// The parameter banks must be the materialization of that invocation's inputs.
     pub(crate) fn from_accepted(params: &BoundParams, bindings: &[PreparedAutomation]) -> Self {
-        use super::ParameterKind;
+        use crate::dsl::bytecode::ParameterKind;
         let values = &params.values;
         let mut admitted = Vec::with_capacity(bindings.len());
         let mut windows: Vec<Window> = Vec::new();

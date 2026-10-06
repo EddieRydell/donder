@@ -1,100 +1,77 @@
 // Editable project-local composition operators.
 operator Max {
-  input Signal a;
-  input Signal b;
+  input a;
+  input b;
 
-  color sample() {
-    return max(a.at(seconds()), b.at(seconds()));
-  }
+  sample { max(a, b) }
 }
 
 operator Add {
-  input Signal a;
-  input Signal b;
+  input a;
+  input b;
 
-  color sample() {
-    return a.at(seconds()) + b.at(seconds());
-  }
+  sample { a + b }
 }
 
 operator Multiply {
-  input Signal a;
-  input Signal b;
+  input a;
+  input b;
 
-  color sample() {
-    return a.at(seconds()) * b.at(seconds());
-  }
+  sample { a * b }
 }
 
 operator IntensityModulate {
-  input Signal source;
-  input Signal mask;
+  input source;
+  input mask;
 
-  color sample() {
-    return source.at(seconds()) * intensity(mask.at(seconds()));
-  }
+  sample { source * intensity(mask) }
 }
 
 operator Dim {
-  input Signal input;
-  param float amount in 0.0..1.0 = 0.5;
+  input input;
+  param amount: float in 0.0..1.0 = 0.5;
 
-  color sample() {
-    return input.at(seconds()) * amount;
-  }
+  sample { input * amount }
 }
 
 operator Invert {
-  input Signal input;
+  input input;
 
-  color sample() {
-    return invert(input.at(seconds()));
-  }
+  sample { invert(input) }
 }
 
 operator Colorize {
-  input Signal input;
-  param color tint = #ffffff;
+  input input;
+  param tint: color = #ffffff;
 
-  color sample() {
-    return tint * intensity(input.at(seconds()));
-  }
+  sample { tint * intensity(input) }
 }
 
 operator HueShift {
-  input Signal source;
+  input source;
   // Turns.
-  param float shift in 0.0..1.0 = 0.0;
+  param shift: float in 0.0..1.0 = 0.0;
 
-  color sample() {
-    color value = source.at(seconds());
-    return hsv(hue(value) + shift, saturation(value), intensity(value));
-  }
+  sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
 }
 
 operator Delay {
-  input Signal input;
-  param float seconds in 0.0..60.0 = 0.1;
+  input input;
+  param seconds: float in 0.0..60.0 = 0.1;
 
-  color sample() {
-    return input.at(seconds() - seconds);
-  }
+  sample { input.at(time - seconds) }
 }
 
 operator Echo {
-  input Signal input;
-  param float seconds in 0.0..60.0 = 0.1;
-  param int repeats in 1..32 = 3;
-  param float decay in 0.0..1.0 = 0.5;
+  input input;
+  param seconds: float in 0.0..60.0 = 0.1;
+  param repeats: int in 1..32 = 3;
+  param decay: float in 0.0..1.0 = 0.5;
 
   // Samples before the sequence are black, so early echoes add nothing.
-  color sample() {
-    color result = rgb(0.0, 0.0, 0.0);
-    float amount = 1.0;
-    for (int repeat in range(repeats + 1)) {
-      result = max(result, input.at(seconds() - seconds * repeat) * amount);
-      amount = amount * decay;
+  sample {
+    max for repeat in 0..=repeats {
+      input.at(time - seconds * repeat) * pow(decay, repeat)
     }
-    return result;
   }
 }

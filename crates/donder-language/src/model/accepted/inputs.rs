@@ -2,11 +2,7 @@
 //! authored state; they cannot be edited independently afterwards.
 use super::parameters::{EffectParamTiming, prepare_params};
 use super::*;
-use crate::dsl::{
-    OperatorDefinition as ProgramOperatorDefinition, OperatorInvocation, SampleDefinition,
-    SampleInvocation,
-};
-use crate::dsl::{ParamDecl, Value};
+use crate::dsl::{Invocation, ParamDecl, Value};
 use crate::effect::{EffectImplementation, EffectParamValue, EffectRef};
 use crate::execution::{SequenceTiming, SequenceWindow};
 use crate::operator::OperatorImplementation;
@@ -16,7 +12,6 @@ use crate::validation::ProjectValidationError;
 use crate::values::{SampleDuration, SampleTime};
 use indexmap::IndexMap;
 use std::num::NonZeroU32;
-use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub(in crate::model) struct ProjectInputs {
@@ -28,8 +23,8 @@ pub(in crate::model) struct ProjectInputs {
 #[derive(Debug)]
 pub(super) struct SequenceInputs {
     pub(super) timing: SequenceTiming,
-    pub(super) effects: Box<[SampleInvocation]>,
-    pub(super) operators: IndexMap<CompositionGraphNodeId, OperatorInvocation>,
+    pub(super) effects: Box<[Invocation]>,
+    pub(super) operators: IndexMap<CompositionGraphNodeId, Invocation>,
 }
 
 impl ProjectInputs {
@@ -37,32 +32,6 @@ impl ProjectInputs {
         project: &DonderProject,
         previous: Option<&DonderProject>,
     ) -> Result<Self, ProjectValidationError> {
-        let definitions: IndexMap<_, _> = project
-            .definitions()
-            .effects
-            .definitions
-            .iter()
-            .map(|(id, definition)| {
-                let EffectImplementation::Dsl(compiled) = definition.implementation();
-                (
-                    id,
-                    SampleDefinition::new(Arc::clone(compiled.shared_sample_program())),
-                )
-            })
-            .collect();
-        let operator_definitions: IndexMap<_, _> = project
-            .definitions()
-            .operators
-            .definitions
-            .iter()
-            .map(|(id, definition)| {
-                let OperatorImplementation::Dsl(compiled) = definition.implementation();
-                (
-                    id,
-                    ProgramOperatorDefinition::new(Arc::clone(compiled.shared_program())),
-                )
-            })
-            .collect();
         let mut sequences = IndexMap::new();
         for sequence in project.sequences() {
             let mut effects = Vec::with_capacity(sequence.effects.len());
@@ -82,17 +51,13 @@ impl ProjectInputs {
                     },
                 )?;
                 let EffectImplementation::Dsl(compiled) = definition.implementation();
-                compiled
-                    .check_values(&values)
-                    .map_err(|error| invalid(error.message))?;
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
                     |target| matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id == &effect.id),
                 )?;
-                let invocation = definitions[id]
-                    .bind(values.into_vec())
-                    .and_then(|invocation| invocation.with_automation(automation))
+                let invocation = compiled
+                    .invoke(values.into_vec(), automation)
                     .map_err(|error| invalid(error.message))?;
                 effects.push(invocation);
             }
@@ -116,17 +81,13 @@ impl ProjectInputs {
                     },
                 )?;
                 let OperatorImplementation::Dsl(compiled) = definition.implementation();
-                compiled
-                    .check_values(&values)
-                    .map_err(|error| invalid(error.message))?;
                 let automation = super::automation::admit(
                     sequence,
                     definition.params(),
                     |target| matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if node_id == &node.id),
                 )?;
-                let invocation = operator_definitions[id]
-                    .bind(values.into_vec())
-                    .and_then(|invocation| invocation.with_automation(automation))
+                let invocation = compiled
+                    .invoke(values.into_vec(), automation)
                     .map_err(|error| invalid(error.message))?;
                 operators.insert(node.id.clone(), invocation);
             }

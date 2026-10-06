@@ -1,4 +1,5 @@
 use super::*;
+use crate::dsl::bytecode::FloatBinary;
 use crate::values::Color;
 
 fn sequence(
@@ -7,67 +8,65 @@ fn sequence(
     second_count: usize,
     operator: bool,
 ) -> PreparedSequence {
+    // rgb(section_index(3) / 10, section_count(3) / 10, 0), with the
+    // section queries in the body.
+    let tenth = |dst| Instruction::FloatBinary {
+        op: FloatBinary::Divide,
+        dst,
+        a: dst,
+        b: Slot::scalar(0),
+    };
     let sample = SampleProgram::admit(
         program(
             vec![
-                Instruction::LoadIntConst {
-                    dst: IntSlot(0),
+                Instruction::IntConst {
+                    dst: Slot::scalar(0),
                     value: 3,
                 },
-                Instruction::SectionQuery {
-                    dst: IntSlot(1),
-                    width: IntSlot(0),
-                    index: true,
+                Instruction::FloatConst {
+                    dst: Slot::scalar(0),
+                    bits: 10.0_f32.to_bits(),
                 },
-                Instruction::SectionQuery {
-                    dst: IntSlot(2),
-                    width: IntSlot(0),
-                    index: false,
-                },
-                Instruction::IntToFloat {
-                    dst: FloatSlot(0),
-                    src: IntSlot(1),
-                },
-                Instruction::IntToFloat {
-                    dst: FloatSlot(1),
-                    src: IntSlot(2),
-                },
-                Instruction::FloatDivideConst {
-                    dst: FloatSlot(0),
-                    value: FloatSlot(0),
-                    constant_bits: 10.0_f32.to_bits(),
-                },
-                Instruction::FloatDivideConst {
-                    dst: FloatSlot(1),
-                    value: FloatSlot(1),
-                    constant_bits: 10.0_f32.to_bits(),
-                },
-                Instruction::LoadFloatConst {
-                    dst: FloatSlot(2),
+                Instruction::FloatConst {
+                    dst: Slot::scalar(1),
                     bits: 0.0_f32.to_bits(),
                 },
-                Instruction::Rgb {
-                    dst: ColorSlot(0),
-                    red: FloatSlot(0),
-                    green: FloatSlot(1),
-                    blue: FloatSlot(2),
+                Instruction::SectionIndex {
+                    dst: Slot::row(0),
+                    width: Slot::scalar(0),
                 },
-                Instruction::ReturnColor(ColorSlot(0)),
+                Instruction::SectionCount {
+                    dst: Slot::row(1),
+                    width: Slot::scalar(0),
+                },
+                Instruction::IntToFloat {
+                    dst: Slot::row(0),
+                    a: Slot::row(0),
+                },
+                Instruction::IntToFloat {
+                    dst: Slot::row(1),
+                    a: Slot::row(1),
+                },
+                tenth(Slot::row(0)),
+                tenth(Slot::row(1)),
+                Instruction::Rgb {
+                    dst: Slot::row(0),
+                    red: Slot::row(0),
+                    green: Slot::row(1),
+                    blue: Slot::scalar(1),
+                },
             ],
-            SlotLayout {
-                ints: 3,
-                floats: 3,
-                colors: 1,
-                ..Default::default()
-            },
-            1,
+            3,
+            Slot::row(0),
+            banks(2, 1, 0),
+            banks(2, 2, 1),
         ),
         Box::new([]),
     )
     .unwrap();
     let operator = operator.then(|| {
         let operator =
-            OperatorProgram::admit(sample.clone().into_parts().0, 1, Box::new([])).unwrap();
+            OperatorProgram::admit(sample.clone().into_bytecode(), 1, Box::new([])).unwrap();
         OperatorDefinition::new(operator).bind(vec![]).unwrap()
     });
     let invocation = SampleDefinition::new(sample).bind(vec![]).unwrap();

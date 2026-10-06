@@ -15,6 +15,7 @@ donder-runtime.workspace = true
 indexmap.workspace = true
 
 [dev-dependencies]
+donder-test-support.workspace = true
 crc32fast.workspace = true
 camino.workspace = true
 criterion.workspace = true

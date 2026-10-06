@@ -20,6 +20,4 @@ indexmap = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 rkyv.workspace = true
 libm.workspace = true
-
-[dev-dependencies]
 micromath.workspace = true

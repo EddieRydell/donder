@@ -1,48 +1,35 @@
 effect SparkleComet {
-  param gradient gradient;
-  param curve position in 0.0..1.0;
-  param curve intensity in 0.0..1.0;
-  param enum color_mode { gradient_tail, bright_head, rainbow_hue } = gradient_tail;
-  param color head_color = #ffffff;
-  param bool reverse = false;
-  param bool wrap = false;
-  param float tail_width in 0.001..1.0 = 0.18;
-  param float head_width in 0.001..1.0 = 0.035;
-  param float sparkle_density in 0.0..1.0 = 0.35;
-  param float sparkle_speed in 0.01..100.0 = 14.0;
-  param float sparkle_gain in 0.0..1.0 = 0.75;
-  param float seed in 0.0..1000.0 = 0.0;
+  param gradient: gradient;
+  param position: curve in 0.0..1.0;
+  param intensity: curve in 0.0..1.0;
+  param color_mode: enum { gradient_tail, bright_head, rainbow_hue } = gradient_tail;
+  param head_color: color = #ffffff;
+  param reverse: bool = false;
+  param wrap: bool = false;
+  param tail_width: float in 0.001..1.0 = 0.18;
+  param head_width: float in 0.001..1.0 = 0.035;
+  param sparkle_density: float in 0.0..1.0 = 0.35;
+  param sparkle_speed: float in 0.01..100.0 = 14.0;
+  param sparkle_gain: float in 0.0..1.0 = 0.75;
+  param seed: float in 0.0..1000.0 = 0.0;
 
-  color sample() {
-    float pixel_fraction_value = pixel_fraction();
-    if (reverse) {
-      pixel_fraction_value = 1.0 - pixel_fraction_value;
-    }
-
-    float distance = abs(pixel_fraction_value - position[progress()]);
-    if (wrap) {
-      distance = min(distance, 1.0 - distance);
-    }
-
-    float trail = 1.0 - smoothstep(0.0, tail_width, distance);
-    float core = 1.0 - smoothstep(0.0, head_width, distance);
-
-    float bucket = floor(seconds() * sparkle_speed + pixel_index() * 0.13);
-    float sparkle = 0.0;
-    if (rand(seed + pixel_index() * 19.0 + bucket * 47.0) < sparkle_density) {
-      sparkle = (sin(seconds() * sparkle_speed * TAU + pixel_index()) + 1.0) * 0.5;
-    }
-
-    float level = max(max(trail, core), sparkle * trail * sparkle_gain) * intensity[progress()];
-
-    color value = gradient[1.0 - distance / tail_width];
-    if (color_mode == bright_head) {
-      value = mix(value, head_color, core);
-    }
-    if (color_mode == rainbow_hue) {
-      value = hsv(pixel_fraction_value * 6.0 + progress() * 6.0, 1.0, 1.0);
-    }
-
-    return mix(#000000, value, level);
+  sample {
+    let fraction = if reverse { 1.0 - pixel.fraction } else { pixel.fraction };
+    let distance = abs(fraction - position[progress]);
+    let distance = if wrap { min(distance, 1.0 - distance) } else { distance };
+    let trail = 1.0 - smoothstep(0.0, tail_width, distance);
+    let core = 1.0 - smoothstep(0.0, head_width, distance);
+    let bucket = floor(time * sparkle_speed + pixel.index * 0.13);
+    let sparkle =
+      if rand(seed + pixel.index * 19.0 + bucket * 47.0) < sparkle_density {
+        (sin(time * sparkle_speed * TAU + pixel.index) + 1.0) * 0.5
+      } else { 0.0 };
+    let level = max(max(trail, core), sparkle * trail * sparkle_gain) * intensity[progress];
+    let value = gradient[1.0 - distance / tail_width];
+    let value =
+      if color_mode == bright_head { mix(value, head_color, core) }
+      else if color_mode == rainbow_hue { hsv(fraction * 6.0 + progress * 6.0, 1.0, 1.0) }
+      else { value };
+    mix(#000000, value, level)
   }
 }

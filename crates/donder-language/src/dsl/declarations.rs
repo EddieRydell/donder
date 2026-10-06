@@ -1,12 +1,7 @@
 //! Authoring declarations and named parameter resolution.
 //! Playback programs receive positional, typed values rather than source names.
-use super::OperatorProgram;
-use super::loop_bounds::LoopBound;
-use super::{
-    BindingError, BoundParams, BytecodeProgram, Identifier, OperatorInvocation, Type, Value,
-};
+use super::{BindingError, BoundParams, Identifier, Type, Value};
 use crate::automation::AutomationMapping;
-use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorInputDecl {
@@ -94,79 +89,6 @@ impl ParamDecl {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompiledOperator {
-    name: Identifier,
-    inputs: Vec<OperatorInputDecl>,
-    params: Vec<ParamDecl>,
-    loop_bounds: Vec<LoopBound>,
-    program: Arc<OperatorProgram>,
-}
-
-impl CompiledOperator {
-    pub(super) fn admit(
-        name: Identifier,
-        inputs: Vec<OperatorInputDecl>,
-        params: Vec<ParamDecl>,
-        loop_bounds: Vec<LoopBound>,
-        bytecode: BytecodeProgram,
-    ) -> Option<Self> {
-        let program = OperatorProgram::admit(
-            bytecode,
-            inputs.len(),
-            params.iter().map(|param| param.ty.clone()).collect(),
-        )?;
-        Some(Self {
-            name,
-            inputs,
-            params,
-            loop_bounds,
-            program: Arc::new(program),
-        })
-    }
-
-    pub fn bytecode(
-        &self,
-    ) -> &BytecodeProgram<
-        super::bytecode::ContextRead,
-        super::SignalAccess,
-        super::bytecode::ColorSlot,
-    > {
-        self.program.bytecode()
-    }
-
-    pub fn program(&self) -> &OperatorProgram {
-        &self.program
-    }
-
-    pub(crate) fn shared_program(&self) -> &Arc<OperatorProgram> {
-        &self.program
-    }
-    pub fn name(&self) -> &Identifier {
-        &self.name
-    }
-    pub fn inputs(&self) -> &[OperatorInputDecl] {
-        &self.inputs
-    }
-    pub fn params(&self) -> &[ParamDecl] {
-        &self.params
-    }
-
-    /// Positional `values` respect every declared range and loop bound.
-    pub fn check_values(&self, values: &[Value]) -> Result<(), BindingError> {
-        check_values(&self.params, &self.loop_bounds, values)
-    }
-
-    pub fn bind<'p, P>(&self, params: P) -> Result<OperatorInvocation, BindingError>
-    where
-        P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
-    {
-        let values = resolve_params(&self.params, params)?;
-        self.check_values(&values)?;
-        super::OperatorDefinition::new(Arc::clone(&self.program)).bind(values)
-    }
-}
-
 /// Resolve authoring names/defaults and bind their validated positional values.
 pub fn bind_params<'p, P>(
     declarations: &[ParamDecl],
@@ -176,15 +98,14 @@ where
     P: Clone + IntoIterator<Item = (&'p Identifier, &'p Value)>,
 {
     let values = resolve_params(declarations, params)?;
-    check_values(declarations, &[], &values)?;
+    check_ranges(declarations, &values)?;
     let types: Vec<_> = declarations.iter().map(|param| param.ty.clone()).collect();
     BoundParams::bind_values(&types, values)
 }
 
-/// Declared ranges, then the loop bounds that depend on parameter lengths.
-pub(super) fn check_values(
+/// Every value of the declared type lies within its declared range.
+pub(super) fn check_ranges(
     declarations: &[ParamDecl],
-    loop_bounds: &[LoopBound],
     values: &[Value],
 ) -> Result<(), BindingError> {
     for (param, value) in declarations.iter().zip(values) {
@@ -196,14 +117,6 @@ pub(super) fn check_values(
                 ),
             });
         }
-    }
-    if let Some(iterations) = loop_bounds.iter().find_map(|bound| bound.exceeded(values)) {
-        return Err(BindingError {
-            message: format!(
-                "a loop can run {iterations} times with these parameter values; the limit is {}",
-                super::MAX_DSL_LOOP_ITERATIONS
-            ),
-        });
     }
     Ok(())
 }

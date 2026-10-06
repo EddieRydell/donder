@@ -11,9 +11,9 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         root.join("effects/array-values.effect.donder"),
         r#"
         effect ArrayValues {
-            param array<curve> shapes;
-            param array<gradient> colors;
-            color sample() { return rgb(progress(), progress(), progress()); }
+            param shapes: array<curve>;
+            param colors: array<gradient>;
+            sample { rgb(progress, progress, progress) }
         }
     "#,
     )

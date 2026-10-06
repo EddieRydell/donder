@@ -14,20 +14,17 @@ fn timing() -> SequenceTiming {
 
 #[test]
 fn spatial_storage_is_shared_by_physical_fixture_and_only_kept_for_consumers() {
-    let spatial = donder_language::dsl::compile_effects(
-        "effect Position { color sample() { return rgb(pixel_x(), 0.0, 0.0); } }",
-    )
-    .unwrap()
-    .remove(0)
-    .bind([])
-    .unwrap();
-    let plain = donder_language::dsl::compile_effects(
-        "effect Plain { color sample() { return rgb(1.0, 0.0, 0.0); } }",
-    )
-    .unwrap()
-    .remove(0)
-    .bind([])
-    .unwrap();
+    let effect = |source| {
+        donder_language::dsl::compile_effects(source)
+            .unwrap()
+            .remove(0)
+            .bind([])
+            .unwrap()
+            .instance(donder_language::dsl::ProgramConstants::default())
+            .sample()
+    };
+    let spatial = effect("effect Position { sample { rgb(pixel.x, 0.0, 0.0) } }");
+    let plain = effect("effect Plain { sample { rgb(1.0, 0.0, 0.0) } }");
     let sequence = crate::PreparedSequence::build(timing(), |builder| {
         let a = builder.fixture(
             0,

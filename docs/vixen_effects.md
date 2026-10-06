@@ -97,14 +97,14 @@ adaptations apply throughout:
 ### Limits and work per pixel
 
 These files add no runtime, compiler, elaboration or resource capabilities.
-All computation stays within the existing `sample()` interface. Reconstructing
+All computation stays within the existing `sample` block. Reconstructing
 an effect's own event history or geometric points does not read another pixel's
 color. The definitions use target-wide indices/bounds, never controller-local
 buffer dimensions. Split-output equivalence has not been exercised for these
 definitions.
 
 Parameters declare Vixen's control ranges, so an out-of-range value is rejected
-when the project loads instead of being clamped by the source. Loop counts are
+when the project loads instead of being clamped by the source. Reduction ranges are
 bounded by those ranges and the DSL's 10,000-iteration limit. Spiral's
 `len(colors) * repeat` must fit that limit; it is checked when an instance
 supplies its colors. In particular:
@@ -162,7 +162,7 @@ These differences apply even to effects whose main formula is procedural:
 | Lighting intensity | `LightingValue.FullColor` truncates channels after applying intensity. | Ordinary color multiplication rounds. An effect can explicitly calculate truncated channels using existing scalar arithmetic. |
 | Parameter interface | Display labels, units, bounds, conditionally visible controls, resource defaults, and structured collections such as gradient/level pairs. | Named typed parameters with declared numeric ranges and literal defaults; no labels, units, conditional visibility or structured-collection contract. Curve and gradient defaults cannot be declared as literals in an effect file. |
 | Randomness | Renderers consume Vixen's random stream, often while creating or stepping objects. | Deterministic scalar random sampling; substituting it changes the generated realization. |
-| Persistent state | Several renderers evolve grids, particles or accumulated motion across frames. | One `sample()` entrypoint, without persistent effect state or simulation-step entrypoints. |
+| Persistent state | Several renderers evolve grids, particles or accumulated motion across frames. | One `sample` block, without persistent effect state or simulation-step entrypoints. |
 
 Sources: [PixelEffectBase](https://github.com/VixenLights/Vixen/blob/3.13u2/src/Vixen.Modules/Effect/Effect/PixelEffectBase.cs),
 [BaseEffect](https://github.com/VixenLights/Vixen/blob/3.13u2/src/Vixen.Modules/Effect/Effect/BaseEffect.cs),

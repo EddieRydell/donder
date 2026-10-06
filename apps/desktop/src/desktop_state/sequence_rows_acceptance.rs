@@ -113,7 +113,7 @@ impl Timeline {
         let (temporary, root) = crate::desktop_foundation_tests::tests::starter_copy();
         let path = root.join("effects/mark-impact-burst.effect.donder");
         let mut source = std::fs::read_to_string(&path).unwrap();
-        source.push_str("\neffect RowTest { param float level in 0.0..1.0 = 0.5; color sample() { return rgb(level, level, level); } }\n");
+        source.push_str("\neffect RowTest { param level: float in 0.0..1.0 = 0.5; sample { rgb(level, level, level) } }\n");
         std::fs::write(path, source).unwrap();
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());

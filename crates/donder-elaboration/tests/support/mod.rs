@@ -28,13 +28,13 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
     let count = graph.edges.iter().filter(|edge| edge.to == output).count();
     assert!(count > 0);
     let declarations = (0..count)
-        .map(|index| format!("input Signal s{index};"))
+        .map(|index| format!("input s{index};"))
         .collect::<String>();
-    let expression = (1..count).fold("s0.at(seconds())".to_owned(), |value, index| {
-        format!("max({value}, s{index}.at(seconds()))")
+    let expression = (1..count).fold("s0".to_owned(), |value, index| {
+        format!("max({value}, s{index})")
     });
     let mixer = compile_operators(&format!(
-        "operator TestMix {{ {declarations} color sample() {{ return {expression}; }} }}"
+        "operator TestMix {{ {declarations} sample {{ {expression} }} }}"
     ))
     .unwrap()
     .remove(0);
