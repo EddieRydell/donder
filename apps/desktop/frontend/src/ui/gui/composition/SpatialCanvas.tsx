@@ -1,5 +1,5 @@
 import { useSpatialGuides } from "./spatialViewState";
-import { isMac, isSecondaryClick } from "../../../platform";
+import { editShortcutTarget, isMac, isSecondaryClick } from "../../../platform";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
@@ -123,7 +123,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     }
   };
   const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; setOffset(null); fixture.cancel(); };
-  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas"
+  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas" {...editShortcutTarget(["selectAll"])}
       onKeyDown={(event) => {
         const enabled = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
         if (gesture.current === null && !fixture.active && (fixtureTools?.tool === null || fixtureTools?.tool === undefined)) {

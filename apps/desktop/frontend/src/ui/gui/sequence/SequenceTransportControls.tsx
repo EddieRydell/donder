@@ -1,5 +1,5 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
-import { isMac, isTextEditingTarget } from "../../../platform";
+import { isMac } from "../../../platform";
 import { ChevronLeft, ChevronRight, GitBranch, Monitor, Music, Pause, Play, RadioTower, SkipBack, Square } from "lucide-react";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -208,6 +208,13 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
     : transport;
 }
 
+function isEditableShortcutTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  if (target.closest(".cm-editor")) return true;
+  return target.closest("input, textarea, select") !== null;
+}
+
 export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
   event: KeyboardEvent<HTMLElement>,
   document: SequenceEditorDocument,
@@ -216,7 +223,7 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
 ) {
   const { commands, runSnapshotCommand } = host;
 
-  if (unsupported || isTextEditingTarget(event.target)) return;
+  if (unsupported || isEditableShortcutTarget(event.target)) return;
   // Mac keyboards have no Home key; Command-Left Arrow is the platform's line-start gesture.
   const rewind = event.key === "Home" || (isMac && event.metaKey && event.key === "ArrowLeft");
   // Modified keys belong to app commands such as Save, not to transport keys.

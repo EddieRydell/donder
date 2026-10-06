@@ -1,6 +1,6 @@
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { commandRegistry, runCommand, type CommandId } from "./commandRegistry";
-import { isTextEditingTarget, shortcutAccelerator } from "./platform";
+import { handledEditShortcuts, isTextEditingTarget, shortcutAccelerator, type EditShortcut } from "./platform";
 import { useAppStore } from "./store";
 import { MARK_DISPLAY_MODE_EVENT, markDisplayModeValue, setGlobalMarkDisplayMode, type MarkDisplayMode } from "./ui/gui/sequence/marks";
 import { requestOpenLayerGraph } from "./ui/uiEvents";
@@ -57,21 +57,27 @@ export async function installNativeMenu(): Promise<() => void> {
     items: await Promise.all((["Undo", "Redo", "Separator", "Cut", "Copy", "Paste", "SelectAll"] as const)
       .map((native) => PredefinedMenuItem.new({ item: native })))
   });
-  const forwarded = (text: string, key: string) => MenuItem.new({
-    text,
-    accelerator: `CmdOrCtrl+${key.toUpperCase()}`,
-    action: () => { forwardShortcut(key); }
-  });
+  const forwardedItems = new Map<EditShortcut, MenuItem>();
+  const forwarded = async (shortcut: EditShortcut, text: string, key: string) => {
+    const menuItem = await MenuItem.new({
+      text,
+      accelerator: `CmdOrCtrl+${key.toUpperCase()}`,
+      enabled: false,
+      action: () => { forwardShortcut(key); }
+    });
+    forwardedItems.set(shortcut, menuItem);
+    return menuItem;
+  };
   const canvasEdit = await Submenu.new({
     text: "Edit",
     items: [
       await item("edit.undo"),
       await item("edit.redo"),
       await separator(),
-      await forwarded("Cut", "x"),
-      await forwarded("Copy", "c"),
-      await forwarded("Paste", "v"),
-      await forwarded("Select All", "a")
+      await forwarded("cut", "Cut", "x"),
+      await forwarded("copy", "Copy", "c"),
+      await forwarded("paste", "Paste", "v"),
+      await forwarded("selectAll", "Select All", "a")
     ]
   });
 
@@ -183,6 +189,12 @@ export async function installNativeMenu(): Promise<() => void> {
   const onFocusChange = () => {
     // Focus moves through <body> between elements; read the settled target.
     window.setTimeout(() => {
+      // Only the focused canvas's own Edit shortcuts are live.
+      const handled = handledEditShortcuts(document.activeElement);
+      for (const [shortcut, menuItem] of forwardedItems) {
+        const enabled = handled.includes(shortcut);
+        send(menuItem, "enabled", enabled, () => menuItem.setEnabled(enabled));
+      }
       const next = isTextEditingTarget(document.activeElement);
       if (next === textEditing) return;
       textEditing = next;

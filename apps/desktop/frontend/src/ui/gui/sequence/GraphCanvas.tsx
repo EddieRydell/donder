@@ -1,5 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { isMac } from "../../../platform";
+import { editShortcutTarget, isMac } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Layers, SlidersHorizontal, Monitor } from "lucide-react";
@@ -171,7 +171,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   return <div className="graph-canvas-workspace">
     <ContextMenu.Root onOpenChange={(open) => { if (!open) setContext(null); }}>
       <ContextMenu.Trigger asChild>
-        <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas"
+        <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas" {...editShortcutTarget(["selectAll"])}
           onKeyDown={(event) => {
             if (event.target instanceof Element && event.target.closest(".graph-flow-node-controls, input, textarea, select, button, [contenteditable=true]") !== null) return;
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {

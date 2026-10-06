@@ -1,5 +1,5 @@
 import { markIndexAfterMove } from "./sequenceSelection";
-import { hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
+import { editShortcutTarget, hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
@@ -869,6 +869,7 @@ export function SequenceCanvas({
               clipPath: `polygon(0 0, 100% 0, 100% calc(100% - var(--donder-scrollbar-width)), ${left}px calc(100% - var(--donder-scrollbar-width)), ${left}px 100%, 0 100%)`
             }}
             tabIndex={0}
+            {...editShortcutTarget(["cut", "copy", "paste"])}
       onKeyDown={(event) => {
         if (event.key === "Escape" && automationClipChooser !== null) {
           event.preventDefault();
