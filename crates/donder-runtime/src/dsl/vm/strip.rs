@@ -12,7 +12,7 @@
 //! every kind of operand; the cheapest operations also have loops of their own
 //! for rows and for a row with a scalar.
 use super::context::Clock;
-use super::parameters::{CurveRegister, ParameterValues};
+use super::parameters::{CurveParameter, ParameterValues};
 use super::{BoundParams, RunContext};
 use crate::dsl::bytecode::{
     Bank, Banks, BytecodeProgram, ColorBinary, ColorComponent, CompareOp, ContextRead, FloatBinary,
@@ -489,14 +489,14 @@ fn power(base: f32, count: i32) -> f32 {
 /// A curve operand: a parameter keeps its prepared crossings.
 #[derive(Clone, Copy)]
 enum CurveRef<'r> {
-    Register(&'r CurveRegister),
+    Parameter(&'r CurveParameter),
     Raw(&'r Curve),
 }
 
 impl<'r> CurveRef<'r> {
     fn curve(self) -> &'r Curve {
         match self {
-            Self::Register(register) => register.raw(),
+            Self::Parameter(parameter) => parameter.raw(),
             Self::Raw(curve) => curve,
         }
     }
@@ -508,7 +508,7 @@ impl<'r> CurveRef<'r> {
     /// The first position where the curve reaches `value`, or NaN.
     fn crossing(self, value: f32) -> f32 {
         match self {
-            Self::Register(register) => register.crossing(value, f32::NAN),
+            Self::Parameter(parameter) => parameter.crossing(value, f32::NAN),
             Self::Raw(curve) => crate::sampling::curve_crossing(curve, value, f32::NAN),
         }
     }
@@ -966,7 +966,7 @@ impl<'m> Machine<'m> {
     fn curve(&self, handle: Handle) -> CurveRef<'m> {
         match handle {
             Handle::Param(Resource::Curve, bank) => {
-                CurveRef::Register(&self.params.curves[usize::from(bank)])
+                CurveRef::Parameter(&self.params.curves[usize::from(bank)])
             }
             Handle::Constant(Resource::Curve, index) => {
                 CurveRef::Raw(&self.program.curves[usize::from(index)])
@@ -1014,19 +1014,15 @@ impl<'m> Machine<'m> {
         }
     }
 
+    /// The item an item handle names; `Index` clamped it to its array.
     fn item(&self, handle: Handle) -> Option<&'m Value> {
         match handle {
-            Handle::ParamItem(bank, index) => self
-                .params
-                .array_values
-                .get(usize::from(bank))?
-                .values()
-                .get(usize::from(index)),
-            Handle::ConstantItem(array, index) => self
-                .program
-                .arrays
-                .get(usize::from(array))?
-                .get(usize::from(index)),
+            Handle::ParamItem(bank, index) => {
+                Some(&self.params.array_values[usize::from(bank)].values()[usize::from(index)])
+            }
+            Handle::ConstantItem(array, index) => {
+                Some(&self.program.arrays[usize::from(array)][usize::from(index)])
+            }
             _ => None,
         }
     }
@@ -1237,11 +1233,12 @@ impl<'m> Machine<'m> {
                     Bank::Bool => map2(sel, dst, self.boolean(a), self.boolean(b), |a, b| {
                         (a == b) != negate
                     }),
-                    Bank::Color | Bank::Resource => {
+                    Bank::Color => {
                         map2(sel, dst, self.color(a), self.color(b), |a, b| {
                             (a == b) != negate
                         });
                     }
+                    Bank::Resource => unreachable!("admission rejects resource equality"),
                 }
             }
             I::ColorBinary { op, dst, a, b } => {
@@ -1545,21 +1542,7 @@ impl<'m> Machine<'m> {
                     section_position(pixels[i & MASK].get(), width.at(i), inverse.at(i))
                 });
             }
-            I::Sample {
-                dst,
-                input,
-                seconds,
-                pixel,
-                frame_cache,
-            } => self.sample(
-                dst,
-                usize::from(input),
-                seconds,
-                pixel,
-                frame_cache,
-                sel,
-                signals,
-            ),
+            I::Sample { .. } => self.sample(instruction, sel, signals),
             I::Branch { .. } | I::Reduce { .. } => unreachable!("dispatched by block"),
         }
     }
@@ -1621,17 +1604,18 @@ impl<'m> Machine<'m> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn sample(
-        &self,
-        dst: Slot,
-        input: usize,
-        seconds: Slot,
-        pixel: SignalPixel<Slot>,
-        frame_cache: u16,
-        sel: Sel<'_>,
-        signals: &mut dyn StripSignals,
-    ) {
+    fn sample(&self, instruction: &Instruction, sel: Sel<'_>, signals: &mut dyn StripSignals) {
+        let Instruction::Sample {
+            dst,
+            input,
+            seconds,
+            pixel,
+            frame_cache,
+        } = *instruction
+        else {
+            unreachable!("dispatched by step")
+        };
+        let input = usize::from(input);
         let frame_cache = (frame_cache != NO_FRAME_CACHE).then_some(usize::from(frame_cache));
         let Dst::Many(dst) = self.color_dst(dst) else {
             unreachable!("admission keeps samples in rows")

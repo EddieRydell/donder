@@ -2,7 +2,7 @@
 //! frame caches reuse query-uniform samples, and values fixed for an instance
 //! are computed before playback without changing what playback produces.
 use super::evaluation::{
-    SampleEvaluation, bind, compile_effect, compile_operator, context, effect, operator,
+    SampleEvaluation, bind, chain, compile_effect, compile_operator, context, effect, operator,
     runtime_effect, runtime_operator,
 };
 use super::std;
@@ -26,35 +26,6 @@ const SPATIAL: SpatialContext = SpatialContext {
 
 /// Pixel counts around the strip boundaries.
 const COUNTS: [usize; 5] = [1, 7, STRIP, STRIP + 1, 2 * STRIP + 1];
-
-/// `layers` layers of `invocation` on a `count`-pixel fixture, mixed and then
-/// passed through `operators` in order.
-fn chain(
-    count: usize,
-    invocation: &SampleInvocation,
-    layers: usize,
-    operators: &[OperatorInvocation],
-) -> crate::PreparedSequence {
-    crate::PreparedSequence::build(playback::timing(8_000_000), |builder| {
-        let fixture = builder.fixture(
-            0,
-            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
-        );
-        let target = builder.target([fixture], TargetScope::WholeTarget);
-        let window = builder.whole_sequence();
-        let layers: Vec<_> = (0..layers)
-            .map(|_| {
-                let effect = builder.sample(invocation, window, target);
-                builder.layer(true, [effect])
-            })
-            .collect();
-        let mut signal = builder.mix(layers);
-        for operator in operators {
-            signal = builder.operator(operator, |_| signal);
-        }
-        builder.output([signal])
-    })
-}
 
 /// `operator` with its query and target blocks rerun for every strip and
 /// without frame caches: every query samples its run upstream.

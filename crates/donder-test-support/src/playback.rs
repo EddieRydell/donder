@@ -3,7 +3,7 @@ use donder_language::dsl::Invocation;
 use donder_language::dsl::OperatorInvocation;
 use donder_language::dsl::ProgramConstants;
 use donder_language::dsl::SampleInvocation;
-use donder_language::dsl::{CompiledEffect, CompiledOperator};
+use donder_language::dsl::{CompiledEffect, CompiledOperator, compile_effects, compile_operators};
 use donder_language::execution::FixtureGeometry;
 use donder_language::execution::OutputEncoding;
 use donder_language::execution::RgbOrder;
@@ -43,6 +43,20 @@ pub fn build(
         builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
         build(builder, target)
     })
+}
+
+/// The only declaration of an effect source.
+pub fn compile_effect(source: &str) -> CompiledEffect {
+    let mut effects = compile_effects(source).unwrap();
+    assert_eq!(effects.len(), 1);
+    effects.remove(0)
+}
+
+/// The only declaration of an operator source.
+pub fn compile_operator(source: &str) -> CompiledOperator {
+    let mut operators = compile_operators(source).unwrap();
+    assert_eq!(operators.len(), 1);
+    operators.remove(0)
 }
 
 /// Lower an effect's invocation with nothing known about its placement, so

@@ -13,9 +13,9 @@ pub(super) struct ParameterValues {
     pub(super) colors: Vec<Color>,
     pub(super) array_values: Vec<ArrayParameter>,
     pub(super) enums: Vec<Identifier>,
-    pub(super) marks: Vec<MarksRegister>,
-    pub(super) curves: Vec<CurveRegister>,
-    pub(super) gradients: Vec<GradientRegister>,
+    pub(super) marks: Vec<MarksParameter>,
+    pub(super) curves: Vec<CurveParameter>,
+    pub(super) gradients: Vec<GradientParameter>,
 }
 
 #[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
@@ -33,14 +33,14 @@ pub(super) enum ParameterAddress {
 }
 
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum CurveRegister {
+pub(super) enum CurveParameter {
     #[default]
     Empty,
     Raw(Arc<Curve>),
     Prepared(Arc<PreparedCurve>),
 }
 
-impl CurveRegister {
+impl CurveParameter {
     pub(super) fn raw(&self) -> &Curve {
         static EMPTY: Curve = Curve { points: Vec::new() };
         match self {
@@ -76,13 +76,13 @@ impl CurveRegister {
 }
 
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum GradientRegister {
+pub(super) enum GradientParameter {
     #[default]
     Empty,
     Shared(Arc<Gradient>),
 }
 
-impl GradientRegister {
+impl GradientParameter {
     pub(super) fn get(&self) -> &Gradient {
         static EMPTY: Gradient = Gradient { stops: Vec::new() };
         match self {
@@ -102,13 +102,13 @@ impl GradientRegister {
 /// An empty collection needs no shared allocation. A loaded collection retains
 /// its identity when copied between parameters and array elements.
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum MarksRegister {
+pub(super) enum MarksParameter {
     #[default]
     Empty,
     Shared(Arc<Marks>),
 }
 
-impl MarksRegister {
+impl MarksParameter {
     pub(super) fn get(&self) -> &Marks {
         static EMPTY: Marks = Marks::EMPTY;
         match self {
@@ -152,19 +152,19 @@ impl ParameterValues {
                 ParameterAddress::Enum(self.enums.len() - 1)
             }
             BoundParamValue::Curve(value) => {
-                self.curves.push(CurveRegister::Prepared(value));
+                self.curves.push(CurveParameter::Prepared(value));
                 ParameterAddress::Curve(self.curves.len() - 1)
             }
             BoundParamValue::RawCurve(value) => {
-                self.curves.push(CurveRegister::Raw(value));
+                self.curves.push(CurveParameter::Raw(value));
                 ParameterAddress::Curve(self.curves.len() - 1)
             }
             BoundParamValue::Gradient(value) => {
-                self.gradients.push(GradientRegister::Shared(value));
+                self.gradients.push(GradientParameter::Shared(value));
                 ParameterAddress::Gradient(self.gradients.len() - 1)
             }
             BoundParamValue::Marks(value) => {
-                self.marks.push(MarksRegister::Shared(value));
+                self.marks.push(MarksParameter::Shared(value));
                 ParameterAddress::Marks(self.marks.len() - 1)
             }
             BoundParamValue::Int(value) => {

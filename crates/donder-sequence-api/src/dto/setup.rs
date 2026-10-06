@@ -1,6 +1,5 @@
 use super::*;
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",

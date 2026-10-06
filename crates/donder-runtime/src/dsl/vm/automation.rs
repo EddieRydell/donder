@@ -3,7 +3,7 @@
 //! Keep a plan with the parameter workspace it was admitted for. Curve windows
 //! belong to the plan, not to a tagged parameter value supplied during playback.
 
-use super::{Arc, BoundParams, CurveRegister, Identifier, PreparedCurve};
+use super::{Arc, BoundParams, CurveParameter, Identifier, PreparedCurve};
 use crate::automation::AutomationMapping;
 use crate::sampling::sample_curve;
 use crate::signal::PreparedAutomation;
@@ -248,14 +248,15 @@ impl AutomationPlan {
                     // Release the previous published handle before mutating the
                     // plan-owned window. This is resource lifetime management,
                     // not a recovery path for an unexpected parameter tag.
-                    values.curves[window.slot] = CurveRegister::Empty;
+                    values.curves[window.slot] = CurveParameter::Empty;
                     Arc::make_mut(&mut window.curve).update_window(
                         &binding.curve,
                         *min,
                         *max,
                         position,
                     );
-                    values.curves[window.slot] = CurveRegister::Prepared(Arc::clone(&window.curve));
+                    values.curves[window.slot] =
+                        CurveParameter::Prepared(Arc::clone(&window.curve));
                 }
             }
         }

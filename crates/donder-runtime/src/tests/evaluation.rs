@@ -8,13 +8,16 @@ use crate::dsl::{
     BoundParams, DslBindCache, RunContext, RuntimeError, STRIP, SpatialContext, Strip,
     StripSignals, StripWorkspace,
 };
+use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
 use donder_language::dsl::{
     CompiledEffect, CompiledOperator, Identifier, Instance, Invocation, OperatorDefinition,
     OperatorInvocation, ParamDecl, ParamRange, ProgramConstants, SampleDefinition,
-    SampleInvocation, Type, Value, compile_effects, compile_operators,
+    SampleInvocation, Type, Value,
 };
-use donder_language::execution::PreparedAutomation;
-use donder_language::values::{Color, Curve, SampleDuration, SampleTime};
+use donder_language::execution::{
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
+};
+use donder_language::values::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
 use std::prelude::rust_2024::*;
 
 /// A test signal source. An error is reported as the operator's result.
@@ -180,18 +183,78 @@ pub(super) fn context(count: usize, pixel: usize, frame: usize) -> PixelContext 
     }
 }
 
-/// The only declaration of an effect source.
-pub(super) fn compile_effect(source: &str) -> CompiledEffect {
-    let mut effects = compile_effects(source).unwrap();
-    assert_eq!(effects.len(), 1);
-    effects.remove(0)
+pub(super) use donder_test_support::playback::{compile_effect, compile_operator};
+
+/// A one-pixel context of a one-second sequence at `progress`, at time zero.
+pub(super) fn one_pixel(progress: f32) -> PixelContext {
+    PixelContext {
+        run: RunContext {
+            progress,
+            time: SampleDuration::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            pixel_count: 1,
+        },
+        index: 0,
+        fraction: 0.0,
+    }
 }
 
-/// The only declaration of an operator source.
-pub(super) fn compile_operator(source: &str) -> CompiledOperator {
-    let mut operators = compile_operators(source).unwrap();
-    assert_eq!(operators.len(), 1);
-    operators.remove(0)
+pub(super) fn curve(points: &[(f32, f32)]) -> Value {
+    Value::Curve(
+        Curve {
+            points: points
+                .iter()
+                .map(|&(position, value)| CurvePoint { position, value })
+                .collect(),
+        }
+        .into(),
+    )
+}
+
+pub(super) fn marks(ticks: &[u32]) -> Value {
+    Value::Marks(Marks::new(ticks.iter().copied().map(SampleDuration::from_ticks)).into())
+}
+
+/// A `count`-pixel fixture with a GRB port, built by `build`.
+pub(super) fn build(
+    count: usize,
+    duration: u32,
+    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
+) -> PreparedSequence {
+    PreparedSequence::build(playback::timing(duration), |builder| {
+        let fixture = builder.fixture(
+            0,
+            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
+        );
+        let target = builder.target([fixture], TargetScope::WholeTarget);
+        let port = builder.port(0, 0);
+        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
+        build(builder, target)
+    })
+}
+
+/// `layers` layers of `invocation` over the whole eight-second sequence,
+/// mixed and passed through `operators`.
+pub(super) fn chain(
+    count: usize,
+    invocation: &SampleInvocation,
+    layers: usize,
+    operators: &[OperatorInvocation],
+) -> PreparedSequence {
+    build(count, 8_000_000, |builder, target| {
+        let window = builder.whole_sequence();
+        let layers: Vec<_> = (0..layers)
+            .map(|_| {
+                let effect = builder.sample(invocation, window, target);
+                builder.layer(true, [effect])
+            })
+            .collect();
+        let mut signal = builder.mix(layers);
+        for operator in operators {
+            signal = builder.operator(operator, |_| signal);
+        }
+        builder.output([signal])
+    })
 }
 
 /// The only effect of `source` with its defaults, lowered with nothing known

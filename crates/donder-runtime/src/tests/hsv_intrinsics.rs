@@ -1,5 +1,5 @@
 use super::evaluation::{
-    OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile_effect,
+    OperatorEvaluation, SampleEvaluation, SignalSampler, bind, compile_effect, one_pixel,
 };
 use super::playback;
 use super::std;
@@ -11,30 +11,16 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
-use crate::dsl::RunContext;
 use crate::dsl::RuntimeError;
 use crate::dsl::StripWorkspace;
 use donder_language::dsl::Color;
 use donder_language::dsl::Value;
 use donder_language::dsl::bytecode::SignalPixel;
 use donder_language::dsl::{compile_effects, compile_operators};
-use donder_language::values::{SampleDuration, SampleTime};
+use donder_language::values::SampleTime;
 
 fn color([red, green, blue]: [u8; 3]) -> Color {
     Color { red, green, blue }
-}
-
-fn context() -> PixelContext {
-    PixelContext {
-        run: RunContext {
-            progress: 0.0,
-            time: SampleDuration::from_ticks(0),
-            duration: SampleDuration::from_ticks(1_000_000),
-            pixel_count: 1,
-        },
-        index: 0,
-        fraction: 0.0,
-    }
 }
 
 struct ConstantSignal(Color);
@@ -92,7 +78,7 @@ fn hsv_components_of_colors_execute_and_fold_alike() {
         ));
         for invocation in [fixed, selected] {
             assert_eq!(
-                invocation.evaluate(&context(), &SPATIAL, &mut workspace),
+                invocation.evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace),
                 color(output),
                 "{input:?}"
             );
@@ -127,7 +113,7 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
             playback::lower_operator(&bind(&operator, &[("shift", Value::Float(shift))]));
         let actual = invocation
             .evaluate(
-                &context(),
+                &one_pixel(0.0),
                 &SPATIAL,
                 &mut ConstantSignal(color(input)),
                 &mut workspace,

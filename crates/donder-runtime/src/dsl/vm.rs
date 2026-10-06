@@ -7,7 +7,7 @@ mod strip;
 pub(crate) use automation::AutomationPlan;
 pub(crate) use strip::{Pixels, STRIP, Strip, StripSignals, StripWorkspace};
 
-use parameters::{CurveRegister, ParameterAddress, ParameterValues};
+use parameters::{CurveParameter, ParameterAddress, ParameterValues};
 
 use super::types::{Identifier, Type, Value};
 use crate::values::{Color, Curve, Gradient, Marks, SampleDuration};

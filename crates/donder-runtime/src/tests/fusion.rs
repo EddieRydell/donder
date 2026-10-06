@@ -1,21 +1,18 @@
 //! Operator fusion (`Instance::fuse_input`) and black inputs
 //! (`Instance::with_black_input`) keep what playback produces.
 use super::evaluation::{
-    OperatorEvaluation, SignalSampler, bind, compile_operator, context, effect,
+    OperatorEvaluation, SignalSampler, bind, build, chain, compile_operator, context, effect,
     lower_runtime_operator, runtime_instance,
 };
 use super::playback;
 use super::std;
 use crate::dsl::{RuntimeError, StripWorkspace};
-use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
 use donder_language::dsl::bytecode::{Instruction, SignalPixel};
 use donder_language::dsl::{
     CompiledOperator, Instance, OperatorInvocation, ProgramConstants, SampleInvocation, Value,
     compile_operators,
 };
-use donder_language::execution::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SpatialContext, TargetScope,
-};
+use donder_language::execution::{PreparedAutomation, SpatialContext};
 use donder_language::values::{Color, SampleTime};
 use std::prelude::rust_2024::*;
 
@@ -25,41 +22,6 @@ fn instance(operator: &CompiledOperator, values: &[(&str, Value)]) -> Instance {
 
 fn operators(source: &str) -> Vec<CompiledOperator> {
     compile_operators(source).unwrap()
-}
-
-/// A show over one fixture of `count` pixels lasting `duration` ticks.
-fn build(
-    count: usize,
-    duration: u32,
-    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
-) -> PreparedSequence {
-    PreparedSequence::build(playback::timing(duration), |builder| {
-        let fixture = builder.fixture(
-            0,
-            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
-        );
-        let target = builder.target([fixture], TargetScope::WholeTarget);
-        let port = builder.port(0, 0);
-        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
-        build(builder, target)
-    })
-}
-
-/// A mix of one layer of `source`, through `operators` in order.
-fn chain(
-    count: usize,
-    source: &SampleInvocation,
-    operators: &[OperatorInvocation],
-) -> PreparedSequence {
-    build(count, 8_000_000, |builder, target| {
-        let effect = builder.sample(source, builder.whole_sequence(), target);
-        let layer = builder.layer(true, [effect]);
-        let mut signal = builder.mix([layer]);
-        for operator in operators {
-            signal = builder.operator(operator, |_| signal);
-        }
-        builder.output([signal])
-    })
 }
 
 const TICKS: [u32; 7] = [0, 1, 124_999, 125_000, 3_000_001, 7_999_999, 1];
@@ -72,8 +34,8 @@ fn assert_fused_playback(
     fused: &OperatorInvocation,
     what: &str,
 ) {
-    let mut original = chain(count, source, operators).into_playback();
-    let mut composed = chain(count, source, std::slice::from_ref(fused)).into_playback();
+    let mut original = chain(count, source, 1, operators).into_playback();
+    let mut composed = chain(count, source, 1, std::slice::from_ref(fused)).into_playback();
     for ticks in TICKS {
         let time = SampleTime::from_ticks(ticks);
         assert_eq!(
@@ -195,7 +157,7 @@ fn fusing_a_black_source_folds_its_consumer() {
     assert_eq!(substituted.inputs(), 0);
     let bright = effect("effect Bright { sample { #ffffff } }");
     assert!(
-        chain(9, &bright, &[fused.operator()])
+        chain(9, &bright, 1, &[fused.operator()])
             .into_playback()
             .evaluate(SampleTime::from_ticks(0))
             .colors()

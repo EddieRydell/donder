@@ -110,19 +110,22 @@ The ESP32 runs code from flash through a small cache, so hot code lives in
 instruction RAM. `firmware/esp32/rwtext_hook.x` places these there, by mangled
 symbol prefix:
 - the strip interpreter, its kernels and graph evaluation;
-- target lookup;
-- the per-pixel helpers: curve sampling and crossing, gradient sampling, mark
-  search, color components, clamp, floor, sine and division.
+- target and section pixel lookup;
+- the language helpers the interpreter calls: gradient stops, curve crossings,
+  float operations, time and progress queries, color scaling and
+  multiplication, sample-time conversion, and float division.
 
-Drop glue stays in flash. On October 6, 2026 the loader used 74,196 bytes of
-`.rwtext` beside 51,796 bytes of Wi-Fi code, about 4 KB below the limit. Check
-the linker output after growing the interpreter: code size, not speed, decides
-what the interpreter may specialize. Operand lookups stay out of line, one
-bounds check each rather than one per instruction arm, and only the cheapest
-operations have loops per operand kind. Graph evaluation borrows its frame
-buffers and operator workspaces apart from the shared sampling workspace rather
-than taking and restoring them; the restores inlined about 15 KB of drop glue
-into instruction RAM.
+Drop glue and once-per-frame work such as automation stay in flash. Flash
+addresses in the `.rwtext` literal pools show which flash functions the
+instruction-RAM code still calls. On October 6, 2026 the loader used 76,984
+bytes of `.rwtext` beside 51,796 bytes of Wi-Fi code, about 1.3 KB below the
+limit. Check the linker output after growing the interpreter: code size, not
+speed, decides what the interpreter may specialize. Operand lookups stay out of
+line, one bounds check each rather than one per instruction arm, and only the
+cheapest operations have loops per operand kind. Graph evaluation borrows its
+frame buffers and operator workspaces apart from the shared sampling workspace
+rather than taking and restoring them; the restores inlined about 15 KB of drop
+glue into instruction RAM.
 
 Large parts of the evaluation workspace are boxed, because firmware task
 futures hold playback by value and those futures live in `.bss`, which takes
@@ -148,11 +151,12 @@ firmware of its date.
   not measured.
 - **October 6, 2026:** the strip interpreter played the whole Stanford show
   (150 pixels, 41,520 frames at 120 Hz, `i2s-output` image) with matching frame
-  checksums and no evaluation allocations: evaluation averaged 960 µs, the
-  busiest 5% of one-second windows averaged up to 2.9 ms, and the slowest frame
-  took 5.7 ms. One frame missed its deadline while playback started. At least
-  39.2 KB of heap stayed free. The previous 32-lane interpreter, measured the
-  same day on the same show, averaged 1,250 µs (3.4 ms busy windows, 6.2 ms
+  checksums and no evaluation allocations: evaluation averaged 908 µs, the
+  busiest 5% of one-second windows averaged up to 2.8 ms, and the slowest frame
+  took 5.6 ms. One frame missed its deadline while playback started. At least
+  39.2 KB of heap stayed free. With its language helpers still in flash the
+  same interpreter averaged 960 µs; the previous 32-lane interpreter, measured
+  the same day on the same show, averaged 1,250 µs (3.4 ms busy windows, 6.2 ms
   slowest frame).
 
 ## Measuring

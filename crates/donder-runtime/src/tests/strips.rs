@@ -3,7 +3,7 @@
 //! into strips and whatever mix of scalars and rows its program computes.
 use super::evaluation::{
     OperatorEvaluation, PixelContext, SignalSampler, bind, compile_effect, lower_runtime_effect,
-    runtime_instance,
+    marks, runtime_instance,
 };
 use super::playback;
 use super::std;
@@ -17,7 +17,7 @@ use donder_language::dsl::{
     compile_operators, listing,
 };
 use donder_language::values::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
+    Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
 };
 use std::prelude::rust_2024::*;
 
@@ -238,7 +238,7 @@ fn assert_same(
     }
 }
 
-fn curve(range: Option<ParamRange>, variant: usize) -> Value {
+fn ranged_curve(range: Option<ParamRange>, variant: usize) -> Value {
     let (min, max) = match range {
         Some(ParamRange::Float { min, max }) => (min, max),
         _ => (0.0, 1.0),
@@ -274,25 +274,14 @@ fn gradient(variant: usize) -> Value {
     )
 }
 
-/// Marks shortly before several of [`TICKS`].
-fn marks() -> Value {
-    Value::Marks(
-        Marks::new(
-            [
-                500_000, 1_200_000, 3_000_000, 3_010_000, 4_400_000, 6_050_000,
-            ]
-            .map(SampleDuration::from_ticks),
-        )
-        .into(),
-    )
-}
-
 /// A value for a parameter without a default.
 fn required(ty: &Type, range: Option<ParamRange>, variant: usize) -> Value {
     match ty {
-        Type::Curve => curve(range, variant),
+        Type::Curve => ranged_curve(range, variant),
         Type::Gradient => gradient(variant),
-        Type::Marks => marks(),
+        Type::Marks => marks(&[
+            500_000, 1_200_000, 3_000_000, 3_010_000, 4_400_000, 6_050_000,
+        ]),
         Type::Array(item) => Value::Array(
             (0..3)
                 .map(|variant| required(item, None, variant))
