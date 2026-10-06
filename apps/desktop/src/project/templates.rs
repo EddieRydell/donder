@@ -233,7 +233,7 @@ mod tests {
         );
         assert_eq!(
             session.project.definitions().operators.definitions.len(),
-            10
+            11
         );
         for name in [
             "MarkPulse",

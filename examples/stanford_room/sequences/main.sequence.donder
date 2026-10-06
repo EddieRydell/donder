@@ -14,7 +14,7 @@ imports:
 main:
   type: sequence
   duration: 330.489624s
-  frame_rate: 120
+  frame_rate: 144
   audio: audio/[Hard Dance] - Pegboard Nerds - Hero (feat. Elizaveta) [Monstercat Release].mp3
   mark_collections:
   - key: marks
@@ -1789,8 +1789,8 @@ main:
       layer_id: 0
     - id: 2
       position:
-        x: 458.3247985839844
-        y: 51.25638961791992
+        x: 944.156982421875
+        y: 71.12313079833984
       type: output
     - id: 3
       position:
@@ -1836,14 +1836,6 @@ main:
           type: float
           value: 0.10000000149011612
     edges:
-    - from: 1
-      from_port: output
-      to: 2
-      to_port: input
-    - from: 4
-      from_port: output
-      to: 2
-      to_port: input
     - from: 5
       from_port: output
       to: 6
@@ -1859,6 +1851,14 @@ main:
     - from: 7
       from_port: output
       to: 8
+      to_port: input
+    - from: 4
+      from_port: output
+      to: 2
+      to_port: input
+    - from: 1
+      from_port: output
+      to: 2
       to_port: input
     - from: 8
       from_port: output
