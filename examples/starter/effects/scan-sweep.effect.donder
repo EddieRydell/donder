@@ -1,42 +1,29 @@
 effect ScanSweep {
-  param gradient gradient;
-  param curve intensity in 0.0..1.0;
-  param enum direction { left_to_right, right_to_left, center_out, edges_in } = left_to_right;
-  param enum color_mode { through_effect, across_pixels, scan_head } = through_effect;
-  param float repeats in 1.0..100.0 = 1.0;
-  param float width in 0.0..1.0 = 0.12;
-  param float edge_width in 0.001..1.0 = 0.04;
-  param float background_level in 0.0..1.0 = 0.0;
-  param float section_width_pixels in 1.0..1000.0 = 1.0;
+  param gradient: gradient;
+  param intensity: curve in 0.0..1.0;
+  param direction: enum { left_to_right, right_to_left, center_out, edges_in } = left_to_right;
+  param color_mode: enum { through_effect, across_pixels, scan_head } = through_effect;
+  param repeats: float in 1.0..100.0 = 1.0;
+  param width: float in 0.0..1.0 = 0.12;
+  param edge_width: float in 0.001..1.0 = 0.04;
+  param background_level: float in 0.0..1.0 = 0.0;
+  param section_width_pixels: float in 1.0..1000.0 = 1.0;
 
-  color sample() {
-    float position = section_position(section_width_pixels);
-    float scan_progress = (progress() * repeats) % 1.0;
-
-    float scan_position = scan_progress;
-    float target_position = position;
-    if (direction == right_to_left) {
-      scan_position = 1.0 - scan_position;
-    }
-    if (direction == center_out) {
-      target_position = abs(position - 0.5) * 2.0;
-    }
-    if (direction == edges_in) {
-      target_position = 1.0 - abs(position - 0.5) * 2.0;
-    }
-
-    float distance = abs(target_position - scan_position);
-    float body = 1.0 - smoothstep(width, width + edge_width, distance);
-    float level = max(background_level, body) * intensity[progress()];
-
-    float color_position = progress();
-    if (color_mode == across_pixels) {
-      color_position = position;
-    }
-    if (color_mode == scan_head) {
-      color_position = scan_progress;
-    }
-
-    return gradient_color_scaled(gradient, color_position, level);
+  sample {
+    let position = section_position(section_width_pixels);
+    let scan_progress = (progress * repeats) % 1.0;
+    let scan_position = if direction == right_to_left { 1.0 - scan_progress } else { scan_progress };
+    let target_position =
+      if direction == center_out { abs(position - 0.5) * 2.0 }
+      else if direction == edges_in { 1.0 - abs(position - 0.5) * 2.0 }
+      else { position };
+    let distance = abs(target_position - scan_position);
+    let body = 1.0 - smoothstep(width, width + edge_width, distance);
+    let level = max(background_level, body) * intensity[progress];
+    let color_position =
+      if color_mode == across_pixels { position }
+      else if color_mode == scan_head { scan_progress }
+      else { progress };
+    gradient_color_scaled(gradient, color_position, level)
   }
 }

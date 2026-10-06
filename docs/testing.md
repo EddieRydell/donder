@@ -27,12 +27,16 @@ them many times slower.
 ## Where tests live
 
 - Integration tests are in `crates/*/tests`, unit tests beside their modules, and
-  desktop service tests beside the desktop workflows.
+  desktop service tests beside the desktop workflows. `donder-project-io`'s
+  integration tests form one binary, `tests/project_io`, around their shared
+  helpers.
 - `examples/starter` is the fixture for realistic project flows. Invalid or
   synthetic projects are written to temporary directories in the test that needs
   them.
-- Shared runtime workloads are in `crates/donder-runtime/tests/support/`. The
-  runtime tests and the render benchmark include them.
+- Shared playback workloads are in the dev-only `donder-test-support` crate,
+  used by the runtime integration tests and both benchmarks. Runtime unit tests
+  use it only for helpers whose values are language types; a test that builds
+  a prepared sequence with it belongs under `crates/donder-runtime/tests`.
 
 Key contracts and their tests:
 
@@ -41,9 +45,15 @@ Key contracts and their tests:
 | Save and reload preserve meaning | `donder-project-io` `semantic_preservation`, `roundtrip`, `path_refactor` |
 | Strict parsing with exact locations | `donder-project-io` `schema_strictness`, `diagnostics` |
 | Controller fragments match full playback | `donder-elaboration` `output_selection` |
-| Archive round trips and corruption rejection | `donder-elaboration` `sequence_archive`, `clip_sampling` |
+| Archive round trips and corruption rejection | `donder-elaboration` `sequence_archive`, `clip_sampling`; `donder-runtime` `archive` |
+| Only well-formed programs are admitted | `donder-language` `admission` |
+| Any source compiles or reports diagnostics, without panics or stack overflow | `donder-language` `compiler_totality` |
+| Language semantics and diagnostics | `donder-runtime` `dsl`, `arrays`, `event_queries`, `hsv_intrinsics` |
+| Preparation folds, slots and stages the right work | `donder-runtime` `optimization` |
 | Playback does not allocate | `donder-runtime` `playback_allocations`, `donder-elaboration` `controller_allocations` |
-| Staged, fused and cached execution match plain sampling | `donder-runtime` `prepared_uniform`, `staged_execution`, `fusion`, `dsl_temporal` |
+| A strip computes every pixel as that pixel alone | `donder-runtime` `strips` |
+| Staged, fused and cached execution match plain sampling | `donder-runtime` `prepared_uniform`, `staged_execution`, `fusion`, `dsl_temporal`, `spatial_signal` |
+| Black inputs fold away during preparation | `donder-elaboration` `standard_operators` |
 | GUI edits, history and save | desktop `authoring_acceptance`, `working_copy`, `sequence_rows_acceptance` |
 | Starter frame checksums | `donder-elaboration` `starter_sequence_behavioral_checksums...`, `led_output` |
 

@@ -6,18 +6,12 @@ use donder_language::values::{Color, sample_time_from_frame};
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
 use donder_runtime::SequenceFrame;
+use donder_test_support::fixtures as effect_fixtures;
+use donder_test_support::marks as mark_workload;
+use donder_test_support::playback;
+use donder_test_support::workload;
 use std::hint::black_box;
 use std::time::Duration;
-
-#[allow(dead_code)]
-#[path = "../../donder-runtime/benches/fixtures/mod.rs"]
-mod effect_fixtures;
-#[allow(dead_code)]
-#[path = "../../donder-runtime/tests/support/mark_workload.rs"]
-mod mark_workload;
-#[allow(dead_code)]
-#[path = "../../donder-runtime/tests/support/workload.rs"]
-mod workload;
 
 const BENCHMARK_SEQUENCE_DOCUMENT: &str = "sequences/layer_test.sequence.donder";
 const BENCHMARK_SEQUENCE_OBJECT: &str = "layer_test";
@@ -327,7 +321,7 @@ fn bench_chase_pulse(c: &mut Criterion) {
         for frame in [0, 31, 4, 0] {
             for (snapshot, output) in output
                 .iter_mut()
-                .zip(workspace.evaluate(workload::time(frame)).outputs())
+                .zip(workspace.evaluate(playback::time(frame)).outputs())
             {
                 snapshot.copy_from_slice(output.bytes);
             }
@@ -335,7 +329,7 @@ fn bench_chase_pulse(c: &mut Criterion) {
                 show.clone()
                     .prepare()
                     .into_playback()
-                    .evaluate(workload::time(frame))
+                    .evaluate(playback::time(frame))
                     .outputs(),
             ) {
                 snapshot.copy_from_slice(output.bytes);
@@ -347,7 +341,7 @@ fn bench_chase_pulse(c: &mut Criterion) {
         c.bench_function(&name, |b| {
             b.iter(|| {
                 frame = (frame + 1) % workload::FRAMES;
-                black_box(workspace.evaluate(black_box(workload::time(frame))));
+                black_box(workspace.evaluate(black_box(playback::time(frame))));
             })
         });
     }
@@ -356,16 +350,15 @@ fn bench_chase_pulse(c: &mut Criterion) {
 fn bench_layers(c: &mut Criterion) {
     pin_benchmark_thread();
     for (name, source, params) in effect_fixtures::layer_cases() {
-        let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
+        let invocation = effect_fixtures::prepared_effect(name, source, params);
         for layers in [1, 4, 16] {
-            let show =
-                workload::layered_show(200, effect.sample_program().clone(), bound.clone(), layers);
+            let show = workload::layered_show(200, &invocation, layers);
             let mut workspace = show.clone().prepare().into_playback();
             let mut frame = 0;
             c.bench_function(&format!("prepared_layers/{name}/{layers}"), |b| {
                 b.iter(|| {
                     frame = (frame + 1) % workload::FRAMES;
-                    black_box(workspace.evaluate(black_box(workload::time(frame))));
+                    black_box(workspace.evaluate(black_box(playback::time(frame))));
                 })
             });
         }
@@ -375,7 +368,7 @@ fn bench_layers(c: &mut Criterion) {
 fn bench_operators(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
-    let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
+    let invocation = effect_fixtures::prepared_effect(name, source, params);
     for (group, modes) in [
         (
             "prepared_operator",
@@ -398,20 +391,15 @@ fn bench_operators(c: &mut Criterion) {
                 let operator = donder_language::dsl::compile_operators(source)
                     .unwrap()
                     .remove(0);
-                let mut show =
-                    workload::show(count, effect.sample_program().clone(), bound.clone());
-                workload::apply_operator(
-                    &mut show,
-                    operator.program().clone().into_parts().0,
-                    reuse,
-                );
+                let mut show = workload::show(count, &invocation);
+                workload::apply_operator(&mut show, &operator, reuse);
                 let mut workspace = show.clone().prepare().into_playback();
                 let mut output = [vec![0; count * 3]];
                 let mut checksums = Vec::new();
                 for frame in 0..workload::FRAMES {
                     for (snapshot, output) in output
                         .iter_mut()
-                        .zip(workspace.evaluate(workload::time(frame)).outputs())
+                        .zip(workspace.evaluate(playback::time(frame)).outputs())
                     {
                         snapshot.copy_from_slice(output.bytes);
                     }
@@ -426,7 +414,7 @@ fn bench_operators(c: &mut Criterion) {
                 c.bench_function(&format!("{group}/{mode}/{count}"), |b| {
                     b.iter(|| {
                         frame = (frame + 1) % workload::FRAMES;
-                        black_box(workspace.evaluate(black_box(workload::time(frame))));
+                        black_box(workspace.evaluate(black_box(playback::time(frame))));
                     })
                 });
             }
@@ -451,18 +439,18 @@ fn bench_operators(c: &mut Criterion) {
             ("standard_echo_nested_invert", true),
         ] {
             let mut show = workload::chase_pulse_show(count, 4);
-            workload::apply_compiled_operator(&mut show, echo.clone());
+            workload::apply_compiled_operator(&mut show, echo);
             if nested {
                 // Layer -> Echo -> Invert -> Echo mixes scalar temporal requests
                 // with a uniform upstream query that must not promote back to frames.
-                workload::insert_invert(&mut show, invert.program().clone().into_parts().0);
+                workload::insert_invert(&mut show, invert);
             }
             let mut workspace = show.clone().prepare().into_playback();
             let mut output = [vec![0; count * 3]];
             let mut fresh_output = [vec![0; count * 3]];
             let mut any_lit = false;
             for frame in (0..workload::FRAMES).chain([12, 0, workload::FRAMES - 1]) {
-                let time = workload::time(frame);
+                let time = playback::time(frame);
                 for (snapshot, output) in output.iter_mut().zip(workspace.evaluate(time).outputs())
                 {
                     snapshot.copy_from_slice(output.bytes);
@@ -488,7 +476,7 @@ fn bench_operators(c: &mut Criterion) {
             c.bench_function(&format!("prepared_temporal/{name}/{count}"), |b| {
                 b.iter(|| {
                     frame = (frame + 1) % workload::FRAMES;
-                    black_box(workspace.evaluate(black_box(workload::time(frame))));
+                    black_box(workspace.evaluate(black_box(playback::time(frame))));
                 })
             });
         }
@@ -497,22 +485,20 @@ fn bench_operators(c: &mut Criterion) {
 
 fn bench_uniform_resources(c: &mut Criterion) {
     pin_benchmark_thread();
-    let (effect, params) = effect_fixtures::uniform_resources();
+    let invocation = effect_fixtures::uniform_resources();
     let mut expected = None;
     for (name, reuse) in [("full", false), ("reuse", true)] {
-        let (mut program, types) = effect.sample_program().clone().into_parts();
+        let mut show = workload::show(200, &invocation);
         if !reuse {
-            program.pixel_entry = 0;
+            workload::edit_effect(&mut show, workload::unstaged);
         }
-        let program = donder_language::dsl::SampleProgram::admit(program, types).unwrap();
-        let show = workload::show(200, program, params.clone());
         let mut workspace = show.clone().prepare().into_playback();
         let mut output = [vec![0; 600]];
         let checksums = (0..workload::FRAMES)
             .map(|frame| {
                 for (snapshot, output) in output
                     .iter_mut()
-                    .zip(workspace.evaluate(workload::time(frame)).outputs())
+                    .zip(workspace.evaluate(playback::time(frame)).outputs())
                 {
                     snapshot.copy_from_slice(output.bytes);
                 }
@@ -529,7 +515,7 @@ fn bench_uniform_resources(c: &mut Criterion) {
         c.bench_function(&format!("prepared_uniform_resources/{name}"), |b| {
             b.iter(|| {
                 frame = (frame + 1) % workload::FRAMES;
-                black_box(workspace.evaluate(black_box(workload::time(frame))));
+                black_box(workspace.evaluate(black_box(playback::time(frame))));
             })
         });
     }
@@ -538,24 +524,23 @@ fn bench_uniform_resources(c: &mut Criterion) {
 fn bench_uniform_upstream(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().next().unwrap();
-    let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
-    assert!(!effect.sample_program().bytecode().uses_pixel_context);
-    let operator = donder_language::dsl::compile_operators(workload::IDENTITY_SOURCE)
+    let invocation = effect_fixtures::prepared_effect(name, source, params);
+    let operator = donder_language::dsl::compile_operators(playback::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     for count in [200, 1600] {
         let mut expected = None;
         for reuse in [false, true] {
-            let mut show = workload::show(count, effect.sample_program().clone(), bound.clone());
+            let mut show = workload::show(count, &invocation);
             workload::set_uniform_upstream(&mut show, reuse);
-            workload::apply_operator(&mut show, operator.program().clone().into_parts().0, true);
+            workload::apply_operator(&mut show, &operator, true);
             let mut workspace = show.clone().prepare().into_playback();
             let mut output = [vec![0; count * 3]];
             let mut checksums = Vec::new();
             for frame in 0..workload::FRAMES {
                 for (snapshot, output) in output
                     .iter_mut()
-                    .zip(workspace.evaluate(workload::time(frame)).outputs())
+                    .zip(workspace.evaluate(playback::time(frame)).outputs())
                 {
                     snapshot.copy_from_slice(output.bytes);
                 }
@@ -571,7 +556,7 @@ fn bench_uniform_upstream(c: &mut Criterion) {
             c.bench_function(&format!("prepared_uniform_upstream/{mode}/{count}"), |b| {
                 b.iter(|| {
                     frame = (frame + 1) % workload::FRAMES;
-                    black_box(workspace.evaluate(black_box(workload::time(frame))));
+                    black_box(workspace.evaluate(black_box(playback::time(frame))));
                 })
             });
         }
@@ -581,17 +566,16 @@ fn bench_uniform_upstream(c: &mut Criterion) {
 fn bench_gamma(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().nth(1).unwrap();
-    let (effect, bound) = effect_fixtures::prepared_effect(name, source, params);
+    let invocation = effect_fixtures::prepared_effect(name, source, params);
     for count in workload::COUNTS {
-        let mut show =
-            workload::layered_show(count, effect.sample_program().clone(), bound.clone(), 1);
+        let mut show = workload::layered_show(count, &invocation, 1);
         workload::apply_gamma(&mut show, workload::gamma_lookup());
         let mut workspace = show.clone().prepare().into_playback();
         let mut frame = 0;
         c.bench_function(&format!("prepared_gamma/lookup/{count}"), |b| {
             b.iter(|| {
                 frame = (frame + 1) % workload::FRAMES;
-                black_box(workspace.evaluate(black_box(workload::time(frame))));
+                black_box(workspace.evaluate(black_box(playback::time(frame))));
             })
         });
     }

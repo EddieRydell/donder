@@ -1,17 +1,95 @@
+//! Operator fusion (`Instance::fuse_input`) and black inputs
+//! (`Instance::with_black_input`) keep what playback produces.
+use super::evaluation::{
+    OperatorEvaluation, SignalSampler, bind, compile_operator, context, effect,
+    lower_runtime_operator, runtime_instance,
+};
 use super::playback;
 use super::std;
-use donder_language::dsl::{OperatorDefinition, Value, compile_effects, compile_operators};
-use donder_language::values::SampleTime;
+use crate::dsl::{RuntimeError, StripWorkspace};
+use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
+use donder_language::dsl::bytecode::{Instruction, SignalPixel};
+use donder_language::dsl::{
+    CompiledOperator, Instance, OperatorInvocation, ProgramConstants, SampleInvocation, Value,
+    compile_operators,
+};
+use donder_language::execution::{
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SpatialContext, TargetScope,
+};
+use donder_language::values::{Color, SampleTime};
 use std::prelude::rust_2024::*;
 
+fn instance(operator: &CompiledOperator, values: &[(&str, Value)]) -> Instance {
+    bind(operator, values).instance(ProgramConstants::default())
+}
+
+fn operators(source: &str) -> Vec<CompiledOperator> {
+    compile_operators(source).unwrap()
+}
+
+/// A show over one fixture of `count` pixels lasting `duration` ticks.
+fn build(
+    count: usize,
+    duration: u32,
+    build: impl for<'id> FnOnce(&mut SequenceBuilder<'id>, TargetHandle<'id>) -> SequenceRoot<'id>,
+) -> PreparedSequence {
+    PreparedSequence::build(playback::timing(duration), |builder| {
+        let fixture = builder.fixture(
+            0,
+            FixtureGeometry::admit((0..count).map(|pixel| [pixel as f32, 0.0]).collect()).unwrap(),
+        );
+        let target = builder.target([fixture], TargetScope::WholeTarget);
+        let port = builder.port(0, 0);
+        builder.route(port, target, OutputEncoding::Rgb(RgbOrder::Grb), None);
+        build(builder, target)
+    })
+}
+
+/// A mix of one layer of `source`, through `operators` in order.
+fn chain(
+    count: usize,
+    source: &SampleInvocation,
+    operators: &[OperatorInvocation],
+) -> PreparedSequence {
+    build(count, 8_000_000, |builder, target| {
+        let effect = builder.sample(source, builder.whole_sequence(), target);
+        let layer = builder.layer(true, [effect]);
+        let mut signal = builder.mix([layer]);
+        for operator in operators {
+            signal = builder.operator(operator, |_| signal);
+        }
+        builder.output([signal])
+    })
+}
+
+const TICKS: [u32; 7] = [0, 1, 124_999, 125_000, 3_000_001, 7_999_999, 1];
+
+/// Playback of `source` through `chain`, and through `fused` alone.
+fn assert_fused_playback(
+    count: usize,
+    source: &SampleInvocation,
+    operators: &[OperatorInvocation],
+    fused: &OperatorInvocation,
+    what: &str,
+) {
+    let mut original = chain(count, source, operators).into_playback();
+    let mut composed = chain(count, source, std::slice::from_ref(fused)).into_playback();
+    for ticks in TICKS {
+        let time = SampleTime::from_ticks(ticks);
+        assert_eq!(
+            original.evaluate(time).colors(),
+            composed.evaluate(time).colors(),
+            "{what} ticks={ticks}"
+        );
+    }
+}
+
+fn gradient_source() -> SampleInvocation {
+    effect("effect Source { sample { rgb(0.8, pixel.fraction, progress) } }")
+}
+
 #[test]
-fn fusion_preserves_source_order_errors_and_conditional_queries() {
-    use super::evaluation::{OperatorEvaluation, context};
-    use crate::dsl::{BatchWorkspace, RuntimeError};
-    use crate::tests::evaluation::SignalSampler;
-    use donder_language::dsl::bytecode::SignalPixel;
-    use donder_language::execution::SpatialContext;
-    use donder_language::values::Color;
+fn fusion_samples_conditionally_and_only_at_valid_clocks() {
     struct Observe {
         calls: Vec<(usize, u32)>,
         fail: Option<usize>,
@@ -34,42 +112,34 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
             }
         }
     }
-    let definitions = compile_operators(
-        "operator Inner { input Signal first; input Signal second;
-        color sample() {
-            color value = first.at(seconds());
-            if (pixel_index() == 0) { return value; }
-            return value + second.at(seconds() + 0.25);
-        }
-    }
-    operator Outer { input Signal other; input Signal source; param float at in -10.0..10.0 = 1.0;
-        color sample() {
-            if (pixel_index() == -1) { return #000000; }
-            color value = other.at(0.25);
-            value = value + source.at(at);
-            return value + other.at(0.5);
-        }
-    }",
-    )
-    .unwrap();
-    let source = definitions[0].bind([]).unwrap();
+    let definitions = operators(
+        "operator Inner { input first; input second; sample {
+            let value = first.at(time);
+            if pixel.index == 0 { value } else { value + second.at(time + 0.25) }
+        } }
+        operator Outer { input other; input source; param at: float in -10.0..10.0 = 1.0; sample {
+            guard pixel.index != -1;
+            other.at(0.25) + source.at(at) + other.at(0.5)
+        } }",
+    );
+    let source = instance(&definitions[0], &[]);
     for (seconds, valid) in [(1.0, true), (-1.0, false), (f32::NAN, false), (8.0, false)] {
-        let caller = OperatorDefinition::new(definitions[1].program().clone())
-            .bind(vec![Value::Float(seconds)])
-            .unwrap();
+        let (caller, slots) =
+            runtime_instance(&definitions[1], &[], &[("at", Value::Float(seconds))]);
         let fused = caller.fuse_input(1, &source).unwrap();
+        assert_eq!(fused.inputs(), 3);
+        let fused = lower_runtime_operator(&fused, slots);
         for pixel in [0, 1] {
             for fail in [None, Some(0), Some(1), Some(2)] {
-                let mut expected = vec![(0, 250_000)];
+                let mut expected = vec![(0, 250_000), (0, 500_000)];
                 if valid {
                     expected.push((1, 1_000_000));
                     if pixel == 1 {
                         expected.push((2, 1_250_000));
                     }
                 }
-                expected.push((0, 500_000));
                 // A failed query is reported after the program finishes.
-                let error = expected.iter().position(|(input, _)| Some(*input) == fail);
+                let error = expected.iter().any(|(input, _)| Some(*input) == fail);
                 let mut sampler = Observe {
                     calls: Vec::new(),
                     fail,
@@ -82,9 +152,10 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
                         max: [0.0; 2],
                     },
                     &mut sampler,
-                    &mut BatchWorkspace::default(),
+                    &mut StripWorkspace::default(),
                 );
-                assert_eq!(result.is_err(), error.is_some());
+                assert_eq!(result.is_err(), error);
+                sampler.calls.sort();
                 assert_eq!(
                     sampler.calls, expected,
                     "seconds={seconds} pixel={pixel} fail={fail:?}"
@@ -95,64 +166,122 @@ fn fusion_preserves_source_order_errors_and_conditional_queries() {
 }
 
 #[test]
-fn fusion_removes_loop_storage_when_the_source_makes_a_branch_unreachable() {
-    let definitions = compile_operators(
-        "operator Black { input Signal source; color sample() { return #000000; } }
-    operator Conditional { input Signal source; color sample() {
-        color value = source.at(seconds());
-        if (value != #000000) {
-            for (int i = 0; i < 3; i = i + 1) { value = value + #010203; }
-        }
-        return value;
-    } }",
-    )
-    .unwrap();
-    let fused = definitions[1]
-        .bind([])
-        .unwrap()
-        .fuse_input(0, &definitions[0].bind([]).unwrap())
-        .unwrap();
-    assert_eq!(fused.program().bytecode().loop_count, 0);
-    let source = compile_effects("effect Bright { color sample() { return #ffffff; } }")
-        .unwrap()
-        .remove(0)
-        .bind([])
-        .unwrap();
+fn fusing_a_black_source_folds_its_consumer() {
+    let definitions = operators(
+        "operator Black { input source; sample { #000000 } }
+        operator Conditional { input source; sample {
+            let value = source.at(time);
+            if value != #000000 { value + sum for i in 0..3 { [#010203, #020304, #030405][i] } } else { value }
+        } }",
+    );
+    let black = instance(&definitions[0], &[]);
+    let consumer = instance(&definitions[1], &[]);
+    assert_eq!(black.constant_color(), Some(Color::BLACK));
+    assert_eq!(consumer.constant_color(), None);
+    let fused = consumer.fuse_input(0, &black).unwrap();
+    let substituted = consumer.with_black_input(0);
+    for folded in [&fused, &substituted] {
+        assert_eq!(folded.constant_color(), Some(Color::BLACK));
+        let operator = folded.operator();
+        let code = &operator.program().bytecode().code;
+        assert!(
+            !code
+                .iter()
+                .any(|instruction| matches!(instruction, Instruction::Reduce { .. })),
+            "{code:?}"
+        );
+    }
+    assert_eq!(fused.inputs(), 1);
+    assert_eq!(substituted.inputs(), 0);
+    let bright = effect("effect Bright { sample { #ffffff } }");
     assert!(
-        playback::chain(9, &source, 1, &[fused])
+        chain(9, &bright, &[fused.operator()])
             .into_playback()
             .evaluate(SampleTime::from_ticks(0))
             .colors()
             .iter()
-            .all(|c| *c == donder_language::values::Color::BLACK)
+            .all(|c| *c == Color::BLACK)
     );
 }
 
 #[test]
-fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
-    let effect = compile_effects(
-        "effect Source { color sample() {
-        return rgb(pixel_fraction(), seconds() - floor(seconds()), progress());
-    } }",
-    )
-    .unwrap()
-    .remove(0)
-    .bind([])
+fn black_inputs_fold_samples_and_shift_later_inputs() {
+    let library = compile_operators(include_str!(
+        "../../../../examples/starter/operators/standard.operator.donder"
+    ))
     .unwrap();
-    let sources = compile_operators("operator Clock { input Signal source;
-        color sample() { return max(source.at(seconds() + 0.0000003), rgb(progress(), seconds() - floor(seconds()), 0.1)); }
+    let find = |name: &str| {
+        library
+            .iter()
+            .find(|operator| operator.name().as_str() == name)
+            .unwrap()
+    };
+    let identity = playback::operator(&compile_operator(playback::IDENTITY_SOURCE));
+    let source = gradient_source();
+    // The remaining input behaves like the operator's other input alone.
+    for (name, black) in [("Max", 0), ("Max", 1), ("Add", 0), ("Add", 1)] {
+        let substituted = instance(find(name), &[]).with_black_input(black);
+        assert_eq!(substituted.inputs(), 1, "{name}");
+        assert_eq!(substituted.constant_color(), None, "{name}");
+        assert_fused_playback(
+            9,
+            &source,
+            std::slice::from_ref(&identity),
+            &substituted.operator(),
+            &format!("{name} without input {black}"),
+        );
     }
-    operator Constant { input Signal source; color sample() { return #123456; } }").unwrap();
-    let caller = compile_operators(
-        "operator Query { input Signal source;
-        param float at in -10.0..10.0 = 0.0;
-        color sample() { return source.at(at); }
-    }",
-    )
-    .unwrap()
-    .remove(0);
-    for source in sources {
-        let source = source.bind([]).unwrap();
+    // Black under color max, add and scale is black, and so is any color
+    // multiplied by black, scaled by zero intensity or given zero value.
+    for (name, input) in [
+        ("Dim", 0),
+        ("Echo", 0),
+        ("Delay", 0),
+        ("Multiply", 0),
+        ("Multiply", 1),
+        ("IntensityModulate", 0),
+        ("IntensityModulate", 1),
+        ("Colorize", 0),
+        ("HueShift", 0),
+    ] {
+        let substituted = instance(find(name), &[]).with_black_input(input);
+        assert_eq!(substituted.constant_color(), Some(Color::BLACK), "{name}");
+    }
+    let both = instance(find("Max"), &[])
+        .with_black_input(0)
+        .with_black_input(0);
+    assert_eq!(
+        (both.inputs(), both.constant_color()),
+        (0, Some(Color::BLACK))
+    );
+    // Inverting black is white, an ordinary color afterwards.
+    assert_eq!(
+        instance(find("Invert"), &[])
+            .with_black_input(0)
+            .constant_color(),
+        Some(Color {
+            red: 255,
+            green: 255,
+            blue: 255
+        })
+    );
+}
+
+#[test]
+fn fusion_quantizes_source_clocks_and_blacks_out_invalid_queries() {
+    let effect =
+        effect("effect Source { sample { rgb(pixel.fraction, time - floor(time), progress) } }");
+    let sources = operators(
+        "operator Clock { input source; sample {
+            max(source.at(time + 0.0000003), rgb(progress, time - floor(time), 0.1))
+        } }
+        operator Constant { input source; sample { #123456 } }",
+    );
+    let caller = compile_operator(
+        "operator Query { input source; param at: float in -10.0..10.0 = 0.0; sample { source.at(at) } }",
+    );
+    for source in &sources {
+        let upstream = instance(source, &[]);
         for seconds in [
             -1.0,
             -0.0000003,
@@ -169,33 +298,38 @@ fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
             f32::NAN,
             f32::INFINITY,
         ] {
-            let caller = OperatorDefinition::new(caller.program().clone())
-                .bind(vec![Value::Float(seconds)])
-                .unwrap();
-            let fused = caller.fuse_input(0, &source).expect("one compatible query");
+            let (consumer, slots) =
+                runtime_instance(&caller, &[], &[("at", Value::Float(seconds))]);
+            let fused = consumer
+                .fuse_input(0, &upstream)
+                .expect("one sample on the current pixel");
+            let fused = lower_runtime_operator(&fused, slots.clone());
+            let unfused = lower_runtime_operator(&consumer, slots);
+            let upstream = upstream.operator();
             for duration in [8_000_000, 4_000_000_001] {
                 for count in [1, 33] {
-                    let build = |fuse| {
-                        playback::build(count, playback::timing(duration), |b, target| {
+                    let show = |fuse| {
+                        build(count, duration, |b, target| {
                             let effect = b.sample(&effect, b.whole_sequence(), target);
                             let layer = b.layer(true, [effect]);
                             let output = if fuse {
                                 b.operator(&fused, |_| layer)
                             } else {
-                                let upstream = b.operator(&source, |_| layer);
-                                b.operator(&caller, |_| upstream)
+                                let upstream = b.operator(&upstream, |_| layer);
+                                b.operator(&unfused, |_| upstream)
                             };
                             b.output([output])
                         })
                     };
-                    let mut original = build(false).into_playback();
-                    let mut composed = build(true).into_playback();
+                    let mut original = show(false).into_playback();
+                    let mut composed = show(true).into_playback();
                     for ticks in [0, 1, 3_000_001, duration - 1, 1] {
                         let time = SampleTime::from_ticks(ticks);
                         assert_eq!(
                             original.evaluate(time).colors(),
                             composed.evaluate(time).colors(),
-                            "seconds={seconds} duration={duration} count={count} ticks={ticks}"
+                            "{} seconds={seconds} duration={duration} count={count} ticks={ticks}",
+                            source.name().as_str()
                         );
                     }
                 }
@@ -205,57 +339,48 @@ fn fusion_preserves_quantized_source_clocks_and_invalid_query_black() {
 }
 
 #[test]
-fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
-    let definitions = compile_operators(
-        "operator Inner { input Signal a; input Signal b;
-        param float gain in 0.0..1.0 = 0.7; param bool first = true; param color tint = #314159;
-        color sample() {
-            if (pixel_index() % 3 == 0) { return tint; }
-            color value = #000000;
-            for (int i = 0; i < 3; i = i + 1) {
-                if (first) { value = max(value, a.at(seconds()) * gain); }
-                else { value = max(value, b.at(seconds()) * gain); }
+fn fusion_remaps_parameters_inputs_reductions_and_guards() {
+    let definitions = operators(
+        "operator Inner { input a; input b;
+            param gain: float in 0.0..1.0 = 0.7; param first: bool = true; param tint: color = #314159;
+            sample {
+                guard pixel.index % 3 != 0 else tint;
+                max for i in 0..3 { (if first { a.at(time) } else { b.at(time) }) * (gain - i * 0.2) }
             }
-            return value;
         }
-    }
-    operator Outer { input Signal other; input Signal source;
-        param float gain in 0.0..1.0 = 0.4;
-        color sample() {
-            if (pixel_index() == -1) { return #000000; }
-            return max(source.at(seconds()) * gain, other.at(seconds()));
-        }
-    }",
-    )
-    .unwrap();
-    let outer = definitions[1].bind([]).unwrap();
-    let colors = ["#e03040", "#2080c0", "#010203"].map(|color| {
-        compile_effects(&format!(
-            "effect Color {{ color sample() {{ return {color}; }} }}"
-        ))
-        .unwrap()
-        .remove(0)
-        .bind([])
-        .unwrap()
-    });
+        operator Outer { input other; input source;
+            param gain: float in 0.0..1.0 = 0.4;
+            sample {
+                guard pixel.index != -1;
+                max(source.at(time) * gain, other.at(time))
+            }
+        }",
+    );
+    let outer = instance(&definitions[1], &[]);
+    let colors = ["#e03040", "#2080c0", "#010203"]
+        .map(|color| effect(&format!("effect Color {{ sample {{ {color} }} }}")));
     for first in [false, true] {
-        let inner = OperatorDefinition::new(definitions[0].program().clone())
-            .bind(vec![
-                Value::Float(0.7),
-                Value::Bool(first),
-                Value::Color(donder_language::values::Color {
-                    red: 49,
-                    green: 65,
-                    blue: 89,
-                }),
-            ])
-            .unwrap();
+        let inner = instance(
+            &definitions[0],
+            &[
+                ("first", Value::Bool(first)),
+                (
+                    "tint",
+                    Value::Color(Color {
+                        red: 49,
+                        green: 65,
+                        blue: 89,
+                    }),
+                ),
+            ],
+        );
         let fused = outer
             .fuse_input(1, &inner)
-            .expect("numeric source with uniform query times");
-        assert_eq!(fused.program().input_count(), 3);
-        let build = |fuse| {
-            playback::build(17, playback::timing(8_000_000), |b, target| {
+            .expect("one sample of the current pixel");
+        assert_eq!(fused.inputs(), 3);
+        let (fused, inner, outer) = (fused.operator(), inner.operator(), outer.operator());
+        let show = |fuse| {
+            build(17, 8_000_000, |b, target| {
                 let layers = colors.each_ref().map(|effect| {
                     let sample = b.sample(effect, b.whole_sequence(), target);
                     b.layer(true, [sample])
@@ -269,203 +394,232 @@ fn fusion_remaps_parameters_inputs_loops_and_early_returns() {
                 b.output([output])
             })
         };
-        let mut original = build(false).into_playback();
-        let mut composed = build(true).into_playback();
-        for ticks in [0, 1, 3_000_001, 7_999_999, 0] {
+        let mut original = show(false).into_playback();
+        let mut composed = show(true).into_playback();
+        for ticks in TICKS {
             let time = SampleTime::from_ticks(ticks);
             assert_eq!(
                 original.evaluate(time).colors(),
-                composed.evaluate(time).colors()
+                composed.evaluate(time).colors(),
+                "first={first} ticks={ticks}"
             );
         }
     }
 }
 
 #[test]
-fn fusion_preserves_resource_banks_and_array_snapshots() {
-    let definitions = compile_operators(
-        "operator Inner { input Signal source;
-        param array<float> levels = [0.2, 0.8]; param curve shape in 0.0..1.0;
-        param gradient colors; param enum mode { first, second } = second;
-        param marks beats;
-        color sample() {
-            array<float> values = [levels[0], value_or(shape[progress()], 0.3), levels[1]];
-            array<float> saved = values; values = [0.0];
-            float gain = saved[pixel_index() % 3];
-            if (mode == first) { gain = gain * 0.5; }
-            for (int i in beats) { gain = gain + mark_at(beats, i) * 0.01; }
-            return max(source.at(seconds()) * gain, colors[progress()]);
-        }
-    }
-    operator Outer { input Signal source;
-        param array<float> unused = [0.4]; param curve unused_shape in 0.0..1.0;
-        param gradient unused_colors; param enum unused_mode { first, second } = first;
-        param marks unused_beats;
-        color sample() { return source.at(seconds()) * 0.7; }
-    }",
-    )
-    .unwrap();
-    let base = compile_effects(
-        "effect Source { color sample() { return rgb(0.8, pixel_fraction(), progress()); } }",
-    )
-    .unwrap()
-    .remove(0)
-    .bind([])
-    .unwrap();
-    use donder_language::dsl::Identifier;
+fn fusion_preserves_resource_parameters() {
     use donder_language::values::{
-        Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration,
+        Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration,
     };
-    let inner_values = [
-        (
-            Identifier::new("shape".into()).unwrap(),
-            Value::Curve(
-                Curve {
-                    points: vec![
-                        CurvePoint {
-                            position: 0.0,
-                            value: 0.1,
-                        },
-                        CurvePoint {
-                            position: 1.0,
-                            value: 0.9,
-                        },
-                    ],
-                }
-                .into(),
+    let definitions = operators(
+        "operator Inner { input source;
+            param levels: array<float>; param shape: curve in 0.0..1.0;
+            param colors: gradient; param mode: enum { first, second } = second;
+            param beats: marks;
+            sample {
+                let values = [levels[0], value_or(shape[progress], 0.3), levels[1]];
+                let gain = values[pixel.index % 3];
+                let gain = if mode == first { gain * 0.5 } else { gain };
+                let gain = gain + sum for i in 0..len(beats) { mark_at(beats, i) * 0.01 };
+                max(source.at(time) * gain, colors[progress])
+            }
+        }
+        operator Outer { input source;
+            param unused: array<float>; param unused_shape: curve in 0.0..1.0;
+            param unused_colors: gradient; param unused_mode: enum { first, second } = first;
+            param unused_beats: marks;
+            sample { source.at(time) * 0.7 }
+        }",
+    );
+    let inner = instance(
+        &definitions[0],
+        &[
+            (
+                "levels",
+                Value::Array(vec![Value::Float(0.2), Value::Float(0.8)].into()),
             ),
-        ),
-        (
-            Identifier::new("colors".into()).unwrap(),
-            Value::Gradient(
-                Gradient {
-                    stops: vec![
-                        GradientStop {
-                            position: 0.0,
-                            color: Color {
-                                red: 4,
-                                green: 8,
-                                blue: 12,
+            (
+                "shape",
+                Value::Curve(
+                    Curve {
+                        points: vec![
+                            CurvePoint {
+                                position: 0.0,
+                                value: 0.1,
                             },
-                        },
-                        GradientStop {
-                            position: 1.0,
-                            color: Color {
-                                red: 4,
-                                green: 16,
-                                blue: 2,
+                            CurvePoint {
+                                position: 1.0,
+                                value: 0.9,
                             },
-                        },
-                    ],
-                }
-                .into(),
+                        ],
+                    }
+                    .into(),
+                ),
             ),
-        ),
-        (
-            Identifier::new("beats".into()).unwrap(),
-            Value::Marks(
-                Marks::new(vec![
-                    SampleDuration::from_ticks(1_000_000),
-                    SampleDuration::from_ticks(2_000_000),
-                ])
-                .into(),
+            (
+                "colors",
+                Value::Gradient(
+                    Gradient {
+                        stops: vec![
+                            GradientStop {
+                                position: 0.0,
+                                color: Color {
+                                    red: 4,
+                                    green: 8,
+                                    blue: 12,
+                                },
+                            },
+                            GradientStop {
+                                position: 1.0,
+                                color: Color {
+                                    red: 4,
+                                    green: 16,
+                                    blue: 2,
+                                },
+                            },
+                        ],
+                    }
+                    .into(),
+                ),
             ),
-        ),
-    ];
-    let outer_values = [
-        (
-            Identifier::new("unused_shape".into()).unwrap(),
-            Value::Curve(Curve { points: vec![] }.into()),
-        ),
-        (
-            Identifier::new("unused_colors".into()).unwrap(),
-            Value::Gradient(Gradient { stops: vec![] }.into()),
-        ),
-        (
-            Identifier::new("unused_beats".into()).unwrap(),
-            Value::Marks(Marks::EMPTY.into()),
-        ),
-    ];
-    let inner = definitions[0]
-        .bind(inner_values.iter().map(|(k, v)| (k, v)))
-        .unwrap();
-    let outer = definitions[1]
-        .bind(outer_values.iter().map(|(k, v)| (k, v)))
-        .unwrap();
+            (
+                "beats",
+                Value::Marks(
+                    Marks::new([1_000_000, 2_000_000].map(SampleDuration::from_ticks)).into(),
+                ),
+            ),
+        ],
+    );
+    let outer = instance(
+        &definitions[1],
+        &[
+            ("unused", Value::Array(vec![Value::Float(0.4)].into())),
+            (
+                "unused_shape",
+                Value::Curve(Curve { points: vec![] }.into()),
+            ),
+            (
+                "unused_colors",
+                Value::Gradient(Gradient { stops: vec![] }.into()),
+            ),
+            ("unused_beats", Value::Marks(Marks::EMPTY.into())),
+        ],
+    );
     let fused = outer
         .fuse_input(0, &inner)
-        .expect("fusion preserves array snapshots");
-    let mut original = playback::chain(17, &base, 1, &[inner, outer]).into_playback();
-    let mut composed = playback::chain(17, &base, 1, &[fused]).into_playback();
-    for ticks in [0, 1, 3_000_001, 7_999_999, 1] {
-        let time = SampleTime::from_ticks(ticks);
-        assert_eq!(
-            original.evaluate(time).colors(),
-            composed.evaluate(time).colors()
-        );
-    }
+        .expect("one sample of the current pixel");
+    assert_fused_playback(
+        17,
+        &gradient_source(),
+        &[inner.operator(), outer.operator()],
+        &fused.operator(),
+        "resources",
+    );
 }
 
 #[test]
-fn fusion_keeps_caller_automation_and_preserves_source_automation_boundaries() {
+fn automated_sources_fuse_only_at_the_consumers_own_time() {
     use donder_language::automation::AutomationMapping;
-    use donder_language::execution::PreparedAutomation;
     use donder_language::values::{Curve, CurvePoint, SampleDuration};
-    let definitions = compile_operators(
-        "operator Gain { input Signal source; param float gain in 0.0..1.0 = 0.7;
-        color sample() { return source.at(seconds()) * gain; }
-    }
-    operator Delayed { input Signal source; param float gain in 0.0..1.0 = 0.4;
-        color sample() { return source.at(seconds() - 0.125) * gain; }
-    }",
-    )
-    .unwrap();
-    let automation = vec![PreparedAutomation {
-        start: SampleTime::from_ticks(0),
-        duration: SampleDuration::from_ticks(8_000_000),
-        param_index: 0,
-        curve: Curve {
-            points: vec![
-                CurvePoint {
-                    position: 0.0,
-                    value: 0.0,
-                },
-                CurvePoint {
-                    position: 1.0,
-                    value: 1.0,
-                },
-            ],
+    let definitions = operators(
+        "operator Gain { input source; param gain: float in 0.0..1.0 = 0.7;
+            sample { source.at(time) * gain }
         }
-        .into(),
-        mapping: AutomationMapping::Float { min: 0.2, max: 0.9 },
-    }]
-    .into_boxed_slice();
-    let inner = definitions[0].bind([]).unwrap();
-    let outer = definitions[1]
-        .bind([])
-        .unwrap()
-        .with_automation(automation.clone())
-        .unwrap();
-    assert!(
-        outer
-            .fuse_input(0, &inner.clone().with_automation(automation).unwrap())
-            .is_none()
+        operator Delayed { input source; param gain: float in 0.0..1.0 = 0.4;
+            sample { source.at(time - 0.125) * gain }
+        }",
     );
-    let fused = outer.fuse_input(0, &inner).unwrap();
-    let base = compile_effects(
-        "effect Source { color sample() { return rgb(0.8, pixel_fraction(), progress()); } }",
-    )
-    .unwrap()
-    .remove(0)
-    .bind([])
-    .unwrap();
-    let mut original = playback::chain(17, &base, 1, &[inner, outer]).into_playback();
-    let mut composed = playback::chain(17, &base, 1, &[fused]).into_playback();
-    for ticks in [0, 124_999, 125_000, 125_001, 3_000_001, 7_999_999, 125_000] {
-        let time = SampleTime::from_ticks(ticks);
-        assert_eq!(
-            original.evaluate(time).colors(),
-            composed.evaluate(time).colors()
+    let automation = || {
+        Box::new([PreparedAutomation {
+            start: SampleTime::from_ticks(0),
+            duration: SampleDuration::from_ticks(8_000_000),
+            param_index: 0,
+            curve: Curve {
+                points: vec![
+                    CurvePoint {
+                        position: 0.0,
+                        value: 0.0,
+                    },
+                    CurvePoint {
+                        position: 1.0,
+                        value: 1.0,
+                    },
+                ],
+            }
+            .into(),
+            mapping: AutomationMapping::Float { min: 0.2, max: 0.9 },
+        }]) as Box<[PreparedAutomation]>
+    };
+    let automated = |operator: &CompiledOperator| {
+        operator
+            .invoke(vec![Value::Float(0.5)], automation())
+            .unwrap()
+            .instance(ProgramConstants::default())
+    };
+    let gain = instance(&definitions[0], &[]);
+    let delayed = automated(&definitions[1]);
+    // The source's automation would resolve at the delayed query.
+    assert!(delayed.fuse_input(0, &automated(&definitions[0])).is_none());
+    let source = gradient_source();
+    // The consumer's own automation is kept.
+    let fused = delayed.fuse_input(0, &gain).unwrap();
+    assert_fused_playback(
+        17,
+        &source,
+        &[gain.operator(), delayed.operator()],
+        &fused.operator(),
+        "consumer automation",
+    );
+    // At the consumer's time, the source's automation is the same either way.
+    let consumer = instance(&definitions[0], &[("gain", Value::Float(0.4))]);
+    let upstream = automated(&definitions[0]);
+    let fused = consumer.fuse_input(0, &upstream).unwrap();
+    assert_eq!(fused.operator().automation().len(), 1);
+    assert_fused_playback(
+        17,
+        &source,
+        &[upstream.operator(), consumer.operator()],
+        &fused.operator(),
+        "source automation",
+    );
+}
+
+#[test]
+fn fusion_keeps_the_boundary_for_shared_or_addressed_samples() {
+    let gain = instance(
+        &compile_operator("operator Gain { input source; sample { source * 0.5 } }"),
+        &[],
+    );
+    for consumer in [
+        "max(source.at(time), source.at(time - 0.1))",
+        "source.at(time, pixel.index + 1)",
+        "source.at(time, pixel.index)",
+        "source.at_global(time, pixel.index)",
+    ] {
+        let consumer = instance(
+            &compile_operator(&format!(
+                "operator Consumer {{ input source; sample {{ {consumer} }} }}"
+            )),
+            &[],
         );
+        assert!(consumer.fuse_input(0, &gain).is_none());
     }
+    // One sample site inside a reduction runs the source per iteration.
+    let consumer = instance(
+        &compile_operator(
+            "operator Echo { input source; sample {
+                max for i in 0..3 { source.at(time - i * 0.125) * (1.0 - i * 0.25) }
+            } }",
+        ),
+        &[],
+    );
+    let fused = consumer.fuse_input(0, &gain).unwrap();
+    assert_fused_playback(
+        17,
+        &gradient_source(),
+        &[gain.operator(), consumer.operator()],
+        &fused.operator(),
+        "reduction",
+    );
 }

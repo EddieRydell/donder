@@ -65,10 +65,6 @@ impl CurveRegister {
         }
     }
 
-    pub(super) fn sample(&self, position: f32) -> f32 {
-        super::sample_curve(self.raw(), position)
-    }
-
     pub(super) fn crossing(&self, value: f32, fallback: f32) -> f32 {
         match self {
             Self::Prepared(curve) => {
@@ -104,7 +100,7 @@ impl GradientRegister {
 }
 
 /// An empty collection needs no shared allocation. A loaded collection retains
-/// its identity when copied between parameters, registers, and array elements.
+/// its identity when copied between parameters and array elements.
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(super) enum MarksRegister {
     #[default]

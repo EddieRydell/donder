@@ -126,11 +126,11 @@ fn prepared_controller_sampling_does_not_allocate() {
         .expect("automated DSL output should prepare");
     assert_prepared_sampling_does_not_allocate(output, &[7150, 7151, 7152], "automated DSL effect");
     for query in [
-        "source.at(seconds() + offset_seconds, pixel_count() - 1 - pixel_index())",
-        "source.at_global(seconds() + offset_seconds, 226 + pixel_index())",
+        "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
+        "source.at_global(time + offset_seconds, 226 + pixel.index)",
     ] {
         let compiled = donder_language::dsl::compile_operators(&format!(
-            "operator TimeWarp {{ input Signal source; param float offset_seconds in -1.0..1.0 = 0.0; color sample() {{ return {query}; }} }}"
+            "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
         )).unwrap().remove(0);
         let definition_id = project
             .definitions()

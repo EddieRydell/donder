@@ -1,8 +1,6 @@
 operator TimeWarp {
-  input Signal source;
-  param float offset_seconds in -1.0..1.0 = 0.0;
+  input source;
+  param offset_seconds: float in -1.0..1.0 = 0.0;
 
-  color sample() {
-    return source.at(seconds() + offset_seconds);
-  }
+  sample { source.at(time + offset_seconds) }
 }

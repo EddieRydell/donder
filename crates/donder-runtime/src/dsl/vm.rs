@@ -1,45 +1,28 @@
 mod arrays;
 mod context;
 pub(crate) use context::NoSignals;
-use context::{Clock, ReadContext};
 mod automation;
-mod batch;
-pub(crate) use batch::{
-    Batch, BatchSignals, BatchWorkspace, LANES as BATCH_LANES, Lanes, Mask as BatchMask,
-};
 mod parameters;
+mod strip;
 pub(crate) use automation::AutomationPlan;
+pub(crate) use strip::{Pixels, STRIP, Strip, StripSignals, StripWorkspace};
 
-use parameters::{
-    CurveRegister, GradientRegister, MarksRegister, ParameterAddress, ParameterValues,
-};
+use parameters::{CurveRegister, ParameterAddress, ParameterValues};
 
-use super::bytecode::{
-    BytecodeProgram, ColorBinary, ColorComponent, ColorSlot, CompareOp, ContextRead, FloatBinary,
-    FloatUnary, Instruction, MarkOp, NumberSlot, ParameterKind, SignalPixel, SlotLayout, ValueSlot,
-};
 use super::types::{Identifier, Type, Value};
-use crate::sampling::{
-    clamp_float, color_hue, color_intensity, color_saturation, invert_color, scale_color,
-};
 use crate::values::{Color, Curve, Gradient, Marks, SampleDuration};
 use alloc::boxed::Box;
 #[cfg(test)]
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use donder_language::Shared as Arc;
-
-use donder_language::execution::SpatialContext;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RunContext {
     pub progress: f32,
     pub time: SampleDuration,
     pub duration: SampleDuration,
-    pub pixel_index: i32,
     pub pixel_count: i32,
-    pub pixel_fraction: f32,
 }
 
 #[cfg(test)]
@@ -104,10 +87,7 @@ impl BoundParams {
             .values
             .get(index)
             .ok_or_else(|| RuntimeError::new("invalid parameter slot"))?;
-        Ok(runtime_to_value(
-            value.to_runtime(),
-            &ArrayStorage::default(),
-        ))
+        Ok(value.to_value())
     }
 
     pub(crate) fn types(&self) -> &[Type] {
@@ -197,19 +177,19 @@ impl BoundParamValue {
     }
 
     #[cfg(test)]
-    fn to_runtime(&self) -> RuntimeValue {
+    fn to_value(&self) -> Value {
         match self {
-            Self::Void => RuntimeValue::Void,
-            Self::Int(value) => RuntimeValue::Int(*value),
-            Self::Float(value) => RuntimeValue::Float(*value),
-            Self::Bool(value) => RuntimeValue::Bool(*value),
-            Self::Color(value) => RuntimeValue::Color(*value),
-            Self::Marks(value) => RuntimeValue::Marks(Arc::clone(value)),
-            Self::Curve(value) => RuntimeValue::PreparedCurve(Arc::clone(value)),
-            Self::RawCurve(value) => RuntimeValue::Curve(Arc::clone(value)),
-            Self::Gradient(value) => RuntimeValue::Gradient(Arc::clone(value)),
-            Self::Array(value) => RuntimeValue::Array(Arc::clone(value)),
-            Self::Enum(value) => RuntimeValue::Enum(value.clone()),
+            Self::Void => Value::Void,
+            Self::Int(value) => Value::Int(*value),
+            Self::Float(value) => Value::Float(*value),
+            Self::Bool(value) => Value::Bool(*value),
+            Self::Color(value) => Value::Color(*value),
+            Self::Marks(value) => Value::Marks(Arc::clone(value)),
+            Self::Curve(value) => Value::Curve(value.raw()),
+            Self::RawCurve(value) => Value::Curve(Arc::clone(value)),
+            Self::Gradient(value) => Value::Gradient(Arc::clone(value)),
+            Self::Array(value) => Value::Array(Arc::clone(value)),
+            Self::Enum(value) => Value::Enum(value.clone()),
         }
     }
 }
@@ -290,184 +270,6 @@ impl PreparedCurve {
             position,
         );
         prepare_curve_crossings_into(&self.raw, Arc::make_mut(&mut self.crossings));
-    }
-}
-
-// Slots have a compiler-bounded width, so allocation cannot fragment the value
-// buffer. Counts represent register roots and array children, not temporary
-// borrowed handles returned by value()/index_value(). No atomics or GC pass.
-#[derive(Clone, Default)]
-struct ArrayStorage {
-    free: Vec<usize>,
-    references: Vec<usize>,
-    lengths: Vec<usize>,
-    values: Vec<RuntimeValue>,
-    width: usize,
-}
-
-impl core::fmt::Debug for ArrayStorage {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("ArrayStorage")
-            .field("capacity", &self.references.len())
-            .field("width", &self.width)
-            .finish()
-    }
-}
-
-impl ArrayStorage {
-    fn new(capacity: usize, width: usize) -> Self {
-        Self {
-            free: (0..capacity).rev().collect(),
-            references: vec![0; capacity],
-            lengths: vec![0; capacity],
-            values: vec![RuntimeValue::Void; capacity * width],
-            width,
-        }
-    }
-
-    /// Take one reserved construction slot. Bytecode admission bounds the width
-    /// of every MakeArray and all live array nodes, plus this extra slot.
-    /// Copying into caller-sized result buffers checks its dimensions separately.
-    fn allocate(&mut self, len: usize) -> usize {
-        let remaining = self.free.len() - 1;
-        let index = self.free[remaining];
-        self.free.truncate(remaining);
-        self.references[index] = 1; // Construction root; transferred by set_array.
-        self.lengths[index] = len;
-        index
-    }
-
-    fn items(&self, index: usize) -> &[RuntimeValue] {
-        let start = index * self.width;
-        &self.values[start..start + self.lengths[index]]
-    }
-
-    fn retain(&mut self, value: &RuntimeValue) {
-        if let RuntimeValue::ArraySlot(index) = value {
-            self.references[*index] += 1;
-        }
-    }
-
-    fn release(&mut self, value: RuntimeValue) {
-        let RuntimeValue::ArraySlot(index) = value else {
-            return;
-        };
-        self.references[index] -= 1;
-        if self.references[index] != 0 {
-            return;
-        }
-        let start = index * self.width;
-        for offset in start..start + self.lengths[index] {
-            let child = core::mem::replace(&mut self.values[offset], RuntimeValue::Void);
-            self.release(child);
-        }
-        self.lengths[index] = 0;
-        self.free.push(index);
-    }
-}
-
-#[derive(Clone, Debug)]
-enum RuntimeValue {
-    Void,
-    Int(i32),
-    Float(f32),
-    Bool(bool),
-    Color(Color),
-    Marks(Arc<Marks>),
-    Curve(Arc<Curve>),
-    Gradient(Arc<Gradient>),
-    PreparedCurve(Arc<PreparedCurve>),
-    Array(Arc<[Value]>),
-    ArraySlot(usize),
-    Enum(Identifier),
-}
-
-impl RuntimeValue {
-    fn from_value(value: &Value) -> Self {
-        match value {
-            Value::Void => Self::Void,
-            Value::Int(value) => Self::Int(*value),
-            Value::Float(value) => Self::Float(*value),
-            Value::Bool(value) => Self::Bool(*value),
-            Value::Color(value) => Self::Color(*value),
-            Value::Marks(value) => Self::Marks(Arc::clone(value)),
-            Value::Curve(value) => Self::Curve(Arc::clone(value)),
-            Value::Gradient(value) => Self::Gradient(Arc::clone(value)),
-            Value::Array(value) => Self::Array(Arc::clone(value)),
-            Value::Enum(value) => Self::Enum(value.clone()),
-        }
-    }
-}
-
-fn clone_runtime(value: &RuntimeValue) -> RuntimeValue {
-    match value {
-        RuntimeValue::Void => RuntimeValue::Void,
-        RuntimeValue::Int(value) => RuntimeValue::Int(*value),
-        RuntimeValue::Float(value) => RuntimeValue::Float(*value),
-        RuntimeValue::Bool(value) => RuntimeValue::Bool(*value),
-        RuntimeValue::Color(value) => RuntimeValue::Color(*value),
-        RuntimeValue::Marks(value) => RuntimeValue::Marks(Arc::clone(value)),
-        RuntimeValue::Curve(value) => RuntimeValue::Curve(Arc::clone(value)),
-        RuntimeValue::Gradient(value) => RuntimeValue::Gradient(Arc::clone(value)),
-        RuntimeValue::PreparedCurve(value) => RuntimeValue::PreparedCurve(Arc::clone(value)),
-        RuntimeValue::Array(value) => RuntimeValue::Array(Arc::clone(value)),
-        RuntimeValue::ArraySlot(index) => RuntimeValue::ArraySlot(*index),
-        RuntimeValue::Enum(value) => RuntimeValue::Enum(value.clone()),
-    }
-}
-
-fn clamp_array_index(index: i32, nonempty_length: usize) -> usize {
-    (index.max(0) as usize).min(nonempty_length - 1)
-}
-
-fn int_len(length: usize) -> i32 {
-    i32::try_from(length).unwrap_or(i32::MAX)
-}
-
-#[cfg(test)]
-fn runtime_to_value(value: RuntimeValue, arrays: &ArrayStorage) -> Value {
-    match value {
-        RuntimeValue::Void => Value::Void,
-        RuntimeValue::Int(value) => Value::Int(value),
-        RuntimeValue::Float(value) => Value::Float(value),
-        RuntimeValue::Bool(value) => Value::Bool(value),
-        RuntimeValue::Color(value) => Value::Color(value),
-        RuntimeValue::Marks(value) => Value::Marks(value),
-        RuntimeValue::Curve(value) => Value::Curve(value),
-        RuntimeValue::PreparedCurve(value) => Value::Curve(value.raw()),
-        RuntimeValue::Gradient(value) => Value::Gradient(value),
-        RuntimeValue::Array(value) => Value::Array(value),
-        RuntimeValue::ArraySlot(index) => Value::Array(
-            arrays
-                .items(index)
-                .iter()
-                .map(|value| runtime_to_value(clone_runtime(value), arrays))
-                .collect::<Vec<_>>()
-                .into(),
-        ),
-        RuntimeValue::Enum(value) => Value::Enum(value),
-    }
-}
-
-fn black() -> Color {
-    Color {
-        red: 0,
-        green: 0,
-        blue: 0,
-    }
-}
-
-fn runtime_refs_equal(left: &RuntimeValue, right: &RuntimeValue) -> bool {
-    match (left, right) {
-        (RuntimeValue::Void, RuntimeValue::Void) => true,
-        (RuntimeValue::Int(left), RuntimeValue::Int(right)) => left == right,
-        (RuntimeValue::Float(left), RuntimeValue::Float(right)) => left == right,
-        (RuntimeValue::Int(left), RuntimeValue::Float(right)) => (*left as f32) == *right,
-        (RuntimeValue::Float(left), RuntimeValue::Int(right)) => *left == (*right as f32),
-        (RuntimeValue::Bool(left), RuntimeValue::Bool(right)) => left == right,
-        (RuntimeValue::Color(left), RuntimeValue::Color(right)) => left == right,
-        (RuntimeValue::Enum(left), RuntimeValue::Enum(right)) => left == right,
-        _ => false,
     }
 }
 
@@ -644,113 +446,6 @@ mod curve_crossing_tests {
             -1.0
         );
     }
-}
-
-fn sample_curve(curve: &Curve, position: f32) -> f32 {
-    crate::sampling::sample_curve(curve, position)
-}
-
-fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
-    crate::sampling::sample_gradient(gradient, position)
-}
-
-/// Unary math propagates NaN before its implementation sees it.
-#[inline(always)]
-fn float_unary(op: FloatUnary, value: f32) -> f32 {
-    if value.is_nan() {
-        return f32::NAN;
-    }
-    match op {
-        FloatUnary::Sin => micromath::F32Ext::sin(value),
-        FloatUnary::Cos => micromath::F32Ext::cos(value),
-        FloatUnary::Abs => value.abs(),
-        FloatUnary::Floor => libm::floorf(value),
-        FloatUnary::Ceil => libm::ceilf(value),
-        FloatUnary::Trunc => libm::truncf(value),
-        FloatUnary::RoundEven => libm::roundevenf(value),
-        FloatUnary::Sqrt => libm::sqrtf(value),
-    }
-}
-
-#[inline(always)]
-fn smoothstep(value: f32) -> f32 {
-    let t = value.clamp(0.0, 1.0);
-    t * t * (3.0 - 2.0 * t)
-}
-
-/// A source query inside the effect duration, in seconds; NaN outside it.
-fn query_seconds(seconds: f32, duration: SampleDuration) -> f32 {
-    crate::values::sample_time_from_seconds_f32(seconds)
-        .ok()
-        .filter(|time| time.as_ticks() < duration.as_ticks())
-        .map_or(f32::NAN, crate::values::sample_time_seconds_f32)
-}
-
-fn query_progress(seconds: f32, duration: SampleDuration) -> f32 {
-    let duration = duration.as_ticks();
-    crate::values::sample_time_from_seconds_f32(seconds)
-        .ok()
-        .filter(|time| time.as_ticks() < duration)
-        .map_or(f32::NAN, |time| {
-            (time.as_ticks() as f32 / duration as f32).clamp(0.0, 1.0)
-        })
-}
-
-#[inline(always)]
-fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
-    let index = pixel_index as f32;
-    (index - libm::floorf(index * inverse) * width) * inverse
-}
-
-#[inline(always)]
-fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> Color {
-    let scale = scale.clamp(0.0, 1.0);
-    if scale <= 0.0 {
-        black()
-    } else {
-        scale_color(sample_gradient(gradient, position), scale)
-    }
-}
-
-fn float_binary(op: FloatBinary, left: f32, right: f32) -> f32 {
-    match op {
-        FloatBinary::ValueOr => {
-            if left.is_nan() {
-                right
-            } else {
-                left
-            }
-        }
-        FloatBinary::Min | FloatBinary::Max if left.is_nan() || right.is_nan() => f32::NAN,
-        FloatBinary::Min => left.min(right),
-        FloatBinary::Max => left.max(right),
-        FloatBinary::Atan2 => libm::atan2f(left, right),
-    }
-}
-
-fn mark_at_from(marks: &Marks, index: i32) -> f32 {
-    usize::try_from(index)
-        .ok()
-        .and_then(|index| marks.seconds().get(index))
-        .copied()
-        .unwrap_or(f32::NAN)
-}
-
-/// Marks are chronological and seconds conversion is monotonic, so the marks
-/// at or before `seconds` form a prefix. A NaN query matches no mark.
-/// Returns the mark's index and its time in seconds.
-fn previous_mark(marks: &Marks, seconds: f32) -> Option<(usize, f32)> {
-    let times = marks.seconds();
-    let index = times
-        .partition_point(|&mark| mark <= seconds)
-        .checked_sub(1)?;
-    Some((index, times[index]))
-}
-
-fn prev_index(marks: &Marks, seconds: f32) -> i32 {
-    previous_mark(marks, seconds)
-        .map(|(index, _)| int_len(index))
-        .unwrap_or(-1)
 }
 
 #[cfg(test)]

@@ -14,7 +14,6 @@
     )
 )]
 
-#[cfg_attr(test, macro_use)]
 extern crate alloc;
 
 // This facade is the complete external API. Language values and executable
@@ -47,8 +46,6 @@ mod sequence;
 mod signal;
 mod targets;
 
-#[cfg(test)]
-extern crate self as donder_runtime;
 #[cfg(test)]
 extern crate std;
 #[cfg(test)]

@@ -1,5 +1,5 @@
-//! Executable program banks. Trusted archival addresses are translated once;
-//! playback stores the role-specific instruction representations.
+//! Executable program banks. Archived programs are admitted once, as effect
+//! or operator programs, and their addresses translated to those banks.
 use crate::archive::LoadError;
 use crate::dsl::AutomationPlan;
 use crate::dsl::{OperatorProgram, SampleProgram};
@@ -32,8 +32,8 @@ impl AdmittedPrograms {
 
 pub(crate) type ExecutableGraph = PreparedSignalGraph<AdmittedPrograms, AutomationPlan>;
 
-/// Restore a compatible producer's graph without repeating compiler validation.
-/// The only fallible step converts raw instructions to the effect representation.
+/// Admit an archived graph's programs. A program that is not well formed for
+/// its role, parameters and inputs rejects the archive.
 pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<ExecutableGraph, LoadError> {
     let mut samples = Vec::new();
     let mut operators = Vec::new();
@@ -46,11 +46,8 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
             Some(index) => index,
             None => {
                 let bound_params = &effect.bound_params;
-                let sample = SampleProgram::from_trusted_bytecode(
-                    bytecode.clone(),
-                    bound_params.types().into(),
-                )
-                .ok_or(LoadError::Archive)?;
+                let sample = SampleProgram::admit(bytecode.clone(), bound_params.types().into())
+                    .ok_or(LoadError::Archive)?;
                 let mapped = samples.len();
                 samples.push(sample);
                 sample_indices[index] = Some(mapped);
@@ -74,11 +71,12 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
         {
             Some((_, mapped)) => *mapped,
             None => {
-                let program = OperatorProgram::from_trusted_bytecode(
+                let program = OperatorProgram::admit(
                     bytecode.clone(),
                     inputs.len(),
                     operator.params.types().into(),
-                );
+                )
+                .ok_or(LoadError::Archive)?;
                 let mapped = operators.len();
                 operators.push(program);
                 operator_indices[*index].push((inputs.len(), mapped));
@@ -122,13 +120,13 @@ impl ExecutableGraph {
                 .samples
                 .into_vec()
                 .into_iter()
-                .map(|program| program.into_parts().0)
+                .map(SampleProgram::into_bytecode)
                 .chain(
                     programs
                         .operators
                         .into_vec()
                         .into_iter()
-                        .map(|program| program.into_parts().0),
+                        .map(OperatorProgram::into_bytecode),
                 )
                 .collect()
         })

@@ -10,18 +10,20 @@ files, and the controller runs the same engine as the preview.
 
 ## Effects are programs
 
-Effects and operators are written in Donder's effect language and compiled to
-bytecode. The bundled libraries (Chase, Wipe, Spin, mark-triggered pulses, and
-[eighteen Vixen effects](docs/vixen_effects.md)) are ordinary source files in
-your project. Open one, change it, or write your own:
+Effects and operators are written in Donder's pure, expression-oriented effect
+language. They compile into one dataflow graph per sequence, which preparation
+simplifies and lowers to portable bytecode. The bundled libraries (Chase, Wipe,
+Spin, mark-triggered pulses, and [eighteen Vixen effects](docs/vixen_effects.md))
+are ordinary source files in your project. Open one, change it, or write your
+own:
 
-```c
+```text
 effect Pulse {
-  param gradient gradient;
-  param curve pulse_shape in 0.0..1.0;
+  param gradient: gradient;
+  param pulse_shape: curve in 0.0..1.0;
 
-  color sample() {
-    return gradient_color_scaled(gradient, progress(), pulse_shape[progress()]);
+  sample {
+    gradient_color_scaled(gradient, progress, pulse_shape[progress])
   }
 }
 ```
@@ -37,19 +39,17 @@ Effects are drawn onto layers, and layers feed a node graph that ends at the
 output. Operators are programs too, and they can sample their inputs at any time
 and any pixel:
 
-```c
+```text
 operator TimeWarp {
-  input Signal source;
-  param float offset_seconds in -1.0..1.0 = 0.0;
+  input source;
+  param offset_seconds: float in -1.0..1.0 = 0.0;
 
-  color sample() {
-    return source.at(seconds() + offset_seconds);
-  }
+  sample { source.at(time + offset_seconds) }
 }
 ```
 
 That one call is enough to build delay, echo, freeze frames, time warps, mirrors
-(`source.at(seconds(), pixel_count() - 1 - pixel_index())`) and spatial blends.
+(`source.at(time, target.count - 1 - pixel.index)`) and spatial blends.
 The standard library includes Max, Add, Multiply, Dim, Invert, Colorize,
 HueShift, IntensityModulate, Delay and Echo. Disconnected branches stay in the
 graph while you work on them.
@@ -73,7 +73,7 @@ automation_clips:
 ```
 
 Mark collections place beats and cues on the timeline. Mark effects retrigger
-on them, and any effect can query them (`mark_last(beats, seconds())`).
+on them, and any effect can query them (`mark_last(beats, time)`).
 
 ## The controller runs the show
 

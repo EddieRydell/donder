@@ -12,54 +12,40 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
     let ramp = SampleProgram::admit(
         program(
             vec![
-                Instruction::LoadFloatConst {
-                    dst: FloatSlot(0),
+                Instruction::FloatConst {
+                    dst: Slot::scalar(0),
                     bits: 0.0f32.to_bits(),
                 },
-                Instruction::ContextRead {
-                    dst: NumberSlot::Float(FloatSlot(1)),
-                    read: ContextRead::PixelFraction,
-                },
                 Instruction::Rgb {
-                    dst: ColorSlot(0),
-                    red: FloatSlot(1),
-                    green: FloatSlot(0),
-                    blue: FloatSlot(0),
+                    dst: Slot::row(0),
+                    red: Slot::input(Input::PixelFraction),
+                    green: Slot::scalar(0),
+                    blue: Slot::scalar(0),
                 },
-                Instruction::ReturnColor(ColorSlot(0)),
             ],
-            SlotLayout {
-                floats: 2,
-                colors: 1,
-                ..Default::default()
-            },
             1,
+            Slot::row(0),
+            banks(1, 0, 0),
+            banks(0, 0, 1),
         ),
         Box::new([]),
     )
     .unwrap();
     let green = SampleProgram::admit(
-        BytecodeProgram {
-            uses_pixel_context: false,
-            ..program(
-                vec![
-                    Instruction::LoadColorConst {
-                        dst: ColorSlot(0),
-                        value: Color {
-                            red: 0,
-                            green: 255,
-                            blue: 0,
-                        },
-                    },
-                    Instruction::ReturnColor(ColorSlot(0)),
-                ],
-                SlotLayout {
-                    colors: 1,
-                    ..Default::default()
+        program(
+            vec![Instruction::ColorConst {
+                dst: Slot::scalar(0),
+                value: Color {
+                    red: 0,
+                    green: 255,
+                    blue: 0,
                 },
-                0,
-            )
-        },
+            }],
+            1,
+            Slot::scalar(0),
+            banks(0, 0, 1),
+            Banks::default(),
+        ),
         Box::new([]),
     )
     .unwrap();
@@ -67,33 +53,32 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
     let green = SampleDefinition::new(green).bind(vec![]).unwrap();
     let invert = invert.then(|| {
         let operator = OperatorProgram::admit(
-            program(
-                vec![
-                    Instruction::ContextRead {
-                        dst: NumberSlot::Float(FloatSlot(0)),
-                        read: ContextRead::Seconds,
-                    },
-                    Instruction::SignalSample {
-                        capability: (),
-                        dst: ColorSlot(0),
-                        input: 0,
-                        seconds: FloatSlot(0),
-                        pixel: SignalPixel::Current,
-                        frame_cache: 0,
-                    },
-                    Instruction::ColorInvert {
-                        dst: ColorSlot(1),
-                        color: ColorSlot(0),
-                    },
-                    Instruction::ReturnColor(ColorSlot(1)),
-                ],
-                SlotLayout {
-                    floats: 1,
-                    colors: 2,
-                    ..Default::default()
-                },
-                1,
-            ),
+            BytecodeProgram {
+                frame_caches: 1,
+                ..program(
+                    vec![
+                        Instruction::Context {
+                            dst: Slot::scalar(0),
+                            read: ContextRead::Seconds,
+                        },
+                        Instruction::Sample {
+                            dst: Slot::row(0),
+                            input: 0,
+                            seconds: Slot::scalar(0),
+                            pixel: SignalPixel::Current,
+                            frame_cache: 0,
+                        },
+                        Instruction::Invert {
+                            dst: Slot::row(1),
+                            color: Slot::row(0),
+                        },
+                    ],
+                    1,
+                    Slot::row(1),
+                    banks(1, 0, 0),
+                    banks(0, 0, 2),
+                )
+            },
             1,
             Box::new([]),
         )

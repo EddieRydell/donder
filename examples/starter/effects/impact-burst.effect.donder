@@ -1,40 +1,28 @@
 effect ImpactBurst {
-  param gradient gradient;
-  param curve intensity in 0.0..1.0;
-  param enum direction { outward, inward } = outward;
-  param enum color_mode { through_effect, from_center, from_edge } = through_effect;
-  param float center_position in 0.0..1.0 = 0.5;
-  param float start_radius in 0.0..2.0 = 0.0;
-  param float end_radius in 0.01..2.0 = 0.75;
-  param float edge_width in 0.001..1.0 = 0.08;
-  param float glow_width in 0.0..1.0 = 0.25;
-  param float glow_level in 0.0..1.0 = 0.35;
-  param bool mirror = false;
+  param gradient: gradient;
+  param intensity: curve in 0.0..1.0;
+  param direction: enum { outward, inward } = outward;
+  param color_mode: enum { through_effect, from_center, from_edge } = through_effect;
+  param center_position: float in 0.0..1.0 = 0.5;
+  param start_radius: float in 0.0..2.0 = 0.0;
+  param end_radius: float in 0.01..2.0 = 0.75;
+  param edge_width: float in 0.001..1.0 = 0.08;
+  param glow_width: float in 0.0..1.0 = 0.25;
+  param glow_level: float in 0.0..1.0 = 0.35;
+  param mirror: bool = false;
 
-  color sample() {
-    float distance = abs(pixel_fraction() - center_position);
-    if (mirror) {
-      distance = distance * 2.0;
-    }
-
-    float travel = progress();
-    if (direction == inward) {
-      travel = 1.0 - progress();
-    }
-
-    float radius = mix(start_radius, end_radius, travel);
-    float ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
-    float glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
-    float level = max(ring, glow * glow_level) * intensity[progress()];
-
-    float color_position = progress();
-    if (color_mode == from_center) {
-      color_position = distance / end_radius;
-    }
-    if (color_mode == from_edge) {
-      color_position = 1.0 - distance / end_radius;
-    }
-
-    return gradient_color_scaled(gradient, color_position, level);
+  sample {
+    let distance = abs(pixel.fraction - center_position);
+    let distance = if mirror { distance * 2.0 } else { distance };
+    let travel = if direction == inward { 1.0 - progress } else { progress };
+    let radius = mix(start_radius, end_radius, travel);
+    let ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
+    let glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
+    let level = max(ring, glow * glow_level) * intensity[progress];
+    let color_position =
+      if color_mode == from_center { distance / end_radius }
+      else if color_mode == from_edge { 1.0 - distance / end_radius }
+      else { progress };
+    gradient_color_scaled(gradient, color_position, level)
   }
 }

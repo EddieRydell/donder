@@ -1,5 +1,5 @@
 //! Immutable, schema-checked inputs for portable program construction.
-//! Runtime register banks and prepared curve caches belong to the interpreter.
+//! Runtime parameter banks and prepared curve caches belong to the interpreter.
 use super::{Type, Value};
 use crate::execution::PreparedAutomation;
 use alloc::{boxed::Box, string::String, vec::Vec};

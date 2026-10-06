@@ -101,10 +101,10 @@ mod tests {
 
     use super::*;
     use crate::dsl::bytecode::{
-        BytecodeProgram, ColorSlot, ContextRead, FloatSlot, Instruction, IntSlot, NumberSlot,
-        SignalPixel, SlotLayout,
+        Banks, BytecodeProgram, ContextRead, Input, Instruction, SignalPixel, Slot,
     };
     use crate::sequence::PreparedSequence;
+    use crate::sequence::tests::program;
     use crate::values::SampleTime;
     use alloc::boxed::Box;
     use core::num::NonZeroU32;
@@ -115,26 +115,13 @@ mod tests {
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceTiming, SequenceWindow, TargetScope,
     };
 
-    fn program(
-        instructions: Vec<Instruction>,
-        layout: SlotLayout,
-        pixel_entry: u32,
-    ) -> BytecodeProgram {
-        BytecodeProgram {
-            instructions: instructions.into(),
-            array_constants: Box::new([]),
-            enums: Box::new([]),
-            enum_types: Box::new([]),
-            curves: Box::new([]),
-            gradients: Box::new([]),
-            value_operands: Box::new([]),
-            array_types: Box::new([]),
-            layout,
-            uses_pixel_context: true,
-            pixel_entry,
-            array_capacity: 0,
-            array_width: 0,
-            loop_count: 0,
+    /// Slot counts of floats, ints and colors.
+    fn banks(floats: u16, ints: u16, colors: u16) -> Banks {
+        Banks {
+            floats,
+            ints,
+            colors,
+            ..Banks::default()
         }
     }
 
@@ -142,32 +129,21 @@ mod tests {
         let sample = SampleProgram::admit(
             program(
                 vec![
-                    Instruction::ContextRead {
-                        dst: NumberSlot::Float(FloatSlot(0)),
+                    Instruction::Context {
+                        dst: Slot::scalar(0),
                         read: ContextRead::Seconds,
                     },
-                    Instruction::ContextRead {
-                        dst: NumberSlot::Float(FloatSlot(1)),
-                        read: ContextRead::PixelFraction,
-                    },
-                    Instruction::ContextRead {
-                        dst: NumberSlot::Float(FloatSlot(2)),
-                        read: ContextRead::PixelX,
-                    },
                     Instruction::Rgb {
-                        dst: ColorSlot(0),
-                        red: FloatSlot(1),
-                        green: FloatSlot(2),
-                        blue: FloatSlot(0),
+                        dst: Slot::row(0),
+                        red: Slot::input(Input::PixelFraction),
+                        green: Slot::input(Input::PixelX),
+                        blue: Slot::scalar(0),
                     },
-                    Instruction::ReturnColor(ColorSlot(0)),
                 ],
-                SlotLayout {
-                    floats: 3,
-                    colors: 1,
-                    ..SlotLayout::default()
-                },
                 1,
+                Slot::row(0),
+                banks(1, 0, 0),
+                banks(0, 0, 1),
             ),
             Box::new([]),
         )
@@ -177,34 +153,32 @@ mod tests {
             SignalPixel::Local(index) | SignalPixel::Global(index) => index,
         };
         let operator = OperatorProgram::admit(
-            program(
-                vec![
-                    Instruction::LoadFloatConst {
-                        dst: FloatSlot(0),
-                        bits: 0.3f32.to_bits(),
-                    },
-                    Instruction::LoadIntConst {
-                        dst: IntSlot(0),
-                        value: query_index,
-                    },
-                    Instruction::SignalSample {
-                        capability: (),
-                        dst: ColorSlot(0),
-                        input: 0,
-                        seconds: FloatSlot(0),
-                        pixel: query.map(|_| IntSlot(0)),
-                        frame_cache: 0,
-                    },
-                    Instruction::ReturnColor(ColorSlot(0)),
-                ],
-                SlotLayout {
-                    floats: 1,
-                    ints: 1,
-                    colors: 1,
-                    ..SlotLayout::default()
-                },
-                2,
-            ),
+            BytecodeProgram {
+                frame_caches: 1,
+                ..program(
+                    vec![
+                        Instruction::FloatConst {
+                            dst: Slot::scalar(0),
+                            bits: 0.3f32.to_bits(),
+                        },
+                        Instruction::IntConst {
+                            dst: Slot::scalar(0),
+                            value: query_index,
+                        },
+                        Instruction::Sample {
+                            dst: Slot::row(0),
+                            input: 0,
+                            seconds: Slot::scalar(0),
+                            pixel: query.map(|_| Slot::scalar(0)),
+                            frame_cache: 0,
+                        },
+                    ],
+                    2,
+                    Slot::row(0),
+                    banks(1, 1, 0),
+                    banks(0, 0, 1),
+                )
+            },
             1,
             Box::new([]),
         )

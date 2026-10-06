@@ -78,11 +78,7 @@ impl std::fmt::Display for SourceReference {
 /// Authoring aliases use the same ASCII identifier policy as the DSL.
 /// Keywords and the built-in namespace are not valid aliases.
 pub fn is_valid_import_alias(value: &str) -> bool {
-    use crate::dsl::lexer::{TokenKind, lex};
-    if value == "builtins" || Identifier::new(value.to_string()).is_err() {
-        return false;
-    }
-    let tokens = lex(value);
-    matches!(tokens.as_slice(), [token, end]
-        if token.kind == TokenKind::Identifier && end.kind == TokenKind::Eof)
+    value != "builtins"
+        && Identifier::new(value.to_string()).is_ok()
+        && crate::dsl::syntax::lexer::is_identifier(value)
 }

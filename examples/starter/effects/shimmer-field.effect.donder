@@ -1,41 +1,30 @@
 effect ShimmerField {
-  param color base = #000000;
-  param gradient palette;
-  param enum color_mode { from_palette, rainbow_hue, fixed_sparkle } = from_palette;
-  param color sparkle_color = #ffffff;
-  param float density in 0.0..1.0 = 0.28;
-  param float shimmer_level in 0.0..1.0 = 0.35;
-  param float sparkle_level in 0.0..1.0 = 1.0;
-  param float wave_speed in 0.0..100.0 = 4.0;
-  param float wave_scale in 0.0..100.0 = 18.0;
-  param float sparkle_speed in 0.01..100.0 = 8.0;
-  param float sparkle_hold in 0.0..10.0 = 0.35;
-  param float section_width_pixels in 1.0..1000.0 = 1.0;
-  param float seed in 0.0..1000.0 = 0.0;
+  param base: color = #000000;
+  param palette: gradient;
+  param color_mode: enum { from_palette, rainbow_hue, fixed_sparkle } = from_palette;
+  param sparkle_color: color = #ffffff;
+  param density: float in 0.0..1.0 = 0.28;
+  param shimmer_level: float in 0.0..1.0 = 0.35;
+  param sparkle_level: float in 0.0..1.0 = 1.0;
+  param wave_speed: float in 0.0..100.0 = 4.0;
+  param wave_scale: float in 0.0..100.0 = 18.0;
+  param sparkle_speed: float in 0.01..100.0 = 8.0;
+  param sparkle_hold: float in 0.0..10.0 = 0.35;
+  param section_width_pixels: float in 1.0..1000.0 = 1.0;
+  param seed: float in 0.0..1000.0 = 0.0;
 
-  color sample() {
-    float section = floor(pixel_index() / section_width_pixels);
-    float position = section_position(section_width_pixels);
-
-    float wave = (sin(seconds() * wave_speed + position * wave_scale) + 1.0) * 0.5;
-    float level = wave * shimmer_level;
-
-    float bucket = floor(seconds() * sparkle_speed + section * sparkle_hold);
-    float choice = rand(seed + section * 31.0 + bucket * 101.0);
-    float sparkle = 0.0;
-    if (choice < density) {
-      sparkle = (sin(seconds() * sparkle_speed * TAU + section) + 1.0) * 0.5;
-    }
-    level = max(level, sparkle * sparkle_level);
-
-    color accent = palette[position + progress()];
-    if (color_mode == rainbow_hue) {
-      accent = hsv(position * 6.0 + progress() * 6.0, 1.0, 1.0);
-    }
-    if (color_mode == fixed_sparkle) {
-      accent = sparkle_color;
-    }
-
-    return mix(base, accent, level);
+  sample {
+    let section = floor(pixel.index / section_width_pixels);
+    let position = section_position(section_width_pixels);
+    let wave = (sin(time * wave_speed + position * wave_scale) + 1.0) * 0.5;
+    let bucket = floor(time * sparkle_speed + section * sparkle_hold);
+    let choice = rand(seed + section * 31.0 + bucket * 101.0);
+    let sparkle = if choice < density { (sin(time * sparkle_speed * TAU + section) + 1.0) * 0.5 } else { 0.0 };
+    let level = max(wave * shimmer_level, sparkle * sparkle_level);
+    let accent =
+      if color_mode == rainbow_hue { hsv(position * 6.0 + progress * 6.0, 1.0, 1.0) }
+      else if color_mode == fixed_sparkle { sparkle_color }
+      else { palette[position + progress] };
+    mix(base, accent, level)
   }
 }

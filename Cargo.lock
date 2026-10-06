@@ -1580,6 +1580,7 @@ dependencies = [
  "donder-language",
  "donder-project-io",
  "donder-runtime",
+ "donder-test-support",
  "indexmap 2.14.2",
 ]
 
@@ -1645,7 +1646,7 @@ dependencies = [
  "crc32fast",
  "criterion",
  "donder-language",
- "indexmap 2.14.2",
+ "donder-test-support",
  "libm",
  "micromath",
  "rkyv",
@@ -1662,6 +1663,15 @@ dependencies = [
  "specta",
  "specta-serde",
  "specta-typescript",
+]
+
+[[package]]
+name = "donder-test-support"
+version = "0.1.0"
+dependencies = [
+ "donder-language",
+ "donder-runtime",
+ "indexmap 2.14.2",
 ]
 
 [[package]]

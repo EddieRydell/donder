@@ -1,4 +1,7 @@
-use super::evaluation::{OperatorEvaluation, SampleEvaluation};
+use super::evaluation::{
+    OperatorEvaluation, PixelContext, SampleEvaluation, SignalSampler, bind, compile_effect,
+};
+use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
 const SPATIAL: donder_language::execution::SpatialContext =
@@ -8,31 +11,29 @@ const SPATIAL: donder_language::execution::SpatialContext =
         max: [0.0; 2],
     };
 
-use super::evaluation::SignalSampler;
-use crate::dsl::BatchWorkspace;
-use crate::dsl::RunContext as OperatorRunContext;
+use crate::dsl::RunContext;
 use crate::dsl::RuntimeError;
+use crate::dsl::StripWorkspace;
 use donder_language::dsl::Color;
-use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
 use donder_language::dsl::bytecode::SignalPixel;
-use donder_language::dsl::compile_effects;
-use donder_language::dsl::compile_operators;
+use donder_language::dsl::{compile_effects, compile_operators};
 use donder_language::values::{SampleDuration, SampleTime};
-use indexmap::IndexMap;
 
 fn color([red, green, blue]: [u8; 3]) -> Color {
     Color { red, green, blue }
 }
 
-fn context() -> OperatorRunContext {
-    OperatorRunContext {
-        progress: 0.0,
-        time: SampleDuration::from_ticks(0),
-        duration: SampleDuration::from_ticks(1_000_000),
-        pixel_index: 0,
-        pixel_count: 1,
-        pixel_fraction: 0.0,
+fn context() -> PixelContext {
+    PixelContext {
+        run: RunContext {
+            progress: 0.0,
+            time: SampleDuration::from_ticks(0),
+            duration: SampleDuration::from_ticks(1_000_000),
+            pixel_count: 1,
+        },
+        index: 0,
+        fraction: 0.0,
     }
 }
 
@@ -53,19 +54,25 @@ impl SignalSampler for ConstantSignal {
 fn hsv_intrinsics_require_exactly_one_color() {
     for name in ["hue", "saturation", "intensity"] {
         for args in ["", "0.5", "true", "#ffffff, #000000"] {
-            let source = format!(
-                "effect Invalid {{ color sample() {{ return rgb({name}({args}), 0.0, 0.0); }} }}"
-            );
+            let source = format!("effect Invalid {{ sample {{ rgb({name}({args}), 0.0, 0.0) }} }}");
             assert!(compile_effects(&source).is_err(), "{source}");
         }
     }
 }
 
 #[test]
-fn hsv_components_of_uniform_colors_execute() {
-    let effect = compile_effects("effect Components { param color c; color sample() { return rgb(hue(c), saturation(c), intensity(c)); } }")
-        .unwrap().remove(0);
-    let mut workspace = BatchWorkspace::default();
+fn hsv_components_of_colors_execute_and_fold_alike() {
+    let fixed = compile_effect(
+        "effect Components { param c: color = #000000; sample { rgb(hue(c), saturation(c), intensity(c)) } }",
+    );
+    // A color selected per pixel is left to the VM.
+    let selected = compile_effect(
+        "effect Components { param cs: array<color>; sample {
+            let c = cs[pixel.index];
+            rgb(hue(c), saturation(c), intensity(c))
+        } }",
+    );
+    let mut workspace = StripWorkspace::default();
     for (input, output) in [
         ([255, 0, 0], [0, 255, 255]),
         ([255, 255, 0], [43, 255, 255]),
@@ -77,16 +84,19 @@ fn hsv_components_of_uniform_colors_execute() {
         ([128, 128, 128], [0, 0, 128]),
         ([0, 0, 0], [0, 0, 0]),
     ] {
-        let params = effect
-            .bind(&IndexMap::from([(
-                Identifier::new("c".into()).unwrap(),
-                Value::Color(color(input)),
-            )]))
-            .unwrap();
-        assert_eq!(
-            params.evaluate(&context(), &SPATIAL, &mut workspace),
-            color(output)
-        );
+        let value = Value::Color(color(input));
+        let fixed = playback::lower_sample(&bind(&fixed, &[("c", value.clone())]));
+        let selected = playback::lower_sample(&bind(
+            &selected,
+            &[("cs", Value::Array(vec![value].into()))],
+        ));
+        for invocation in [fixed, selected] {
+            assert_eq!(
+                invocation.evaluate(&context(), &SPATIAL, &mut workspace),
+                color(output),
+                "{input:?}"
+            );
+        }
     }
 }
 
@@ -99,7 +109,7 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
     .into_iter()
     .find(|op| op.name().as_str() == "HueShift")
     .unwrap();
-    let mut workspace = BatchWorkspace::default();
+    let mut workspace = StripWorkspace::default();
     for (input, shift, output) in [
         ([255, 0, 0], 1.0 / 6.0, [255, 255, 0]),
         ([255, 0, 0], 5.0 / 6.0, [255, 0, 255]),
@@ -113,13 +123,9 @@ fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
         ([17, 93, 201], 0.0, [17, 93, 201]),
         ([17, 93, 201], 1.0, [17, 93, 201]),
     ] {
-        let params = operator
-            .bind(&IndexMap::from([(
-                Identifier::new("shift".into()).unwrap(),
-                Value::Float(shift),
-            )]))
-            .unwrap();
-        let actual = params
+        let invocation =
+            playback::lower_operator(&bind(&operator, &[("shift", Value::Float(shift))]));
+        let actual = invocation
             .evaluate(
                 &context(),
                 &SPATIAL,

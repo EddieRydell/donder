@@ -1,4 +1,6 @@
-use super::{evaluation::OperatorEvaluation, std};
+use super::evaluation::{OperatorEvaluation, PixelContext, bind};
+use super::playback;
+use super::std;
 use std::prelude::rust_2024::*;
 const SPATIAL: donder_language::execution::SpatialContext =
     donder_language::execution::SpatialContext {
@@ -8,11 +10,10 @@ const SPATIAL: donder_language::execution::SpatialContext =
     };
 
 use super::evaluation::SignalSampler;
-use crate::dsl::BatchWorkspace;
 use crate::dsl::RunContext;
 use crate::dsl::RuntimeError;
+use crate::dsl::StripWorkspace;
 use donder_language::dsl::CompiledOperator;
-use donder_language::dsl::Identifier;
 use donder_language::dsl::Value;
 use donder_language::dsl::bytecode::SignalPixel;
 use donder_language::dsl::compile_operators;
@@ -60,30 +61,26 @@ fn sample(
         .iter()
         .find(|operator| operator.name().as_str() == name)
         .unwrap();
-    let overrides = overrides
-        .iter()
-        .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))
-        .collect::<Vec<_>>();
-    let invocation = operator
-        .bind(overrides.iter().map(|(name, value)| (name, value)))
-        .unwrap();
+    let invocation = playback::lower_operator(&bind(operator, overrides));
     let mut inputs = Inputs {
         sample: source,
         times: Vec::new(),
     };
     let color = invocation
         .evaluate(
-            &RunContext {
-                progress: time as f32 / 10_000_000.0,
-                time: SampleDuration::from_ticks(time),
-                duration: SampleDuration::from_ticks(10_000_000),
-                pixel_index: 0,
-                pixel_count: 1,
-                pixel_fraction: 0.0,
+            &PixelContext {
+                run: RunContext {
+                    progress: time as f32 / 10_000_000.0,
+                    time: SampleDuration::from_ticks(time),
+                    duration: SampleDuration::from_ticks(10_000_000),
+                    pixel_count: 1,
+                },
+                index: 0,
+                fraction: 0.0,
             },
             &SPATIAL,
             &mut inputs,
-            &mut BatchWorkspace::default(),
+            &mut StripWorkspace::default(),
         )
         .unwrap();
     (color, inputs.times)

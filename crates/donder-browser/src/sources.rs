@@ -316,7 +316,7 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
                 }
             };
             let text = source
-                .get(declaration.start..declaration.end)
+                .get(declaration.span.start..declaration.span.end)
                 .ok_or_else(|| JsValue::from_str("Declaration span is outside its source."))?;
             Ok(BrowserSourceDocument {
                 path: format!("{}.{suffix}.donder", declaration.name.as_str()),

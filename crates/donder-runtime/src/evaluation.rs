@@ -1,14 +1,12 @@
-//! Signal graph evaluation. Every program runs in batches over runs of up to
-//! [`BATCH_LANES`] pixels; a single pixel is a one-pixel run. Operators sample
-//! their inputs over the same run, so upstream programs batch too.
+//! Signal graph evaluation. Every program runs over strips of up to [`STRIP`]
+//! pixels; a single pixel is a one-pixel strip. Operators sample their inputs
+//! over the same strip, so upstream programs run in strips too.
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::SignalPixel;
-use crate::dsl::{
-    BATCH_LANES, Batch, BatchMask, BatchSignals, BatchWorkspace, BoundParams, Lanes, RunContext,
-};
+use crate::dsl::{BoundParams, Pixels, RunContext, STRIP, Strip, StripSignals, StripWorkspace};
 use crate::signal::{
     CachedSignalFrame, EffectAutomationWorkspace, EvaluationWorkspace, PreparedEffect,
-    PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SignalGraph,
+    PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace, SignalGraph,
 };
 use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
@@ -45,9 +43,7 @@ impl PreparedEffect<AutomationPlan> {
                 },
                 time: self.local_time(sample_time),
                 duration: self.duration,
-                pixel_index: 0,
                 pixel_count: 0,
-                pixel_fraction: 0.0,
             },
             spatial: program.uses_spatial_context(),
             sections: &graph.targets[self.target].sections,
@@ -84,7 +80,7 @@ pub(crate) struct RunPixel {
     pub(crate) pixel: PreparedPixel,
 }
 
-/// The shared stage of a batch run.
+/// The shared shape of a strip.
 struct RunShape {
     len: usize,
     pixel_count: usize,
@@ -92,12 +88,12 @@ struct RunShape {
     max: [f32; 2],
 }
 
-/// Fill lanes from `pixel(start..end)`. A run ends after [`BATCH_LANES`]
+/// Fill a strip from `pixel(start..end)`. A strip ends after [`STRIP`]
 /// pixels or, for a program that reads them, where the pixel count or target
 /// bounds change.
 #[allow(clippy::too_many_arguments)]
-fn fill_lanes(
-    lanes: &mut Lanes,
+fn fill_strip(
+    pixels: &mut Pixels,
     renderer: SignalGraph<'_>,
     target: usize,
     spatial: bool,
@@ -115,44 +111,44 @@ fn fill_lanes(
     };
     if !spatial && sections.is_none() {
         // Without geometry only the pixel count can split a run.
-        for index in start..end.min(start + BATCH_LANES) {
+        for index in start..end.min(start + STRIP) {
             let pixel = pixel(index).pixel;
-            let lane = index - start;
-            if lane == 0 {
+            let offset = index - start;
+            if offset == 0 {
                 shape.pixel_count = pixel.pixel_count;
             } else if split && pixel.pixel_count != shape.pixel_count {
                 break;
             }
-            lanes.pixel_index[lane] = pixel.pixel_index as i32;
-            lanes.pixel_fraction[lane] = pixel.pixel_fraction;
+            pixels.index[offset].set(pixel.pixel_index as i32);
+            pixels.fraction[offset].set(pixel.pixel_fraction);
             shape.len += 1;
         }
         return shape;
     }
-    for index in start..end.min(start + BATCH_LANES) {
+    for index in start..end.min(start + STRIP) {
         let RunPixel {
             target_index,
             pixel,
         } = pixel(index);
-        let lane = index - start;
+        let offset = index - start;
         let (mut min, mut max) = ([0.0; 2], [0.0; 2]);
         if spatial {
             let geometry = renderer.spatial_context(true, target, target_index, &pixel);
-            lanes.x[lane] = geometry.position[0];
-            lanes.y[lane] = geometry.position[1];
+            pixels.x[offset].set(geometry.position[0]);
+            pixels.y[offset].set(geometry.position[1]);
             (min, max) = (geometry.min, geometry.max);
         }
-        if lane == 0 {
+        if offset == 0 {
             (shape.pixel_count, shape.min, shape.max) = (pixel.pixel_count, min, max);
         } else if split
             && (pixel.pixel_count != shape.pixel_count || (min, max) != (shape.min, shape.max))
         {
             break;
         }
-        lanes.pixel_index[lane] = pixel.pixel_index as i32;
-        lanes.pixel_fraction[lane] = pixel.pixel_fraction;
+        pixels.index[offset].set(pixel.pixel_index as i32);
+        pixels.fraction[offset].set(pixel.pixel_fraction);
         if let Some(sections) = sections {
-            lanes.sections[lane] = sections.pixel(target_index);
+            pixels.sections[offset] = sections.pixel(target_index);
         }
         shape.len += 1;
     }
@@ -160,11 +156,9 @@ fn fill_lanes(
 }
 
 impl EffectSampler<'_> {
-    fn batch<'s>(&'s self, workspace: &'s mut BatchWorkspace) -> Batch<'s> {
-        Batch::new(
+    fn strip<'s>(&'s self, workspace: &'s mut StripWorkspace) -> Strip<'s> {
+        Strip::new(
             self.program.bytecode(),
-            self.program.target_entry(),
-            self.program.batch(),
             self.params,
             &self.context,
             Some(self.sections),
@@ -173,7 +167,7 @@ impl EffectSampler<'_> {
     }
 
     fn uniform(&self) -> bool {
-        !self.program.bytecode().uses_pixel_context
+        !self.program.bytecode().uses_pixel_context()
     }
 
     /// Evaluate `count` pixels of this effect's target, `pixel(0..count)`, and
@@ -184,7 +178,7 @@ impl EffectSampler<'_> {
         target: usize,
         count: usize,
         pixel: impl Fn(usize) -> RunPixel,
-        workspace: &mut BatchWorkspace,
+        workspace: &mut StripWorkspace,
         mut write: impl FnMut(usize, Color),
     ) {
         if count == 0 {
@@ -193,22 +187,22 @@ impl EffectSampler<'_> {
         let uniform = self.uniform();
         let end = if uniform { 1 } else { count };
         let sections = self.uses_sections.then_some(self.sections);
-        let mut batch = self.batch(workspace);
-        let mut colors = [black(); BATCH_LANES];
+        let mut strip = self.strip(workspace);
+        let mut colors = [black(); STRIP];
         let mut start = 0;
         while start < end {
-            let shape = fill_lanes(
-                batch.lanes(),
+            let shape = fill_strip(
+                strip.pixels(),
                 renderer,
                 target,
                 self.spatial,
                 sections,
-                self.program.batch().reads_target(),
+                self.program.reads_target(),
                 start,
                 end,
                 &pixel,
             );
-            batch.run(
+            strip.run(
                 shape.pixel_count,
                 shape.min,
                 shape.max,
@@ -237,7 +231,13 @@ pub(crate) fn sample_signal_graph<'a>(
     workspace: &'a mut EvaluationWorkspace,
 ) -> &'a [Color] {
     let graph = &renderer.plan;
-    for state in &mut workspace.operator_automation {
+    let EvaluationWorkspace {
+        signal_buffers: buffers,
+        operator_automation,
+        operator_vm: operator_vms,
+        sampling: workspace,
+    } = workspace;
+    for state in operator_automation.iter_mut() {
         state.sample_time = None;
     }
     for frames in &mut workspace.operator_frames {
@@ -245,11 +245,6 @@ pub(crate) fn sample_signal_graph<'a>(
             frame.key = None;
         }
     }
-    // Frame buffers, upstream automation and depth-slot workspaces are lent
-    // out separately during recursive sampling.
-    let mut buffers = core::mem::take(&mut workspace.signal_buffers);
-    let mut operator_automation = core::mem::take(&mut workspace.operator_automation);
-    let mut operator_vms = core::mem::take(&mut workspace.operator_vm);
     for node_index in graph.frame_nodes.iter().copied() {
         let destination = frame_range(renderer, node_index);
         match &graph.nodes[node_index].kind {
@@ -269,16 +264,12 @@ pub(crate) fn sample_signal_graph<'a>(
                 sample_time,
                 &mut buffers[destination],
                 workspace,
-                &mut operator_automation,
-                &mut operator_vms,
+                operator_automation,
+                operator_vms,
             ),
         }
     }
-    let range = frame_range(renderer, graph.output_index);
-    workspace.signal_buffers = buffers;
-    workspace.operator_automation = operator_automation;
-    workspace.operator_vm = operator_vms;
-    &workspace.signal_buffers[range]
+    &buffers[frame_range(renderer, graph.output_index)]
 }
 
 /// Graph admission orders dependencies before consumers and assigns automation
@@ -309,7 +300,7 @@ fn sample_layer_frame(
     layer_index: usize,
     sample_time: SampleTime,
     rendered: &mut [Color],
-    workspace: &mut EvaluationWorkspace,
+    workspace: &mut SamplingWorkspace,
 ) {
     rendered.fill(black());
     if !renderer.layers[layer_index].enabled {
@@ -341,7 +332,7 @@ fn sample_layer_frame(
                         target_index: index,
                         pixel: target.pixel(index),
                     },
-                    &mut workspace.effect_batch,
+                    &mut workspace.effect_strip,
                     |_, sampled| color = Some(sampled),
                 );
                 if let Some(color) = color {
@@ -355,15 +346,15 @@ fn sample_layer_frame(
                 }
                 return;
             }
-            // One batch covers every run of this effect at this time.
+            // One strip workspace serves every run of this effect at this time.
             // Duplicate fixture layouts share samples by pixel index and count.
             let cacheable = sample_count != 0 && !sampler.spatial && !sampler.uses_sections;
             let (spatial, sections) = (
                 sampler.spatial,
                 sampler.uses_sections.then_some(sampler.sections),
             );
-            let mut batch = sampler.batch(&mut workspace.effect_batch);
-            let mut colors = [black(); BATCH_LANES];
+            let mut strip = sampler.strip(&mut workspace.effect_strip);
+            let mut colors = [black(); STRIP];
             for segment in target.segments() {
                 let base =
                     renderer.fixture_pixel_offsets[segment.fixture] + segment.first_cell as usize;
@@ -377,7 +368,7 @@ fn sample_layer_frame(
                 while offset < length {
                     let samples = &mut workspace.effect_samples;
                     let first = segment.first_index + offset;
-                    let cached_len = (length - offset).min(BATCH_LANES);
+                    let cached_len = (length - offset).min(STRIP);
                     if cacheable
                         && samples[first..first + cached_len]
                             .iter()
@@ -392,8 +383,8 @@ fn sample_layer_frame(
                         offset += cached_len;
                         continue;
                     }
-                    let shape = fill_lanes(
-                        batch.lanes(),
+                    let shape = fill_strip(
+                        strip.pixels(),
                         renderer,
                         effect.target,
                         spatial,
@@ -404,7 +395,7 @@ fn sample_layer_frame(
                         &pixel,
                     );
                     let count = shape.len;
-                    batch.run(
+                    strip.run(
                         shape.pixel_count,
                         shape.min,
                         shape.max,
@@ -430,7 +421,7 @@ fn sample_layer_frame(
     }
 }
 
-/// Signal queries of an operator run. Lane `n` is plan-target pixel
+/// Signal queries of an operator strip. Pixel `n` of the strip is plan-target pixel
 /// `first + n`; whole-frame caches are used only at frame scope.
 struct GraphSignals<'a> {
     renderer: SignalGraph<'a>,
@@ -438,9 +429,9 @@ struct GraphSignals<'a> {
     first: usize,
     count: usize,
     frames: Option<usize>,
-    workspace: &'a mut EvaluationWorkspace,
+    workspace: &'a mut SamplingWorkspace,
     operator_automation: &'a mut [EffectAutomationWorkspace],
-    operator_vms: &'a mut [BatchWorkspace],
+    operator_vms: &'a mut [StripWorkspace],
 }
 
 impl GraphSignals<'_> {
@@ -477,14 +468,13 @@ impl GraphSignals<'_> {
     }
 }
 
-impl BatchSignals for GraphSignals<'_> {
-    fn sample_run(
+impl StripSignals for GraphSignals<'_> {
+    fn sample_strip(
         &mut self,
         input: usize,
         time: SampleTime,
         frame_cache: Option<usize>,
-        _: BatchMask,
-        output: &mut [Color; BATCH_LANES],
+        output: &mut [Color; STRIP],
     ) {
         let count = self.count;
         if time.as_ticks() >= self.renderer.duration.as_ticks() {
@@ -514,11 +504,11 @@ impl BatchSignals for GraphSignals<'_> {
         &mut self,
         input: usize,
         time: SampleTime,
-        lane: usize,
+        offset: usize,
         pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
     ) -> Color {
-        let Some(index) = signal_pixel(self.renderer, self.first + lane, pixel) else {
+        let Some(index) = signal_pixel(self.renderer, self.first + offset, pixel) else {
             return black();
         };
         if time.as_ticks() >= self.renderer.duration.as_ticks() {
@@ -573,9 +563,9 @@ fn sample_operator(
     first: usize,
     output: &mut [Color],
     frame_scope: bool,
-    workspace: &mut EvaluationWorkspace,
+    workspace: &mut SamplingWorkspace,
     operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [BatchWorkspace],
+    operator_vms: &mut [StripWorkspace],
 ) {
     let PreparedSignalKind::Operator {
         operator,
@@ -598,16 +588,12 @@ fn sample_operator(
         },
         time: SampleDuration::from_ticks(time.as_ticks()),
         duration,
-        pixel_index: 0,
         pixel_count: 0,
-        pixel_fraction: 0.0,
     };
     let target = renderer.plan.target;
     let sections = &renderer.targets[target].sections;
-    let mut batch = Batch::new(
+    let mut strip = Strip::new(
         program.bytecode(),
-        program.target_entry(),
-        program.batch(),
         params,
         &context,
         Some(sections),
@@ -635,13 +621,13 @@ fn sample_operator(
     let end = first + output.len();
     let mut start = first;
     while start < end {
-        let shape = fill_lanes(
-            batch.lanes(),
+        let shape = fill_strip(
+            strip.pixels(),
             renderer,
             target,
             spatial,
             sections,
-            program.batch().reads_target(),
+            program.reads_target(),
             start,
             end,
             &pixel,
@@ -649,7 +635,7 @@ fn sample_operator(
         signals.first = start;
         signals.count = shape.len;
         let colors = &mut output[start - first..start - first + shape.len];
-        batch.run(
+        strip.run(
             shape.pixel_count,
             shape.min,
             shape.max,
@@ -668,9 +654,9 @@ fn sample_signal_run(
     time: SampleTime,
     first: usize,
     output: &mut [Color],
-    workspace: &mut EvaluationWorkspace,
+    workspace: &mut SamplingWorkspace,
     operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [BatchWorkspace],
+    operator_vms: &mut [StripWorkspace],
 ) {
     match &renderer.plan.nodes[node].kind {
         PreparedSignalKind::Layer { layer_index } => {
@@ -689,9 +675,9 @@ fn sample_signal_run(
         ),
         PreparedSignalKind::Output { inputs } => {
             output.fill(black());
-            let mut colors = [black(); BATCH_LANES];
-            for chunk in (0..output.len()).step_by(BATCH_LANES) {
-                let length = (output.len() - chunk).min(BATCH_LANES);
+            let mut colors = [black(); STRIP];
+            for chunk in (0..output.len()).step_by(STRIP) {
+                let length = (output.len() - chunk).min(STRIP);
                 for &input in inputs {
                     sample_signal_run(
                         renderer,
@@ -720,7 +706,7 @@ fn sample_layer_run(
     time: SampleTime,
     first: usize,
     output: &mut [Color],
-    workspace: &mut EvaluationWorkspace,
+    workspace: &mut SamplingWorkspace,
 ) {
     output.fill(black());
     if !renderer.layers[layer_index].enabled {
@@ -748,15 +734,15 @@ fn sample_layer_run(
                         target_index: first + offset,
                         pixel: target.pixel(first + offset),
                     },
-                    &mut workspace.effect_batch,
+                    &mut workspace.effect_strip,
                     |offset, color| compose_max(&mut output[offset], color),
                 );
                 return;
             }
-            // Gather the run's cells that this effect covers into one batch.
+            // Gather the run's cells that this effect covers into one strip.
             // Temporal queries revisit the same run, so the mapping is kept.
-            for chunk in (0..output.len()).step_by(BATCH_LANES) {
-                let length = (output.len() - chunk).min(BATCH_LANES);
+            for chunk in (0..output.len()).step_by(STRIP) {
+                let length = (output.len() - chunk).min(STRIP);
                 let key = Some((effect.target, first + chunk, length));
                 let map = &mut workspace.gather;
                 if map.key != key {
@@ -777,12 +763,12 @@ fn sample_layer_run(
                     renderer,
                     effect.target,
                     count,
-                    |lane| RunPixel {
-                        target_index: cells[lane].1,
-                        pixel: target.pixel(cells[lane].1),
+                    |offset| RunPixel {
+                        target_index: cells[offset].1,
+                        pixel: target.pixel(cells[offset].1),
                     },
-                    &mut workspace.effect_batch,
-                    |lane, color| compose_max(&mut output[cells[lane].0], color),
+                    &mut workspace.effect_strip,
+                    |offset, color| compose_max(&mut output[cells[offset].0], color),
                 );
             }
         });
@@ -796,9 +782,9 @@ fn sample_signal_frame(
     node_index: usize,
     sample_time: SampleTime,
     output: &mut [Color],
-    workspace: &mut EvaluationWorkspace,
+    workspace: &mut SamplingWorkspace,
     operator_automation: &mut [EffectAutomationWorkspace],
-    operator_vms: &mut [BatchWorkspace],
+    operator_vms: &mut [StripWorkspace],
 ) {
     match &renderer.plan.nodes[node_index].kind {
         PreparedSignalKind::Layer { layer_index } => {

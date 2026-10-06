@@ -1,13 +1,22 @@
+//! The global signal graph of one sequence: layers, operator instances and the
+//! output. Before lowering, black signals are folded into their consumers and
+//! an operator consumed once is fused into its consumer, so the boundary
+//! between them disappears from the prepared programs.
+use donder_language::dsl::Instance;
 use donder_language::model::AcceptedSequence;
 use donder_language::operator::composition_graph_output_dependencies;
 use donder_language::sequence::{CompositionGraphNodeKind, SequenceLayerId};
+use donder_language::values::Color;
 use donder_runtime::{SequenceBuilder, SequenceRoot, SignalHandle};
 use indexmap::IndexMap;
+use std::collections::HashSet;
 
 enum Pending<'id> {
+    /// Black at every time and pixel.
+    Black,
     Layer(SignalHandle<'id>),
     Operator {
-        invocation: donder_language::dsl::OperatorInvocation,
+        instance: Instance,
         inputs: Vec<usize>,
     },
     Output(Vec<usize>),
@@ -17,6 +26,7 @@ pub(super) fn prepare<'id>(
     builder: &mut SequenceBuilder<'id>,
     accepted: AcceptedSequence<'_>,
     layers: &IndexMap<&SequenceLayerId, SignalHandle<'id>>,
+    black: &HashSet<&SequenceLayerId>,
     programs: &mut super::programs::Programs,
 ) -> SequenceRoot<'id> {
     let graph = &accepted.sequence().composition_graph;
@@ -52,69 +62,42 @@ pub(super) fn prepare<'id>(
         .collect::<Vec<_>>();
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
+    let duration =
+        donder_language::values::sample_duration_seconds_f32(accepted.timing().duration());
     // Admission guarantees one output, connected operator ports and an acyclic graph.
     while let Some(index) = ready.pop() {
         let node = &graph.nodes[index];
         if dependencies.contains(&node.id) {
-            match &node.kind {
-                CompositionGraphNodeKind::Layer { layer_id } => {
-                    pending[index] = Some(Pending::Layer(layers[layer_id]));
+            pending[index] = Some(match &node.kind {
+                CompositionGraphNodeKind::Layer { layer_id } if black.contains(layer_id) => {
+                    Pending::Black
                 }
+                CompositionGraphNodeKind::Layer { layer_id } => Pending::Layer(layers[layer_id]),
                 CompositionGraphNodeKind::Operator(_) => {
                     let operator = operators[&node.id];
                     let ports = incoming[index]
                         .iter()
                         .map(|(port, source)| (port.0.as_str(), *source))
                         .collect::<IndexMap<_, _>>();
-                    let mut invocation = programs.operator(
-                        operator.invocation(),
-                        donder_language::dsl::ProgramConstants {
-                            duration_seconds: Some(
-                                donder_language::values::sample_duration_seconds_f32(
-                                    accepted.timing().duration(),
-                                ),
-                            ),
-                            ..Default::default()
-                        },
-                    );
-                    let mut inputs = operator
+                    let instance =
+                        operator
+                            .invocation()
+                            .instance(donder_language::dsl::ProgramConstants {
+                                duration_seconds: Some(duration),
+                                ..Default::default()
+                            });
+                    let inputs = operator
                         .definition()
                         .inputs()
                         .iter()
                         .map(|input| ports[input.source_name.as_str()])
                         .collect::<Vec<_>>();
-                    let mut input = 0;
-                    while input < inputs.len() {
-                        let source = inputs[input];
-                        let merged = if consumers[source] == 1
-                            && let Some(Pending::Operator {
-                                invocation: upstream,
-                                inputs: upstream_inputs,
-                            }) = &pending[source]
-                        {
-                            invocation
-                                .fuse_input(input, upstream)
-                                .map(|invocation| (invocation, upstream_inputs.clone()))
-                        } else {
-                            None
-                        };
-                        if let Some((merged, upstream_inputs)) = merged {
-                            invocation = programs.operator(&merged, Default::default());
-                            inputs.remove(input);
-                            inputs.extend(upstream_inputs);
-                            pending[source] = None;
-                        } else {
-                            input += 1;
-                        }
-                    }
-                    pending[index] = Some(Pending::Operator { invocation, inputs });
+                    simplify(instance, inputs, &mut pending, &consumers)
                 }
                 CompositionGraphNodeKind::Output => {
-                    pending[index] = Some(Pending::Output(
-                        incoming[index].iter().map(|(_, input)| *input).collect(),
-                    ));
+                    Pending::Output(incoming[index].iter().map(|(_, input)| *input).collect())
                 }
-            }
+            });
             order.push(index);
         }
         for &next in &outgoing[index] {
@@ -133,15 +116,58 @@ pub(super) fn prepare<'id>(
             Some(Pending::Layer(signal)) => {
                 signals.insert(index, signal);
             }
-            Some(Pending::Operator { invocation, inputs }) => {
+            Some(Pending::Operator { instance, inputs }) => {
+                let invocation = programs.operator(&instance);
                 let signal = builder.operator(&invocation, |input| signals[&inputs[input]]);
                 signals.insert(index, signal);
             }
-            Some(Pending::Output(inputs)) => {
-                output_inputs.extend(inputs.iter().map(|input| signals[input]))
-            }
-            None => {}
+            Some(Pending::Output(inputs)) => output_inputs.extend(
+                inputs
+                    .iter()
+                    .filter_map(|input| signals.get(input).copied()),
+            ),
+            Some(Pending::Black) | None => {}
         }
     }
     builder.output(output_inputs)
+}
+
+/// Fold black inputs into an operator and fuse sources consumed only by it.
+fn simplify<'id>(
+    mut instance: Instance,
+    mut inputs: Vec<usize>,
+    pending: &mut [Option<Pending<'id>>],
+    consumers: &[usize],
+) -> Pending<'id> {
+    let mut input = 0;
+    while input < inputs.len() {
+        let source = inputs[input];
+        match &pending[source] {
+            Some(Pending::Black) => {
+                instance = instance.with_black_input(input);
+                inputs.remove(input);
+                continue;
+            }
+            Some(Pending::Operator {
+                instance: upstream,
+                inputs: upstream_inputs,
+            }) if consumers[source] == 1 => {
+                if let Some(fused) = instance.fuse_input(input, upstream) {
+                    let upstream_inputs = upstream_inputs.clone();
+                    instance = fused;
+                    inputs.remove(input);
+                    inputs.extend(upstream_inputs);
+                    pending[source] = None;
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        input += 1;
+    }
+    if instance.constant_color() == Some(Color::BLACK) {
+        Pending::Black
+    } else {
+        Pending::Operator { instance, inputs }
+    }
 }

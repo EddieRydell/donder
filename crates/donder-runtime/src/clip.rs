@@ -1,6 +1,6 @@
 //! Sparse sampling of one authored clip from an already prepared sequence.
 //! Raster dimensions, scheduling, image storage, and caching belong to the host.
-use crate::dsl::{AutomationPlan, BatchWorkspace};
+use crate::dsl::{AutomationPlan, StripWorkspace};
 use crate::evaluation::RunPixel;
 use crate::signal::{EffectAutomationWorkspace, PreparedClip, PreparedEffect, SignalGraph};
 use crate::values::{Color, SampleDuration, SampleTime};
@@ -63,8 +63,8 @@ impl<'a> SequenceClip<'a> {
         let indices = evenly_sample_indices(target.len(), rows);
         let row_count = indices.len();
         let program = self.graph.sample_program(effect.program);
-        let mut workspace = BatchWorkspace::default();
-        workspace.reserve(program.bytecode(), program.batch());
+        let mut workspace = StripWorkspace::default();
+        workspace.reserve(program.bytecode());
         let mut groups = Vec::<SampleGroup>::new();
         let mut group_by_context = BTreeMap::new();
         for (row, local) in indices.into_iter().enumerate() {
@@ -121,7 +121,7 @@ pub struct ClipSampler<'a> {
     output: Vec<Color>,
     groups: Vec<SampleGroup>,
     automation: Option<EffectAutomationWorkspace>,
-    workspace: BatchWorkspace,
+    workspace: StripWorkspace,
 }
 
 /// Rows sharing one sampling context, and a pixel with that context.

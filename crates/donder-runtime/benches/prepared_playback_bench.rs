@@ -1,22 +1,16 @@
-#[allow(dead_code)]
-mod fixtures;
-#[path = "fixtures/layered.rs"]
-mod layered;
-
 use criterion::{Criterion, criterion_group, criterion_main};
 use donder_language::values::SampleTime;
+use donder_test_support::fixtures;
+use donder_test_support::fixtures::layered;
+use donder_test_support::playback;
 
-#[allow(dead_code)]
-#[path = "../tests/support/playback.rs"]
-mod playback;
 use std::hint::black_box;
 use std::time::Duration;
 
 fn bench_prepared_playback(c: &mut Criterion) {
     pin_benchmark_thread();
     let mut playbacks = fixtures::cases().map(|(name, source, params)| {
-        let (effect, params) = fixtures::prepared_effect(name, source, params);
-        let invocation = playback::sample(&effect, &params);
+        let invocation = playback::lower_sample(&fixtures::prepared_effect(name, source, params));
         playback::show(512, &invocation, 1).into_playback()
     });
     let time = SampleTime::from_ticks(3_250_000);

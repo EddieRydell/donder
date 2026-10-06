@@ -1,0 +1,13 @@
+[package]
+name = "donder-test-support"
+edition.workspace = true
+version.workspace = true
+description = "Shared Donder playback workloads for tests and benchmarks"
+authors = ["Donder"]
+license = "MIT"
+publish = false
+
+[dependencies]
+donder-language = { path = "../donder-language", features = ["host"] }
+donder-runtime.workspace = true
+indexmap.workspace = true

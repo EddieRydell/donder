@@ -70,10 +70,11 @@ limits:
   again to admit. Wi-Fi keeps four static receive buffers to leave heap for
   shows.
 
-It also checks bytecode register references, operand spans, constants, jump
-targets, parameter types and return paths, signal reads within an operator's
-inputs, and prepared automation mappings. The limits are conservative policy,
-not a proof that memory will never run out.
+It also admits every program as the compiler does: slot ranges and kinds per
+bank, nesting, row and selection limits, constants, parameter types, signal
+reads within an operator's inputs and frame caches. It checks prepared
+automation mappings too. The limits are conservative policy, not a proof that
+memory will never run out.
 
 HTTP endpoints:
 - unauthenticated `POST /claim`, which answers only an unclaimed controller;

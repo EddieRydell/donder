@@ -1,41 +1,43 @@
 //! Representation-specific target routing checks.
 use super::*;
-use crate::dsl::bytecode::{ColorSlot, Instruction, SignalPixel};
+use crate::dsl::bytecode::{ContextRead, Input, SignalPixel};
 
 #[test]
 fn identical_target_routing_matches_address_search() {
-    use crate::dsl::bytecode::{ContextRead, FloatSlot, NumberSlot};
     let mut data = queried_sequence(SignalPixel::Current).archive_data();
     data.signals.effects = vec![data.signals.effects[0].clone()].into();
     data.signals.effects[0].target = 0;
     data.signals.effects_by_layer[0] = vec![0].into();
-    let program = &mut data.signals.programs[0];
-    program.layout.floats = 3;
-    program.uses_pixel_context = true;
-    program.instructions = vec![
-        Instruction::ContextRead {
-            dst: NumberSlot::Float(FloatSlot(0)),
-            read: ContextRead::PixelFraction,
+    data.signals.programs[0] = program(
+        vec![
+            Instruction::Context {
+                dst: Slot::scalar(0),
+                read: ContextRead::Progress,
+            },
+            Instruction::FloatConst {
+                dst: Slot::scalar(1),
+                bits: 0.25f32.to_bits(),
+            },
+            Instruction::Rgb {
+                dst: Slot::row(0),
+                red: Slot::input(Input::PixelFraction),
+                green: Slot::scalar(0),
+                blue: Slot::scalar(1),
+            },
+        ],
+        2,
+        Slot::row(0),
+        Banks {
+            floats: 2,
+            ..Banks::default()
         },
-        Instruction::ContextRead {
-            dst: NumberSlot::Float(FloatSlot(1)),
-            read: ContextRead::Progress,
+        Banks {
+            colors: 1,
+            ..Banks::default()
         },
-        Instruction::LoadFloatConst {
-            dst: FloatSlot(2),
-            bits: 0.25f32.to_bits(),
-        },
-        Instruction::Rgb {
-            dst: ColorSlot(0),
-            red: FloatSlot(0),
-            green: FloatSlot(1),
-            blue: FloatSlot(2),
-        },
-        Instruction::ReturnColor(ColorSlot(0)),
-    ]
-    .into();
-    data.signals.programs[2].instructions[0] = Instruction::ContextRead {
-        dst: NumberSlot::Float(FloatSlot(0)),
+    );
+    data.signals.programs[2].code[0] = Instruction::Context {
+        dst: Slot::scalar(0),
         read: ContextRead::Seconds,
     };
     let direct = PreparedSequence::from_archive(data).unwrap();

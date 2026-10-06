@@ -11,6 +11,8 @@ superseded measurements don't belong here.
   (layers, composition graph, automation clips), validity and the save contract.
 - [Effect language](effect_language.md): declarations, builtins, numeric rules,
   limits and the standard effect and operator libraries.
+- [Effect compiler](effect_compiler.md): source to dataflow IR, the global
+  signal graph, scheduling and bytecode.
 - [Output selection](output_selection.md): preparing a sequence for chosen
   controllers and ports.
 
@@ -18,7 +20,7 @@ superseded measurements don't belong here.
 - [ESP32 controllers](esp32_loading.md): install, upload, admission, editor
   playback, clock sync and output pins.
 - [Performance](performance.md): compiler, preparation and interpreter design,
-  device timings and memory placement.
+  timings and memory placement.
 
 **Working on it**
 - [Testing and benchmarks](testing.md): the gate, where tests live, key contracts

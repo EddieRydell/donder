@@ -1,6 +1,6 @@
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::BytecodeProgram;
-use crate::dsl::{BatchWorkspace, BoundParams, OperatorProgram, SampleProgram};
+use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, StripWorkspace};
 use crate::sequence::programs::ExecutableGraph;
 pub(crate) use crate::targets::PreparedTarget;
 use crate::values::{Color, SampleDuration, SampleTime};
@@ -175,21 +175,28 @@ impl PreparedPixel {
     }
 }
 
+/// Graph evaluation borrows the frame buffers, operator automation and
+/// operator VMs apart from the workspace every sampled node shares.
 #[derive(Debug)]
 pub(crate) struct EvaluationWorkspace {
+    pub(crate) signal_buffers: Box<[Color]>,
+    pub(crate) operator_automation: Vec<EffectAutomationWorkspace>,
+    /// One strip workspace per operator depth slot.
+    pub(crate) operator_vm: Vec<StripWorkspace>,
+    pub(crate) sampling: SamplingWorkspace,
+}
+
+#[derive(Debug)]
+pub(crate) struct SamplingWorkspace {
     // Boxed: playback is held by value in firmware task futures.
-    pub(crate) effect_batch: Box<BatchWorkspace>,
-    /// One batch workspace per operator depth slot.
-    pub(crate) operator_vm: Vec<BatchWorkspace>,
+    pub(crate) effect_strip: Box<StripWorkspace>,
     pub(crate) operator_frames: Vec<Vec<CachedSignalFrame>>,
     /// The latest run-to-target cell mapping of a nested layer run.
-    pub(crate) gather: CellMap,
-    pub(crate) signal_buffers: Box<[Color]>,
+    pub(crate) gather: Box<CellMap>,
     pub(crate) frame_scratch: Vec<Box<[Color]>>,
     pub(crate) frame_scratch_used: usize,
     pub(crate) effect_samples: Vec<CachedEffectSample>,
     pub(crate) effect_automation: Vec<EffectAutomationWorkspace>,
-    pub(crate) operator_automation: Vec<EffectAutomationWorkspace>,
 }
 
 #[derive(Debug)]
@@ -203,7 +210,7 @@ pub(crate) struct CachedSignalFrame {
 #[derive(Debug)]
 pub(crate) struct CellMap {
     pub(crate) key: Option<(usize, usize, usize)>,
-    pub(crate) cells: [(usize, usize); crate::dsl::BATCH_LANES],
+    pub(crate) cells: [(usize, usize); crate::dsl::STRIP],
     pub(crate) count: usize,
 }
 
@@ -253,8 +260,8 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
         })
     }
 
-    /// Preallocates frame buffers, VM registers, calculated-array slots,
-    /// and automation storage after admission.
+    /// Preallocates frame buffers, strip workspaces and automation storage
+    /// after admission.
     pub(crate) fn create_workspace(&self) -> EvaluationWorkspace {
         let mut operator_frame_counts = vec![0usize; self.plan.vm_workspace_count];
         for node in &self.plan.nodes {
@@ -270,37 +277,8 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
             operator_frame_counts[*vm_slot] = operator_frame_counts[*vm_slot].max(count);
         }
         let mut workspace = EvaluationWorkspace {
-            effect_batch: Box::default(),
-            gather: CellMap {
-                key: None,
-                cells: [(0, 0); crate::dsl::BATCH_LANES],
-                count: 0,
-            },
-            frame_scratch: (0..self.frame_scratch_count())
-                .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
-                .collect(),
-            frame_scratch_used: 0,
             operator_vm: (0..self.plan.vm_workspace_count)
-                .map(|_| BatchWorkspace::default())
-                .collect(),
-            operator_frames: operator_frame_counts
-                .into_iter()
-                .map(|count| {
-                    (0..count)
-                        .map(|_| CachedSignalFrame {
-                            key: None,
-                            colors: vec![
-                                Color {
-                                    red: 0,
-                                    green: 0,
-                                    blue: 0,
-                                };
-                                self.pixel_count
-                            ]
-                            .into_boxed_slice(),
-                        })
-                        .collect()
-                })
+                .map(|_| StripWorkspace::default())
                 .collect(),
             signal_buffers: vec![
                 Color {
@@ -311,26 +289,57 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                 self.plan.frame_buffer_count * self.pixel_count
             ]
             .into_boxed_slice(),
-            effect_samples: vec![
-                CachedEffectSample {
-                    pixel_count: 0,
-                    color: Color {
-                        red: 0,
-                        green: 0,
-                        blue: 0
-                    }
-                };
-                self.effects
+            sampling: SamplingWorkspace {
+                effect_strip: Box::default(),
+                gather: Box::new(CellMap {
+                    key: None,
+                    cells: [(0, 0); crate::dsl::STRIP],
+                    count: 0,
+                }),
+                frame_scratch: (0..self.frame_scratch_count())
+                    .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
+                    .collect(),
+                frame_scratch_used: 0,
+                operator_frames: operator_frame_counts
+                    .into_iter()
+                    .map(|count| {
+                        (0..count)
+                            .map(|_| CachedSignalFrame {
+                                key: None,
+                                colors: vec![
+                                    Color {
+                                        red: 0,
+                                        green: 0,
+                                        blue: 0,
+                                    };
+                                    self.pixel_count
+                                ]
+                                .into_boxed_slice(),
+                            })
+                            .collect()
+                    })
+                    .collect(),
+                effect_samples: vec![
+                    CachedEffectSample {
+                        pixel_count: 0,
+                        color: Color {
+                            red: 0,
+                            green: 0,
+                            blue: 0
+                        }
+                    };
+                    self.effects
+                        .iter()
+                        .map(|effect| self.targets[effect.target].sample_count)
+                        .max()
+                        .unwrap_or(0)
+                ],
+                effect_automation: self
+                    .effects
                     .iter()
-                    .map(|effect| self.targets[effect.target].sample_count)
-                    .max()
-                    .unwrap_or(0)
-            ],
-            effect_automation: self
-                .effects
-                .iter()
-                .filter_map(PreparedEffect::automation_workspace)
-                .collect(),
+                    .filter_map(PreparedEffect::automation_workspace)
+                    .collect(),
+            },
             operator_automation: self
                 .plan
                 .nodes
@@ -351,9 +360,7 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
         };
         for effect in self.effects.iter() {
             let program = self.sample_program(effect.program);
-            workspace
-                .effect_batch
-                .reserve(program.bytecode(), program.batch());
+            workspace.sampling.effect_strip.reserve(program.bytecode());
         }
         for node in self.plan.nodes.iter() {
             let PreparedSignalKind::Operator {
@@ -365,7 +372,7 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                 continue;
             };
             let program = self.operator_program(*program);
-            workspace.operator_vm[*vm_slot].reserve(program.bytecode(), program.batch());
+            workspace.operator_vm[*vm_slot].reserve(program.bytecode());
         }
         workspace
     }
@@ -529,16 +536,5 @@ impl SignalGraph<'_> {
 }
 
 fn operator_frame_cache_count(program: &OperatorProgram) -> usize {
-    program
-        .bytecode()
-        .instructions
-        .iter()
-        .fold(0, |count, instruction| match instruction {
-            crate::dsl::bytecode::Instruction::SignalSample { frame_cache, .. }
-                if *frame_cache != u32::MAX =>
-            {
-                count.max(*frame_cache as usize + 1)
-            }
-            _ => count,
-        })
+    program.bytecode().frame_cache_count()
 }

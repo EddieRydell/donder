@@ -18,16 +18,17 @@ has one owner:
 
 | Crate | Owns |
 | --- | --- |
-| `donder-language` | Domain types, the [effect language](effect_language.md) compiler and optimizer, bytecode, parameter binding, sequence validation, shared sampling math. Its portable values and programs are `no_std + alloc`; the compiler and authoring model sit behind the default `host` feature. It does not depend on the runtime. |
+| `donder-language` | Domain types, the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission), parameter binding, sequence validation, shared sampling math. Its portable values and programs are `no_std + alloc`; the compiler and authoring model sit behind the default `host` feature. It does not depend on the runtime. |
 | `donder-project-io` | Source documents, imports, linking, diagnostics, YAML serialization, saving and project copies. See [project format](project_format.md). |
-| `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, specialization, fusion, retention. See [output selection](output_selection.md). |
-| `donder-runtime` | `no_std` prepared-sequence playback, the private batched VM, and the prepared archive format (`archive.rs`). |
+| `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
+| `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
 | `donder-preview` | The native Preview process: archive decoding, playback and the wgpu renderer. |
 | `donder-output` | E1.31 and Art-Net transports. |
 | `donder-cli` | `donder init`, `check` and `copy`. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts. Edit helpers mutate the candidate session they are given. |
 | `donder-sequence-api` | The serialized editor contract (DTOs and `SequenceGuiEdit`), exported to TypeScript for both hosts. |
 | `donder-browser` | A WASM session for the website: an in-memory project, editing through `donder-editor`, preparation and playback. |
+| `donder-test-support` | Dev-only playback workloads shared by runtime and elaboration tests and benchmarks. |
 | `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, and the React frontend, which exports the editor UI as `@donder/editor` for both hosts. |
 | `firmware/esp32` | The controller firmware, a separate Cargo workspace. See [ESP32 loading](esp32_loading.md). |
 
