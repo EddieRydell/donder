@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
 import { installGlobalShortcuts } from "../commandRegistry";
+import { installNativeMenu } from "../nativeMenu";
+import { isMac } from "../platform";
 import { runSnapshotCommand, subscribeToSnapshots, useAppStore, useStaticAppSnapshot, type AppStaticSnapshot } from "../store";
 import type { WorkspaceLayoutState } from "../types";
 import { EditorPane } from "./EditorPane";
@@ -29,13 +31,23 @@ export function App() {
 
   useEffect(() => {
     void hydrate();
-    const disposeShortcuts = installGlobalShortcuts();
+    let disposed = false;
+    let disposeShortcuts: (() => void) | undefined;
+    if (isMac) {
+      void installNativeMenu().then((dispose) => {
+        if (disposed) dispose();
+        else disposeShortcuts = dispose;
+      });
+    } else {
+      disposeShortcuts = installGlobalShortcuts();
+    }
     let disposeEvents: (() => void) | undefined;
     void subscribeToSnapshots().then((dispose) => {
       disposeEvents = dispose;
     });
     return () => {
-      disposeShortcuts();
+      disposed = true;
+      disposeShortcuts?.();
       disposeEvents?.();
     };
   }, [hydrate]);

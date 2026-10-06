@@ -251,6 +251,8 @@ export const THEME_METRICS = {
   automationLabelOffsetY: cssNumber("--donder-automation-label-offset-y"),
   sequenceDragThreshold: cssNumber("--donder-sequence-drag-threshold"),
   sequenceWheelZoomScale: cssNumber("--donder-sequence-wheel-zoom-scale"),
+  sequencePinchZoomScale: cssNumber("--donder-sequence-pinch-zoom-scale"),
+  spatialPinchZoomScale: cssNumber("--donder-spatial-pinch-zoom-scale"),
   spatialWheelZoomScale: cssNumber("--donder-spatial-wheel-zoom-scale"),
   sequenceScrubStep: cssNumber("--donder-sequence-scrub-step"),
   sequenceNudgeStep: cssNumber("--donder-sequence-nudge-step"),

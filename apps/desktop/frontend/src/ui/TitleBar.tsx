@@ -7,6 +7,7 @@ import { useAppStore } from "../store";
 import { setGlobalMarkDisplayMode, useMarkDisplayMode, type MarkDisplayMode } from "./gui/sequence/marks";
 import { requestOpenLayerGraph } from "./uiEvents";
 import { THEME_METRICS } from "../theme";
+import { isMac } from "../platform";
 
 const appWindow = getCurrentWindow();
 
@@ -34,6 +35,15 @@ export function TitleBar() {
   async function toggleMaximize() {
     await appWindow.toggleMaximize();
     setIsMaximized(await appWindow.isMaximized());
+  }
+
+  // macOS draws the traffic lights over this bar and hosts the menus in the system menu bar.
+  if (isMac) {
+    return (
+      <header className="titlebar titlebar-mac" onMouseDown={startTitlebarDrag}>
+        <div className="brand">Donder</div>
+      </header>
+    );
   }
 
   return (

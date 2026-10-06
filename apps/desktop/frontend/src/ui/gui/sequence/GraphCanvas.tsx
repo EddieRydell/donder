@@ -1,4 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
+import { isMac } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Layers, SlidersHorizontal, Monitor } from "lucide-react";
@@ -214,7 +215,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
           }}>
           <ReactFlow nodes={flowNodes} edges={flowEdges} nodeTypes={NODE_TYPES} edgeTypes={EDGE_TYPES}
             fitView={initial.viewport === null} {...(initial.viewport === null ? {} : { defaultViewport: initial.viewport })}
-            minZoom={THEME_METRICS.graphMinZoom} maxZoom={THEME_METRICS.graphMaxZoom}
+            minZoom={THEME_METRICS.graphMinZoom} maxZoom={THEME_METRICS.graphMaxZoom} panOnScroll={isMac}
             deleteKeyCode={null} nodesDraggable={editable} nodesConnectable={editable} edgesReconnectable={editable}
             defaultEdgeOptions={{ type: "donder", interactionWidth: THEME_METRICS.graphEdgeInteractionWidth, className: "graph-flow-edge" }}
             onInit={(instance) => { flow.current = instance; }}

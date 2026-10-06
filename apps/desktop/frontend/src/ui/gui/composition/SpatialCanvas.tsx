@@ -1,4 +1,5 @@
 import { useSpatialGuides } from "./spatialViewState";
+import { isMac, isSecondaryClick } from "../../../platform";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
@@ -147,7 +148,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       }}
       onKeyUp={(event) => { if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event); }}
       onPointerDown={(event) => {
-        if (pending || (event.button !== 0 && event.button !== 1)) return;
+        if (pending || (event.button !== 0 && event.button !== 1) || isSecondaryClick(event)) return;
         event.preventDefault();
         pointerActive.current = true; lastPointer.current = { clientX: event.clientX, clientY: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -218,8 +219,14 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onWheel={(event) => {
         event.preventDefault();
         if (gesture.current !== null || fixture.active) return;
+        // On macOS, two-finger scrolling pans; pinches (ctrlKey) and Command-scroll zoom.
+        if (isMac && !event.ctrlKey && !event.metaKey) {
+          spatial.panBy(-event.deltaX, -event.deltaY);
+          return;
+        }
         const rect = event.currentTarget.getBoundingClientRect();
-        spatial.zoomAt(Math.exp(-event.deltaY * THEME_METRICS.spatialWheelZoomScale), event.clientX - rect.left, event.clientY - rect.top);
+        const zoomScale = isMac && event.ctrlKey ? THEME_METRICS.spatialPinchZoomScale : THEME_METRICS.spatialWheelZoomScale;
+        spatial.zoomAt(Math.exp(-event.deltaY * zoomScale), event.clientX - rect.left, event.clientY - rect.top);
       }}
       onContextMenu={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();

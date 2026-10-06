@@ -88,7 +88,20 @@ fn run_desktop() -> Result<(), tauri::Error> {
             Ok(())
         })
         .invoke_handler(bindings.invoke_handler())
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Quitting from the macOS app menu or Dock requests an exit without a code; route it
+            // through the same unsaved-changes flow as closing the window. `complete_close`
+            // exits with an explicit code once that flow finishes.
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                api.prevent_exit();
+                let _ = app.emit("close_requested", ());
+            }
+        });
+    Ok(())
 }
 
 fn raster_protocol_response(
