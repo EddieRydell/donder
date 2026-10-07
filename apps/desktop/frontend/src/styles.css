@@ -474,6 +474,10 @@
   --donder-automation-label-offset-y: 18px;
   --donder-sequence-drag-threshold: 4px;
   --donder-sequence-wheel-zoom-scale: 0.002;
+  /* During playback the timeline pages forward when the playhead passes this fraction of the view,
+     placing it at the lead fraction. */
+  --donder-sequence-follow-edge: 0.9;
+  --donder-sequence-follow-lead: 0.1;
   --donder-spatial-wheel-zoom-scale: 0.0015;
   --donder-sequence-scrub-step: 0.01;
   --donder-sequence-nudge-step: 0.001;
