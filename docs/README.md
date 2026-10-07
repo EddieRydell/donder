@@ -7,8 +7,9 @@ superseded measurements don't belong here.
 **How it fits together**
 - [Architecture](architecture.md): the pipeline from documents to LED frames,
   crate ownership, editing and playback.
-- [Project format](project_format.md): documents, imports, ownership, sequences
-  (layers, composition graph, automation clips), validity and the save contract.
+- [Project language](project_language.md): data documents, imports, names and
+  references, ownership, the schema of every object and the exact GUI
+  correspondence.
 - [Effect language](effect_language.md): declarations, builtins, numeric rules,
   limits and the standard effect and operator libraries.
 - [Effect compiler](effect_compiler.md): source to dataflow IR, the global

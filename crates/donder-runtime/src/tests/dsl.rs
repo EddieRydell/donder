@@ -499,34 +499,34 @@ fn workspaces_are_reused_across_programs_with_different_slot_counts() {
 
 #[test]
 fn enums_compare_by_option_name_across_declarations() {
-    for options in ["alpha, beta, gamma", "gamma, alpha, beta"] {
+    for options in ["Alpha, Beta, Gamma", "Gamma, Alpha, Beta"] {
         for predicate in [
             "wide == subset",
-            "wide == beta && subset == beta",
-            "wide != alpha && subset != gamma && other != subset",
-            "(if pixel.index >= 0 { subset } else { other }) == beta",
-            "(if pixel.index < 0 { subset } else { other }) == gamma",
+            "wide == Beta && subset == Beta",
+            "wide != Alpha && subset != Gamma && other != subset",
+            "(if pixel.index >= 0 { subset } else { other }) == Beta",
+            "(if pixel.index < 0 { subset } else { other }) == Gamma",
         ] {
             assert_holds(
                 &format!(
-                    "param wide: enum {{ {options} }} = alpha;
-                     param subset: enum {{ gamma, beta }} = gamma;
-                     param other: enum {{ gamma, beta }} = beta;"
+                    "param wide: enum {{ {options} }} = Alpha;
+                     param subset: enum {{ Gamma, Beta }} = Gamma;
+                     param other: enum {{ Gamma, Beta }} = Beta;"
                 ),
                 predicate,
                 &[
-                    ("wide", enum_value("beta")),
-                    ("subset", enum_value("beta")),
-                    ("other", enum_value("gamma")),
+                    ("wide", enum_value("Beta")),
+                    ("subset", enum_value("Beta")),
+                    ("other", enum_value("Gamma")),
                 ],
             );
         }
     }
     let error = effect_error(
-        "effect Bad { param mode: enum { a, b } = a; sample { if mode == c { #ffffff } else { #000000 } } }",
+        "effect Bad { param mode: enum { A, B } = A; sample { if mode == C { #ffffff } else { #000000 } } }",
     );
     assert!(
-        error.contains("`c` is not an option of this enum"),
+        error.contains("`C` is not an option of this enum"),
         "{error}"
     );
 }
@@ -535,19 +535,19 @@ fn enums_compare_by_option_name_across_declarations() {
 fn choices_hold_one_enum_type() {
     let error = effect_error(
         "effect Bad {
-           param wide: enum { alpha, beta, gamma } = alpha;
-           param subset: enum { gamma, beta } = gamma;
+           param wide: enum { Alpha, Beta, Gamma } = Alpha;
+           param subset: enum { Gamma, Beta } = Gamma;
            sample { if (if pixel.index >= 0 { subset } else { wide }) == wide { #ffffff } else { #000000 } }
          }",
     );
     assert!(error.contains("the branches produce"), "{error}");
     assert_holds(
-        "param subset: enum { gamma, beta } = gamma;
-         param other: enum { gamma, beta } = beta;",
-        "(if pixel.index >= 0 { subset } else { other }) == beta",
+        "param subset: enum { Gamma, Beta } = Gamma;
+         param other: enum { Gamma, Beta } = Beta;",
+        "(if pixel.index >= 0 { subset } else { other }) == Beta",
         &[
-            ("subset", enum_value("beta")),
-            ("other", enum_value("gamma")),
+            ("subset", enum_value("Beta")),
+            ("other", enum_value("Gamma")),
         ],
     );
 }
@@ -559,8 +559,8 @@ fn enum_value(name: &str) -> Value {
 #[test]
 fn enum_params_require_distinct_options() {
     assert!(compile_effects("effect Bad { param mode: enum {}; sample { #000000 } }").is_err());
-    let error = effect_error("effect Bad { param mode: enum { a, a } = a; sample { #000000 } }");
-    assert!(error.contains("option `a` is listed twice"), "{error}");
+    let error = effect_error("effect Bad { param mode: enum { A, A } = A; sample { #000000 } }");
+    assert!(error.contains("option `A` is listed twice"), "{error}");
 }
 
 #[test]

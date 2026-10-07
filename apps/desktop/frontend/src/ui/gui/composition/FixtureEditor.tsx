@@ -1,4 +1,5 @@
 import { SpatialSelectionControls } from "./SpatialSelectionControls";
+import { isSecondaryClick } from "../../../platform";
 import { fixtureItems, selectedItems, selectionClick, plus, type SpatialMove } from "./spatialSelection";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
 import { useState } from "react";
@@ -108,7 +109,7 @@ export function FixtureEditor({ document }: { document: FixtureGuiDocument }) {
         </div>}
         <div className="composition-tree" aria-label="Shapes in output order">
           {elements.length === 0 && <p className="composition-tree-empty">Choose a shape, then draw it on the canvas.</p>}
-          {elements.map((item, index) => <button type="button" className="fixture-shape-row" data-shape-id={item.id} key={item.id} aria-pressed={selection.includes(item.id)} draggable={editable} onDragStart={() => { setDragged(index); }} onDragEnd={() => { setDragged(null); }} onDragOver={(event) => { if (dragged !== null) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (dragged !== null) move(dragged, index); setDragged(null); }} onClick={(event) => { setSelection(selectionClick(selection, item.id, event.shiftKey || event.ctrlKey || event.metaKey)); }}>
+          {elements.map((item, index) => <button type="button" className="fixture-shape-row" data-shape-id={item.id} key={item.id} aria-pressed={selection.includes(item.id)} draggable={editable} onDragStart={() => { setDragged(index); }} onDragEnd={() => { setDragged(null); }} onDragOver={(event) => { if (dragged !== null) event.preventDefault(); }} onDrop={(event) => { event.preventDefault(); if (dragged !== null) move(dragged, index); setDragged(null); }} onClick={(event) => { if (isSecondaryClick(event)) return; setSelection(selectionClick(selection, item.id, event.shiftKey || event.ctrlKey || event.metaKey)); }}>
             <span>{item.name}</span><span className="composition-tree-meta">{ranges.get(item.id)?.count} pixels · {ranges.get(item.id)?.start}–{ranges.get(item.id)?.end}</span>
           </button>)}
         </div>

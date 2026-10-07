@@ -19,12 +19,13 @@ has one owner:
 | Crate | Owns |
 | --- | --- |
 | `donder-language` | Domain types, the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission), parameter binding, sequence validation, shared sampling math. Its portable values and programs are `no_std + alloc`; the compiler and authoring model sit behind the default `host` feature. It does not depend on the runtime. |
-| `donder-project-io` | Source documents, imports, linking, diagnostics, YAML serialization, saving and project copies. See [project format](project_format.md). |
+| `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
 | `donder-preview` | The native Preview process: archive decoding, playback and the wgpu renderer. |
 | `donder-output` | E1.31 and Art-Net transports. |
-| `donder-cli` | `donder init`, `check` and `copy`. |
+| `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
+| `donder-cli` | `check`, `copy`, `lsp` (the language server over stdio) and the generated builtin reference. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts. Edit helpers mutate the candidate session they are given. |
 | `donder-sequence-api` | The serialized editor contract (DTOs and `SequenceGuiEdit`), exported to TypeScript for both hosts. |
 | `donder-browser` | A WASM session for the website: an in-memory project, editing through `donder-editor`, preparation and playback. |
@@ -38,8 +39,12 @@ alternate entry points.
 ## Editing
 
 After loading, the typed `DonderProject` is the model. `SourceProject` records
-which document owns each object, the import graph, original DSL text and asset
-references; it is not a second editable model.
+which document owns each object, the import graph, script source text and asset
+references; it is not a second editable model. Loading assigns every object a
+fresh session identity; names in the text resolve to them, and saving prints
+names back. Data documents are therefore exactly the typed state: saving prints
+the canonical text of each project-owned data document, and scripts are kept
+byte for byte.
 
 Loaded and historical states are immutable `Arc<ProjectSession>` snapshots. A
 GUI edit:
@@ -49,7 +54,7 @@ GUI edit:
 4. publishes the accepted snapshot to state, history, save and render work.
 
 A rejected edit leaves the previous snapshot untouched. GUI edits never touch
-YAML text, never run project checks, and never reload from disk. Saving and
+document text, never run project checks, and never reload from disk. Saving and
 render refresh are scheduled from the accepted revision through the single
 latest-request scheduler in `state_tasks/`.
 
@@ -57,6 +62,37 @@ Project workflows own ordering, external-edit preconditions and rollback. A
 rename publishes its new paths even if a later preference refresh fails, and a
 failed staging restore reports where the original payload was kept. The desktop
 accepts only the current preferences format; there are no migrations.
+
+## Text editing
+
+Both hosts edit text in Monaco, and every language feature comes from
+`donder-language-server`: diagnostics with quick fixes, formatting, semantic
+tokens, hover, definition, references, rename, completion, the outline and
+signature help. Semantic tokens are the only highlighting; there is no
+TextMate or Monarch grammar.
+
+The server is a plain `Server::handle(message) -> replies` loop with no async
+runtime. The host calls `Server::idle` once messages pause for
+`IDLE_DELAY_MS`; that is when the project is checked again and diagnostics are
+published. Its features read:
+- the project check's `ProjectIndex`, which links each name in a data document
+  to what it resolved to, for navigation across documents;
+- `donder_language::analysis`, which works from partial parses and tokens, so
+  scripts and data documents keep completion and signature help while broken.
+
+Each host supplies a transport and a `DocumentSource`, which gives the server
+the host's unsaved text ahead of the disk:
+
+| Host | Server | Transport |
+| --- | --- | --- |
+| Desktop | A thread in the app process, reading `DesktopState`'s working copies | The `language_server_send` command and the `language_server_message` event |
+| Website | The WASM `LanguageServer` in a worker, with no project | Worker messages |
+| Other editors | `donder lsp` | stdio |
+
+The frontend's `LanguageClient` (`ui/source/languageClient.ts`) maps the
+protocol onto Monaco's providers. Edits to documents Monaco has not opened,
+such as a rename's, go to `apply_text_edits`, which opens them as unsaved
+working copies.
 
 ## Preparation and playback
 

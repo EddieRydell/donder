@@ -9,6 +9,39 @@ pub(crate) fn update_document(
     state.update_document(update)
 }
 
+/// Send one JSON-RPC message to the language server; replies arrive as
+/// `language_server_message` events.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn language_server_send(
+    message: String,
+    host: State<'_, crate::language_server::LanguageServerHost>,
+) -> Result<(), String> {
+    host.send(&message)
+}
+
+/// Apply language-server edits, such as a rename, to project documents.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn apply_text_edits(
+    project_epoch: u32,
+    edits: Vec<crate::dto::DocumentTextEdits>,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    state.apply_text_edits(project_epoch, edits)
+}
+
+/// Import an unreferenced document from the project root.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn include_document(
+    project_epoch: u32,
+    inclusion: crate::dto::DocumentInclusion,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    state.include_document(project_epoch, inclusion)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn save_all(state: State<'_, DesktopState>) -> Result<AppSnapshot, String> {
@@ -67,7 +100,8 @@ pub(crate) fn complete_close(
             .close_for_main_shutdown(state.persistence())
             .map_err(|error| error.to_string())?;
         state.shutdown_live_output();
-        window.destroy().map_err(|error| error.to_string())
+        app.exit(0);
+        Ok(())
     })
 }
 

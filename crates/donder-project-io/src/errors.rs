@@ -12,11 +12,6 @@ pub enum LoadProjectError {
         path: Utf8PathBuf,
         source: io::Error,
     },
-    ParseYaml {
-        path: Utf8PathBuf,
-        message: String,
-        range: Option<TextRange>,
-    },
     InvalidDocument {
         path: Utf8PathBuf,
         range: Option<TextRange>,
@@ -27,11 +22,12 @@ pub enum LoadProjectError {
         range: Option<TextRange>,
         reference: String,
     },
-    InvalidEffect {
+    /// Syntax and schema errors of a data document.
+    InvalidData {
         path: Utf8PathBuf,
         diagnostics: Vec<IoDiagnostic>,
     },
-    InvalidOperator {
+    InvalidScript {
         path: Utf8PathBuf,
         diagnostics: Vec<IoDiagnostic>,
     },
@@ -46,10 +42,6 @@ pub enum ExportProjectError {
         path: Utf8PathBuf,
         source: io::Error,
     },
-    Serialize {
-        path: Utf8PathBuf,
-        source: yaml_serde::Error,
-    },
     InvalidReference {
         path: Utf8PathBuf,
         reference: String,
@@ -61,29 +53,18 @@ impl fmt::Display for LoadProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io { path, source } => write!(formatter, "{path}: {source}"),
-            Self::ParseYaml { path, message, .. } => write!(formatter, "{path}: {message}"),
             Self::InvalidDocument { path, message, .. } => write!(formatter, "{path}: {message}"),
             Self::InvalidReference {
                 path, reference, ..
             } => {
                 write!(formatter, "{path}: invalid reference {reference}")
             }
-            Self::InvalidEffect { path, diagnostics }
+            Self::InvalidScript { path, diagnostics }
+            | Self::InvalidData { path, diagnostics }
             | Self::InvalidImports { path, diagnostics } => {
                 write!(
                     formatter,
                     "{path}: invalid document: {}",
-                    diagnostics
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-            Self::InvalidOperator { path, diagnostics } => {
-                write!(
-                    formatter,
-                    "{path}: invalid operator: {}",
                     diagnostics
                         .iter()
                         .map(|diagnostic| diagnostic.message.as_str())
@@ -102,7 +83,6 @@ impl fmt::Display for ExportProjectError {
         match self {
             Self::OutputRootIsFile { path } => write!(formatter, "output root is a file: {path}"),
             Self::Io { path, source } => write!(formatter, "{path}: {source}"),
-            Self::Serialize { path, source } => write!(formatter, "{path}: {source}"),
             Self::InvalidReference {
                 path,
                 reference,

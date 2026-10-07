@@ -7,13 +7,13 @@ use indexmap::IndexMap;
 use std::sync::Arc;
 
 const SCAN_SWEEP_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/scan-sweep.effect.donder");
+    include_str!("../../../../examples/starter/effects/scan-sweep.donder");
 const IMPACT_BURST_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/impact-burst.effect.donder");
+    include_str!("../../../../examples/starter/effects/impact-burst.donder");
 const SPARKLE_COMET_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/sparkle-comet.effect.donder");
+    include_str!("../../../../examples/starter/effects/sparkle-comet.donder");
 const SHIMMER_FIELD_SOURCE: &str =
-    include_str!("../../../../examples/starter/effects/shimmer-field.effect.donder");
+    include_str!("../../../../examples/starter/effects/shimmer-field.donder");
 
 pub fn cases() -> [(&'static str, &'static str, IndexMap<Identifier, Value>); 4] {
     [
@@ -95,8 +95,8 @@ fn scan_sweep_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
         ("intensity", Value::Curve(curve())),
-        ("direction", enum_value("center_out")),
-        ("color_mode", enum_value("scan_head")),
+        ("direction", enum_value("CenterOut")),
+        ("color_mode", enum_value("ScanHead")),
         ("repeats", Value::Float(3.0)),
         ("width", Value::Float(0.18)),
         ("edge_width", Value::Float(0.08)),
@@ -109,8 +109,8 @@ fn impact_burst_params() -> IndexMap<Identifier, Value> {
     params([
         ("gradient", Value::Gradient(gradient())),
         ("intensity", Value::Curve(curve())),
-        ("direction", enum_value("outward")),
-        ("color_mode", enum_value("from_edge")),
+        ("direction", enum_value("Outward")),
+        ("color_mode", enum_value("FromEdge")),
         ("center_position", Value::Float(0.5)),
         ("start_radius", Value::Float(0.0)),
         ("end_radius", Value::Float(0.75)),
@@ -126,7 +126,7 @@ fn sparkle_comet_params() -> IndexMap<Identifier, Value> {
         ("gradient", Value::Gradient(gradient())),
         ("position", Value::Curve(curve())),
         ("intensity", Value::Curve(curve())),
-        ("color_mode", enum_value("rainbow_hue")),
+        ("color_mode", enum_value("RainbowHue")),
         (
             "head_color",
             Value::Color(Color {
@@ -157,7 +157,7 @@ fn shimmer_field_params() -> IndexMap<Identifier, Value> {
             }),
         ),
         ("palette", Value::Gradient(gradient())),
-        ("color_mode", enum_value("from_palette")),
+        ("color_mode", enum_value("FromPalette")),
         (
             "sparkle_color",
             Value::Color(Color {

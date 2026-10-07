@@ -42,9 +42,28 @@ fn same_definition(a: &Arc<Definition>, b: &Arc<Definition>) -> bool {
         || (a.name == b.name && a.params == b.params && a.fingerprint == b.fingerprint)
 }
 
+/// The definitions of one script document, each kind in declaration order.
+#[derive(Clone, Debug, Default)]
+pub struct CompiledScript {
+    pub effects: Vec<CompiledEffect>,
+    pub operators: Vec<CompiledOperator>,
+}
+
+/// Compile a script document, which may declare effects and operators.
+pub fn compile_script(source: &str) -> Result<CompiledScript, Vec<Diagnostic>> {
+    let mut script = CompiledScript::default();
+    for definition in compile(source, None)? {
+        match definition.kind {
+            DeclarationKind::Effect => script.effects.push(CompiledEffect(definition)),
+            DeclarationKind::Operator => script.operators.push(CompiledOperator(definition)),
+        }
+    }
+    Ok(script)
+}
+
 /// Compile the effect declarations of one source.
 pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnostic>> {
-    Ok(compile(source, DeclarationKind::Effect)?
+    Ok(compile(source, Some(DeclarationKind::Effect))?
         .into_iter()
         .map(CompiledEffect)
         .collect())
@@ -52,18 +71,22 @@ pub fn compile_effects(source: &str) -> Result<Vec<CompiledEffect>, Vec<Diagnost
 
 /// Compile the operator declarations of one source.
 pub fn compile_operators(source: &str) -> Result<Vec<CompiledOperator>, Vec<Diagnostic>> {
-    Ok(compile(source, DeclarationKind::Operator)?
+    Ok(compile(source, Some(DeclarationKind::Operator))?
         .into_iter()
         .map(CompiledOperator)
         .collect())
 }
 
-fn compile(source: &str, kind: DeclarationKind) -> Result<Vec<Arc<Definition>>, Vec<Diagnostic>> {
+fn compile(
+    source: &str,
+    kind: Option<DeclarationKind>,
+) -> Result<Vec<Arc<Definition>>, Vec<Diagnostic>> {
     let module = super::syntax::parse(source)?;
-    if let Some(declaration) = module
-        .declarations
-        .iter()
-        .find(|declaration| declaration.kind != kind)
+    if let Some(kind) = kind
+        && let Some(declaration) = module
+            .declarations
+            .iter()
+            .find(|declaration| declaration.kind != kind)
     {
         let message = match kind {
             DeclarationKind::Effect => "operator declarations belong in operator sources",
@@ -109,6 +132,11 @@ macro_rules! definition_api {
 
             pub fn params(&self) -> &[ParamDecl] {
                 &self.0.params
+            }
+
+            /// The declaration's description string, if it has one.
+            pub fn description(&self) -> Option<&str> {
+                self.0.description.as_deref()
             }
 
             /// A digest of the compiled behavior, for caches of rendered output.

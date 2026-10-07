@@ -9,6 +9,12 @@ import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, typ
 
 export type MarkDisplayMode = "overlay" | "strip" | "hidden";
 
+export const MARK_DISPLAY_MODES: Array<{ mode: MarkDisplayMode; label: string }> = [
+  { mode: "overlay", label: "Overlay" },
+  { mode: "strip", label: "Strip" },
+  { mode: "hidden", label: "Hidden" }
+];
+
 const DEFAULT_MARK_COLORS = [THEME_COLORS.markBlue, THEME_COLORS.markOrange, THEME_COLORS.markGreen, THEME_COLORS.markPink, THEME_COLORS.markYellow, THEME_COLORS.markRed];
 
 const MARK_DRAWING = {
@@ -19,11 +25,16 @@ const MARK_DRAWING = {
   selectedStroke: THEME_COLORS.textStrong
 } as const;
 
+export const MARK_DISPLAY_MODE_EVENT = "donder-mark-display-mode";
 let markDisplayMode: MarkDisplayMode = "overlay";
+
+export function markDisplayModeValue(): MarkDisplayMode {
+  return markDisplayMode;
+}
 
 export function setGlobalMarkDisplayMode(nextMode: MarkDisplayMode) {
   markDisplayMode = nextMode;
-  window.dispatchEvent(new CustomEvent<MarkDisplayMode>("donder-mark-display-mode", { detail: nextMode }));
+  window.dispatchEvent(new CustomEvent<MarkDisplayMode>(MARK_DISPLAY_MODE_EVENT, { detail: nextMode }));
 }
 
 export function useMarkDisplayMode() {
@@ -33,9 +44,9 @@ export function useMarkDisplayMode() {
     const listener = (event: Event) => {
       setMode((event as CustomEvent<MarkDisplayMode>).detail);
     };
-    window.addEventListener("donder-mark-display-mode", listener);
+    window.addEventListener(MARK_DISPLAY_MODE_EVENT, listener);
     return () => {
-      window.removeEventListener("donder-mark-display-mode", listener);
+      window.removeEventListener(MARK_DISPLAY_MODE_EVENT, listener);
     };
   }, []);
 

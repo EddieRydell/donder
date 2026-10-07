@@ -95,11 +95,13 @@ impl BuiltinGroup {
 }
 
 /// One way to call a builtin: argument names with types, and the result type.
+#[derive(Debug)]
 pub struct Signature {
     pub args: &'static [(&'static str, &'static str)],
     pub result: &'static str,
 }
 
+#[derive(Debug)]
 pub struct Builtin {
     pub function: BuiltinFunction,
     pub name: &'static str,
@@ -610,6 +612,7 @@ pub fn builtin(name: &str) -> Option<&'static Builtin> {
 }
 
 /// A context value: a reserved name or a `pixel` or `target` field.
+#[derive(Debug)]
 pub struct ContextValue {
     pub name: &'static str,
     pub ty: &'static str,

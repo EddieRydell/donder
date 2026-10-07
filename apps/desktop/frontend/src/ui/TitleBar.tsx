@@ -2,11 +2,12 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { Check, Maximize2, Minimize2, Minus, X } from "lucide-react";
-import { commandRegistry } from "../commandRegistry";
+import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "../appMenus";
+import { commandRegistry, runCommand, sequenceOpen, shortcutLabel } from "../commandRegistry";
 import { useAppStore } from "../store";
-import { setGlobalMarkDisplayMode, useMarkDisplayMode, type MarkDisplayMode } from "./gui/sequence/marks";
-import { requestOpenLayerGraph } from "./uiEvents";
+import { MARK_DISPLAY_MODES, setGlobalMarkDisplayMode, useMarkDisplayMode, type MarkDisplayMode } from "./gui/sequence/marks";
 import { THEME_METRICS } from "../theme";
+import { isMac } from "../platform";
 
 const appWindow = getCurrentWindow();
 
@@ -36,26 +37,24 @@ export function TitleBar() {
     setIsMaximized(await appWindow.isMaximized());
   }
 
+  // macOS draws the traffic lights over this bar and hosts the menus in the system menu bar.
+  if (isMac) {
+    return (
+      <header className="titlebar titlebar-mac" onMouseDown={startTitlebarDrag}>
+        <div className="brand">Donder</div>
+      </header>
+    );
+  }
+
   return (
     <header className="titlebar" onMouseDown={startTitlebarDrag}>
       <div className="brand">
         Donder
       </div>
       <nav className="menu-row">
-        <Menu
-          label="File"
-          commands={[
-            "file.newProject",
-            "file.copyProject",
-            "file.newSequence",
-            "file.openProject",
-            "file.save",
-            "file.reloadFromDisk",
-            "file.settings"
-          ]}
-        />
-        <Menu label="Edit" commands={["edit.undo", "edit.redo"]} />
-        <ViewMenu />
+        <Menu label="File" entries={[...FILE_MENU, { type: "separator" }, { type: "command", id: "file.settings" }]} />
+        <Menu label="Edit" entries={EDIT_MENU} />
+        <Menu label="View" entries={VIEW_MENU} />
       </nav>
       <div className="window-controls">
         <button onClick={() => void appWindow.minimize()} aria-label="Minimize">
@@ -74,89 +73,6 @@ export function TitleBar() {
   );
 }
 
-function ViewMenu() {
-  const checked = useAppStore((store) => (store.snapshot?.settings.editorViewMode ?? "gui") === "gui");
-  const spectrogramChecked = useAppStore((store) => store.snapshot?.settings.sequenceSpectrogramEnabled ?? false);
-  const showSequenceItems = useAppStore((store) => store.guiDocument?.type === "sequence");
-  const [markMode] = useMarkDisplayMode();
-  return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="menu-trigger">View</DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
-          <DropdownMenu.CheckboxItem
-            checked={checked}
-            className="menu-item"
-            onCheckedChange={() => {
-              void commandRegistry["view.toggleGuiMode"].run();
-            }}
-          >
-            <span>{commandRegistry["view.toggleGuiMode"].label}</span>
-            <span className="shortcut" />
-          </DropdownMenu.CheckboxItem>
-          {(["view.toggleProjectTree", "project.reload"] as const).map((id) => {
-            const command = commandRegistry[id];
-            return (
-              <DropdownMenu.Item
-                key={id}
-                className="menu-item"
-                onSelect={() => {
-                  void command.run();
-                }}
-              >
-                <span>{command.label}</span>
-                <span className="shortcut">{command.shortcut}</span>
-              </DropdownMenu.Item>
-            );
-          })}
-          {showSequenceItems && (
-            <>
-              <DropdownMenu.CheckboxItem
-                checked={spectrogramChecked}
-                className="menu-item"
-                onCheckedChange={() => {
-                  void commandRegistry["view.toggleSpectrogram"].run();
-                }}
-              >
-                <span>{commandRegistry["view.toggleSpectrogram"].label}</span>
-                <span className="shortcut" />
-              </DropdownMenu.CheckboxItem>
-              <DropdownMenu.Separator className="menu-separator" />
-              <DropdownMenu.Item className="menu-item" onSelect={requestOpenLayerGraph}>
-                <span>Layer Graph</span>
-                <span className="shortcut" />
-              </DropdownMenu.Item>
-              <DropdownMenu.Separator className="menu-separator" />
-              <DropdownMenu.Label className="menu-label">Mark display</DropdownMenu.Label>
-              <DropdownMenu.RadioGroup
-                value={markMode}
-                onValueChange={(value) => {
-                  setGlobalMarkDisplayMode(value as MarkDisplayMode);
-                }}
-              >
-                <MarkDisplayItem value="overlay" label="Overlay" />
-                <MarkDisplayItem value="strip" label="Strip" />
-                <MarkDisplayItem value="hidden" label="Hidden" />
-              </DropdownMenu.RadioGroup>
-            </>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-function MarkDisplayItem({ value, label }: { value: MarkDisplayMode; label: string }) {
-  return (
-    <DropdownMenu.RadioItem className="menu-item" value={value}>
-      <span>{label}</span>
-      <DropdownMenu.ItemIndicator>
-        <Check size={THEME_METRICS.iconSizeExtraSmall} />
-      </DropdownMenu.ItemIndicator>
-    </DropdownMenu.RadioItem>
-  );
-}
-
 function startTitlebarDrag(event: React.MouseEvent<HTMLElement>) {
   if (event.button !== 0) return;
   if (event.target instanceof Element && event.target.closest("button, [role='menuitem'], [role='menu'], [data-radix-popper-content-wrapper]")) return;
@@ -168,29 +84,76 @@ function startTitlebarDrag(event: React.MouseEvent<HTMLElement>) {
   void appWindow.startDragging();
 }
 
-function Menu({ label, commands }: { label: string; commands: Array<keyof typeof commandRegistry> }) {
+function Menu({ label, entries }: { label: string; entries: AppMenuEntry[] }) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger className="menu-trigger">{label}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
-          {commands.map((id) => {
-            const command = commandRegistry[id];
-            return (
-              <DropdownMenu.Item
-                key={id}
-                className="menu-item"
-                onSelect={() => {
-                  void command.run();
-                }}
-              >
-                <span>{command.label}</span>
-                <span className="shortcut">{command.shortcut}</span>
-              </DropdownMenu.Item>
-            );
-          })}
-        </DropdownMenu.Content>
+        <MenuContent entries={entries} />
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+  );
+}
+
+/** Mounted only while its menu is open, so its subscriptions cost nothing when closed. */
+function MenuContent({ entries }: { entries: AppMenuEntry[] }) {
+  // Command state reads the store; re-render when it changes.
+  useAppStore((store) => store.snapshot);
+  useAppStore((store) => store.guiDocument);
+  const [markMode] = useMarkDisplayMode();
+  return (
+    <DropdownMenu.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
+      {entries.map((entry, index) => {
+        if (entry.type === "separator") return <DropdownMenu.Separator key={`separator-${index}`} className="menu-separator" />;
+        if (entry.type === "markDisplay") {
+          return (
+            <DropdownMenu.Group key="markDisplay">
+              <DropdownMenu.Label className="menu-label">Mark Display</DropdownMenu.Label>
+              <DropdownMenu.RadioGroup
+                value={markMode}
+                onValueChange={(value) => {
+                  setGlobalMarkDisplayMode(value as MarkDisplayMode);
+                }}
+              >
+                {MARK_DISPLAY_MODES.map(({ mode, label }) => (
+                  <DropdownMenu.RadioItem key={mode} className="menu-item" value={mode} disabled={!sequenceOpen()}>
+                    <span>{label}</span>
+                    <DropdownMenu.ItemIndicator>
+                      <Check size={THEME_METRICS.iconSizeExtraSmall} />
+                    </DropdownMenu.ItemIndicator>
+                  </DropdownMenu.RadioItem>
+                ))}
+              </DropdownMenu.RadioGroup>
+            </DropdownMenu.Group>
+          );
+        }
+        const command = commandRegistry[entry.id];
+        const content = <>
+          <span>{command.label}</span>
+          <span className="shortcut">{shortcutLabel(entry.id)}</span>
+        </>;
+        if (command.checked !== undefined) {
+          return (
+            <DropdownMenu.CheckboxItem
+              key={entry.id}
+              className="menu-item"
+              checked={command.checked()}
+              disabled={!command.enabled()}
+              onCheckedChange={() => { runCommand(entry.id); }}
+            >
+              {content}
+              <DropdownMenu.ItemIndicator>
+                <Check size={THEME_METRICS.iconSizeExtraSmall} />
+              </DropdownMenu.ItemIndicator>
+            </DropdownMenu.CheckboxItem>
+          );
+        }
+        return (
+          <DropdownMenu.Item key={entry.id} className="menu-item" disabled={!command.enabled()} onSelect={() => { runCommand(entry.id); }}>
+            {content}
+          </DropdownMenu.Item>
+        );
+      })}
+    </DropdownMenu.Content>
   );
 }

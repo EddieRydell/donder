@@ -7,7 +7,7 @@ use donder_language::values::{
 
 pub fn mark_show(count: usize, pulse: bool) -> Workload {
     let definitions = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.effect.donder"
+        "../../../examples/starter/effects/standard.donder"
     ))
     .unwrap();
     let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };

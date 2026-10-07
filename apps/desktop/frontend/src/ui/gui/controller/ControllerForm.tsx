@@ -14,10 +14,19 @@ function defaultConfig(type: ControllerConfig["type"], device: string): Controll
   }
 }
 
+/** The first `port_<n>` no other port of the controller uses. */
+function freshPortName(ports: ControllerPorts): string {
+  const used = new Set(ports.map((port) => port.name));
+  for (let index = ports.length + 1; ; index += 1) {
+    const name = `port_${index}`;
+    if (!used.has(name)) return name;
+  }
+}
+
 export function ControllerForm({ controller, onSave }: { controller?: SetupDocument["controllers"][number]; onSave: (config: ControllerConfig, ports: ControllerPorts) => Promise<void> }) {
   const devices = useAppStore((state) => state.snapshot?.devices ?? []);
   const [config, setConfig] = useState<ControllerConfig>(controller?.config ?? defaultConfig("e131", ""));
-  const [ports, setPorts] = useState(controller?.ports ?? [{ id: 1, address: 1, slotCount: 512 }]);
+  const [ports, setPorts] = useState<ControllerPorts>(controller?.ports ?? [{ id: 1, name: "port_1", address: 1, slotCount: 512 }]);
   const firstAddress = config.type === "artNet" ? 0 : 1;
   return <>
     <form className="setup-authoring-form" onSubmit={(event) => {
@@ -49,7 +58,7 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupDocum
           {devices.map((device) => <option key={device.id} value={device.id}>{device.name} ({device.id})</option>)}
         </select></label>}
         {ports.map((port, index) => <div className="controller-port-row" key={port.id}>
-          <span>Output {port.id}</span>
+          <label>Name<input required pattern="[a-z_][a-z0-9_]*" value={port.name} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, name: event.target.value } : candidate)); }} /></label>
           {config.type === "donder" ? <span>Controller output {port.address}</span>
             : <label>{config.type === "e131" ? "Universe" : "Port address"}<input type="number" min={firstAddress} value={port.address} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, address: Number(event.target.value) } : candidate)); }} /></label>}
           <label>Channels<input type="number" min={1} max={config.type === "donder" ? undefined : 512} value={port.slotCount} onChange={(event) => { setPorts(ports.map((candidate, i) => i === index ? { ...candidate, slotCount: Number(event.target.value) } : candidate)); }} /></label>
@@ -60,7 +69,8 @@ export function ControllerForm({ controller, onSave }: { controller?: SetupDocum
         </div>)}
         <button type="button" onClick={() => {
           const address = config.type === "donder" ? ports.length + 1 : Math.max(firstAddress - 1, ...ports.map((port) => port.address)) + 1;
-          setPorts([...ports, { id: Math.max(0, ...ports.map((port) => port.id)) + 1, address, slotCount: config.type === "donder" ? 600 : 512 }]);
+          const id = Math.max(0, ...ports.map((port) => port.id)) + 1;
+          setPorts([...ports, { id, name: freshPortName(ports), address, slotCount: config.type === "donder" ? 600 : 512 }]);
         }}>Add output</button>
         <button type="submit">{controller === undefined ? "Add controller" : "Apply controller settings"}</button>
       </fieldset>

@@ -1,4 +1,5 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
+import { isMac } from "../../../platform";
 import { ChevronLeft, ChevronRight, GitBranch, Monitor, Music, Pause, Play, RadioTower, SkipBack, Square } from "lucide-react";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
@@ -210,7 +211,6 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
 function isEditableShortcutTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
-  if (target.closest(".cm-editor")) return true;
   return target.closest("input, textarea, select") !== null;
 }
 
@@ -223,6 +223,10 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
   const { commands, runSnapshotCommand } = host;
 
   if (unsupported || isEditableShortcutTarget(event.target)) return;
+  // Mac keyboards have no Home key; Command-Left Arrow is the platform's line-start gesture.
+  const rewind = event.key === "Home" || (isMac && event.metaKey && event.key === "ArrowLeft");
+  // Modified keys belong to app commands such as Save, not to transport keys.
+  if (!rewind && (event.metaKey || event.ctrlKey || event.altKey)) return;
   if (event.key === " ") {
     event.preventDefault();
     event.stopPropagation();
@@ -233,7 +237,7 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
     event.preventDefault();
     event.stopPropagation();
     void runSnapshotCommand(commands.audioStop);
-  } else if (event.key === "Home") {
+  } else if (rewind) {
     event.preventDefault();
     event.stopPropagation();
     void runSnapshotCommand(commands.audioRewindToZero);

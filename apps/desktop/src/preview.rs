@@ -276,6 +276,12 @@ fn monitor_process(
                         .emit("preview_window_changed", snapshot.preview_open);
                 }
             }
+            Ok(PreviewEvent::QuitRequested) => {
+                if let Some(window) = monitor.app.get_window("main") {
+                    let _ = window.set_focus();
+                }
+                let _ = monitor.app.emit("close_requested", ());
+            }
             Ok(PreviewEvent::Error { message }) | Err(message) => {
                 reported_error = true;
                 let state = monitor.app.state::<crate::desktop_state::DesktopState>();

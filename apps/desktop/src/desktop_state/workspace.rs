@@ -28,7 +28,7 @@ impl DesktopState {
             return self.snapshot_with_error(
                 "project.open",
                 path,
-                "Open a project folder or its root project.donder document.",
+                "Open a project folder or its root project.data.donder document.",
             );
         };
         self.load_working_copy(root)

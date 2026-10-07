@@ -20,6 +20,7 @@ mod desktop_state;
 mod device;
 mod dto;
 mod gui;
+mod language_server;
 mod output;
 mod persistence;
 mod preview;
@@ -55,6 +56,11 @@ fn run_desktop() -> Result<(), tauri::Error> {
             let preview = preview::PreviewWindowService::new(state.preview_wake());
             app.manage(state);
             app.manage(preview);
+            let working = app.state::<desktop_state::DesktopState>().inner().clone();
+            app.manage(language_server::LanguageServerHost::start(
+                handle.clone(),
+                working,
+            )?);
             let state = app.state::<desktop_state::DesktopState>();
             if let Some(window) = app.get_window("main") {
                 let close_app = handle.clone();
@@ -88,7 +94,20 @@ fn run_desktop() -> Result<(), tauri::Error> {
             Ok(())
         })
         .invoke_handler(bindings.invoke_handler())
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            // Quitting from the macOS app menu or Dock requests an exit without a code; route it
+            // through the same unsaved-changes flow as closing the window. `complete_close`
+            // exits with an explicit code once that flow finishes.
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                api.prevent_exit();
+                let _ = app.emit("close_requested", ());
+            }
+        });
+    Ok(())
 }
 
 fn raster_protocol_response(

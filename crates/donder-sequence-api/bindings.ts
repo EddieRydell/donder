@@ -134,6 +134,8 @@ export type BrowserSourceKind = "effect" | "operator";
 export type BufferExternalState = "current" | "changedOnDisk" | "deletedOnDisk";
 
 export type ControllerGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	objectKey: string,
 	controller: SetupController,
@@ -147,6 +149,8 @@ export type ControllerOutputTest = {
 };
 
 export type CurveGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	objectKey: string,
 	points: SequenceCurvePoint[],
@@ -207,6 +211,14 @@ export type DocumentDescriptor = {
 	objects: DocumentObjectDescriptor[],
 	availableViews: DocumentViewId[],
 	defaultObjectKeys: DocumentDefaultObjectKey[],
+};
+
+/**  Importing an unreferenced document from the project root. */
+export type DocumentInclusion = {
+	document: string,
+	alias: string,
+	/**  Sequences the document declares, added to the project's sequences. */
+	sequences: string[],
 };
 
 export type DocumentObjectDescriptor = {
@@ -283,6 +295,8 @@ export type EffectRasterSettings = {
 export type ExternalConflictDecision = "reload" | "keepWorkingCopy";
 
 export type FixtureGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	name: string,
 	path: string,
 	sourceRef: GuiObjectRef,
@@ -308,6 +322,8 @@ export type GeometryRenderBounds = {
 };
 
 export type GradientGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	objectKey: string,
 	stops: SequenceGradientStop[],
@@ -329,7 +345,9 @@ export type GuiDocumentResult = {
 	document: GuiDocument,
 };
 
-export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] };
+export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: GuiOwnershipEdit } | { type: "patch"; routes: GuiPixelRoute[] } | { type: "setup"; edit: SetupGuiEdit } | { type: "sequence"; edit: SequenceGuiEdit } | { type: "layout"; edit: LayoutGuiEdit } | { type: "fixture"; edit: FixtureGuiEdit } | { type: "curve"; points: SequenceCurvePoint[] } | { type: "gradient"; stops: SequenceGradientStop[] } | { type: "controller"; config: SetupControllerConfig; ports: SetupControllerPort[] } | 
+/**  Set the open object's description; empty text removes it. */
+{ type: "description"; description: string | null };
 
 export type GuiEditResult = {
 	snapshot: AppSnapshot,
@@ -362,6 +380,7 @@ export type GuiGridCorner = "bottomLeft" | "bottomRight" | "topLeft" | "topRight
 export type GuiLayoutFixture = {
 	id: number,
 	name: string,
+	description: string | null,
 	kind: GuiLayoutFixtureKind,
 };
 
@@ -376,7 +395,9 @@ export type GuiObjectRef = {
 	id: string,
 };
 
-export type GuiOwnedStep = { type: "setup" } | { type: "layout" } | { type: "patch" } | { type: "controller"; id: number } | { type: "sequence"; id: number } | { type: "fixture"; id: number };
+export type GuiOwnedStep = { type: "setup" } | { type: "layout" } | { type: "patch" } | 
+/**  Owned controllers and sequences are named. */
+{ type: "controller"; name: string } | { type: "sequence"; name: string } | { type: "fixture"; id: number };
 
 export type GuiOwnershipEdit = { type: "useExisting"; source: GuiObjectRef } | { type: "makeIndependent" } | { type: "makeReusable"; name: string; storage: ReusableStorage };
 
@@ -403,6 +424,8 @@ export type GuiPixelSpan = {
 };
 
 export type LayoutGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
@@ -455,6 +478,8 @@ export type PatchFixtureTarget = {
 };
 
 export type PatchGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	objectKey: string,
 	routes: GuiPixelRoute[],
@@ -575,9 +600,13 @@ export type ProjectDiagnostic = {
 	message: string,
 	detail: string | null,
 	related: RelatedDiagnosticLocation[],
+	/**  The root import that brings an unreferenced document into the project. */
+	inclusion: DocumentInclusion | null,
 };
 
 export type ProjectGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	availableSources: GuiObjectRef[],
 	path: string,
 	objectKey: string,
@@ -745,6 +774,9 @@ export type SequenceCurveValue = {
 	source: SequenceLibrarySource,
 };
 
+/**  A sequence item that carries a description. */
+export type SequenceDescribedItem = { type: "layer"; id: number } | { type: "markCollection"; key: string } | { type: "clip"; id: number };
+
 export type SequenceDetachedAutomationBinding = {
 	target: SequenceAutomationTarget,
 	reason: SequenceAutomationDetachmentReason,
@@ -753,6 +785,9 @@ export type SequenceDetachedAutomationBinding = {
 export type SequenceEffect = {
 	index: number,
 	id: number,
+	/**  The clip's name, which automation bindings use. */
+	name: string,
+	description: string | null,
 	layerId: number,
 	startSeconds: number,
 	durationSeconds: number,
@@ -769,6 +804,8 @@ export type SequenceEffectCommonEdit = { type: "layer"; layerId: number } | { ty
 
 export type SequenceEffectDefinition = {
 	name: string,
+	/**  The script's description of the effect. */
+	description: string | null,
 	effect: SequenceEffectReference,
 	import: string | null,
 	params: SequenceEffectDefinitionParam[],
@@ -777,12 +814,16 @@ export type SequenceEffectDefinition = {
 export type SequenceEffectDefinitionParam = {
 	supportsAutomation: boolean,
 	name: string,
+	/**  The script's description of the parameter. */
+	description: string | null,
 	kind: SequenceEffectParamKind,
 };
 
 export type SequenceEffectParam = {
 	supportsAutomation: boolean,
 	name: string,
+	/**  The script's description of the parameter. */
+	description: string | null,
 	kind: SequenceEffectParamKind,
 	options: string[],
 	range: SequenceParamRange | null,
@@ -839,7 +880,9 @@ export type SequenceGraphNode = {
 	kind: SequenceGraphNodeKind,
 };
 
-export type SequenceGraphNodeKind = { type: "layer"; layerId: number; layerName: string; layerColor: string; enabled: boolean } | { type: "operator"; operator: SequenceGraphOperator; params: SequenceEffectParam[] } | { type: "output" };
+export type SequenceGraphNodeKind = { type: "layer"; layerId: number; layerName: string; layerColor: string; enabled: boolean } | { type: "operator"; 
+/**  The node's name, which edges and automation bindings use. */
+name: string; operator: SequenceGraphOperator; params: SequenceEffectParam[] } | { type: "output" };
 
 export type SequenceGraphNodePosition = {
 	nodeId: string,
@@ -853,6 +896,8 @@ export type SequenceGraphOperatorDefinition = {
 	operator: SequenceGraphOperator,
 	sourceName: string,
 	displayName: string,
+	/**  The script's description of the operator. */
+	description: string | null,
 	inputs: SequenceGraphPortDefinition[],
 	outputs: SequenceGraphPortDefinition[],
 	params: SequenceEffectDefinitionParam[],
@@ -867,6 +912,8 @@ export type SequenceGraphPortDefinition = {
 };
 
 export type SequenceGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
@@ -884,7 +931,11 @@ export type SequenceGuiDocument = {
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | { type: "createMarkCollection"; key: string; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
+export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameClip"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | 
+/**  Set an item's description; empty text removes it. */
+{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
+/**  The name becomes a unique `snake_case` name. */
+{ type: "createMarkCollection"; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
@@ -902,6 +953,7 @@ export type SequenceLaneKind = "fixture" | "group";
 export type SequenceLayer = {
 	id: number,
 	name: string,
+	description: string | null,
 	color: string,
 	enabled: boolean,
 	isDefault: boolean,
@@ -910,8 +962,9 @@ export type SequenceLayer = {
 export type SequenceLibrarySource = { type: "inline" } | { type: "library"; moduleId: string; path: string; objectKey: string; displayName: string };
 
 export type SequenceMarkCollection = {
+	/**  The collection's name, which effect parameters use. */
 	key: string,
-	name: string,
+	description: string | null,
 	color: string,
 	marksSeconds: number[],
 };
@@ -964,11 +1017,15 @@ export type SetupControllerConfig = { type: "e131"; sourceName: string; bindAddr
 
 export type SetupControllerPort = {
 	id: number,
+	/**  Unique within the controller; patch routes refer to it. */
+	name: string,
 	address: number,
 	slotCount: number,
 };
 
 export type SetupGuiDocument = {
+	/**  The open object's description, edited with `GuiEditCommand::Description`. */
+	description: string | null,
 	availableSources: GuiObjectRef[],
 	path: string,
 	sourceRef: GuiObjectRef,
@@ -1013,7 +1070,11 @@ export type SpatialSnapSettings = {
 
 export type SpatialUnit = "meters" | "centimeters" | "millimeters" | "inches" | "feet";
 
-export type TextDocumentSyntax = "yaml" | "effectDsl";
+export type TextDocumentSyntax = 
+/**  A `*.data.donder` document. */
+"data" | 
+/**  A `*.donder` script. */
+"script" | "plain";
 
 export type TextPosition = {
 	line: number,

@@ -17,7 +17,7 @@ pub const MAX_DSL_LOOP_ITERATIONS: usize = 10_000;
 #[cfg(feature = "host")]
 pub mod builtins;
 #[cfg(feature = "host")]
-mod check;
+pub(crate) mod check;
 #[cfg(feature = "host")]
 mod declarations;
 #[cfg(feature = "host")]
@@ -37,8 +37,8 @@ pub(crate) mod syntax;
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, bind_params};
 #[cfg(feature = "host")]
 pub use definition::{
-    CompiledEffect, CompiledOperator, Instance, Invocation, SignalAddressing, compile_effects,
-    compile_operators,
+    CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, SignalAddressing,
+    compile_effects, compile_operators, compile_script,
 };
 #[cfg(feature = "host")]
 pub use diagnostic::Diagnostic;

@@ -16,6 +16,8 @@ pub struct PreviewAppearance {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FixtureGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub name: String,
     pub path: String,
     pub source_ref: GuiObjectRef,
@@ -121,6 +123,8 @@ pub enum FixtureGuiEdit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
@@ -134,6 +138,7 @@ pub struct LayoutGuiDocument {
 pub struct GuiLayoutFixture {
     pub id: u32,
     pub name: String,
+    pub description: Option<String>,
     pub kind: GuiLayoutFixtureKind,
 }
 

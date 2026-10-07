@@ -11,6 +11,9 @@ pub fn apply_edit(
         (_, GuiEditCommand::Ownership { slot, edit }) => {
             super::ownership::edit(session, &resolved, slot, edit)?
         }
+        (view, GuiEditCommand::Description { description }) => {
+            super::description::edit(session, &resolved, &view, description)?;
+        }
         (DocumentViewId::Sequence, GuiEditCommand::Sequence { edit }) => {
             edit_sequence(session, &resolved, edit)?;
         }

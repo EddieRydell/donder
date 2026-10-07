@@ -1,0 +1,20 @@
+import effects from <effects/standard.donder>;
+import operators from <operators/standard.donder>;
+
+Sequence empty {
+  description: none,
+  duration: 200s,
+  frame_rate: 144,
+  audio: none,
+  marks: [],
+  layers: [Layer { name: default, description: none, color: #50a0ff, enabled: true }],
+  clips: [],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 120.0) },
+      OutputNode { position: (720.0, 120.0) },
+    ],
+    edges: [Edge { from: default, to: output }],
+  },
+  automation: [],
+}

@@ -49,6 +49,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
         if node.id == output {
             node.id = mix.clone();
             node.kind = CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                name: donder_language::names::object_name("mix"),
                 operator: OperatorRef::Custom(mixer_id.clone()),
                 params: Default::default(),
             });
@@ -68,6 +69,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
             id: operator.clone(),
             position: GraphNodePosition { x: 0.0, y: 0.0 },
             kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                name: donder_language::names::object_name("operator"),
                 operator: OperatorRef::Custom(definition.clone()),
                 params: Default::default(),
             }),

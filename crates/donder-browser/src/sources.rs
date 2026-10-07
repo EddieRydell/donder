@@ -29,9 +29,7 @@ pub(super) fn initial_session(
             SourceObjectId::new(SourceObjectKind::Project, root.object().into())
                 .map_err(|error| JsValue::from_str(&error))?,
         ],
-        SourceDocumentKind::Donder {
-            original_value: yaml_serde::Value::Mapping(yaml_serde::Mapping::new()),
-        },
+        SourceDocumentKind::Data,
     )
     .map_err(|error| JsValue::from_str(&error))?;
     source
@@ -87,11 +85,21 @@ fn object_kind(kind: &BrowserSourceKind) -> SourceObjectKind {
     }
 }
 
+/// Each browser script holds one kind of declaration.
 fn source_kind(document: &SourceDocument) -> Option<BrowserSourceKind> {
     match document.kind() {
-        SourceDocumentKind::Effect { .. } => Some(BrowserSourceKind::Effect),
-        SourceDocumentKind::Operator { .. } => Some(BrowserSourceKind::Operator),
-        SourceDocumentKind::Donder { .. } => None,
+        SourceDocumentKind::Script { .. } => Some(
+            if document
+                .objects()
+                .iter()
+                .all(|object| object.kind() == &SourceObjectKind::OperatorDefinition)
+            {
+                BrowserSourceKind::Operator
+            } else {
+                BrowserSourceKind::Effect
+            },
+        ),
+        SourceDocumentKind::Data => None,
     }
 }
 
@@ -106,13 +114,12 @@ pub(super) fn install_source(
     text: &str,
     install: SourceInstall,
 ) -> Result<SourceOutcome, JsValue> {
-    let suffix = match kind {
-        BrowserSourceKind::Effect => ".effect.donder",
-        BrowserSourceKind::Operator => ".operator.donder",
-    };
-    if !path.ends_with(suffix) {
+    if donder_project_io::source_document_format(path.into())
+        != donder_project_io::SourceDocumentFormat::Script
+    {
         return Err(JsValue::from_str(&format!(
-            "Source path {path} must end with {suffix}."
+            "Source path {path} must be a script, ending in {}.",
+            donder_language::data::SCRIPT_SUFFIX
         )));
     }
     donder_project_io::validate_relative_path(path).map_err(|error| JsValue::from_str(&error))?;
@@ -199,13 +206,8 @@ pub(super) fn install_source(
         .map(|name| SourceObjectId::new(object_kind(&kind), name.as_str().into()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| JsValue::from_str(&error))?;
-    let document_kind = match kind {
-        BrowserSourceKind::Effect => SourceDocumentKind::Effect {
-            source: text.into(),
-        },
-        BrowserSourceKind::Operator => SourceDocumentKind::Operator {
-            source: text.into(),
-        },
+    let document_kind = SourceDocumentKind::Script {
+        source: text.into(),
     };
     let source_document = SourceDocument::new(Vec::new(), objects, document_kind)
         .map_err(|error| JsValue::from_str(&error))?;
@@ -267,10 +269,8 @@ impl BrowserSession {
             .documents
             .iter()
             .filter_map(|(id, document)| {
-                let source = match document.kind() {
-                    SourceDocumentKind::Effect { source }
-                    | SourceDocumentKind::Operator { source } => source,
-                    SourceDocumentKind::Donder { .. } => return None,
+                let SourceDocumentKind::Script { source } = document.kind() else {
+                    return None;
                 };
                 Some(BrowserSourceDocument {
                     path: id.path().to_string(),
@@ -291,7 +291,7 @@ impl BrowserSession {
 }
 
 /// Split a DSL source into one document per declaration, named
-/// `<Name>.effect.donder` or `<Name>.operator.donder`. Every document carries
+/// `<Name>.donder`. Every document carries
 /// the source's functions, which any declaration may call. Other text between
 /// declarations (comments) is not part of any document.
 #[wasm_bindgen(js_name = declarationSources)]
@@ -319,19 +319,19 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
     let documents = declarations
         .into_iter()
         .map(|declaration| {
-            let (kind, suffix) = match declaration.kind {
-                donder_language::dsl::DeclarationKind::Effect => {
-                    (BrowserSourceKind::Effect, "effect")
-                }
-                donder_language::dsl::DeclarationKind::Operator => {
-                    (BrowserSourceKind::Operator, "operator")
-                }
+            let kind = match declaration.kind {
+                donder_language::dsl::DeclarationKind::Effect => BrowserSourceKind::Effect,
+                donder_language::dsl::DeclarationKind::Operator => BrowserSourceKind::Operator,
             };
             let text = source
                 .get(declaration.span.start..declaration.span.end)
                 .ok_or_else(|| JsValue::from_str("Declaration span is outside its source."))?;
             Ok(BrowserSourceDocument {
-                path: format!("{}.{suffix}.donder", declaration.name.as_str()),
+                path: format!(
+                    "{}{}",
+                    declaration.name.as_str(),
+                    donder_language::data::SCRIPT_SUFFIX
+                ),
                 kind,
                 source: format!("{functions}{text}\n"),
             })

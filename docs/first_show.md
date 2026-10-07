@@ -1,13 +1,15 @@
 # Create your first LED show
 
 Create a project with **File > New Project**. Donder starts with an empty layout,
-patch, and sequence, stored inside `project.donder`. Open the setup and sequence
-from the project overview, then open Layout or Patch from the setup.
+patch, and sequence, stored inside `project.data.donder`. Open the setup and
+sequence from the project overview, then open Layout or Patch from the setup.
+Every open object has a description bar at the top for notes about it.
 
 ## Define and place pixels
 
 Open Layout and right-click the fixture list. Choose **Add fixture > Create new fixture**
-and enter **Pixel A**. In the fixture editor, choose **Pixel** and click the canvas.
+and enter **Pixel A**; Donder stores it as the name `pixel_a`, which the text
+and references use. In the fixture editor, choose **Pixel** and click the canvas.
 Its default diameter is 0.01 meters; edit its position and diameter as needed.
 
 Close the fixture editor. Select Pixel A and use its source actions to **Make
@@ -56,5 +58,5 @@ controller in sync with the audio. See
 [controller setup](esp32_loading.md#install-from-donder).
 
 From here, the composition graph, operators and automation clips are described
-in [project format](project_format.md#sequences), and writing your own effects
+in [project language](project_language.md#sequences), and writing your own effects
 in [effect language](effect_language.md).

@@ -18,13 +18,16 @@ pub struct FixtureInstanceId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layout {
     pub id: LayoutId,
+    pub description: Option<String>,
     pub fixtures: Vec<LayoutFixture>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutFixture {
     pub id: FixtureInstanceId,
-    pub name: String,
+    /// Unique within the layout, at any depth; references use it.
+    pub name: crate::dsl::Identifier,
+    pub description: Option<String>,
     pub kind: LayoutFixtureKind,
 }
 
@@ -50,7 +53,8 @@ pub struct FixtureTarget {
 pub enum LayoutError {
     TooManyPixels(FixtureInstanceId),
     DuplicateId(FixtureInstanceId),
-    EmptyName(FixtureInstanceId),
+    InvalidName(FixtureInstanceId),
+    DuplicateName(crate::dsl::Identifier),
     MissingDefinition(FixtureDefinitionId),
     InvalidFixture {
         fixture: FixtureInstanceId,
@@ -129,13 +133,17 @@ impl Layout {
             fixtures: &[LayoutFixture],
             definitions: &IndexMap<FixtureDefinitionId, T>,
             seen: &mut HashSet<FixtureInstanceId>,
+            names: &mut HashSet<crate::dsl::Identifier>,
         ) -> Result<(), LayoutError> {
             for fixture in fixtures {
                 if !seen.insert(fixture.id) {
                     return Err(LayoutError::DuplicateId(fixture.id));
                 }
-                if fixture.name.trim().is_empty() {
-                    return Err(LayoutError::EmptyName(fixture.id));
+                if !crate::names::is_object_name(fixture.name.as_str()) {
+                    return Err(LayoutError::InvalidName(fixture.id));
+                }
+                if !names.insert(fixture.name.clone()) {
+                    return Err(LayoutError::DuplicateName(fixture.name.clone()));
                 }
                 match &fixture.kind {
                     LayoutFixtureKind::Fixture {
@@ -160,12 +168,19 @@ impl Layout {
                             return Err(LayoutError::InvalidTransform(fixture.id));
                         }
                     }
-                    LayoutFixtureKind::Group { children } => visit(children, definitions, seen)?,
+                    LayoutFixtureKind::Group { children } => {
+                        visit(children, definitions, seen, names)?
+                    }
                 }
             }
             Ok(())
         }
-        visit(&self.fixtures, definitions, &mut HashSet::new())
+        visit(
+            &self.fixtures,
+            definitions,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        )
     }
 
     pub fn fixture(&self, id: FixtureInstanceId) -> Option<&LayoutFixture> {

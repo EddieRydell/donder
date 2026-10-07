@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   build: {
-    chunkSizeWarningLimit: 1200
+    // Monaco is bundled with the app, which loads it from disk.
+    chunkSizeWarningLimit: 5000
   },
   server: {
     port: 1420,

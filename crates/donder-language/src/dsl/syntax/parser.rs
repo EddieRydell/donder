@@ -3,7 +3,7 @@
 //! Syntax trees are at most [`MAX_NESTING`] levels deep, so checking and
 //! dropping them cannot exhaust the stack.
 use super::ast::*;
-use super::lexer::{Keyword, LexError, TextSpan, Token, TokenKind, lex};
+use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
 use crate::dsl::Diagnostic;
 use crate::dsl::types::Identifier;
 use crate::values::Color;
@@ -11,6 +11,17 @@ use crate::values::Color;
 const MAX_NESTING: usize = 128;
 
 pub(crate) fn parse(source: &str) -> Result<Module, Vec<Diagnostic>> {
+    let (module, diagnostics) = parse_partial(source);
+    if diagnostics.is_empty() {
+        Ok(module)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Every declaration and function that parses, and the errors of those that
+/// do not; the language server analyzes what parsed while one is half-typed.
+pub(crate) fn parse_partial(source: &str) -> (Module, Vec<Diagnostic>) {
     let mut parser = Parser {
         source,
         tokens: lex(source),
@@ -34,14 +45,13 @@ pub(crate) fn parse(source: &str) -> Result<Module, Vec<Diagnostic>> {
             parser.recover();
         }
     }
-    if diagnostics.is_empty() {
-        Ok(Module {
+    (
+        Module {
             declarations,
             functions,
-        })
-    } else {
-        Err(diagnostics)
-    }
+        },
+        diagnostics,
+    )
 }
 
 type Parsed<T> = Result<T, Diagnostic>;
@@ -98,10 +108,7 @@ impl Parser<'_> {
     fn unexpected(&self, what: &str) -> Diagnostic {
         let token = self.peek();
         let message = match token.kind {
-            TokenKind::Error(LexError::UnexpectedCharacter) => "unexpected character".into(),
-            TokenKind::Error(LexError::InvalidColor) => {
-                "a color literal has six hexadecimal digits, like #ff8800".into()
-            }
+            TokenKind::Error(error) => error.message().into(),
             TokenKind::Eof => format!("expected {what}, found the end of the source"),
             TokenKind::SlashSlash => {
                 format!("expected {what}, found `//`; comments start with `--`, and `//` divides")
@@ -156,6 +163,7 @@ impl Parser<'_> {
         };
         self.advance();
         let name = self.name("a declaration name")?;
+        let description = self.description()?;
         self.expect(TokenKind::LeftBrace, "`{`")?;
         let mut params = Vec::new();
         let mut inputs = Vec::new();
@@ -192,6 +200,7 @@ impl Parser<'_> {
         Ok(Declaration {
             kind,
             name,
+            description,
             params,
             inputs,
             sample,
@@ -202,6 +211,7 @@ impl Parser<'_> {
     fn function(&mut self) -> Parsed<Function> {
         let start = self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`")?.span;
         let name = self.name("a function name")?;
+        let description = self.description()?;
         self.expect(TokenKind::LeftParen, "`(`")?;
         let mut args = Vec::new();
         while !self.at(TokenKind::RightParen) {
@@ -218,6 +228,7 @@ impl Parser<'_> {
         let body = self.block()?;
         Ok(Function {
             name,
+            description,
             args,
             result,
             span: start.to(body.span),
@@ -241,13 +252,26 @@ impl Parser<'_> {
         } else {
             None
         };
+        let description = self.description()?;
         self.expect(TokenKind::Semicolon, "`;`")?;
         Ok(Param {
             name,
             ty,
             range,
             default,
+            description,
         })
+    }
+
+    /// An optional description string: `effect Pulse "Swells and fades." {`.
+    fn description(&mut self) -> Parsed<Option<String>> {
+        if !self.at(TokenKind::String) {
+            return Ok(None);
+        }
+        let token = self.advance();
+        crate::data::literal::string(self.text(token.span))
+            .map(Some)
+            .map_err(|message| Diagnostic::new(token.span, message))
     }
 
     fn type_expr(&mut self) -> Parsed<TypeExpr> {

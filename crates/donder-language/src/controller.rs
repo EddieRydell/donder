@@ -16,6 +16,7 @@ pub struct ControllerPortId(pub u32);
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Controller {
     pub id: ControllerId,
+    pub description: Option<String>,
     pub protocol: ControllerProtocol,
     pub ports: Vec<ControllerPort>,
 }
@@ -82,6 +83,8 @@ pub enum ArtNetMode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ControllerPort {
     pub id: ControllerPortId,
+    /// Unique within the controller; routes use it.
+    pub name: crate::dsl::Identifier,
     pub address: ControllerPortAddress,
     pub slot_count: u16,
 }
@@ -99,6 +102,8 @@ pub enum ControllerValidationError {
     EmptySourceName,
     InvalidPriority(u8),
     DuplicatePort(ControllerPortId),
+    /// Port names are `snake_case` and unique within their controller.
+    InvalidPortName(ControllerPortId),
     EmptyPort(ControllerPortId),
     TooManySlots {
         port: ControllerPortId,
@@ -131,10 +136,14 @@ impl Controller {
             }
         }
         let mut ids = std::collections::HashSet::new();
+        let mut names = std::collections::HashSet::new();
         let mut addresses = std::collections::HashSet::new();
         for port in &self.ports {
             if !ids.insert(port.id) {
                 return Err(ControllerValidationError::DuplicatePort(port.id));
+            }
+            if !crate::names::is_object_name(port.name.as_str()) || !names.insert(&port.name) {
+                return Err(ControllerValidationError::InvalidPortName(port.id));
             }
             if port.slot_count == 0 {
                 return Err(ControllerValidationError::EmptyPort(port.id));
