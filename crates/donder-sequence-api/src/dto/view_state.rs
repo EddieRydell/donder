@@ -14,6 +14,8 @@ pub struct PersistedSequenceViewportState {
     pub px_per_second: f32,
     #[serde(default = "default_audio_strip_height_px")]
     pub audio_strip_height_px: f32,
+    #[serde(default = "default_mark_ruler_height_px")]
+    pub mark_ruler_height_px: f32,
     pub row_heights: BTreeMap<String, f32>,
     pub scroll_x_seconds: f32,
     pub scroll_y: f32,
@@ -23,6 +25,10 @@ pub struct PersistedSequenceViewportState {
 
 fn default_audio_strip_height_px() -> f32 {
     38.0
+}
+
+fn default_mark_ruler_height_px() -> f32 {
+    18.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

@@ -8,8 +8,8 @@ use tauri_specta::{Builder, collect_commands};
 use crate::desktop_state::DesktopState;
 use crate::dto::{
     AppSettings, AppSnapshot, AudioTransportState, DocumentViewId, EditorViewMode,
-    GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, PlaybackSpeed,
-    ProjectSearchRequest, ProjectSearchResponse, SequenceAutomationTarget,
+    GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, PlaybackRange,
+    PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse, SequenceAutomationTarget,
     SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
     SequenceGuiEdit, SequenceSelectionEdit, SequenceSelectionEditResult, WorkspaceExplorerState,
     WorkspaceLayoutState, WorkspacePathChangePlan, WorkspacePathChangeRequest,
@@ -100,6 +100,8 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         audio_rewind_to_zero,
         audio_seek,
         audio_set_playback_speed,
+        audio_set_range,
+        audio_set_looping,
         set_preview_appearance,
         set_live_output_active,
         start_output_test,
@@ -120,7 +122,7 @@ fn start_audio_transport_poll(app: AppHandle) {
         loop {
             std::thread::sleep(Duration::from_millis(50));
             let state = app.state::<DesktopState>();
-            let snapshot = state.audio_snapshot();
+            let snapshot = state.poll_audio_transport();
             let _ = app.emit("audio_transport_changed", snapshot.clone());
             if !matches!(snapshot.state, AudioTransportState::Playing) {
                 state.release_audio_poll();

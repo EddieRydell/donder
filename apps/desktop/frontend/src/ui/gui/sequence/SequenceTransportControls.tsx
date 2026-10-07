@@ -1,15 +1,15 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { isMac } from "../../../platform";
-import { ChevronLeft, ChevronRight, GitBranch, Monitor, Music, Pause, Play, RadioTower, SkipBack, Square } from "lucide-react";
+import { ChevronLeft, ChevronRight, GitBranch, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, SkipBack, Square } from "lucide-react";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
 
-import type { AppSnapshot, AudioTransportState, SequenceEditorDocument } from "../../../editor/types";
+import type { AppSnapshot, AudioTransportState, SequenceEditorDocument, SequenceFollowMode } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
-import { requestOpenLayerGraph } from "../../uiEvents";
+import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 
@@ -25,7 +25,9 @@ export function SequenceTransportControls({
 
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
-  if (transport === null || liveOutput === null) return null;
+  const followMode = useAppStore((store) => store.snapshot?.settings.sequenceFollowMode ?? null);
+  if (transport === null || liveOutput === null || followMode === null) return null;
+  const FollowIcon = FOLLOW_MODES[followMode].Icon;
   const unsupported = isSequenceTransportUnsupported(document, transport);
   const activePlayback = isActiveAudioPlayback(transport.state);
   const liveActive = liveOutput.state !== "disabled" && liveOutput.state !== "error";
@@ -58,6 +60,23 @@ export function SequenceTransportControls({
       </button>
       <button type="button" title="Stop" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioStop)}>
         <Square size={THEME_METRICS.iconSizeSmall} />
+      </button>
+      <button
+        type="button"
+        className={transport.looping ? "active" : ""}
+        title={transport.looping ? "Stop looping (L)" : "Loop (L)"}
+        disabled={unsupported}
+        onClick={() => void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping))}
+      >
+        <Repeat size={THEME_METRICS.iconSizeCompact} />
+      </button>
+      <button
+        type="button"
+        className={followMode === "off" ? "" : "active"}
+        title={`${FOLLOW_MODES[followMode].title} (F)`}
+        onClick={() => { cycleSequenceFollowMode(host); }}
+      >
+        <FollowIcon size={THEME_METRICS.iconSizeCompact} />
       </button>
       <button type="button" title="Rewind to zero" disabled={unsupported} onClick={() => void runSnapshotCommand(commands.audioRewindToZero)}>
         <SkipBack size={THEME_METRICS.iconSizeCompact} />
@@ -113,13 +132,25 @@ export function SequenceTransportControls({
         <Music size={THEME_METRICS.iconSizeCompact} />
       </button>
       {host.capabilities.playbackSpeed ? <SequencePlaybackSpeedControls speed={transport.playbackSpeed} /> : null}
-      <span className="sequence-time-readout">
+      <span className="sequence-time-readout" title="Stop returns the playhead to Home. Click the ruler to move Home; drag in it to set a playback range.">
         <SequenceTimeReadout transport={transport} durationSeconds={document.durationSeconds} />
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
       </span>
       {host.exportControls}
     </div>
   );
+}
+
+const FOLLOW_MODES = {
+  off: { next: "page", title: "Follow playhead: off", Icon: LocateOff },
+  page: { next: "continuous", title: "Follow playhead: page", Icon: Locate },
+  continuous: { next: "off", title: "Follow playhead: continuous", Icon: LocateFixed }
+} as const satisfies Record<SequenceFollowMode, { next: SequenceFollowMode; title: string; Icon: typeof Locate }>;
+
+function cycleSequenceFollowMode(host: SequenceEditorHost) {
+  const settings = host.store.getState().snapshot?.settings;
+  if (settings === undefined) return;
+  void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceFollowMode: FOLLOW_MODES[settings.sequenceFollowMode].next }));
 }
 
 async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument) {
@@ -163,10 +194,20 @@ function SequenceTimeReadout({ transport, durationSeconds }: { transport: AppSna
   return <>{formatSeconds(live.positionSeconds)} / {formatSeconds(transport.durationSeconds || durationSeconds)} | Home {formatSeconds(transport.homeSeconds)}</>;
 }
 
-export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): AudioTransportViewSnapshot {
+type TransportAnchor = { transport: AppSnapshot["audioTransport"]; positionSeconds: number; anchoredAt: number };
+
+/** The playhead now: the latest position, extrapolated from the snapshot's arrival while playing. */
+function playheadSeconds(latest: AppSnapshot["audioTransport"], anchor: TransportAnchor) {
+  if (!shouldAnimateTransportPosition(latest) || !shouldAnimateTransportPosition(anchor.transport)) return latest.positionSeconds;
+  const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(anchor.anchoredAt) - anchor.transport.startDelaySeconds) * playbackSpeedRatio(anchor.transport.playbackSpeed);
+  return clamp(anchor.positionSeconds + elapsedSeconds, 0, anchor.transport.durationSeconds);
+}
+
+/** `playheadClockRef` receives a reader of the drawn playhead, for actions timed to it such as tapping marks. */
+export function useSequenceTransport(transport: AppSnapshot["audioTransport"], playheadClockRef?: RefObject<(() => number) | null>): AudioTransportViewSnapshot {
   const [animatedPositionSeconds, setAnimatedPositionSeconds] = useState(transport.positionSeconds);
   const transportRef = useRef(transport);
-  const anchor = useRef({
+  const anchor = useRef<TransportAnchor>({
     transport,
     positionSeconds: transport.positionSeconds,
     anchoredAt: 0
@@ -185,13 +226,8 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
     let frame = 0;
     const tick = () => {
       const latest = transportRef.current;
-      const current = anchor.current;
-      if (!shouldAnimateTransportPosition(latest) || !shouldAnimateTransportPosition(current.transport)) {
-        setAnimatedPositionSeconds(latest.positionSeconds);
-        return;
-      }
-      const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(current.anchoredAt) - current.transport.startDelaySeconds) * playbackSpeedRatio(current.transport.playbackSpeed);
-      setAnimatedPositionSeconds(clamp(current.positionSeconds + elapsedSeconds, 0, current.transport.durationSeconds));
+      setAnimatedPositionSeconds(playheadSeconds(latest, anchor.current));
+      if (!shouldAnimateTransportPosition(latest) || !shouldAnimateTransportPosition(anchor.current.transport)) return;
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -199,6 +235,14 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
       window.cancelAnimationFrame(frame);
     };
   }, [transport.state, transport.positionSeconds]);
+
+  useEffect(() => {
+    if (playheadClockRef === undefined) return;
+    playheadClockRef.current = () => playheadSeconds(transportRef.current, anchor.current);
+    return () => {
+      playheadClockRef.current = null;
+    };
+  }, [playheadClockRef]);
 
   return shouldAnimateTransportPosition(transport)
     ? {
@@ -231,12 +275,25 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat) return;
-    // Space pauses and resumes in place; S stops and returns to Home.
-    void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioPause : commands.audioPlay);
+    void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioStop : commands.audioPlay);
   } else if (event.key.toLowerCase() === "s") {
     event.preventDefault();
     event.stopPropagation();
     void runSnapshotCommand(commands.audioStop);
+  } else if (event.key.toLowerCase() === "l") {
+    event.preventDefault();
+    event.stopPropagation();
+    void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping));
+  } else if (event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    event.stopPropagation();
+    cycleSequenceFollowMode(host);
+  } else if (event.key.toLowerCase() === "m") {
+    // M drops a mark at the playhead, so marks can be tapped along with the music.
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    requestTapMark();
   } else if (rewind) {
     event.preventDefault();
     event.stopPropagation();

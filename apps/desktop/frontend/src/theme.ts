@@ -24,7 +24,8 @@ function cssValue(name: string): string {
 export const THEME_TYPOGRAPHY = {
   canvas: cssValue("--donder-canvas-font"),
   canvasLabel: cssValue("--donder-canvas-label-font"),
-  sequence: cssValue("--donder-sequence-font")
+  sequence: cssValue("--donder-sequence-font"),
+  sequenceHeading: cssValue("--donder-sequence-heading-font")
 } as const;
 
 /** The code editor's palette and metrics, for Monaco's theme and options. */
@@ -180,6 +181,9 @@ export const THEME_METRICS = {
   sequenceInitialAudioStripHeight: cssNumber("--donder-sequence-initial-audio-strip-height"),
   sequenceMinAudioStripHeight: cssNumber("--donder-sequence-min-audio-strip-height"),
   sequenceMaxAudioStripHeight: cssNumber("--donder-sequence-max-audio-strip-height"),
+  sequenceInitialMarkRulerHeight: cssNumber("--donder-sequence-initial-mark-ruler-height"),
+  sequenceMinMarkRulerHeight: cssNumber("--donder-sequence-min-mark-ruler-height"),
+  sequenceMaxMarkRulerHeight: cssNumber("--donder-sequence-max-mark-ruler-height"),
   sequenceInitialPixelsPerSecond: cssNumber("--donder-sequence-initial-pixels-per-second"),
   sequenceInitialLaneHeight: cssNumber("--donder-sequence-initial-lane-height"),
   sequenceLaneResizeIndicatorHeight: cssNumber("--donder-sequence-lane-resize-indicator-height"),
@@ -238,6 +242,7 @@ export const THEME_METRICS = {
   sequenceMarkerWidth: cssNumber("--donder-sequence-marker-width"),
   sequenceMarkerHeight: cssNumber("--donder-sequence-marker-height"),
   sequenceMarkerDashSize: cssNumber("--donder-sequence-marker-dash-size"),
+  sequenceTransportHitHalfWidth: cssNumber("--donder-sequence-transport-hit-half-width"),
   automationGraphPaddingMin: cssNumber("--donder-automation-graph-padding-min"),
   automationGraphPaddingMax: cssNumber("--donder-automation-graph-padding-max"),
   automationGraphPaddingRatio: cssNumber("--donder-automation-graph-padding-ratio"),
@@ -278,6 +283,7 @@ export const THEME_METRICS = {
   spatialPinchZoomScale: cssNumber("--donder-spatial-pinch-zoom-scale"),
   sequenceFollowEdge: cssNumber("--donder-sequence-follow-edge"),
   sequenceFollowLead: cssNumber("--donder-sequence-follow-lead"),
+  sequenceFollowAnchor: cssNumber("--donder-sequence-follow-anchor"),
   spatialWheelZoomScale: cssNumber("--donder-spatial-wheel-zoom-scale"),
   sequenceScrubStep: cssNumber("--donder-sequence-scrub-step"),
   sequenceNudgeStep: cssNumber("--donder-sequence-nudge-step"),
@@ -285,7 +291,6 @@ export const THEME_METRICS = {
   markCullPadding: cssNumber("--donder-mark-cull-padding"),
   markSelectedHalfWidth: cssNumber("--donder-mark-selected-half-width"),
   markOverlayOpacity: cssNumber("--donder-mark-overlay-opacity"),
-  markStripOpacity: cssNumber("--donder-mark-strip-opacity"),
   opacityFull: cssNumber("--donder-opacity-full"),
   canvasLabelLeftInset: cssNumber("--donder-canvas-label-left-inset"),
   canvasLabelRightInset: cssNumber("--donder-canvas-label-right-inset"),

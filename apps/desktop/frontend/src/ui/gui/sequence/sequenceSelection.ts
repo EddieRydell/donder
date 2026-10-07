@@ -2,8 +2,6 @@ import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceAut
 
 import { clamp, type GuiFocus } from "../shared";
 
-import type { MarkDisplayMode } from "./marks";
-
 import { targetAtLane, targetsEqual } from "./sequenceTargets";
 import { THEME_METRICS } from "../../../theme";
 import type { SequenceRowLayout, SequenceRowHeightMap, AutomationClipLayout, AutomationDraft } from "./sequenceAutomationLayout";
@@ -20,7 +18,9 @@ export type SequenceContextMenu =
   | { kind: "blank"; laneIndex: number; startSeconds: number }
   | { kind: "effect"; laneIndex: number; startSeconds: number; effectId: number }
   | { kind: "automation"; laneIndex: number; startSeconds: number; clipId: number }
-  | { kind: "mark"; laneIndex: number; startSeconds: number; collectionKey: string; index: number };
+  // Mark menus open from the mark ruler, which belongs to no lane.
+  | { kind: "markRuler"; startSeconds: number }
+  | { kind: "mark"; startSeconds: number; collectionKey: string; index: number };
 
 export type SequenceHover =
   | null
@@ -39,6 +39,7 @@ const SEQUENCE_HIT_RADII = {
 export type SequenceViewport = {
   pxPerSecond: number;
   audioStripHeight: number;
+  markRulerHeight: number;
   rowHeights: SequenceRowHeightMap;
   scrollXSeconds: number;
   scrollY: number;
@@ -225,21 +226,20 @@ export function hitSequence(clips: SequenceClipLayout[], x: number, y: number): 
   return null;
 }
 
+/** The mark under x in the mark ruler; the active collection, drawn on top, wins overlaps. */
 export function hitSequenceMark(
   collections: SequenceMarkCollection[],
-  mode: MarkDisplayMode,
+  activeCollectionKey: string | null,
   x: number,
-  y: number,
   left: number,
-  audioStripTop: number,
-  audioStripHeight: number,
-  canvasHeight: number,
   viewport: SequenceViewport
 ): SequenceMarkHit | null {
-  if (mode === "hidden" || x < left) return null;
-  if (mode === "strip" && (y < audioStripTop || y > audioStripTop + audioStripHeight)) return null;
-  if (mode === "overlay" && (y < audioStripTop || y > canvasHeight)) return null;
-  for (const collection of [...collections].reverse()) {
+  if (x < left) return null;
+  const ordered = [
+    ...collections.filter((collection) => collection.key === activeCollectionKey),
+    ...[...collections].reverse().filter((collection) => collection.key !== activeCollectionKey)
+  ];
+  for (const collection of ordered) {
     for (let index = collection.marksSeconds.length - 1; index >= 0; index -= 1) {
       const timeSeconds = collection.marksSeconds[index] ?? 0;
       const markX = left + (timeSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
@@ -378,25 +378,20 @@ export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automat
   return { type: "clips", automationIds: automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id), effectIds: clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id) };
 }
 
+/** A mark-ruler marquee selects the marks its time span covers. */
 export function selectionFromMarqueeMarks(
   collections: SequenceMarkCollection[],
-  mode: MarkDisplayMode,
   marquee: SequenceMarquee,
   left: number,
-  audioStripTop: number,
-  audioStripHeight: number,
-  canvasHeight: number,
   viewport: SequenceViewport
 ): SequenceSelection {
-  const box = normalizedRect(marquee.startX, marquee.startY, marquee.x, marquee.y);
-  const y1 = mode === "strip" ? audioStripTop : audioStripTop;
-  const y2 = mode === "strip" ? audioStripTop + audioStripHeight : canvasHeight;
+  const startX = Math.min(marquee.startX, marquee.x);
+  const endX = Math.max(marquee.startX, marquee.x);
   const marks: SequenceMarkRef[] = [];
-  if (mode === "hidden") return { type: "marks", marks };
   for (const collection of collections) {
     collection.marksSeconds.forEach((timeSeconds, index) => {
       const x = left + (timeSeconds - viewport.scrollXSeconds) * viewport.pxPerSecond;
-      if (rectsIntersect(box, { x: x - SEQUENCE_HIT_RADII.markPx, y: y1, width: SEQUENCE_HIT_RADII.markPx * 2, height: y2 - y1 })) {
+      if (x + SEQUENCE_HIT_RADII.markPx >= startX && x - SEQUENCE_HIT_RADII.markPx <= endX) {
         marks.push({ collectionKey: collection.key, index });
       }
     });

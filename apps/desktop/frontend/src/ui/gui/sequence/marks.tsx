@@ -1,81 +1,57 @@
-import { useEffect, useState } from "react";
-
 import type { SequenceMarkCollection } from "../../../editor/types";
-import { THEME_COLORS, THEME_METRICS } from "../../../theme";
+import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 
 import type { GuiFocus } from "../shared";
 
+import { fitCanvasLabel } from "./sequenceAutomationLayout";
 import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, type MarkRefLookup } from "./sequenceSelection";
-
-export type MarkDisplayMode = "overlay" | "strip" | "hidden";
-
-export const MARK_DISPLAY_MODES: Array<{ mode: MarkDisplayMode; label: string }> = [
-  { mode: "overlay", label: "Overlay" },
-  { mode: "strip", label: "Strip" },
-  { mode: "hidden", label: "Hidden" }
-];
 
 const DEFAULT_MARK_COLORS = [THEME_COLORS.markBlue, THEME_COLORS.markOrange, THEME_COLORS.markGreen, THEME_COLORS.markPink, THEME_COLORS.markYellow, THEME_COLORS.markRed];
 
 const MARK_DRAWING = {
   cullPaddingPx: THEME_METRICS.markCullPadding,
-  overlayAlpha: THEME_METRICS.markOverlayOpacity,
-  stripAlpha: THEME_METRICS.markStripOpacity,
+  lineAlpha: THEME_METRICS.markOverlayOpacity,
   selectedCapHalfWidthPx: THEME_METRICS.markSelectedHalfWidth,
   selectedStroke: THEME_COLORS.textStrong
 } as const;
 
-export const MARK_DISPLAY_MODE_EVENT = "donder-mark-display-mode";
-let markDisplayMode: MarkDisplayMode = "overlay";
-
-export function markDisplayModeValue(): MarkDisplayMode {
-  return markDisplayMode;
+/** The collection that new marks go into: the active one, else the first. */
+export function activeMarkCollection(collections: SequenceMarkCollection[], activeKey: string | null) {
+  return collections.find((collection) => collection.key === activeKey) ?? collections[0] ?? null;
 }
 
-export function setGlobalMarkDisplayMode(nextMode: MarkDisplayMode) {
-  markDisplayMode = nextMode;
-  window.dispatchEvent(new CustomEvent<MarkDisplayMode>(MARK_DISPLAY_MODE_EVENT, { detail: nextMode }));
-}
-
-export function useMarkDisplayMode() {
-  const [mode, setMode] = useState<MarkDisplayMode>(markDisplayMode);
-
-  useEffect(() => {
-    const listener = (event: Event) => {
-      setMode((event as CustomEvent<MarkDisplayMode>).detail);
-    };
-    window.addEventListener(MARK_DISPLAY_MODE_EVENT, listener);
-    return () => {
-      window.removeEventListener(MARK_DISPLAY_MODE_EVENT, listener);
-    };
-  }, []);
-
-  return [mode, setMode] as const;
-}
-
+/**
+ * The Marks lane holds each mark's handle, the only place a mark can be grabbed; the active
+ * collection draws on top. Unless `laneOnly`, marks also draw as guide lines from the audio strip
+ * down through the lanes.
+ */
 export function drawSequenceMarks(
   ctx: CanvasRenderingContext2D,
   collections: SequenceMarkCollection[],
+  activeCollectionKey: string | null,
   selected: GuiFocus,
   selectedMarks: MarkRefLookup,
-  mode: MarkDisplayMode,
+  laneOnly: boolean,
   left: number,
-  audioStripTop: number,
-  audioStripHeight: number,
+  linesTop: number,
+  rulerTop: number,
+  rulerHeight: number,
   width: number,
   height: number,
   pxPerSecond: number,
   scrollXSeconds: number,
   drafts: MarkDraftLookup
 ) {
-  if (mode === "hidden") return;
-  const y1 = audioStripTop;
-  const y2 = mode === "strip" ? audioStripTop + audioStripHeight : height;
+  const ordered = [
+    ...collections.filter((collection) => collection.key !== activeCollectionKey),
+    ...collections.filter((collection) => collection.key === activeCollectionKey)
+  ];
   ctx.save();
   ctx.beginPath();
-  ctx.rect(left, y1, width, y2 - y1);
+  ctx.rect(left, linesTop, width, height - linesTop);
   ctx.clip();
-  for (const collection of collections) {
+  for (const collection of ordered) {
+    const active = collection.key === activeCollectionKey;
     for (const [index, timeSeconds] of collection.marksSeconds.entries()) {
       const mark = { collectionKey: collection.key, index };
       const draft = getMarkDraft(drafts, mark);
@@ -85,24 +61,44 @@ export function drawSequenceMarks(
       const isSelected =
         (selected?.type === "mark" && selected.collectionKey === collection.key && selected.index === index) ||
         (selectedMarks.get(collection.key)?.has(index) ?? false);
+      const lineX = x + THEME_METRICS.visualHairlineOffset;
       ctx.strokeStyle = collection.color;
-      ctx.lineWidth = isSelected ? THEME_METRICS.visualLineWidthStrong : THEME_METRICS.visualLineWidth;
-      ctx.globalAlpha = mode === "strip" ? MARK_DRAWING.stripAlpha : MARK_DRAWING.overlayAlpha;
+      if (!laneOnly) {
+        ctx.lineWidth = isSelected ? THEME_METRICS.visualLineWidthStrong : THEME_METRICS.visualLineWidth;
+        ctx.globalAlpha = MARK_DRAWING.lineAlpha;
+        ctx.beginPath();
+        ctx.moveTo(lineX, linesTop);
+        ctx.lineTo(lineX, height);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = active ? THEME_METRICS.opacityFull : MARK_DRAWING.lineAlpha;
+      ctx.lineWidth = THEME_METRICS.visualLineWidthStrong;
       ctx.beginPath();
-      ctx.moveTo(x + THEME_METRICS.visualHairlineOffset, y1);
-      ctx.lineTo(x + THEME_METRICS.visualHairlineOffset, y2);
+      ctx.moveTo(lineX, rulerTop);
+      ctx.lineTo(lineX, rulerTop + rulerHeight);
       ctx.stroke();
       if (isSelected) {
         ctx.globalAlpha = THEME_METRICS.opacityFull;
         ctx.strokeStyle = MARK_DRAWING.selectedStroke;
         ctx.lineWidth = THEME_METRICS.visualLineWidth;
-        ctx.beginPath();
-        ctx.moveTo(x - MARK_DRAWING.selectedCapHalfWidthPx, y1 + THEME_METRICS.visualHairlineOffset);
-        ctx.lineTo(x + MARK_DRAWING.selectedCapHalfWidthPx, y1 + THEME_METRICS.visualHairlineOffset);
-        ctx.stroke();
+        ctx.strokeRect(
+          x - MARK_DRAWING.selectedCapHalfWidthPx + THEME_METRICS.visualHairlineOffset,
+          rulerTop + THEME_METRICS.visualHairlineOffset,
+          MARK_DRAWING.selectedCapHalfWidthPx * 2,
+          rulerHeight - THEME_METRICS.visualLineWidth
+        );
       }
     }
   }
+  ctx.restore();
+}
+
+export function drawMarkRulerLabel(ctx: CanvasRenderingContext2D, rulerTop: number, rulerHeight: number, left: number) {
+  const x = THEME_METRICS.sequenceLabelX;
+  ctx.save();
+  ctx.font = THEME_TYPOGRAPHY.sequenceHeading;
+  ctx.fillStyle = THEME_COLORS.textSoft;
+  ctx.fillText(fitCanvasLabel(ctx, "Marks", left - x * 2), x, rulerTop + rulerHeight / 2 + THEME_METRICS.sequenceLabelYOffset);
   ctx.restore();
 }
 

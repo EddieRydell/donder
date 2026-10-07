@@ -24,7 +24,7 @@ import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type Sequ
 import { TypedParamInput } from "./params/TypedParamInput";
 import { NameField } from "./NameField";
 import { DescriptionField } from "../DescriptionField";
-import { defaultMarkColor, nextCollectionKey } from "./marks";
+import { activeMarkCollection, defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
 import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
@@ -747,7 +747,7 @@ function MarkInspectorPanel({
 
   const [editingCollectionKey, setEditingCollectionKey] = useState<string | null>(null);
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
-  const activeCollection = document.markCollections.find((collection) => collection.key === activeMarkCollectionKey) ?? document.markCollections[0] ?? null;
+  const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
   const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
 
   const createCollection = () => {

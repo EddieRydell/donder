@@ -5,11 +5,14 @@ export type AppSettings = {
 	reopenPreviewWindow: boolean,
 	autosaveProjectEdits: boolean,
 	sequenceInitialZoomMode: SequenceInitialZoomMode,
+	sequenceFollowMode: SequenceFollowMode,
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
 	sequenceSpectrogramEnabled?: boolean,
 	sequenceSpectrogramTimeResolutionMs?: number,
 	sequenceSpectrogramFftSize?: number,
+	/**  Marks draw only in the Marks lane instead of also across the waveform and lanes. */
+	sequenceMarksLaneOnly?: boolean,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
 };
@@ -49,6 +52,8 @@ export type AudioTransportSnapshot = {
 	homeSeconds: number,
 	durationSeconds: number,
 	playbackSpeed: PlaybackSpeed,
+	range: PlaybackRange | null,
+	looping: boolean,
 	lastError: string | null,
 };
 
@@ -534,6 +539,7 @@ export type PersistedPreviewWindowState = {
 export type PersistedSequenceViewportState = {
 	pxPerSecond: number,
 	audioStripHeightPx?: number,
+	markRulerHeightPx?: number,
 	rowHeights: { [key in string]: number },
 	scrollXSeconds: number,
 	scrollY: number,
@@ -568,6 +574,12 @@ export type PersistedWindowState = {
 };
 
 export type PlaybackFrameTiming = "scaled" | "constant";
+
+/**  A span of the sequence that playback stops at the end of, or loops when looping. */
+export type PlaybackRange = {
+	startSeconds: number,
+	endSeconds: number,
+};
 
 /**  Show microseconds per wall second; 1_000_000 is normal speed. */
 export type PlaybackSpeed = {
@@ -845,6 +857,15 @@ export type SequenceExportPort = {
 	label: string,
 	channels: number,
 };
+
+/**  How the sequence view tracks the playhead during playback. */
+export type SequenceFollowMode = 
+/**  The view never moves on its own. */
+"off" | 
+/**  The view pages forward near the edge and jumps when the playhead leaves it. */
+"page" | 
+/**  The playhead holds a fixed screen position while the timeline scrolls under it. */
+"continuous";
 
 export type SequenceGradientLibraryItem = {
 	moduleId: string,

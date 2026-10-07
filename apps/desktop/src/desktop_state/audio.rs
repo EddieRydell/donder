@@ -1,5 +1,8 @@
 use super::{DesktopState, lock_unpoisoned};
-use crate::dto::{AppSnapshot, GuiDocumentRequest};
+use crate::dto::{
+    AppSnapshot, AudioTransportSnapshot, AudioTransportState, GuiDocumentRequest, PlaybackRange,
+};
+use crate::persistence::{PersistedSequenceTransport, sequence_viewport_key};
 
 impl DesktopState {
     pub fn load_sequence_audio(&self, request: GuiDocumentRequest) -> AppSnapshot {
@@ -37,6 +40,20 @@ impl DesktopState {
             Some(duration) => lock_unpoisoned(&self.audio).load_silent_sequence(duration),
             None => lock_unpoisoned(&self.audio).load(audio),
         };
+        let view_key = project
+            .as_ref()
+            .filter(|_| sequence_id.is_some())
+            .and_then(|project| crate::gui::resolve_request(project, &request).ok())
+            .and_then(|resolved| {
+                let reference = resolved.source_ref();
+                sequence_viewport_key(
+                    &reference.path,
+                    &reference.object_key,
+                    &reference.owned_path,
+                )
+                .ok()
+            });
+        let audio_transport = self.restore_sequence_transport(view_key, audio_transport);
         match (project, sequence_id) {
             (Some(project), Some(sequence_id)) => {
                 self.unload_render_session();
@@ -62,6 +79,7 @@ impl DesktopState {
             return self.device_transport_error(error);
         }
         let audio_transport = lock_unpoisoned(&self.audio).unload();
+        lock_unpoisoned(&self.workspace).transport_view_key = None;
         if self.snapshot().project_health == crate::dto::ProjectHealth::Ready {
             lock_unpoisoned(&self.workspace).render_target = None;
             self.unload_render_session();
@@ -156,6 +174,84 @@ impl DesktopState {
         self.update_snapshot(|snapshot| {
             snapshot.audio_transport = audio_transport;
         })
+    }
+
+    pub fn audio_set_range(&self, range: Option<PlaybackRange>) -> Result<AppSnapshot, String> {
+        let audio_transport = lock_unpoisoned(&self.audio).set_range(range)?;
+        self.record_sequence_transport(&audio_transport);
+        // The engine moved a stopped playhead to the range start; held devices follow it.
+        if let Some(range) = audio_transport.range
+            && self.device_playback.has_devices()
+            && !matches!(audio_transport.state, AudioTransportState::Playing)
+        {
+            return Ok(self.audio_seek(range.start_seconds));
+        }
+        Ok(self.update_snapshot(|snapshot| {
+            snapshot.audio_transport = audio_transport;
+        }))
+    }
+
+    pub fn audio_set_looping(&self, looping: bool) -> AppSnapshot {
+        let audio_transport = lock_unpoisoned(&self.audio).set_looping(looping);
+        self.record_sequence_transport(&audio_transport);
+        self.update_snapshot(|snapshot| {
+            snapshot.audio_transport = audio_transport;
+        })
+    }
+
+    /// Observes the transport for the playback poll, rescheduling devices at the window end.
+    pub(crate) fn poll_audio_transport(&self) -> AudioTransportSnapshot {
+        if lock_unpoisoned(&self.audio).device_boundary().is_some()
+            && let Err(error) = self.device_audio_cross_boundary()
+        {
+            self.device_transport_error(error);
+        }
+        self.audio_snapshot()
+    }
+
+    /// Each sequence keeps its own playback range and loop toggle.
+    fn restore_sequence_transport(
+        &self,
+        view_key: Option<String>,
+        audio_transport: AudioTransportSnapshot,
+    ) -> AudioTransportSnapshot {
+        let saved = match (&view_key, self.snapshot().project_root) {
+            (Some(key), Some(root)) => self.persistence.sequence_transport(&root, key),
+            _ => PersistedSequenceTransport::default(),
+        };
+        lock_unpoisoned(&self.workspace).transport_view_key = view_key;
+        if matches!(
+            audio_transport.state,
+            AudioTransportState::Unloaded | AudioTransportState::Error
+        ) {
+            return audio_transport;
+        }
+        let mut audio = lock_unpoisoned(&self.audio);
+        audio.set_looping(saved.looping);
+        // A sequence that has since gotten shorter may no longer contain its saved range.
+        match audio.set_range(saved.range) {
+            Ok(audio_transport) => audio_transport,
+            Err(_) => audio.set_range(None).unwrap_or(audio_transport),
+        }
+    }
+
+    fn record_sequence_transport(&self, audio_transport: &AudioTransportSnapshot) {
+        let Some(key) = lock_unpoisoned(&self.workspace).transport_view_key.clone() else {
+            return;
+        };
+        let Some(project_root) = self.snapshot().project_root else {
+            return;
+        };
+        let transport = PersistedSequenceTransport {
+            range: audio_transport.range,
+            looping: audio_transport.looping,
+        };
+        if let Err(error) =
+            self.persistence
+                .record_sequence_transport(&project_root, key, transport)
+        {
+            self.set_persistence_error(format!("Playback range was not saved: {error}"));
+        }
     }
 
     #[cfg(test)]

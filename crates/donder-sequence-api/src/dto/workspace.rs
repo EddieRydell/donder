@@ -75,6 +75,7 @@ pub struct AppSettings {
     pub reopen_preview_window: bool,
     pub autosave_project_edits: bool,
     pub sequence_initial_zoom_mode: SequenceInitialZoomMode,
+    pub sequence_follow_mode: SequenceFollowMode,
     pub sequence_initial_px_per_second: f32,
     pub sequence_initial_lane_height_px: f32,
     #[serde(default)]
@@ -83,6 +84,9 @@ pub struct AppSettings {
     pub sequence_spectrogram_time_resolution_ms: f32,
     #[serde(default = "default_sequence_spectrogram_fft_size")]
     pub sequence_spectrogram_fft_size: u32,
+    /// Marks draw only in the Marks lane instead of also across the waveform and lanes.
+    #[serde(default)]
+    pub sequence_marks_lane_only: bool,
     pub effect_raster: EffectRasterSettings,
     pub spatial_snap: SpatialSnapSettings,
 }
@@ -107,12 +111,14 @@ impl Default for AppSettings {
             reopen_preview_window: true,
             autosave_project_edits: true,
             sequence_initial_zoom_mode: SequenceInitialZoomMode::FitToWidth,
+            sequence_follow_mode: SequenceFollowMode::Page,
             sequence_initial_px_per_second: 80.0,
             sequence_initial_lane_height_px: 42.0,
             sequence_spectrogram_enabled: false,
             sequence_spectrogram_time_resolution_ms:
                 default_sequence_spectrogram_time_resolution_ms(),
             sequence_spectrogram_fft_size: default_sequence_spectrogram_fft_size(),
+            sequence_marks_lane_only: false,
             effect_raster: EffectRasterSettings::default(),
             spatial_snap: SpatialSnapSettings::default(),
         }
@@ -124,6 +130,18 @@ impl Default for AppSettings {
 pub enum SequenceInitialZoomMode {
     FitToWidth,
     FixedPxPerSecond,
+}
+
+/// How the sequence view tracks the playhead during playback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SequenceFollowMode {
+    /// The view never moves on its own.
+    Off,
+    /// The view pages forward near the edge and jumps when the playhead leaves it.
+    Page,
+    /// The playhead holds a fixed screen position while the timeline scrolls under it.
+    Continuous,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]

@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::dto::{AppSettings, AppSnapshot, WorkspaceExplorerState, WorkspaceLayoutState};
+use crate::dto::{
+    AppSettings, AppSnapshot, PlaybackRange, WorkspaceExplorerState, WorkspaceLayoutState,
+};
 
 pub(crate) const VERSION: u32 = 2;
 
@@ -80,8 +82,17 @@ pub struct PersistedProjectSession {
     pub sequence_viewports: BTreeMap<String, PersistedSequenceViewportState>,
     pub spatial_views: BTreeMap<String, PersistedSpatialViewState>,
     pub graph_views: BTreeMap<String, PersistedGraphViewState>,
+    pub sequence_transports: BTreeMap<String, PersistedSequenceTransport>,
     #[serde(default)]
     pub workspace_explorer: WorkspaceExplorerState,
+}
+
+/// A sequence's playback range and loop toggle, keyed like its viewport.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PersistedSequenceTransport {
+    pub range: Option<PlaybackRange>,
+    pub looping: bool,
 }
 
 impl PersistedProjectSession {
@@ -95,6 +106,7 @@ impl PersistedProjectSession {
             sequence_viewports: BTreeMap::new(),
             spatial_views: BTreeMap::new(),
             graph_views: BTreeMap::new(),
+            sequence_transports: BTreeMap::new(),
             workspace_explorer: WorkspaceExplorerState::default(),
         }
     }

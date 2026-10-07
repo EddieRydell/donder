@@ -3,4 +3,4 @@
 mod backend;
 mod engine;
 
-pub(crate) use engine::AudioEngine;
+pub(crate) use engine::{AudioEngine, DeviceBoundary};

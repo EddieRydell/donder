@@ -101,3 +101,31 @@ pub(crate) async fn audio_set_playback_speed(
             .map_err(|error| format!("Audio transport worker failed: {error}"))?;
     Ok(publish_audio_snapshot(&app, snapshot))
 }
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn audio_set_range(
+    range: Option<PlaybackRange>,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_set_range(range))
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))??;
+    Ok(publish_audio_snapshot(&app, snapshot))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn audio_set_looping(
+    looping: bool,
+    app: AppHandle,
+    state: State<'_, DesktopState>,
+) -> Result<AppSnapshot, String> {
+    let owned = state.inner().clone();
+    let snapshot = tauri::async_runtime::spawn_blocking(move || owned.audio_set_looping(looping))
+        .await
+        .map_err(|error| format!("Audio transport worker failed: {error}"))?;
+    Ok(publish_audio_snapshot(&app, snapshot))
+}

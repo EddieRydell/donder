@@ -101,6 +101,9 @@
   --donder-automation-clip-label-muted: #83a3b2;
   --donder-automation-detached: #f6b84b;
   --donder-accent-subtle: rgb(174 180 188 / 14%);
+  --donder-sequence-range-fill: rgb(174 180 188 / 7%);
+  --donder-sequence-range-ruler-fill: rgb(174 180 188 / 24%);
+  --donder-sequence-seek-hover: rgb(240 196 107 / 55%);
   --donder-mark-marquee: var(--donder-mark-blue);
   --donder-mark-marquee-fill: rgb(142 202 230 / 12%);
   --donder-effect-marquee-fill: rgb(240 196 107 / 12%);
@@ -214,6 +217,7 @@
   --donder-canvas-font: 12px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --donder-canvas-label-font: 11px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --donder-sequence-font: 12px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --donder-sequence-heading-font: 700 12px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --donder-font-size-xs: 10px;
   --donder-font-size-sm: 11px;
   --donder-font-size-md: 12px;
@@ -381,6 +385,9 @@
   --donder-sequence-initial-audio-strip-height: 38px;
   --donder-sequence-min-audio-strip-height: 24px;
   --donder-sequence-max-audio-strip-height: 320px;
+  --donder-sequence-initial-mark-ruler-height: 18px;
+  --donder-sequence-min-mark-ruler-height: 14px;
+  --donder-sequence-max-mark-ruler-height: 160px;
   --donder-sequence-initial-pixels-per-second: 80px;
   --donder-sequence-initial-lane-height: 42px;
   --donder-sequence-lane-resize-indicator-height: 2px;
@@ -441,6 +448,9 @@
   --donder-sequence-marker-width: 7px;
   --donder-sequence-marker-height: 4px;
   --donder-sequence-marker-dash-size: 4px;
+  --donder-sequence-playhead-head-width: 11px;
+  --donder-sequence-playhead-head-height: 9px;
+  --donder-sequence-transport-hit-half-width: 5px;
   --donder-automation-graph-padding-min: 2px;
   --donder-automation-graph-padding-max: 6px;
   --donder-automation-graph-padding-ratio: 0.12;
@@ -481,6 +491,8 @@
      placing it at the lead fraction. */
   --donder-sequence-follow-edge: 0.9;
   --donder-sequence-follow-lead: 0.1;
+  /* Continuous following holds the playhead at this fraction of the view. */
+  --donder-sequence-follow-anchor: 0.28;
   --donder-spatial-wheel-zoom-scale: 0.0015;
   /* macOS trackpad pinches report small deltas, so they need a larger scale than wheel notches. */
   --donder-sequence-pinch-zoom-scale: 0.01;
@@ -491,7 +503,6 @@
   --donder-mark-cull-padding: 6px;
   --donder-mark-selected-half-width: 4px;
   --donder-mark-overlay-opacity: 0.55;
-  --donder-mark-strip-opacity: 0.75;
   --donder-canvas-label-left-inset: 4px;
   --donder-canvas-label-right-inset: 28px;
   --donder-canvas-label-bottom-inset: 7px;
@@ -1432,6 +1443,57 @@ html.donder-app-shell body {
 
 .sequence-transport-marker.playhead {
   border-left: var(--donder-visual-line-width) solid var(--donder-warning);
+}
+
+/* The playhead's head sits in the ruler, where dragging it scrubs. */
+.sequence-playhead-head {
+  position: absolute;
+  z-index: var(--donder-z-sequence-transport);
+  width: var(--donder-sequence-playhead-head-width);
+  height: var(--donder-sequence-playhead-head-height);
+  background: var(--donder-warning);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.sequence-transport-range {
+  position: absolute;
+  z-index: var(--donder-z-sequence-transport);
+  box-sizing: border-box;
+  border-right: var(--donder-visual-line-width) solid var(--donder-accent);
+  border-left: var(--donder-visual-line-width) solid var(--donder-accent);
+  background: var(--donder-sequence-range-fill);
+  pointer-events: none;
+}
+
+.sequence-transport-range::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--donder-sequence-audio-strip-top);
+  background: var(--donder-sequence-range-ruler-fill);
+  content: "";
+}
+
+.sequence-seek-hover {
+  position: absolute;
+  z-index: var(--donder-z-sequence-transport);
+  width: 0;
+  border-left: var(--donder-visual-line-width) solid var(--donder-sequence-seek-hover);
+  pointer-events: none;
+}
+
+.sequence-seek-hover-label {
+  position: absolute;
+  top: 0;
+  left: var(--donder-space-2);
+  border-radius: var(--donder-radius-sm);
+  padding: var(--donder-space-0) var(--donder-space-2);
+  background: var(--donder-bg-panel);
+  color: var(--donder-text);
+  font-size: var(--donder-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .gui-inspector-resize-shell {

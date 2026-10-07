@@ -38,9 +38,12 @@ export type SequenceEditorCommands = {
   audioRewindToZero: () => Promise<EditorSnapshot>;
   audioSeek: (seconds: number) => Promise<EditorSnapshot>;
   audioSetPlaybackSpeed: (speed: Wire.PlaybackSpeed) => Promise<EditorSnapshot>;
+  audioSetRange: (range: Wire.PlaybackRange | null) => Promise<EditorSnapshot>;
+  audioSetLooping: (looping: boolean) => Promise<EditorSnapshot>;
   chooseSequenceAudio: (request: Wire.GuiDocumentRequest) => Promise<EditorEditResult>;
   setLiveOutputActive: (active: boolean) => Promise<EditorSnapshot>;
   setPreviewWindowOpen: (open: boolean) => Promise<EditorSnapshot>;
+  updateAppSettings: (settings: Wire.AppSettings) => Promise<EditorSnapshot>;
 };
 export type SequenceEditorHost = {
   commands: SequenceEditorCommands;

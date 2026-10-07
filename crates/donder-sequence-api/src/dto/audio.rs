@@ -24,7 +24,17 @@ pub struct AudioTransportSnapshot {
     pub home_seconds: f32,
     pub duration_seconds: f32,
     pub playback_speed: PlaybackSpeed,
+    pub range: Option<PlaybackRange>,
+    pub looping: bool,
     pub last_error: Option<String>,
+}
+
+/// A span of the sequence that playback stops at the end of, or loops when looping.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaybackRange {
+    pub start_seconds: f32,
+    pub end_seconds: f32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

@@ -3,9 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 import { Check, Maximize2, Minimize2, Minus, X } from "lucide-react";
 import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "../appMenus";
-import { commandRegistry, runCommand, sequenceOpen, shortcutLabel } from "../commandRegistry";
+import { commandRegistry, runCommand, shortcutLabel } from "../commandRegistry";
 import { useAppStore } from "../store";
-import { MARK_DISPLAY_MODES, setGlobalMarkDisplayMode, useMarkDisplayMode, type MarkDisplayMode } from "./gui/sequence/marks";
 import { THEME_METRICS } from "../theme";
 import { isMac } from "../platform";
 
@@ -100,33 +99,10 @@ function MenuContent({ entries }: { entries: AppMenuEntry[] }) {
   // Command state reads the store; re-render when it changes.
   useAppStore((store) => store.snapshot);
   useAppStore((store) => store.guiDocument);
-  const [markMode] = useMarkDisplayMode();
   return (
     <DropdownMenu.Content className="menu-content" sideOffset={THEME_METRICS.menuOffset}>
       {entries.map((entry, index) => {
         if (entry.type === "separator") return <DropdownMenu.Separator key={`separator-${index}`} className="menu-separator" />;
-        if (entry.type === "markDisplay") {
-          return (
-            <DropdownMenu.Group key="markDisplay">
-              <DropdownMenu.Label className="menu-label">Mark Display</DropdownMenu.Label>
-              <DropdownMenu.RadioGroup
-                value={markMode}
-                onValueChange={(value) => {
-                  setGlobalMarkDisplayMode(value as MarkDisplayMode);
-                }}
-              >
-                {MARK_DISPLAY_MODES.map(({ mode, label }) => (
-                  <DropdownMenu.RadioItem key={mode} className="menu-item" value={mode} disabled={!sequenceOpen()}>
-                    <span>{label}</span>
-                    <DropdownMenu.ItemIndicator>
-                      <Check size={THEME_METRICS.iconSizeExtraSmall} />
-                    </DropdownMenu.ItemIndicator>
-                  </DropdownMenu.RadioItem>
-                ))}
-              </DropdownMenu.RadioGroup>
-            </DropdownMenu.Group>
-          );
-        }
         const command = commandRegistry[entry.id];
         const content = <>
           <span>{command.label}</span>

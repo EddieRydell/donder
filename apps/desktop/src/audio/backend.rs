@@ -20,6 +20,13 @@ pub(super) struct SourceMetadata {
     pub(super) duration_seconds: f32,
 }
 
+/// Where a stream stops early and the region it repeats, in source seconds.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub(super) struct PlaybackBounds {
+    pub(super) end_seconds: Option<f32>,
+    pub(super) loop_region: Option<(f32, f32)>,
+}
+
 pub(super) trait AudioDriver: Send {
     fn load_metadata(&mut self, path: &str) -> Result<SourceMetadata, String>;
     fn play(
@@ -28,6 +35,7 @@ pub(super) trait AudioDriver: Send {
         position_seconds: f32,
         deadline: Option<Instant>,
         rate: PlaybackRate,
+        bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String>;
     fn debug_observe(&mut self) {}
 }
@@ -120,15 +128,23 @@ impl AudioDriver for KiraAudioDriver {
         position_seconds: f32,
         deadline: Option<Instant>,
         rate: PlaybackRate,
+        bounds: PlaybackBounds,
     ) -> Result<Box<dyn AudioHandle>, String> {
         audio_debug(format_args!(
-            "create sound path={path:?} position={position_seconds}"
+            "create sound path={path:?} position={position_seconds} bounds={bounds:?}"
         ));
-        let sound = StreamingSoundData::from_file(path)
+        let mut sound = StreamingSoundData::from_file(path)
             .inspect_err(|error| audio_debug(format_args!("open sound failed: {error:?}")))
             .map_err(|error| error.to_string())?
             .start_position(f64::from(position_seconds))
             .playback_rate(f64::from(rate.speed()));
+        // A slice that starts at zero keeps reported positions in source seconds.
+        if let Some(end) = bounds.end_seconds {
+            sound = sound.slice(..f64::from(end));
+        }
+        if let Some((start, end)) = bounds.loop_region {
+            sound = sound.loop_region(f64::from(start)..f64::from(end));
+        }
         if deadline.is_some_and(|deadline| deadline <= Instant::now()) {
             return Err("Audio start deadline passed while opening the source".into());
         }

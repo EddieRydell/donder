@@ -1,9 +1,8 @@
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
 import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "./appMenus";
-import { commandRegistry, runCommand, sequenceOpen, type CommandId } from "./commandRegistry";
+import { commandRegistry, runCommand, type CommandId } from "./commandRegistry";
 import { EDIT_SHORTCUT_KEYS, editTarget, handledEditShortcuts, shortcutAccelerator, type EditShortcut, type EditTarget } from "./platform";
 import { useAppStore } from "./store";
-import { MARK_DISPLAY_MODES, MARK_DISPLAY_MODE_EVENT, markDisplayModeValue, setGlobalMarkDisplayMode } from "./ui/gui/sequence/marks";
 import { runFocusedEditorAction } from "./ui/source/monaco";
 import { runWorkspaceTransition } from "./workspaceTransitions";
 
@@ -35,20 +34,10 @@ export async function installNativeMenu(): Promise<() => void> {
     tracked.push({ item, enabled: definition.enabled, ...(checked === undefined ? {} : { checked }) });
     return item;
   };
-  const markDisplay = async () => {
-    const items = await Promise.all(MARK_DISPLAY_MODES.map(async ({ mode, label }) => {
-      const checked = () => markDisplayModeValue() === mode;
-      const item = await CheckMenuItem.new({ text: label, checked: checked(), action: () => { setGlobalMarkDisplayMode(mode); } });
-      tracked.push({ item, enabled: sequenceOpen, checked });
-      return item;
-    }));
-    return Submenu.new({ text: "Mark Display", items });
-  };
   const entries = (menu: AppMenuEntry[]) => Promise.all(menu.map((entry) => {
     switch (entry.type) {
       case "command": return command(entry.id);
       case "separator": return separator();
-      case "markDisplay": return markDisplay();
     }
   }));
 
@@ -164,11 +153,9 @@ export async function installNativeMenu(): Promise<() => void> {
   const unsubscribe = useAppStore.subscribe((state, previous) => {
     if (state.snapshot !== previous.snapshot || state.guiDocument !== previous.guiDocument) sync();
   });
-  window.addEventListener(MARK_DISPLAY_MODE_EVENT, sync);
   return () => {
     unsubscribe();
     document.removeEventListener("focusin", onFocusChange);
     document.removeEventListener("focusout", onFocusChange);
-    window.removeEventListener(MARK_DISPLAY_MODE_EVENT, sync);
   };
 }

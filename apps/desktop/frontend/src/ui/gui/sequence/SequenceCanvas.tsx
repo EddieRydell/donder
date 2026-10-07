@@ -4,7 +4,7 @@ import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type SetStateAction, useContext } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, useContext } from "react";
 
 import { ArrowRight, ChevronRight, Scissors, Trash2 } from "lucide-react";
 
@@ -12,12 +12,13 @@ import { GUI_HISTORY_CHANGED_EVENT } from "../../../editor/host";
 
 import { scheduleViewStateSave } from "../../../viewStatePersistence";
 
-import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, SequenceAutomationClip, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
+import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, PersistedSequenceViewportState, PlaybackRange, SequenceAutomationClip, SequenceFollowMode, SequenceAutomationTarget, SequenceEditorDocument, SequenceEffectScope, SequenceEffectDefinition, SequenceLane } from "../../../editor/types";
 
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 
-import { defaultMarkColor, drawSequenceMarks, committedMarkDrafts, nextCollectionKey, useMarkDisplayMode } from "./marks";
+import { activeMarkCollection, defaultMarkColor, drawMarkRulerLabel, drawSequenceMarks, committedMarkDrafts, nextCollectionKey } from "./marks";
+import { TAP_MARK_EVENT } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
 import { targetAtLane, targetsEqual } from "./sequenceTargets";
@@ -66,15 +67,15 @@ import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta,  hit
 
 const SEQUENCE_FOLLOW = {
   edge: THEME_METRICS.sequenceFollowEdge,
-  lead: THEME_METRICS.sequenceFollowLead
+  lead: THEME_METRICS.sequenceFollowLead,
+  anchor: THEME_METRICS.sequenceFollowAnchor
 };
 
 const SEQUENCE_CANVAS = {
   leftGutterPx: THEME_METRICS.sequenceLeftGutter,
   audioStripTopPx: THEME_METRICS.sequenceAudioStripTop,
   initialAudioStripHeightPx: THEME_METRICS.sequenceInitialAudioStripHeight,
-  minAudioStripHeightPx: THEME_METRICS.sequenceMinAudioStripHeight,
-  maxAudioStripHeightPx: THEME_METRICS.sequenceMaxAudioStripHeight,
+  initialMarkRulerHeightPx: THEME_METRICS.sequenceInitialMarkRulerHeight,
   initialPxPerSecond: THEME_METRICS.sequenceInitialPixelsPerSecond,
   initialLaneHeightPx: THEME_METRICS.sequenceInitialLaneHeight,
   minPxPerSecond: THEME_METRICS.sequenceMinPixelsPerSecond,
@@ -126,14 +127,22 @@ const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
 
 type SequenceDragState =
   | null
-  | { kind: "audioStripResize"; startY: number; initialHeight: number; active: boolean }
+  | { kind: "stripResize"; strip: TimelineStrip; startY: number; initialHeight: number; active: boolean }
   | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; rowTarget: FixtureTarget; resize: "none" | "left" | "right" }
   | { kind: "automationPoint"; clipId: number; index: number; active: boolean; inserted: boolean }
   | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
   | { kind: "marquee"; state: SequenceMarquee }
-  | { kind: "sequenceScrub" };
+  | { kind: "playheadScrub" }
+  // Dragging a range edge anchors the new range at the opposite edge.
+  | { kind: "timeRange"; startX: number; anchorSeconds: number; fromEdge: boolean; active: boolean };
+
+type LaneContextMenu = Extract<SequenceContextMenu, { laneIndex: number }>;
+
+/** What a pointer in the ruler and waveform strip would grab. */
+type SeekHover = { target: "playhead" | "rangeEdge" | "home" | "time"; seconds: number };
+const SEEK_HOVER_CURSORS = { playhead: "grab", rangeEdge: "ew-resize", home: "text", time: "text" } as const;
 
 function rowResizeHit(
   y: number,
@@ -151,8 +160,21 @@ function rowResizeHit(
   return null;
 }
 
-function audioStripResizeHit(y: number, top: number): boolean {
-  return Math.abs(y - top) <= SEQUENCE_CANVAS.audioResizeHitHeightPx;
+/** The resizable strips above the lanes, each with its viewport height and limits. */
+type TimelineStrip = "audio" | "marks";
+const TIMELINE_STRIPS = {
+  audio: { height: "audioStripHeight", minPx: THEME_METRICS.sequenceMinAudioStripHeight, maxPx: THEME_METRICS.sequenceMaxAudioStripHeight },
+  marks: { height: "markRulerHeight", minPx: THEME_METRICS.sequenceMinMarkRulerHeight, maxPx: THEME_METRICS.sequenceMaxMarkRulerHeight }
+} as const satisfies Record<TimelineStrip, { height: keyof SequenceViewport; minPx: number; maxPx: number }>;
+
+/**
+ * Each strip resizes from its bottom edge. The audio strip's grip lies inside the strip, so it
+ * never covers the Marks lane below; the Marks lane's grip straddles its border with the lanes.
+ */
+function stripResizeHit(y: number, audioStripBottom: number, markRulerBottom: number): TimelineStrip | null {
+  if (Math.abs(y - markRulerBottom) <= SEQUENCE_CANVAS.audioResizeHitHeightPx / 2) return "marks";
+  if (y <= audioStripBottom && audioStripBottom - y <= SEQUENCE_CANVAS.audioResizeHitHeightPx) return "audio";
+  return null;
 }
 
 
@@ -187,6 +209,7 @@ export function SequenceCanvas({
 
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<SequenceDragState>(null);
+  const playheadClockRef = useRef<(() => number) | null>(null);
   const sequenceSelectionRef = useRef<SequenceSelection>(sequenceSelection);
   const [revealAutomation, setRevealAutomation] = useState(false);
   const [automationDrafts, setAutomationDrafts] = useState<AutomationDraft[]>([]);
@@ -196,8 +219,10 @@ export function SequenceCanvas({
   const [sequenceContextMenu, setSequenceContextMenu] = useState<SequenceContextMenu | null>(null);
   const [hover, setHover] = useState<SequenceHover>(null);
   const [rowResizeHover, setRowResizeHover] = useState<{ laneIndex: number; rowKind: SequenceRowKind } | null>(null);
-  const [audioResizeHover, setAudioResizeHover] = useState(false);
+  const [stripResizeHover, setStripResizeHover] = useState<TimelineStrip | null>(null);
   const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
+  const [seekHover, setSeekHover] = useState<SeekHover | null>(null);
+  const [rangeDraft, setRangeDraft] = useState<PlaybackRange | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<FixtureTarget | null>(null);
   const selectedLaneIndex = selectedTarget === null ? null : document.lanes.findIndex((lane) => targetsEqual(lane.target, selectedTarget));
   const setSelectedLaneIndex = (index: number) => { setSelectedTarget(targetAtLane(document, index)); };
@@ -208,6 +233,9 @@ export function SequenceCanvas({
   const restoreState = useAppStore((store) => store.restoreState);
   const gestureRequest = useRef<GuiDocumentRequest | null>(null);
   const settings = useAppStore((store) => store.snapshot?.settings ?? null);
+  const playing = useAppStore((store) => store.snapshot?.audioTransport.state === "playing");
+  // Continuous following owns horizontal scrolling while playing; zoom stays anchored on the playhead.
+  const followingContinuously = playing && settings?.sequenceFollowMode === "continuous";
   const restoreKey = objectViewKey(document.sourceRef);
   const restoredViewport = restoreState?.sequenceViewports[restoreKey];
   const [viewport, setViewport] = useState<SequenceViewport>(() => sequenceViewportFromPersisted(restoredViewport, document, settings));
@@ -225,8 +253,13 @@ export function SequenceCanvas({
     : (timelineWidth - scrollbarThumbWidth) * viewport.scrollXSeconds / maxScrollXSeconds;
   const audioStripTop = SEQUENCE_CANVAS.audioStripTopPx;
   const audioStripHeight = viewport.audioStripHeight;
-  const top = audioStripTop + audioStripHeight;
-  const [mode] = useMarkDisplayMode();
+  // The time ruler and waveform strip are the transport area; the mark ruler sits between it and the lanes.
+  const audioStripBottom = audioStripTop + audioStripHeight;
+  const markRulerHeight = viewport.markRulerHeight;
+  const marksLaneOnly = settings?.sequenceMarksLaneOnly ?? false;
+  const top = audioStripBottom + markRulerHeight;
+  const inMarkRuler = (y: number) => y >= audioStripBottom && y < top;
+  const targetMarkCollectionKey = activeMarkCollection(document.markCollections, activeMarkCollectionKey)?.key ?? null;
   const automationRowHeight = automationLaneRowHeight(initialSequenceLaneHeight(settings));
   const automationClipsForLayout = useMemo(
     () => automationClipsWithDrafts(document.automationClips, automationDrafts, automationCurveDraft),
@@ -249,7 +282,8 @@ export function SequenceCanvas({
   const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
   const canvasCursor =
     dragCursor ??
-    (audioResizeHover || rowResizeHover !== null ? "ns-resize" :
+    (seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
+    stripResizeHover !== null || rowResizeHover !== null ? "ns-resize" :
     (automationClipChooser !== null && automationHover !== null
       ? "pointer"
       : automationHover !== null
@@ -262,7 +296,9 @@ export function SequenceCanvas({
   }, [setSequenceSelection]);
 
   const handleScrollbarPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (maxScrollXSeconds === 0) return;
+    // Without this, dragging the scrollbar starts a text selection across the editor.
+    event.preventDefault();
+    if (maxScrollXSeconds === 0 || followingContinuously) return;
     const rail = event.currentTarget;
     const rect = rail.getBoundingClientRect();
     if (event.target === rail) {
@@ -275,7 +311,7 @@ export function SequenceCanvas({
   };
   const handleScrollbarPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     const drag = sequenceScrollbar.current;
-    if (drag === null || drag.pointerId !== event.pointerId) return;
+    if (drag === null || drag.pointerId !== event.pointerId || followingContinuously) return;
     const rail = event.currentTarget;
     const travel = Math.max(1, rail.clientWidth - scrollbarThumbWidth);
     setViewport((current) => ({ ...current, scrollXSeconds: clamp(drag.startScroll + (event.clientX - drag.startX) / travel * maxScrollXSeconds, 0, maxScrollXSeconds) }));
@@ -308,7 +344,9 @@ export function SequenceCanvas({
         };
       }
       if (zoom) {
-        const anchorX = clamp(offsetX - left, 0, timelineWidth);
+        const anchorX = clamp(followingContinuously
+          ? ((useAppStore.getState().snapshot?.audioTransport.positionSeconds ?? current.scrollXSeconds) - current.scrollXSeconds) * current.pxPerSecond
+          : offsetX - left, 0, timelineWidth);
         const anchorTime = current.scrollXSeconds + anchorX / current.pxPerSecond;
         const nextPxPerSecond = clamp(
           current.pxPerSecond * Math.exp(-zoomDelta * zoomScale),
@@ -323,6 +361,7 @@ export function SequenceCanvas({
         };
       }
       if (event.shiftKey) {
+        if (followingContinuously) return current;
         return {
           ...current,
           scrollXSeconds: clamp(current.scrollXSeconds + horizontalDelta / current.pxPerSecond, 0, maxScrollXSeconds)
@@ -330,11 +369,11 @@ export function SequenceCanvas({
       }
       return {
         ...current,
-        scrollXSeconds: clamp(current.scrollXSeconds + event.deltaX / current.pxPerSecond, 0, maxScrollXSeconds),
+        scrollXSeconds: followingContinuously ? current.scrollXSeconds : clamp(current.scrollXSeconds + event.deltaX / current.pxPerSecond, 0, maxScrollXSeconds),
         scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
       };
     });
-  }, [document, layoutRows, left, revealAutomation, scrollbarHeight, settings, setViewport, top]);
+  }, [document, followingContinuously, layoutRows, left, revealAutomation, scrollbarHeight, settings, setViewport, top, useAppStore]);
 
   useEffect(() => {
     const target = canvas.current;
@@ -383,6 +422,7 @@ export function SequenceCanvas({
           setViewport({
             pxPerSecond: initialSequencePxPerSecond(settings, timelineWidth, document.durationSeconds),
             audioStripHeight: SEQUENCE_CANVAS.initialAudioStripHeightPx,
+            markRulerHeight: SEQUENCE_CANVAS.initialMarkRulerHeightPx,
             rowHeights: completeRowHeights({}, document, settings),
             scrollXSeconds: 0,
             scrollY: 0
@@ -423,9 +463,12 @@ export function SequenceCanvas({
   }, [document, restoreKey, restoredViewport, settings]);
 
   useEffect(() => {
+    // The view moves every frame while following; it saves once following stops.
+    if (followingContinuously) return;
     const state: PersistedSequenceViewportState = {
       pxPerSecond: viewport.pxPerSecond,
       audioStripHeightPx: viewport.audioStripHeight,
+      markRulerHeightPx: viewport.markRulerHeight,
       rowHeights: persistRowHeights(viewport.rowHeights),
       scrollXSeconds: viewport.scrollXSeconds,
       scrollY: viewport.scrollY,
@@ -433,7 +476,7 @@ export function SequenceCanvas({
       visibleMarkCollectionKeys: [...visibleMarkCollectionKeys]
     };
     scheduleSequenceViewportStateSave(host, document.sourceRef, state);
-  }, [host, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
+  }, [host, followingContinuously, activeMarkCollectionKey, automationRowHeight, revealAutomation, document, settings, viewport, visibleMarkCollectionKeys]);
 
   const visibleClips = useMemo(
     () => buildSequenceClipLayout(
@@ -561,26 +604,34 @@ export function SequenceCanvas({
     ctx.moveTo(left, audioStripTop + audioStripHeight / 2 + THEME_METRICS.visualHairlineOffset);
     ctx.lineTo(left + timelineWidth, audioStripTop + audioStripHeight / 2 + THEME_METRICS.visualHairlineOffset);
     ctx.stroke();
+    ctx.fillStyle = SEQUENCE_COLORS.page;
+    ctx.fillRect(left, audioStripBottom, timelineWidth, markRulerHeight);
+    drawMarkRulerLabel(ctx, audioStripBottom, markRulerHeight, left);
     ctx.strokeStyle = SEQUENCE_COLORS.gridFaint;
     ctx.beginPath();
-    ctx.moveTo(0, top + THEME_METRICS.visualHairlineOffset);
-    ctx.lineTo(rect.width, top + THEME_METRICS.visualHairlineOffset);
+    for (const y of [audioStripBottom, top]) {
+      ctx.moveTo(0, y + THEME_METRICS.visualHairlineOffset);
+      ctx.lineTo(rect.width, y + THEME_METRICS.visualHairlineOffset);
+    }
     ctx.stroke();
 
-    if (audioResizeHover) {
+    if (stripResizeHover !== null) {
+      const indicatorHeight = THEME_METRICS.sequenceLaneResizeIndicatorHeight;
       ctx.fillStyle = SEQUENCE_COLORS.accent;
-      ctx.fillRect(0, top - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
+      ctx.fillRect(0, stripResizeHover === "audio" ? audioStripBottom - indicatorHeight : top - indicatorHeight / 2, rect.width, indicatorHeight);
     }
     drawTimelineGrid(ctx, left, top, rect.width, rect.height, viewport.pxPerSecond, scrollXSeconds, document.frameRate);
     drawSequenceMarks(
       ctx,
       visibleMarkCollections,
+      targetMarkCollectionKey,
       selected,
       selectedMarks,
-      mode,
+      marksLaneOnly,
       left,
       audioStripTop,
-      audioStripHeight,
+      audioStripBottom,
+      markRulerHeight,
       timelineWidth,
       rect.height,
       viewport.pxPerSecond,
@@ -666,35 +717,65 @@ export function SequenceCanvas({
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
 
-  }, [activeAutomationTargetEffectIds, audioResizeHover, automationCurveDraft, collapsedGroups, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, mode, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, stripResizeHover, automationCurveDraft, collapsedGroups, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
 
+  const seekTimeFromCanvasX = (x: number) =>
+    clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
   const seekFromCanvas = (event: MouseEvent<HTMLCanvasElement>) => {
-    const x = event.nativeEvent.offsetX;
-    if (x < left) return;
-    const positionSeconds = clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
+    const positionSeconds = seekTimeFromCanvasX(Math.max(left, event.nativeEvent.offsetX));
     void runSnapshotCommand(() => commands.audioSeek(positionSeconds));
   };
   const timeFromCanvasX = (x: number) => clamp(roundToNanosecond(viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond), 0, document.durationSeconds);
+  /** Range edges snap to marks with Alt, like other timeline drags. */
+  const rangeTimeFromCanvasX = (x: number, snap: boolean) => {
+    const seconds = timeFromCanvasX(x);
+    return snap ? snapToMark(seconds, markTimes, viewport.pxPerSecond) ?? seconds : seconds;
+  };
+  const rangeFromDrag = (anchorSeconds: number, seconds: number): PlaybackRange =>
+    ({ startSeconds: Math.min(anchorSeconds, seconds), endSeconds: Math.max(anchorSeconds, seconds) });
+  // The playhead's head is in the ruler, so range edges under it stay grabbable in the waveform strip.
+  const seekHoverAt = (x: number, y: number): SeekHover => {
+    const transport = useAppStore.getState().snapshot?.audioTransport ?? null;
+    const near = (seconds: number) =>
+      Math.abs(left + (seconds - viewport.scrollXSeconds) * viewport.pxPerSecond - x) <= THEME_METRICS.sequenceTransportHitHalfWidth;
+    const seconds = seekTimeFromCanvasX(x);
+    if (transport !== null && y < audioStripTop && near(transport.positionSeconds)) return { target: "playhead", seconds };
+    const range = transport?.range ?? null;
+    if (range !== null && (near(range.startSeconds) || near(range.endSeconds))) return { target: "rangeEdge", seconds };
+    if (transport !== null && near(transport.homeSeconds)) return { target: "home", seconds };
+    return { target: "time", seconds };
+  };
   const effectTree = useMemo(
     () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
     [document.effectDefinitions]
   );
-  const addEffectFromContextMenu = async (definition: SequenceEffectDefinition, menu: SequenceContextMenu) => {
-    const hasMarksParams = definition.params.some((param) => param.kind === "marks");
-    let markCollectionKey = hasMarksParams ? activeMarkCollectionKey ?? document.markCollections[0]?.key ?? null : null;
-    if (hasMarksParams && markCollectionKey === null) {
-      const newCollectionKey = nextCollectionKey("Marks", document.markCollections);
+  /**
+   * The collection a new mark goes into: the given one, else the active one, creating a collection
+   * when the sequence has none. It reads the latest document, so queued taps see earlier taps' edits.
+   */
+  const markCollectionForEdit = async (collectionKey: string | null) => {
+    const guiDocument = useAppStore.getState().guiDocument;
+    if (guiDocument?.type !== "sequence") throw new Error("Marks can only be added to an open sequence.");
+    const collections = guiDocument.document.markCollections;
+    let key = collectionKey ?? activeMarkCollection(collections, activeMarkCollectionKey)?.key ?? null;
+    if (key === null) {
+      const newCollectionKey = nextCollectionKey("Marks", collections);
       await runGuiEditCommand((request) =>
         commands.applySequenceGuiEdit(request, {
           type: "createMarkCollection",
           name: newCollectionKey,
-          color: defaultMarkColor(document.markCollections.length)
+          color: defaultMarkColor(collections.length)
         })
       );
-      markCollectionKey = newCollectionKey;
-      setActiveMarkCollectionKey(newCollectionKey);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, newCollectionKey]));
+      key = newCollectionKey;
+      setActiveMarkCollectionKey(key);
     }
+    if (!visibleMarkCollectionKeys.has(key)) setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, key]));
+    return key;
+  };
+  const addEffectFromContextMenu = async (definition: SequenceEffectDefinition, menu: LaneContextMenu) => {
+    const hasMarksParams = definition.params.some((param) => param.kind === "marks");
+    const markCollectionKey = hasMarksParams ? await markCollectionForEdit(null) : null;
     const target = document.lanes[menu.laneIndex]?.target ?? document.lanes[0]?.target;
     if (target === undefined) return;
     const scope: SequenceEffectScope = "wholeTarget";
@@ -710,59 +791,32 @@ export function SequenceCanvas({
       })
     );
   };
-  const addMarkFromContextMenu = async (collectionKey: string | null, menu: SequenceContextMenu) => {
-    let targetCollectionKey = collectionKey;
-    if (targetCollectionKey === null) {
-      const newCollectionKey = nextCollectionKey("Marks", document.markCollections);
-      await runGuiEditCommand((request) =>
-        commands.applySequenceGuiEdit(request, {
-          type: "createMarkCollection",
-          name: newCollectionKey,
-          color: defaultMarkColor(document.markCollections.length)
-        })
-      );
-      targetCollectionKey = newCollectionKey;
-      setActiveMarkCollectionKey(targetCollectionKey);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, targetCollectionKey]));
-    }
+  const addMark = async (collectionKey: string | null, timeSeconds: number) => {
+    const key = await markCollectionForEdit(collectionKey);
     await runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "addMark",
-        collectionKey: targetCollectionKey,
-        timeSeconds: menu.startSeconds
-      })
-    );
-  };
-  const addMarkAtTime = async (timeSeconds: number) => {
-    let collectionKey = activeMarkCollectionKey ?? document.markCollections[0]?.key ?? null;
-    if (collectionKey === null) {
-      const newCollectionKey = nextCollectionKey("Marks", document.markCollections);
-      await runGuiEditCommand((request) =>
-        commands.applySequenceGuiEdit(request, {
-          type: "createMarkCollection",
-          name: newCollectionKey,
-          color: defaultMarkColor(document.markCollections.length)
-        })
-      );
-      collectionKey = newCollectionKey;
-      setActiveMarkCollectionKey(newCollectionKey);
-      setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys, newCollectionKey]));
-    }
-    await runGuiEditCommand((request) =>
-      commands.applySequenceGuiEdit(request, {
-        type: "addMark",
-        collectionKey,
+        collectionKey: key,
         timeSeconds
       })
     );
-    const nextIndex = [...(document.markCollections.find((collection) => collection.key === collectionKey)?.marksSeconds ?? []), timeSeconds]
-      .map((markTimeSeconds, index) => ({ markTimeSeconds, index }))
-      .sort((leftMark, rightMark) => leftMark.markTimeSeconds - rightMark.markTimeSeconds || leftMark.index - rightMark.index)
-      .findIndex((mark) => mark.index === (document.markCollections.find((collection) => collection.key === collectionKey)?.marksSeconds.length ?? 0));
-    updateSequenceSelection({ type: "marks", marks: [{ collectionKey, index: Math.max(0, nextIndex) }] });
-    setSelected({ type: "mark", collectionKey, index: Math.max(0, nextIndex) });
   };
-  const addAutomationClipFromContextMenu = async (menu: SequenceContextMenu) => {
+  // Taps run in order, so fast tapping creates a missing collection once.
+  const tapQueue = useRef<Promise<void>>(Promise.resolve());
+  const tapMark = useEffectEvent(() => {
+    const clock = playheadClockRef.current;
+    if (clock === null) throw new Error("A mark was tapped without a playhead.");
+    const timeSeconds = clock();
+    tapQueue.current = tapQueue.current
+      .then(() => addMark(null, timeSeconds))
+      .catch((error: unknown) => { useAppStore.getState().setError(String(error)); });
+  });
+  useEffect(() => {
+    const listener = () => { tapMark(); };
+    window.addEventListener(TAP_MARK_EVENT, listener);
+    return () => { window.removeEventListener(TAP_MARK_EVENT, listener); };
+  }, []);
+  const addAutomationClipFromContextMenu = async (menu: LaneContextMenu) => {
     await runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "addAutomationClip",
@@ -856,6 +910,7 @@ export function SequenceCanvas({
   const retargetContextEffect = async (effectId: number, target: FixtureTarget) => {
     await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "retargetEffect", id: effectId, target }));
   };
+  const laneContextMenu = sequenceContextMenu?.kind === "blank" || sequenceContextMenu?.kind === "effect" || sequenceContextMenu?.kind === "automation" ? sequenceContextMenu : null;
   const markCollectionsForMenu = () => {
     if (activeMarkCollectionKey === null) return document.markCollections;
     return [
@@ -881,6 +936,11 @@ export function SequenceCanvas({
         if (event.key === "Escape" && automationClipChooser !== null) {
           event.preventDefault();
           setAutomationClipChooser(null);
+          return;
+        }
+        if (event.key === "Escape" && (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null) {
+          event.preventDefault();
+          void runSnapshotCommand(() => commands.audioSetRange(null));
           return;
         }
         const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
@@ -982,6 +1042,21 @@ export function SequenceCanvas({
           setSequenceContextMenu(null);
           return;
         }
+        if (x >= left && inMarkRuler(y)) {
+          const startSeconds = timeFromCanvasX(x);
+          const markHit = hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport);
+          if (markHit === null) {
+            setSelectedTimeSeconds(startSeconds);
+            setSequenceContextMenu({ kind: "markRuler", startSeconds });
+            return;
+          }
+          setSelected({ type: "mark", collectionKey: markHit.collectionKey, index: markHit.index });
+          updateSequenceSelection({ type: "marks", marks: [{ collectionKey: markHit.collectionKey, index: markHit.index }] });
+          setActiveMarkCollectionKey(markHit.collectionKey);
+          setSelectedTimeSeconds(markHit.timeSeconds);
+          setSequenceContextMenu({ kind: "mark", startSeconds, collectionKey: markHit.collectionKey, index: markHit.index });
+          return;
+        }
         if (x < left || y < top || document.lanes.length === 0) {
           event.preventDefault();
           setSequenceContextMenu(null);
@@ -1011,15 +1086,6 @@ export function SequenceCanvas({
           setSequenceContextMenu({ kind: "effect", laneIndex: hit.laneIndex, startSeconds, effectId: hit.effect.id });
           return;
         }
-        const markHit = hitSequenceMark(visibleMarkCollections, mode, x, y, left, audioStripTop, audioStripHeight, canvasSize.height, viewport);
-        if (markHit !== null) {
-          setSelected({ type: "mark", collectionKey: markHit.collectionKey, index: markHit.index });
-          updateSequenceSelection({ type: "marks", marks: [{ collectionKey: markHit.collectionKey, index: markHit.index }] });
-          setActiveMarkCollectionKey(markHit.collectionKey);
-          setSelectedTimeSeconds(markHit.timeSeconds);
-          setSequenceContextMenu({ kind: "mark", laneIndex, startSeconds, collectionKey: markHit.collectionKey, index: markHit.index });
-          return;
-        }
         setSelected(null);
         updateSequenceSelection(null);
         setSequenceContextMenu({ kind: "blank", laneIndex, startSeconds });
@@ -1027,6 +1093,13 @@ export function SequenceCanvas({
       onDoubleClick={(event) => {
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
+        // Double-clicking empty mark ruler adds a mark to the active collection.
+        if (inMarkRuler(y)) {
+          if (x >= left && hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) === null) {
+            void addMark(null, timeFromCanvasX(x));
+          }
+          return;
+        }
         const automationHit = x >= left && automationClipChooser === null ? hitTimelineClip(visibleAutomationClips, x, y) : null;
         if (automationHit === null || automationHit.clip.curve.length <= 1) return;
         const pointHit = hitAutomationCurvePoint(automationHit, x, y);
@@ -1041,15 +1114,17 @@ export function SequenceCanvas({
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
         setMarkDrafts(new Map());
-        if (audioStripResizeHit(y, top)) {
+        const resizedStrip = stripResizeHit(y, audioStripBottom, top);
+        if (resizedStrip !== null) {
           event.preventDefault();
           drag.current = {
-            kind: "audioStripResize",
+            kind: "stripResize",
+            strip: resizedStrip,
             startY: y,
-            initialHeight: audioStripHeight,
+            initialHeight: viewport[TIMELINE_STRIPS[resizedStrip].height],
             active: false
           };
-          setAudioResizeHover(true);
+          setStripResizeHover(resizedStrip);
           return;
         }
         if (automationClipChooser !== null) {
@@ -1061,9 +1136,56 @@ export function SequenceCanvas({
           }
           return;
         }
-        if (x >= left && y < top) {
-          drag.current = { kind: "sequenceScrub" };
-          seekFromCanvas(event);
+        if (x >= left && y < audioStripBottom) {
+          const grabbed = seekHoverAt(x, y);
+          setSeekHover(null);
+          if (grabbed.target === "playhead") {
+            drag.current = { kind: "playheadScrub" };
+            setDragCursor("grabbing");
+            seekFromCanvas(event);
+            return;
+          }
+          const range = useAppStore.getState().snapshot?.audioTransport.range ?? null;
+          if (grabbed.target === "rangeEdge" && range !== null) {
+            const fromEnd = Math.abs(timeFromCanvasX(x) - range.endSeconds) <= Math.abs(timeFromCanvasX(x) - range.startSeconds);
+            drag.current = { kind: "timeRange", startX: x, anchorSeconds: fromEnd ? range.startSeconds : range.endSeconds, fromEdge: true, active: false };
+            return;
+          }
+          drag.current = { kind: "timeRange", startX: x, anchorSeconds: rangeTimeFromCanvasX(x, event.altKey), fromEdge: false, active: false };
+          return;
+        }
+        if (inMarkRuler(y)) {
+          if (x < left) return;
+          const markHit = hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport);
+          if (markHit !== null) {
+            const mark = { collectionKey: markHit.collectionKey, index: markHit.index };
+            const activeSelection = sequenceSelectionRef.current;
+            const wasAlreadySelected = activeSelection?.type === "marks" && activeSelection.marks.some((candidate) => candidate.collectionKey === mark.collectionKey && candidate.index === mark.index);
+            const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
+              ? activeSelection
+              : nextMarkSelection(activeSelection?.type === "marks" ? activeSelection : null, mark, event.shiftKey, event.ctrlKey || event.metaKey);
+            updateSequenceSelection(nextSelection);
+            setSelected({ type: "mark", collectionKey: mark.collectionKey, index: mark.index });
+            setActiveMarkCollectionKey(markHit.collectionKey);
+            setSelectedTimeSeconds(markHit.timeSeconds);
+            drag.current = {
+              kind: "mark",
+              collectionKey: markHit.collectionKey,
+              index: markHit.index,
+              startX: x,
+              startY: y,
+              active: false,
+              originalTimeSeconds: markHit.timeSeconds
+            };
+            return;
+          }
+          // Dragging across empty ruler box-selects marks by time.
+          setSelectedTimeSeconds(timeFromCanvasX(x));
+          setSelected(null);
+          updateSequenceSelection(null);
+          const state = { mode: "marks" as const, startX: x, startY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
+          drag.current = { kind: "marquee", state };
+          setMarquee(state);
           return;
         }
         if (x < left && y >= top && document.lanes.length > 0) {
@@ -1162,29 +1284,6 @@ export function SequenceCanvas({
           };
           return;
         }
-        const markHit = hitSequenceMark(visibleMarkCollections, mode, x, y, left, audioStripTop, audioStripHeight, canvasSize.height, viewport);
-        if (markHit !== null) {
-          const mark = { collectionKey: markHit.collectionKey, index: markHit.index };
-          const activeSelection = sequenceSelectionRef.current;
-          const wasAlreadySelected = activeSelection?.type === "marks" && activeSelection.marks.some((candidate) => candidate.collectionKey === mark.collectionKey && candidate.index === mark.index);
-          const nextSelection = wasAlreadySelected && !event.shiftKey && !event.ctrlKey && !event.metaKey
-            ? activeSelection
-            : nextMarkSelection(activeSelection?.type === "marks" ? activeSelection : null, mark, event.shiftKey, event.ctrlKey || event.metaKey);
-          updateSequenceSelection(nextSelection);
-          setSelected({ type: "mark", collectionKey: mark.collectionKey, index: mark.index });
-          setActiveMarkCollectionKey(markHit.collectionKey);
-          setSelectedTimeSeconds(markHit.timeSeconds);
-          drag.current = {
-            kind: "mark",
-            collectionKey: markHit.collectionKey,
-            index: markHit.index,
-            startX: x,
-            startY: y,
-            active: false,
-            originalTimeSeconds: markHit.timeSeconds
-          };
-          return;
-        }
         if (x >= left && y >= top) {
         const laneIndex = laneIndexFromCanvasY(y, top, viewport.scrollY, document.lanes.length, rows);
           const timeSeconds = timeFromCanvasX(x);
@@ -1192,29 +1291,27 @@ export function SequenceCanvas({
           setSelectedTimeSeconds(timeSeconds);
           setSelected(null);
           updateSequenceSelection(null);
-          const state = { mode: event.altKey ? "marks" as const : "clips" as const, startX: x, startY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
+          const state = { mode: "clips" as const, startX: x, startY: y, x, y, active: false, shift: event.shiftKey, ctrl: event.ctrlKey || event.metaKey };
           drag.current = { kind: "marquee", state };
           setMarquee(state);
         }
       }}
       onPointerMove={(event) => {
         const current = drag.current;
-        if (current?.kind === "audioStripResize") {
+        if (current?.kind === "stripResize") {
           if (!current.active) {
             if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
             current.active = true;
             setDragCursor("grabbing");
           }
-          const audioStripHeight = clamp(
-            current.initialHeight + event.nativeEvent.offsetY - current.startY,
-            SEQUENCE_CANVAS.minAudioStripHeightPx,
-            SEQUENCE_CANVAS.maxAudioStripHeightPx
-          );
+          const strip = TIMELINE_STRIPS[current.strip];
+          const height = clamp(current.initialHeight + event.nativeEvent.offsetY - current.startY, strip.minPx, strip.maxPx);
           setViewport((previous) => {
-            const nextTop = SEQUENCE_CANVAS.audioStripTopPx + audioStripHeight;
+            const next = { ...previous, [strip.height]: height };
+            const nextTop = SEQUENCE_CANVAS.audioStripTopPx + next.audioStripHeight + next.markRulerHeight;
             const visibleHeight = Math.max(1, canvasSize.height - nextTop);
             const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(previous.rowHeights, revealAutomation)) - visibleHeight);
-            return { ...previous, audioStripHeight, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
+            return { ...next, scrollY: clamp(previous.scrollY, 0, maxScrollY) };
           });
           return;
         }
@@ -1241,8 +1338,16 @@ export function SequenceCanvas({
           });
           return;
         }
-        if (current?.kind === "sequenceScrub") {
+        if (current?.kind === "playheadScrub") {
           seekFromCanvas(event);
+          return;
+        }
+        if (current?.kind === "timeRange") {
+          if (!current.active) {
+            if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
+            current.active = true;
+          }
+          setRangeDraft(rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, event.altKey)));
           return;
         }
         if (current?.kind === "marquee") {
@@ -1257,7 +1362,7 @@ export function SequenceCanvas({
           if (next.active) {
             const selectedByBox = next.mode === "clips"
               ? selectionFromMarqueeEffects(visibleClips, visibleAutomationClips, next)
-              : selectionFromMarqueeMarks(visibleMarkCollections, mode, next, left, audioStripTop, audioStripHeight, canvasSize.height, viewport);
+              : selectionFromMarqueeMarks(visibleMarkCollections, next, left, viewport);
             updateSequenceSelection(mergeSequenceSelection(sequenceSelectionRef.current, selectedByBox, next.shift, next.ctrl));
             setSelected(null);
           }
@@ -1297,9 +1402,13 @@ export function SequenceCanvas({
         if (!current) {
           const x = event.nativeEvent.offsetX;
           const y = event.nativeEvent.offsetY;
-          const audioResize = audioStripResizeHit(y, top);
-          setAudioResizeHover(audioResize);
-          if (audioResize) {
+          const stripResize = stripResizeHit(y, audioStripBottom, top);
+          setStripResizeHover(stripResize);
+          const nextSeekHover = stripResize === null && x >= left && y < audioStripBottom ? seekHoverAt(x, y) : null;
+          setSeekHover((previous) =>
+            previous?.target === nextSeekHover?.target && previous?.seconds === nextSeekHover?.seconds ? previous : nextSeekHover
+          );
+          if (stripResize !== null || nextSeekHover !== null) {
             setRowResizeHover(null);
             setHover(null);
             setAutomationHover(null);
@@ -1309,13 +1418,10 @@ export function SequenceCanvas({
             ? rowResizeHit(y, top, viewport.scrollY, rows)
             : null;
           setRowResizeHover(resizeHit === null ? null : { laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
-          const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
+          const automationHit = x >= left && y >= top ? hitTimelineClip(visibleAutomationClips, x, y) : null;
           const choosingAutomation = automationClipChooser !== null;
-          const hit = x >= left && automationHit === null && !choosingAutomation ? hitSequence(visibleClips, x, y) : null;
-          const markHit =
-            hit === null && automationHit === null && !choosingAutomation
-              ? hitSequenceMark(visibleMarkCollections, mode, x, y, left, audioStripTop, audioStripHeight, canvasSize.height, viewport)
-              : null;
+          const hit = x >= left && y >= top && automationHit === null && !choosingAutomation ? hitSequence(visibleClips, x, y) : null;
+          const markHit = inMarkRuler(y) && !choosingAutomation ? hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) : null;
           const nextHover: SequenceHover =
             hit !== null
               ? { kind: "effect", effectId: hit.effect.id, resize: hit.resize }
@@ -1362,20 +1468,35 @@ export function SequenceCanvas({
         drag.current = null;
         setDragCursor(null);
         setMarquee(null);
-        if (current?.kind === "audioStripResize") {
-          setAudioResizeHover(false);
+        if (current?.kind === "stripResize") {
+          setStripResizeHover(null);
           return;
         }
         if (current?.kind === "rowResize") {
           setRowResizeHover(null);
           return;
         }
-        if (current?.kind === "marquee") {
-          if (!current.state.active && current.state.mode === "marks") {
-            void addMarkAtTime(timeFromCanvasX(current.state.startX));
+        if (current?.kind === "timeRange") {
+          if (current.active) {
+            const range = rangeFromDrag(current.anchorSeconds, rangeTimeFromCanvasX(event.nativeEvent.offsetX, event.altKey));
+            if (range.endSeconds <= range.startSeconds) {
+              setRangeDraft(null);
+              return;
+            }
+            void runSnapshotCommand(() => commands.audioSetRange(range)).finally(() => { setRangeDraft(null); });
+            return;
           }
+          if (current.fromEdge) return;
+          // A click places the playhead and clears the range.
+          const positionSeconds = seekTimeFromCanvasX(current.startX);
+          const hadRange = (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null;
+          void runSnapshotCommand(async () => {
+            if (hadRange) await commands.audioSetRange(null);
+            return commands.audioSeek(positionSeconds);
+          });
           return;
         }
+        if (current?.kind === "marquee") return;
         if (current?.kind === "mark") {
           if (!current.active) {
             setMarkDrafts(new Map());
@@ -1458,13 +1579,15 @@ export function SequenceCanvas({
         setRevealAutomation(false);
         setDragCursor(null);
         setMarquee(null);
+        setRangeDraft(null);
       }}
       onPointerLeave={() => {
         if (drag.current === null) {
+          setSeekHover(null);
           setHover(null);
           setAutomationHover(null);
           setRowResizeHover(null);
-          setAudioResizeHover(false);
+          setStripResizeHover(null);
         }
       }}
           />
@@ -1472,23 +1595,25 @@ export function SequenceCanvas({
         {sequenceContextMenu !== null && (
           <ContextMenu.Portal container={overlayContainer}>
             <ContextMenu.Content className="menu-content">
-              <ContextMenu.Sub>
-                <ContextMenu.SubTrigger className="menu-item">
-                  Add Effect <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
-                </ContextMenu.SubTrigger>
-                <ContextMenu.Portal container={overlayContainer}>
-                  <ContextMenu.SubContent className="menu-content">
-                    <DefinitionMenuItems
-                      menu={ContextMenu}
-                      tree={effectTree}
-                      label={(definition) => definition.name}
-                      itemKey={(definition) => `${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
-                      onSelect={(definition) => void addEffectFromContextMenu(definition, sequenceContextMenu)}
-                      empty="No effects"
-                    />
-                  </ContextMenu.SubContent>
-                </ContextMenu.Portal>
-              </ContextMenu.Sub>
+              {laneContextMenu !== null && (
+                <ContextMenu.Sub>
+                  <ContextMenu.SubTrigger className="menu-item">
+                    Add Effect <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
+                  </ContextMenu.SubTrigger>
+                  <ContextMenu.Portal container={overlayContainer}>
+                    <ContextMenu.SubContent className="menu-content">
+                      <DefinitionMenuItems
+                        menu={ContextMenu}
+                        tree={effectTree}
+                        label={(definition) => definition.name}
+                        itemKey={(definition) => `${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
+                        onSelect={(definition) => void addEffectFromContextMenu(definition, laneContextMenu)}
+                        empty="No effects"
+                      />
+                    </ContextMenu.SubContent>
+                  </ContextMenu.Portal>
+                </ContextMenu.Sub>
+              )}
               <ContextMenu.Item
                 className="menu-item"
                 onSelect={() => {
@@ -1504,7 +1629,7 @@ export function SequenceCanvas({
                 <ContextMenu.Portal container={overlayContainer}>
                   <ContextMenu.SubContent className="menu-content">
                     {document.markCollections.length === 0 ? (
-                      <ContextMenu.Item className="menu-item" onSelect={() => void addMarkFromContextMenu(null, sequenceContextMenu)}>
+                      <ContextMenu.Item className="menu-item" onSelect={() => void addMark(null, sequenceContextMenu.startSeconds)}>
                         Marks
                       </ContextMenu.Item>
                     ) : (
@@ -1512,7 +1637,7 @@ export function SequenceCanvas({
                         <ContextMenu.Item
                           key={collection.key}
                           className="menu-item"
-                          onSelect={() => void addMarkFromContextMenu(collection.key, sequenceContextMenu)}
+                          onSelect={() => void addMark(collection.key, sequenceContextMenu.startSeconds)}
                         >
                           <span style={{ color: collection.color }}>{collection.key}</span>
                         </ContextMenu.Item>
@@ -1521,9 +1646,11 @@ export function SequenceCanvas({
                   </ContextMenu.SubContent>
                 </ContextMenu.Portal>
               </ContextMenu.Sub>
-              <ContextMenu.Item className="menu-item" onSelect={() => void addAutomationClipFromContextMenu(sequenceContextMenu)}>
-                Add Automation Clip
-              </ContextMenu.Item>
+              {laneContextMenu !== null && (
+                <ContextMenu.Item className="menu-item" onSelect={() => void addAutomationClipFromContextMenu(laneContextMenu)}>
+                  Add Automation Clip
+                </ContextMenu.Item>
+              )}
               {sequenceContextMenu.kind === "effect" && (
                 <>
                   <ContextMenu.Separator className="menu-separator" />
@@ -1593,7 +1720,12 @@ export function SequenceCanvas({
         setViewport={setViewport}
         left={left}
         audioStripTop={audioStripTop}
+        seekZoneHeight={audioStripBottom}
+        followMode={settings?.sequenceFollowMode ?? null}
+        seekHover={seekHover}
+        rangeDraft={rangeDraft}
         canvasSize={canvasSize}
+        playheadClockRef={playheadClockRef}
       />
     </div>
   );
@@ -1605,14 +1737,24 @@ function SequenceTransportOverlay({
   setViewport,
   left,
   audioStripTop,
-  canvasSize
+  seekZoneHeight,
+  followMode,
+  seekHover,
+  rangeDraft,
+  canvasSize,
+  playheadClockRef
 }: {
   document: SequenceEditorDocument;
   viewport: SequenceViewport;
   setViewport: Dispatch<SetStateAction<SequenceViewport>>;
   left: number;
   audioStripTop: number;
+  seekZoneHeight: number;
+  followMode: SequenceFollowMode | null;
+  seekHover: SeekHover | null;
+  rangeDraft: PlaybackRange | null;
   canvasSize: { width: number; height: number };
+  playheadClockRef: RefObject<(() => number) | null>;
 }) {
   const host = useSequenceEditorHost();
   const { store: useAppStore } = host;
@@ -1627,7 +1769,12 @@ function SequenceTransportOverlay({
       setViewport={setViewport}
       left={left}
       audioStripTop={audioStripTop}
+      seekZoneHeight={seekZoneHeight}
+      followMode={followMode}
+      seekHover={seekHover}
+      rangeDraft={rangeDraft}
       canvasSize={canvasSize}
+      playheadClockRef={playheadClockRef}
     />
   );
 }
@@ -1639,7 +1786,12 @@ function SequenceTransportMarkers({
   setViewport,
   left,
   audioStripTop,
-  canvasSize
+  seekZoneHeight,
+  followMode,
+  seekHover,
+  rangeDraft,
+  canvasSize,
+  playheadClockRef
 }: {
   document: SequenceEditorDocument;
   transport: AudioTransportViewSnapshot;
@@ -1647,9 +1799,14 @@ function SequenceTransportMarkers({
   setViewport: Dispatch<SetStateAction<SequenceViewport>>;
   left: number;
   audioStripTop: number;
+  seekZoneHeight: number;
+  followMode: SequenceFollowMode | null;
+  seekHover: SeekHover | null;
+  rangeDraft: PlaybackRange | null;
   canvasSize: { width: number; height: number };
+  playheadClockRef: RefObject<(() => number) | null>;
 }) {
-  const liveTransport = useSequenceTransport(transport);
+  const liveTransport = useSequenceTransport(transport, playheadClockRef);
   const markerHeight = Math.max(0, canvasSize.height - audioStripTop - THEME_METRICS.scrollbarWidth);
   const markerLeft = (seconds: number) =>
     left + (clamp(seconds, 0, document.durationSeconds) - viewport.scrollXSeconds) * viewport.pxPerSecond;
@@ -1657,10 +1814,12 @@ function SequenceTransportMarkers({
   const homeLeft = markerLeft(liveTransport.homeSeconds);
   const visible = (x: number) => x >= left && x <= canvasSize.width;
 
-  // While playing, page the view forward when the playhead passes the edge, and jump to the
-  // playhead when playback starts off screen. If the user scrolls away from the playhead during
-  // playback, the view stays put until the playhead is visible again or playback restarts.
-  const following = liveTransport.state === "playing";
+  // Page mode pages the view forward when the playhead passes the edge, and jumps to the playhead
+  // when playback starts off screen or the playhead leaves the view, including a loop wrapping back.
+  // If the user scrolls away during playback, the view stays put until the playhead is visible
+  // again or playback restarts. Continuous mode holds the playhead at the anchor, moving freely
+  // only where the view meets either end of the sequence.
+  const following = liveTransport.state === "playing" && followMode !== null && followMode !== "off";
   const positionSeconds = liveTransport.positionSeconds;
   const followFrame = useRef<{ onScreen: boolean; scrollXSeconds: number } | null>(null);
   useEffect(() => {
@@ -1669,6 +1828,12 @@ function SequenceTransportMarkers({
       return;
     }
     const visibleSeconds = Math.max(0, canvasSize.width - left) / viewport.pxPerSecond;
+    const maxScrollXSeconds = Math.max(0, document.durationSeconds - visibleSeconds);
+    if (followMode === "continuous") {
+      const scrollXSeconds = clamp(positionSeconds - visibleSeconds * SEQUENCE_FOLLOW.anchor, 0, maxScrollXSeconds);
+      setViewport((current) => current.scrollXSeconds === scrollXSeconds ? current : { ...current, scrollXSeconds });
+      return;
+    }
     const pageEnd = viewport.scrollXSeconds + visibleSeconds * SEQUENCE_FOLLOW.edge;
     const onScreen = positionSeconds >= viewport.scrollXSeconds && positionSeconds <= viewport.scrollXSeconds + visibleSeconds;
     const previous = followFrame.current;
@@ -1677,15 +1842,33 @@ function SequenceTransportMarkers({
     const playheadLeftView = previous !== null && previous.onScreen && previous.scrollXSeconds === viewport.scrollXSeconds;
     const page = previous === null
       ? !onScreen || positionSeconds > pageEnd
-      : positionSeconds > pageEnd && (onScreen || playheadLeftView);
+      : onScreen ? positionSeconds > pageEnd : playheadLeftView;
     if (!page) return;
-    const maxScrollXSeconds = Math.max(0, document.durationSeconds - visibleSeconds);
     const scrollXSeconds = clamp(positionSeconds - visibleSeconds * SEQUENCE_FOLLOW.lead, 0, maxScrollXSeconds);
     setViewport((current) => current.scrollXSeconds === scrollXSeconds ? current : { ...current, scrollXSeconds });
-  }, [following, positionSeconds, viewport.scrollXSeconds, viewport.pxPerSecond, canvasSize.width, left, document.durationSeconds, setViewport]);
+  }, [following, followMode, positionSeconds, viewport.scrollXSeconds, viewport.pxPerSecond, canvasSize.width, left, document.durationSeconds, setViewport]);
+
+  const range = rangeDraft ?? liveTransport.range;
+  const rangeLeft = range === null ? 0 : Math.max(left, markerLeft(range.startSeconds));
+  const rangeRight = range === null ? 0 : Math.min(canvasSize.width, markerLeft(range.endSeconds));
+  const hoverLeft = seekHover === null ? 0 : markerLeft(seekHover.seconds);
+  const showSeekHover = seekHover !== null && (seekHover.target === "time" || seekHover.target === "home") && visible(hoverLeft);
 
   return (
     <>
+      {rangeRight > rangeLeft && (
+        <div
+          className="sequence-transport-range"
+          style={{ left: rangeLeft, width: rangeRight - rangeLeft, top: 0, height: audioStripTop + markerHeight }}
+        />
+      )}
+      {showSeekHover && (
+        <div className="sequence-seek-hover" style={{ left: hoverLeft, top: 0, height: seekZoneHeight }}>
+          <span className="sequence-seek-hover-label">
+            {seekHover.target === "home" ? "Home: Stop returns here" : formatSeconds(seekHover.seconds)}
+          </span>
+        </div>
+      )}
       {visible(homeLeft) && (
         <div
           className="sequence-transport-marker home"
@@ -1693,10 +1876,13 @@ function SequenceTransportMarkers({
         />
       )}
       {visible(playheadLeft) && (
-        <div
-          className="sequence-transport-marker playhead"
-          style={{ left: playheadLeft, top: audioStripTop, height: markerHeight }}
-        />
+        <>
+          <div className="sequence-playhead-head" style={{ left: playheadLeft, top: audioStripTop }} />
+          <div
+            className="sequence-transport-marker playhead"
+            style={{ left: playheadLeft, top: audioStripTop, height: markerHeight }}
+          />
+        </>
       )}
     </>
   );
@@ -1780,7 +1966,8 @@ function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceEdi
 function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | undefined, document: SequenceEditorDocument, settings: AppSettings | null): SequenceViewport {
   return {
     pxPerSecond: state === undefined ? settings?.sequenceInitialPxPerSecond ?? SEQUENCE_CANVAS.initialPxPerSecond : clamp(state.pxPerSecond, SEQUENCE_CANVAS.minPxPerSecond, SEQUENCE_CANVAS.maxZoomPxPerSecond),
-    audioStripHeight: clamp(state?.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, SEQUENCE_CANVAS.minAudioStripHeightPx, SEQUENCE_CANVAS.maxAudioStripHeightPx),
+    audioStripHeight: clamp(state?.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, TIMELINE_STRIPS.audio.minPx, TIMELINE_STRIPS.audio.maxPx),
+    markRulerHeight: clamp(state?.markRulerHeightPx ?? SEQUENCE_CANVAS.initialMarkRulerHeightPx, TIMELINE_STRIPS.marks.minPx, TIMELINE_STRIPS.marks.maxPx),
     rowHeights: restoreRowHeights(document.lanes, state?.rowHeights, initialSequenceLaneHeight(settings)),
     scrollXSeconds: Math.max(0, state?.scrollXSeconds ?? 0),
     scrollY: Math.max(0, state?.scrollY ?? 0)
