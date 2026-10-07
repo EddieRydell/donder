@@ -16,6 +16,7 @@ pub struct SequenceId(pub ObjectIdentity);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sequence {
     pub id: SequenceId,
+    pub description: Option<String>,
     pub duration: DonderDuration,
     pub frame_rate: u32,
     pub audio: SequenceAudio,
@@ -39,7 +40,9 @@ pub struct SequenceLayerId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct SequenceLayer {
     pub id: SequenceLayerId,
-    pub name: String,
+    /// Unique among the sequence's layers and graph nodes.
+    pub name: Identifier,
+    pub description: Option<String>,
     pub color: Color,
     pub enabled: bool,
 }
@@ -87,14 +90,14 @@ pub struct GraphPortId(pub String);
 #[derive(Clone, Debug, PartialEq)]
 pub struct MarkCollection {
     pub key: MarkCollectionKey,
-    pub name: String,
+    pub description: Option<String>,
     pub display_color: Color,
     pub marks: Vec<DonderTime>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct MarkCollectionKey {
-    pub name: String,
+    pub name: Identifier,
 }
 
 #[derive(Clone, Debug, PartialEq)]

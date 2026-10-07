@@ -7,6 +7,18 @@ use crate::values::Color;
 #[derive(Clone, Debug)]
 pub(crate) struct Module {
     pub(crate) declarations: Vec<Declaration>,
+    pub(crate) functions: Vec<Function>,
+}
+
+/// `fn name(arg: type, ...) -> type { body }`, inlined where it is called.
+#[derive(Clone, Debug)]
+pub(crate) struct Function {
+    pub(crate) name: Name,
+    pub(crate) description: Option<String>,
+    pub(crate) args: Vec<(Name, TypeExpr)>,
+    pub(crate) result: TypeExpr,
+    pub(crate) body: Block,
+    pub(crate) span: TextSpan,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,6 +39,7 @@ pub struct DeclarationSpan {
 pub(crate) struct Declaration {
     pub(crate) kind: DeclarationKind,
     pub(crate) name: Name,
+    pub(crate) description: Option<String>,
     pub(crate) params: Vec<Param>,
     pub(crate) inputs: Vec<Name>,
     pub(crate) sample: Option<Block>,
@@ -45,6 +58,7 @@ pub(crate) struct Param {
     pub(crate) ty: TypeExpr,
     pub(crate) range: Option<(Literal, Literal)>,
     pub(crate) default: Option<Literal>,
+    pub(crate) description: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -116,6 +130,7 @@ pub(crate) enum BinaryOp {
     Subtract,
     Multiply,
     Divide,
+    FloorDivide,
     Remainder,
     Less,
     LessEqual,

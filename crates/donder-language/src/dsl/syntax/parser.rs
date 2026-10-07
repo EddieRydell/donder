@@ -3,7 +3,7 @@
 //! Syntax trees are at most [`MAX_NESTING`] levels deep, so checking and
 //! dropping them cannot exhaust the stack.
 use super::ast::*;
-use super::lexer::{Keyword, LexError, TextSpan, Token, TokenKind, lex};
+use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
 use crate::dsl::Diagnostic;
 use crate::dsl::types::Identifier;
 use crate::values::Color;
@@ -11,6 +11,17 @@ use crate::values::Color;
 const MAX_NESTING: usize = 128;
 
 pub(crate) fn parse(source: &str) -> Result<Module, Vec<Diagnostic>> {
+    let (module, diagnostics) = parse_partial(source);
+    if diagnostics.is_empty() {
+        Ok(module)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+/// Every declaration and function that parses, and the errors of those that
+/// do not; the language server analyzes what parsed while one is half-typed.
+pub(crate) fn parse_partial(source: &str) -> (Module, Vec<Diagnostic>) {
     let mut parser = Parser {
         source,
         tokens: lex(source),
@@ -18,22 +29,29 @@ pub(crate) fn parse(source: &str) -> Result<Module, Vec<Diagnostic>> {
         depth: 0,
     };
     let mut declarations = Vec::new();
+    let mut functions = Vec::new();
     let mut diagnostics = Vec::new();
     while parser.peek().kind != TokenKind::Eof {
         parser.depth = 0;
-        match parser.declaration() {
-            Ok(declaration) => declarations.push(declaration),
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                parser.recover();
-            }
+        let parsed = if parser.at(TokenKind::Keyword(Keyword::Fn)) {
+            parser.function().map(|function| functions.push(function))
+        } else {
+            parser
+                .declaration()
+                .map(|declaration| declarations.push(declaration))
+        };
+        if let Err(diagnostic) = parsed {
+            diagnostics.push(diagnostic);
+            parser.recover();
         }
     }
-    if diagnostics.is_empty() {
-        Ok(Module { declarations })
-    } else {
-        Err(diagnostics)
-    }
+    (
+        Module {
+            declarations,
+            functions,
+        },
+        diagnostics,
+    )
 }
 
 type Parsed<T> = Result<T, Diagnostic>;
@@ -90,12 +108,11 @@ impl Parser<'_> {
     fn unexpected(&self, what: &str) -> Diagnostic {
         let token = self.peek();
         let message = match token.kind {
-            TokenKind::Error(LexError::UnexpectedCharacter) => "unexpected character".into(),
-            TokenKind::Error(LexError::InvalidColor) => {
-                "a color literal has six hexadecimal digits, like #ff8800".into()
-            }
-            TokenKind::Error(LexError::UnterminatedComment) => "unterminated block comment".into(),
+            TokenKind::Error(error) => error.message().into(),
             TokenKind::Eof => format!("expected {what}, found the end of the source"),
+            TokenKind::SlashSlash => {
+                format!("expected {what}, found `//`; comments start with `--`, and `//` divides")
+            }
             _ => format!("expected {what}, found `{}`", self.text(token.span)),
         };
         Diagnostic::new(token.span, message)
@@ -122,7 +139,7 @@ impl Parser<'_> {
         self.advance();
         while !matches!(
             self.peek().kind,
-            TokenKind::Eof | TokenKind::Keyword(Keyword::Effect | Keyword::Operator)
+            TokenKind::Eof | TokenKind::Keyword(Keyword::Effect | Keyword::Operator | Keyword::Fn)
         ) {
             self.advance();
         }
@@ -142,10 +159,11 @@ impl Parser<'_> {
         let kind = match self.peek().kind {
             TokenKind::Keyword(Keyword::Effect) => DeclarationKind::Effect,
             TokenKind::Keyword(Keyword::Operator) => DeclarationKind::Operator,
-            _ => return Err(self.unexpected("`effect` or `operator`")),
+            _ => return Err(self.unexpected("`effect`, `operator` or `fn`")),
         };
         self.advance();
         let name = self.name("a declaration name")?;
+        let description = self.description()?;
         self.expect(TokenKind::LeftBrace, "`{`")?;
         let mut params = Vec::new();
         let mut inputs = Vec::new();
@@ -182,10 +200,39 @@ impl Parser<'_> {
         Ok(Declaration {
             kind,
             name,
+            description,
             params,
             inputs,
             sample,
             span: start.to(end),
+        })
+    }
+
+    fn function(&mut self) -> Parsed<Function> {
+        let start = self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`")?.span;
+        let name = self.name("a function name")?;
+        let description = self.description()?;
+        self.expect(TokenKind::LeftParen, "`(`")?;
+        let mut args = Vec::new();
+        while !self.at(TokenKind::RightParen) {
+            let arg = self.name("an argument name")?;
+            self.expect(TokenKind::Colon, "`:` and a type")?;
+            args.push((arg, self.type_expr()?));
+            if !self.eat(TokenKind::Comma) {
+                break;
+            }
+        }
+        self.expect(TokenKind::RightParen, "`)`")?;
+        self.expect(TokenKind::Arrow, "`->` and the result type")?;
+        let result = self.type_expr()?;
+        let body = self.block()?;
+        Ok(Function {
+            name,
+            description,
+            args,
+            result,
+            span: start.to(body.span),
+            body,
         })
     }
 
@@ -205,13 +252,26 @@ impl Parser<'_> {
         } else {
             None
         };
+        let description = self.description()?;
         self.expect(TokenKind::Semicolon, "`;`")?;
         Ok(Param {
             name,
             ty,
             range,
             default,
+            description,
         })
+    }
+
+    /// An optional description string: `effect Pulse "Swells and fades." {`.
+    fn description(&mut self) -> Parsed<Option<String>> {
+        if !self.at(TokenKind::String) {
+            return Ok(None);
+        }
+        let token = self.advance();
+        crate::data::literal::string(self.text(token.span))
+            .map(Some)
+            .map_err(|message| Diagnostic::new(token.span, message))
     }
 
     fn type_expr(&mut self) -> Parsed<TypeExpr> {
@@ -644,9 +704,19 @@ fn binary_op(kind: TokenKind) -> Option<(BinaryOp, u8)> {
         TokenKind::Minus => (BinaryOp::Subtract, ADDITIVE),
         TokenKind::Star => (BinaryOp::Multiply, 5),
         TokenKind::Slash => (BinaryOp::Divide, 5),
+        TokenKind::SlashSlash => (BinaryOp::FloorDivide, 5),
         TokenKind::Percent => (BinaryOp::Remainder, 5),
         _ => return None,
     })
+}
+
+/// Each top-level `fn` declaration's span, in source order.
+pub(crate) fn function_spans(source: &str) -> Result<Vec<TextSpan>, Vec<Diagnostic>> {
+    Ok(parse(source)?
+        .functions
+        .into_iter()
+        .map(|function| function.span)
+        .collect())
 }
 
 /// Each top-level declaration's kind, name and span, in source order.

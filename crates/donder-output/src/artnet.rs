@@ -149,6 +149,7 @@ mod tests {
             mode: ArtNetMode::Unicast,
         };
         let port = ControllerPort {
+            name: donder_language::names::object_name("port"),
             id: ControllerPortId(1),
             address: ControllerPortAddress::ArtNetPort(0x1234),
             slot_count: 3,

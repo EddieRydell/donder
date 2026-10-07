@@ -13,10 +13,10 @@ use donder_language::values::{
 const EFFECT_TEMPLATE: &str = "effect Probe {
   param amount: float in 0.0..1.0 = 0.5;
   param count: int in 1..8 = 3;
-  param mode: enum { a, b } = a;
+  param mode: enum { A, B } = A;
   param colors: array<gradient>;
   sample {
-    let x = if mode == b { 1.0 - pixel.fraction } else { pixel.fraction };
+    let x = if mode == B { 1.0 - pixel.fraction } else { pixel.fraction };
     let x = x * amount;
     guard x > 0.1;
     let level = [0.25, 0.5, 1.0][pixel.index % 3];
@@ -312,7 +312,8 @@ fn deeply_nested_source_reports_a_diagnostic() {
     );
     let nested_unary = format!(
         "effect Probe {{ sample {{ rgb({}1, 0.0, 0.0) }} }}",
-        "-".repeat(512)
+        // Spaced, because `--` starts a comment.
+        "- ".repeat(512)
     );
     let nested_parentheses = format!(
         "effect Probe {{ sample {{ rgb({}1{}, 0.0, 0.0) }} }}",

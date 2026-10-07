@@ -145,9 +145,10 @@ symbol prefix:
 
 Drop glue and once-per-frame work such as automation stay in flash. Flash
 addresses in the `.rwtext` literal pools show which flash functions the
-instruction-RAM code still calls. On October 6, 2026 the loader used 76,984
-bytes of `.rwtext` beside 51,796 bytes of Wi-Fi code, about 1.3 KB below the
-limit. Check the linker output after growing the interpreter: code size, not
+instruction-RAM code still calls; large math such as `powf`, `expf`, `logf`
+and `tanf` stays behind out-of-line wrappers in flash. On October 6, 2026 the
+loader used 77,004 bytes of `.rwtext` beside 51,796 bytes of Wi-Fi code, about
+1.2 KB below the limit. Check the linker output after growing the interpreter: code size, not
 speed, decides what the interpreter may specialize. Operand lookups stay out of
 line, one bounds check each rather than one per instruction arm, and only the
 cheapest operations have loops per operand kind. Graph evaluation borrows its

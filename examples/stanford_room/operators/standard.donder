@@ -1,0 +1,118 @@
+-- Editable project-local composition operators.
+operator Max {
+  input a;
+  input b;
+
+  sample { max(a, b) }
+}
+
+operator Add {
+  input a;
+  input b;
+
+  sample { a + b }
+}
+
+operator Multiply {
+  input a;
+  input b;
+
+  sample { a * b }
+}
+
+operator HueMap {
+  input source;
+  input gradient;
+
+  sample { hsv(hue(gradient), saturation(source), intensity(source)) }
+}
+
+operator IntensityModulate {
+  input source;
+  input mask;
+
+  sample { source * intensity(mask) }
+}
+
+operator Dim {
+  input input;
+  param amount: float in 0.0..1.0 = 0.5;
+
+  sample { input * amount }
+}
+
+operator Invert {
+  input input;
+
+  sample { invert(input) }
+}
+
+operator Colorize {
+  input input;
+  param tint: color = #ffffff;
+
+  sample { tint * intensity(input) }
+}
+
+operator HueShift {
+  input source;
+  -- Turns.
+  param shift: float in 0.0..1.0 = 0.0;
+
+  sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
+}
+
+operator Delay {
+  input input;
+  param seconds: float in 0.0..60.0 = 0.1;
+
+  sample { input.at(time - seconds) }
+}
+
+operator Echo {
+  input input;
+  param seconds: float in 0.0..60.0 = 0.1;
+  param repeats: int in 1..32 = 3;
+  param decay: float in 0.0..1.0 = 0.5;
+
+  -- Samples before the sequence are black, so early echoes add nothing.
+  sample {
+    max for repeat in 0..=repeats {
+      input.at(time - seconds * repeat) * pow(decay, repeat)
+    }
+  }
+}
+
+operator FreezeFrame {
+  input input;
+  param interval_seconds: float in 0.001..10.0 = 0.01;
+  param fade_seconds: float in 0.001..60.0 = 1.0;
+
+  -- Keeps at most 32 snapshots; samples before the sequence are black.
+  sample {
+    let capture_index = floor(time / interval_seconds);
+    let snapshots = int(min(32.0, ceil(fade_seconds / interval_seconds)));
+    max for snapshot in 0..snapshots {
+      let snapshot_time = (capture_index - snapshot) * interval_seconds;
+      let age = time - snapshot_time;
+      guard age < fade_seconds;
+      input.at(snapshot_time) * (1.0 - age / fade_seconds)
+    }
+  }
+}
+
+operator Blur {
+  input input;
+  -- Pixels averaged on each side, along each fixture's pixel order.
+  param radius: int in 1..16 = 2;
+
+  -- Tent weights, renormalized where a fixture ends so its edges keep their level.
+  sample {
+    let first = int(max(-radius, -pixel.index));
+    let last = int(min(radius, target.count - 1 - pixel.index));
+    let total = sum for offset in first..=last { radius + 1 - abs(offset) };
+    sum for offset in first..=last {
+      input.at(time, pixel.index + offset) * ((radius + 1 - abs(offset)) / total)
+    }
+  }
+}

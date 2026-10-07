@@ -1,8 +1,8 @@
 # Fixture authoring
 
 A fixture contains an ordered list of editable shapes: individual pixels, lines,
-polylines, arcs (including full circles), and grids. Each shape has a stable ID,
-name, transform, pixel diameter, and pixel order. Layouts place reusable fixtures
+polylines, arcs (including full circles), and grids. Each shape has a name,
+transform, pixel diameter, and pixel order. Layouts place reusable fixtures
 and organize their instances into groups. Shapes are not separate effect targets.
 
 ## Drawing and editing
@@ -91,7 +91,8 @@ Add fixture submenu. A selected fixture's source actions offer **Make reusable**
 for owned geometry and **Make independent** for a link. Making a link independent
 copies its geometry into that placement and leaves the reusable source unchanged.
 
-Right-click a fixture row to edit, rename, or remove it. Removing
+Right-click a fixture row to edit it, change its name and description, or
+remove it. Removing
 an inline fixture removes its owned shape data. Copying an inline fixture creates
 independent geometry. Referenced fixture data remains available after removing
 its placements, whether its source is in the same file or another file.
@@ -104,70 +105,83 @@ a failed save leaves the editor open.
 The layout hierarchy supports dragging fixtures and groups. Drop onto the middle
 of a group row to move inside it; the group opens while hovering. Drop near the
 top or bottom of a row to reorder siblings, or onto the bottom drop area to move
-to the top level. Moves preserve fixture IDs, geometry ownership, and canvas
+to the top level. Moves preserve fixture names, geometry ownership, and canvas
 positions, and use normal undo/redo. Groups cannot be moved into their descendants.
 Reordering changes layout traversal order, and changing group membership also
 changes which fixtures are included when an effect or patch targets that group.
 
 Duplicating a fixture or group copies its geometry into independently owned
-values, even when the original used a reusable source. Copies get new placement
-IDs next to the originals. Routes and effect targets keep addressing the
+values, even when the original used a reusable source. Copies get new names
+(`front_left_copy`) next to the originals. Routes and effect targets keep addressing the
 originals; a copy is not patched automatically.
 
 ## Authored format
 
-An owned fixture places its geometry directly inside the layout entry. It needs
+An owned fixture places its geometry directly inside the layout item. It needs
 no extra named source object:
 
-```yaml
-main:
-  type: layout
-  fixtures:
-  - id: 1
-    name: Front Left
-    type: fixture
-    definition:
-      type: fixture
-      elements: []
+```text
+Layout main {
+  description: none,
+  items: [
+    Fixture {
+      name: front_left,
+      description: none,
+      definition: FixtureDefinition { description: none, shapes: [] },
+      transform: Transform {
+        position: (0m, 0m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+  ],
+}
 ```
 
-A reference instead uses `definition: strip` (or an imported alias). The named
-source is reusable independently of where its document is stored:
+A reference instead uses `definition: strip` (or `fixtures.strip` through an
+import). The named source is reusable independently of where its document is
+stored:
 
-```yaml
-strip:
-  type: fixture
-  elements:
-  - id: 1
-    name: Bottom edge
-    diameter: 0.01
-    reverse: false
-    transform:
-      position: { x: 0, y: 0, z: 0 }
-    shape:
-      type: line
-      length: 2
-      count: 60
+```text
+FixtureDefinition strip {
+  description: none,
+  shapes: [
+    Shape {
+      name: bottom_edge,
+      diameter: 0.01m,
+      reverse: false,
+      transform: Transform {
+        position: (0m, 0m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 2.0, count: 60 },
+    },
+  ],
+}
 ```
 
-The elements list is authoritative; generated pixels are never saved alongside
-it. Shape geometry and transforms use meters and degrees. Each shape and fixture
-must have at most 1,000,000 pixels. Individual shapes have positive counts, while
-an empty fixture is valid. IDs are unique within the fixture. Grid dimensions
+The shapes list is authoritative; generated pixels are never saved alongside
+it. Positions and diameters are distances in meters, exact to the micrometer
+(`0.35m`); rotations are degrees and other lengths are meters as floats. Each
+shape and fixture must have at most 1,000,000 pixels. Individual shapes have
+positive counts, while an empty fixture is valid. Shape names are unique within
+the fixture, and fixture and group names are unique within the layout at any
+depth, so routes and clips reach them as `layout.fixture`. Grid dimensions
 multiply to its count; arcs require a nonzero sweep of at most one full turn.
 
 ## Output and ownership
 
 Preparation expands shapes once into flat pixel buffers and resolves layout
 targets to instance ranges. Playback does not generate shapes or resolve names,
-imports, or groups per frame. Shape IDs and local pixel ordinals are independent
-of list order and reversal.
+imports, or groups per frame. Pixels are ordered by shape order, then along each
+shape, reversed where a shape says so.
 
 RGB/RGBW encoding, channel order, brightness, and gamma belong to LED routes.
 Routes can select pixel ranges. Changing counts or shape order changes those
 ranges, so review the patch when changing fixture wiring. Effects continue to
 target whole instances or groups.
 
-Copying a layout preserves shared fixtures and instance IDs, creates its own
+Copying a layout preserves shared fixtures and instance names, creates its own
 patch, and retargets affected sequences. Shared fixtures remain linked through
 explicit local imports and can be edited at their source.

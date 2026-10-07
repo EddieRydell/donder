@@ -2,13 +2,14 @@ import { useSequenceEditorHost } from "../../../editor/host";
 import { editShortcutTarget, isMac } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { Layers, SlidersHorizontal, Monitor } from "lucide-react";
+import { ChevronRight, Layers, SlidersHorizontal, Monitor } from "lucide-react";
 import {
   Background, Controls, Handle, MarkerType, MiniMap, NodeResizeControl, Position, ReactFlow,
   useEdgesState, useNodesState, useUpdateNodeInternals, type Edge, type Node, type NodeProps, type ReactFlowInstance
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
+import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
 import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition, graphOperatorKey } from "./graphOperator";
@@ -52,6 +53,10 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   const editable = useSequenceEditable();
   const request = useAppStore((state) => state.guiRequest);
   const graph = document.compositionGraph;
+  const operatorTree = useMemo(
+    () => definitionTree(graph.operatorCatalog, (definition) => definition.operator.path),
+    [graph.operatorCatalog]
+  );
   const { initial, view, save, saveSize } = useGraphViewState(document.sourceRef);
   const flow = useRef<ReactFlowInstance<GraphFlowNode> | null>(null);
   const connectionOrigin = useRef<GuiDocumentRequest | null>(null);
@@ -261,8 +266,24 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
           context?.type === "pane" && <>
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => { add(null, context.position); }}>Add layer</ContextMenu.Item>
             <ContextMenu.Separator className="menu-separator" />
-            <ContextMenu.Label className="menu-label">Add operator</ContextMenu.Label>
-            {graph.operatorCatalog.map((definition) => <ContextMenu.Item className="menu-item" disabled={!editable} key={graphOperatorKey(definition.operator)} onSelect={() => { add(definition.operator, context.position); }}>{definition.displayName}</ContextMenu.Item>)}
+            <ContextMenu.Sub>
+              <ContextMenu.SubTrigger className="menu-item" disabled={!editable}>
+                Add operator <ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden />
+              </ContextMenu.SubTrigger>
+              <ContextMenu.Portal container={overlayContainer}>
+                <ContextMenu.SubContent className="menu-content">
+                  <DefinitionMenuItems
+                    menu={ContextMenu}
+                    tree={operatorTree}
+                    label={(definition) => definition.displayName}
+                    itemKey={(definition) => graphOperatorKey(definition.operator)}
+                    onSelect={(definition) => { add(definition.operator, context.position); }}
+                    empty="No operators"
+                    disabled={!editable}
+                  />
+                </ContextMenu.SubContent>
+              </ContextMenu.Portal>
+            </ContextMenu.Sub>
           </>}
       </ContextMenu.Content></ContextMenu.Portal>
     </ContextMenu.Root>

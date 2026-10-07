@@ -61,15 +61,20 @@ parameter: each clip binds to any number of parameters on any effects or graph
 operators, mapped onto each parameter's declared range. One clip can sweep a hue shift, push a time
 warp and fade an effect together, and moving the clip moves all of them.
 
-```yaml
-automation_clips:
-- id: 1
-  start: 0s
-  duration: 12s
-  row_target: { layout: elements.outputs_layout, fixture: 1001 }
-  curve: { points: [{ position: 0.0, value: 0.0 }, { position: 1.0, value: 1.0 }] }
-  bindings:
-  - target: { type: composition_node_param, node_id: 5, param: offset_seconds }
+```text
+automation: [
+  AutomationClip {
+    row: elements.outputs_layout.all_outputs,
+    start: 0s,
+    duration: 12s,
+    curve: [(0.0, 0.0), (1.0, 1.0)],
+    bindings: [
+      NodeParam { node: time_warp, param: offset_seconds },
+      ClipParam { clip: pulse_1, param: revolutions },
+    ],
+    detached: [],
+  },
+],
 ```
 
 Mark collections place beats and cues on the timeline. Mark effects retrigger
@@ -95,15 +100,18 @@ and on an ESP32. Frame checksums from the controller match the desktop's.
 
 ## A show is a project folder
 
-A project is plain-text `.donder` documents: fixtures, layouts, patches,
-controllers, curves, gradients, effects, operators and sequences. It lives
-happily in git. Documents import each other, so a fixture definition, gradient
-or sequence can be shared across shows or kept inside one file.
+A project is plain text in one language: data documents (`*.data.donder`) hold
+fixtures, layouts, patches, controllers, curves, gradients and sequences, and
+scripts (`*.donder`) hold effects and operators. It lives happily in git.
+Documents import each other, so a fixture definition, gradient or sequence can
+be shared across shows or kept inside one file.
 
-The graphical editors and the text editor work on the same project. Edit a
-fixture's shapes on the canvas, route pixel ranges to controller ports, or type
-the YAML directly, with diagnostics that point at the exact field. Every
-graphical edit is undoable, and saving writes clean source back out.
+The graphical editors and the text editor work on the same project, and they
+correspond exactly: every data document is one editor state and every editor
+state is one document. Edit a fixture's shapes on the canvas, route pixel ranges
+to controller ports, or type the document directly, with diagnostics that point
+at the exact token. Every graphical edit is undoable, and saving prints the
+canonical text, so it never changes a token you wrote.
 
 `examples/stanford_room` is a complete five-and-a-half-minute room show at 120 fps that
 has played standalone on a Dig-Quad. `examples/starter` is a smaller project
@@ -126,33 +134,36 @@ pnpm install
 pnpm tauri dev
 ```
 
-Open `examples/starter/project.donder`, or follow
+Open `examples/starter/project.data.donder`, or follow
 [Create your first LED show](docs/first_show.md) to build a two-pixel show from
 an empty project, preview it and route its output.
 
-A command-line tool checks, initializes and copies projects:
+A command-line tool checks and copies projects:
 
 ```bash
 cargo run -p donder-cli -- --path examples/starter check
 ```
 
+`donder lsp` runs the language server over stdio for other editors.
+
 ## Development
 
 ```text
-crates/donder-language/      Domain types, the effect language compiler and bytecode
-crates/donder-project-io/    Project loading, imports, diagnostics and saving
-crates/donder-elaboration/   Preparing a sequence for selected outputs
-crates/donder-runtime/       Portable no_std playback runtime and archive format
-crates/donder-preview/       Preview playback and wgpu renderer
-crates/donder-output/        E1.31 and Art-Net transports
-crates/donder-cli/           Command-line project tools
-crates/donder-editor/        Shared GUI projection and edits for desktop and browser
-crates/donder-sequence-api/  Shared editor DTOs and generated TypeScript types
-crates/donder-browser/       WASM editing and playback session for the website
-apps/desktop/                Tauri desktop app: Rust service and React frontend
-firmware/esp32/              ESP32 controller firmware (separate Cargo workspace)
-examples/                    The starter project and the Stanford room show
-docs/                        User guides and reference
+crates/donder-language/         Domain types, the effect language compiler and bytecode
+crates/donder-project-io/       Project loading, imports, diagnostics and saving
+crates/donder-elaboration/      Preparing a sequence for selected outputs
+crates/donder-runtime/          Portable no_std playback runtime and archive format
+crates/donder-preview/          Preview playback and wgpu renderer
+crates/donder-output/           E1.31 and Art-Net transports
+crates/donder-language-server/  Language server for documents and scripts
+crates/donder-cli/              Command-line project tools
+crates/donder-editor/           Shared GUI projection and edits for desktop and browser
+crates/donder-sequence-api/     Shared editor DTOs and generated TypeScript types
+crates/donder-browser/          WASM editing and playback session for the website
+apps/desktop/                   Tauri desktop app: Rust service and React frontend
+firmware/esp32/                 ESP32 controller firmware (separate Cargo workspace)
+examples/                       The starter project and the Stanford room show
+docs/                           User guides and reference
 ```
 
 Before submitting changes, run:
@@ -181,4 +192,4 @@ edits. Benchmarks use Criterion (`pnpm bench:effect-vm:quick`, or
 toolchain; see the [firmware README](firmware/esp32/README.md).
 
 [The documentation](docs/README.md) covers the [architecture](docs/architecture.md),
-[project format](docs/project_format.md) and [effect language](docs/effect_language.md).
+[project language](docs/project_language.md) and [effect language](docs/effect_language.md).

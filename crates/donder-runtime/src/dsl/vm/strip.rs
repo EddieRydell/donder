@@ -20,11 +20,11 @@ use crate::dsl::bytecode::{
     SignalPixel, Slot, SlotKind,
 };
 use crate::sampling::{
-    add_colors, clamp_array_index, clamp_float, color_hue, color_intensity, color_saturation,
-    float_binary, float_unary, gradient_color_scaled, hsv, int_remainder, invert_color, length_int,
-    mark_at, max_colors, mix_colors, multiply_colors, previous_mark, previous_mark_index,
-    query_progress, query_seconds, rgb, sample_curve, sample_gradient, scale_color,
-    section_position,
+    add_colors, clamp_array_index, clamp_float, color_channel, color_hue, color_intensity,
+    color_saturation, float_binary, float_unary, gradient_color_scaled, hsv, int_binary,
+    invert_color, length_int, mark_at, max_colors, mix_colors, multiply_colors, previous_mark,
+    previous_mark_index, query_progress, query_seconds, rgb, sample_curve, sample_gradient,
+    scale_color, section_position,
 };
 use crate::sections::{PreparedSections, SectionContext, SectionPixel};
 use crate::values::{Color, Curve, Gradient, Marks, SampleTime};
@@ -449,9 +449,17 @@ fn binary(op: FloatBinary, a: f32, b: f32) -> f32 {
 }
 
 #[inline(never)]
+fn int(op: IntBinary, a: i32, b: i32) -> i32 {
+    int_binary(op, a, b)
+}
+
+#[inline(never)]
 fn component(op: ColorComponent, color: Color) -> f32 {
     match op {
         ColorComponent::Hue => color_hue(color),
+        ColorComponent::Red => color_channel(color.red),
+        ColorComponent::Green => color_channel(color.green),
+        ColorComponent::Blue => color_channel(color.blue),
         ColorComponent::Saturation => color_saturation(color),
         ColorComponent::Intensity => color_intensity(color),
     }
@@ -1136,7 +1144,7 @@ impl<'m> Machine<'m> {
                     B::Min => map2(sel, dst, a, b, |a, b| float_binary(B::Min, a, b)),
                     B::Max => map2(sel, dst, a, b, |a, b| float_binary(B::Max, a, b)),
                     B::ValueOr => map2(sel, dst, a, b, |a, b| float_binary(B::ValueOr, a, b)),
-                    B::Atan2 => apply2(sel, dst, a, b, |a, b| binary(B::Atan2, a, b)),
+                    op => apply2(sel, dst, a, b, |a, b| binary(op, a, b)),
                 }
             }
             I::Clamp {
@@ -1188,7 +1196,7 @@ impl<'m> Machine<'m> {
                     IntBinary::Add => map2(sel, dst, a, b, i32::wrapping_add),
                     IntBinary::Subtract => map2(sel, dst, a, b, i32::wrapping_sub),
                     IntBinary::Multiply => map2(sel, dst, a, b, i32::wrapping_mul),
-                    IntBinary::Remainder => apply2(sel, dst, a, b, int_remainder),
+                    op => apply2(sel, dst, a, b, |a, b| int(op, a, b)),
                 }
             }
             I::IntToFloat { dst, a } => map1(sel, self.float_dst(dst), self.int(a), |v| v as f32),

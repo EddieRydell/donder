@@ -10,10 +10,10 @@ use std::fs;
 fn local_audio_needs_no_inventory_or_configuration_update() {
     let (_temp, root) = starter();
     let config = fs::read(root.join(PROJECT_ROOT_FILE)).unwrap();
-    let sequence = root.join("sequences/layer_test.sequence.donder");
+    let sequence = root.join("sequences/layer_test.data.donder");
     let text = fs::read_to_string(&sequence)
         .unwrap()
-        .replace("audio: null", "audio: audio/test.wav");
+        .replace("audio: none", "audio: <audio/test.wav>");
     fs::write(&sequence, text).unwrap();
     let missing = check_project(&root);
     assert!(missing.session.is_none());
@@ -32,18 +32,21 @@ fn local_audio_needs_no_inventory_or_configuration_update() {
 #[test]
 fn unused_broken_download_does_not_invalidate_the_show() {
     let (_temp, root) = starter();
-    fs::write(root.join("download.donder"), "broken: [\n").unwrap();
+    fs::write(root.join("download.data.donder"), "Curve broken {\n").unwrap();
     let report = check_project(&root);
     assert!(report.session.is_some(), "{:?}", report.diagnostics);
     assert!(
         report
             .recovery
             .documents
-            .contains_key(Utf8Path::new("download.donder"))
+            .contains_key(Utf8Path::new("download.data.donder"))
     );
     assert!(
-        !donder_project_io::check_document_text(Utf8Path::new("download.donder"), "broken: [\n")
-            .is_empty()
+        !donder_project_io::check_document_text(
+            Utf8Path::new("download.data.donder"),
+            "Curve broken {\n"
+        )
+        .is_empty()
     );
 }
 
@@ -54,8 +57,8 @@ fn root_stays_fixed_and_copy_preserves_workspace_identity() {
     let metadata = ProjectMetadata::read(&root).unwrap();
     let error = plan_path_change(
         &session,
-        Utf8Path::new("project.donder"),
-        Utf8Path::new("show.donder"),
+        Utf8Path::new("project.data.donder"),
+        Utf8Path::new("show.data.donder"),
     )
     .unwrap_err();
     assert!(error.contains("must remain at the project root"));

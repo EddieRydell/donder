@@ -63,7 +63,7 @@ function TypedParamValue({
 
   if (!param.editable && !automated) {
     return (
-      <ParamShell name={param.name}>
+      <ParamShell name={param.name} description={param.description}>
         <div className="effect-param-unavailable">Unavailable</div>
       </ParamShell>
     );
@@ -82,9 +82,9 @@ function TypedParamValue({
         );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
     case "float":
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -97,7 +97,7 @@ function TypedParamValue({
       );
     case "color":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
           <ColorPicker
             value={param.value.value}
             label={param.name}
@@ -107,7 +107,7 @@ function TypedParamValue({
       );
     case "enum":
       return (
-        <ParamShell name={param.name} automated={automated}>
+        <ParamShell name={param.name} description={param.description} automated={automated}>
           <ParamValueRow actions={automationActions}>
             <select value={param.value.value} disabled={automated} onChange={(event) => void commit({ type: "enum", value: event.currentTarget.value })}>
               {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -117,7 +117,7 @@ function TypedParamValue({
       );
     case "curve":
       return (
-        <ParamShell name={param.name} automated={automated}>
+        <ParamShell name={param.name} description={param.description} automated={automated}>
         <CurveValueEditor name={param.name} value={param.value.value} sources={curveLibrary}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
@@ -125,7 +125,7 @@ function TypedParamValue({
       );
     case "gradient":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
         <GradientValueEditor name={param.name} value={param.value.value} sources={gradientLibrary}
           commit={(value) => commit({ type: "gradient", value })} />
         </ParamShell>
@@ -144,10 +144,10 @@ function TypedParamValue({
       return <GradientArrayParam sources={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
           <select value={param.value.key} onChange={(event) => void commit({ type: "marks", key: event.currentTarget.value })}>
             {markCollections.map((collection) => (
-              <option key={collection.key} value={collection.key}>{collection.name}</option>
+              <option key={collection.key} value={collection.key}>{collection.key}</option>
             ))}
           </select>
         </ParamShell>
@@ -155,10 +155,11 @@ function TypedParamValue({
   }
 }
 
-function ParamShell({ name, automated = false, children }: { name: string; automated?: boolean; children: ReactNode }) {
+function ParamShell({ name, description, automated = false, children }: { name: string; description: string | null; automated?: boolean; children: ReactNode }) {
   return (
     <div className={`effect-param-group ${automated ? "effect-param-automated" : ""}`}>
       <div className="effect-param-name">{name}</div>
+      {description !== null && <div className="effect-param-description">{description}</div>}
       {children}
     </div>
   );

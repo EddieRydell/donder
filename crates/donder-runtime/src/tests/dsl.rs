@@ -206,7 +206,6 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
         ("sum for i in 0..=10000 { i }", "reduction"),
         ("sum for i in 0..count * 10000 { i }", "reduction"),
         ("sum for i in 0..int(time) { i }", "reduction"),
-        ("int(pow(2.0, pixel.index))", "power"),
     ] {
         let message = effect_error(&format!(
             "effect Unbounded {{ param count: int in -3..4 = 3; sample {{ rgb({source}, 0.0, 0.0) }} }}"
@@ -433,7 +432,7 @@ fn only_first_and_last_take_an_else_so_a_guard_keeps_its_own() {
 }
 
 #[test]
-fn powers_multiply_their_base_an_integer_number_of_times() {
+fn powers_take_int_and_float_exponents() {
     let params = "param x: float in -4.0..4.0 = 1.5; param n: int in -2..8 = 3;";
     for (x, n, expected) in [
         (1.5, 3, 3.375),
@@ -441,8 +440,8 @@ fn powers_multiply_their_base_an_integer_number_of_times() {
         (0.0, 0, 1.0),
         (4.0, 0, 1.0),
         (0.5, 8, 0.00390625),
-        // A negative count multiplies no times.
-        (2.0, -2, 1.0),
+        // A negative exponent divides.
+        (2.0, -2, 0.25),
     ] {
         assert_holds(
             params,
@@ -456,8 +455,12 @@ fn powers_multiply_their_base_an_integer_number_of_times() {
         "sum for i in 0..=n { pow(x, i) } == 1.0 + 1.5 + 2.25 + 3.375",
         &[("x", Value::Float(1.5)), ("n", Value::Int(3))],
     );
-    let error = effect_error("effect Bad { sample { rgb(pow(2.0, 0.5), 0.0, 0.0) } }");
-    assert!(error.contains("expected an int, found a float"), "{error}");
+    // Float exponents take the general power function.
+    assert_holds(
+        params,
+        "pow(x, 0.5) == 2.0",
+        &[("x", Value::Float(4.0)), ("n", Value::Int(0))],
+    );
 }
 
 #[test]
@@ -496,34 +499,34 @@ fn workspaces_are_reused_across_programs_with_different_slot_counts() {
 
 #[test]
 fn enums_compare_by_option_name_across_declarations() {
-    for options in ["alpha, beta, gamma", "gamma, alpha, beta"] {
+    for options in ["Alpha, Beta, Gamma", "Gamma, Alpha, Beta"] {
         for predicate in [
             "wide == subset",
-            "wide == beta && subset == beta",
-            "wide != alpha && subset != gamma && other != subset",
-            "(if pixel.index >= 0 { subset } else { other }) == beta",
-            "(if pixel.index < 0 { subset } else { other }) == gamma",
+            "wide == Beta && subset == Beta",
+            "wide != Alpha && subset != Gamma && other != subset",
+            "(if pixel.index >= 0 { subset } else { other }) == Beta",
+            "(if pixel.index < 0 { subset } else { other }) == Gamma",
         ] {
             assert_holds(
                 &format!(
-                    "param wide: enum {{ {options} }} = alpha;
-                     param subset: enum {{ gamma, beta }} = gamma;
-                     param other: enum {{ gamma, beta }} = beta;"
+                    "param wide: enum {{ {options} }} = Alpha;
+                     param subset: enum {{ Gamma, Beta }} = Gamma;
+                     param other: enum {{ Gamma, Beta }} = Beta;"
                 ),
                 predicate,
                 &[
-                    ("wide", enum_value("beta")),
-                    ("subset", enum_value("beta")),
-                    ("other", enum_value("gamma")),
+                    ("wide", enum_value("Beta")),
+                    ("subset", enum_value("Beta")),
+                    ("other", enum_value("Gamma")),
                 ],
             );
         }
     }
     let error = effect_error(
-        "effect Bad { param mode: enum { a, b } = a; sample { if mode == c { #ffffff } else { #000000 } } }",
+        "effect Bad { param mode: enum { A, B } = A; sample { if mode == C { #ffffff } else { #000000 } } }",
     );
     assert!(
-        error.contains("`c` is not an option of this enum"),
+        error.contains("`C` is not an option of this enum"),
         "{error}"
     );
 }
@@ -532,19 +535,19 @@ fn enums_compare_by_option_name_across_declarations() {
 fn choices_hold_one_enum_type() {
     let error = effect_error(
         "effect Bad {
-           param wide: enum { alpha, beta, gamma } = alpha;
-           param subset: enum { gamma, beta } = gamma;
+           param wide: enum { Alpha, Beta, Gamma } = Alpha;
+           param subset: enum { Gamma, Beta } = Gamma;
            sample { if (if pixel.index >= 0 { subset } else { wide }) == wide { #ffffff } else { #000000 } }
          }",
     );
     assert!(error.contains("the branches produce"), "{error}");
     assert_holds(
-        "param subset: enum { gamma, beta } = gamma;
-         param other: enum { gamma, beta } = beta;",
-        "(if pixel.index >= 0 { subset } else { other }) == beta",
+        "param subset: enum { Gamma, Beta } = Gamma;
+         param other: enum { Gamma, Beta } = Beta;",
+        "(if pixel.index >= 0 { subset } else { other }) == Beta",
         &[
-            ("subset", enum_value("beta")),
-            ("other", enum_value("gamma")),
+            ("subset", enum_value("Beta")),
+            ("other", enum_value("Gamma")),
         ],
     );
 }
@@ -556,8 +559,8 @@ fn enum_value(name: &str) -> Value {
 #[test]
 fn enum_params_require_distinct_options() {
     assert!(compile_effects("effect Bad { param mode: enum {}; sample { #000000 } }").is_err());
-    let error = effect_error("effect Bad { param mode: enum { a, a } = a; sample { #000000 } }");
-    assert!(error.contains("option `a` is listed twice"), "{error}");
+    let error = effect_error("effect Bad { param mode: enum { A, A } = A; sample { #000000 } }");
+    assert!(error.contains("option `A` is listed twice"), "{error}");
 }
 
 #[test]

@@ -34,6 +34,20 @@ value. A skipped branch has no value at all, so a reduction filter reads the
 guarded value without a redundant choice, and a `sample` block chooses black.
 Array literals exist only while they are indexed or measured.
 
+Builtins resolve through one table, `builtins.rs`, which also generates the
+[builtin reference](effect_builtins.md). Builtins that keep ints as ints, such
+as `min` and `clamp`, choose int operations when every argument is an int; a few
+(`round`, `fract`, `sign`, `step`) are built from other operations rather than
+having instructions of their own.
+
+User functions have no IR or bytecode of their own. A call is checked by binding
+the function's arguments, checked in the caller, as the body's only names and
+building the body's IR in place, so equal calls share nodes by hash-consing and
+bounds are proven per call. Every function body is also checked once on its own
+with arguments of unknown value, skipping the bound proofs that need values, so
+an unused function cannot hide errors. Recursion is reported when a function
+would inline itself.
+
 Reduction bounds are proved by interval analysis (`ir/interval.rs`) over
 literals, declared ranges and array lengths. A bound that depends on a length is
 kept and rechecked by `check_values` when an instance supplies its values.

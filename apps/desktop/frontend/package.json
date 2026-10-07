@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     ".": "./src/editor/index.ts",
+    "./editor-worker": "./src/editor/editorWorker.ts",
     "./styles.css": "./src/editor/editor.css"
   },
   "type": "module",
@@ -25,14 +26,6 @@
     }
   },
   "dependencies": {
-    "@codemirror/commands": "catalog:",
-    "@codemirror/lang-cpp": "catalog:",
-    "@codemirror/lang-yaml": "catalog:",
-    "@codemirror/language": "catalog:",
-    "@codemirror/lint": "catalog:",
-    "@codemirror/state": "catalog:",
-    "@codemirror/view": "catalog:",
-    "@lezer/highlight": "catalog:",
     "@radix-ui/react-alert-dialog": "catalog:",
     "@radix-ui/react-context-menu": "catalog:",
     "@radix-ui/react-dialog": "catalog:",
@@ -42,6 +35,7 @@
     "@xyflow/react": "catalog:",
     "cmdk": "catalog:",
     "lucide-react": "catalog:",
+    "monaco-editor": "catalog:",
     "react": "catalog:",
     "react-arborist": "catalog:",
     "react-colorful": "catalog:",

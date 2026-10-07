@@ -15,7 +15,9 @@ pub use sample::SampleProgram;
 pub const MAX_DSL_LOOP_ITERATIONS: usize = 10_000;
 
 #[cfg(feature = "host")]
-mod check;
+pub mod builtins;
+#[cfg(feature = "host")]
+pub(crate) mod check;
 #[cfg(feature = "host")]
 mod declarations;
 #[cfg(feature = "host")]
@@ -35,8 +37,8 @@ pub(crate) mod syntax;
 pub use declarations::{OperatorInputDecl, ParamDecl, ParamRange, bind_params};
 #[cfg(feature = "host")]
 pub use definition::{
-    CompiledEffect, CompiledOperator, Instance, Invocation, SignalAddressing, compile_effects,
-    compile_operators,
+    CompiledEffect, CompiledOperator, CompiledScript, Instance, Invocation, SignalAddressing,
+    compile_effects, compile_operators, compile_script,
 };
 #[cfg(feature = "host")]
 pub use diagnostic::Diagnostic;
@@ -56,6 +58,12 @@ pub use types::{Identifier, Type, Value};
 #[cfg(feature = "host")]
 pub fn declaration_spans(source: &str) -> Result<Vec<DeclarationSpan>, Vec<Diagnostic>> {
     syntax::declaration_spans(source)
+}
+
+/// Each top-level `fn` declaration's byte range, in source order.
+#[cfg(feature = "host")]
+pub fn function_spans(source: &str) -> Result<Vec<TextSpan>, Vec<Diagnostic>> {
+    syntax::function_spans(source)
 }
 
 /// Hash what a compiled effect renders: its name, parameters and behavior.

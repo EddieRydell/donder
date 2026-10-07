@@ -104,10 +104,17 @@ pub struct ResolvedGuiObject {
 }
 
 impl ResolvedGuiObject {
+    /// The resolved object's address. Owned paths are checked when the object
+    /// is resolved, so every step converts.
     pub fn object_identity(&self) -> donder_language::identity::ObjectIdentity {
         self.owned_path.iter().fold(
             self.identity.clone().into(),
-            |address: donder_language::identity::ObjectIdentity, step| address.owned(step.into()),
+            |address: donder_language::identity::ObjectIdentity, step| {
+                address.owned(
+                    step.try_into()
+                        .unwrap_or_else(|_| unreachable!("resolved owned paths are valid")),
+                )
+            },
         )
     }
 
@@ -170,7 +177,7 @@ pub fn resolve_request(
     for step in &request.owned_path {
         resolved.kind = resolved
             .kind
-            .owned_child_kind(&step.into())
+            .owned_child_kind(&step.try_into()?)
             .ok_or("Invalid owned object path.")?;
     }
     if ObjectKind::from(&resolved.kind).document_view().as_ref() != Some(&request.view) {
@@ -195,5 +202,6 @@ pub fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnosti
         range: None,
         detail: None,
         related: Vec::new(),
+        inclusion: None,
     }
 }

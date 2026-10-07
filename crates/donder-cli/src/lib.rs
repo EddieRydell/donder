@@ -1,13 +1,12 @@
 #![deny(unsafe_code)]
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8PathBuf;
 use clap::{Parser, Subcommand};
-use donder_project_io::{PROJECT_ROOT_FILE, ProjectMetadata};
 
 #[derive(Debug, Parser)]
 #[command(
     name = "donder",
     version,
-    about = "Check and copy local Donder projects"
+    about = "Check and copy local Donder projects, and generate language references"
 )]
 pub struct Cli {
     #[arg(short, long, default_value = ".")]
@@ -23,20 +22,26 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Add workspace metadata to an existing root project.donder document.
-    Init,
     /// Validate the project's local imports, definitions, targets, and assets.
     Check,
     /// Copy the loaded project and referenced assets into a new folder.
     Copy { destination: Utf8PathBuf },
+    /// Write the generated effect-language builtin reference.
+    Builtins { output: Utf8PathBuf },
+    /// Run the language server over standard input and output.
+    Lsp,
 }
 
 pub fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
-        Command::Init => init(&cli.path),
         Command::Check => {
-            let session =
-                donder_project_io::load_project(&cli.path).map_err(|error| error.to_string())?;
+            let report = donder_project_io::check_project(&cli.path);
+            let Some(session) = report.session else {
+                return Err(donder_project_io::ProjectLoadError(report.diagnostics).to_string());
+            };
+            for warning in &report.diagnostics {
+                println!("warning: {warning}");
+            }
             println!(
                 "Project is valid ({} loaded documents)",
                 session.source.documents.len()
@@ -55,36 +60,43 @@ pub fn run(cli: Cli) -> Result<(), String> {
             );
             Ok(())
         }
+        Command::Lsp => lsp(),
+        Command::Builtins { output } => {
+            let text = donder_language::dsl::builtins::builtin_reference();
+            donder_project_io::atomic_write(&output, text.as_bytes())
+                .map_err(|error| error.to_string())?;
+            println!("Wrote {output}");
+            Ok(())
+        }
     }
 }
 
-fn init(root: &Utf8Path) -> Result<(), String> {
-    let path = root.join(PROJECT_ROOT_FILE);
-    let source = std::fs::read_to_string(&path).map_err(|error| format!("{path}: {error}"))?;
-    let text = ProjectMetadata::default().initialize_document(&source)?;
-    donder_project_io::atomic_write(&path, text.as_bytes()).map_err(|error| error.to_string())?;
-    println!("Initialized {path}");
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn init_adds_metadata_to_existing_root_and_rejects_reinitialization() {
-        let temp = tempfile::tempdir().unwrap();
-        let root = Utf8Path::from_path(temp.path()).unwrap();
-        std::fs::write(root.join("project.donder"), "show: {}\n").unwrap();
-        init(root).unwrap();
-        let metadata = ProjectMetadata::read(root).unwrap();
-        assert!(!metadata.project_id.is_nil());
-        assert!(
-            std::fs::read_to_string(root.join(PROJECT_ROOT_FILE))
-                .unwrap()
-                .contains("show: {}")
-        );
-        assert_eq!(std::fs::read_dir(root).unwrap().count(), 1);
-        assert!(init(root).is_err());
-        assert_eq!(ProjectMetadata::read(root).unwrap(), metadata);
+/// Serve one client over stdio, rechecking when messages pause.
+fn lsp() -> Result<(), String> {
+    let (connection, threads) = lsp_server::Connection::stdio();
+    let mut server = donder_language_server::Server::new();
+    let send = |messages: Vec<serde_json::Value>| -> Result<(), String> {
+        for message in messages {
+            let message = serde_json::from_value::<lsp_server::Message>(message)
+                .map_err(|error| error.to_string())?;
+            connection
+                .sender
+                .send(message)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    };
+    let pause = std::time::Duration::from_millis(donder_language_server::IDLE_DELAY_MS);
+    while !server.exited() {
+        match connection.receiver.recv_timeout(pause) {
+            Ok(message) => {
+                let message = serde_json::to_value(message).map_err(|error| error.to_string())?;
+                send(server.handle(message))?;
+            }
+            Err(error) if error.is_timeout() => send(server.idle())?,
+            Err(_) => break,
+        }
     }
+    drop(connection);
+    threads.join().map_err(|error| error.to_string())
 }

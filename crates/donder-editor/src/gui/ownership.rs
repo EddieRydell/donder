@@ -19,30 +19,26 @@ pub(super) fn edit(
         ));
     }
     let identity = owner.object_identity();
-    let (site, kind, directory, suffix) = match (&owner.kind, slot) {
+    let (site, kind, directory) = match (&owner.kind, slot) {
         (SourceObjectKind::Project, GuiOwnershipSlot::Setup) => (
             OwnershipSite::ProjectSetup,
             SourceObjectKind::Setup,
             "setups",
-            "setup",
         ),
         (SourceObjectKind::Project, GuiOwnershipSlot::Sequence { index }) => (
             OwnershipSite::ProjectSequence(index as usize),
             SourceObjectKind::Sequence,
             "sequences",
-            "sequence",
         ),
         (SourceObjectKind::Setup, GuiOwnershipSlot::Layout) => (
             OwnershipSite::SetupLayout(SetupId(identity)),
             SourceObjectKind::Layout,
             "layouts",
-            "layout",
         ),
         (SourceObjectKind::Setup, GuiOwnershipSlot::Patch) => (
             OwnershipSite::SetupPatch(SetupId(identity)),
             SourceObjectKind::Patch,
             "patches",
-            "patch",
         ),
         (SourceObjectKind::Setup, GuiOwnershipSlot::Controller { index }) => (
             OwnershipSite::SetupController {
@@ -51,7 +47,6 @@ pub(super) fn edit(
             },
             SourceObjectKind::Controller,
             "controllers",
-            "controller",
         ),
         (SourceObjectKind::Layout, GuiOwnershipSlot::Fixture { id }) => (
             OwnershipSite::LayoutFixture {
@@ -60,7 +55,6 @@ pub(super) fn edit(
             },
             SourceObjectKind::FixtureDefinition,
             "fixtures",
-            "fixture",
         ),
         _ => {
             return Err(GuiMutationError::Invalid(
@@ -104,11 +98,11 @@ pub(super) fn edit(
                     .add_object(
                         owner.identity.document_id(),
                         kind,
-                        &super::model::object_key(&name),
+                        donder_language::names::object_name(&name).as_str(),
                     )
                     .map_err(GuiMutationError::Invalid)?,
                 ReusableStorage::NewFile => {
-                    super::model::create_object_document(session, kind, &name, directory, suffix)?
+                    super::model::create_object_document(session, kind, &name, directory)?
                 }
             };
             make_reusable(&mut session.project, &site, destination)

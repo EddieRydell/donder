@@ -13,7 +13,7 @@ use donder_test_support::workload;
 use std::hint::black_box;
 use std::time::Duration;
 
-const BENCHMARK_SEQUENCE_DOCUMENT: &str = "sequences/layer_test.sequence.donder";
+const BENCHMARK_SEQUENCE_DOCUMENT: &str = "sequences/layer_test.data.donder";
 const BENCHMARK_SEQUENCE_OBJECT: &str = "layer_test";
 const PLAYBACK_START_FRAME: u32 = 8420;
 const PLAYBACK_FRAME_COUNT: u32 = 60;
@@ -183,11 +183,11 @@ fn bench_mark_playback(c: &mut Criterion) {
         let mut effect = source.effects[0].clone();
         let gradient = effect.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
-            name: "profile_beats".into(),
+            name: donder_language::names::object_name("profile_beats"),
         };
         source.mark_collections = vec![MarkCollection {
             key: mark_key.clone(),
-            name: "Profile beats".into(),
+            description: None,
             display_color: source.layers[0].color,
             marks: (0..32)
                 .map(|i| DonderTime(Duration::from_millis(2000 + i * 50)))
@@ -422,7 +422,7 @@ fn bench_operators(c: &mut Criterion) {
     }
 
     let standard = donder_language::dsl::compile_operators(include_str!(
-        "../../../examples/starter/operators/standard.operator.donder"
+        "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
     let echo = standard

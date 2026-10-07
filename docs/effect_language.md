@@ -1,7 +1,8 @@
 # Effect language
 
 Effects and operators are written in Donder's effect language, stored in
-`.effect.donder` and `.operator.donder` documents, and compiled by
+script documents (`*.donder`, as opposed to `*.data.donder` data documents;
+see [project language](project_language.md)), and compiled by
 `donder-language` (see [effect compiler](effect_compiler.md)). The bundled
 libraries are ordinary project files; `examples/starter` contains every bundled
 effect and operator.
@@ -11,33 +12,52 @@ time, its parameters, its pixel and target, and (for operators) its input
 signals. Nothing is mutable, so every value can be computed wherever and as
 rarely as its dependencies allow.
 
+New to the language? Start with the [tutorial](effect_tutorial.md). Every builtin
+function and context value is described in the generated [builtin
+reference](effect_builtins.md).
+
 ## Declarations
 
 ```text
-effect Wash {
-  param colors: gradient;
+effect Wash "A gradient across the target, faded by a curve." {
+  param colors: gradient "Colors from one end to the other.";
   param level: curve in 0.0..1.0;
-  param direction: enum { forward, backward } = forward;
+  param direction: enum { Forward, Backward } = Forward;
   param bands: int in 1..16 = 4;
 
   sample {
-    let position = if direction == backward { 1.0 - pixel.fraction } else { pixel.fraction };
+    let position = if direction == Backward { 1.0 - pixel.fraction } else { pixel.fraction };
     colors[position] * level[progress]
   }
 }
 
-operator Mirror {
+operator Mirror "The input reversed across the target." {
   input source;
 
   sample { source.at(time, target.count - 1 - pixel.index) }
 }
 ```
 
+A script may hold effects, operators and functions in any mix; each
+declaration's keyword says what it is. Comments start with `--` and run to the
+end of the line. Because of that, a subtracted negation needs a space: `a - -b`.
+
+Effects, operators, parameters and functions may carry a description string,
+which the inspector shows: after the name of an effect, operator or function,
+and at the end of a parameter, after its default. Descriptions are optional.
+Strings are double-quoted with the escapes `\"`, `\\`, `\n` and `\t`.
+
 An effect computes one color for each pixel of its target in every frame. An
 operator does the same over its `input` signals. Parameter types are `int`,
 `float`, `bool`, `color`, `enum { ... }`, `curve`, `gradient`, `marks` and
 `array<T>` of any of those but arrays. Required parameters have no default and
 must be supplied by every instance.
+
+Enum options are `PascalCase` (`Forward`, `AcrossItems`); a `snake_case` option
+is an error with a fix. An option is written bare where a value of that enum is
+expected: as a parameter's default and in comparisons with a value of that
+enum, such as `direction == Backward`. In data documents a clip's value for an
+enum parameter is the same bare option.
 
 `int`, `float` and `curve` parameters declare an inclusive range with `in min..max`;
 a curve's range bounds its point values. Defaults, authored values and edits
@@ -72,15 +92,55 @@ expression it produces.
   or measured with `len()`; they hold numbers, bools or colors.
 
 Curves and gradients are indexed by a normalized position: `level[0.5]`,
-`colors[t]`. Arrays are indexed by an integer that clamps to the first or last
-element; an empty array yields the element type's default, and `len()` is zero.
-Use `colors[int(position)]` to index with a computed float.
+`colors[t]`. Arrays are indexed by a number that clamps to the first or last
+element, so `colors[position * len(colors)]` picks a color directly; a float
+index rounds down. An empty array yields the element type's default, and
+`len()` is zero. Comparisons do not chain; combine them with `&&` and `||`.
 
-Integers widen to floats implicitly in arithmetic, arguments, annotated lets and
-`if` branches, and `==` and `!=` compare an int with a float as floats. `int(x)`
-is the only conversion the other way: it truncates toward zero, saturates at the
-int range, and turns NaN into zero. Write `int(floor(x))` to floor negative
-values. Comparisons do not chain; combine them with `&&` and `||`.
+## Numbers
+
+`int` and `float` mix freely, and an int never silently loses its fraction:
+
+- An int widens to a float wherever a float is expected: in arithmetic with a
+  float, in arguments, annotated lets and `if` branches. `==` and `!=` compare an
+  int with a float as floats.
+- `/` is always real division: `7 / 2` is 3.5.
+- `//` is floored division: `7 // 2` is 3 and `-7 // 2` is -4. Two ints give an
+  int (division by zero gives zero); otherwise it is `floor(a / b)`.
+- `%` is the matching floored remainder: `x % n` wraps into `[0, n)` for a
+  positive `n`, and `a == (a // n) * n + a % n` for ints and a nonzero `n`.
+- `+`, `-`, `*`, `//` and `%` of two ints give an int. Int arithmetic wraps at 32
+  bits.
+- `min`, `max`, `clamp`, `abs` and `sign` keep ints as ints when every argument
+  is an int, and work on floats otherwise.
+- `int(x)` is the only conversion from float to int: it truncates toward zero,
+  saturates at the int range and turns NaN into zero. `floor`, `ceil`, `trunc`,
+  `round` and `round_even` round but keep a float.
+
+## Functions
+
+A document may declare functions next to its effects or operators. Any
+declaration in the document can call them, and functions can call each other:
+
+```text
+fn ease_out "How far `t` has eased out, sharper for a larger power." (t: float, power: int) -> float {
+  1.0 - pow(1.0 - clamp(t, 0.0, 1.0), power)
+}
+
+effect Fade {
+  param colors: gradient;
+  sample { colors[pixel.fraction] * ease_out(progress, 3) }
+}
+```
+
+Arguments and the result have explicit types; an int argument widens to a float
+argument. The body is an ordinary block, except that a `guard` needs an `else`.
+A function sees its arguments and the context values (`time`, `pixel`, `target`,
+...), which belong to whichever effect or operator calls it. It cannot read the
+caller's parameters or inputs, so pass them as arguments. Calls are expanded
+where they appear, so a function costs nothing at playback and a reduction in it
+is bounded by the arguments of each call. Functions cannot recurse or reuse a
+builtin's name, and a function nobody calls is still checked.
 
 ## Reductions
 
@@ -123,41 +183,24 @@ The compiler bounds each range's length from literals, parameter ranges, `len()`
 of array and marks parameters, and enclosing indices, through arithmetic, `min`,
 `max`, `clamp`, `abs`, `floor`, `ceil`, `trunc`, `round_even` and `int`. A range
 with no such bound, or a bound above 10,000, is rejected. A bound that depends
-on a length is checked when an instance supplies its values. `pow(x, n)` takes
-an integer `n`, bounded the same way, and multiplies `x` into one `n` times.
+on a length is checked when an instance supplies its values. Write bounds as
+ints; `int(...)` or `//` converts a float. `pow(x, n)` with an int `n` bounded
+the same way, and at least zero, multiplies `x` into one `n` times; other
+exponents use the general power function.
 
 ## Context and builtins
 
-| Group | Names |
-| --- | --- |
-| Time | `time`, `duration`, `progress` |
-| Pixel | `pixel.index`, `pixel.fraction`, `pixel.x`, `pixel.y` |
-| Target | `target.count`, `target.min_x`, `target.min_y`, `target.max_x`, `target.max_y` |
-| Sections | `section_count(width)`, `section_index(width)`, `section_position(width)` |
-| Math | `sin`, `cos`, `abs`, `floor`, `ceil`, `trunc`, `round_even` (ties to even), `sqrt`, `atan2(y, x)`, `pow(x, n)`, `min`, `max`, `clamp`, `smoothstep`, `mix`, constants `PI` and `TAU` |
-| Conversion | `int(x)` |
-| Missing values | `is_nan(x)`, `value_or(x, replacement)` |
-| Color | `rgb(r, g, b)`, `hsv(h, s, v)`, `hue(c)`, `saturation(c)`, `intensity(c)`, `invert(c)`, `mix(a, b, t)`, `max(a, b)` |
-| Resources | `curve_clamped(curve, position, min, max)`, `gradient_color_scaled(gradient, position, scale)` |
-| Events | `mark_last(marks, time)`, `mark_last_index(marks, time)`, `mark_at(marks, index)`, `mark_count(marks)`, `curve_first_crossing(curve, value)`, `curve_last_crossing(curve, value, position)` |
-| Random | `rand(seed)` |
-| Other | `len(array or marks)` |
+The [builtin reference](effect_builtins.md) lists every context value and
+builtin function with its signatures, edge cases and an example. It is generated
+from the compiler's builtin table, so it always matches what the compiler
+accepts.
 
 The context names (`time`, `duration`, `progress`, `pixel`, `target`, `PI`,
-`TAU`) are reserved.
+`TAU`) are reserved. In an effect, time is measured over the clip; in an
+operator, over the sequence. Spatial values use layout-space meters, after
+fixture transforms.
 
-- **Time:** in an effect, `time` is seconds since the clip started,
-  `duration` is the clip's duration, and `progress` is their ratio in
-  `[0, 1]`. In an operator they are measured over the sequence.
-- **Pixels and space:** indices count pixels within the effect's target.
-  Spatial values use layout-space meters, after fixture transforms.
-- **Random:** `rand(seed)` hashes one float to a value in `[0, 1)`. It is pure:
-  the same seed always gives the same value, so every pixel, frame, controller
-  and seek agrees. Combine whatever identifies the decision (a pixel or section,
-  a time bucket, a mark time) with a user `param seed: float`, for example
-  `rand((seed * 31.0 + section) * 31.0 + bucket)`. Integer seeds above 2^24 lose
-  precision as floats.
-- **Colors** have 8-bit RGB channels. Color `+` saturates, `*` of two colors
+**Colors** have 8-bit RGB channels. Color `+` saturates, `*` of two colors
   multiplies channels, and `*` with a number scales. Hue is measured in turns and
   `hsv` wraps it in both directions. `intensity` is HSV value (the maximum
   channel divided by 255); grayscale colors have hue and saturation zero.
@@ -191,11 +234,8 @@ fragment is prepared, even if they are patched elsewhere; see
   ordinary color afterwards (inverting it gives white).
 - `value_or` computes both arguments; write `if is_nan(x) { y } else { x }` when
   the replacement is expensive, so it is computed only when needed.
-- Integer division produces a float. Integer `+`, `-`, `*` and negation wrap at
-  32 bits. `%` is a floored remainder for ints and floats: a nonzero result takes
-  the divisor's sign, so `x % n` wraps into `[0, n)` for a positive `n`. Integer
-  remainder by zero and `i32::MIN % -1` return zero; float remainder by zero is
-  NaN. Integer comparisons stay in integers.
+- Integer `//` and `%` by zero return zero, and `i32::MIN // -1` wraps; float
+  remainder by zero is NaN. Integer comparisons stay in integers.
 - Real-number algebra may change intermediate rounding: division by a value that
   is fixed for an instance multiplies by its reciprocal.
 - Curves are piecewise linear with strictly increasing positions in `[0, 1]`.
@@ -244,7 +284,7 @@ rest; see [ESP32 loading](esp32_loading.md).
 
 ## Standard library
 
-`effects/standard.effect.donder` defines Pulse, Chase, Spin, Wipe, MarkPulse,
+`effects/standard.donder` defines Pulse, Chase, Spin, Wipe, MarkPulse,
 MarkChase and MarkWipe. ImpactBurst and MarkImpactBurst are separate documents.
 New projects include all of these. The starter project also has ScanSweep,
 ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
@@ -263,7 +303,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 - Mark effects stop at their clip boundary and after the pulse duration. Empty
   mark or gradient collections produce black.
 
-`operators/standard.operator.donder`:
+`operators/standard.donder`:
 
 | Operator | Inputs | Behavior |
 | --- | --- | --- |

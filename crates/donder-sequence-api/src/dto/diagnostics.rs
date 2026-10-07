@@ -10,6 +10,18 @@ pub struct ProjectDiagnostic {
     pub message: String,
     pub detail: Option<String>,
     pub related: Vec<RelatedDiagnosticLocation>,
+    /// The root import that brings an unreferenced document into the project.
+    pub inclusion: Option<DocumentInclusion>,
+}
+
+/// Importing an unreferenced document from the project root.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentInclusion {
+    pub document: String,
+    pub alias: String,
+    /// Sequences the document declares, added to the project's sequences.
+    pub sequences: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

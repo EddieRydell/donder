@@ -467,7 +467,7 @@ mod tests {
             visible_mark_collection_keys: Vec::new(),
         };
         let update = |state| PersistedSequenceViewportStateUpdate {
-            path: "show.sequence.donder".into(),
+            path: "show.data.donder".into(),
             object_key: "show".into(),
             owned_path: Vec::new(),
             state,
@@ -482,7 +482,7 @@ mod tests {
             .unwrap();
         let saved = std::fs::read_to_string(&path).unwrap();
         let reopened = decode_store(&saved).unwrap();
-        let key = sequence_viewport_key("show.sequence.donder", "show", &[]).unwrap();
+        let key = sequence_viewport_key("show.data.donder", "show", &[]).unwrap();
         assert_eq!(
             reopened.projects["project"].sequence_viewports[&key].row_heights,
             state.row_heights
@@ -499,15 +499,25 @@ mod tests {
     #[test]
     fn owned_sequence_views_remain_distinct_after_document_move() {
         use crate::dto::GuiOwnedStep;
-        let first =
-            sequence_viewport_key("show.donder", "show", &[GuiOwnedStep::Sequence { id: 4 }])
-                .unwrap();
-        let second =
-            sequence_viewport_key("show.donder", "show", &[GuiOwnedStep::Sequence { id: 8 }])
-                .unwrap();
+        let first = sequence_viewport_key(
+            "show.donder",
+            "show",
+            &[GuiOwnedStep::Sequence {
+                name: "first".into(),
+            }],
+        )
+        .unwrap();
+        let second = sequence_viewport_key(
+            "show.donder",
+            "show",
+            &[GuiOwnedStep::Sequence {
+                name: "second".into(),
+            }],
+        )
+        .unwrap();
         assert_eq!(
             first,
-            r#"show.donder::["show",[{"type":"sequence","id":4}]]"#
+            r#"show.donder::["show",[{"type":"sequence","name":"first"}]]"#
         );
         assert_ne!(first, second);
         let mut views = BTreeMap::from([(first, 10), (second, 20)]);
@@ -516,7 +526,9 @@ mod tests {
             views[&sequence_viewport_key(
                 "nested/show.donder",
                 "show",
-                &[GuiOwnedStep::Sequence { id: 4 }]
+                &[GuiOwnedStep::Sequence {
+                    name: "first".into()
+                }]
             )
             .unwrap()],
             10
@@ -525,7 +537,9 @@ mod tests {
             views[&sequence_viewport_key(
                 "nested/show.donder",
                 "show",
-                &[GuiOwnedStep::Sequence { id: 8 }]
+                &[GuiOwnedStep::Sequence {
+                    name: "second".into()
+                }]
             )
             .unwrap()],
             20
@@ -613,7 +627,7 @@ mod tests {
                 .record_editor_state(
                     "C:/project",
                     PersistedEditorViewStateUpdate {
-                        path: "project.donder".into(),
+                        path: "project.data.donder".into(),
                         state: PersistedEditorViewState {
                             cursor_anchor: cursor,
                             cursor_head: cursor,
@@ -625,7 +639,7 @@ mod tests {
         }
         let stored = decode_store(&fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(
-            stored.projects["C:/project"].editor_states["project.donder"].cursor_head,
+            stored.projects["C:/project"].editor_states["project.data.donder"].cursor_head,
             41
         );
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);

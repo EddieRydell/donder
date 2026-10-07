@@ -115,6 +115,7 @@ pub(super) fn edit_layout(
             }
             let definition = match storage {
                 FixtureStorage::Inline => FixtureSource::Inline(FixtureDefinition {
+                    description: None,
                     elements: Vec::new(),
                 }),
                 FixtureStorage::SameFile | FixtureStorage::NewFile => {
@@ -124,7 +125,7 @@ pub(super) fn edit_layout(
                             .add_object(
                                 resolved.identity.document_id(),
                                 donder_project_io::SourceObjectKind::FixtureDefinition,
-                                &super::model::object_key(&name),
+                                donder_language::names::object_name(&name).as_str(),
                             )
                             .map_err(GuiMutationError::Invalid)?
                     } else {
@@ -133,7 +134,6 @@ pub(super) fn edit_layout(
                             donder_project_io::SourceObjectKind::FixtureDefinition,
                             &name,
                             "fixtures",
-                            "fixture",
                         )?
                     };
                     let definition = donder_language::fixture::FixtureDefinitionId(identity);
@@ -142,6 +142,7 @@ pub(super) fn edit_layout(
                         .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
                             id: definition.clone(),
                             value: FixtureDefinition {
+                                description: None,
                                 elements: Vec::new(),
                             },
                         }])
@@ -215,6 +216,18 @@ fn domain_fixture(
     layout: &LayoutId,
     fixture: GuiLayoutFixture,
 ) -> Result<LayoutFixture, GuiMutationError> {
+    // The layout view edits shapes of an owned definition, not its description.
+    let owned_description = session
+        .project
+        .layout(layout)
+        .and_then(|current| current.fixture(FixtureInstanceId(fixture.id)))
+        .and_then(|current| match &current.kind {
+            LayoutFixtureKind::Fixture {
+                definition: FixtureSource::Inline(definition),
+                ..
+            } => definition.description.clone(),
+            _ => None,
+        });
     let kind = match fixture.kind {
         GuiLayoutFixtureKind::Fixture {
             definition,
@@ -222,7 +235,9 @@ fn domain_fixture(
         } => LayoutFixtureKind::Fixture {
             definition: match definition {
                 crate::dto::GuiFixtureSource::Inline { elements } => {
-                    FixtureSource::Inline(super::fixture::domain_geometry(elements)?)
+                    let mut definition = super::fixture::domain_geometry(elements)?;
+                    definition.description = owned_description;
+                    FixtureSource::Inline(definition)
                 }
                 crate::dto::GuiFixtureSource::Reference { source } => FixtureSource::Reference(
                     reference_definition(session, layout.0.root_source(), source)?,
@@ -239,7 +254,8 @@ fn domain_fixture(
     };
     Ok(LayoutFixture {
         id: FixtureInstanceId(fixture.id),
-        name: fixture.name,
+        name: super::model::typed_name(&fixture.name)?,
+        description: super::description::normalized(fixture.description),
         kind,
     })
 }
@@ -295,7 +311,8 @@ fn add_instance(
     };
     children.push(LayoutFixture {
         id: FixtureInstanceId(id),
-        name,
+        name: super::model::typed_name(&name)?,
+        description: None,
         kind: LayoutFixtureKind::Fixture {
             definition,
             transform: checked_transform(transform)?,

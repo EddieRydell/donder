@@ -60,6 +60,7 @@ fn validate_nodes(
 
 pub(super) fn page_layout(id: LayoutId, page: &[BrowserPageNode]) -> Layout {
     Layout {
+        description: None,
         id,
         fixtures: page.iter().map(layout_fixture).collect(),
     }
@@ -68,15 +69,17 @@ pub(super) fn page_layout(id: LayoutId, page: &[BrowserPageNode]) -> Layout {
 fn layout_fixture(node: &BrowserPageNode) -> LayoutFixture {
     match node {
         BrowserPageNode::Group { id, name, children } => LayoutFixture {
+            description: None,
             id: FixtureInstanceId(*id),
-            name: name.clone(),
+            name: donder_language::names::object_name(name),
             kind: LayoutFixtureKind::Group {
                 children: children.iter().map(layout_fixture).collect(),
             },
         },
         BrowserPageNode::Fixture { id, name, pixels } => LayoutFixture {
+            description: None,
             id: FixtureInstanceId(*id),
-            name: name.clone(),
+            name: donder_language::names::object_name(name),
             kind: LayoutFixtureKind::Fixture {
                 definition: ValueSource::Inline(fixture_definition(pixels)),
                 transform: FixtureTransform::default(),
@@ -87,12 +90,13 @@ fn layout_fixture(node: &BrowserPageNode) -> LayoutFixture {
 
 fn fixture_definition(pixels: &[[f32; 2]]) -> FixtureDefinition {
     FixtureDefinition {
+        description: None,
         elements: pixels
             .iter()
             .enumerate()
             .map(|(index, [x, y])| FixtureElement {
                 id: FixtureElementId(index as u32 + 1),
-                name: format!("Pixel {}", index + 1),
+                name: donder_language::names::object_name(&format!("pixel_{}", index + 1)),
                 transform: FixtureTransform {
                     position: Point3 {
                         x: Distance::from_meters(*x),

@@ -29,12 +29,12 @@ The desktop adapter uses Tauri; the website adapter uses this WASM session.
   and marks. `applySelectionEdit(edit)` handles mixed selections and clipboard.
 - `undo()` and `redo()` restore immutable project snapshots.
 - `sourceDocuments()` and `setSource(path, source)` expose effect/operator DSL
-  editing. A document may declare any number of
-  effects or operators; the project check rejects removing a declaration the
+  editing. A document may declare any number of effects, or any number of
+  operators, but not both; the project check rejects removing a declaration the
   sequence still uses. Invalid source returns diagnostics without replacing the
   last accepted project or playback.
 - `declarationSources(source)` splits a DSL source into one document per
-  declaration (`<Name>.effect.donder` or `<Name>.operator.donder`), using the
+  declaration (`<Name>.donder`, carrying the source's functions), using the
   parser's declaration spans, so a host can show or hide individual declarations.
 - `replay(operations)` applies saved `BrowserOperation`s (edits, selection edits,
   and source changes) as history entries and prepares playback once, so a host

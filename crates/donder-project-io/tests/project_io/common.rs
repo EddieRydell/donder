@@ -1,25 +1,86 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 
-pub fn write_workspace_metadata(root: &Utf8Path) {
-    let path = root.join(donder_project_io::PROJECT_ROOT_FILE);
-    let source = std::fs::read_to_string(&path).unwrap();
-    if source.lines().any(|line| line.starts_with("workspace:")) {
-        donder_project_io::ProjectMetadata::parse(&source).unwrap();
-        return;
-    }
+/// A root document declaring `Project main` with a fresh project id. `fields`
+/// are written after `description`; imports come first.
+pub fn root_document(imports: &str, fields: &str) -> String {
     let metadata = donder_project_io::ProjectMetadata::default();
-    let separator = if source.ends_with('\n') { "" } else { "\n" };
-    // Append metadata so diagnostic fixtures retain their authored line numbers.
-    std::fs::write(
-        path,
-        format!(
-            "{source}{separator}workspace:\n  format_version: {}\n  project_id: {}\n",
-            metadata.format_version, metadata.project_id
+    format!(
+        "{imports}\nProject main {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}}}\n",
+        metadata.format_version, metadata.project_id
+    )
+}
+
+/// A project whose root imports a setup, its display and patch, and
+/// `sequence` as `sequence.data.donder`.
+pub fn write_imported_sequence_project(root: &Utf8Path, sequence: &str) {
+    fs::write(
+        root.join(donder_project_io::PROJECT_ROOT_FILE),
+        root_document(
+            "import setups from <setup.data.donder>;\nimport sequences from <sequence.data.donder>;\n",
+            "  setup: setups.main,\n  sequences: [sequences.main],\n",
         ),
     )
     .unwrap();
+    fs::write(root.join("setup.data.donder"), SETUP).unwrap();
+    fs::write(root.join("display.data.donder"), DISPLAY).unwrap();
+    fs::write(root.join("patch.data.donder"), PATCH).unwrap();
+    fs::write(root.join("sequence.data.donder"), sequence).unwrap();
 }
+
+pub const SETUP: &str = r#"import display from <display.data.donder>;
+import patches from <patch.data.donder>;
+
+Setup main {
+  description: none,
+  layout: display.main,
+  patch: patches.main,
+  controllers: [],
+}
+"#;
+
+pub const DISPLAY: &str = r#"FixtureDefinition pixel {
+  description: none,
+  shapes: [
+    Shape {
+      name: pixel,
+      diameter: 0.01m,
+      reverse: false,
+      transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+      geometry: Pixel,
+    },
+  ],
+}
+
+Layout main {
+  description: none,
+  items: [
+    Fixture {
+      name: pixel,
+      description: none,
+      definition: pixel,
+      transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+    },
+  ],
+}
+"#;
+
+pub const PATCH: &str = "Patch main { description: none, routes: [] }\n";
+
+/// A valid sequence named `main` with nothing in it. Tests derive invalid
+/// variants by replacing its text.
+pub const MINIMAL_SEQUENCE: &str = r#"Sequence main {
+  description: none,
+  duration: 1s,
+  frame_rate: 60,
+  audio: none,
+  marks: [],
+  layers: [],
+  clips: [],
+  graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+  automation: [],
+}
+"#;
 
 pub fn load_project(root: &Utf8Path) -> donder_project_io::ProjectSession {
     donder_project_io::load_project(root).unwrap()
