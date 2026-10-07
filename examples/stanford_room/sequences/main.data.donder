@@ -236,7 +236,7 @@ Sequence main {
         beats: marks,
         gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
         offset_seconds: -0.1,
-        chase_seconds: 0.5,
+        chase_seconds: 0.4,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
         chase_position: [
@@ -258,7 +258,7 @@ Sequence main {
         beats: marks,
         gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
         offset_seconds: -0.1,
-        chase_seconds: 0.5,
+        chase_seconds: 0.4,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
         chase_position: [
@@ -280,7 +280,7 @@ Sequence main {
         beats: marks,
         gradients: [[(0.0, #ffffff), (0.12, #ff0000), (0.371, #ff4b00)]],
         offset_seconds: -0.1,
-        chase_seconds: 0.5,
+        chase_seconds: 0.4,
         pulse_overlap: 50.0,
         section_width_pixels: 1,
         chase_position: [
