@@ -210,10 +210,10 @@
 
   /* typography */
   --donder-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --donder-font-code: Consolas, "SFMono-Regular", monospace;
-  --donder-canvas-font: 12px Inter, sans-serif;
-  --donder-canvas-label-font: 11px Inter, sans-serif;
-  --donder-sequence-font: 12px Inter, sans-serif;
+  --donder-font-code: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --donder-canvas-font: 12px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --donder-canvas-label-font: 11px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --donder-sequence-font: 12px Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --donder-font-size-xs: 10px;
   --donder-font-size-sm: 11px;
   --donder-font-size-md: 12px;
@@ -283,6 +283,7 @@
   --donder-titlebar-control-width: 46px;
   --donder-titlebar-brand-width: 108px;
   --donder-titlebar-actions-width: 138px;
+  --donder-titlebar-traffic-light-inset: 78px;
   --donder-panel-shell-max-width: 528px;
   --donder-conflict-banner-height: 36px;
   --donder-tab-min-width: 118px;
@@ -477,6 +478,9 @@
   --donder-sequence-drag-threshold: 4px;
   --donder-sequence-wheel-zoom-scale: 0.002;
   --donder-spatial-wheel-zoom-scale: 0.0015;
+  /* macOS trackpad pinches report small deltas, so they need a larger scale than wheel notches. */
+  --donder-sequence-pinch-zoom-scale: 0.01;
+  --donder-spatial-pinch-zoom-scale: 0.0075;
   --donder-sequence-scrub-step: 0.01;
   --donder-sequence-nudge-step: 0.001;
   --donder-sequence-shifted-nudge-step: 0.01;
@@ -650,6 +654,21 @@ html.donder-app-shell body {
   background: var(--donder-bg-panel);
   cursor: default;
   user-select: none;
+}
+
+/* macOS centers its traffic lights in a standard 28pt title bar drawn over the content. */
+:root[data-platform="mac"] {
+  --donder-titlebar-height: 28px;
+}
+
+.titlebar-mac {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: var(--donder-titlebar-traffic-light-inset);
+}
+
+.titlebar-mac .brand {
+  padding-left: var(--donder-space-0);
+  font-size: var(--donder-font-size-md);
 }
 
 .brand {

@@ -1,4 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
+import { editShortcutTarget, hasPrimaryModifier, isMac } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ChevronRight, Layers, SlidersHorizontal, Monitor } from "lucide-react";
@@ -175,10 +176,10 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   return <div className="graph-canvas-workspace">
     <ContextMenu.Root onOpenChange={(open) => { if (!open) setContext(null); }}>
       <ContextMenu.Trigger asChild>
-        <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas"
+        <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas" {...editShortcutTarget(["selectAll"])}
           onKeyDown={(event) => {
             if (event.target instanceof Element && event.target.closest(".graph-flow-node-controls, input, textarea, select, button, [contenteditable=true]") !== null) return;
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+            if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") {
               event.preventDefault(); event.stopPropagation();
               setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
               setFlowEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
@@ -219,7 +220,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
           }}>
           <ReactFlow nodes={flowNodes} edges={flowEdges} nodeTypes={NODE_TYPES} edgeTypes={EDGE_TYPES}
             fitView={initial.viewport === null} {...(initial.viewport === null ? {} : { defaultViewport: initial.viewport })}
-            minZoom={THEME_METRICS.graphMinZoom} maxZoom={THEME_METRICS.graphMaxZoom}
+            minZoom={THEME_METRICS.graphMinZoom} maxZoom={THEME_METRICS.graphMaxZoom} panOnScroll={isMac}
             deleteKeyCode={null} nodesDraggable={editable} nodesConnectable={editable} edgesReconnectable={editable}
             defaultEdgeOptions={{ type: "donder", interactionWidth: THEME_METRICS.graphEdgeInteractionWidth, className: "graph-flow-edge" }}
             onInit={(instance) => { flow.current = instance; }}

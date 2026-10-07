@@ -10,8 +10,9 @@ use donder_preview::{
 use donder_runtime::PlaybackRate;
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use winit::event::WindowEvent;
+use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{Key, ModifiersState};
 use winit::window::{Window, WindowId};
 
 use super::protocol::{PreviewCommand, PreviewEvent, PreviewStartup, PreviewWindowState};
@@ -52,7 +53,16 @@ pub(crate) fn startup_from_arguments() -> Result<Option<PreviewStartup>, String>
 }
 
 pub(crate) fn run(startup: PreviewStartup) -> Result<(), String> {
-    let event_loop = EventLoop::<HostEvent>::with_user_event()
+    let mut builder = EventLoop::<HostEvent>::with_user_event();
+    // The Preview is part of Donder, not a separate app: no Dock icon or menu bar of its own.
+    #[cfg(target_os = "macos")]
+    {
+        use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
+        builder
+            .with_activation_policy(ActivationPolicy::Accessory)
+            .with_default_menu(false);
+    }
+    let event_loop = builder
         .build()
         .map_err(|error| format!("Cannot create Preview event loop: {error}"))?;
     let proxy = event_loop.create_proxy();
@@ -94,6 +104,7 @@ struct PreviewHostApplication {
     fps_interval_started_at: Instant,
     presented_frames: u32,
     closed_reported: bool,
+    modifiers: ModifiersState,
 }
 
 impl PreviewHostApplication {
@@ -111,6 +122,7 @@ impl PreviewHostApplication {
             fps_interval_started_at: Instant::now(),
             presented_frames: 0,
             closed_reported: false,
+            modifiers: ModifiersState::empty(),
         })
     }
 
@@ -274,13 +286,18 @@ impl PreviewHostApplication {
             .as_mut()
             .ok_or_else(|| "Preview renderer is unavailable.".to_string())?;
         let physical = window.inner_size();
+        // The minimum radius is authored in logical pixels; the surface is in physical pixels.
+        let style = PreviewStyle {
+            minimum_radius_pixels: self.style.minimum_radius_pixels * window.scale_factor() as f32,
+            ..self.style
+        };
         let outcome = renderer
             .render(
                 surface,
                 PreviewSize::nonzero(physical.width, physical.height),
                 &self.scene,
                 self.playback.colors(),
-                self.style,
+                style,
             )
             .map_err(|error| error.to_string())?;
         if outcome == PreviewRenderOutcome::Presented {
@@ -316,6 +333,24 @@ impl PreviewHostApplication {
 
     fn report_error(&self, message: String) {
         let _ = emit(&PreviewEvent::Error { message });
+    }
+
+    /// Without a menu bar of its own, the macOS Preview handles the standard window shortcuts:
+    /// Command-W closes it and Command-Q asks Donder to quit.
+    fn handle_key(&mut self, event_loop: &ActiveEventLoop, event: &KeyEvent) {
+        if !cfg!(target_os = "macos") || event.state != ElementState::Pressed || event.repeat {
+            return;
+        }
+        if !self.modifiers.super_key() {
+            return;
+        }
+        match event.logical_key.as_ref() {
+            Key::Character(key) if key.eq_ignore_ascii_case("w") => self.close(event_loop),
+            Key::Character(key) if key.eq_ignore_ascii_case("q") => {
+                let _ = emit(&PreviewEvent::QuitRequested);
+            }
+            _ => {}
+        }
     }
 
     fn close(&mut self, event_loop: &ActiveEventLoop) {
@@ -360,6 +395,8 @@ impl ApplicationHandler<HostEvent> for PreviewHostApplication {
                 }
             }
             WindowEvent::Moved(_) | WindowEvent::Resized(_) => self.report_geometry(false),
+            WindowEvent::ModifiersChanged(modifiers) => self.modifiers = modifiers.state(),
+            WindowEvent::KeyboardInput { event, .. } => self.handle_key(event_loop, &event),
             _ => {}
         }
     }

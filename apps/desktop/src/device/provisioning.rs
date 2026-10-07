@@ -8,6 +8,7 @@ pub(crate) fn ports() -> Result<Vec<DeviceSerialPort>, String> {
     let mut ports = serialport::available_ports()
         .map_err(|error| format!("Could not list USB serial devices: {error}"))?
         .into_iter()
+        .filter(is_controller_candidate)
         .map(|port| {
             let label = match port.port_type {
                 serialport::SerialPortType::UsbPort(usb) => format!(
@@ -26,6 +27,15 @@ pub(crate) fn ports() -> Result<Vec<DeviceSerialPort>, String> {
         .collect::<Vec<_>>();
     ports.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(ports)
+}
+
+/// macOS lists each USB serial device as both a dial-in `tty.*` node, which can block waiting
+/// for carrier detect, and a call-out `cu.*` node, alongside Bluetooth and debug consoles.
+/// Controllers are flashed through the USB `cu.*` node.
+fn is_controller_candidate(port: &serialport::SerialPortInfo) -> bool {
+    !cfg!(target_os = "macos")
+        || (port.port_name.starts_with("/dev/cu.")
+            && matches!(port.port_type, serialport::SerialPortType::UsbPort(_)))
 }
 
 pub(crate) fn erase_saved_data(path: &str) -> Result<(), String> {

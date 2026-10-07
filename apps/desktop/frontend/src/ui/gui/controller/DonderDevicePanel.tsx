@@ -1,4 +1,5 @@
 import { Channel } from "@tauri-apps/api/core";
+import { isMac } from "../../../platform";
 import { useEffect, useState } from "react";
 import { commands } from "../../../api";
 import { runSnapshotCommand, useAppStore } from "../../../store";
@@ -99,7 +100,7 @@ export function DeviceUsbTools() {
         {ports.map((candidate) => <option key={candidate.path} value={candidate.path}>{candidate.label}</option>)}
       </select></label>
       <button type="button" onClick={refresh}>Refresh USB devices</button>
-      {ports.length === 0 && <p>No serial devices found. Connect the controller with a data-capable USB cable. Remove the Dig-Quad ESP32 module first.</p>}
+      {ports.length === 0 && <p>No serial devices found. Connect the controller with a data-capable USB cable. Remove the Dig-Quad ESP32 module first.{isMac && " On macOS, boards with a CP210x USB chip may need the Silicon Labs driver."}</p>}
       {firmware !== null && <p>Donder {firmware.version} firmware is included. It supports dual-core ESP32 controllers with 4 MB flash and a 40 MHz crystal, keeps the controller's saved name, claim and show, and takes about half a minute.</p>}
       <label className="device-erase-confirmation"><input type="checkbox" checked={installConfirmed} onChange={(event) => { setInstallConfirmed(event.target.checked); }} />Replace the software on the selected controller with Donder.</label>
       <button type="button" disabled={port === "" || !installConfirmed || firmware === null} onClick={() => {
