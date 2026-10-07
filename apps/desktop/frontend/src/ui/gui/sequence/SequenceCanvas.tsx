@@ -257,6 +257,8 @@ export function SequenceCanvas({
   }, [setSequenceSelection]);
 
   const handleScrollbarPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    // Without this, dragging the scrollbar starts a text selection across the editor.
+    event.preventDefault();
     if (maxScrollXSeconds === 0) return;
     const rail = event.currentTarget;
     const rect = rail.getBoundingClientRect();

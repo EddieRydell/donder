@@ -25,7 +25,7 @@ import { handleSequencePlaybackShortcut, isSequenceTransportUnsupported } from "
 
 import { markSelectionConsumesKey } from "./sequence/sequenceSelection";
 import { WorkspaceResizeHandle } from "../WorkspaceResizeHandle";
-import { OPEN_LAYER_GRAPH_EVENT } from "../uiEvents";
+import { OPEN_LAYER_GRAPH_EVENT, SHOW_MARK_COLLECTION_EVENT } from "../uiEvents";
 import { SetupEditor } from "./setup/SetupEditor";
 import { ProjectEditor } from "./project/ProjectEditor";
 import { LibraryEditor } from "./library/LibraryEditor";
@@ -145,6 +145,15 @@ function GuiEditorInner({
           : []
     )
   );
+
+  useEffect(() => {
+    const show = (event: Event) => {
+      const key = (event as CustomEvent<string>).detail;
+      setVisibleMarkCollectionKeys((keys) => keys.has(key) ? keys : new Set([...keys, key]));
+    };
+    window.addEventListener(SHOW_MARK_COLLECTION_EVENT, show);
+    return () => { window.removeEventListener(SHOW_MARK_COLLECTION_EVENT, show); };
+  }, []);
 
   useEffect(() => {
     if (gui.type !== "sequence") return;

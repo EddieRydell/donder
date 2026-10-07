@@ -9,9 +9,17 @@ import type { AppSnapshot, AudioTransportState, SequenceEditorDocument } from ".
 
 
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
-import { requestOpenLayerGraph } from "../../uiEvents";
+import { requestOpenLayerGraph, requestShowMarkCollection } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
+import { defaultMarkColor } from "./marks";
+
+type TransportAnchor = { transport: AppSnapshot["audioTransport"]; positionSeconds: number; anchoredAt: number };
+
+/** The latest transport snapshot and when it arrived; the playhead and taps extrapolate from it. */
+let latestTransportAnchor: TransportAnchor | null = null;
+const TAP_COLLECTION_KEY = "taps";
+let tapQueue: Promise<void> = Promise.resolve();
 
 export function SequenceTransportControls({
   document,
@@ -179,6 +187,7 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
       positionSeconds: transport.positionSeconds,
       anchoredAt: performance.now()
     };
+    latestTransportAnchor = anchor.current;
   }, [transport]);
 
   useEffect(() => {
@@ -190,8 +199,7 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
         setAnimatedPositionSeconds(latest.positionSeconds);
         return;
       }
-      const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(current.anchoredAt) - current.transport.startDelaySeconds) * playbackSpeedRatio(current.transport.playbackSpeed);
-      setAnimatedPositionSeconds(clamp(current.positionSeconds + elapsedSeconds, 0, current.transport.durationSeconds));
+      setAnimatedPositionSeconds(extrapolatedTransportSeconds(current));
       frame = window.requestAnimationFrame(tick);
     };
     frame = window.requestAnimationFrame(tick);
@@ -232,6 +240,11 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
     event.stopPropagation();
     if (event.repeat) return;
     void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioStop : commands.audioPlay);
+  } else if (event.key.toLowerCase() === "m") {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    tapMark(host, transport);
   } else if (event.key.toLowerCase() === "s") {
     event.preventDefault();
     event.stopPropagation();
@@ -268,6 +281,39 @@ function shouldAnimateTransportPosition(transport: AudioTransportViewSnapshot) {
 
 function transportExtrapolationSeconds(anchoredAt: number) {
   return anchoredAt > 0 ? (performance.now() - anchoredAt) / 1000 : 0;
+}
+
+function extrapolatedTransportSeconds(anchor: TransportAnchor) {
+  const elapsedSeconds = Math.max(0, transportExtrapolationSeconds(anchor.anchoredAt) - anchor.transport.startDelaySeconds) * playbackSpeedRatio(anchor.transport.playbackSpeed);
+  return clamp(anchor.positionSeconds + elapsedSeconds, 0, anchor.transport.durationSeconds);
+}
+
+/** Records a mark at the playhead in the Taps collection, creating it on the first tap. Taps run in order. */
+function tapMark(host: SequenceEditorHost, transport: AppSnapshot["audioTransport"]) {
+  const { commands, store, runGuiEditCommand } = host;
+  const anchor = latestTransportAnchor;
+  const timeSeconds = shouldAnimateTransportPosition(transport) && anchor !== null && shouldAnimateTransportPosition(anchor.transport)
+    ? extrapolatedTransportSeconds(anchor)
+    : transport.positionSeconds;
+  tapQueue = tapQueue.then(async () => {
+    const guiDocument = store.getState().guiDocument;
+    const collections = guiDocument?.type === "sequence" ? guiDocument.document.markCollections : [];
+    if (!collections.some((collection) => collection.key === TAP_COLLECTION_KEY)) {
+      await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+        type: "createMarkCollection",
+        name: TAP_COLLECTION_KEY,
+        color: defaultMarkColor(collections.length)
+      }));
+    }
+    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+      type: "addMark",
+      collectionKey: TAP_COLLECTION_KEY,
+      timeSeconds
+    }));
+    requestShowMarkCollection(TAP_COLLECTION_KEY);
+  }).catch((error: unknown) => {
+    store.getState().setError(error instanceof Error ? error.message : String(error));
+  });
 }
 
 function stepSequenceFrame(host: SequenceEditorHost, document: SequenceEditorDocument, positionSeconds: number, transportDurationSeconds: number, direction: -1 | 1) {
