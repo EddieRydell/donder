@@ -4,6 +4,8 @@
 <dict>
   <key>NSLocalNetworkUsageDescription</key>
   <string>Donder finds your light controllers on the local network and sends them shows and live E1.31 and Art-Net output.</string>
+  <key>NSAppSleepDisabled</key>
+  <true/>
   <key>NSBonjourServices</key>
   <array>
     <string>_donder._tcp</string>

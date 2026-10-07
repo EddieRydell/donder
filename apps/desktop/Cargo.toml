@@ -54,3 +54,8 @@ path = "src/main.rs"
 [[bin]]
 name = "export-bindings"
 path = "src/bin/export_bindings.rs"
+required-features = ["export-bindings"]
+
+[features]
+# The TypeScript bindings exporter is a development tool; the feature keeps it out of app bundles.
+export-bindings = []
