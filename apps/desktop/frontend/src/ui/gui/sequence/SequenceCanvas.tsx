@@ -1655,15 +1655,28 @@ function SequenceTransportMarkers({
   const homeLeft = markerLeft(liveTransport.homeSeconds);
   const visible = (x: number) => x >= left && x <= canvasSize.width;
 
-  // While playing, page the view forward when the playhead nears the right edge, and jump to it
-  // when it is outside the view, so the playhead stays on screen.
+  // While playing, page the view forward when the playhead passes the edge, and jump to the
+  // playhead when playback starts off screen. If the user scrolls away from the playhead during
+  // playback, the view stays put until the playhead is visible again or playback restarts.
   const following = liveTransport.state === "playing";
   const positionSeconds = liveTransport.positionSeconds;
+  const followFrame = useRef<{ onScreen: boolean; scrollXSeconds: number } | null>(null);
   useEffect(() => {
-    if (!following) return;
+    if (!following) {
+      followFrame.current = null;
+      return;
+    }
     const visibleSeconds = Math.max(0, canvasSize.width - left) / viewport.pxPerSecond;
     const pageEnd = viewport.scrollXSeconds + visibleSeconds * SEQUENCE_FOLLOW.edge;
-    if (positionSeconds >= viewport.scrollXSeconds && positionSeconds <= pageEnd) return;
+    const onScreen = positionSeconds >= viewport.scrollXSeconds && positionSeconds <= viewport.scrollXSeconds + visibleSeconds;
+    const previous = followFrame.current;
+    followFrame.current = { onScreen, scrollXSeconds: viewport.scrollXSeconds };
+    // The playhead, not the view, moved off screen since the last frame.
+    const playheadLeftView = previous !== null && previous.onScreen && previous.scrollXSeconds === viewport.scrollXSeconds;
+    const page = previous === null
+      ? !onScreen || positionSeconds > pageEnd
+      : positionSeconds > pageEnd && (onScreen || playheadLeftView);
+    if (!page) return;
     const maxScrollXSeconds = Math.max(0, document.durationSeconds - visibleSeconds);
     const scrollXSeconds = clamp(positionSeconds - visibleSeconds * SEQUENCE_FOLLOW.lead, 0, maxScrollXSeconds);
     setViewport((current) => current.scrollXSeconds === scrollXSeconds ? current : { ...current, scrollXSeconds });
