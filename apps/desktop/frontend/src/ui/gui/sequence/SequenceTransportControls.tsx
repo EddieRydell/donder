@@ -231,7 +231,8 @@ export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat) return;
-    void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioStop : commands.audioPlay);
+    // Space pauses and resumes in place; S stops and returns to Home.
+    void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioPause : commands.audioPlay);
   } else if (event.key.toLowerCase() === "s") {
     event.preventDefault();
     event.stopPropagation();

@@ -276,6 +276,8 @@ export const THEME_METRICS = {
   sequenceWheelZoomScale: cssNumber("--donder-sequence-wheel-zoom-scale"),
   sequencePinchZoomScale: cssNumber("--donder-sequence-pinch-zoom-scale"),
   spatialPinchZoomScale: cssNumber("--donder-spatial-pinch-zoom-scale"),
+  sequenceFollowEdge: cssNumber("--donder-sequence-follow-edge"),
+  sequenceFollowLead: cssNumber("--donder-sequence-follow-lead"),
   spatialWheelZoomScale: cssNumber("--donder-spatial-wheel-zoom-scale"),
   sequenceScrubStep: cssNumber("--donder-sequence-scrub-step"),
   sequenceNudgeStep: cssNumber("--donder-sequence-nudge-step"),
