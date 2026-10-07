@@ -4,7 +4,7 @@ import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, useContext } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type SetStateAction, useContext } from "react";
 
 import { ArrowRight, ChevronRight, Scissors, Trash2 } from "lucide-react";
 
@@ -63,6 +63,11 @@ import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
 import { markSnapTimes, snapDeltaToMarks, snapToMark } from "./sequenceSnap";
 
 import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
+
+const SEQUENCE_FOLLOW = {
+  edge: THEME_METRICS.sequenceFollowEdge,
+  lead: THEME_METRICS.sequenceFollowLead
+};
 
 const SEQUENCE_CANVAS = {
   leftGutterPx: THEME_METRICS.sequenceLeftGutter,
@@ -1585,6 +1590,7 @@ export function SequenceCanvas({
       <SequenceTransportOverlay
         document={document}
         viewport={viewport}
+        setViewport={setViewport}
         left={left}
         audioStripTop={audioStripTop}
         canvasSize={canvasSize}
@@ -1596,12 +1602,14 @@ export function SequenceCanvas({
 function SequenceTransportOverlay({
   document,
   viewport,
+  setViewport,
   left,
   audioStripTop,
   canvasSize
 }: {
   document: SequenceEditorDocument;
   viewport: SequenceViewport;
+  setViewport: Dispatch<SetStateAction<SequenceViewport>>;
   left: number;
   audioStripTop: number;
   canvasSize: { width: number; height: number };
@@ -1616,6 +1624,7 @@ function SequenceTransportOverlay({
       document={document}
       transport={transport}
       viewport={viewport}
+      setViewport={setViewport}
       left={left}
       audioStripTop={audioStripTop}
       canvasSize={canvasSize}
@@ -1627,6 +1636,7 @@ function SequenceTransportMarkers({
   document,
   transport,
   viewport,
+  setViewport,
   left,
   audioStripTop,
   canvasSize
@@ -1634,6 +1644,7 @@ function SequenceTransportMarkers({
   document: SequenceEditorDocument;
   transport: AudioTransportViewSnapshot;
   viewport: SequenceViewport;
+  setViewport: Dispatch<SetStateAction<SequenceViewport>>;
   left: number;
   audioStripTop: number;
   canvasSize: { width: number; height: number };
@@ -1645,6 +1656,33 @@ function SequenceTransportMarkers({
   const playheadLeft = markerLeft(liveTransport.positionSeconds);
   const homeLeft = markerLeft(liveTransport.homeSeconds);
   const visible = (x: number) => x >= left && x <= canvasSize.width;
+
+  // While playing, page the view forward when the playhead passes the edge, and jump to the
+  // playhead when playback starts off screen. If the user scrolls away from the playhead during
+  // playback, the view stays put until the playhead is visible again or playback restarts.
+  const following = liveTransport.state === "playing";
+  const positionSeconds = liveTransport.positionSeconds;
+  const followFrame = useRef<{ onScreen: boolean; scrollXSeconds: number } | null>(null);
+  useEffect(() => {
+    if (!following) {
+      followFrame.current = null;
+      return;
+    }
+    const visibleSeconds = Math.max(0, canvasSize.width - left) / viewport.pxPerSecond;
+    const pageEnd = viewport.scrollXSeconds + visibleSeconds * SEQUENCE_FOLLOW.edge;
+    const onScreen = positionSeconds >= viewport.scrollXSeconds && positionSeconds <= viewport.scrollXSeconds + visibleSeconds;
+    const previous = followFrame.current;
+    followFrame.current = { onScreen, scrollXSeconds: viewport.scrollXSeconds };
+    // The playhead, not the view, moved off screen since the last frame.
+    const playheadLeftView = previous !== null && previous.onScreen && previous.scrollXSeconds === viewport.scrollXSeconds;
+    const page = previous === null
+      ? !onScreen || positionSeconds > pageEnd
+      : positionSeconds > pageEnd && (onScreen || playheadLeftView);
+    if (!page) return;
+    const maxScrollXSeconds = Math.max(0, document.durationSeconds - visibleSeconds);
+    const scrollXSeconds = clamp(positionSeconds - visibleSeconds * SEQUENCE_FOLLOW.lead, 0, maxScrollXSeconds);
+    setViewport((current) => current.scrollXSeconds === scrollXSeconds ? current : { ...current, scrollXSeconds });
+  }, [following, positionSeconds, viewport.scrollXSeconds, viewport.pxPerSecond, canvasSize.width, left, document.durationSeconds, setViewport]);
 
   return (
     <>
