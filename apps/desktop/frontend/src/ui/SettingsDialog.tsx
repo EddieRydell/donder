@@ -76,6 +76,16 @@ export function SettingsDialog() {
                 ]}
                 onChange={(sequenceInitialZoomMode) => void update({ ...draft, sequenceInitialZoomMode })}
               />
+              <Select
+                label="Follow playhead"
+                value={draft.sequenceFollowMode}
+                options={[
+                  ["off", "Off"],
+                  ["page", "Page"],
+                  ["continuous", "Continuous"]
+                ]}
+                onChange={(sequenceFollowMode) => void update({ ...draft, sequenceFollowMode })}
+              />
               <NumberInput
                 label="Initial px/sec"
                 min={20}

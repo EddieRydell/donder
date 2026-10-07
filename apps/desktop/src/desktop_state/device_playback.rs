@@ -1,4 +1,5 @@
 use super::{DesktopState, lock_unpoisoned};
+use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
 use crate::device::playback::{DevicePorts, WantedDevice};
 use crate::dto::{
@@ -321,12 +322,7 @@ impl DesktopState {
         }
         self.require_setup_devices()?;
         let duration = self.prepare_device_sequence()?;
-        let audio = self.audio_snapshot();
-        let position = if matches!(audio.state, AudioTransportState::Ended) {
-            audio.home_seconds
-        } else {
-            audio.position_seconds
-        };
+        let position = lock_unpoisoned(&self.audio).play_position();
         let rate = lock_unpoisoned(&self.audio).playback_rate();
         self.device_audio_schedule_playing(position, None, rate, duration)
     }
@@ -382,6 +378,27 @@ impl DesktopState {
         }
     }
 
+    /// Devices play straight through, so the shared timeline restarts at the loop start or holds
+    /// at Home where local playback would wrap or stop.
+    pub(super) fn device_audio_cross_boundary(&self) -> Result<(), String> {
+        let _operation = lock_unpoisoned(&self.transport_operation);
+        // A transport command may have moved the timeline since the poll saw the boundary.
+        let Some(boundary) = lock_unpoisoned(&self.audio).device_boundary() else {
+            return Ok(());
+        };
+        match boundary {
+            DeviceBoundary::Wrap(start) => {
+                let duration = seconds_to_micros(self.audio_snapshot().duration_seconds)?;
+                let rate = lock_unpoisoned(&self.audio).playback_rate();
+                self.device_audio_schedule_playing(start, None, rate, duration)?;
+            }
+            DeviceBoundary::Stop(home) => {
+                self.device_audio_hold_locked(DevicePlaybackMode::Stopped, Some(home), false)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn device_audio_hold(
         &self,
         mode: DevicePlaybackMode,
@@ -389,6 +406,16 @@ impl DesktopState {
         set_home: bool,
     ) -> Result<AppSnapshot, String> {
         let _operation = lock_unpoisoned(&self.transport_operation);
+        self.device_audio_hold_locked(mode, position, set_home)
+    }
+
+    /// The caller holds the transport operation lock.
+    fn device_audio_hold_locked(
+        &self,
+        mode: DevicePlaybackMode,
+        position: Option<f32>,
+        set_home: bool,
+    ) -> Result<AppSnapshot, String> {
         let audio = self.audio_snapshot();
         let observed_at = std::time::Instant::now();
         let duration = if matches!(audio.state, AudioTransportState::Playing) {

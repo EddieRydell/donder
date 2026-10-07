@@ -42,6 +42,8 @@ pub(super) struct WorkspaceState {
         donder_language::setup::SetupId,
         donder_language::sequence::SequenceId,
     )>,
+    /// Persistence key of the sequence the transport has loaded.
+    pub transport_view_key: Option<String>,
 }
 
 impl WorkspaceState {
@@ -55,6 +57,7 @@ impl WorkspaceState {
             typed_revision: None,
             close_authorization: None,
             render_target: None,
+            transport_view_key: None,
         }
     }
 

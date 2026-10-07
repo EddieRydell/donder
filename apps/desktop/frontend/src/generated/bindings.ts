@@ -4,42 +4,42 @@ import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 
 /** Commands */
 export const commands = {
-	getSnapshot: () => __TAURI_INVOKE<AppSnapshot>("get_snapshot"),
-	updateAppSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSnapshot>("update_app_settings", { settings }),
-	saveWorkspaceLayoutState: (stateUpdate: WorkspaceLayoutState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_layout_state", { stateUpdate }),
-	saveWorkspaceExplorerState: (stateUpdate: WorkspaceExplorerState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_explorer_state", { stateUpdate }),
+	getSnapshot: () => __TAURI_INVOKE<AppSnapshot>("get_snapshot").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	updateAppSettings: (settings: AppSettings) => __TAURI_INVOKE<AppSnapshot>("update_app_settings", { settings }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveWorkspaceLayoutState: (stateUpdate: WorkspaceLayoutState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_layout_state", { stateUpdate }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveWorkspaceExplorerState: (stateUpdate: WorkspaceExplorerState) => __TAURI_INVOKE<AppSnapshot>("save_workspace_explorer_state", { stateUpdate }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	searchProject: (request: ProjectSearchRequest) => typedError<ProjectSearchResponse, string>(__TAURI_INVOKE("search_project", { request })),
 	planWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<WorkspacePathChangePlan, string>(__TAURI_INVOKE("plan_workspace_path_change", { request })),
-	applyWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_workspace_path_change", { request })),
+	applyWorkspacePathChange: (request: WorkspacePathChangeRequest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_workspace_path_change", { request })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	getRestoredViewState: () => __TAURI_INVOKE<ProjectRestoreState>("get_restored_view_state").then((v) => (({...v,editorStates:Object.fromEntries(Object.entries(v.editorStates).map(([k,v])=>[k,v])),sequenceViewports:Object.fromEntries(Object.entries(v.sequenceViewports).map(([k,v])=>[k,({...v,rowHeights:Object.fromEntries(Object.entries(v.rowHeights).map(([k,v])=>[k,v]))})])),spatialViews:Object.fromEntries(Object.entries(v.spatialViews).map(([k,v])=>[k,({...v,guides:v.guides.map(i=>i)})])),graphViews:Object.fromEntries(Object.entries(v.graphViews).map(([k,v])=>[k,({...v,viewport:v.viewport==null?v.viewport:v.viewport,nodeSizes:Object.fromEntries(Object.entries(v.nodeSizes).map(([k,v])=>[k,v]))})]))}) as typeof v)),
 	openProjectDialog: () => __TAURI_INVOKE<string | null>("open_project_dialog"),
 	chooseNewProjectParentDirectory: () => __TAURI_INVOKE<string | null>("choose_new_project_parent_directory"),
-	createSequence: (request: NewSequenceRequest) => typedError<NewSequenceResult, string>(__TAURI_INVOKE("create_sequence", { request })),
-	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }),
+	createSequence: (request: NewSequenceRequest) => typedError<NewSequenceResult, string>(__TAURI_INVOKE("create_sequence", { request })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,snapshot:({...v.data.snapshot,audioTransport:({...v.data.snapshot.audioTransport,range:v.data.snapshot.audioTransport.range==null?v.data.snapshot.audioTransport.range:v.data.snapshot.audioTransport.range})})}) } : v) as typeof v)),
+	openFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("open_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	resolveGuiSource: (moduleId: string, path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { moduleId, path, objectKey })),
-	setActiveFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("set_active_file", { path }),
-	updateDocument: (update: DocumentUpdate) => typedError<AppSnapshot, string>(__TAURI_INVOKE("update_document", { update })),
+	setActiveFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("set_active_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	updateDocument: (update: DocumentUpdate) => typedError<AppSnapshot, string>(__TAURI_INVOKE("update_document", { update })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	/**
 	 *  Send one JSON-RPC message to the language server; replies arrive as
 	 *  `language_server_message` events.
 	 */
 	languageServerSend: (message: string) => typedError<null, string>(__TAURI_INVOKE("language_server_send", { message })),
 	/**  Apply language-server edits, such as a rename, to project documents. */
-	applyTextEdits: (projectEpoch: number, edits: DocumentTextEdits[]) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_text_edits", { projectEpoch, edits })),
+	applyTextEdits: (projectEpoch: number, edits: DocumentTextEdits[]) => typedError<AppSnapshot, string>(__TAURI_INVOKE("apply_text_edits", { projectEpoch, edits })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	/**  Import an unreferenced document from the project root. */
-	includeDocument: (projectEpoch: number, inclusion: DocumentInclusion) => typedError<AppSnapshot, string>(__TAURI_INVOKE("include_document", { projectEpoch, inclusion })),
-	saveAll: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("save_all")),
+	includeDocument: (projectEpoch: number, inclusion: DocumentInclusion) => typedError<AppSnapshot, string>(__TAURI_INVOKE("include_document", { projectEpoch, inclusion })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	saveAll: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("save_all")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestTransition: (request: TransitionRequest) => typedError<TransitionResult, string>(__TAURI_INVOKE("request_transition", { request })),
 	completeClose: (epoch: number, revision: number) => typedError<null, string>(__TAURI_INVOKE("complete_close", { epoch, revision })),
-	reconcileExternalFiles: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("reconcile_external_files")),
-	resolveExternalConflict: (epoch: number, path: string, revision: number, decision: ExternalConflictDecision) => typedError<AppSnapshot, string>(__TAURI_INVOKE("resolve_external_conflict", { epoch, path, revision, decision })),
-	setEditorViewMode: (mode: EditorViewMode) => __TAURI_INVOKE<AppSnapshot>("set_editor_view_mode", { mode }),
-	saveEditorViewState: (update: PersistedEditorViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_editor_view_state", { update }),
-	saveSequenceViewportState: (update: PersistedSequenceViewportStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_sequence_viewport_state", { update: ({...update,state:({...update.state,rowHeights:Object.fromEntries(Object.entries(update.state.rowHeights).map(([k,v])=>[k,v]))})}) }),
-	saveGraphViewState: (update: PersistedGraphViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_graph_view_state", { update: ({...update,state:({...update.state,viewport:update.state.viewport==null?update.state.viewport:update.state.viewport,nodeSizes:Object.fromEntries(Object.entries(update.state.nodeSizes).map(([k,v])=>[k,v]))})}) }),
-	saveSpatialViewState: (update: PersistedSpatialViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_spatial_view_state", { update: ({...update,state:({...update.state,guides:update.state.guides.map(i=>i)})}) }),
-	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit"),
-	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit"),
+	reconcileExternalFiles: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("reconcile_external_files")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	resolveExternalConflict: (epoch: number, path: string, revision: number, decision: ExternalConflictDecision) => typedError<AppSnapshot, string>(__TAURI_INVOKE("resolve_external_conflict", { epoch, path, revision, decision })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	setEditorViewMode: (mode: EditorViewMode) => __TAURI_INVOKE<AppSnapshot>("set_editor_view_mode", { mode }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveEditorViewState: (update: PersistedEditorViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_editor_view_state", { update }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveSequenceViewportState: (update: PersistedSequenceViewportStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_sequence_viewport_state", { update: ({...update,state:({...update.state,rowHeights:Object.fromEntries(Object.entries(update.state.rowHeights).map(([k,v])=>[k,v]))})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveGraphViewState: (update: PersistedGraphViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_graph_view_state", { update: ({...update,state:({...update.state,viewport:update.state.viewport==null?update.state.viewport:update.state.viewport,nodeSizes:Object.fromEntries(Object.entries(update.state.nodeSizes).map(([k,v])=>[k,v]))})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	saveSpatialViewState: (update: PersistedSpatialViewStateUpdate) => __TAURI_INVOKE<AppSnapshot>("save_spatial_view_state", { update: ({...update,state:({...update.state,guides:update.state.guides.map(i=>i)})}) }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
 	sequenceExportPorts: (request: GuiDocumentRequest) => typedError<SequenceExportPort[], string>(__TAURI_INVOKE("sequence_export_ports", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
@@ -47,37 +47,42 @@ export const commands = {
 	deviceFirmwareInfo: () => typedError<DeviceFirmwareInfo, string>(__TAURI_INVOKE("device_firmware_info")),
 	installDeviceFirmware: (port: string, progress: Channel<DeviceInstallProgress>) => typedError<null, string>(__TAURI_INVOKE("install_device_firmware", { port, progress })),
 	eraseDeviceSavedData: (port: string) => typedError<null, string>(__TAURI_INVOKE("erase_device_saved_data", { port })),
-	claimDevice: (id: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("claim_device", { id })),
-	renameDevice: (id: string, name: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("rename_device", { id, name })),
+	claimDevice: (id: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("claim_device", { id })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	renameDevice: (id: string, name: string) => typedError<AppSnapshot, string>(__TAURI_INVOKE("rename_device", { id, name })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setDeviceNetwork: (id: string, network: {
 	ssid: string,
 	password: string,
-} | null) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_network", { id, network })),
-	setDeviceStandalone: (id: string, playing: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_standalone", { id, playing })),
+} | null) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_network", { id, network })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	setDeviceStandalone: (id: string, playing: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_standalone", { id, playing })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestSequenceClipRasters: (request: SequenceClipRasterRequest) => __TAURI_INVOKE<SequenceClipRasterResponse>("request_sequence_clip_rasters", { request }),
 	takeSequenceClipRasterResults: (request: GuiDocumentRequest, requestId: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, requestId }).then((v) => (({...v,ready:v.ready.map(i=>i)}) as typeof v)),
-	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditResult>("apply_gui_edit", { request, edit }),
-	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing"),
-	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditResult>("rebind_detached_automation", { request, clipId, detachedIndex, target }),
-	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditResult>("discard_detached_automation", { request, clipId, detachedIndex }),
-	applySequenceSelectionEdit: (request: GuiDocumentRequest, edit: SequenceSelectionEdit) => __TAURI_INVOKE<SequenceSelectionEditResult>("apply_sequence_selection_edit", { request, edit }),
-	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditResult>("choose_sequence_audio", { request }),
-	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }),
-	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }),
-	deletePath: (path: string) => __TAURI_INVOKE<AppSnapshot>("delete_path", { path }),
-	toggleProjectTree: () => __TAURI_INVOKE<AppSnapshot>("toggle_project_tree"),
-	loadSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<AppSnapshot>("load_sequence_audio", { request }),
-	unloadAudio: () => __TAURI_INVOKE<AppSnapshot>("unload_audio"),
-	audioPlay: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_play")),
-	audioPause: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_pause")),
-	audioStop: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_stop")),
-	audioRewindToZero: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_rewind_to_zero")),
-	audioSeek: (positionSeconds: number) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_seek", { positionSeconds })),
-	audioSetPlaybackSpeed: (speed: PlaybackSpeed) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_playback_speed", { speed })),
-	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })),
-	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })),
-	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })),
-	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }),
+	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditResult>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditResult>("rebind_detached_automation", { request, clipId, detachedIndex, target }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditResult>("discard_detached_automation", { request, clipId, detachedIndex }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	applySequenceSelectionEdit: (request: GuiDocumentRequest, edit: SequenceSelectionEdit) => __TAURI_INVOKE<SequenceSelectionEditResult>("apply_sequence_selection_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditResult>("choose_sequence_audio", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	deletePath: (path: string) => __TAURI_INVOKE<AppSnapshot>("delete_path", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	toggleProjectTree: () => __TAURI_INVOKE<AppSnapshot>("toggle_project_tree").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	loadSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<AppSnapshot>("load_sequence_audio", { request }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	unloadAudio: () => __TAURI_INVOKE<AppSnapshot>("unload_audio").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
+	audioPlay: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_play")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioPause: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_pause")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioStop: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_stop")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioRewindToZero: () => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_rewind_to_zero")).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioSeek: (positionSeconds: number) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_seek", { positionSeconds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioSetPlaybackSpeed: (speed: PlaybackSpeed) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_playback_speed", { speed })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioSetRange: (range: {
+	startSeconds: number,
+	endSeconds: number,
+} | null) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_range", { range: range==null?range:range })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	audioSetLooping: (looping: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("audio_set_looping", { looping })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	setPreviewAppearance: (appearance: PreviewAppearance) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_preview_appearance", { appearance })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	setLiveOutputActive: (active: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_live_output_active", { active })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	startOutputTest: (request: GuiDocumentRequest, test: ControllerOutputTest) => typedError<AppSnapshot, string>(__TAURI_INVOKE("start_output_test", { request, test })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	setPreviewWindowOpen: (enabled: boolean) => __TAURI_INVOKE<AppSnapshot>("set_preview_window_open", { enabled }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 };
 
 /* Types */
@@ -87,11 +92,14 @@ export type AppSettings = {
 	reopenPreviewWindow: boolean,
 	autosaveProjectEdits: boolean,
 	sequenceInitialZoomMode: SequenceInitialZoomMode,
+	sequenceFollowMode: SequenceFollowMode,
 	sequenceInitialPxPerSecond: number,
 	sequenceInitialLaneHeightPx: number,
 	sequenceSpectrogramEnabled?: boolean,
 	sequenceSpectrogramTimeResolutionMs?: number,
 	sequenceSpectrogramFftSize?: number,
+	/**  Marks draw only in the Marks lane instead of also across the waveform and lanes. */
+	sequenceMarksLaneOnly?: boolean,
 	effectRaster: EffectRasterSettings,
 	spatialSnap: SpatialSnapSettings,
 };
@@ -131,6 +139,8 @@ export type AudioTransportSnapshot = {
 	homeSeconds: number,
 	durationSeconds: number,
 	playbackSpeed: PlaybackSpeed,
+	range: PlaybackRange | null,
+	looping: boolean,
 	lastError: string | null,
 };
 
@@ -520,6 +530,7 @@ export type PersistedGraphViewport = {
 export type PersistedSequenceViewportState = {
 	pxPerSecond: number,
 	audioStripHeightPx?: number,
+	markRulerHeightPx?: number,
 	rowHeights: { [key in string]: number },
 	scrollXSeconds: number,
 	scrollY: number,
@@ -546,6 +557,12 @@ export type PersistedSpatialViewStateUpdate = {
 };
 
 export type PlaybackFrameTiming = "scaled" | "constant";
+
+/**  A span of the sequence that playback stops at the end of, or loops when looping. */
+export type PlaybackRange = {
+	startSeconds: number,
+	endSeconds: number,
+};
 
 /**  Show microseconds per wall second; 1_000_000 is normal speed. */
 export type PlaybackSpeed = {
@@ -823,6 +840,15 @@ export type SequenceExportPort = {
 	label: string,
 	channels: number,
 };
+
+/**  How the sequence view tracks the playhead during playback. */
+export type SequenceFollowMode = 
+/**  The view never moves on its own. */
+"off" | 
+/**  The view pages forward near the edge and jumps when the playhead leaves it. */
+"page" | 
+/**  The playhead holds a fixed screen position while the timeline scrolls under it. */
+"continuous";
 
 export type SequenceGradientLibraryItem = {
 	moduleId: string,

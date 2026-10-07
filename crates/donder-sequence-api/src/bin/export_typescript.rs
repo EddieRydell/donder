@@ -178,6 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<WorkspaceExplorerState>()
         .register::<AppSettings>()
         .register::<SequenceInitialZoomMode>()
+        .register::<SequenceFollowMode>()
         .register::<EffectRasterSettings>()
         .register::<EditorViewMode>()
         .register::<ObjectKind>()

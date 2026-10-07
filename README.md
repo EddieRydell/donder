@@ -78,7 +78,10 @@ automation: [
 ```
 
 Mark collections place beats and cues on the timeline. Mark effects retrigger
-on them, and any effect can query them (`mark_last(beats, time)`).
+on them, and any effect can query them (`mark_last(beats, time)`). In the
+sequence editor, press M while the song plays to tap a mark at the playhead into
+the active collection; marks are moved, selected and added in the Marks lane
+under the waveform.
 
 ## The controller runs the show
 

@@ -28,6 +28,7 @@ export type CommandId =
   | "edit.redo"
   | "view.toggleGuiMode"
   | "view.toggleSpectrogram"
+  | "view.toggleMarksLaneOnly"
   | "view.openLayerGraph"
   | "view.toggleProjectTree"
   | "view.focusExplorer"
@@ -50,7 +51,7 @@ export type CommandDefinition = {
 
 const always = () => true;
 const hasProject = () => useAppStore.getState().snapshot?.projectRoot !== null;
-export const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
+const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
 const settings = () => useAppStore.getState().snapshot?.settings;
 const focusSidebar = (view: SidebarView) => () => {
   window.dispatchEvent(new CustomEvent<SidebarView>(FOCUS_SIDEBAR_EVENT, { detail: view }));
@@ -119,6 +120,17 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
       }));
     }, hasProject),
     checked: () => settings()?.sequenceSpectrogramEnabled ?? false
+  },
+  "view.toggleMarksLaneOnly": {
+    ...command("Show Marks Only in Marks Lane", "View", ["marks", "lines", "lanes"], async () => {
+      const current = settings();
+      if (current === undefined) return;
+      await runSnapshotCommand(() => commands.updateAppSettings({
+        ...current,
+        sequenceMarksLaneOnly: !(current.sequenceMarksLaneOnly ?? false)
+      }));
+    }, hasProject),
+    checked: () => settings()?.sequenceMarksLaneOnly ?? false
   },
   "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, sequenceOpen),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {

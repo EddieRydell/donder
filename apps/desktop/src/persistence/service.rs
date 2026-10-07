@@ -140,6 +140,35 @@ impl PersistenceService {
         inner.save_now()
     }
 
+    pub fn sequence_transport(&self, project_root: &str, key: &str) -> PersistedSequenceTransport {
+        self.inner()
+            .store
+            .projects
+            .get(project_root)
+            .and_then(|session| session.sequence_transports.get(key).copied())
+            .unwrap_or_default()
+    }
+
+    pub fn record_sequence_transport(
+        &self,
+        project_root: &str,
+        key: String,
+        transport: PersistedSequenceTransport,
+    ) -> Result<(), String> {
+        let mut inner = self.inner();
+        if !inner.write_allowed {
+            return Ok(());
+        }
+        inner
+            .store
+            .projects
+            .entry(project_root.to_string())
+            .or_insert_with(PersistedProjectSession::new)
+            .sequence_transports
+            .insert(key, transport);
+        inner.save_now()
+    }
+
     pub fn record_sequence_viewport(
         &self,
         project_root: &str,
@@ -149,6 +178,8 @@ impl PersistenceService {
             || update.state.px_per_second <= 0.0
             || !update.state.audio_strip_height_px.is_finite()
             || update.state.audio_strip_height_px <= 0.0
+            || !update.state.mark_ruler_height_px.is_finite()
+            || update.state.mark_ruler_height_px <= 0.0
             || !update.state.scroll_x_seconds.is_finite()
             || update.state.scroll_x_seconds < 0.0
             || !update.state.scroll_y.is_finite()
@@ -267,6 +298,7 @@ impl PersistenceService {
         remap_object_views(&mut session.sequence_viewports, source, destination);
         remap_object_views(&mut session.graph_views, source, destination);
         remap_object_views(&mut session.spatial_views, source, destination);
+        remap_object_views(&mut session.sequence_transports, source, destination);
         session.workspace_explorer.expanded_paths = session
             .workspace_explorer
             .expanded_paths
@@ -455,6 +487,7 @@ mod tests {
         let mut state = PersistedSequenceViewportState {
             px_per_second: settings.sequence_initial_px_per_second,
             audio_strip_height_px: height,
+            mark_ruler_height_px: height,
             row_heights: BTreeMap::from([
                 ("1001:row:0".into(), height),
                 ("1001:row:1".into(), height * 2.0),

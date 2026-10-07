@@ -1,11 +1,19 @@
-use crate::dto::{AudioTransportSnapshot, AudioTransportState, SequenceAudio};
+use crate::dto::{AudioTransportSnapshot, AudioTransportState, PlaybackRange, SequenceAudio};
 use donder_runtime::PlaybackRate;
 use std::time::Instant;
 
 use super::backend::{
-    AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource, audio_debug,
-    canonical_audio_path,
+    AudioDriver, AudioHandle, BackendPlaybackState, KiraAudioDriver, LoadedSource, PlaybackBounds,
+    audio_debug, canonical_audio_path,
 };
+
+/// Devices follow one shared timeline, so the desktop reschedules them where local playback
+/// would wrap to the loop start or stop at the range end.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum DeviceBoundary {
+    Wrap(f32),
+    Stop(f32),
+}
 
 enum TransportSource {
     Audio(LoadedSource),
@@ -43,6 +51,8 @@ pub(crate) struct AudioEngine {
     scheduled_hold: Option<ScheduledHold>,
     sequence_duration: Option<f32>,
     rate: PlaybackRate,
+    range: Option<PlaybackRange>,
+    looping: bool,
 }
 
 impl AudioEngine {
@@ -73,6 +83,8 @@ impl AudioEngine {
             scheduled_hold: None,
             sequence_duration: None,
             rate: PlaybackRate::NORMAL,
+            range: None,
+            looping: false,
         }
     }
 
@@ -86,6 +98,8 @@ impl AudioEngine {
             start_delay_seconds: 0.0,
             duration_seconds: 0.0,
             playback_speed: PlaybackRate::NORMAL.into(),
+            range: None,
+            looping: false,
             last_error: None,
         }
     }
@@ -209,8 +223,10 @@ impl AudioEngine {
         if matches!(self.state, AudioTransportState::Playing) {
             return self.current_snapshot();
         }
-        if matches!(self.state, AudioTransportState::Ended) {
-            self.position_seconds = self.home_seconds;
+        let position = self.play_position();
+        if position != self.position_seconds {
+            self.position_seconds = position;
+            self.can_resume_handle = false;
         }
         if let Some(TransportSource::Silent { anchor, .. }) = &mut self.source {
             *anchor = Some((Instant::now(), self.position_seconds));
@@ -261,7 +277,13 @@ impl AudioEngine {
                 .as_mut()
                 .ok_or_else(|| "Audio manager is not available".to_string())
                 .and_then(|driver| {
-                    driver.play(&source.audio.resolved_path, position, Some(deadline), rate)
+                    driver.play(
+                        &source.audio.resolved_path,
+                        position,
+                        Some(deadline),
+                        rate,
+                        PlaybackBounds::default(),
+                    )
                 });
             match result {
                 Ok(handle) => self.handle = Some(handle),
@@ -391,6 +413,119 @@ impl AudioEngine {
         self.current_snapshot()
     }
 
+    /// Play starts from Home after the end, and at the range start from outside the range.
+    pub(crate) fn play_position(&self) -> f32 {
+        let position = if matches!(self.state, AudioTransportState::Ended) {
+            self.home_seconds
+        } else {
+            self.position_seconds
+        };
+        match self.range {
+            Some(range) if position < range.start_seconds || position >= range.end_seconds => {
+                range.start_seconds
+            }
+            _ => position,
+        }
+    }
+
+    /// A new range becomes Home; a stopped or paused playhead moves to its start.
+    pub fn set_range(
+        &mut self,
+        range: Option<PlaybackRange>,
+    ) -> Result<AudioTransportSnapshot, String> {
+        self.observe_backend();
+        if self.source.is_none() {
+            return Ok(self.current_snapshot());
+        }
+        let range = range.map(|range| self.clamped_range(range)).transpose()?;
+        self.range = range;
+        if let Some(range) = range {
+            self.home_seconds = range.start_seconds;
+            if !matches!(self.state, AudioTransportState::Playing) {
+                self.position_seconds = range.start_seconds;
+            }
+        }
+        self.restart_bounded_stream();
+        self.bump_generation();
+        Ok(self.current_snapshot())
+    }
+
+    pub fn set_looping(&mut self, looping: bool) -> AudioTransportSnapshot {
+        self.observe_backend();
+        self.looping = looping;
+        self.restart_bounded_stream();
+        self.bump_generation();
+        self.current_snapshot()
+    }
+
+    pub(crate) fn device_boundary(&mut self) -> Option<DeviceBoundary> {
+        self.observe_backend();
+        let end = self.window_end()?;
+        let reached = self.scheduled_timeline.is_some()
+            && matches!(self.state, AudioTransportState::Playing)
+            && self.position_seconds >= end;
+        reached.then(|| match self.loop_region() {
+            Some((start, _)) => DeviceBoundary::Wrap(start),
+            None => DeviceBoundary::Stop(self.home_seconds),
+        })
+    }
+
+    fn clamped_range(&self, range: PlaybackRange) -> Result<PlaybackRange, String> {
+        if !range.start_seconds.is_finite() || !range.end_seconds.is_finite() {
+            return Err("Playback range must be finite.".into());
+        }
+        let start_seconds = self.clamp_position(range.start_seconds);
+        let end_seconds = self.clamp_position(range.end_seconds);
+        if start_seconds >= end_seconds {
+            return Err("Playback range must cover part of the sequence.".into());
+        }
+        Ok(PlaybackRange {
+            start_seconds,
+            end_seconds,
+        })
+    }
+
+    /// Looping repeats the range, or the whole sequence without one.
+    fn loop_region(&self) -> Option<(f32, f32)> {
+        self.looping.then(|| {
+            self.range.map_or((0.0, self.duration_seconds()), |range| {
+                (range.start_seconds, range.end_seconds)
+            })
+        })
+    }
+
+    /// Where playback wraps or stops before the natural end of the sequence.
+    fn window_end(&self) -> Option<f32> {
+        self.range
+            .map(|range| range.end_seconds)
+            .or_else(|| self.looping.then(|| self.duration_seconds()))
+    }
+
+    fn bounds(&self) -> PlaybackBounds {
+        PlaybackBounds {
+            end_seconds: self.range.map(|range| range.end_seconds),
+            loop_region: self.loop_region(),
+        }
+    }
+
+    /// Streams carry their bounds, so a local stream restarts under new ones. Shared timelines
+    /// keep running; the desktop reschedules devices at the window end.
+    fn restart_bounded_stream(&mut self) {
+        self.can_resume_handle = false;
+        if !matches!(self.state, AudioTransportState::Playing) || self.scheduled_timeline.is_some()
+        {
+            return;
+        }
+        self.sample_handle_position();
+        self.position_seconds = self.play_position();
+        if let Some(TransportSource::Silent { anchor, .. }) = &mut self.source {
+            *anchor = Some((Instant::now(), self.position_seconds));
+            return;
+        }
+        self.lifecycle_stop_handle();
+        self.start_stream_at_position();
+    }
+
     fn seek_to(
         &mut self,
         position_seconds: f32,
@@ -419,6 +554,7 @@ impl AudioEngine {
     }
 
     fn start_stream_at_position(&mut self) {
+        let bounds = self.bounds();
         let Some(driver) = self.driver.as_mut() else {
             self.handle = None;
             self.state = AudioTransportState::Error;
@@ -434,6 +570,7 @@ impl AudioEngine {
             self.position_seconds,
             None,
             self.rate,
+            bounds,
         ) {
             Ok(handle) => {
                 self.handle = Some(handle);
@@ -483,7 +620,15 @@ impl AudioEngine {
                 self.bump_generation();
                 return;
             }
-            if self.position_seconds >= timeline.duration {
+            let duration = timeline.duration;
+            // Devices keep playing past the window end until the desktop reschedules them.
+            if let Some(end) = self.window_end()
+                && self.position_seconds >= end
+            {
+                self.position_seconds = end;
+                return;
+            }
+            if self.position_seconds >= duration {
                 if let Some(handle) = &mut self.handle {
                     handle.pause(None);
                 }
@@ -512,11 +657,24 @@ impl AudioEngine {
             if matches!(self.state, AudioTransportState::Playing)
                 && let Some((started, position)) = anchor
             {
-                self.position_seconds = (position + show_seconds_between(self.rate, *started, now))
-                    .min(*duration_seconds);
-                if self.position_seconds >= *duration_seconds {
-                    self.state = AudioTransportState::Ended;
-                    self.bump_generation();
+                let duration_seconds = *duration_seconds;
+                let elapsed = position + show_seconds_between(self.rate, *started, now);
+                match (self.loop_region(), self.range) {
+                    (Some((start, end)), _) if elapsed >= end => {
+                        self.position_seconds = start + (elapsed - start) % (end - start);
+                    }
+                    (None, Some(range)) if elapsed >= range.end_seconds => {
+                        self.position_seconds = self.home_seconds;
+                        self.state = AudioTransportState::Stopped;
+                        self.bump_generation();
+                    }
+                    _ => {
+                        self.position_seconds = elapsed.min(duration_seconds);
+                        if self.position_seconds >= duration_seconds {
+                            self.state = AudioTransportState::Ended;
+                            self.bump_generation();
+                        }
+                    }
                 }
             }
             return;
@@ -546,6 +704,14 @@ impl AudioEngine {
                 self.position_seconds = self.clamp_position(observation.position_seconds);
             }
             BackendPlaybackState::Paused => {}
+            // A stream sliced to the range stops at its end and returns Home.
+            BackendPlaybackState::Stopped if self.range.is_some() && !self.looping => {
+                self.position_seconds = self.home_seconds;
+                self.handle = None;
+                self.state = AudioTransportState::Stopped;
+                self.can_resume_handle = false;
+                self.bump_generation();
+            }
             BackendPlaybackState::Stopped => {
                 self.position_seconds = self.duration_seconds();
                 self.handle = None;
@@ -569,6 +735,8 @@ impl AudioEngine {
         self.source = None;
         self.home_seconds = 0.0;
         self.position_seconds = 0.0;
+        self.range = None;
+        self.looping = false;
         self.can_resume_handle = false;
     }
 
@@ -598,6 +766,8 @@ impl AudioEngine {
             home_seconds: self.home_seconds,
             duration_seconds: self.duration_seconds(),
             playback_speed: self.rate.into(),
+            range: self.range,
+            looping: self.looping,
             last_error: self.last_error.clone(),
         }
     }
@@ -1026,6 +1196,7 @@ mod tests {
             position_seconds: f32,
             _deadline: Option<Instant>,
             _rate: PlaybackRate,
+            _bounds: PlaybackBounds,
         ) -> Result<Box<dyn AudioHandle>, String> {
             let mut shared = self.shared.lock().expect("fake shared");
             shared

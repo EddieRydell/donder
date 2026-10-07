@@ -17,6 +17,9 @@ export const commands = {
   audioSeek: async (positionSeconds: number) => unwrapResult(await generatedCommands.audioSeek(positionSeconds)),
   audioSetPlaybackSpeed: async (speed: import("./types").PlaybackSpeed) =>
     unwrapResult(await generatedCommands.audioSetPlaybackSpeed(speed)),
+  audioSetRange: async (range: import("./types").PlaybackRange | null) =>
+    unwrapResult(await generatedCommands.audioSetRange(range)),
+  audioSetLooping: async (looping: boolean) => unwrapResult(await generatedCommands.audioSetLooping(looping)),
   createSequence: async (request: import("./types").NewSequenceRequest) =>
     unwrapResult(await generatedCommands.createSequence(request)),
   setPreviewAppearance: async (appearance: import("./types").PreviewAppearance) =>
