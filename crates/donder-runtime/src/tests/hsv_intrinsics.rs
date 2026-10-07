@@ -89,7 +89,7 @@ fn hsv_components_of_colors_execute_and_fold_alike() {
 #[test]
 fn standard_hue_shift_preserves_value_and_saturation_and_wraps() {
     let operator = compile_operators(include_str!(
-        "../../../../examples/starter/operators/standard.operator.donder"
+        "../../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
     .into_iter()

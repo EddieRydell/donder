@@ -1,0 +1,29 @@
+effect ScanSweep {
+  param gradient: gradient;
+  param intensity: curve in 0.0..1.0;
+  param direction: enum { LeftToRight, RightToLeft, CenterOut, EdgesIn } = LeftToRight;
+  param color_mode: enum { ThroughEffect, AcrossPixels, ScanHead } = ThroughEffect;
+  param repeats: float in 1.0..100.0 = 1.0;
+  param width: float in 0.0..1.0 = 0.12;
+  param edge_width: float in 0.001..1.0 = 0.04;
+  param background_level: float in 0.0..1.0 = 0.0;
+  param section_width_pixels: float in 1.0..1000.0 = 1.0;
+
+  sample {
+    let position = section_position(section_width_pixels);
+    let scan_progress = (progress * repeats) % 1.0;
+    let scan_position = if direction == RightToLeft { 1.0 - scan_progress } else { scan_progress };
+    let target_position =
+      if direction == CenterOut { abs(position - 0.5) * 2.0 }
+      else if direction == EdgesIn { 1.0 - abs(position - 0.5) * 2.0 }
+      else { position };
+    let distance = abs(target_position - scan_position);
+    let body = 1.0 - smoothstep(width, width + edge_width, distance);
+    let level = max(background_level, body) * intensity[progress];
+    let color_position =
+      if color_mode == AcrossPixels { position }
+      else if color_mode == ScanHead { scan_progress }
+      else { progress };
+    gradient_color_scaled(gradient, color_position, level)
+  }
+}

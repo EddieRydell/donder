@@ -18,7 +18,7 @@ use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop, 
 #[test]
 fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {
     let pulse = compile_effects(include_str!(
-        "../../../../examples/starter/effects/standard.effect.donder"
+        "../../../../examples/starter/effects/standard.donder"
     ))
     .unwrap()
     .into_iter()

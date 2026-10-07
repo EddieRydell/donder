@@ -27,6 +27,29 @@ export const THEME_TYPOGRAPHY = {
   sequence: cssValue("--donder-sequence-font")
 } as const;
 
+/** The code editor's palette and metrics, for Monaco's theme and options. */
+export const THEME_CODE_EDITOR = {
+  fontFamily: cssValue("--donder-font-code"),
+  fontSize: cssNumber("--donder-font-size-lg"),
+  lineHeight: cssNumber("--donder-code-line-height"),
+  padding: cssNumber("--donder-code-padding"),
+  background: cssColor("--donder-bg"),
+  gutter: cssColor("--donder-bg-rail"),
+  panel: cssColor("--donder-bg-panel"),
+  text: cssColor("--donder-text"),
+  muted: cssColor("--donder-text-muted"),
+  cursor: cssColor("--donder-editor-cursor"),
+  selection: cssColor("--donder-accent-bg"),
+  error: cssColor("--donder-danger"),
+  warning: cssColor("--donder-warning"),
+  keyword: cssColor("--donder-code-keyword"),
+  name: cssColor("--donder-code-name"),
+  function: cssColor("--donder-code-function"),
+  string: cssColor("--donder-code-string"),
+  number: cssColor("--donder-code-number"),
+  type: cssColor("--donder-code-type")
+} as const;
+
 export const THEME_COLORS = {
   defaultProjectColor: cssColor("--donder-default-project-color"),
   defaultSequenceColor: cssColor("--donder-default-sequence-color"),

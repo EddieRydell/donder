@@ -78,7 +78,7 @@ pub fn plan_path_change(
     };
 
     if source.as_str() == crate::PROJECT_ROOT_FILE {
-        return Err("project.donder must remain at the project root.".into());
+        return Err("project.data.donder must remain at the project root.".into());
     }
     let document_remaps = session
         .source

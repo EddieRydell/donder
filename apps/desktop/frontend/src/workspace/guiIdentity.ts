@@ -3,7 +3,11 @@ import type { GuiObjectRef, GuiOwnedStep } from "../types";
 type Address = Pick<GuiObjectRef, "path" | "objectKey" | "ownedPath">;
 
 function pathIdentity(path: GuiOwnedStep[]) {
-  return path.map((slot) => "id" in slot ? { type: slot.type, id: slot.id } : { type: slot.type });
+  return path.map((slot) => {
+    if ("id" in slot) return { type: slot.type, id: slot.id };
+    if ("name" in slot) return { type: slot.type, name: slot.name };
+    return { type: slot.type };
+  });
 }
 
 export function guiObjectKey(reference: GuiObjectRef): string {

@@ -19,7 +19,7 @@ standard library is not a Vixen compatibility library.
 
 ## Bundled library
 
-[`examples/starter/effects/vixen.effect.donder`](../examples/starter/effects/vixen.effect.donder)
+[`examples/starter/effects/vixen.donder`](../examples/starter/effects/vixen.donder)
 contains **18 procedural ports: 7 Basic and 11 Pixel effects**. The starter
 imports it as `vixen`; the desktop new-project template embeds that same source
 file. Definitions are prefixed `Vixen`, for example `vixen.VixenPinwheel`.
@@ -50,14 +50,10 @@ It is not a sequence importer or a claim of complete interface/render parity.
 ### Authoring contract
 
 Import the file in each sequence document that uses it; imports from
-`project.donder` are not inherited by other documents:
+`project.data.donder` are not inherited by other documents:
 
-```yaml
-imports:
-- from:
-    documents:
-    - effects/vixen.effect.donder
-  as: vixen
+```text
+import vixen from <effects/vixen.donder>;
 ```
 
 Use the parameter declarations and adjacent comments as the supported interface.
@@ -114,8 +110,8 @@ supplies its colors. In particular:
 - Spirograph may examine 5,400 parametric points per evaluated pixel. It preserves
   the last covering point's color by searching backward. Preparation of the point
   set would be useful for larger displays; no playback performance claim is made.
-- Shockwave supports the source acceleration-curve values 50 (linear), 55
-  (`gentle_in`, its default), 45 (`gentle_out`) and 0 (`strong_out`). The formulas
+- Shockwave supports the source acceleration-curve values 50 (`Linear`), 55
+  (`GentleIn`, its default), 45 (`GentleOut`) and 0 (`StrongOut`). The formulas
   are respectively `t`, `t * sqrt(t)`, `1 - (1-t) * sqrt(1-t)` and
   `1 - (1-t)^5`. Other acceleration values require arbitrary exponentiation.
 - Chase implements a linear forward movement only. Spin/Chase retain the source

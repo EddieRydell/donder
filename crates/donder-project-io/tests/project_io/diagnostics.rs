@@ -4,14 +4,14 @@ use camino::{Utf8Path, Utf8PathBuf};
 use donder_language::identity::DocumentId;
 use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::{
-    IoDiagnosticCode, IoDiagnosticSeverity, TextRange, check_document_text, check_project,
-    check_project_document_text,
+    IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_document_text,
+    check_project, check_project_document_text,
 };
 use std::fs;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use crate::common::{load_project as load_local_project, write_workspace_metadata};
+use crate::common::load_project as load_local_project;
 
 /// The loaded starter, shared by tests that only validate in-memory edits.
 fn starter_session() -> &'static donder_project_io::ProjectSession {
@@ -70,9 +70,9 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
 fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
     let root = common::starter_root();
     let mut sources = donder_project_io::project_source_texts(&root).unwrap();
-    let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.gradient.donder");
+    let gradient_path = Utf8PathBuf::from("gradients/basic_gradients.data.donder");
     let source = sources.get_mut(&gradient_path).unwrap();
-    *source = source.replacen("position: 0.3499999940395355", "position: -0.1", 1);
+    *source = source.replacen("(0.35, #ffb000)", "(-0.1, #ffb000)", 1);
     let report = donder_project_io::check_project_with_overrides(&root, &sources);
     assert!(report.session.is_none());
     assert!(
@@ -159,6 +159,7 @@ fn edited_operator_parameters_validate_inline_resources() {
         .clone();
     let mut sequence = session.project.sequence(&sequence_id).unwrap().clone();
     let mut operator = GraphOperatorNode {
+        name: donder_language::names::object_name("operator"),
         operator: OperatorRef::Custom(id),
         params: Default::default(),
     };
@@ -189,9 +190,12 @@ fn edited_operator_parameters_validate_inline_resources() {
 fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(
+    common::write_imported_sequence_project(
         &root,
-        "  duration: 1s\n  frame_rate: 30\n  mark_collections:\n    - key: beats\n      name: Beats\n      color: '#1é234'\n      marks: []\n",
+        &common::MINIMAL_SEQUENCE.replace(
+            "marks: []",
+            "marks: [MarkCollection { name: beats, description: none, color: #1é234, times: [] }]",
+        ),
     );
     let report = check_project(&root);
     assert!(report.session.is_none());
@@ -199,7 +203,8 @@ fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
         report
             .diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.to_lowercase().contains("color")),
+            .any(|diagnostic| diagnostic.path == "sequence.data.donder"
+                && diagnostic.range.is_some()),
         "{:?}",
         report.diagnostics
     );
@@ -207,14 +212,9 @@ fn malformed_multibyte_color_reports_a_diagnostic_without_panicking() {
 
 #[test]
 fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
-    let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
-    let root = workspace.join("examples/starter");
+    let root = common::starter_root();
     let original = donder_project_io::project_source_texts(&root).unwrap();
-    let sequence = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
+    let sequence = Utf8PathBuf::from("sequences/layer_test.data.donder");
     let mut overrides = original.clone();
     overrides.insert(
         sequence.clone(),
@@ -232,8 +232,8 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
     );
     for path in [
         donder_project_io::PROJECT_ROOT_FILE,
-        "effects/scan-sweep.effect.donder",
-        "operators/gain.operator.donder",
+        "effects/scan-sweep.donder",
+        "operators/gain.donder",
         sequence.as_str(),
     ] {
         let mut invalid = original.clone();
@@ -256,31 +256,56 @@ fn all_source_kinds_are_analyzed_from_overrides_without_writing_disk() {
 }
 
 #[test]
-fn invalid_yaml_reports_parser_range() {
+fn invalid_data_syntax_reports_parser_range() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
     fs::write(
-        &entrypoint,
-        "broken:\n  type: project\n  setup: [\n  sequences: []\n",
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document("", "  setup: setups.main\n  sequences: [],\n"),
     )
     .unwrap();
-    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::YamlParse)
-        .unwrap();
+        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::DataSyntax)
+        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
 
     assert!(report.session.is_none());
-    assert_eq!(diagnostic.path, Utf8Path::new("project.donder"));
+    assert_eq!(diagnostic.path, Utf8Path::new(PROJECT_ROOT_FILE));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
     assert!(
         diagnostic.range.is_some(),
-        "YAML parser diagnostics should include a source range"
+        "syntax diagnostics should include a source range"
     );
+}
+
+#[test]
+fn unclosed_bracket_inside_a_record_is_one_syntax_error() {
+    let text = "Project main {\n  format: 1,\n  setup: [\n  sequences: [],\n}\n";
+    let diagnostics = check_document_text(Utf8Path::new(PROJECT_ROOT_FILE), text);
+    assert!(
+        !diagnostics.is_empty()
+            && diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code == IoDiagnosticCode::DataSyntax),
+        "{diagnostics:?}"
+    );
+    assert!(diagnostics.len() <= 2, "{diagnostics:?}");
+}
+
+#[test]
+fn comments_are_syntax_errors_in_data_documents() {
+    let diagnostics = check_document_text(
+        Utf8Path::new("curves/commented.data.donder"),
+        "-- a note\nCurve flat { description: none, points: [] }\n",
+    );
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::DataSyntax)
+        .unwrap_or_else(|| panic!("{diagnostics:?}"));
+    assert_eq!(diagnostic.range.as_ref().unwrap().start.line, 0);
 }
 
 /// An unexpected character at line 2, characters 4..5.
@@ -288,13 +313,13 @@ const BAD_EFFECT: &str = "effect Bad {\n  sample {\n    @\n  }\n}\n";
 
 #[test]
 fn invalid_effect_dsl_reports_exact_span() {
-    let diagnostics = check_document_text(Utf8Path::new("effects/bad.effect.donder"), BAD_EFFECT);
+    let diagnostics = check_document_text(Utf8Path::new("effects/bad.donder"), BAD_EFFECT);
     let diagnostic = diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::EffectCompile)
+        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::ScriptCompile)
         .unwrap();
 
-    assert_eq!(diagnostic.path, Utf8Path::new("effects/bad.effect.donder"));
+    assert_eq!(diagnostic.path, Utf8Path::new("effects/bad.donder"));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
     assert!(
         diagnostic.message.contains("unexpected character"),
@@ -304,17 +329,14 @@ fn invalid_effect_dsl_reports_exact_span() {
 }
 
 #[test]
-fn invalid_operator_dsl_reports_operator_compile_diagnostic() {
+fn invalid_operator_dsl_reports_script_compile_diagnostic() {
     let source = "operator Bad { input source; sample { source.at(true) } }";
-    let diagnostics = check_document_text(Utf8Path::new("operators/bad.operator.donder"), source);
+    let diagnostics = check_document_text(Utf8Path::new("operators/bad.donder"), source);
     let diagnostic = diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::OperatorCompile)
+        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::ScriptCompile)
         .unwrap();
-    assert_eq!(
-        diagnostic.path,
-        Utf8Path::new("operators/bad.operator.donder")
-    );
+    assert_eq!(diagnostic.path, Utf8Path::new("operators/bad.donder"));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
     // The sample time must be a number; the diagnostic covers the bad argument.
     assert!(diagnostic.message.contains("float"), "{diagnostic:?}");
@@ -326,25 +348,23 @@ fn invalid_operator_dsl_reports_operator_compile_diagnostic() {
 fn invalid_reference_reports_donder_reference_diagnostic() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
     fs::write(
-        &entrypoint,
-        "main:\n  type: project\n  setup: missing.setup\n  sequences: []\n",
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document("", "  setup: missing.setup,\n  sequences: [],\n"),
     )
     .unwrap();
-    write_workspace_metadata(&root);
 
     let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.code == IoDiagnosticCode::DonderReference)
-        .unwrap();
+        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
 
     assert!(report.session.is_none());
-    assert_eq!(diagnostic.path, Utf8Path::new("project.donder"));
+    assert_eq!(diagnostic.path, Utf8Path::new(PROJECT_ROOT_FILE));
     assert_eq!(diagnostic.severity, IoDiagnosticSeverity::Error);
-    assert_range(diagnostic.range.as_ref().unwrap(), 2, 9, 2, 22);
+    assert_range(diagnostic.range.as_ref().unwrap(), 5, 9, 5, 22);
     assert!(diagnostic.message.contains("missing.setup"));
 }
 
@@ -352,230 +372,281 @@ fn invalid_reference_reports_donder_reference_diagnostic() {
 fn repeated_reference_text_reports_the_failing_occurrence() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
     fs::write(
-        &entrypoint,
-        "imports:\n- from:\n    documents:\n    - setup.donder\n  as: shared\nmain:\n  type: project\n  setup: shared.main\n  sequences: [shared.main]\n",
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document(
+            "import shared from <setup.data.donder>;\n",
+            "  setup: shared.main,\n  sequences: [shared.main],\n",
+        ),
     )
     .unwrap();
-    fs::write(
-        root.join("setup.donder"),
-        "imports:\n- from:\n    documents:\n    - display.donder\n  as: display\n- from:\n    documents:\n    - patch.donder\n  as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
-    )
-    .unwrap();
-    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  elements:\n  - id: 1\n    name: Pixel\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
-    fs::write(
-        root.join("patch.donder"),
-        "main:\n  type: patch\n  routes: []\n",
-    )
-    .unwrap();
-    write_workspace_metadata(&root);
+    fs::write(root.join("setup.data.donder"), common::SETUP).unwrap();
+    fs::write(root.join("display.data.donder"), common::DISPLAY).unwrap();
+    fs::write(root.join("patch.data.donder"), common::PATCH).unwrap();
 
     let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
-        .find(|diagnostic| diagnostic.code == IoDiagnosticCode::DonderReference)
-        .unwrap();
+        .find(|diagnostic| diagnostic.message.contains("shared.main"))
+        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
     let range = diagnostic.range.as_ref().unwrap();
-    assert_eq!(range.start.line, 8);
-    assert!(range.start.character >= 14);
+    assert_eq!(range.start.line, 7);
+    assert_eq!(range.start.character, 14);
 }
 
 #[test]
 fn project_document_override_runs_semantic_validation() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(
-        &root,
-        "  duration: 1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  automation_clips: []\n",
-    );
+    common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
     let session = load_local_project(&root);
-    let document = DocumentId::new(session.source.project_module_id(), "sequence.donder".into());
-    let diagnostics = check_project_document_text(
-        &session,
-        &document,
-        "main:\n  type: sequence\n  duration: invalid\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n  automation_clips: []\n",
+    let document = DocumentId::new(
+        session.source.project_module_id(),
+        "sequence.data.donder".into(),
     );
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.path == Utf8Path::new("sequence.donder")
-            && diagnostic.code == IoDiagnosticCode::DonderLoad
-    }));
+    // Well-formed text whose edge names a node the sequence lacks.
+    let text = common::MINIMAL_SEQUENCE
+        .replace("edges: []", "edges: [Edge { from: nothing, to: output }]");
+    assert!(check_document_text(document.path(), &text).is_empty());
+    let diagnostics = check_project_document_text(&session, &document, &text);
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.path == Utf8Path::new("sequence.data.donder")
+                && diagnostic.code == IoDiagnosticCode::DonderLoad
+                && diagnostic.message.contains("nothing")
+        }),
+        "{diagnostics:?}"
+    );
+}
+
+/// The diagnostic for `sequence`, a variant of the minimal sequence.
+fn sequence_diagnostic(sequence: &str, message: &str) -> donder_project_io::IoDiagnostic {
+    let temp = tempfile::tempdir().unwrap();
+    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+    common::write_imported_sequence_project(&root, sequence);
+    let report = check_project(&root);
+    assert!(report.session.is_none());
+    report
+        .diagnostics
+        .into_iter()
+        .find(|diagnostic| {
+            diagnostic.path == "sequence.data.donder" && diagnostic.message.contains(message)
+        })
+        .unwrap_or_else(|| panic!("no `{message}` in {sequence}"))
+}
+
+/// The line and character range of the first `needle` in `text`.
+fn range_of(text: &str, needle: &str) -> (u32, u32, u32, u32) {
+    let start = text.find(needle).unwrap();
+    let line = text[..start].matches('\n').count() as u32;
+    let character = (start - text[..start].rfind('\n').map_or(0, |index| index + 1)) as u32;
+    (line, character, line, character + needle.len() as u32)
+}
+
+fn assert_at(diagnostic: &donder_project_io::IoDiagnostic, text: &str, needle: &str) {
+    let (start_line, start_character, end_line, end_character) = range_of(text, needle);
+    assert_range(
+        diagnostic.range.as_ref().unwrap(),
+        start_line,
+        start_character,
+        end_line,
+        end_character,
+    );
 }
 
 #[test]
-fn missing_required_field_reports_containing_object_range() {
+fn missing_field_is_reported_where_it_belongs() {
+    let text = common::MINIMAL_SEQUENCE.replace("  frame_rate: 60,\n", "");
+    let diagnostic = sequence_diagnostic(&text, "frame_rate");
+    assert_eq!(diagnostic.code, IoDiagnosticCode::DataSyntax);
+    assert!(diagnostic.range.is_some());
+}
+
+#[test]
+fn fields_out_of_schema_order_are_errors() {
+    let text = common::MINIMAL_SEQUENCE.replace(
+        "  duration: 1s,\n  frame_rate: 60,\n",
+        "  frame_rate: 60,\n  duration: 1s,\n",
+    );
+    let diagnostic = sequence_diagnostic(&text, "duration");
+    assert_eq!(diagnostic.code, IoDiagnosticCode::DataSyntax);
+}
+
+#[test]
+fn unknown_field_reports_its_name_range() {
+    let text =
+        common::MINIMAL_SEQUENCE.replace("  audio: none,\n", "  audio: none,\n  tempo: 120,\n");
+    let diagnostic = sequence_diagnostic(&text, "tempo");
+    assert_at(&diagnostic, &text, "tempo");
+}
+
+#[test]
+fn wrong_field_type_reports_bad_value_range() {
+    let text = common::MINIMAL_SEQUENCE.replace("frame_rate: 60", "frame_rate: [bad]");
+    let diagnostic = sequence_diagnostic(&text, "a list");
+    assert_at(&diagnostic, &text, "[bad]");
+}
+
+#[test]
+fn integers_are_not_floats_in_data() {
+    let text = common::MINIMAL_SEQUENCE.replace("position: (0.0, 0.0)", "position: (0, 0.0)");
+    let diagnostic = sequence_diagnostic(&text, "float");
+    assert_eq!(
+        diagnostic.range.as_ref().unwrap().start.line,
+        range_of(&text, "(0, 0.0)").0
+    );
+}
+
+#[test]
+fn non_canonical_literals_name_their_canonical_spelling() {
+    for (before, after, canonical) in [
+        ("duration: 1s", "duration: 1.50s", "1.5s"),
+        ("position: (0.0, 0.0)", "position: (0.50, 0.0)", "0.5"),
+    ] {
+        let text = common::MINIMAL_SEQUENCE.replace(before, after);
+        let diagnostic = sequence_diagnostic(&text, canonical);
+        assert_eq!(diagnostic.code, IoDiagnosticCode::DataSyntax);
+        assert!(diagnostic.range.is_some());
+    }
+}
+
+#[test]
+fn unknown_declaration_type_reports_that_name_range() {
+    let text = "Nope main { description: none }\n";
+    let diagnostic = sequence_diagnostic(text, "Nope");
+    assert_at(&diagnostic, text, "Nope");
+}
+
+#[test]
+fn nested_invalid_color_reports_nested_value_range() {
+    let text = common::MINIMAL_SEQUENCE.replace(
+        "marks: []",
+        "marks: [MarkCollection { name: beats, description: none, color: 7, times: [] }]",
+    );
+    let diagnostic = sequence_diagnostic(&text, "color");
+    assert_at(&diagnostic, &text, "7");
+}
+
+#[test]
+fn negative_duration_is_a_diagnostic_not_a_loader_panic() {
+    let text = common::MINIMAL_SEQUENCE.replace("duration: 1s", "duration: -1s");
+    let diagnostic = sequence_diagnostic(&text, "");
+    assert!(diagnostic.range.is_some(), "{diagnostic:?}");
+}
+
+#[test]
+fn wrong_reference_kind_names_both_kinds() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
-    fs::write(&entrypoint, "main:\n  type: project\n  sequences: []\n").unwrap();
-    write_workspace_metadata(&root);
-
+    common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
+    let setup = common::SETUP.replace("layout: display.main", "layout: display.pixel");
+    fs::write(root.join("setup.data.donder"), &setup).unwrap();
     let report = check_project(&root);
     let diagnostic = report
         .diagnostics
         .iter()
         .find(|diagnostic| {
-            diagnostic.code == IoDiagnosticCode::DonderLoad
-                && diagnostic.message.contains("missing field `setup`")
+            diagnostic
+                .message
+                .contains("a fixture definition, not a layout")
         })
-        .unwrap();
-
-    assert_range(diagnostic.range.as_ref().unwrap(), 1, 6, 3, 0);
+        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
+    assert_eq!(diagnostic.path, "setup.data.donder");
+    assert_at(diagnostic, &setup, "display.pixel");
 }
 
 #[test]
-fn wrong_field_type_reports_bad_value_range() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
-    fs::write(
-        &entrypoint,
-        "main:\n  type: project\n  setup: [bad]\n  sequences: []\n",
-    )
-    .unwrap();
-    write_workspace_metadata(&root);
-
-    let report = check_project(&root);
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message == "setup must be a mapping")
-        .unwrap();
-
-    assert_range(diagnostic.range.as_ref().unwrap(), 2, 9, 2, 13);
-}
-
-#[test]
-fn unsupported_enum_string_reports_that_string_range() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
-    fs::write(&entrypoint, "main:\n  type: nope\n").unwrap();
-    write_workspace_metadata(&root);
-
-    let report = check_project(&root);
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message == "unsupported object type `nope`")
-        .unwrap();
-
-    assert_range(diagnostic.range.as_ref().unwrap(), 1, 8, 1, 12);
-}
-
-#[test]
-fn nested_invalid_color_reports_nested_scalar_range() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(
-        &root,
-        "  duration: 1s\n  frame_rate: 30\n  mark_collections:\n    - key: beats\n      name: Beats\n      color: bad-color\n      marks: []\n",
+fn missing_fixture_and_layer_names_are_reported_at_the_name() {
+    let clip = "clips: [\n    Clip {\n      name: pulse,\n      description: none,\n      layer: base,\n      start: 0s,\n      duration: 1s,\n      target: display.main.pixel,\n      scope: PerFixture,\n      effect: fx.Flat,\n      params: {},\n    },\n  ]";
+    let sequence = format!(
+        "import display from <display.data.donder>;\nimport fx from <flat.donder>;\n\n{}",
+        common::MINIMAL_SEQUENCE
+            .replace(
+                "layers: []",
+                "layers: [Layer { name: base, description: none, color: #ffffff, enabled: true }]"
+            )
+            .replace("clips: []", clip)
     );
-
-    let report = check_project(&root);
-    let diagnostic = report
-        .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message == "invalid color: bad-color")
+    for (before, after, needle) in [
+        (
+            "target: display.main.pixel",
+            "target: display.main.gone",
+            "gone",
+        ),
+        (
+            "layer: base,\n      start",
+            "layer: lost,\n      start",
+            "lost",
+        ),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+        common::write_imported_sequence_project(&root, &sequence);
+        fs::write(
+            root.join("flat.donder"),
+            "effect Flat { sample { #ffffff } }",
+        )
         .unwrap();
-
-    assert_range(diagnostic.range.as_ref().unwrap(), 7, 13, 7, 22);
+        assert!(check_project(&root).session.is_some(), "{sequence}");
+        let text = sequence.replace(before, after);
+        let diagnostic = sequence_diagnostic_in(&root, &text, needle);
+        assert_at(&diagnostic, &text, needle);
+    }
 }
 
-#[test]
-fn nested_invalid_duration_reports_nested_scalar_range() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(
-        &root,
-        "  duration: soon\n  frame_rate: 30\n  layers: []\n  effects: []\n  composition_graph:\n    nodes: []\n    edges: []\n",
-    );
-
-    let report = check_project(&root);
-    let diagnostic = report
+fn sequence_diagnostic_in(
+    root: &Utf8Path,
+    text: &str,
+    message: &str,
+) -> donder_project_io::IoDiagnostic {
+    fs::write(root.join("sequence.data.donder"), text).unwrap();
+    let report = check_project(root);
+    assert!(report.session.is_none());
+    report
         .diagnostics
-        .iter()
-        .find(|diagnostic| diagnostic.message == "duration must end in `s`: soon")
-        .unwrap();
-
-    assert_range(diagnostic.range.as_ref().unwrap(), 2, 12, 2, 16);
-}
-
-#[test]
-fn negative_duration_is_a_diagnostic_not_a_loader_panic() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(
-        &root,
-        "  duration: -1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: { x: 0, y: 0 }\n      type: output\n    edges: []\n",
-    );
-
-    let report = check_project(&root);
-
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("duration must not be negative")),
-        "{:#?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn malformed_optional_sequence_field_is_a_diagnostic() {
-    let temp = tempfile::tempdir().unwrap();
-    let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    write_imported_sequence_project(&root, &minimal_sequence_body("  automation_clips: wrong\n"));
-    let malformed = check_project(&root);
-    assert!(malformed.diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("field `automation_clips` must be a sequence")
-    }));
+        .into_iter()
+        .find(|diagnostic| {
+            diagnostic.path == "sequence.data.donder" && diagnostic.message.contains(message)
+        })
+        .unwrap_or_else(|| panic!("no `{message}` in {text}"))
 }
 
 #[test]
 fn imported_effect_errors_keep_exact_spans_without_aggregate_marker() {
     let temp = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
-    let entrypoint = root.join("project.donder");
     fs::write(
-        &entrypoint,
-        "imports:\n  - from:\n      documents:\n      - bad.effect.donder\n    as: fx\nmain:\n  type: project\n  setup: missing.setup\n  sequences: []\n",
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document(
+            "import fx from <bad.donder>;\n",
+            "  setup: missing.setup,\n  sequences: [],\n",
+        ),
     )
     .unwrap();
-    fs::write(root.join("bad.effect.donder"), BAD_EFFECT).unwrap();
-    write_workspace_metadata(&root);
+    fs::write(root.join("bad.donder"), BAD_EFFECT).unwrap();
 
     let report = check_project(&root);
-    let effect_diagnostics = report
+    let script_diagnostics = report
         .diagnostics
         .iter()
-        .filter(|diagnostic| diagnostic.code == IoDiagnosticCode::EffectCompile)
+        .filter(|diagnostic| diagnostic.code == IoDiagnosticCode::ScriptCompile)
         .collect::<Vec<_>>();
 
+    assert!(!script_diagnostics.is_empty(), "{:?}", report.diagnostics);
     assert!(
-        effect_diagnostics
+        script_diagnostics
             .iter()
             .all(|diagnostic| diagnostic.range.is_some())
     );
-    assert!(effect_diagnostics.iter().any(|diagnostic| diagnostic.path
-        == Utf8Path::new("bad.effect.donder")
+    assert!(script_diagnostics.iter().any(|diagnostic| diagnostic.path
+        == Utf8Path::new("bad.donder")
         && diagnostic.range.as_ref().is_some_and(|range| {
             range.start.line == 2
                 && range.start.character == 4
                 && range.end.line == 2
                 && range.end.character == 5
         })));
-    assert!(
-        effect_diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.range.as_ref().is_none_or(|range| {
-                range.start.line != 0 || range.start.character != 0 || range.end.character != 1
-            }))
-    );
 }
 
 #[test]
@@ -590,48 +661,35 @@ fn missing_root_document_reports_no_range() {
 }
 
 #[test]
-fn valid_example_project_loads_without_diagnostics() {
-    let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Utf8Path::parent)
-        .unwrap();
-    let root = workspace_root.join("examples/starter");
+fn root_metadata_is_validated() {
+    for (before, after) in [("format: 1", "format: 7"), ("id: \"", "id: \"not-a-uuid")] {
+        let temp = tempfile::tempdir().unwrap();
+        let root = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).unwrap();
+        common::write_imported_sequence_project(&root, common::MINIMAL_SEQUENCE);
+        let path = root.join(PROJECT_ROOT_FILE);
+        let text = fs::read_to_string(&path)
+            .unwrap()
+            .replacen(before, after, 1);
+        fs::write(&path, text).unwrap();
+        let report = check_project(&root);
+        assert!(report.session.is_none(), "{after}");
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.path == PROJECT_ROOT_FILE),
+            "{after}: {:?}",
+            report.diagnostics
+        );
+    }
+}
 
-    let report = check_project(&root);
+#[test]
+fn valid_example_project_loads_without_diagnostics() {
+    let report = check_project(&common::starter_root());
 
     assert!(report.session.is_some());
     assert_eq!(report.diagnostics, Vec::new());
-}
-
-fn write_imported_sequence_project(root: &Utf8Path, sequence_body: &str) {
-    fs::write(
-        root.join("project.donder"),
-        "imports:\n  - from:\n      documents:\n      - setup.donder\n    as: setups\n  - from:\n      documents:\n      - sequence.donder\n    as: sequences\nmain:\n  type: project\n  setup: setups.main\n  sequences: [sequences.main]\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("setup.donder"),
-        "imports:\n  - from:\n      documents:\n      - display.donder\n    as: display\n  - from:\n      documents:\n      - patch.donder\n    as: patches\nmain:\n  type: setup\n  layout: display.main\n  patch: patches.main\n  controllers: []\n",
-    )
-    .unwrap();
-    fs::write(root.join("display.donder"), "pixel:\n  type: fixture\n  elements:\n  - id: 1\n    name: Pixel\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\nmain:\n  type: layout\n  fixtures:\n  - id: 1\n    name: Pixel\n    type: fixture\n    definition: pixel\n").unwrap();
-    fs::write(
-        root.join("patch.donder"),
-        "main:\n  type: patch\n  routes: []\n",
-    )
-    .unwrap();
-    fs::write(
-        root.join("sequence.donder"),
-        format!("main:\n  type: sequence\n{sequence_body}"),
-    )
-    .unwrap();
-    write_workspace_metadata(root);
-}
-
-fn minimal_sequence_body(extra: &str) -> String {
-    format!(
-        "  duration: 1s\n  frame_rate: 60\n  audio: null\n  mark_collections: []\n  layers: []\n  effects: []\n  composition_graph:\n    nodes:\n    - id: 1\n      position: {{ x: 0, y: 0 }}\n      type: output\n    edges: []\n{extra}"
-    )
 }
 
 fn assert_range(

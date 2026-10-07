@@ -15,6 +15,8 @@ pub enum OperatorRef {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GraphOperatorNode {
+    /// Unique among the sequence's layers and graph nodes; edges use it.
+    pub name: crate::dsl::Identifier,
     pub operator: OperatorRef,
     pub params: IndexMap<Identifier, EffectParamValue>,
 }
@@ -64,6 +66,11 @@ impl OperatorDefinition {
     }
     pub fn implementation(&self) -> &OperatorImplementation {
         &self.implementation
+    }
+    pub fn description(&self) -> Option<&str> {
+        match &self.implementation {
+            OperatorImplementation::Dsl(compiled) => compiled.description(),
+        }
     }
 }
 

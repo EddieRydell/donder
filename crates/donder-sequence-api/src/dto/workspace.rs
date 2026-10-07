@@ -362,17 +362,19 @@ pub struct EditorBuffer {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum TextDocumentSyntax {
-    Yaml,
-    EffectDsl,
+    /// A `*.data.donder` document.
+    Data,
+    /// A `*.donder` script.
+    Script,
+    Plain,
 }
 
 impl From<donder_project_io::SourceDocumentFormat> for TextDocumentSyntax {
     fn from(format: donder_project_io::SourceDocumentFormat) -> Self {
         match format {
-            donder_project_io::SourceDocumentFormat::Effect
-            | donder_project_io::SourceDocumentFormat::Operator => Self::EffectDsl,
-            donder_project_io::SourceDocumentFormat::Donder
-            | donder_project_io::SourceDocumentFormat::Other => Self::Yaml,
+            donder_project_io::SourceDocumentFormat::Data => Self::Data,
+            donder_project_io::SourceDocumentFormat::Script => Self::Script,
+            donder_project_io::SourceDocumentFormat::Other => Self::Plain,
         }
     }
 }

@@ -160,32 +160,42 @@ pub(super) fn edit_sequence(
                 collection.marks.remove(index as usize);
             }
         }
-        SequenceGuiEdit::CreateMarkCollection { key, name, color } => {
+        SequenceGuiEdit::CreateMarkCollection { name, color } => {
             let sequence = &mut draft;
-            if sequence
-                .mark_collections
-                .iter()
-                .any(|collection| collection.key.name == key)
-            {
-                return Err(GuiMutationError::Invalid(
-                    "Mark collection keys must be unique.".to_string(),
-                ));
-            }
+            super::model::typed_name(&name)?;
+            let name = super::model::fresh_name(&name, |candidate| {
+                sequence
+                    .mark_collections
+                    .iter()
+                    .any(|collection| collection.key.name.as_str() == candidate)
+            });
             sequence.mark_collections.push(MarkCollection {
-                key: MarkCollectionKey { name: key },
-                name,
+                key: MarkCollectionKey { name },
+                description: None,
                 display_color: parse_color(&color)?,
                 marks: Vec::new(),
             });
         }
         SequenceGuiEdit::RenameMarkCollection { key, name } => {
-            mark_collection_mut(&mut draft, &key)?.name = name;
+            // A rename moves every effect parameter that names the collection.
+            let name = super::model::typed_name(&name)?;
+            let from = mark_collection_mut(&mut draft, &key)?.key.name.clone();
+            mark_collection_mut(&mut draft, &key)?.key.name = name.clone();
+            for effect in &mut draft.effects {
+                for value in effect.param_overrides.values_mut() {
+                    if let EffectParamValue::Marks(collection) = value
+                        && collection.name == from
+                    {
+                        collection.name = name.clone();
+                    }
+                }
+            }
         }
         SequenceGuiEdit::DeleteMarkCollection { key } => {
             let sequence = &mut draft;
             let is_referenced = sequence.effects.iter().any(|effect| {
                 effect.param_overrides.values().any(|value| {
-                    matches!(value, EffectParamValue::Marks(collection) if collection.name == key)
+                    matches!(value, EffectParamValue::Marks(collection) if collection.name.as_str() == key)
                 })
             });
             if is_referenced {
@@ -195,7 +205,7 @@ pub(super) fn edit_sequence(
             }
             sequence
                 .mark_collections
-                .retain(|collection| collection.key.name != key);
+                .retain(|collection| collection.key.name.as_str() != key);
         }
         SequenceGuiEdit::SetMarkCollectionColor { key, color } => {
             mark_collection_mut(&mut draft, &key)?.display_color = parse_color(&color)?;
@@ -254,7 +264,9 @@ pub(super) fn edit_sequence(
                 for name in add_effect_mark_params {
                     param_overrides.insert(
                         identifier(&name)?,
-                        EffectParamValue::Marks(MarkCollectionKey { name: key.clone() }),
+                        EffectParamValue::Marks(MarkCollectionKey {
+                            name: super::model::identifier(&key)?,
+                        }),
                     );
                 }
             }
@@ -271,8 +283,17 @@ pub(super) fn edit_sequence(
                     })?;
                 param_overrides.insert(param.name.clone(), value);
             }
+            let donder_language::effect::EffectRef::Custom(effect) = &definition;
+            let name = super::model::fresh_name(effect.0.object(), |candidate| {
+                sequence
+                    .effects
+                    .iter()
+                    .any(|effect| effect.name.as_str() == candidate)
+            });
             sequence.effects.push(EffectInst {
                 id: EffectInstId(next_id),
+                name,
+                description: None,
                 layer_id,
                 start: super::checked_gui_time(start_seconds.max(0.0))?,
                 duration: super::checked_gui_duration(1.0)?,
@@ -294,7 +315,57 @@ pub(super) fn edit_sequence(
                 .iter_mut()
                 .find(|layer| layer.id.0 == id)
                 .ok_or_else(|| GuiMutationError::Invalid("Layer was not found.".to_string()))?;
-            layer.name = name;
+            layer.name = super::model::typed_name(&name)?;
+        }
+        SequenceGuiEdit::RenameClip { id, name } => {
+            let clip = draft
+                .effects
+                .iter_mut()
+                .find(|effect| effect.id.0 == id)
+                .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
+            clip.name = super::model::typed_name(&name)?;
+        }
+        SequenceGuiEdit::RenameGraphNode { node_id, name } => {
+            let node_id = parse_graph_node_id(&node_id)?;
+            let node = draft
+                .composition_graph
+                .nodes
+                .iter_mut()
+                .find(|node| node.id == node_id)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Graph node was not found.".to_string())
+                })?;
+            let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
+                return Err(GuiMutationError::Invalid(
+                    "Layer and output nodes are named by what they show.".to_string(),
+                ));
+            };
+            operator.name = super::model::typed_name(&name)?;
+        }
+        SequenceGuiEdit::SetItemDescription { item, description } => {
+            let description = super::description::normalized(description);
+            let missing = || GuiMutationError::Invalid("The item was not found.".to_string());
+            match item {
+                crate::dto::SequenceDescribedItem::Layer { id } => {
+                    draft
+                        .layers
+                        .iter_mut()
+                        .find(|layer| layer.id.0 == id)
+                        .ok_or_else(missing)?
+                        .description = description;
+                }
+                crate::dto::SequenceDescribedItem::MarkCollection { key } => {
+                    mark_collection_mut(&mut draft, &key)?.description = description;
+                }
+                crate::dto::SequenceDescribedItem::Clip { id } => {
+                    draft
+                        .effects
+                        .iter_mut()
+                        .find(|effect| effect.id.0 == id)
+                        .ok_or_else(missing)?
+                        .description = description;
+                }
+            }
         }
         SequenceGuiEdit::SetLayerColor { id, color } => {
             let layer = draft
@@ -407,10 +478,18 @@ pub(super) fn edit_sequence(
                 }
             }
             let next_id = next_composition_node_id(sequence);
+            let donder_language::operator::OperatorRef::Custom(definition) = &operator;
+            let name = super::model::fresh_name(definition.0.object(), |candidate| {
+                super::model::sequence_name_taken(sequence, candidate)
+            });
             sequence.composition_graph.nodes.push(CompositionGraphNode {
                 id: CompositionGraphNodeId(next_id),
                 position: GraphNodePosition { x, y },
-                kind: CompositionGraphNodeKind::Operator(GraphOperatorNode { operator, params }),
+                kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                    name,
+                    operator,
+                    params,
+                }),
             });
         }
         SequenceGuiEdit::MoveGraphNodes { positions } => {

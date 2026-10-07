@@ -1,7 +1,8 @@
 # Effect language
 
 Effects and operators are written in Donder's effect language, stored in
-`.effect.donder` and `.operator.donder` documents, and compiled by
+script documents (`*.donder`, as opposed to `*.data.donder` data documents;
+see [project language](project_language.md)), and compiled by
 `donder-language` (see [effect compiler](effect_compiler.md)). The bundled
 libraries are ordinary project files; `examples/starter` contains every bundled
 effect and operator.
@@ -18,33 +19,45 @@ reference](effect_builtins.md).
 ## Declarations
 
 ```text
-effect Wash {
-  param colors: gradient;
+effect Wash "A gradient across the target, faded by a curve." {
+  param colors: gradient "Colors from one end to the other.";
   param level: curve in 0.0..1.0;
-  param direction: enum { forward, backward } = forward;
+  param direction: enum { Forward, Backward } = Forward;
   param bands: int in 1..16 = 4;
 
   sample {
-    let position = if direction == backward { 1.0 - pixel.fraction } else { pixel.fraction };
+    let position = if direction == Backward { 1.0 - pixel.fraction } else { pixel.fraction };
     colors[position] * level[progress]
   }
 }
 
-operator Mirror {
+operator Mirror "The input reversed across the target." {
   input source;
 
   sample { source.at(time, target.count - 1 - pixel.index) }
 }
 ```
 
-Comments start with `--` and run to the end of the line. Because of that, a
-subtracted negation needs a space: `a - -b`.
+A script may hold effects, operators and functions in any mix; each
+declaration's keyword says what it is. Comments start with `--` and run to the
+end of the line. Because of that, a subtracted negation needs a space: `a - -b`.
+
+Effects, operators, parameters and functions may carry a description string,
+which the inspector shows: after the name of an effect, operator or function,
+and at the end of a parameter, after its default. Descriptions are optional.
+Strings are double-quoted with the escapes `\"`, `\\`, `\n` and `\t`.
 
 An effect computes one color for each pixel of its target in every frame. An
 operator does the same over its `input` signals. Parameter types are `int`,
 `float`, `bool`, `color`, `enum { ... }`, `curve`, `gradient`, `marks` and
 `array<T>` of any of those but arrays. Required parameters have no default and
 must be supplied by every instance.
+
+Enum options are `PascalCase` (`Forward`, `AcrossItems`); a `snake_case` option
+is an error with a fix. An option is written bare where a value of that enum is
+expected: as a parameter's default and in comparisons with a value of that
+enum, such as `direction == Backward`. In data documents a clip's value for an
+enum parameter is the same bare option.
 
 `int`, `float` and `curve` parameters declare an inclusive range with `in min..max`;
 a curve's range bounds its point values. Defaults, authored values and edits
@@ -110,8 +123,7 @@ A document may declare functions next to its effects or operators. Any
 declaration in the document can call them, and functions can call each other:
 
 ```text
--- How far `t` has eased out, with a sharper curve for a larger power.
-fn ease_out(t: float, power: int) -> float {
+fn ease_out "How far `t` has eased out, sharper for a larger power." (t: float, power: int) -> float {
   1.0 - pow(1.0 - clamp(t, 0.0, 1.0), power)
 }
 
@@ -272,7 +284,7 @@ rest; see [ESP32 loading](esp32_loading.md).
 
 ## Standard library
 
-`effects/standard.effect.donder` defines Pulse, Chase, Spin, Wipe, MarkPulse,
+`effects/standard.donder` defines Pulse, Chase, Spin, Wipe, MarkPulse,
 MarkChase and MarkWipe. ImpactBurst and MarkImpactBurst are separate documents.
 New projects include all of these. The starter project also has ScanSweep,
 ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
@@ -291,7 +303,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 - Mark effects stop at their clip boundary and after the pulse duration. Empty
   mark or gradient collections produce black.
 
-`operators/standard.operator.donder`:
+`operators/standard.donder`:
 
 | Operator | Inputs | Behavior |
 | --- | --- | --- |

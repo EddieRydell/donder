@@ -34,7 +34,7 @@ pub(super) fn project_document(
                 .map(|fixture| {
                     Ok(PatchFixtureTarget {
                         id: fixture.id.0,
-                        name: fixture.name.clone(),
+                        name: fixture.name.as_str().to_string(),
                         pixel_count: layout.target_pixel_count(
                             &DomainFixtureTarget {
                                 layout: id.clone(),
@@ -62,6 +62,7 @@ pub(super) fn project_document(
     };
     GuiDocument::Patch {
         document: PatchGuiDocument {
+            description: patch.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
             routes: patch.routes.iter().map(project_route).collect(),
@@ -157,6 +158,10 @@ pub(super) fn replace(
             id,
             donder_language::patch::Patch {
                 id: id.clone(),
+                description: session
+                    .project
+                    .patch(id)
+                    .and_then(|patch| patch.description.clone()),
                 routes,
             },
         )

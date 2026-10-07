@@ -35,6 +35,8 @@
   --donder-code-number: #f09a86;
   --donder-code-type: #a6d189;
   --donder-code-invalid: #ff8f8f;
+  --donder-code-line-height: 20px;
+  --donder-code-padding: 12px;
 
   --donder-canvas-background: #0d0f12;
   --donder-canvas-grid: var(--donder-border-soft);
@@ -1039,121 +1041,29 @@ html.donder-app-shell body {
   color: var(--donder-text-strong);
 }
 
-.editor-host.conflicted {
+.resource-editor-frame.conflicted .editor-host {
   opacity: var(--donder-opacity-subdued);
 }
 
-.editor-scrollbar-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--donder-scrollbar-width);
-  min-width: 0;
-  min-height: 0;
-}
 
 .editor-host {
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.editor-scrollbar {
-  min-height: 0;
-  border-left: var(--donder-border-width) solid var(--donder-surface-collapsed);
-  background: var(--donder-bg-rail);
-}
 
-.editor-scrollbar-rail {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  cursor: default;
-}
 
-.editor-scrollbar-thumb {
-  position: absolute;
-  z-index: var(--donder-z-scrollbar-thumb);
-  top: 0;
-  right: var(--donder-scrollbar-thumb-inset);
-  left: var(--donder-scrollbar-thumb-inset);
-  min-height: var(--donder-control-height-md);
-  border-radius: var(--donder-radius-md);
-  background: var(--donder-scrollbar-thumb);
-  opacity: var(--donder-opacity-thumb);
-  cursor: grab;
-  touch-action: none;
-}
 
-.editor-scrollbar-thumb:hover,
-.editor-scrollbar-thumb:active {
-  background: var(--donder-scrollbar-thumb-hover);
-  opacity: var(--donder-opacity-full);
-}
 
-.editor-scrollbar-thumb:active {
-  cursor: grabbing;
-}
 
-.editor-scrollbar-thumb.disabled {
-  opacity: var(--donder-opacity-disabled-subtle);
-  cursor: default;
-}
 
-.editor-scrollbar-marker {
-  position: absolute;
-  z-index: var(--donder-z-scrollbar-marker);
-  right: 1px;
-  left: 1px;
-  height: 4px;
-  min-height: 4px;
-  border: 0;
-  border-radius: var(--donder-border-width);
-  padding: var(--donder-space-0);
-  transform: translateY(-50%);
-  cursor: pointer;
-}
 
-.editor-scrollbar-marker.error {
-  background: var(--donder-danger);
-}
 
-.editor-scrollbar-marker.warning {
-  background: var(--donder-warning);
-}
 
-.editor-scrollbar-tooltip {
-  position: absolute;
-  z-index: var(--donder-z-local-tooltip);
-  top: 50%;
-  right: calc(100% + var(--donder-space-6));
-  display: none;
-  width: max-content;
-  max-width: 360px;
-  transform: translateY(-50%);
-  border: var(--donder-border-width) solid var(--donder-border-control);
-  border-radius: var(--donder-radius-lg);
-  background: var(--donder-bg-panel);
-  box-shadow: var(--donder-shadow-tooltip);
-  padding: var(--donder-space-5) var(--donder-space-7);
-  color: var(--donder-text);
-  text-align: left;
-  font-size: var(--donder-font-size-md);
-  line-height: 1.35;
-  pointer-events: none;
-}
 
-.editor-scrollbar-marker:hover .editor-scrollbar-tooltip,
-.editor-scrollbar-marker:focus-visible .editor-scrollbar-tooltip {
-  display: grid;
-  gap: var(--donder-space-2-5);
-}
 
-.editor-scrollbar-tooltip-location,
-.editor-scrollbar-tooltip-code {
-  color: var(--donder-text-muted);
-}
 
-.editor-scrollbar-tooltip-message {
-  overflow-wrap: anywhere;
-}
 
 .editor-toolbar {
   display: flex;
@@ -1561,6 +1471,26 @@ html.donder-app-shell body {
 .gui-inspector input,
 .gui-inspector select {
   width: 100%;
+}
+
+/* A dropdown trigger that looks like the select it replaces. */
+.definition-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--donder-space-5);
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--donder-radius-md);
+  padding: var(--donder-space-3) var(--donder-space-5);
+  color: var(--donder-text);
+  text-align: left;
+}
+
+.definition-picker > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inspector-readout-grid {
@@ -2128,6 +2058,11 @@ html.donder-app-shell body {
   opacity: var(--donder-opacity-disabled-strong);
 }
 
+.effect-param-description {
+  color: var(--donder-text-muted);
+  font-size: var(--donder-font-size-sm);
+}
+
 .effect-param-automated .effect-param-name {
   color: var(--donder-text-soft);
 }
@@ -2530,100 +2465,23 @@ html.donder-app-shell body {
   color: var(--donder-text);
 }
 
-.cm-editor {
-  height: 100%;
-  background: var(--donder-bg);
-  color: var(--donder-text);
-}
 
-.cm-scroller {
-  font-family: var(--donder-font-code);
-  font-size: var(--donder-font-size-lg);
-  scrollbar-width: none;
-}
 
-.cm-scroller::-webkit-scrollbar {
-  display: none;
-}
 
-.cm-editor .cm-scroller .cm-content {
-  caret-color: var(--donder-editor-cursor);
-}
 
-.cm-editor .cm-scroller .cm-cursor {
-  border-left-color: var(--donder-editor-cursor);
-}
 
-.cm-selectionBackground {
-  background-color: var(--donder-accent-bg) !important;
-}
 
-.cm-gutters {
-  background: var(--donder-bg-rail);
-  color: var(--donder-text-muted);
-  border-right: var(--donder-border-width) solid var(--donder-border);
-}
 
-.cm-lintRange {
-  background-position: left calc(100% - var(--donder-border-width));
-  background-repeat: repeat-x;
-  padding-bottom: var(--donder-space-0);
-  text-decoration: none;
-}
 
-.cm-lintRange-active {
-  background-color: transparent;
-}
 
-.cm-lintRange-error {
-  background-image: repeating-linear-gradient(-45deg, transparent 0 2px, var(--donder-danger) 2px 3px, transparent 3px 5px);
-}
 
-.cm-lintRange-warning {
-  background-image: repeating-linear-gradient(-45deg, transparent 0 2px, var(--donder-warning) 2px 3px, transparent 3px 5px);
-}
 
-.cm-tooltip.cm-tooltip-lint {
-  border: var(--donder-border-width) solid var(--donder-border-control);
-  border-radius: var(--donder-radius-lg);
-  background: var(--donder-bg-panel);
-  box-shadow: var(--donder-shadow-tooltip);
-  color: var(--donder-text);
-  overflow: hidden;
-}
 
-.cm-tooltip-lint .cm-diagnostic {
-  max-width: var(--donder-editor-tooltip-max-width);
-  border-left: var(--donder-space-0);
-  background: var(--donder-bg-panel);
-  padding: var(--donder-space-5) var(--donder-space-7);
-  color: var(--donder-text);
-  font-family: var(--donder-font-ui);
-  font-size: var(--donder-font-size-md);
-  line-height: var(--donder-line-height-normal);
-}
 
-.cm-tooltip-lint .cm-diagnostic-error {
-  background: var(--donder-danger-surface);
-}
 
-.cm-tooltip-lint .cm-diagnostic-warning {
-  background: var(--donder-warning-surface);
-}
 
-.cm-tooltip-lint .cm-diagnosticText,
-.cm-tooltip-lint .cm-diagnostic-message {
-  color: var(--donder-text);
-}
 
-.cm-tooltip-lint .cm-diagnostic-message {
-  overflow-wrap: anywhere;
-}
 
-.cm-tooltip-lint .cm-diagnostic-location,
-.cm-tooltip-lint .cm-diagnostic-code {
-  display: none;
-}
 
 .status-bar {
   gap: var(--donder-space-12);
@@ -3618,9 +3476,6 @@ fieldset.sequence-layer-row {
   color: var(--donder-text-muted);
 }
 
-.resource-editor-frame > .editor-scrollbar-shell {
-  flex: 1;
-}
 
 .object-overview-header,
 .object-overview-heading,
@@ -4339,6 +4194,13 @@ fieldset.sequence-layer-row {
   font-style: normal;
 }
 
+.problem-file-group .problem-fix {
+  padding-top: var(--donder-space-2);
+  padding-left: var(--donder-space-13);
+  color: var(--donder-accent);
+  font-size: var(--donder-font-size-xs);
+}
+
 .problem-file-group .problem-related-location {
   padding-top: var(--donder-space-2);
   padding-left: var(--donder-space-13);
@@ -4685,5 +4547,30 @@ button.status-chip:hover {
 }
 .shared-sequence-workbench [hidden] { display: none; }
 /* Hidden line used to measure DSL editor geometry; it inherits the editor font and line padding. */
-.dsl-source-probe { position: absolute; visibility: hidden; white-space: pre; pointer-events: none; }
 .donder-editor-overlays { display: contents; }
+
+.description-field {
+  display: grid;
+  gap: var(--donder-space-4);
+  color: var(--donder-text-soft);
+  font-size: var(--donder-font-size-sm);
+}
+
+.description-field textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.gui-object-description {
+  padding: var(--donder-space-4) var(--donder-space-8);
+  border-bottom: var(--donder-border-width) solid var(--donder-border-soft);
+  color: var(--donder-text-soft);
+  font-size: var(--donder-font-size-sm);
+}
+
+.gui-object-description > summary {
+  overflow: hidden;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

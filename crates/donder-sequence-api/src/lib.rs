@@ -30,6 +30,19 @@ pub enum SequenceAutomationTarget {
     CompositionNodeParam { node_id: String, param: String },
 }
 
+/// A sequence item that carries a description.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum SequenceDescribedItem {
+    Layer { id: u32 },
+    MarkCollection { key: String },
+    Clip { id: u32 },
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(
     tag = "type",
@@ -65,6 +78,19 @@ pub enum SequenceGuiEdit {
     RenameLayer {
         id: u32,
         name: String,
+    },
+    RenameClip {
+        id: u32,
+        name: String,
+    },
+    RenameGraphNode {
+        node_id: String,
+        name: String,
+    },
+    /// Set an item's description; empty text removes it.
+    SetItemDescription {
+        item: SequenceDescribedItem,
+        description: Option<String>,
     },
     SetLayerColor {
         id: u32,
@@ -180,8 +206,8 @@ pub enum SequenceGuiEdit {
         clip_id: u32,
         detached_index: u32,
     },
+    /// The name becomes a unique `snake_case` name.
     CreateMarkCollection {
-        key: String,
         name: String,
         color: String,
     },

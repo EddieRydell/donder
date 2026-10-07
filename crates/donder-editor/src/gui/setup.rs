@@ -38,6 +38,7 @@ pub(super) fn project_setup(session: &ProjectSession, resolved: &ResolvedGuiObje
     };
     GuiDocument::Setup {
         document: SetupGuiDocument {
+            description: setup.description.clone(),
             available_sources: super::ownership::available_sources(
                 session,
                 resolved.identity.document_id(),
@@ -123,19 +124,19 @@ pub(super) fn edit_setup(
         }
         SetupGuiEdit::AddController { config, ports } => {
             use donder_language::identity::OwnedObjectSlot;
-            let next = setup
+            let taken = setup
                 .controllers
                 .iter()
                 .filter_map(|source| match source.id().0.owned_path().last() {
-                    Some(OwnedObjectSlot::Controller(id)) => Some(*id),
+                    Some(OwnedObjectSlot::Controller(name)) => Some(name.as_str().to_string()),
                     _ => None,
                 })
-                .max()
-                .unwrap_or(0)
-                .checked_add(1)
-                .ok_or_else(|| GuiMutationError::Invalid("No controller IDs remain.".into()))?;
+                .collect::<Vec<_>>();
+            let next = super::model::fresh_name("controller", |name| {
+                taken.iter().any(|taken| taken == name)
+            });
             let id = ControllerId(setup.id.0.owned(OwnedObjectSlot::Controller(next)));
-            let controller = super::controller::domain_controller(id, config, ports)?;
+            let controller = super::controller::domain_controller(id, None, config, ports)?;
             setup
                 .controllers
                 .push(donder_language::ownership::ValueSource::Inline(Box::new(

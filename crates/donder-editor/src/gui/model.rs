@@ -161,11 +161,14 @@ pub(super) fn create_sequence_layer(
             GuiMutationError::Invalid("Composition graph output was not found.".to_string())
         })?;
     let layer_node_id = CompositionGraphNodeId(next_composition_node_id(sequence));
+    typed_name(&name)?;
+    let name = fresh_name(&name, |candidate| sequence_name_taken(sequence, candidate));
     sequence
         .layers
         .push(donder_language::sequence::SequenceLayer {
             id: SequenceLayerId(next_layer_id),
             name,
+            description: None,
             color: parse_color(&color)?,
             enabled: true,
         });
@@ -223,6 +226,21 @@ pub fn source_identity_from_gui(
     ))
 }
 
+/// Whether a name is used by a layer, graph node or the output node: they
+/// share the graph's namespace.
+pub(super) fn sequence_name_taken(
+    sequence: &donder_language::sequence::Sequence,
+    name: &str,
+) -> bool {
+    name == "output"
+        || sequence.layers.iter().any(|layer| layer.name.as_str() == name)
+        || sequence
+            .composition_graph
+            .nodes
+            .iter()
+            .any(|node| matches!(&node.kind, CompositionGraphNodeKind::Operator(operator) if operator.name.as_str() == name))
+}
+
 pub(super) fn mark_collection_mut<'a>(
     sequence: &'a mut donder_language::sequence::Sequence,
     key: &str,
@@ -230,7 +248,7 @@ pub(super) fn mark_collection_mut<'a>(
     sequence
         .mark_collections
         .iter_mut()
-        .find(|collection| collection.key.name == key)
+        .find(|collection| collection.key.name.as_str() == key)
         .ok_or_else(|| GuiMutationError::Invalid("Mark collection was not found.".to_string()))
 }
 
@@ -243,6 +261,25 @@ pub(super) fn automation_clip_mut(
         .iter_mut()
         .find(|clip| clip.id.0 == id)
         .ok_or_else(|| GuiMutationError::Invalid("Automation clip was not found.".to_string()))
+}
+
+/// A name typed in the GUI, as an object name: `Porch Left` becomes
+/// `porch_left`. Uniqueness is checked by the edited object's validation.
+pub(super) fn typed_name(text: &str) -> Result<Identifier, GuiMutationError> {
+    if !text
+        .chars()
+        .any(|character| character.is_ascii_alphanumeric())
+    {
+        return Err(GuiMutationError::Invalid(
+            "Names need at least one letter or digit.".into(),
+        ));
+    }
+    Ok(donder_language::names::object_name(text))
+}
+
+/// A fresh name from `text`, made unique against `taken`.
+pub(super) fn fresh_name(text: &str, taken: impl Fn(&str) -> bool) -> Identifier {
+    donder_language::names::unique_name(donder_language::names::object_name(text).as_str(), taken)
 }
 
 pub(super) fn identifier(value: &str) -> Result<Identifier, GuiMutationError> {
@@ -278,9 +315,9 @@ pub fn effect_param_value_from_gui(
         SequenceEffectParamValue::Bool { value } => EffectParamValue::Bool(value),
         SequenceEffectParamValue::Color { value } => EffectParamValue::Color(parse_color(&value)?),
         SequenceEffectParamValue::Enum { value } => EffectParamValue::Enum(identifier(&value)?),
-        SequenceEffectParamValue::Marks { key } => {
-            EffectParamValue::Marks(MarkCollectionKey { name: key })
-        }
+        SequenceEffectParamValue::Marks { key } => EffectParamValue::Marks(MarkCollectionKey {
+            name: identifier(&key)?,
+        }),
         SequenceEffectParamValue::Curve { value } => EffectParamValue::Curve(
             match library_identity(session, owner, SourceObjectKind::Curve, value.source)? {
                 Some(id) => CurveSource::Reference(CurveId(id)),
@@ -512,16 +549,20 @@ pub(super) fn create_object_document(
     kind: donder_project_io::SourceObjectKind,
     name: &str,
     directory: &str,
-    suffix: &str,
 ) -> Result<donder_language::identity::SourceIdentity, GuiMutationError> {
-    let key = object_key(name);
+    let key = donder_language::names::object_name(name)
+        .as_str()
+        .to_string();
     for index in 1_u32.. {
         let stem = if index == 1 {
             key.clone()
         } else {
             format!("{key}_{index}")
         };
-        let path = camino::Utf8PathBuf::from(format!("{directory}/{stem}.{suffix}.donder"));
+        let path = camino::Utf8PathBuf::from(format!(
+            "{directory}/{stem}{}",
+            donder_language::data::DATA_DOCUMENT_SUFFIX
+        ));
         let document = session.source.project_document(path.clone());
         if session.source.documents.contains_key(&document)
             || session.source.project_root().join(&path).exists()
@@ -530,7 +571,7 @@ pub(super) fn create_object_document(
         }
         return session
             .source
-            .add_yaml_document(path, vec![(kind, stem)])
+            .add_data_document(path, vec![(kind, stem)])
             .map_err(GuiMutationError::Invalid)?
             .into_iter()
             .next()
@@ -546,29 +587,10 @@ pub fn object_identity_from_gui(
 ) -> Result<donder_language::identity::ObjectIdentity, GuiMutationError> {
     let root =
         source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
-    Ok(reference.owned_path.iter().fold(
+    reference.owned_path.iter().try_fold(
         root.into(),
-        |address: donder_language::identity::ObjectIdentity, step| address.owned(step.into()),
-    ))
-}
-
-pub(super) fn object_key(name: &str) -> String {
-    let mut key = name
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    while key.contains("__") {
-        key = key.replace("__", "_");
-    }
-    key = key.trim_matches('_').to_string();
-    if key.is_empty() || key.as_bytes().first().is_some_and(u8::is_ascii_digit) {
-        key = format!("item_{key}");
-    }
-    key
+        |address: donder_language::identity::ObjectIdentity, step| {
+            Ok(address.owned(step.try_into().map_err(GuiMutationError::Invalid)?))
+        },
+    )
 }

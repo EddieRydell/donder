@@ -107,7 +107,7 @@ pub(crate) fn recovery_workspace_entries(recovery: &ProjectRecovery) -> Vec<Work
                     FsEntryKind::Directory => Vec::new(),
                 },
                 operation_explanation: Some(if fixed {
-                    "project.donder must remain at the project root.".to_string()
+                    "project.data.donder must remain at the project root.".to_string()
                 } else {
                     "Project-model operations are disabled until project errors are fixed."
                         .to_string()
@@ -132,10 +132,9 @@ fn recovery_workspace_role(
         return WorkspaceEntryRole::File;
     };
     match document.kind {
-        donder_project_io::RecoveryDocumentKind::Effect => WorkspaceEntryRole::Effect,
-        donder_project_io::RecoveryDocumentKind::Operator => WorkspaceEntryRole::Operator,
+        donder_project_io::RecoveryDocumentKind::Script => WorkspaceEntryRole::Effect,
         donder_project_io::RecoveryDocumentKind::Other => WorkspaceEntryRole::File,
-        donder_project_io::RecoveryDocumentKind::Donder => document
+        donder_project_io::RecoveryDocumentKind::Data => document
             .objects
             .iter()
             .map(|object| crate::dto::workspace_role_for_source_object(&object.kind))
@@ -190,7 +189,7 @@ fn workspace_entry(
         role,
         operations,
         operation_explanation: if fixed {
-            Some("project.donder must remain at the project root.".to_string())
+            Some("project.data.donder must remain at the project root.".to_string())
         } else if structural {
             Some(
                 "Imported documents cannot be deleted; rename or move them through the typed path workflow."
@@ -216,16 +215,16 @@ fn workspace_role(
     }
     let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
     if let Some(document) = session.source.documents.get(&document_id) {
-        return match document.kind() {
-            donder_project_io::SourceDocumentKind::Effect { .. } => WorkspaceEntryRole::Effect,
-            donder_project_io::SourceDocumentKind::Operator { .. } => WorkspaceEntryRole::Operator,
-            donder_project_io::SourceDocumentKind::Donder { .. } => document
-                .objects()
-                .iter()
-                .map(|object| crate::dto::workspace_role_for_source_object(object.kind()))
-                .next()
-                .unwrap_or(WorkspaceEntryRole::File),
+        let fallback = match document.kind() {
+            donder_project_io::SourceDocumentKind::Script { .. } => WorkspaceEntryRole::Effect,
+            donder_project_io::SourceDocumentKind::Data => WorkspaceEntryRole::File,
         };
+        return document
+            .objects()
+            .iter()
+            .map(|object| crate::dto::workspace_role_for_source_object(object.kind()))
+            .next()
+            .unwrap_or(fallback);
     }
     if session
         .source

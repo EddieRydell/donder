@@ -1,0 +1,313 @@
+import fixtures from <fixtures/vertical.data.donder>;
+
+Layout outputs_layout {
+  description: none,
+  items: [
+    Group {
+      name: all_outputs,
+      description: none,
+      items: [
+        Fixture {
+          name: output_01,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (0m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_02,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (0.35m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_03,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (0.7m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_04,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (1.05m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_05,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (1.4m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_06,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (1.75m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_07,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (2.1m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_08,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (2.45m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_09,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (2.8m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_10,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (3.15m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_11,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (3.5m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_12,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (3.85m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_13,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (4.2m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_14,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (4.55m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_15,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (4.9m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_16,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (5.25m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_17,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (5.6m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_18,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (5.95m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_19,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (6.3m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_20,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (6.65m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_21,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (7m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_22,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (7.35m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_23,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (7.7m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_24,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (8.05m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_25,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (8.4m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_26,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (8.75m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_27,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (9.1m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_28,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (9.45m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_29,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (9.8m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+        Fixture {
+          name: output_30,
+          description: none,
+          definition: fixtures.vertical_113,
+          transform: Transform {
+            position: (10.15m, 0m, 0m),
+            rotation: (0.0, 0.0, 0.0),
+            scale: (1.0, 1.0, 1.0),
+          },
+        },
+      ],
+    },
+  ],
+}

@@ -1,5 +1,7 @@
-//! Tokens of the effect language. Type names, reducers and builtins are
-//! identifiers; only declaration and statement words are reserved.
+//! Tokens of Donder documents. Scripts (effects, operators and functions)
+//! and data documents share one lexer; [`LexMode`] selects the few rules that
+//! differ. Type names, reducers and builtins are identifiers; only
+//! declaration and statement words are reserved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct TextSpan {
     pub start: usize,
@@ -7,7 +9,7 @@ pub struct TextSpan {
 }
 
 impl TextSpan {
-    pub(crate) fn to(self, end: Self) -> Self {
+    pub fn to(self, end: Self) -> Self {
         Self {
             start: self.start,
             end: end.end,
@@ -27,6 +29,14 @@ pub(crate) enum TokenKind {
     Integer,
     Float,
     Color,
+    /// `"..."`, with the quotes; escapes are decoded by the parser.
+    String,
+    /// Data only: a number of seconds directly followed by `s`.
+    Duration,
+    /// Data only: a number of meters directly followed by `m`.
+    Distance,
+    /// Data only: `<relative/path>`, with the brackets.
+    Path,
     Keyword(Keyword),
     LeftBrace,
     RightBrace,
@@ -74,22 +84,67 @@ pub(crate) enum Keyword {
     In,
     True,
     False,
+    /// Data only, like `From` and `None`.
+    Import,
+    From,
+    None,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub(crate) enum LexError {
     UnexpectedCharacter,
     InvalidColor,
+    UnterminatedString,
+    UnterminatedPath,
+    /// `--` in a data document.
+    Comment,
+}
+
+impl LexError {
+    pub(crate) fn message(self) -> &'static str {
+        match self {
+            Self::UnexpectedCharacter => "unexpected character",
+            Self::InvalidColor => "a color literal has six hexadecimal digits, like #ff8800",
+            Self::UnterminatedString => "a string ends with `\"` on the same line",
+            Self::UnterminatedPath => "a path ends with `>` on the same line",
+            Self::Comment => {
+                "data documents have no comments; describe an object with its `description` field"
+            }
+        }
+    }
+}
+
+/// Which document kind a source is.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LexMode {
+    /// Effects, operators and functions: `--` comments.
+    Script,
+    /// Data documents: no comments; durations, paths and the data keywords.
+    Data,
 }
 
 pub(crate) fn lex(source: &str) -> Vec<Token> {
-    let mut lexer = Lexer { source, cursor: 0 };
+    lex_mode(source, LexMode::Script)
+}
+
+pub(crate) fn lex_mode(source: &str, mode: LexMode) -> Vec<Token> {
+    lex_with_comments(source, mode).0
+}
+
+/// The tokens of `source` and the spans of its script comments.
+pub(crate) fn lex_with_comments(source: &str, mode: LexMode) -> (Vec<Token>, Vec<TextSpan>) {
+    let mut lexer = Lexer {
+        source,
+        cursor: 0,
+        mode,
+        comments: Vec::new(),
+    };
     let mut tokens = Vec::new();
     loop {
         let token = lexer.next();
         tokens.push(token);
         if token.kind == TokenKind::Eof {
-            return tokens;
+            return (tokens, lexer.comments);
         }
     }
 }
@@ -97,11 +152,15 @@ pub(crate) fn lex(source: &str) -> Vec<Token> {
 struct Lexer<'a> {
     source: &'a str,
     cursor: usize,
+    mode: LexMode,
+    comments: Vec<TextSpan>,
 }
 
 impl Lexer<'_> {
     fn next(&mut self) -> Token {
-        self.skip_trivia();
+        if let Some(comment) = self.skip_trivia() {
+            return comment;
+        }
         let start = self.cursor;
         let Some(character) = self.bump() else {
             return self.token(TokenKind::Eof, start);
@@ -121,7 +180,38 @@ impl Lexer<'_> {
             '*' => TokenKind::Star,
             '/' => self.pair('/', TokenKind::SlashSlash, TokenKind::Slash),
             '%' => TokenKind::Percent,
+            '<' if self.mode == LexMode::Data => {
+                self.take_while(|character| !matches!(character, '<' | '>' | '\n' | '\r'));
+                if self.eat('>') {
+                    TokenKind::Path
+                } else {
+                    TokenKind::Error(LexError::UnterminatedPath)
+                }
+            }
             '<' => self.pair('=', TokenKind::LessEqual, TokenKind::Less),
+            '"' => {
+                let mut escaped = false;
+                let mut closed = false;
+                while let Some(character) = self.peek() {
+                    if character == '\n' {
+                        break;
+                    }
+                    self.bump();
+                    match (escaped, character) {
+                        (false, '"') => {
+                            closed = true;
+                            break;
+                        }
+                        (false, '\\') => escaped = true,
+                        _ => escaped = false,
+                    }
+                }
+                if closed {
+                    TokenKind::String
+                } else {
+                    TokenKind::Error(LexError::UnterminatedString)
+                }
+            }
             '>' => self.pair('=', TokenKind::GreaterEqual, TokenKind::Greater),
             '=' => self.pair('=', TokenKind::EqualEqual, TokenKind::Equals),
             '!' => self.pair('=', TokenKind::BangEqual, TokenKind::Bang),
@@ -153,7 +243,7 @@ impl Lexer<'_> {
             }
             character if character == '_' || character.is_ascii_alphabetic() => {
                 self.take_while(|character| character == '_' || character.is_ascii_alphanumeric());
-                keyword(&self.source[start..self.cursor])
+                keyword(&self.source[start..self.cursor], self.mode)
                     .map_or(TokenKind::Identifier, TokenKind::Keyword)
             }
             character if character.is_ascii_digit() => {
@@ -164,6 +254,22 @@ impl Lexer<'_> {
                 if fraction {
                     self.bump();
                     self.take_while(|character| character.is_ascii_digit());
+                }
+                let unit = self.peek().filter(|unit| {
+                    self.mode == LexMode::Data
+                        && matches!(unit, 's' | 'm')
+                        && !self
+                            .peek_second()
+                            .is_some_and(|next| next == '_' || next.is_ascii_alphanumeric())
+                });
+                if let Some(unit) = unit {
+                    self.bump();
+                    if unit == 's' {
+                        TokenKind::Duration
+                    } else {
+                        TokenKind::Distance
+                    }
+                } else if fraction {
                     TokenKind::Float
                 } else {
                     TokenKind::Integer
@@ -174,14 +280,23 @@ impl Lexer<'_> {
         self.token(kind, start)
     }
 
-    /// Skip whitespace and `--` line comments.
-    fn skip_trivia(&mut self) {
+    /// Skip whitespace and, in scripts, `--` line comments. A comment in a
+    /// data document is an error token covering the comment.
+    fn skip_trivia(&mut self) -> Option<Token> {
         loop {
             self.take_while(char::is_whitespace);
             if !self.source[self.cursor..].starts_with("--") {
-                return;
+                return None;
             }
+            let start = self.cursor;
             self.take_while(|character| character != '\n');
+            if self.mode == LexMode::Data {
+                return Some(self.token(TokenKind::Error(LexError::Comment), start));
+            }
+            self.comments.push(TextSpan {
+                start,
+                end: self.cursor,
+            });
         }
     }
 
@@ -231,7 +346,19 @@ impl Lexer<'_> {
     }
 }
 
-fn keyword(text: &str) -> Option<Keyword> {
+fn keyword(text: &str, mode: LexMode) -> Option<Keyword> {
+    // Data documents reserve only their own words, so fields may be named
+    // `effect`, `input` or `in`.
+    if mode == LexMode::Data {
+        return Some(match text {
+            "import" => Keyword::Import,
+            "from" => Keyword::From,
+            "none" => Keyword::None,
+            "true" => Keyword::True,
+            "false" => Keyword::False,
+            _ => return None,
+        });
+    }
     Some(match text {
         "effect" => Keyword::Effect,
         "operator" => Keyword::Operator,

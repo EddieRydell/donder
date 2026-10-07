@@ -25,15 +25,26 @@ fn duplicate_candidate(
         .map(|fixture| fixture.id.0)
         .max()
         .unwrap_or(0);
+    let mut taken = layout
+        .iter_fixtures()
+        .map(|fixture| fixture.name.clone())
+        .collect::<std::collections::HashSet<_>>();
+    // Every copied placement and group gets its own unique name.
     fn own(
         fixture: &mut LayoutFixture,
         next: &mut u32,
+        taken: &mut std::collections::HashSet<crate::dsl::Identifier>,
         project: &DonderProject,
     ) -> Result<(), String> {
         *next = next
             .checked_add(1)
             .ok_or("No fixture instance IDs remain.")?;
         fixture.id = FixtureInstanceId(*next);
+        fixture.name =
+            crate::names::unique_name(&format!("{}_copy", fixture.name.as_str()), |name| {
+                taken.iter().any(|taken| taken.as_str() == name)
+            });
+        taken.insert(fixture.name.clone());
         match &mut fixture.kind {
             LayoutFixtureKind::Fixture { definition, .. } => {
                 if let FixtureSource::Reference(id) = definition {
@@ -50,14 +61,13 @@ fn duplicate_candidate(
             }
             LayoutFixtureKind::Group { children } => {
                 for child in children {
-                    own(child, next, project)?;
+                    own(child, next, taken, project)?;
                 }
             }
         }
         Ok(())
     }
-    own(&mut copy, &mut next, project)?;
-    copy.name = format!("{} copy", copy.name);
+    own(&mut copy, &mut next, &mut taken, project)?;
     let id = copy.id;
     fn siblings(
         fixtures: &mut Vec<LayoutFixture>,

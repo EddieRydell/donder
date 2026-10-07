@@ -1,0 +1,51 @@
+import layouts from <layouts/outputs.data.donder>;
+import patches from <patches/outputs.data.donder>;
+
+Setup main {
+  description: none,
+  layout: layouts.outputs_layout,
+  patch: patches.outputs,
+  controllers: [output_controller],
+}
+
+Controller output_controller {
+  description: none,
+  protocol: E131 {
+    source_name: "Donder Thirty Output Controller",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.7.2" },
+  },
+  ports: [
+    Port { name: port_1, address: Universe { universe: 1 }, slots: 339 },
+    Port { name: port_2, address: Universe { universe: 2 }, slots: 339 },
+    Port { name: port_3, address: Universe { universe: 3 }, slots: 339 },
+    Port { name: port_4, address: Universe { universe: 4 }, slots: 339 },
+    Port { name: port_5, address: Universe { universe: 5 }, slots: 339 },
+    Port { name: port_6, address: Universe { universe: 6 }, slots: 339 },
+    Port { name: port_7, address: Universe { universe: 7 }, slots: 339 },
+    Port { name: port_8, address: Universe { universe: 8 }, slots: 339 },
+    Port { name: port_9, address: Universe { universe: 9 }, slots: 339 },
+    Port { name: port_10, address: Universe { universe: 10 }, slots: 339 },
+    Port { name: port_11, address: Universe { universe: 11 }, slots: 339 },
+    Port { name: port_12, address: Universe { universe: 12 }, slots: 339 },
+    Port { name: port_13, address: Universe { universe: 13 }, slots: 339 },
+    Port { name: port_14, address: Universe { universe: 14 }, slots: 339 },
+    Port { name: port_15, address: Universe { universe: 15 }, slots: 339 },
+    Port { name: port_16, address: Universe { universe: 16 }, slots: 339 },
+    Port { name: port_17, address: Universe { universe: 17 }, slots: 339 },
+    Port { name: port_18, address: Universe { universe: 18 }, slots: 339 },
+    Port { name: port_19, address: Universe { universe: 19 }, slots: 339 },
+    Port { name: port_20, address: Universe { universe: 20 }, slots: 339 },
+    Port { name: port_21, address: Universe { universe: 21 }, slots: 339 },
+    Port { name: port_22, address: Universe { universe: 22 }, slots: 339 },
+    Port { name: port_23, address: Universe { universe: 23 }, slots: 339 },
+    Port { name: port_24, address: Universe { universe: 24 }, slots: 339 },
+    Port { name: port_25, address: Universe { universe: 25 }, slots: 339 },
+    Port { name: port_26, address: Universe { universe: 26 }, slots: 339 },
+    Port { name: port_27, address: Universe { universe: 27 }, slots: 339 },
+    Port { name: port_28, address: Universe { universe: 28 }, slots: 339 },
+    Port { name: port_29, address: Universe { universe: 29 }, slots: 339 },
+    Port { name: port_30, address: Universe { universe: 30 }, slots: 339 },
+  ],
+}

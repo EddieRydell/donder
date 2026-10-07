@@ -1,0 +1,58 @@
+import layouts from <layouts/main.data.donder>;
+import setups from <setups/main.data.donder>;
+
+Patch main {
+  description: none,
+  routes: [
+    Route {
+      target: layouts.main.desk_left,
+      pixels: none,
+      controller: setups.dig_quad,
+      port: port_1,
+      start_slot: 0,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+    },
+    Route {
+      target: layouts.main.desk_front,
+      pixels: none,
+      controller: setups.dig_quad,
+      port: port_1,
+      start_slot: 90,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+    },
+    Route {
+      target: layouts.main.desk_right,
+      pixels: none,
+      controller: setups.dig_quad,
+      port: port_1,
+      start_slot: 210,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+    },
+    Route {
+      target: layouts.main.desk_leg_left,
+      pixels: none,
+      controller: setups.dig_quad,
+      port: port_1,
+      start_slot: 300,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+    },
+    Route {
+      target: layouts.main.desk_leg_right,
+      pixels: none,
+      controller: setups.dig_quad,
+      port: port_1,
+      start_slot: 375,
+      encoding: Rgb { order: (1, 0, 2) },
+      gamma: 1.0,
+      brightness: 1.0,
+    },
+  ],
+}

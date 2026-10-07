@@ -1,0 +1,15 @@
+[package]
+name = "donder-data-derive"
+edition.workspace = true
+version.workspace = true
+description = "Derives the Donder project language schema for document types"
+authors = ["Donder"]
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

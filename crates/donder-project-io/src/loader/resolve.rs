@@ -1,118 +1,352 @@
-use super::mapping::{MappingReader, parse_mapping};
-use crate::source::SourceObjectKind;
-use camino::{Utf8Path, Utf8PathBuf};
+//! Decoded declarations to typed state. Session identities are assigned here
+//! in document order, and names resolve to them. Identities inside another
+//! object (fixtures, ports) follow from that object's declaration alone, so a
+//! reference resolves without the referenced object being built first.
+use std::sync::Arc;
+
+use camino::Utf8PathBuf;
+use donder_language::controller::{
+    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
+    ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
+};
+use donder_language::data::schema::{
+    Data, Decoder, Meters, Name, NamedSource, Params, Reference, Source,
+};
+use donder_language::data::tree::{DataValue, Spanned};
+use donder_language::dsl::{Identifier, ParamDecl, TextSpan, Type};
+use donder_language::effect::{
+    CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
+    EffectScope, GradientSource,
+};
 use donder_language::execution::PixelEncoding;
-use donder_language::fixture::*;
-use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot};
-use donder_language::layout::*;
+use donder_language::fixture::{
+    FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
+    FixtureSource, FixtureTransform, GridAxis, GridCorner,
+};
+use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
+use donder_language::layout::{
+    FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
+};
+use donder_language::model::ProjectData;
+use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
 use donder_language::ownership::ValueSource;
-use donder_language::patch::*;
+use donder_language::patch::{Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan};
+use donder_language::sequence::{
+    AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
+    MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
+    SequenceLayer, SequenceLayerId,
+};
+use donder_language::setup::{Setup, SetupId};
+use donder_language::values::{
+    Curve, CurvePoint, Distance, DistanceSpan, DonderDuration, DonderTime, Gradient, GradientStop,
+    Point3, Rotation3, Scale3,
+};
+use indexmap::{IndexMap, IndexSet};
+
+use super::{DataDocument, Loader, ResolvedObject};
+use crate::LoadProjectError;
+use crate::document::{Declaration, types};
+use crate::index::{LinkTarget, ScriptMember};
+use crate::source::{ReferencedAsset, SourceObjectKind};
+
 pub(super) struct DomainResolver<'a> {
     pub(super) loader: &'a mut Loader,
-    pub(super) project: &'a mut donder_language::model::ProjectData,
+    pub(super) project: &'a mut ProjectData,
+}
+
+/// A declaration, or an object written in place inside one.
+enum Owned<'a> {
+    Project(&'a types::Project),
+    Setup(&'a types::Setup),
+    Controller(&'a types::Controller),
+    Layout(&'a types::Layout),
+    Other,
+}
+
+fn owned<'a>(declaration: &'a Declaration, path: &[OwnedObjectSlot]) -> Option<Owned<'a>> {
+    let mut current = match declaration {
+        Declaration::Project(project) => Owned::Project(project),
+        Declaration::Setup(setup) => Owned::Setup(setup),
+        Declaration::Controller(controller) => Owned::Controller(controller),
+        Declaration::Layout(layout) => Owned::Layout(layout),
+        Declaration::Patch(_)
+        | Declaration::Sequence(_)
+        | Declaration::FixtureDefinition(_)
+        | Declaration::Curve(_)
+        | Declaration::Gradient(_) => Owned::Other,
+    };
+    fn member<'a, T>(sources: &'a [NamedSource<T>], name: &Identifier) -> Option<&'a T> {
+        sources.iter().find_map(|source| match source {
+            NamedSource::Inline(member, value) if &member.0.value == name => Some(value),
+            _ => None,
+        })
+    }
+    for slot in path {
+        current = match (current, slot) {
+            (Owned::Project(project), OwnedObjectSlot::Setup) => match &project.setup {
+                Source::Inline(setup) => Owned::Setup(setup),
+                Source::Reference(_) => return None,
+            },
+            (Owned::Project(project), OwnedObjectSlot::Sequence(name)) => {
+                member(&project.sequences, name)?;
+                Owned::Other
+            }
+            (Owned::Setup(setup), OwnedObjectSlot::Layout) => match &setup.layout {
+                Source::Inline(layout) => Owned::Layout(layout),
+                Source::Reference(_) => return None,
+            },
+            (Owned::Setup(setup), OwnedObjectSlot::Patch) => match &setup.patch {
+                Source::Inline(_) => Owned::Other,
+                Source::Reference(_) => return None,
+            },
+            (Owned::Setup(setup), OwnedObjectSlot::Controller(name)) => {
+                Owned::Controller(member(&setup.controllers, name)?)
+            }
+            _ => return None,
+        };
+    }
+    Some(current)
+}
+
+/// The identity a layout assigns its item `name`, and the item's name span:
+/// items are numbered from 1 in document order, groups before their items.
+fn fixture_index(
+    items: &[types::LayoutItem],
+    name: &Identifier,
+    next: &mut u32,
+) -> Option<(u32, TextSpan)> {
+    for item in items {
+        let id = *next;
+        *next += 1;
+        let (item_name, children) = match item {
+            types::LayoutItem::Group { name, items, .. } => (name, Some(items)),
+            types::LayoutItem::Fixture { name, .. } => (name, None),
+        };
+        if &item_name.0.value == name {
+            return Some((id, item_name.0.span));
+        }
+        if let Some(found) = children.and_then(|children| fixture_index(children, name, next)) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// The name span of the owned collection member at the end of `path`.
+pub(super) fn member_name(declaration: &Declaration, path: &[OwnedObjectSlot]) -> Option<TextSpan> {
+    let (last, parent) = path.split_last()?;
+    let sources_name = |name: &Identifier, spans: Vec<&Name>| {
+        spans
+            .into_iter()
+            .find(|member| &member.0.value == name)
+            .map(|member| member.0.span)
+    };
+    fn names<T>(sources: &[NamedSource<T>]) -> Vec<&Name> {
+        sources
+            .iter()
+            .filter_map(|source| match source {
+                NamedSource::Inline(name, _) => Some(name),
+                NamedSource::Reference(_) => None,
+            })
+            .collect()
+    }
+    match (owned(declaration, parent)?, last) {
+        (Owned::Project(project), OwnedObjectSlot::Sequence(name)) => {
+            sources_name(name, names(&project.sequences))
+        }
+        (Owned::Setup(setup), OwnedObjectSlot::Controller(name)) => {
+            sources_name(name, names(&setup.controllers))
+        }
+        _ => None,
+    }
+}
+
+fn script(identity: &SourceIdentity, member: ScriptMember) -> LinkTarget {
+    LinkTarget::Script {
+        document: identity.document_id().clone(),
+        declaration: identity.object().to_string(),
+        member,
+    }
+}
+
+pub(super) fn curve(points: &[(f32, f32)]) -> Result<Curve, String> {
+    let curve = Curve {
+        points: points
+            .iter()
+            .map(|&(position, value)| CurvePoint { position, value })
+            .collect(),
+    };
+    curve
+        .validate()
+        .map_err(|error| format!("invalid curve: {error:?}"))?;
+    Ok(curve)
+}
+
+pub(super) fn gradient(
+    stops: &[(f32, donder_language::values::Color)],
+) -> Result<Gradient, String> {
+    let gradient = Gradient {
+        stops: stops
+            .iter()
+            .map(|&(position, color)| GradientStop { position, color })
+            .collect(),
+    };
+    gradient
+        .validate()
+        .map_err(|error| format!("invalid gradient: {error:?}"))?;
+    Ok(gradient)
+}
+
+/// Coordinates within 2 km of the origin.
+fn distance(meters: Meters) -> Option<Distance> {
+    (meters.0.abs() <= 2_000_000_000)
+        .then(|| i32::try_from(meters.0).ok())
+        .flatten()
+        .map(|micrometers| Distance { micrometers })
+}
+
+fn name(name: &Name) -> Identifier {
+    name.0.value.clone()
 }
 
 impl DomainResolver<'_> {
+    fn invalid(
+        &self,
+        document: &DocumentId,
+        span: TextSpan,
+        message: impl Into<String>,
+    ) -> LoadProjectError {
+        self.loader.invalid(document, span, message)
+    }
+
+    /// A declared object's document and declaration span.
+    fn declared(
+        &self,
+        identity: &SourceIdentity,
+    ) -> Result<(Arc<DataDocument>, TextSpan), LoadProjectError> {
+        let data = self.loader.declaration(identity)?;
+        let span = data.declarations[identity.object()].0;
+        Ok((data, span))
+    }
+
+    fn wrong_kind(&self, identity: &SourceIdentity) -> LoadProjectError {
+        LoadProjectError::InvalidReference {
+            path: identity.document().to_path_buf(),
+            range: None,
+            reference: identity.object().to_string(),
+        }
+    }
+
+    // Sources: a declared object, resolved once, or one written in place.
+
     pub(super) fn setup_source(
         &mut self,
         document: &DocumentId,
         owner: &ObjectIdentity,
-        value: &Value,
+        source: &Source<types::Setup>,
     ) -> Result<donder_language::setup::SetupSource, LoadProjectError> {
-        if let Some(reference) = value.as_str() {
-            let ResolvedObject::Setup(id) = self.loader.resolve_reference(document, reference)?
-            else {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    range: source_range_for_scalar(document.path(), reference),
-                    reference: reference.to_owned(),
-                });
-            };
-            self.resolve_setup(&id)?;
-            Ok(ValueSource::Reference(id))
-        } else {
-            let id = SetupId(owner.owned(OwnedObjectSlot::Setup));
-            Ok(ValueSource::Inline(Box::new(
-                self.parse_setup(&id, document, value)?,
-            )))
+        match source {
+            Source::Reference(reference) => {
+                let ResolvedObject::Setup(id) =
+                    self.loader
+                        .resolve_reference(document, reference, SourceObjectKind::Setup)?
+                else {
+                    return Err(self.loader.unresolved(document, reference));
+                };
+                self.resolve_setup(&id)?;
+                Ok(ValueSource::Reference(id))
+            }
+            Source::Inline(setup) => {
+                let id = SetupId(owner.owned(OwnedObjectSlot::Setup));
+                Ok(ValueSource::Inline(Box::new(
+                    self.setup(&id, document, setup)?,
+                )))
+            }
         }
     }
 
-    pub(super) fn layout_source(
+    fn layout_source(
         &mut self,
         document: &DocumentId,
         owner: &ObjectIdentity,
-        value: &Value,
+        source: &Source<types::Layout>,
     ) -> Result<donder_language::layout::LayoutSource, LoadProjectError> {
-        if let Some(reference) = value.as_str() {
-            let ResolvedObject::Layout(id) = self.loader.resolve_reference(document, reference)?
-            else {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    range: source_range_for_scalar(document.path(), reference),
-                    reference: reference.to_owned(),
-                });
-            };
-            self.resolve_layout(&id)?;
-            Ok(ValueSource::Reference(id))
-        } else {
-            let id = LayoutId(owner.owned(OwnedObjectSlot::Layout));
-            Ok(ValueSource::Inline(Box::new(
-                self.parse_layout(&id, document, value)?,
-            )))
+        match source {
+            Source::Reference(reference) => {
+                let ResolvedObject::Layout(id) =
+                    self.loader
+                        .resolve_reference(document, reference, SourceObjectKind::Layout)?
+                else {
+                    return Err(self.loader.unresolved(document, reference));
+                };
+                self.resolve_layout(&id)?;
+                Ok(ValueSource::Reference(id))
+            }
+            Source::Inline(layout) => {
+                let id = LayoutId(owner.owned(OwnedObjectSlot::Layout));
+                Ok(ValueSource::Inline(Box::new(
+                    self.layout(&id, document, layout)?,
+                )))
+            }
         }
     }
 
-    pub(super) fn patch_source(
+    fn patch_source(
         &mut self,
         document: &DocumentId,
         owner: &ObjectIdentity,
-        value: &Value,
+        source: &Source<types::Patch>,
     ) -> Result<donder_language::patch::PatchSource, LoadProjectError> {
-        if let Some(reference) = value.as_str() {
-            let ResolvedObject::Patch(id) = self.loader.resolve_reference(document, reference)?
-            else {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    range: source_range_for_scalar(document.path(), reference),
-                    reference: reference.to_owned(),
-                });
-            };
-            self.resolve_patch(&id)?;
-            Ok(ValueSource::Reference(id))
-        } else {
-            let id = PatchId(owner.owned(OwnedObjectSlot::Patch));
-            Ok(ValueSource::Inline(Box::new(
-                self.parse_patch(&id, document, value)?,
-            )))
+        match source {
+            Source::Reference(reference) => {
+                let ResolvedObject::Patch(id) =
+                    self.loader
+                        .resolve_reference(document, reference, SourceObjectKind::Patch)?
+                else {
+                    return Err(self.loader.unresolved(document, reference));
+                };
+                self.resolve_patch(&id)?;
+                Ok(ValueSource::Reference(id))
+            }
+            Source::Inline(patch) => {
+                let id = PatchId(owner.owned(OwnedObjectSlot::Patch));
+                Ok(ValueSource::Inline(Box::new(
+                    self.patch(&id, document, patch)?,
+                )))
+            }
         }
     }
 
-    pub(super) fn controller_source(
+    fn controller_source(
         &mut self,
         document: &DocumentId,
         owner: &ObjectIdentity,
-        value: &Value,
+        source: &NamedSource<types::Controller>,
     ) -> Result<donder_language::controller::ControllerSource, LoadProjectError> {
-        if let Some(reference) = value.as_str() {
-            let ResolvedObject::Controller(id) =
-                self.loader.resolve_reference(document, reference)?
-            else {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    range: source_range_for_scalar(document.path(), reference),
-                    reference: reference.to_owned(),
-                });
-            };
-            self.resolve_controller(&id)?;
-            Ok(ValueSource::Reference(id))
-        } else {
-            let id = ControllerId(owner.owned(OwnedObjectSlot::Controller(inline_local_id(
-                document, value,
-            )?)));
-            Ok(ValueSource::Inline(Box::new(
-                self.parse_controller(&id, document, value)?,
-            )))
+        match source {
+            NamedSource::Reference(reference) => {
+                let ResolvedObject::Controller(id) = self.loader.resolve_reference(
+                    document,
+                    reference,
+                    SourceObjectKind::Controller,
+                )?
+                else {
+                    return Err(self.loader.unresolved(document, reference));
+                };
+                self.resolve_controller(&id)?;
+                Ok(ValueSource::Reference(id))
+            }
+            NamedSource::Inline(member, controller) => {
+                let id = ControllerId(owner.owned(OwnedObjectSlot::Controller(name(member))));
+                Ok(ValueSource::Inline(Box::new(self.controller(
+                    &id,
+                    document,
+                    member.0.span,
+                    controller,
+                )?)))
+            }
         }
     }
 
@@ -120,202 +354,89 @@ impl DomainResolver<'_> {
         &mut self,
         document: &DocumentId,
         owner: &ObjectIdentity,
-        value: &Value,
+        source: &NamedSource<types::Sequence>,
     ) -> Result<donder_language::sequence::SequenceSource, LoadProjectError> {
-        if let Some(reference) = value.as_str() {
-            let ResolvedObject::Sequence(id) =
-                self.loader.resolve_reference(document, reference)?
-            else {
-                return Err(LoadProjectError::InvalidReference {
-                    path: document.path().to_owned(),
-                    range: source_range_for_scalar(document.path(), reference),
-                    reference: reference.to_owned(),
-                });
-            };
-            self.resolve_sequence(&id)?;
-            Ok(ValueSource::Reference(id))
-        } else {
-            let id = SequenceId(
-                owner.owned(OwnedObjectSlot::Sequence(inline_local_id(document, value)?)),
-            );
-            Ok(ValueSource::Inline(Box::new(
-                self.parse_sequence(&id, document, value)?,
-            )))
+        match source {
+            NamedSource::Reference(reference) => {
+                let ResolvedObject::Sequence(id) = self.loader.resolve_reference(
+                    document,
+                    reference,
+                    SourceObjectKind::Sequence,
+                )?
+                else {
+                    return Err(self.loader.unresolved(document, reference));
+                };
+                self.resolve_sequence(&id)?;
+                Ok(ValueSource::Reference(id))
+            }
+            NamedSource::Inline(member, sequence) => {
+                let id = SequenceId(owner.owned(OwnedObjectSlot::Sequence(name(member))));
+                Ok(ValueSource::Inline(Box::new(self.sequence(
+                    &id,
+                    document,
+                    member.0.span,
+                    sequence,
+                )?)))
+            }
         }
     }
+
+    // Declared objects.
 
     pub(super) fn resolve_setup(&mut self, id: &SetupId) -> Result<(), LoadProjectError> {
         if self.project.setups.contains_key(id) {
             return Ok(());
         }
-        let (document_id, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::Setup(id.clone()))?;
-        let setup = self.parse_setup(id, &document_id, &value)?;
-        self.project.setups.insert(id.clone(), setup);
+        let source = id.0.root_source();
+        let (data, _) = self.declared(source)?;
+        let Declaration::Setup(setup) = &data.declarations[source.object()].1 else {
+            return Err(self.wrong_kind(source));
+        };
+        let value = self.setup(id, source.document_id(), setup)?;
+        self.project.setups.insert(id.clone(), value);
         Ok(())
-    }
-
-    fn parse_setup(
-        &mut self,
-        id: &SetupId,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<Setup, LoadProjectError> {
-        parse_mapping(document.path(), value, "setup", |fields| {
-            require_type(document, fields, "setup")?;
-            let layout = self.layout_source(document, &id.0, fields.required("layout")?)?;
-            let patch = self.patch_source(document, &id.0, fields.required("patch")?)?;
-            let controllers = fields
-                .sequence("controllers")?
-                .iter()
-                .map(|value| self.controller_source(document, &id.0, value))
-                .collect::<Result<_, _>>()?;
-            Ok(Setup {
-                id: id.clone(),
-                layout,
-                patch,
-                controllers,
-            })
-        })
     }
 
     pub(super) fn resolve_controller(&mut self, id: &ControllerId) -> Result<(), LoadProjectError> {
         if self.project.controllers.contains_key(id) {
             return Ok(());
         }
-        let (document_id, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::Controller(id.clone()))?;
-        let value = self.parse_controller(id, &document_id, &value)?;
+        let source = id.0.root_source();
+        let (data, span) = self.declared(source)?;
+        let Declaration::Controller(controller) = &data.declarations[source.object()].1 else {
+            return Err(self.wrong_kind(source));
+        };
+        let value = self.controller(id, source.document_id(), span, controller)?;
         self.project.controllers.insert(id.clone(), value);
         Ok(())
     }
 
-    fn parse_controller(
-        &mut self,
-        id: &ControllerId,
-        document_id: &DocumentId,
-        value: &Value,
-    ) -> Result<Controller, LoadProjectError> {
-        let path = document_id.path().to_path_buf();
+    pub(super) fn resolve_layout(&mut self, id: &LayoutId) -> Result<(), LoadProjectError> {
+        if self.project.layouts.contains_key(id) {
+            return Ok(());
+        }
+        let source = id.0.root_source();
+        let (data, _) = self.declared(source)?;
+        let Declaration::Layout(layout) = &data.declarations[source.object()].1 else {
+            return Err(self.wrong_kind(source));
+        };
+        let value = self.layout(id, source.document_id(), layout)?;
+        self.project.layouts.insert(id.clone(), value);
+        Ok(())
+    }
 
-        parse_mapping(&path, value, "controller", |fields| {
-            require_type(document_id, fields, "controller")?;
-            if !id.0.owned_path().is_empty() {
-                fields.u32("id")?;
-            }
-            let protocol_value = fields.required("protocol")?;
-            let protocol = parse_mapping(
-                &path,
-                protocol_value,
-                "controller protocol",
-                |protocol_fields| {
-                    Ok(match protocol_fields.string("type")? {
-                        "e131" => {
-                            let mode = match protocol_fields.string("mode")? {
-                                "multicast" => E131Mode::Multicast,
-                                "unicast" => E131Mode::Unicast {
-                                    destination: protocol_fields
-                                        .string("destination")?
-                                        .parse()
-                                        .map_err(|_| {
-                                            invalid(&path, "invalid E1.31 destination address")
-                                        })?,
-                                },
-                                other => {
-                                    return Err(invalid(
-                                        &path,
-                                        &format!("invalid E1.31 mode `{other}`"),
-                                    ));
-                                }
-                            };
-                            ControllerProtocol::E131(E131Config {
-                                source_name: protocol_fields.string("source_name")?.to_string(),
-                                bind_address: protocol_fields
-                                    .string("bind_address")?
-                                    .parse()
-                                    .map_err(|_| invalid(&path, "invalid E1.31 bind address"))?,
-                                priority: u8::try_from(protocol_fields.u32("priority")?)
-                                    .map_err(|_| invalid(&path, "E1.31 priority must be a u8"))?,
-                                mode,
-                            })
-                        }
-                        "artnet" => ControllerProtocol::ArtNet(ArtNetConfig {
-                            bind_address: protocol_fields
-                                .string("bind_address")?
-                                .parse()
-                                .map_err(|_| invalid(&path, "invalid Art-Net bind socket"))?,
-                            destination: protocol_fields.string("destination")?.parse().map_err(
-                                |_| invalid(&path, "invalid Art-Net destination socket"),
-                            )?,
-                            mode: match protocol_fields.string("mode")? {
-                                "unicast" => ArtNetMode::Unicast,
-                                "broadcast" => ArtNetMode::Broadcast,
-                                other => {
-                                    return Err(invalid(
-                                        &path,
-                                        &format!("invalid Art-Net mode `{other}`"),
-                                    ));
-                                }
-                            },
-                        }),
-                        "donder" => ControllerProtocol::Donder(DonderConfig {
-                            device: DonderDeviceId::parse(protocol_fields.string("device")?)
-                                .ok_or_else(|| {
-                                    invalid(&path, "Donder device must be 12 lowercase hex digits")
-                                })?,
-                        }),
-                        other => {
-                            return Err(invalid(
-                                &path,
-                                &format!("unsupported controller protocol `{other}`"),
-                            ));
-                        }
-                    })
-                },
-            )?;
-            let ports = fields
-                .sequence("ports")?
-                .iter()
-                .map(|port| {
-                    parse_mapping(&path, port, "controller port", |port_fields| {
-                        let id = ControllerPortId(port_fields.u32("id")?);
-                        let slot_count = u16::try_from(port_fields.u32("slot_count")?)
-                            .map_err(|_| invalid(&path, "controller slot count must be a u16"))?;
-                        let address = match &protocol {
-                            ControllerProtocol::E131(_) => ControllerPortAddress::E131Universe(
-                                u16::try_from(port_fields.u32("universe")?)
-                                    .map_err(|_| invalid(&path, "E1.31 universe must be a u16"))?,
-                            ),
-                            ControllerProtocol::ArtNet(_) => ControllerPortAddress::ArtNetPort(
-                                u16::try_from(port_fields.u32("port_address")?).map_err(|_| {
-                                    invalid(&path, "Art-Net port address must be a u16")
-                                })?,
-                            ),
-                            ControllerProtocol::Donder(_) => ControllerPortAddress::DonderOutput(
-                                u8::try_from(port_fields.u32("output")?)
-                                    .map_err(|_| invalid(&path, "Donder output must be a u8"))?,
-                            ),
-                        };
-                        Ok(ControllerPort {
-                            id,
-                            address,
-                            slot_count,
-                        })
-                    })
-                })
-                .collect::<Result<Vec<_>, LoadProjectError>>()?;
-            let controller = Controller {
-                id: id.clone(),
-                protocol,
-                ports,
-            };
-            controller
-                .validate()
-                .map_err(|error| invalid(&path, &format!("invalid controller: {error:?}")))?;
-            Ok(controller)
-        })
+    pub(super) fn resolve_patch(&mut self, id: &PatchId) -> Result<(), LoadProjectError> {
+        if self.project.patches.contains_key(id) {
+            return Ok(());
+        }
+        let source = id.0.root_source();
+        let (data, _) = self.declared(source)?;
+        let Declaration::Patch(patch) = &data.declarations[source.object()].1 else {
+            return Err(self.wrong_kind(source));
+        };
+        let value = self.patch(id, source.document_id(), patch)?;
+        self.project.patches.insert(id.clone(), value);
+        Ok(())
     }
 
     pub(super) fn resolve_fixture(
@@ -331,442 +452,939 @@ impl DomainResolver<'_> {
         {
             return Ok(());
         }
-        let (document, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::FixtureDefinition(id.clone()))?;
-
-        let definition = Self::parse_fixture_definition(&document, &value)?;
+        let (data, span) = self.declared(&id.0)?;
+        let Declaration::FixtureDefinition(definition) = &data.declarations[id.0.object()].1 else {
+            return Err(self.wrong_kind(&id.0));
+        };
+        let value = self.fixture_definition(id.0.document_id(), span, definition)?;
         self.project
             .definitions
             .fixtures
             .definitions
-            .insert(id.clone(), definition);
+            .insert(id.clone(), value);
         Ok(())
-    }
-
-    fn parse_fixture_definition(
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<FixtureDefinition, LoadProjectError> {
-        parse_mapping(document.path(), value, "fixture definition", |fields| {
-            require_type(document, fields, "fixture")?;
-            let elements = fields
-                .sequence("elements")?
-                .iter()
-                .map(|value| Self::parse_fixture_element(document, value))
-                .collect::<Result<Vec<_>, _>>()?;
-            let definition = FixtureDefinition { elements };
-            definition.validate_geometry().map_err(|error| {
-                invalid(document.path(), &format!("Invalid fixture: {error:?}"))
-            })?;
-            Ok(definition)
-        })
-    }
-
-    fn fixture_reference(
-        &self,
-        document: &DocumentId,
-
-        fields: &MappingReader<'_>,
-        key: &str,
-    ) -> Result<FixtureDefinitionId, LoadProjectError> {
-        let reference = fields.string(key)?;
-        match self.loader.resolve_reference(document, reference)? {
-            ResolvedObject::FixtureDefinition(id) => Ok(id),
-            _ => Err(invalid(
-                document.path(),
-                "Expected a fixture definition reference.",
-            )),
-        }
-    }
-
-    fn parse_fixture_element(
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<FixtureElement, LoadProjectError> {
-        let path = document.path();
-        parse_mapping(path, value, "fixture element", |fields| {
-            let diameter = fields.f32("diameter")?;
-            if !diameter.is_finite() || !(0.000001..=100.0).contains(&diameter) {
-                return Err(invalid(
-                    path,
-                    "Pixel diameter must be between 0.000001 and 100 meters.",
-                ));
-            }
-            let shape = parse_mapping(path, fields.required("shape")?, "fixture shape", |shape| {
-                Ok(match shape.string("type")? {
-                    "pixel" => FixtureShape::Pixel,
-                    "line" => FixtureShape::Line {
-                        length: shape.f32("length")?,
-                        count: shape.u32("count")?,
-                    },
-                    "polyline" => FixtureShape::Polyline {
-                        points: shape
-                            .sequence("points")?
-                            .iter()
-                            .map(|point| parse_point3(path, point))
-                            .collect::<Result<_, _>>()?,
-                        count: shape.u32("count")?,
-                    },
-                    "arc" => FixtureShape::Arc {
-                        radius: shape.f32("radius")?,
-                        start_degrees: shape.f32("start_degrees")?,
-                        sweep_degrees: shape.f32("sweep_degrees")?,
-                        count: shape.u32("count")?,
-                        closed: shape.bool("closed")?,
-                    },
-                    "grid" => FixtureShape::Grid {
-                        columns: shape.u32("columns")?,
-                        rows: shape.u32("rows")?,
-                        width: shape.f32("width")?,
-                        height: shape.f32("height")?,
-                        axis: match shape.string("axis")? {
-                            "rows" => GridAxis::Rows,
-                            "columns" => GridAxis::Columns,
-                            _ => return Err(invalid(path, "Grid axis must be rows or columns.")),
-                        },
-                        corner: match shape.string("corner")? {
-                            "bottom_left" => GridCorner::BottomLeft,
-                            "bottom_right" => GridCorner::BottomRight,
-                            "top_left" => GridCorner::TopLeft,
-                            "top_right" => GridCorner::TopRight,
-                            _ => return Err(invalid(path, "Unknown grid starting corner.")),
-                        },
-                        serpentine: shape.bool("serpentine")?,
-                    },
-                    _ => return Err(invalid(path, "Unknown fixture shape type.")),
-                })
-            })?;
-            let element = FixtureElement {
-                id: FixtureElementId(fields.u32("id")?),
-                name: fields.string("name")?.to_owned(),
-                transform: parse_fixture_transform(path, fields.optional("transform"))?,
-                diameter: donder_language::values::DistanceSpan::from_meters(diameter),
-                reverse: fields.bool("reverse")?,
-                shape,
-            };
-            if !element.is_valid() {
-                return Err(invalid(
-                    path,
-                    "Invalid fixture shape geometry, pixel count, name, or transform.",
-                ));
-            }
-            Ok(element)
-        })
-    }
-
-    pub(super) fn resolve_layout(&mut self, id: &LayoutId) -> Result<(), LoadProjectError> {
-        if self.project.layouts.contains_key(id) {
-            return Ok(());
-        }
-        let (document, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::Layout(id.clone()))?;
-        let value = self.parse_layout(id, &document, &value)?;
-        self.project.layouts.insert(id.clone(), value);
-        Ok(())
-    }
-
-    fn parse_layout(
-        &mut self,
-        id: &LayoutId,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<Layout, LoadProjectError> {
-        parse_mapping(document.path(), value, "layout", |fields| {
-            require_type(document, fields, "layout")?;
-            let fixtures = fields
-                .sequence("fixtures")?
-                .iter()
-                .map(|value| self.parse_layout_fixture(document, value))
-                .collect::<Result<_, _>>()?;
-            Ok(Layout {
-                id: id.clone(),
-                fixtures,
-            })
-        })
-    }
-
-    fn parse_layout_fixture(
-        &self,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<LayoutFixture, LoadProjectError> {
-        let path = document.path();
-
-        parse_mapping(path, value, "layout fixture", |fields| {
-            let kind = match fields.string("type")? {
-                "fixture" => LayoutFixtureKind::Fixture {
-                    definition: match fields.required("definition")? {
-                        Value::Mapping(_) => donder_language::fixture::FixtureSource::Inline(
-                            Self::parse_fixture_definition(
-                                document,
-                                fields.required("definition")?,
-                            )?,
-                        ),
-                        _ => donder_language::fixture::FixtureSource::Reference(
-                            self.fixture_reference(document, fields, "definition")?,
-                        ),
-                    },
-                    transform: parse_fixture_transform(path, fields.optional("transform"))?,
-                },
-                "group" => LayoutFixtureKind::Group {
-                    children: fields
-                        .sequence("children")?
-                        .iter()
-                        .map(|child| self.parse_layout_fixture(document, child))
-                        .collect::<Result<_, _>>()?,
-                },
-                _ => return Err(invalid(path, "Expected fixture or group.")),
-            };
-            Ok(LayoutFixture {
-                id: FixtureInstanceId(fields.u32("id")?),
-                name: fields.string("name")?.to_owned(),
-                kind,
-            })
-        })
-    }
-
-    pub(super) fn resolve_patch(&mut self, id: &PatchId) -> Result<(), LoadProjectError> {
-        if self.project.patches.contains_key(id) {
-            return Ok(());
-        }
-        let (document, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::Patch(id.clone()))?;
-        let value = self.parse_patch(id, &document, &value)?;
-        self.project.patches.insert(id.clone(), value);
-        Ok(())
-    }
-
-    fn parse_patch(
-        &mut self,
-        id: &PatchId,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<Patch, LoadProjectError> {
-        parse_mapping(document.path(), value, "patch", |fields| {
-            require_type(document, fields, "patch")?;
-            let routes = fields
-                .sequence("routes")?
-                .iter()
-                .map(|value| self.parse_pixel_route(document, value))
-                .collect::<Result<_, _>>()?;
-            Ok(Patch {
-                id: id.clone(),
-                routes,
-            })
-        })
-    }
-
-    fn parse_fixture_target(
-        &self,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<FixtureTarget, LoadProjectError> {
-        let path = document.path();
-
-        parse_mapping(path, value, "fixture target", |fields| {
-            let layout = LayoutId(self.loader.resolve_object_reference(
-                document,
-                fields.required("layout")?,
-                SourceObjectKind::Layout,
-            )?);
-            Ok(FixtureTarget {
-                layout,
-                fixture: FixtureInstanceId(fields.u32("fixture")?),
-            })
-        })
-    }
-
-    fn parse_pixel_route(
-        &self,
-        document: &DocumentId,
-        value: &Value,
-    ) -> Result<PixelRoute, LoadProjectError> {
-        let path = document.path();
-
-        parse_mapping(path, value, "LED route", |fields| {
-            let controller = ControllerId(self.loader.resolve_object_reference(
-                document,
-                fields.required("controller")?,
-                SourceObjectKind::Controller,
-            )?);
-            let pixels = fields
-                .optional("pixels")
-                .map(|span| {
-                    parse_mapping(path, span, "output pixel span", |span_fields| {
-                        Ok::<_, LoadProjectError>(PixelSpan {
-                            start: span_fields.u32("start")?,
-                            count: span_fields.u32("count")?,
-                        })
-                    })
-                })
-                .transpose()?;
-            let encoding = fields.required("encoding")?;
-            let encoding = parse_mapping(path, encoding, "pixel encoding", |encoding_fields| {
-                let order = encoding_fields
-                    .sequence("order")?
-                    .iter()
-                    .map(|channel| {
-                        channel
-                            .as_u64()
-                            .and_then(|channel| u8::try_from(channel).ok())
-                            .ok_or_else(|| {
-                                invalid(path, "Channel order must contain byte indices.")
-                            })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(match encoding_fields.string("type")? {
-                    "rgb" => PixelEncoding::Rgb {
-                        order: order
-                            .try_into()
-                            .map_err(|_| invalid(path, "RGB needs three channel indices."))?,
-                    },
-                    "rgbw" => PixelEncoding::Rgbw {
-                        order: order
-                            .try_into()
-                            .map_err(|_| invalid(path, "RGBW needs four channel indices."))?,
-                    },
-                    _ => return Err(invalid(path, "Expected rgb or rgbw encoding.")),
-                })
-            })?;
-            Ok(PixelRoute {
-                id: PixelRouteId(fields.u32("id")?),
-                target: self.parse_fixture_target(document, fields.required("target")?)?,
-                pixels,
-                controller,
-                port: ControllerPortId(fields.u32("port")?),
-                start_slot: fields
-                    .u32("start_slot")?
-                    .try_into()
-                    .map_err(|_| invalid(path, "Start slot is out of range."))?,
-                encoding,
-                gamma: fields.f32("gamma")?,
-                brightness: fields.f32("brightness")?,
-            })
-        })
     }
 
     pub(super) fn resolve_sequence(&mut self, id: &SequenceId) -> Result<(), LoadProjectError> {
         if self.project.sequences.contains_key(id) {
             return Ok(());
         }
-        let (document_id, _, value) = self
-            .loader
-            .object_value(&ResolvedObject::Sequence(id.clone()))?;
-        let value = self.parse_sequence(id, &document_id, &value)?;
+        let source = id.0.root_source();
+        let (data, span) = self.declared(source)?;
+        let Declaration::Sequence(sequence) = &data.declarations[source.object()].1 else {
+            return Err(self.wrong_kind(source));
+        };
+        let value = self.sequence(id, source.document_id(), span, sequence)?;
         self.project.sequences.insert(id.clone(), value);
         Ok(())
     }
 
-    fn parse_sequence(
-        &mut self,
-        id: &SequenceId,
-        document_id: &DocumentId,
-        value: &Value,
-    ) -> Result<Sequence, LoadProjectError> {
-        let document_path = document_id.path().to_path_buf();
+    // Identities inside other objects, from their declarations.
 
-        parse_mapping(&document_path, value, "sequence", |fields| {
-            require_type(document_id, fields, "sequence")?;
-            if !id.0.owned_path().is_empty() {
-                fields.u32("id")?;
-            }
-            let duration = parse_duration(fields.string("duration")?).map_err(|error| {
-                with_yaml_location(
-                    error,
-                    &document_path,
-                    source_range_for_field_value(&document_path, value, "duration"),
+    fn with_owned<R>(
+        &self,
+        identity: &ObjectIdentity,
+        read: impl FnOnce(Owned<'_>) -> Option<R>,
+    ) -> Option<R> {
+        let root = identity.root_source();
+        let data = self.loader.declaration(root).ok()?;
+        let declaration = &data.declarations.get(root.object())?.1;
+        read(owned(declaration, identity.owned_path())?)
+    }
+
+    /// `layout.fixture`: a fixture or group of a layout, at any depth.
+    fn fixture_target(
+        &self,
+        document: &DocumentId,
+        reference: &Reference,
+    ) -> Result<FixtureTarget, LoadProjectError> {
+        let Some((fixture, layout)) = reference.segments.split_last() else {
+            return Err(self.loader.unresolved(document, reference));
+        };
+        let layout_reference = Reference {
+            segments: layout.to_vec(),
+            span: reference.span,
+        };
+        let layout = LayoutId(self.loader.resolve_object_reference(
+            document,
+            &layout_reference,
+            SourceObjectKind::Layout,
+        )?);
+        let (index, item) = self
+            .with_owned(&layout.0, |owned| match owned {
+                Owned::Layout(layout) => fixture_index(&layout.items, &fixture.value, &mut 1),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                self.invalid(
+                    document,
+                    fixture.span,
+                    format!(
+                        "`{}` has no fixture or group `{}`",
+                        layout_reference.text(),
+                        fixture.value.as_str()
+                    ),
                 )
             })?;
-            let audio = self.parse_audio(document_id, fields)?;
-            let mark_collections = fields
-                .optional_sequence("mark_collections")?
-                .into_iter()
-                .flatten()
-                .map(|collection| parse_mark_collection(&document_path, collection))
-                .collect::<Result<Vec<_>, _>>()?;
-            let layers = fields
-                .sequence("layers")?
-                .iter()
-                .map(|layer| parse_sequence_layer(&document_path, layer))
-                .collect::<Result<Vec<_>, _>>()?;
-            let effects = fields
-                .sequence("effects")?
-                .iter()
-                .map(|effect| self.parse_sequence_effect(document_id, effect))
-                .collect::<Result<Vec<_>, _>>()?;
-            let composition_graph =
-                self.parse_composition_graph(document_id, fields.required("composition_graph")?)?;
-            let automation_clips = fields
-                .optional_sequence("automation_clips")?
-                .into_iter()
-                .flatten()
-                .map(|clip| self.parse_automation_clip(document_id, clip))
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut automation_targets = IndexSet::new();
-            for target in automation_clips.iter().flat_map(|clip| {
-                clip.bindings
-                    .iter()
-                    .map(|binding| &binding.target)
-                    .chain(clip.detached_bindings.iter().map(|binding| &binding.target))
-            }) {
-                if !automation_targets.insert(target.clone()) {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: document_path.clone(),
-                        range: source_range_for_field_value(
-                            &document_path,
-                            value,
-                            "automation_clips",
-                        ),
-                        message: "sequence has duplicate automation targets".to_string(),
-                    });
-                }
-            }
-            Ok(Sequence {
-                id: id.clone(),
-                duration,
-                frame_rate: fields.u32("frame_rate")?,
-                audio,
-                mark_collections,
-                layers,
-                effects,
-                composition_graph,
-                automation_clips,
-            })
+        self.loader.link(
+            document,
+            fixture.span,
+            LinkTarget::Data {
+                document: layout.0.root_source().document_id().clone(),
+                span: item,
+            },
+        );
+        Ok(FixtureTarget {
+            layout,
+            fixture: FixtureInstanceId(index),
         })
     }
 
-    pub(super) fn parse_audio(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
+    fn port(
+        &self,
+        document: &DocumentId,
+        controller: &ControllerId,
+        port: &Name,
+    ) -> Result<ControllerPortId, LoadProjectError> {
+        self.with_owned(&controller.0, |owned| match owned {
+            Owned::Controller(controller) => controller
+                .ports
+                .iter()
+                .position(|candidate| candidate.name == *port)
+                .map(|index| (index, controller.ports[index].name.0.span)),
+            _ => None,
+        })
+        .map(|(index, span)| {
+            self.loader.link(
+                document,
+                port.0.span,
+                LinkTarget::Data {
+                    document: controller.0.root_source().document_id().clone(),
+                    span,
+                },
+            );
+            ControllerPortId(index as u32 + 1)
+        })
+        .ok_or_else(|| {
+            self.invalid(
+                document,
+                port.0.span,
+                format!("the controller has no port `{}`", port.as_str()),
+            )
+        })
+    }
 
-        fields: &MappingReader<'_>,
-    ) -> Result<SequenceAudio, LoadProjectError> {
-        let path = document_id.path();
-        let Some(audio) = fields.optional("audio") else {
-            return Ok(SequenceAudio::None);
-        };
-        if matches!(audio, Value::Null) {
-            return Ok(SequenceAudio::None);
+    // Objects.
+
+    fn setup(
+        &mut self,
+        id: &SetupId,
+        document: &DocumentId,
+        setup: &types::Setup,
+    ) -> Result<Setup, LoadProjectError> {
+        let layout = self.layout_source(document, &id.0, &setup.layout)?;
+        let controllers = setup
+            .controllers
+            .iter()
+            .map(|source| self.controller_source(document, &id.0, source))
+            .collect::<Result<_, _>>()?;
+        let patch = self.patch_source(document, &id.0, &setup.patch)?;
+        Ok(Setup {
+            id: id.clone(),
+            description: setup.description.clone(),
+            layout,
+            patch,
+            controllers,
+        })
+    }
+
+    fn controller(
+        &self,
+        id: &ControllerId,
+        document: &DocumentId,
+        span: TextSpan,
+        controller: &types::Controller,
+    ) -> Result<Controller, LoadProjectError> {
+        fn parse<T: std::str::FromStr>(
+            resolver: &DomainResolver<'_>,
+            document: &DocumentId,
+            span: TextSpan,
+            text: &str,
+            what: &str,
+        ) -> Result<T, LoadProjectError> {
+            text.parse()
+                .map_err(|_| resolver.invalid(document, span, format!("`{text}` is not {what}")))
         }
-        let audio_path = audio
-            .as_str()
-            .ok_or_else(|| LoadProjectError::InvalidDocument {
-                path: path.to_owned(),
-                range: None,
-                message: "Audio must be a project-relative file path".into(),
-            })?;
-        crate::validate_relative_path(audio_path).map_err(|message| {
-            LoadProjectError::InvalidDocument {
-                path: path.to_owned(),
-                range: None,
-                message,
-            }
+        let address = |text: &str, what: &str| parse(self, document, span, text, what);
+        let socket = |text: &str, what: &str| parse(self, document, span, text, what);
+        let protocol = match &controller.protocol {
+            types::Protocol::E131 {
+                source_name,
+                bind_address,
+                priority,
+                mode,
+            } => ControllerProtocol::E131(E131Config {
+                source_name: source_name.clone(),
+                bind_address: address(bind_address, "an IP address")?,
+                priority: *priority,
+                mode: match mode {
+                    types::E131Mode::Multicast => E131Mode::Multicast,
+                    types::E131Mode::Unicast { destination } => E131Mode::Unicast {
+                        destination: address(destination, "an IP address")?,
+                    },
+                },
+            }),
+            types::Protocol::ArtNet {
+                bind_address,
+                destination,
+                mode,
+            } => ControllerProtocol::ArtNet(ArtNetConfig {
+                bind_address: socket(bind_address, "a socket address like `0.0.0.0:6454`")?,
+                destination: socket(destination, "a socket address like `10.0.0.2:6454`")?,
+                mode: match mode {
+                    types::ArtNetMode::Unicast => ArtNetMode::Unicast,
+                    types::ArtNetMode::Broadcast => ArtNetMode::Broadcast,
+                },
+            }),
+            types::Protocol::Donder { device } => ControllerProtocol::Donder(DonderConfig {
+                device: DonderDeviceId::parse(device).ok_or_else(|| {
+                    self.invalid(document, span, "a Donder device is 12 lowercase hex digits")
+                })?,
+            }),
+        };
+        let ports = controller
+            .ports
+            .iter()
+            .enumerate()
+            .map(|(index, port)| {
+                let address = match (&protocol, &port.address) {
+                    (ControllerProtocol::E131(_), types::PortAddress::Universe { universe }) => {
+                        ControllerPortAddress::E131Universe(*universe)
+                    }
+                    (
+                        ControllerProtocol::ArtNet(_),
+                        types::PortAddress::ArtNetPort { port_address },
+                    ) => ControllerPortAddress::ArtNetPort(*port_address),
+                    (ControllerProtocol::Donder(_), types::PortAddress::Output { output }) => {
+                        ControllerPortAddress::DonderOutput(*output)
+                    }
+                    _ => {
+                        let expected = match &protocol {
+                            ControllerProtocol::E131(_) => "Universe",
+                            ControllerProtocol::ArtNet(_) => "ArtNetPort",
+                            ControllerProtocol::Donder(_) => "Output",
+                        };
+                        return Err(self.invalid(
+                            document,
+                            port.name.0.span,
+                            format!("this controller's port addresses are `{expected} {{ ... }}`"),
+                        ));
+                    }
+                };
+                Ok(ControllerPort {
+                    id: ControllerPortId(index as u32 + 1),
+                    name: name(&port.name),
+                    address,
+                    slot_count: port.slots,
+                })
+            })
+            .collect::<Result<Vec<_>, LoadProjectError>>()?;
+        let controller = Controller {
+            id: id.clone(),
+            description: controller.description.clone(),
+            protocol,
+            ports,
+        };
+        controller.validate().map_err(|error| {
+            self.invalid(document, span, format!("invalid controller: {error:?}"))
         })?;
+        Ok(controller)
+    }
+
+    fn layout(
+        &mut self,
+        id: &LayoutId,
+        document: &DocumentId,
+        layout: &types::Layout,
+    ) -> Result<Layout, LoadProjectError> {
+        Ok(Layout {
+            id: id.clone(),
+            description: layout.description.clone(),
+            fixtures: self.layout_items(document, &layout.items, &mut 1)?,
+        })
+    }
+
+    fn layout_items(
+        &mut self,
+        document: &DocumentId,
+        items: &[types::LayoutItem],
+        next: &mut u32,
+    ) -> Result<Vec<LayoutFixture>, LoadProjectError> {
+        let mut fixtures = Vec::with_capacity(items.len());
+        for item in items {
+            let id = FixtureInstanceId(*next);
+            *next += 1;
+            fixtures.push(match item {
+                types::LayoutItem::Group {
+                    name: group,
+                    description,
+                    items,
+                } => LayoutFixture {
+                    id,
+                    name: name(group),
+                    description: description.clone(),
+                    kind: LayoutFixtureKind::Group {
+                        children: self.layout_items(document, items, next)?,
+                    },
+                },
+                types::LayoutItem::Fixture {
+                    name: fixture,
+                    description,
+                    definition,
+                    transform,
+                } => LayoutFixture {
+                    id,
+                    name: name(fixture),
+                    description: description.clone(),
+                    kind: LayoutFixtureKind::Fixture {
+                        definition: match definition {
+                            Source::Reference(reference) => {
+                                let ResolvedObject::FixtureDefinition(definition) =
+                                    self.loader.resolve_reference(
+                                        document,
+                                        reference,
+                                        SourceObjectKind::FixtureDefinition,
+                                    )?
+                                else {
+                                    return Err(self.loader.unresolved(document, reference));
+                                };
+                                self.resolve_fixture(&definition)?;
+                                FixtureSource::Reference(definition)
+                            }
+                            Source::Inline(definition) => FixtureSource::Inline(
+                                self.fixture_definition(document, fixture.0.span, definition)?,
+                            ),
+                        },
+                        transform: self.transform(document, fixture.0.span, transform)?,
+                    },
+                },
+            });
+        }
+        Ok(fixtures)
+    }
+
+    fn transform(
+        &self,
+        document: &DocumentId,
+        span: TextSpan,
+        transform: &types::Transform,
+    ) -> Result<FixtureTransform, LoadProjectError> {
+        let (x, y, z) = transform.position;
+        let position = match (distance(x), distance(y), distance(z)) {
+            (Some(x), Some(y), Some(z)) => Point3 { x, y, z },
+            _ => {
+                return Err(self.invalid(
+                    document,
+                    span,
+                    "positions are within 2,000 meters of the origin",
+                ));
+            }
+        };
+        let (rx, ry, rz) = transform.rotation;
+        let (sx, sy, sz) = transform.scale;
+        let transform = FixtureTransform {
+            position,
+            rotation: Rotation3 {
+                x: rx,
+                y: ry,
+                z: rz,
+            },
+            scale: Scale3 {
+                x: sx,
+                y: sy,
+                z: sz,
+            },
+        };
+        if !transform.is_valid() {
+            return Err(self.invalid(document, span, "invalid transform"));
+        }
+        Ok(transform)
+    }
+
+    fn fixture_definition(
+        &self,
+        document: &DocumentId,
+        span: TextSpan,
+        definition: &types::FixtureDefinition,
+    ) -> Result<FixtureDefinition, LoadProjectError> {
+        let elements = definition
+            .shapes
+            .iter()
+            .enumerate()
+            .map(|(index, shape)| {
+                let span = shape.name.0.span;
+                let diameter = u32::try_from(shape.diameter.0)
+                    .ok()
+                    .filter(|micrometers| (1..=100_000_000).contains(micrometers))
+                    .ok_or_else(|| {
+                        self.invalid(document, span, "a pixel's diameter is 1µm to 100m")
+                    })?;
+                let element = FixtureElement {
+                    id: FixtureElementId(index as u32 + 1),
+                    name: name(&shape.name),
+                    transform: self.transform(document, span, &shape.transform)?,
+                    diameter: DistanceSpan {
+                        micrometers: diameter,
+                    },
+                    reverse: shape.reverse,
+                    shape: match &shape.geometry {
+                        types::Geometry::Pixel => FixtureShape::Pixel,
+                        types::Geometry::Line { length, count } => FixtureShape::Line {
+                            length: *length,
+                            count: *count,
+                        },
+                        types::Geometry::Polyline { points, count } => FixtureShape::Polyline {
+                            points: points
+                                .iter()
+                                .map(|&(x, y, z)| match (distance(x), distance(y), distance(z)) {
+                                    (Some(x), Some(y), Some(z)) => Ok(Point3 { x, y, z }),
+                                    _ => Err(self.invalid(
+                                        document,
+                                        span,
+                                        "points are within 2,000 meters of the origin",
+                                    )),
+                                })
+                                .collect::<Result<_, _>>()?,
+                            count: *count,
+                        },
+                        types::Geometry::Arc {
+                            radius,
+                            start_degrees,
+                            sweep_degrees,
+                            count,
+                            closed,
+                        } => FixtureShape::Arc {
+                            radius: *radius,
+                            start_degrees: *start_degrees,
+                            sweep_degrees: *sweep_degrees,
+                            count: *count,
+                            closed: *closed,
+                        },
+                        types::Geometry::Grid {
+                            columns,
+                            rows,
+                            width,
+                            height,
+                            axis,
+                            corner,
+                            serpentine,
+                        } => FixtureShape::Grid {
+                            columns: *columns,
+                            rows: *rows,
+                            width: *width,
+                            height: *height,
+                            axis: match axis {
+                                types::GridAxis::Rows => GridAxis::Rows,
+                                types::GridAxis::Columns => GridAxis::Columns,
+                            },
+                            corner: match corner {
+                                types::GridCorner::BottomLeft => GridCorner::BottomLeft,
+                                types::GridCorner::BottomRight => GridCorner::BottomRight,
+                                types::GridCorner::TopLeft => GridCorner::TopLeft,
+                                types::GridCorner::TopRight => GridCorner::TopRight,
+                            },
+                            serpentine: *serpentine,
+                        },
+                    },
+                };
+                if !element.is_valid() {
+                    return Err(self.invalid(document, span, "invalid shape geometry"));
+                }
+                Ok(element)
+            })
+            .collect::<Result<Vec<_>, LoadProjectError>>()?;
+        let definition = FixtureDefinition {
+            description: definition.description.clone(),
+            elements,
+        };
+        definition
+            .validate_geometry()
+            .map_err(|error| self.invalid(document, span, format!("invalid fixture: {error:?}")))?;
+        Ok(definition)
+    }
+
+    fn patch(
+        &mut self,
+        id: &PatchId,
+        document: &DocumentId,
+        patch: &types::Patch,
+    ) -> Result<Patch, LoadProjectError> {
+        let routes = patch
+            .routes
+            .iter()
+            .enumerate()
+            .map(|(index, route)| {
+                let controller = ControllerId(self.loader.resolve_object_reference(
+                    document,
+                    &route.controller,
+                    SourceObjectKind::Controller,
+                )?);
+                // An owned address names a controller only if its owner declares one there.
+                if self
+                    .with_owned(&controller.0, |owned| {
+                        matches!(owned, Owned::Controller(_)).then_some(())
+                    })
+                    .is_none()
+                {
+                    return Err(self.loader.unresolved(document, &route.controller));
+                }
+                Ok(PixelRoute {
+                    id: PixelRouteId(index as u32 + 1),
+                    target: self.fixture_target(document, &route.target)?,
+                    pixels: route.pixels.as_ref().map(|span| PixelSpan {
+                        start: span.start,
+                        count: span.count,
+                    }),
+                    port: self.port(document, &controller, &route.port)?,
+                    controller,
+                    start_slot: route.start_slot,
+                    encoding: match route.encoding {
+                        types::Encoding::Rgb { order: (r, g, b) } => {
+                            PixelEncoding::Rgb { order: [r, g, b] }
+                        }
+                        types::Encoding::Rgbw {
+                            order: (r, g, b, w),
+                        } => PixelEncoding::Rgbw {
+                            order: [r, g, b, w],
+                        },
+                    },
+                    gamma: route.gamma,
+                    brightness: route.brightness,
+                })
+            })
+            .collect::<Result<_, LoadProjectError>>()?;
+        Ok(Patch {
+            id: id.clone(),
+            description: patch.description.clone(),
+            routes,
+        })
+    }
+
+    fn sequence(
+        &mut self,
+        id: &SequenceId,
+        document: &DocumentId,
+        span: TextSpan,
+        sequence: &types::Sequence,
+    ) -> Result<Sequence, LoadProjectError> {
+        let audio = match &sequence.audio {
+            None => SequenceAudio::None,
+            Some(path) => SequenceAudio::Asset(self.audio(document, span, &path.0)?),
+        };
+        let mark_collections = sequence
+            .marks
+            .iter()
+            .map(|collection| MarkCollection {
+                key: MarkCollectionKey {
+                    name: name(&collection.name),
+                },
+                description: collection.description.clone(),
+                display_color: collection.color,
+                marks: collection.times.iter().copied().map(DonderTime).collect(),
+            })
+            .collect::<Vec<_>>();
+        let marks = sequence
+            .marks
+            .iter()
+            .map(|collection| (name(&collection.name), collection.name.0.span))
+            .collect::<Vec<_>>();
+        let mut layer_ids = IndexMap::new();
+        let layers = sequence
+            .layers
+            .iter()
+            .enumerate()
+            .map(|(index, layer)| {
+                // Layer 0, the first, is the default layer.
+                let id = SequenceLayerId(index as u32);
+                if layer_ids
+                    .insert(name(&layer.name), (id.clone(), layer.name.0.span))
+                    .is_some()
+                {
+                    return Err(self.invalid(
+                        document,
+                        layer.name.0.span,
+                        format!("layer `{}` is declared twice", layer.name.as_str()),
+                    ));
+                }
+                Ok(SequenceLayer {
+                    id,
+                    name: name(&layer.name),
+                    description: layer.description.clone(),
+                    color: layer.color,
+                    enabled: layer.enabled,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let link = |span: TextSpan, target: TextSpan| {
+            self.loader.link(
+                document,
+                span,
+                LinkTarget::Data {
+                    document: document.clone(),
+                    span: target,
+                },
+            );
+        };
+        let layer = |layer: &Name| {
+            let (id, span) = layer_ids.get(&layer.0.value).cloned().ok_or_else(|| {
+                self.invalid(
+                    document,
+                    layer.0.span,
+                    format!("no layer `{}`", layer.as_str()),
+                )
+            })?;
+            link(layer.0.span, span);
+            Ok::<_, LoadProjectError>(id)
+        };
+        let mut clip_ids = IndexMap::new();
+        let mut effects = Vec::with_capacity(sequence.clips.len());
+        for (index, clip) in sequence.clips.iter().enumerate() {
+            let id = EffectInstId(index as u32 + 1);
+            if clip_ids
+                .insert(name(&clip.name), (id.clone(), clip.name.0.span, None))
+                .is_some()
+            {
+                return Err(self.invalid(
+                    document,
+                    clip.name.0.span,
+                    format!("clip `{}` is declared twice", clip.name.as_str()),
+                ));
+            }
+            let ResolvedObject::EffectDefinition(definition) = self.loader.resolve_reference(
+                document,
+                &clip.effect,
+                SourceObjectKind::EffectDefinition,
+            )?
+            else {
+                return Err(self.loader.unresolved(document, &clip.effect));
+            };
+            let params = self.effect_params(&definition);
+            if let Some(entry) = clip_ids.get_mut(&clip.name.0.value) {
+                entry.2 = Some(definition.0.clone());
+            }
+            effects.push(EffectInst {
+                id,
+                name: name(&clip.name),
+                description: clip.description.clone(),
+                layer_id: layer(&clip.layer)?,
+                start: DonderTime(clip.start),
+                duration: DonderDuration(clip.duration),
+                target: self.fixture_target(document, &clip.target)?,
+                scope: match clip.scope {
+                    types::Scope::PerFixture => EffectScope::PerFixture,
+                    types::Scope::WholeTarget => EffectScope::WholeTarget,
+                },
+                definition: EffectRef::Custom(definition.clone()),
+                param_overrides: self.params(
+                    document,
+                    &definition.0,
+                    &params,
+                    &marks,
+                    &clip.params,
+                )?,
+            });
+        }
+        // Each node's identity, whether it is the output, the name it is
+        // declared by, and its operator.
+        let mut node_ids = IndexMap::<
+            Identifier,
+            (
+                CompositionGraphNodeId,
+                bool,
+                Option<TextSpan>,
+                Option<SourceIdentity>,
+            ),
+        >::new();
+        let mut nodes = Vec::with_capacity(sequence.graph.nodes.len());
+        for (index, node) in sequence.graph.nodes.iter().enumerate() {
+            let id = CompositionGraphNodeId(index as u32 + 1);
+            let (node_name, span, output, position, kind, declared, operator) = match node {
+                types::Node::LayerNode {
+                    layer: node_layer,
+                    position,
+                } => (
+                    name(node_layer),
+                    node_layer.0.span,
+                    false,
+                    position,
+                    CompositionGraphNodeKind::Layer {
+                        layer_id: layer(node_layer)?,
+                    },
+                    layer_ids
+                        .get(&node_layer.0.value)
+                        .map(|(_, layer_span)| *layer_span),
+                    None,
+                ),
+                types::Node::OperatorNode {
+                    name: node_name,
+                    operator,
+                    params,
+                    position,
+                } => {
+                    let ResolvedObject::OperatorDefinition(definition) =
+                        self.loader.resolve_reference(
+                            document,
+                            operator,
+                            SourceObjectKind::OperatorDefinition,
+                        )?
+                    else {
+                        return Err(self.loader.unresolved(document, operator));
+                    };
+                    let declarations = self
+                        .project
+                        .definitions
+                        .operators
+                        .definitions
+                        .get(&definition)
+                        .map(|definition| definition.params().to_vec())
+                        .unwrap_or_default();
+                    let params =
+                        self.params(document, &definition.0, &declarations, &marks, params)?;
+                    (
+                        name(node_name),
+                        node_name.0.span,
+                        false,
+                        position,
+                        CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                            name: name(node_name),
+                            operator: OperatorRef::Custom(definition.clone()),
+                            params,
+                        }),
+                        Some(node_name.0.span),
+                        Some(definition.0),
+                    )
+                }
+                types::Node::OutputNode { position } => (
+                    donder_language::names::object_name("output"),
+                    span,
+                    true,
+                    position,
+                    CompositionGraphNodeKind::Output,
+                    None,
+                    None,
+                ),
+            };
+            if node_ids
+                .insert(node_name.clone(), (id.clone(), output, declared, operator))
+                .is_some()
+            {
+                return Err(self.invalid(
+                    document,
+                    span,
+                    format!("graph node `{}` appears twice", node_name.as_str()),
+                ));
+            }
+            nodes.push(CompositionGraphNode {
+                id,
+                position: GraphNodePosition {
+                    x: position.0,
+                    y: position.1,
+                },
+                kind,
+            });
+        }
+        let node = |node: &Spanned<Identifier>| {
+            let (id, output, declared, operator) =
+                node_ids.get(&node.value).cloned().ok_or_else(|| {
+                    self.invalid(
+                        document,
+                        node.span,
+                        format!("no graph node `{}`", node.value.as_str()),
+                    )
+                })?;
+            if let Some(declared) = declared {
+                link(node.span, declared);
+            }
+            Ok::<_, LoadProjectError>((id, output, operator))
+        };
+        let edges = sequence
+            .graph
+            .edges
+            .iter()
+            .map(|edge| {
+                let (from, ..) = node(&edge.from.0)?;
+                let (to, input) = match edge.to.segments.as_slice() {
+                    [to] => match node(to)? {
+                        (to, true, _) => (to, "input".to_string()),
+                        _ => {
+                            return Err(self.invalid(
+                                document,
+                                edge.to.span,
+                                "an edge to an operator names its input: `node.input`",
+                            ));
+                        }
+                    },
+                    [to, input] => match node(to)? {
+                        (to, false, operator) => {
+                            if let Some(operator) = operator {
+                                self.loader.link(
+                                    document,
+                                    input.span,
+                                    script(
+                                        &operator,
+                                        ScriptMember::Input(input.value.as_str().to_string()),
+                                    ),
+                                );
+                            }
+                            (to, input.value.as_str().to_string())
+                        }
+                        _ => {
+                            return Err(self.invalid(
+                                document,
+                                edge.to.span,
+                                "an edge to the output is `to: output`",
+                            ));
+                        }
+                    },
+                    _ => return Err(self.loader.unresolved(document, &edge.to)),
+                };
+                Ok(EffectGraphEdge {
+                    from,
+                    from_port: GraphPortId("output".to_string()),
+                    to,
+                    to_port: GraphPortId(input),
+                })
+            })
+            .collect::<Result<Vec<_>, LoadProjectError>>()?;
+        let composition_graph = SequenceCompositionGraph { nodes, edges };
+        validate_composition_graph(&composition_graph, &self.project.definitions.operators)
+            .map_err(|error| self.invalid(document, span, error.message))?;
+        let binding = |binding: &types::Binding| -> Result<AutomationTarget, LoadProjectError> {
+            Ok(match binding {
+                types::Binding::ClipParam { clip, param } => {
+                    let (effect_id, span, effect) =
+                        clip_ids.get(&clip.0.value).cloned().ok_or_else(|| {
+                            self.invalid(
+                                document,
+                                clip.0.span,
+                                format!("no clip `{}`", clip.as_str()),
+                            )
+                        })?;
+                    link(clip.0.span, span);
+                    if let Some(effect) = effect {
+                        self.loader.link(
+                            document,
+                            param.0.span,
+                            script(&effect, ScriptMember::Param(param.as_str().to_string())),
+                        );
+                    }
+                    AutomationTarget::EffectParam {
+                        effect_id,
+                        param: name(param),
+                    }
+                }
+                types::Binding::NodeParam {
+                    node: target,
+                    param,
+                } => {
+                    let (node_id, _, operator) = node(&target.0)?;
+                    if let Some(operator) = operator {
+                        self.loader.link(
+                            document,
+                            param.0.span,
+                            script(&operator, ScriptMember::Param(param.as_str().to_string())),
+                        );
+                    }
+                    AutomationTarget::CompositionNodeParam {
+                        node_id,
+                        param: name(param),
+                    }
+                }
+            })
+        };
+        let mut automation_targets = IndexSet::new();
+        let mut automation_clips = Vec::with_capacity(sequence.automation.len());
+        for (index, clip) in sequence.automation.iter().enumerate() {
+            let bindings = clip
+                .bindings
+                .iter()
+                .map(|target| binding(target).map(|target| AutomationBinding { target }))
+                .collect::<Result<Vec<_>, _>>()?;
+            let detached_bindings = clip
+                .detached
+                .iter()
+                .map(|detached| {
+                    Ok(DetachedAutomationBinding {
+                        target: binding(&detached.binding)?,
+                        reason: match detached.reason {
+                            types::DetachReason::TargetDeleted => {
+                                AutomationDetachmentReason::TargetDeleted
+                            }
+                            types::DetachReason::DefinitionChanged => {
+                                AutomationDetachmentReason::DefinitionChanged
+                            }
+                        },
+                    })
+                })
+                .collect::<Result<Vec<_>, LoadProjectError>>()?;
+            for target in bindings
+                .iter()
+                .map(|binding| &binding.target)
+                .chain(detached_bindings.iter().map(|binding| &binding.target))
+            {
+                if !automation_targets.insert(target.clone()) {
+                    return Err(self.invalid(
+                        document,
+                        clip.row.span,
+                        "a parameter is automated by one automation clip at most",
+                    ));
+                }
+            }
+            automation_clips.push(AutomationClip {
+                id: AutomationClipId(index as u32 + 1),
+                start: DonderTime(clip.start),
+                duration: DonderDuration(clip.duration),
+                row_target: self.fixture_target(document, &clip.row)?,
+                curve: curve(&clip.curve)
+                    .map_err(|message| self.invalid(document, clip.row.span, message))?,
+                bindings,
+                detached_bindings,
+            });
+        }
+        Ok(Sequence {
+            id: id.clone(),
+            description: sequence.description.clone(),
+            duration: DonderDuration(sequence.duration),
+            frame_rate: sequence.frame_rate,
+            audio,
+            mark_collections,
+            layers,
+            effects,
+            composition_graph,
+            automation_clips,
+        })
+    }
+
+    fn effect_params(&self, definition: &EffectDefinitionId) -> Vec<ParamDecl> {
+        self.project
+            .definitions
+            .effects
+            .definitions
+            .get(definition)
+            .map(|definition| definition.params().to_vec())
+            .unwrap_or_default()
+    }
+
+    fn audio(
+        &mut self,
+        document: &DocumentId,
+        span: TextSpan,
+        path: &str,
+    ) -> Result<AssetId, LoadProjectError> {
+        crate::validate_relative_path(path)
+            .map_err(|message| self.invalid(document, span, message))?;
         let module_id = self.loader.workspace.metadata.project_id;
-        let unresolved = self.loader.workspace.root.join(audio_path);
+        let unresolved = self.loader.workspace.root.join(path);
         let absolute = unresolved
             .canonicalize_utf8()
             .map_err(|source| LoadProjectError::Io {
@@ -774,21 +1392,21 @@ impl DomainResolver<'_> {
                 source,
             })?;
         if !absolute.is_file() || !absolute.starts_with(&self.loader.workspace.root) {
-            return Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: format!("audio asset does not exist inside the project: {audio_path}"),
-            });
+            return Err(self.invalid(
+                document,
+                span,
+                format!("audio asset does not exist inside the project: {path}"),
+            ));
         }
-        let relative = Utf8PathBuf::from(audio_path);
+        let relative = Utf8PathBuf::from(path);
         if let Some(existing) = self
             .loader
             .referenced_assets
             .iter_mut()
             .find(|asset| asset.module_id == module_id && asset.relative_path == relative)
         {
-            existing.referenced_by.insert(document_id.clone());
-            return Ok(SequenceAudio::Asset(existing.id.clone()));
+            existing.referenced_by.insert(document.clone());
+            return Ok(existing.id.clone());
         }
         let id = AssetId(self.loader.next_asset_id);
         self.loader.next_asset_id += 1;
@@ -797,522 +1415,211 @@ impl DomainResolver<'_> {
             module_id,
             relative_path: relative,
             absolute_path: absolute,
-            referenced_by: std::collections::BTreeSet::from([document_id.clone()]),
+            referenced_by: std::collections::BTreeSet::from([document.clone()]),
         });
-        Ok(SequenceAudio::Asset(id))
+        Ok(id)
     }
 
-    pub(super) fn parse_sequence_effect(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<EffectInst, LoadProjectError> {
-        let path = document_id.path();
-
-        parse_mapping(path, value, "effect instance", |fields| {
-            let definition = self.parse_effect_definition(document_id, value, fields)?;
-            let param_overrides = self.parse_param_overrides(document_id, fields)?;
-            Ok(EffectInst {
-                id: EffectInstId(fields.u32("id")?),
-                layer_id: SequenceLayerId(fields.u32("layer_id")?),
-                start: parse_duration_as_time(fields.string("start")?).map_err(|error| {
-                    with_yaml_location(
-                        error,
-                        path,
-                        source_range_for_field_value(path, value, "start"),
-                    )
-                })?,
-                duration: parse_duration(fields.string("duration")?).map_err(|error| {
-                    with_yaml_location(
-                        error,
-                        path,
-                        source_range_for_field_value(path, value, "duration"),
-                    )
-                })?,
-                target: self.parse_fixture_target(document_id, fields.required("target")?)?,
-                scope: parse_effect_scope(path, value, fields)?,
-                definition,
-                param_overrides,
-            })
-        })
-    }
-
-    pub(super) fn parse_composition_graph(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<SequenceCompositionGraph, LoadProjectError> {
-        let path = document_id.path();
-
-        parse_mapping(path, value, "composition graph", |fields| {
-            let graph = SequenceCompositionGraph {
-                nodes: fields
-                    .sequence("nodes")?
-                    .iter()
-                    .map(|node| self.parse_composition_graph_node(document_id, node))
-                    .collect::<Result<Vec<_>, _>>()?,
-                edges: fields
-                    .sequence("edges")?
-                    .iter()
-                    .map(|edge| parse_graph_edge(path, edge))
-                    .collect::<Result<Vec<_>, _>>()?,
-            };
-            validate_composition_graph(&graph, &self.project.definitions.operators).map_err(
-                |error| LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: None,
-                    message: error.message,
-                },
-            )?;
-            Ok(graph)
-        })
-    }
-
-    pub(super) fn parse_composition_graph_node(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<CompositionGraphNode, LoadProjectError> {
-        let path = document_id.path();
-
-        parse_mapping(path, value, "graph node", |fields| {
-            let kind = match fields.string("type")? {
-                "layer" => CompositionGraphNodeKind::Layer {
-                    layer_id: SequenceLayerId(fields.u32("layer_id")?),
-                },
-                "operator" => CompositionGraphNodeKind::Operator(GraphOperatorNode {
-                    operator: self.parse_graph_operator_ref(document_id, value, fields)?,
-                    params: self.parse_param_overrides(document_id, fields)?,
-                }),
-                "output" => CompositionGraphNodeKind::Output,
-                other => {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: source_range_for_field_value(path, value, "type"),
-                        message: format!("unsupported composition graph node type `{other}`"),
-                    });
-                }
-            };
-            Ok(CompositionGraphNode {
-                id: CompositionGraphNodeId(fields.u32("id")?),
-                position: parse_graph_position(path, fields.required("position")?)?,
-                kind,
-            })
-        })
-    }
-
-    fn parse_effect_definition(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-        fields: &MappingReader<'_>,
-    ) -> Result<EffectRef, LoadProjectError> {
-        let path = document_id.path();
-        let effect_ref = fields.string("effect")?;
-        let reference = donder_language::imports::SourceReference::parse(effect_ref)
-            .ok()
-            .and_then(|reference| {
-                crate::imports::lookup_effect_reference(
-                    &self.loader.visible_objects,
-                    document_id,
-                    &reference,
-                )
-            })
-            .ok_or_else(|| LoadProjectError::InvalidReference {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, "effect"),
-                reference: effect_ref.to_string(),
-            })?;
-        let EffectRef::Custom(definition) = &reference;
-        self.resolve_effect_definition(definition)?;
-        Ok(reference)
-    }
-
-    fn parse_param_overrides(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-
-        fields: &MappingReader<'_>,
-    ) -> Result<IndexMap<Identifier, EffectParamValue>, LoadProjectError> {
-        let path = document_id.path();
-        Ok(fields
-            .dictionary("params", |key, value| {
-                let identifier = Identifier::new(key.to_string()).map_err(|_| {
-                    LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: format!("invalid parameter name `{key}`"),
-                    }
-                })?;
-                Ok((identifier, self.parse_effect_param(document_id, value)?))
-            })?
-            .into_iter()
-            .collect())
-    }
-
-    pub(super) fn parse_graph_operator_ref(
+    /// Parameter values, typed by their declarations and written in
+    /// declaration order.
+    fn params(
         &self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-        fields: &MappingReader<'_>,
-    ) -> Result<OperatorRef, LoadProjectError> {
-        let path = document_id.path();
-        let name = fields.string("operator")?;
-        match self.loader.resolve_reference(document_id, name)? {
-            ResolvedObject::OperatorDefinition(id) => Ok(OperatorRef::Custom(id)),
-            _ => Err(LoadProjectError::InvalidReference {
-                path: path.to_path_buf(),
-                range: source_range_for_field_value(path, value, "operator"),
-                reference: name.to_string(),
-            }),
-        }
-    }
-
-    pub(super) fn resolve_effect_definition(
-        &mut self,
-        id: &EffectDefinitionId,
-    ) -> Result<(), LoadProjectError> {
-        if !self
-            .project
-            .definitions
-            .effects
-            .definitions
-            .contains_key(id)
-        {
-            return Err(LoadProjectError::InvalidReference {
-                path: id.0.document().to_path_buf(),
-                range: None,
-                reference: id.0.object().to_string(),
-            });
-        }
-        Ok(())
-    }
-
-    pub(super) fn parse_effect_param(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<EffectParamValue, LoadProjectError> {
-        let path = document_id.path();
-
-        parse_mapping(path, value, "effect parameter value", |fields| {
-            self.parse_effect_param_fields(document_id, value, fields)
-        })
-    }
-
-    fn parse_effect_param_fields(
-        &mut self,
-        document_id: &DocumentId,
-        value: &Value,
-        fields: &MappingReader<'_>,
-    ) -> Result<EffectParamValue, LoadProjectError> {
-        let path = document_id.path();
-        let kind = fields.string("type")?;
-        match kind {
-            "integer" => Ok(EffectParamValue::Int(fields.i32("value")?)),
-            "float" => Ok(EffectParamValue::Float(fields.f32("value")?)),
-            "bool" => Ok(EffectParamValue::Bool(fields.bool("value")?)),
-            "color" => Ok(EffectParamValue::Color(
-                parse_color(fields.string("value")?).map_err(|error| {
-                    with_yaml_location(
-                        error,
-                        path,
-                        source_range_for_field_value(path, value, "value"),
-                    )
-                })?,
-            )),
-            "enum" => Ok(EffectParamValue::Enum(
-                Identifier::new(fields.string("value")?.to_string()).map_err(|_| {
-                    LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: None,
-                        message: "invalid enum value".to_string(),
-                    }
-                })?,
-            )),
-            "marks" => Ok(EffectParamValue::Marks(MarkCollectionKey {
-                name: fields.string("key")?.to_string(),
-            })),
-            "curve" => Ok(EffectParamValue::Curve(
-                self.parse_curve_source(document_id, fields.required("curve")?)?,
-            )),
-            "gradient" => Ok(EffectParamValue::Gradient(
-                self.parse_gradient_source(document_id, fields.required("gradient")?)?,
-            )),
-            "array" => {
-                let values = fields
-                    .sequence("values")?
-                    .iter()
-                    .map(|item| self.parse_array_item(document_id, item))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(EffectParamValue::Array(values))
-            }
-            other => Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: format!("unsupported effect param type `{other}`"),
-            }),
-        }
-    }
-
-    pub(super) fn parse_array_item(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<EffectParamValue, LoadProjectError> {
-        let path = document_id.path();
-        parse_mapping(path, value, "array item", |fields| {
-            if fields.optional("type").is_some() {
-                return self.parse_effect_param_fields(document_id, value, fields);
-            }
-            if let Some(curve) = fields.optional("curve") {
-                return Ok(EffectParamValue::Curve(
-                    self.parse_curve_source(document_id, curve)?,
+        document: &DocumentId,
+        definition: &SourceIdentity,
+        declarations: &[ParamDecl],
+        marks: &[(Identifier, TextSpan)],
+        params: &Params,
+    ) -> Result<IndexMap<Identifier, EffectParamValue>, LoadProjectError> {
+        let mut values = IndexMap::new();
+        let mut previous = None;
+        for (param, value) in &params.0 {
+            let Some(index) = declarations
+                .iter()
+                .position(|declaration| declaration.name == param.value)
+            else {
+                return Err(self.invalid(
+                    document,
+                    param.span,
+                    format!("no parameter `{}`", param.value.as_str()),
+                ));
+            };
+            if previous.is_some_and(|previous| index <= previous) {
+                return Err(self.invalid(
+                    document,
+                    param.span,
+                    "parameters are written once each, in the definition's order",
                 ));
             }
-            let gradient = fields.required("gradient")?;
-            Ok(EffectParamValue::Gradient(
-                self.parse_gradient_source(document_id, gradient)?,
-            ))
-        })
-    }
-
-    pub(super) fn parse_curve_source(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<CurveSource, LoadProjectError> {
-        let path = document_id.path();
-        if let Some(reference) = value.as_str() {
-            let id = match self.loader.resolve_reference(document_id, reference)? {
-                ResolvedObject::Curve(curve) => curve,
-                _ => {
-                    return Err(LoadProjectError::InvalidReference {
-                        path: path.to_path_buf(),
-                        range: source_range_for_scalar(path, reference),
-                        reference: reference.to_string(),
-                    });
-                }
-            };
-            self.resolve_curve(path, &id)?;
-            return Ok(CurveSource::Reference(id));
+            previous = Some(index);
+            self.loader.link(
+                document,
+                param.span,
+                script(
+                    definition,
+                    ScriptMember::Param(param.value.as_str().to_string()),
+                ),
+            );
+            let value = self.param_value(
+                document,
+                (definition, &param.value),
+                &declarations[index].ty,
+                marks,
+                value,
+            )?;
+            values.insert(param.value.clone(), value);
         }
-        parse_mapping(path, value, "curve source", |fields| {
-            if let Some(curve_value) = fields.optional("curve") {
-                return self.parse_curve_source(document_id, curve_value);
-            }
-            Ok(CurveSource::Inline(super::parse::parse_curve_fields(
-                path, value, fields,
-            )?))
-        })
+        Ok(values)
     }
 
-    pub(super) fn resolve_curve(
-        &mut self,
-        path: &Utf8Path,
-        id: &CurveId,
-    ) -> Result<(), LoadProjectError> {
-        if !self.project.definitions.curves.definitions.contains_key(id) {
-            return Err(LoadProjectError::InvalidReference {
-                path: path.to_path_buf(),
-                range: None,
-                reference: id.0.object().to_string(),
-            });
-        }
-        Ok(())
-    }
-
-    pub(super) fn parse_gradient_source(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        value: &Value,
-    ) -> Result<GradientSource, LoadProjectError> {
-        let path = document_id.path();
-        if let Some(reference) = value.as_str() {
-            let id = match self.loader.resolve_reference(document_id, reference)? {
-                ResolvedObject::Gradient(gradient) => gradient,
-                _ => {
-                    return Err(LoadProjectError::InvalidReference {
-                        path: path.to_path_buf(),
-                        range: source_range_for_scalar(path, reference),
-                        reference: reference.to_string(),
-                    });
-                }
-            };
-            if !self
-                .project
-                .definitions
-                .gradients
-                .definitions
-                .contains_key(&id)
-            {
-                return Err(LoadProjectError::InvalidReference {
-                    path: path.to_path_buf(),
-                    range: None,
-                    reference: id.0.object().to_string(),
-                });
-            }
-            return Ok(GradientSource::Reference(id));
-        }
-        parse_mapping(path, value, "gradient source", |fields| {
-            if let Some(gradient) = fields.optional("gradient") {
-                return self.parse_gradient_source(document_id, gradient);
-            }
-            Ok(GradientSource::Inline(super::parse::parse_gradient_fields(
-                path, fields,
-            )?))
-        })
-    }
-
-    pub(super) fn parse_automation_clip(
-        &mut self,
+    fn param_value(
+        &self,
         document: &DocumentId,
-        value: &Value,
-    ) -> Result<AutomationClip, LoadProjectError> {
-        let path = document.path();
-        parse_mapping(path, value, "automation clip", |fields| {
-            let bindings = fields
-                .sequence("bindings")?
-                .iter()
-                .map(|binding| parse_automation_binding(path, binding))
-                .collect::<Result<Vec<_>, _>>()?;
-            let detached_bindings = fields
-                .optional_sequence("detached_bindings")?
-                .into_iter()
-                .flatten()
-                .map(|binding| parse_detached_automation_binding(path, binding))
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut seen = IndexSet::new();
-            for target in bindings
-                .iter()
-                .map(|binding| &binding.target)
-                .chain(detached_bindings.iter().map(|binding| &binding.target))
+        param: (&SourceIdentity, &Identifier),
+        ty: &Type,
+        marks: &[(Identifier, TextSpan)],
+        value: &Spanned<DataValue>,
+    ) -> Result<EffectParamValue, LoadProjectError> {
+        let reference = |segments: &[Spanned<Identifier>]| Reference {
+            segments: segments.to_vec(),
+            span: value.span,
+        };
+        Ok(match (ty, &value.value) {
+            (Type::Int, DataValue::Integer(integer)) => EffectParamValue::Int(
+                i32::try_from(*integer)
+                    .map_err(|_| self.invalid(document, value.span, "this int is out of range"))?,
+            ),
+            (Type::Float, DataValue::Float(float)) => EffectParamValue::Float(*float),
+            (Type::Bool, DataValue::Bool(bool)) => EffectParamValue::Bool(*bool),
+            (Type::Color, DataValue::Color(color)) => EffectParamValue::Color(*color),
+            (Type::Enum(options), DataValue::Variant(option))
+                if options.contains(&option.value) =>
             {
-                if !seen.insert(target.clone()) {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: source_range_for_field_value(path, value, "bindings"),
-                        message: "automation clip has duplicate bindings for a parameter"
-                            .to_string(),
-                    });
-                }
+                self.loader.link(
+                    document,
+                    option.span,
+                    script(
+                        param.0,
+                        ScriptMember::Option {
+                            param: param.1.as_str().to_string(),
+                            option: option.value.as_str().to_string(),
+                        },
+                    ),
+                );
+                EffectParamValue::Enum(option.value.clone())
             }
-            Ok(AutomationClip {
-                id: AutomationClipId(fields.u32("id")?),
-                start: parse_duration_as_time(fields.string("start")?).map_err(|error| {
-                    with_yaml_location(
-                        error,
-                        path,
-                        source_range_for_field_value(path, value, "start"),
+            (Type::Marks, DataValue::Reference(segments))
+                if let [segment] = segments.as_slice()
+                    && let Some((_, span)) =
+                        marks.iter().find(|(mark, _)| mark == &segment.value) =>
+            {
+                self.loader.link(
+                    document,
+                    segment.span,
+                    LinkTarget::Data {
+                        document: document.clone(),
+                        span: *span,
+                    },
+                );
+                EffectParamValue::Marks(MarkCollectionKey {
+                    name: segment.value.clone(),
+                })
+            }
+            (Type::Curve, DataValue::Reference(segments)) => {
+                let ResolvedObject::Curve(curve) = self.loader.resolve_reference(
+                    document,
+                    &reference(segments),
+                    SourceObjectKind::Curve,
+                )?
+                else {
+                    return Err(self.loader.unresolved(document, &reference(segments)));
+                };
+                EffectParamValue::Curve(CurveSource::Reference(curve))
+            }
+            (Type::Curve, DataValue::List(_)) => EffectParamValue::Curve(CurveSource::Inline(
+                curve(&self.decode::<Vec<(f32, f32)>>(document, value)?)
+                    .map_err(|message| self.invalid(document, value.span, message))?,
+            )),
+            (Type::Gradient, DataValue::Reference(segments)) => {
+                let ResolvedObject::Gradient(gradient) = self.loader.resolve_reference(
+                    document,
+                    &reference(segments),
+                    SourceObjectKind::Gradient,
+                )?
+                else {
+                    return Err(self.loader.unresolved(document, &reference(segments)));
+                };
+                EffectParamValue::Gradient(GradientSource::Reference(gradient))
+            }
+            (Type::Gradient, DataValue::List(_)) => {
+                EffectParamValue::Gradient(GradientSource::Inline(
+                    gradient(
+                        &self.decode::<Vec<(f32, donder_language::values::Color)>>(
+                            document, value,
+                        )?,
                     )
-                })?,
-                duration: parse_duration(fields.string("duration")?).map_err(|error| {
-                    with_yaml_location(
-                        error,
-                        path,
-                        source_range_for_field_value(path, value, "duration"),
-                    )
-                })?,
-                row_target: self.parse_fixture_target(document, fields.required("row_target")?)?,
-                curve: parse_automation_curve(path, fields.required("curve")?)?,
-                bindings,
-                detached_bindings,
-            })
+                    .map_err(|message| self.invalid(document, value.span, message))?,
+                ))
+            }
+            (Type::Array(item), DataValue::List(items)) => EffectParamValue::Array(
+                items
+                    .iter()
+                    .map(|value| self.param_value(document, param, item, marks, value))
+                    .collect::<Result<_, _>>()?,
+            ),
+            _ => {
+                return Err(self.invalid(
+                    document,
+                    value.span,
+                    format!("expected {}", describe(ty, marks)),
+                ));
+            }
         })
+    }
+
+    fn decode<T: Data>(
+        &self,
+        document: &DocumentId,
+        value: &Spanned<DataValue>,
+    ) -> Result<T, LoadProjectError> {
+        let mut decoder = Decoder::default();
+        let decoded = T::decode(value, &mut decoder);
+        match (decoded, decoder.diagnostics.into_iter().next()) {
+            (Some(decoded), None) => Ok(decoded),
+            (_, Some(diagnostic)) => {
+                Err(self.invalid(document, diagnostic.span, diagnostic.message))
+            }
+            (None, None) => Err(self.invalid(document, value.span, "invalid value")),
+        }
     }
 }
 
-fn invalid(path: &Utf8Path, message: &str) -> LoadProjectError {
-    LoadProjectError::InvalidDocument {
-        path: path.to_path_buf(),
-        range: None,
-        message: message.to_string(),
+/// The values a parameter type takes, as a diagnostic names them.
+fn describe(ty: &Type, marks: &[(Identifier, TextSpan)]) -> String {
+    match ty {
+        Type::Int => "an int like `3`".into(),
+        Type::Float => "a float like `1.0`".into(),
+        Type::Bool => "`true` or `false`".into(),
+        Type::Color => "a color like `#ff8800`".into(),
+        Type::Enum(options) => format!(
+            "one of {}",
+            options
+                .iter()
+                .map(|option| format!("`{}`", option.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Type::Marks if marks.is_empty() => "a mark collection, but this sequence has none".into(),
+        Type::Marks => format!(
+            "a mark collection: {}",
+            marks
+                .iter()
+                .map(|(mark, _)| format!("`{}`", mark.as_str()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        Type::Curve => "a curve: a reference or `[(position, value), ...]`".into(),
+        Type::Gradient => "a gradient: a reference or `[(position, #color), ...]`".into(),
+        Type::Array(item) => format!("a list of {}", describe(item, marks)),
+        Type::Void | Type::Signal => "no value".into(),
     }
-}
-
-use donder_language::controller::{
-    ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
-    ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
-};
-use donder_language::dsl::Identifier;
-use donder_language::effect::{
-    CurveId, CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue,
-    EffectRef, GradientSource,
-};
-use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
-use donder_language::sequence::{
-    AssetId, AutomationClip, AutomationClipId, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
-    SequenceId, SequenceLayerId,
-};
-use donder_language::setup::{Setup, SetupId};
-use indexmap::{IndexMap, IndexSet};
-use yaml_serde::Value;
-
-use super::Loader;
-use super::parse::{
-    ResolvedObject, parse_automation_binding, parse_automation_curve, parse_color,
-    parse_detached_automation_binding, parse_duration, parse_duration_as_time, parse_effect_scope,
-    parse_graph_edge, parse_graph_position, parse_mark_collection, parse_point3, parse_rotation3,
-    parse_scale3, parse_sequence_layer,
-};
-use crate::LoadProjectError;
-use crate::diagnostics::{
-    source_range_for_field_value, source_range_for_scalar, with_yaml_location,
-};
-use crate::source::ReferencedAsset;
-
-fn parse_fixture_transform(
-    path: &Utf8Path,
-    value: Option<&Value>,
-) -> Result<FixtureTransform, LoadProjectError> {
-    let Some(value) = value else {
-        return Ok(FixtureTransform::default());
-    };
-    parse_mapping(path, value, "fixture transform", |fields| {
-        Ok(FixtureTransform {
-            position: fields
-                .optional("position")
-                .map(|point| parse_point3(path, point))
-                .transpose()?
-                .unwrap_or_default(),
-            rotation: fields
-                .optional("rotation")
-                .map(|rotation| parse_rotation3(path, rotation))
-                .transpose()?
-                .unwrap_or_default(),
-            scale: fields
-                .optional("scale")
-                .map(|scale| parse_scale3(path, scale))
-                .transpose()?
-                .unwrap_or_default(),
-        })
-    })
-}
-
-fn require_type(
-    document: &DocumentId,
-    fields: &MappingReader<'_>,
-    expected: &str,
-) -> Result<(), LoadProjectError> {
-    if fields.string("type")? != expected {
-        return Err(invalid(
-            document.path(),
-            &format!("Expected type `{expected}`."),
-        ));
-    }
-    Ok(())
-}
-
-fn inline_local_id(document: &DocumentId, value: &Value) -> Result<u32, LoadProjectError> {
-    value
-        .get("id")
-        .and_then(Value::as_u64)
-        .and_then(|id| u32::try_from(id).ok())
-        .ok_or_else(|| {
-            invalid(
-                document.path(),
-                "Inline collection objects require a numeric id.",
-            )
-        })
 }

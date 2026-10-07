@@ -15,8 +15,48 @@ pub(crate) fn new_project_files(
     let initial_color = donder_language::values::Color::from_hex(initial_color)
         .ok_or("Invalid initial project color.")?
         .to_hex();
-    let project_id = object_key_from_name(project_name);
+    let project = project_name_from_text(project_name);
     let config = ProjectMetadata::default();
+    let root = format!(
+        r#"import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
+import vixen from <effects/vixen.donder>;
+import operators from <operators/standard.donder>;
+
+Project {project} {{
+  format: {format},
+  id: "{id}",
+  description: none,
+  setup: Setup {{
+    description: none,
+    layout: Layout {{ description: none, items: [] }},
+    patch: Patch {{ description: none, routes: [] }},
+    controllers: [],
+  }},
+  sequences: [
+    Sequence main {{
+      description: none,
+      duration: 60s,
+      frame_rate: 60,
+      audio: none,
+      marks: [MarkCollection {{ name: marks, description: none, color: {initial_color}, times: [] }}],
+      layers: [Layer {{ name: default, description: none, color: {initial_color}, enabled: true }}],
+      clips: [],
+      graph: Graph {{
+        nodes: [LayerNode {{ layer: default, position: (80.0, 80.0) }}, OutputNode {{ position: (420.0, 80.0) }}],
+        edges: [Edge {{ from: default, to: output }}],
+      }},
+      automation: [],
+    }},
+  ],
+}}
+"#,
+        format = config.format_version,
+        id = config.project_id,
+    );
+    let (document, diagnostics) = donder_language::data::parse(&root);
+    if let Some(diagnostic) = diagnostics.first() {
+        return Err(format!("Invalid project template: {}", diagnostic.message));
+    }
     Ok(vec![
         ProjectBoilerplateFile {
             path: "AGENTS.md",
@@ -24,98 +64,30 @@ pub(crate) fn new_project_files(
         },
         ProjectBoilerplateFile {
             path: PROJECT_ROOT_FILE,
-            text: config.initialize_document(&format!(
-                r#"imports:
-- from:
-    documents:
-    - effects/standard.effect.donder
-    - effects/impact-burst.effect.donder
-    - effects/mark-impact-burst.effect.donder
-  as: effects
-- from:
-    documents:
-    - effects/vixen.effect.donder
-  as: vixen
-- from:
-    documents:
-    - operators/standard.operator.donder
-  as: operators
-{project_id}:
-  type: project
-  setup:
-    type: setup
-    layout:
-      type: layout
-      fixtures: []
-    patch:
-      type: patch
-      routes: []
-    controllers: []
-  sequences:
-  - id: 1
-    type: sequence
-    duration: 60s
-    frame_rate: 60
-    audio: null
-    mark_collections:
-    - key: marks
-      name: Marks
-      color: '{initial_color}'
-      marks: []
-    layers:
-    - id: 0
-      name: Default
-      color: '{initial_color}'
-      enabled: true
-    effects: []
-    composition_graph:
-      nodes:
-      - id: 1
-        position:
-          x: 80.0
-          y: 80.0
-        type: layer
-        layer_id: 0
-      - id: 2
-        position:
-          x: 420.0
-          y: 80.0
-        type: output
-      edges:
-      - from: 1
-        from_port: output
-        to: 2
-        to_port: input
-    automation_clips: []
-"#
-            ))?,
+            text: donder_language::data::print(&document),
         },
         ProjectBoilerplateFile {
-            path: "effects/standard.effect.donder",
-            text: include_str!("../../../../examples/starter/effects/standard.effect.donder")
+            path: "effects/standard.donder",
+            text: include_str!("../../../../examples/starter/effects/standard.donder").to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "effects/vixen.donder",
+            text: include_str!("../../../../examples/starter/effects/vixen.donder").to_string(),
+        },
+        ProjectBoilerplateFile {
+            path: "operators/standard.donder",
+            text: include_str!("../../../../examples/starter/operators/standard.donder")
                 .to_string(),
         },
         ProjectBoilerplateFile {
-            path: "effects/vixen.effect.donder",
-            text: include_str!("../../../../examples/starter/effects/vixen.effect.donder")
+            path: "effects/impact-burst.donder",
+            text: include_str!("../../../../examples/starter/effects/impact-burst.donder")
                 .to_string(),
         },
         ProjectBoilerplateFile {
-            path: "operators/standard.operator.donder",
-            text: include_str!("../../../../examples/starter/operators/standard.operator.donder")
+            path: "effects/mark-impact-burst.donder",
+            text: include_str!("../../../../examples/starter/effects/mark-impact-burst.donder")
                 .to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "effects/impact-burst.effect.donder",
-            text: include_str!("../../../../examples/starter/effects/impact-burst.effect.donder")
-                .to_string(),
-        },
-        ProjectBoilerplateFile {
-            path: "effects/mark-impact-burst.effect.donder",
-            text: include_str!(
-                "../../../../examples/starter/effects/mark-impact-burst.effect.donder"
-            )
-            .to_string(),
         },
     ])
 }
@@ -141,23 +113,15 @@ pub(crate) fn write_new_project_files(
     result
 }
 
-fn object_key_from_name(name: &str) -> String {
-    let mut key = String::new();
-    for character in name.chars() {
-        if character.is_ascii_alphanumeric() || character == '_' {
-            key.push(character.to_ascii_lowercase());
-        } else if !key.ends_with('_') {
-            key.push('_');
-        }
-    }
-    let key = key.trim_matches('_').to_string();
-    if key.is_empty()
-        || matches!(key.as_str(), "workspace" | "imports")
-        || key.as_bytes().first().is_some_and(u8::is_ascii_digit)
+/// The project's declaration name: its display name in `snake_case`.
+fn project_name_from_text(name: &str) -> String {
+    let name = donder_language::names::name_from_text(name, "project");
+    if matches!(name.as_str(), "import" | "from" | "none" | "true" | "false")
+        || name.starts_with('_')
     {
-        format!("project_{key}")
+        format!("project_{}", name.trim_start_matches('_'))
     } else {
-        key
+        name
     }
 }
 
@@ -278,39 +242,35 @@ mod tests {
             ("Echo", &["input"][..]),
             ("HueShift", &["source"][..]),
         ];
-        let mut document: yaml_serde::Value = yaml_serde::from_str(template).unwrap();
-        let graph = &mut document["template_test"]["sequences"][0]["composition_graph"];
-        graph["edges"].as_sequence_mut().unwrap().clear();
-        // Chain every operator between the source node and the output node.
-        let mut previous = 1;
+        // Chain every operator between the layer node and the output node.
+        let mut nodes = vec![
+            "LayerNode { layer: default, position: (80.0, 80.0) }".to_string(),
+            "OutputNode { position: (420.0, 80.0) }".to_string(),
+        ];
+        let mut edges = Vec::new();
+        let mut previous = "default".to_string();
         for (index, (name, inputs)) in operators.iter().enumerate() {
-            let id = index + 3;
-            graph["nodes"].as_sequence_mut().unwrap().push(
-                yaml_serde::from_str(&format!(
-                    "id: {id}\nposition: {{x: 240.0, y: 80.0}}\ntype: operator\noperator: operators.{name}\n"
-                )).unwrap(),
-            );
+            let node = format!("node_{index}");
+            nodes.push(format!(
+                "OperatorNode {{ name: {node}, operator: operators.{name}, params: {{}}, position: (240.0, 80.0) }}"
+            ));
             for input in *inputs {
-                graph["edges"].as_sequence_mut().unwrap().push(
-                    yaml_serde::from_str(&format!(
-                        "from: {previous}\nfrom_port: output\nto: {id}\nto_port: {input}\n"
-                    ))
-                    .unwrap(),
-                );
+                edges.push(format!("Edge {{ from: {previous}, to: {node}.{input} }}"));
             }
-            previous = id;
+            previous = node;
         }
-        graph["edges"].as_sequence_mut().unwrap().push(
-            yaml_serde::from_str(&format!(
-                "from: {previous}\nfrom_port: output\nto: 2\nto_port: input\n"
-            ))
-            .unwrap(),
+        edges.push(format!("Edge {{ from: {previous}, to: output }}"));
+        let start = template.find("graph: Graph {").unwrap();
+        let end = template.find("automation: []").unwrap();
+        let text = format!(
+            "{}graph: Graph {{ nodes: [{}], edges: [{}] }},
+      {}",
+            &template[..start],
+            nodes.join(", "),
+            edges.join(", "),
+            &template[end..]
         );
-        fs::write(
-            root.join(PROJECT_ROOT_FILE),
-            yaml_serde::to_string(&document).unwrap(),
-        )
-        .unwrap();
+        fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
         let session = donder_project_io::load_project(&root).unwrap();
         for (name, _) in operators {
             let definition = session
@@ -333,11 +293,11 @@ mod tests {
     #[test]
     fn stanford_standard_operators_include_canonical_definitions() {
         let canonical = donder_language::dsl::compile_operators(include_str!(
-            "../../../../examples/starter/operators/standard.operator.donder"
+            "../../../../examples/starter/operators/standard.donder"
         ))
         .unwrap();
         let stanford = donder_language::dsl::compile_operators(include_str!(
-            "../../../../examples/stanford_room/operators/standard.operator.donder"
+            "../../../../examples/stanford_room/operators/standard.donder"
         ))
         .unwrap();
         for definition in canonical {

@@ -1,0 +1,16 @@
+FixtureDefinition vertical_113 {
+  description: none,
+  shapes: [
+    Shape {
+      name: vertical_strip,
+      diameter: 0.05m,
+      reverse: false,
+      transform: Transform {
+        position: (0m, 0m, 0m),
+        rotation: (0.0, 0.0, 90.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+      geometry: Line { length: 11.2, count: 113 },
+    },
+  ],
+}

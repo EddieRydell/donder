@@ -16,7 +16,9 @@ import { GuiInspector } from "./GuiInspector";
 import { BlockedGui } from "./BlockedGui";
 
 import { SequenceEditor } from "./sequence/SequenceEditor";
-import { useAppStore } from "../../store";
+import { runGuiEditCommand, useAppStore } from "../../store";
+import { commands } from "../../api";
+import { DescriptionField } from "./DescriptionField";
 import { THEME_METRICS } from "../../theme";
 
 import { handleSequencePlaybackShortcut, isSequenceTransportUnsupported } from "./sequence/SequenceTransportControls";
@@ -39,8 +41,18 @@ export function GuiEditor(props: Parameters<typeof ResourceEditor>[0]) {
   const key = gui !== null && gui.type !== "blocked" ? guiEditorKey(props.snapshot.activeFile, gui) : "unavailable";
   return <div className="resource-editor-frame">
     {readOnly && props.snapshot.activeBuffer !== null && <ReadOnlySourceNotice name={props.snapshot.activeBuffer.name} />}
+    {gui !== null && gui.type !== "blocked" && <ObjectDescription key={key} description={gui.document.description} disabled={readOnly} />}
     <fieldset className="resource-editor-content" disabled={readOnly}><ResourceEditor key={`${key}:${props.resetRevision}`} {...props} /></fieldset>
   </div>;
+}
+
+/** The open object's description, collapsed to its first line. */
+function ObjectDescription({ description, disabled }: { description: string | null; disabled: boolean }) {
+  return <details className="gui-object-description">
+    <summary>{description === null ? "Add a description" : description.split("\n")[0]}</summary>
+    <DescriptionField description={description} disabled={disabled} onCommit={(next) =>
+      runGuiEditCommand((request) => commands.applyGuiEdit(request, { type: "description", description: next }))} />
+  </details>;
 }
 
 function ResourceEditor({

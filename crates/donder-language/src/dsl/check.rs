@@ -15,7 +15,9 @@ use std::rc::Rc;
 /// One checked effect or operator.
 #[derive(Clone, Debug)]
 pub(crate) struct Definition {
+    pub(crate) kind: DeclarationKind,
     pub(crate) name: Identifier,
+    pub(crate) description: Option<String>,
     pub(crate) params: Vec<ParamDecl>,
     pub(crate) inputs: Vec<OperatorInputDecl>,
     pub(crate) graph: Graph,
@@ -29,12 +31,21 @@ pub(crate) struct Definition {
 }
 
 pub(crate) fn check(module: Module) -> Result<Vec<Definition>, Vec<Diagnostic>> {
+    check_recording(module, &mut Vec::new())
+}
+
+/// Check `module`, recording the type of every `let` binding by its name's
+/// span, for the language server.
+pub(crate) fn check_recording(
+    module: Module,
+    bindings: &mut Vec<(TextSpan, Type)>,
+) -> Result<Vec<Definition>, Vec<Diagnostic>> {
     let functions: Rc<[Function]> = module.functions.into();
-    let mut diagnostics = check_functions(&functions);
+    let mut diagnostics = check_functions(&functions, bindings);
     let mut definitions = Vec::new();
     if diagnostics.is_empty() {
         for declaration in module.declarations {
-            match Checker::declaration(declaration, functions.clone()) {
+            match Checker::declaration(declaration, functions.clone(), bindings) {
                 Ok(definition) => definitions.push(definition),
                 Err(errors) => diagnostics.extend(errors),
             }
@@ -57,7 +68,10 @@ pub(crate) fn check(module: Module) -> Result<Vec<Definition>, Vec<Diagnostic>> 
 /// Check every function's declaration and, once on its own, its body, so a
 /// function nobody calls is still valid. Iteration bounds that depend on
 /// arguments are proven where the function is inlined.
-fn check_functions(functions: &Rc<[Function]>) -> Vec<Diagnostic> {
+fn check_functions(
+    functions: &Rc<[Function]>,
+    bindings: &mut Vec<(TextSpan, Type)>,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     for (index, function) in functions.iter().enumerate() {
         let name = function.name.name.as_str();
@@ -123,6 +137,7 @@ fn check_functions(functions: &Rc<[Function]>) -> Vec<Diagnostic> {
             functions: functions.clone(),
             frames: vec![index],
             standalone: true,
+            bindings: Vec::new(),
         };
         for (position, (arg, _)) in function.args.iter().enumerate() {
             let node = checker.graph.add(Op::Param(position as u32));
@@ -134,6 +149,7 @@ fn check_functions(functions: &Rc<[Function]>) -> Vec<Diagnostic> {
         {
             checker.require(value, &result, function.body.result.span);
         }
+        bindings.append(&mut checker.bindings);
         diagnostics.extend(checker.diagnostics);
     }
     diagnostics
@@ -180,6 +196,9 @@ struct Checker {
     frames: Vec<usize>,
     /// Checking a function body on its own, with arguments of unknown value.
     standalone: bool,
+    /// The type of each `let` written in the checked body, by name span;
+    /// inlined function bodies are recorded once, when checked on their own.
+    bindings: Vec<(TextSpan, Type)>,
 }
 
 type Checked<T> = Option<T>;
@@ -188,6 +207,7 @@ impl Checker {
     fn declaration(
         declaration: Declaration,
         functions: Rc<[Function]>,
+        bindings: &mut Vec<(TextSpan, Type)>,
     ) -> Result<Definition, Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         let mut params = Vec::new();
@@ -272,6 +292,7 @@ impl Checker {
             functions,
             frames: Vec::new(),
             standalone: false,
+            bindings: Vec::new(),
         };
         let root = checker.tail_block(sample, Mode::Tail).and_then(|outcome| {
             let value = outcome.value?;
@@ -280,8 +301,11 @@ impl Checker {
             let black = checker.graph.color(Color::BLACK);
             Some(checker.graph.select(outcome.valid, value, black))
         });
+        bindings.append(&mut checker.bindings);
         match root {
             Some(root) if checker.diagnostics.is_empty() => Ok(Definition {
+                kind: declaration.kind,
+                description: declaration.description,
                 span: declaration.name.span,
                 fingerprint: checker.graph.fingerprint(root),
                 name: declaration.name.name,
@@ -375,7 +399,13 @@ impl Checker {
                         None => self.value(value),
                     };
                     match node {
-                        Some(node) => self.scopes.push((name.name.clone(), node)),
+                        Some(node) => {
+                            if self.frames.len() == usize::from(self.standalone) {
+                                let ty = self.ty(node).clone();
+                                self.bindings.push((name.span, ty));
+                            }
+                            self.scopes.push((name.name.clone(), node));
+                        }
                         None => failed = true,
                     }
                 }
@@ -1560,6 +1590,7 @@ fn check_param(param: &super::syntax::ast::Param) -> Result<ParamDecl, Diagnosti
         ty,
         range,
         default,
+        description: param.description.clone(),
     };
     if let Some(default) = &declaration.default
         && !declaration.accepts_value(default)
@@ -1597,6 +1628,14 @@ fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
         TypeKind::Enum(options) => {
             let mut names = Vec::new();
             for option in options {
+                if !crate::data::tree::is_pascal_case(option.name.as_str()) {
+                    let pascal = crate::names::pascal_from_snake(option.name.as_str());
+                    return Err(Diagnostic::new(
+                        option.span,
+                        format!("enum options are PascalCase: write `{pascal}`"),
+                    )
+                    .with_fix(pascal));
+                }
                 if names.contains(&option.name) {
                     return Err(Diagnostic::new(
                         option.span,

@@ -251,6 +251,13 @@ pub(super) fn paste_sequence_clipboard(
                     let mut effect = entry.effect.clone();
                     id_map.insert(effect.id.0, next_id);
                     effect.id = EffectInstId(next_id);
+                    effect.name =
+                        donder_language::names::unique_name(effect.name.as_str(), |name| {
+                            sequence
+                                .effects
+                                .iter()
+                                .any(|other| other.name.as_str() == name)
+                        });
                     effect.start = super::checked_gui_time(
                         anchor.time_seconds + entry.start_seconds - min_start,
                     )?;
@@ -689,7 +696,7 @@ fn mark_time_seconds(
     sequence
         .mark_collections
         .iter()
-        .find(|collection| collection.key.name == mark.collection_key)?
+        .find(|collection| collection.key.name.as_str() == mark.collection_key)?
         .marks
         .get(mark.index as usize)
         .map(DonderTime::as_seconds_f32)

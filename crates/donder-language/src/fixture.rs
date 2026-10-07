@@ -16,7 +16,8 @@ pub struct FixtureElementId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct FixtureElement {
     pub id: FixtureElementId,
-    pub name: String,
+    /// Unique within the fixture definition.
+    pub name: crate::dsl::Identifier,
     pub transform: FixtureTransform,
     pub diameter: DistanceSpan,
     pub reverse: bool,
@@ -115,7 +116,7 @@ impl FixtureShape {
 
 impl FixtureElement {
     pub fn is_valid(&self) -> bool {
-        !self.name.trim().is_empty()
+        crate::names::is_object_name(self.name.as_str())
             && self.transform.is_valid()
             && self.diameter != DistanceSpan::ZERO
             && self.diameter.as_meters_f32() <= 100.0
@@ -142,6 +143,7 @@ impl FixtureTransform {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FixtureDefinition {
+    pub description: Option<String>,
     pub elements: Vec<FixtureElement>,
 }
 
@@ -174,9 +176,10 @@ pub enum FixtureGeometryError {
 impl FixtureDefinition {
     pub fn validate_geometry(&self) -> Result<u32, FixtureGeometryError> {
         let mut seen = HashSet::new();
+        let mut names = HashSet::new();
         let mut total = 0u32;
         for element in &self.elements {
-            if !seen.insert(element.id) {
+            if !seen.insert(element.id) || !names.insert(&element.name) {
                 return Err(FixtureGeometryError::DuplicateElement(element.id));
             }
             if !element.is_valid() {

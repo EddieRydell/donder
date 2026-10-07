@@ -320,6 +320,7 @@ pub fn validate_sequence(
         sequence.automation_clips.iter().map(|clip| clip.id.0),
         "automation clip ids",
     )?;
+    validate_sequence_names(sequence)?;
 
     let layer_ids = sequence
         .layers
@@ -520,6 +521,71 @@ pub fn validate_sequence(
     }
 
     Ok(())
+}
+
+/// Layers, clips, mark collections and graph nodes are referred to by name,
+/// so each name is valid and unique among its kind. A layer node is named by
+/// its layer and the output node is `output`, so operator nodes share that
+/// namespace with layers.
+fn validate_sequence_names(sequence: &Sequence) -> Result<(), SequenceValidationError> {
+    use crate::sequence::CompositionGraphNodeKind;
+    let names = sequence
+        .layers
+        .iter()
+        .map(|layer| &layer.name)
+        .chain(sequence.effects.iter().map(|effect| &effect.name))
+        .chain(
+            sequence
+                .mark_collections
+                .iter()
+                .map(|collection| &collection.key.name),
+        )
+        .chain(
+            sequence
+                .composition_graph
+                .nodes
+                .iter()
+                .filter_map(|node| match &node.kind {
+                    CompositionGraphNodeKind::Operator(operator) => Some(&operator.name),
+                    _ => None,
+                }),
+        );
+    for name in names {
+        if !crate::names::is_object_name(name.as_str()) {
+            return Err(sequence_error(format!(
+                "`{}` is not a snake_case name",
+                name.as_str()
+            )));
+        }
+    }
+    ensure_unique(
+        sequence.layers.iter().map(|layer| &layer.name),
+        "layer names",
+    )?;
+    ensure_unique(
+        sequence.effects.iter().map(|effect| &effect.name),
+        "clip names",
+    )?;
+    ensure_unique(
+        sequence
+            .layers
+            .iter()
+            .map(|layer| layer.name.as_str())
+            .chain(core::iter::once("output"))
+            .chain(
+                sequence
+                    .composition_graph
+                    .nodes
+                    .iter()
+                    .filter_map(|node| match &node.kind {
+                        CompositionGraphNodeKind::Operator(operator) => {
+                            Some(operator.name.as_str())
+                        }
+                        _ => None,
+                    }),
+            ),
+        "graph node names",
+    )
 }
 
 fn ensure_unique<T>(

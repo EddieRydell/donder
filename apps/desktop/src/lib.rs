@@ -20,6 +20,7 @@ mod desktop_state;
 mod device;
 mod dto;
 mod gui;
+mod language_server;
 mod output;
 mod persistence;
 mod preview;
@@ -55,6 +56,11 @@ fn run_desktop() -> Result<(), tauri::Error> {
             let preview = preview::PreviewWindowService::new(state.preview_wake());
             app.manage(state);
             app.manage(preview);
+            let working = app.state::<desktop_state::DesktopState>().inner().clone();
+            app.manage(language_server::LanguageServerHost::start(
+                handle.clone(),
+                working,
+            )?);
             let state = app.state::<desktop_state::DesktopState>();
             if let Some(window) = app.get_window("main") {
                 let close_app = handle.clone();

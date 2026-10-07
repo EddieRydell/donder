@@ -1,13 +1,3 @@
-use donder_language::fixture::FixtureDefinitionId;
-use donder_language::layout::LayoutId;
-mod sequence;
-mod setup;
-mod values;
-
-use sequence::sequence_value;
-use setup::{controller_value, fixture_definition_value, layout_value, patch_value, setup_value};
-use values::{curve_value, gradient_value, source_value, string_value, typed_object};
-
 pub(super) fn write_source_documents(
     session: &ProjectSession,
     output_root: &Utf8Path,
@@ -127,46 +117,10 @@ pub(super) fn document_text(
     document: &SourceDocument,
 ) -> Result<String, ExportProjectError> {
     match &document.kind {
-        SourceDocumentKind::Donder { .. } => {
-            let mut root = Mapping::new();
-            if document_id.path() == Utf8Path::new(crate::PROJECT_ROOT_FILE) {
-                session
-                    .source
-                    .workspace
-                    .metadata
-                    .validate()
-                    .map_err(|message| ExportProjectError::Io {
-                        path: document_id.path().to_path_buf(),
-                        source: io::Error::other(message),
-                    })?;
-                let metadata =
-                    yaml_serde::to_value(&session.source.workspace.metadata).map_err(|source| {
-                        ExportProjectError::Serialize {
-                            path: document_id.path().to_path_buf(),
-                            source,
-                        }
-                    })?;
-                root.insert(string_value("workspace"), metadata);
-            }
-            if !document.imports.is_empty() {
-                root.insert(
-                    string_value("imports"),
-                    import_decls_value(&document.imports),
-                );
-            }
-            for object in &document.objects {
-                let value = serialize_source_object(session, document_id, object)?;
-                root.insert(string_value(&object.id), value);
-            }
-            yaml_serde::to_string(&Value::Mapping(root)).map_err(|source| {
-                ExportProjectError::Serialize {
-                    path: document_id.path().to_path_buf(),
-                    source,
-                }
-            })
+        SourceDocumentKind::Data => {
+            crate::document::save::data_document_text(session, document_id, document)
         }
-        SourceDocumentKind::Effect { source } => Ok(source.clone()),
-        SourceDocumentKind::Operator { source } => Ok(source.clone()),
+        SourceDocumentKind::Script { source } => Ok(source.clone()),
     }
 }
 
@@ -273,123 +227,7 @@ pub(super) fn validate_source_inventory(
     Ok(())
 }
 
-pub(super) fn qualified_identity(
-    session: &ProjectSession,
-    document: &DocumentId,
-    id: &SourceObjectId,
-) -> Option<SourceIdentity> {
-    session
-        .source
-        .documents
-        .get(document)
-        .is_some_and(|document| document.objects.contains(id))
-        .then(|| SourceIdentity::from_document(document.clone(), id.id.clone()))
-}
-
-pub(super) fn serialize_source_object(
-    session: &ProjectSession,
-    from_document: &DocumentId,
-    id: &SourceObjectId,
-) -> Result<Value, ExportProjectError> {
-    match id.kind {
-        SourceObjectKind::Project => project_root_value(session, from_document),
-        SourceObjectKind::Setup => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let setup = session
-                .project
-                .reusable_setups()
-                .get(&SetupId(identity.into()))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            setup_value(session, from_document, setup)
-        }
-        SourceObjectKind::Controller => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let controller = session
-                .project
-                .reusable_controllers()
-                .get(&ControllerId(identity.into()))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            controller_value(controller)
-        }
-        SourceObjectKind::Layout => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let layout = session
-                .project
-                .reusable_layouts()
-                .get(&LayoutId(identity.into()))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            layout_value(session, from_document, layout)
-        }
-        SourceObjectKind::Patch => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let patch = session
-                .project
-                .reusable_patches()
-                .get(&PatchId(identity.into()))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            patch_value(session, from_document, patch)
-        }
-        SourceObjectKind::FixtureDefinition => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let definition = session
-                .project
-                .definitions()
-                .fixtures
-                .definitions
-                .get(&FixtureDefinitionId(identity))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            fixture_definition_value(definition)
-        }
-        SourceObjectKind::Curve => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let curve = session
-                .project
-                .definitions()
-                .curves
-                .definitions
-                .get(&CurveId(identity))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            curve_value(&curve.curve)
-        }
-        SourceObjectKind::Gradient => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let gradient = session
-                .project
-                .definitions()
-                .gradients
-                .definitions
-                .get(&GradientId(identity))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            gradient_value(&gradient.gradient)
-        }
-        SourceObjectKind::Sequence => {
-            let identity = qualified_identity(session, from_document, id)
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            let sequence = session
-                .project
-                .reusable_sequences()
-                .get(&SequenceId(identity.into()))
-                .ok_or_else(|| missing_typed_object(from_document, id))?;
-            sequence_value(session, from_document, sequence)
-        }
-        SourceObjectKind::EffectDefinition
-        | SourceObjectKind::OperatorDefinition
-        | SourceObjectKind::EffectInstance => Err(ExportProjectError::InvalidReference {
-            path: from_document.path().to_path_buf(),
-            reference: id.id.clone(),
-            message: "DSL definitions are preserved as source documents".to_string(),
-        }),
-    }
-}
-
-pub(super) fn missing_typed_object(
+pub(crate) fn missing_typed_object(
     document: &DocumentId,
     id: &SourceObjectId,
 ) -> ExportProjectError {
@@ -400,87 +238,12 @@ pub(super) fn missing_typed_object(
     }
 }
 
-pub(super) fn import_decls_value(imports: &[ImportEdge]) -> Value {
-    Value::Sequence(
-        imports
-            .iter()
-            .map(|import| {
-                let mut value = Mapping::new();
-                let mut from = Mapping::new();
-                match &import.declaration.source {
-                    ImportSource::LocalDocuments { documents } => {
-                        from.insert(
-                            string_value("documents"),
-                            Value::Sequence(
-                                documents
-                                    .iter()
-                                    .map(|path| Value::String(path.to_string()))
-                                    .collect(),
-                            ),
-                        );
-                    }
-                };
-                value.insert(string_value("from"), Value::Mapping(from));
-                value.insert(
-                    string_value("as"),
-                    Value::String(import.declaration.alias.to_string()),
-                );
-                Value::Mapping(value)
-            })
-            .collect(),
-    )
-}
-
-pub(super) fn project_root_value(
-    session: &ProjectSession,
-    from_document: &DocumentId,
-) -> Result<Value, ExportProjectError> {
-    let mut value = typed_object("project");
-    value.insert(
-        string_value("setup"),
-        source_value(
-            session,
-            from_document,
-            SourceObjectKind::Setup,
-            &session.project.root().setup,
-            |setup| setup_value(session, from_document, setup),
-        )?,
-    );
-    value.insert(
-        string_value("sequences"),
-        Value::Sequence(
-            session
-                .project
-                .root()
-                .sequences
-                .iter()
-                .map(|source| {
-                    source_value(
-                        session,
-                        from_document,
-                        SourceObjectKind::Sequence,
-                        source,
-                        |sequence| sequence_value(session, from_document, sequence),
-                    )
-                })
-                .collect::<Result<_, _>>()?,
-        ),
-    );
-    Ok(Value::Mapping(value))
-}
 use std::{fs, io};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::controller::ControllerId;
-use donder_language::effect::{CurveId, GradientId};
-use donder_language::identity::{DocumentId, SourceIdentity};
-use donder_language::patch::PatchId;
-use donder_language::sequence::SequenceId;
-use donder_language::setup::SetupId;
-use yaml_serde::{Mapping, Value};
+use donder_language::identity::DocumentId;
 
 use crate::ExportProjectError;
 use crate::source::{
-    ImportEdge, ImportSource, ProjectSession, SourceDocument, SourceDocumentKind, SourceObjectId,
-    SourceObjectKind,
+    ProjectSession, SourceDocument, SourceDocumentKind, SourceObjectId, SourceObjectKind,
 };

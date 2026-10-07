@@ -14,7 +14,7 @@ fn identity(key: &str) -> SourceIdentity {
     SourceIdentity::from_document(
         DocumentId::new(
             Default::default(),
-            "fixtures/composition.fixture.donder".into(),
+            "fixtures/composition.data.donder".into(),
         ),
         key.into(),
     )
@@ -38,7 +38,7 @@ fn translation(x: f32, y: f32) -> FixtureTransform {
 fn pixel(id: u32, x: f32) -> FixtureElement {
     FixtureElement {
         id: FixtureElementId(id),
-        name: format!("Pixel {id}"),
+        name: donder_language::names::object_name(&format!("pixel_{id}")),
         reverse: false,
         shape: FixtureShape::Pixel,
         transform: translation(x, 0.0),
@@ -48,8 +48,9 @@ fn pixel(id: u32, x: f32) -> FixtureElement {
 
 fn instance(id: u32, definition: &str) -> LayoutFixture {
     LayoutFixture {
+        description: None,
         id: FixtureInstanceId(id),
-        name: format!("Fixture {id}"),
+        name: donder_language::names::object_name(&format!("fixture_{id}")),
         kind: LayoutFixtureKind::Fixture {
             definition: donder_language::fixture::FixtureSource::Reference(definition_id(
                 definition,
@@ -67,6 +68,7 @@ fn definitions(items: &[(&str, Vec<FixtureElement>)]) -> FixtureDefinitions {
                 (
                     definition_id(name),
                     FixtureDefinition {
+                        description: None,
                         elements: parts.clone(),
                     },
                 )
@@ -101,10 +103,12 @@ fn layout_targets_remain_independent_after_definition_flattening() {
     )]);
     let prepared = PreparedFixtureDefinitions::prepare(&definitions);
     let layout = Layout {
+        description: None,
         id: LayoutId(identity("layout").into()),
         fixtures: vec![LayoutFixture {
+            description: None,
             id: FixtureInstanceId(100),
-            name: "All".into(),
+            name: donder_language::names::object_name("All"),
             kind: LayoutFixtureKind::Group {
                 children: vec![instance(1, "assembly"), instance(2, "assembly")],
             },
@@ -157,6 +161,7 @@ fn authoring_validation_rejects_invalid_derived_coordinates() {
     };
     element.transform.scale.x = 2.0;
     let fixture = FixtureDefinition {
+        description: None,
         elements: vec![element],
     };
     assert!(matches!(
@@ -171,6 +176,7 @@ fn empty_layouts_and_definitions_are_valid_authoring_states() {
     let prepared = PreparedFixtureDefinitions::prepare(&definitions);
     assert!(prepared.pixels(&definition_id("empty")).unwrap().is_empty());
     let layout = Layout {
+        description: None,
         id: LayoutId(identity("layout").into()),
         fixtures: vec![],
     };

@@ -11,6 +11,8 @@ default-run = "donder-desktop"
 camino.workspace = true
 bytemuck.workspace = true
 donder-project-io.workspace = true
+donder-language-server.workspace = true
+lsp-types.workspace = true
 donder-sequence-api.workspace = true
 donder-editor.workspace = true
 sha2.workspace = true
@@ -39,7 +41,6 @@ tauri-specta.workspace = true
 wgpu.workspace = true
 winit.workspace = true
 uuid.workspace = true
-yaml_serde.workspace = true
 
 [build-dependencies]
 tauri-build.workspace = true

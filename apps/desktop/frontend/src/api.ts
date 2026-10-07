@@ -41,6 +41,12 @@ export const commands = {
     unwrapResult(await generatedCommands.applyWorkspacePathChange(request)),
   updateDocument: async (update: import("./types").DocumentUpdate) =>
     unwrapResult(await generatedCommands.updateDocument(update)),
+  languageServerSend: async (message: string) =>
+    unwrapResult(await generatedCommands.languageServerSend(message)),
+  applyTextEdits: async (projectEpoch: number, edits: import("./types").DocumentTextEdits[]) =>
+    unwrapResult(await generatedCommands.applyTextEdits(projectEpoch, edits)),
+  includeDocument: async (projectEpoch: number, inclusion: import("./types").DocumentInclusion) =>
+    unwrapResult(await generatedCommands.includeDocument(projectEpoch, inclusion)),
   saveAll: async () => unwrapResult(await generatedCommands.saveAll()),
   requestTransition: async (request: import("./types").TransitionRequest) => unwrapResult(await generatedCommands.requestTransition(request)),
   reconcileExternalFiles: async () => unwrapResult(await generatedCommands.reconcileExternalFiles()),
