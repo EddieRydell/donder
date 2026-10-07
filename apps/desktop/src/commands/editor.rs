@@ -100,7 +100,8 @@ pub(crate) fn complete_close(
             .close_for_main_shutdown(state.persistence())
             .map_err(|error| error.to_string())?;
         state.shutdown_live_output();
-        window.destroy().map_err(|error| error.to_string())
+        app.exit(0);
+        Ok(())
     })
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { commandRegistry } from "../commandRegistry";
+import { runCommand } from "../commandRegistry";
 import { desktopLanguageClient } from "../editor/desktopLanguage";
 import type { PersistedEditorViewState, TextDocumentSyntax } from "../types";
 import type { TextNavigation } from "../workspace/navigation";
@@ -40,7 +40,7 @@ export function TextEditor({
   useEffect(() => {
     if (host.current === null) return;
     const created = monaco.editor.create(host.current, { ...editorOptions(), model: null });
-    created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { void commandRegistry["file.save"].run(); });
+    created.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => { runCommand("file.save"); });
     editor.current = created;
     return () => {
       created.dispose();

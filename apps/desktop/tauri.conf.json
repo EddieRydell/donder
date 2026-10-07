@@ -35,6 +35,7 @@
     "targets": "all",
     "icon": [
       "assets/icons/icon.png",
+      "assets/icons/icon.icns",
       "assets/icons/icon.ico"
     ]
   }

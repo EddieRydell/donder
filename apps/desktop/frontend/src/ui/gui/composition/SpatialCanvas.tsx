@@ -1,4 +1,5 @@
 import { useSpatialGuides } from "./spatialViewState";
+import { editShortcutTarget, hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
@@ -122,13 +123,13 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     }
   };
   const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; setOffset(null); fixture.cancel(); };
-  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas"
+  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas" {...editShortcutTarget(["selectAll"])}
       onKeyDown={(event) => {
         const enabled = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
         if (gesture.current === null && !fixture.active && (fixtureTools?.tool === null || fixtureTools?.tool === undefined)) {
-          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); return; }
+          if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") { event.preventDefault(); onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); return; }
           if (enabled && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); onDelete(); return; }
-          if (enabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") { event.preventDefault(); onDuplicate(); return; }
+          if (enabled && hasPrimaryModifier(event) && event.key.toLowerCase() === "d") { event.preventDefault(); onDuplicate(); return; }
           if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
             event.preventDefault();
             const anchor = selection[0];
@@ -147,7 +148,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       }}
       onKeyUp={(event) => { if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event); }}
       onPointerDown={(event) => {
-        if (pending || (event.button !== 0 && event.button !== 1)) return;
+        if (pending || (event.button !== 0 && event.button !== 1) || isSecondaryClick(event)) return;
         event.preventDefault();
         pointerActive.current = true; lastPointer.current = { clientX: event.clientX, clientY: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -195,7 +196,7 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onPointerUp={(event) => {
         pointerActive.current = false; setDragging(false);
         const rect = event.currentTarget.getBoundingClientRect();
-        if (gesture.current === null && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
+        if (gesture.current === null && !isSecondaryClick(event) && fixture.up(unproject(event.clientX - rect.left, event.clientY - rect.top, canvas.current, bounds, spatial.view), event)) return;
         const active = gesture.current;
         gesture.current = null;
         if (active?.type === "box") {
@@ -218,8 +219,14 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onWheel={(event) => {
         event.preventDefault();
         if (gesture.current !== null || fixture.active) return;
+        // On macOS, two-finger scrolling pans; pinches (ctrlKey) and Command-scroll zoom.
+        if (isMac && !event.ctrlKey && !event.metaKey) {
+          spatial.panBy(-event.deltaX, -event.deltaY);
+          return;
+        }
         const rect = event.currentTarget.getBoundingClientRect();
-        spatial.zoomAt(Math.exp(-event.deltaY * THEME_METRICS.spatialWheelZoomScale), event.clientX - rect.left, event.clientY - rect.top);
+        const zoomScale = isMac && event.ctrlKey ? THEME_METRICS.spatialPinchZoomScale : THEME_METRICS.spatialWheelZoomScale;
+        spatial.zoomAt(Math.exp(-event.deltaY * zoomScale), event.clientX - rect.left, event.clientY - rect.top);
       }}
       onContextMenu={(event) => {
         const rect = event.currentTarget.getBoundingClientRect();

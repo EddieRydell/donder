@@ -607,7 +607,22 @@ fn pin_benchmark_thread() {
     );
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn pin_benchmark_thread() {
+    // macOS has no thread affinity. The user-interactive QoS class keeps the thread on
+    // performance cores, so samples are not split between unlike cores.
+    const QOS_CLASS_USER_INTERACTIVE: u32 = 0x21;
+    unsafe extern "C" {
+        fn pthread_set_qos_class_self_np(qos_class: u32, relative_priority: i32) -> i32;
+    }
+    assert_eq!(
+        unsafe { pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) },
+        0,
+        "benchmark thread QoS should be raised"
+    );
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn pin_benchmark_thread() {}
 
 fn assert_scenarios(sequence: &PreparedSequence) {

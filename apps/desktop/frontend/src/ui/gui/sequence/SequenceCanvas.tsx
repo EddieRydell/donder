@@ -1,4 +1,5 @@
 import { markIndexAfterMove } from "./sequenceSelection";
+import { editShortcutTarget, hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
@@ -78,6 +79,7 @@ const SEQUENCE_CANVAS = {
   maxLaneHeightPx: THEME_METRICS.sequenceMaxLaneHeight,
   audioResizeHitHeightPx: THEME_METRICS.sequenceAudioResizeHitHeight,
   wheelZoomScale: THEME_METRICS.sequenceWheelZoomScale,
+  pinchZoomScale: THEME_METRICS.sequencePinchZoomScale,
   scrubStepSeconds: THEME_METRICS.sequenceScrubStep,
   nudgeSeconds: THEME_METRICS.sequenceNudgeStep,
   shiftedNudgeSeconds: THEME_METRICS.sequenceShiftedNudgeStep
@@ -288,8 +290,11 @@ export function SequenceCanvas({
     setViewport((current) => {
       const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / current.pxPerSecond);
       const maxScrollY = Math.max(0, expandedTimelineHeight(layoutRows(current.rowHeights, revealAutomation)) - visibleHeight);
-      if (event.ctrlKey && event.shiftKey) {
-        const scale = Math.exp(-zoomDelta * SEQUENCE_CANVAS.wheelZoomScale);
+      // Trackpad pinches arrive as wheel events with ctrlKey set.
+      const zoom = hasPrimaryModifier(event) || (isMac && event.ctrlKey);
+      const zoomScale = isMac && event.ctrlKey ? SEQUENCE_CANVAS.pinchZoomScale : SEQUENCE_CANVAS.wheelZoomScale;
+      if (zoom && event.shiftKey) {
+        const scale = Math.exp(-zoomDelta * zoomScale);
         const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
         return {
           ...current,
@@ -297,11 +302,11 @@ export function SequenceCanvas({
           scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - visibleHeight))
         };
       }
-      if (event.ctrlKey) {
+      if (zoom) {
         const anchorX = clamp(offsetX - left, 0, timelineWidth);
         const anchorTime = current.scrollXSeconds + anchorX / current.pxPerSecond;
         const nextPxPerSecond = clamp(
-          current.pxPerSecond * Math.exp(-zoomDelta * SEQUENCE_CANVAS.wheelZoomScale),
+          current.pxPerSecond * Math.exp(-zoomDelta * zoomScale),
           minSequencePxPerSecond(timelineWidth, document.durationSeconds),
           SEQUENCE_CANVAS.maxZoomPxPerSecond
         );
@@ -320,6 +325,7 @@ export function SequenceCanvas({
       }
       return {
         ...current,
+        scrollXSeconds: clamp(current.scrollXSeconds + event.deltaX / current.pxPerSecond, 0, maxScrollXSeconds),
         scrollY: clamp(current.scrollY + event.deltaY, 0, maxScrollY)
       };
     });
@@ -865,6 +871,7 @@ export function SequenceCanvas({
               clipPath: `polygon(0 0, 100% 0, 100% calc(100% - var(--donder-scrollbar-width)), ${left}px calc(100% - var(--donder-scrollbar-width)), ${left}px 100%, 0 100%)`
             }}
             tabIndex={0}
+            {...editShortcutTarget(["cut", "copy", "paste"])}
       onKeyDown={(event) => {
         if (event.key === "Escape" && automationClipChooser !== null) {
           event.preventDefault();
@@ -874,7 +881,7 @@ export function SequenceCanvas({
         const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
         const focusedEffectId = selectedEffectId(selected);
         const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
-        if ((event.ctrlKey || event.metaKey) && !isTextEntryElement(event.target)) {
+        if (hasPrimaryModifier(event) && !isTextEntryElement(event.target)) {
           const key = event.key.toLowerCase();
           if ((key === "c" || key === "x") && activeSelection !== null && selectionCount(activeSelection) > 0) {
             event.preventDefault();
@@ -1023,7 +1030,7 @@ export function SequenceCanvas({
       }}
       onPointerDown={(event) => {
         gestureRequest.current = useAppStore.getState().guiRequest;
-        if (event.button !== 0) return;
+        if (event.button !== 0 || isSecondaryClick(event)) return;
         event.currentTarget.focus();
         event.currentTarget.setPointerCapture(event.pointerId);
         const x = event.nativeEvent.offsetX;
@@ -1341,7 +1348,7 @@ export function SequenceCanvas({
         if (selection?.type !== "clips") return;
         const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, event.ctrlKey ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         setGroupDraft(gesture.effects);
         setAutomationDrafts(gesture.automation);
       }}
@@ -1425,7 +1432,7 @@ export function SequenceCanvas({
         if (!current.active || selection?.type !== "clips") { clearDrafts(); return; }
         const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, event.ctrlKey ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
         void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, gesture.edit), gestureRequest.current).then((result) => {
           updateSequenceSelection(result.selection);

@@ -1,4 +1,5 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../../editor/host";
+import { isSecondaryClick } from "../../../../platform";
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { OverlayPortal } from "../../../OverlayPortal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
@@ -750,6 +751,7 @@ export function CurveParam({
         role="img"
         aria-label={`${name} curve`}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
@@ -794,6 +796,7 @@ export function CurveParam({
               tabIndex={0}
               onPointerDown={(event) => {
                 event.stopPropagation();
+                if (isSecondaryClick(event)) return;
                 event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
                 draggingPoint.current = index;
                 setSelectedIndex(index);
@@ -1027,6 +1030,7 @@ export function GradientParam({
         className="color-curve-gradient"
         style={{ background: gradient }}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
@@ -1046,7 +1050,7 @@ export function GradientParam({
               style={{ left: `${point.time * 100}%` }}
               onPointerDown={(event) => {
                 if (!event.currentTarget.contains(event.target as Node)) return;
-                if (event.button !== 0) return;
+                if (event.button !== 0 || isSecondaryClick(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
                 startStopDrag(index, event.pointerId, event.clientX);

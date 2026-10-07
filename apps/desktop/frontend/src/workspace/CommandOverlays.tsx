@@ -6,6 +6,8 @@ import {
   OPEN_COMMAND_PALETTE_EVENT,
   OPEN_QUICK_OPEN_EVENT,
   commandRegistry,
+  runCommand,
+  shortcutLabel,
   type CommandId
 } from "../commandRegistry";
 import { runSnapshotCommand, useAppStore } from "../store";
@@ -61,7 +63,7 @@ export function CommandOverlays() {
               value={`${command.category} ${command.label} ${command.keywords.join(" ")}`}
               onSelect={() => {
                 setPaletteOpen(false);
-                void command.run();
+                runCommand(id);
               }}
             >
               <TerminalSquare size={THEME_METRICS.iconSizeSmall} />
@@ -69,7 +71,7 @@ export function CommandOverlays() {
                 <small>{command.category}</small>
                 {command.label}
               </span>
-              {command.shortcut !== undefined && <kbd>{command.shortcut}</kbd>}
+              {shortcutLabel(id) !== undefined && <kbd>{shortcutLabel(id)}</kbd>}
             </Command.Item>
           ))}
         </Command.Group>

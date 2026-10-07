@@ -138,7 +138,8 @@ export function ExplorerView({
             rowHeight={THEME_METRICS.projectTreeRowHeight}
             openByDefault={explorer.expandedPaths.length === 0}
             initialOpenState={Object.fromEntries(explorer.expandedPaths.map((path) => [path, true]))}
-            {...(snapshot.activeFile === null ? {} : { selection: snapshot.activeFile })}
+            // react-arborist memoizes on the prop values, so the prop set must stay fixed; it deselects on "".
+            selection={snapshot.activeFile ?? ""}
             onToggle={(id) => {
               const expanded = new Set(explorer.expandedPaths);
               if (expanded.has(id)) expanded.delete(id);
