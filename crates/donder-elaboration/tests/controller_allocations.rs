@@ -158,7 +158,7 @@ fn prepared_controller_sampling_does_not_allocate() {
     // Exercise the project-owned bounded Echo loop through the same prepared
     // controller path, including temporal queries and backward seeks.
     let echo = donder_language::dsl::compile_operators(include_str!(
-        "../../../examples/starter/operators/standard.operator.donder"
+        "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
     .into_iter()

@@ -7,13 +7,13 @@ use donder_language::sequence::AssetId;
 use indexmap::{IndexMap, IndexSet};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
-use yaml_serde::Value;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceDocumentFormat {
-    Donder,
-    Effect,
-    Operator,
+    /// `*.data.donder`: declarations the GUI edits.
+    Data,
+    /// `*.donder`: effects and operators.
+    Script,
     Other,
 }
 
@@ -21,12 +21,10 @@ pub fn source_document_format(path: &Utf8Path) -> SourceDocumentFormat {
     let Some(file_name) = path.file_name() else {
         return SourceDocumentFormat::Other;
     };
-    if file_name.ends_with(".effect.donder") {
-        SourceDocumentFormat::Effect
-    } else if file_name.ends_with(".operator.donder") {
-        SourceDocumentFormat::Operator
-    } else if file_name.ends_with(".donder") {
-        SourceDocumentFormat::Donder
+    if file_name.ends_with(donder_language::data::DATA_DOCUMENT_SUFFIX) {
+        SourceDocumentFormat::Data
+    } else if file_name.ends_with(donder_language::data::SCRIPT_SUFFIX) {
+        SourceDocumentFormat::Script
     } else {
         SourceDocumentFormat::Other
     }
@@ -47,9 +45,9 @@ pub struct SourceProject {
 }
 
 impl SourceProject {
-    /// Register a new project-owned YAML document and its typed object inventory.
+    /// Register a new project-owned data document and its typed object inventory.
     /// The caller inserts the corresponding typed values into the same candidate session.
-    pub fn add_yaml_document(
+    pub fn add_data_document(
         &mut self,
         path: Utf8PathBuf,
         objects: Vec<(SourceObjectKind, String)>,
@@ -74,13 +72,7 @@ impl SourceProject {
             .iter()
             .map(|(kind, key)| SourceObjectId::new(kind.clone(), key.clone()))
             .collect::<Result<Vec<_>, _>>()?;
-        let source = SourceDocument::new(
-            Vec::new(),
-            source_objects,
-            SourceDocumentKind::Donder {
-                original_value: Value::Mapping(yaml_serde::Mapping::new()),
-            },
-        )?;
+        let source = SourceDocument::new(Vec::new(), source_objects, SourceDocumentKind::Data)?;
         let identities = objects
             .into_iter()
             .map(|(_, key)| {
@@ -91,7 +83,7 @@ impl SourceProject {
         Ok(identities)
     }
 
-    /// Register a new named object in an existing project-owned YAML document.
+    /// Register a new named object in an existing project-owned data document.
     /// The caller inserts its typed value into the same candidate session.
     pub fn add_object(
         &mut self,
@@ -108,13 +100,13 @@ impl SourceProject {
             .documents
             .get_full_mut(document)
             .ok_or_else(|| "Source document was not found.".to_string())?;
-        if !matches!(source.kind, SourceDocumentKind::Donder { .. })
+        if !matches!(source.kind, SourceDocumentKind::Data)
             || matches!(
                 kind,
                 SourceObjectKind::EffectDefinition | SourceObjectKind::OperatorDefinition
             )
         {
-            return Err("This object requires a YAML source document.".to_string());
+            return Err("This object requires a data document.".to_string());
         }
         let key = (1_u32..)
             .map(|index| {
@@ -124,12 +116,7 @@ impl SourceProject {
                     format!("{prefix}_{index}")
                 }
             })
-            .find(|key| {
-                key != "imports"
-                    && !(document.path() == Utf8Path::new(crate::PROJECT_ROOT_FILE)
-                        && key == "workspace")
-                    && source.objects.iter().all(|object| object.id() != key)
-            })
+            .find(|key| source.objects.iter().all(|object| object.id() != key))
             .ok_or_else(|| "No source object identifiers remain.".to_string())?;
         source.objects.push(SourceObjectId::new(kind, key.clone())?);
         Ok(donder_language::identity::SourceIdentity::from_document(
@@ -239,8 +226,8 @@ impl SourceDocument {
         objects: Vec<SourceObjectId>,
         kind: SourceDocumentKind,
     ) -> Result<Self, String> {
-        if !imports.is_empty() && !matches!(kind, SourceDocumentKind::Donder { .. }) {
-            return Err("Only YAML documents can declare imports.".into());
+        if !imports.is_empty() && !matches!(kind, SourceDocumentKind::Data) {
+            return Err("Only data documents can declare imports.".into());
         }
         let mut object_ids = IndexSet::new();
         for object in &objects {
@@ -251,13 +238,11 @@ impl SourceDocument {
                 return Err(format!("duplicate source object `{}`", object.id));
             }
             let kind_matches_document = match &kind {
-                SourceDocumentKind::Effect { .. } => {
-                    object.kind == SourceObjectKind::EffectDefinition
-                }
-                SourceDocumentKind::Operator { .. } => {
-                    object.kind == SourceObjectKind::OperatorDefinition
-                }
-                SourceDocumentKind::Donder { .. } => !matches!(
+                SourceDocumentKind::Script { .. } => matches!(
+                    object.kind,
+                    SourceObjectKind::EffectDefinition | SourceObjectKind::OperatorDefinition
+                ),
+                SourceDocumentKind::Data => !matches!(
                     object.kind,
                     SourceObjectKind::EffectDefinition | SourceObjectKind::OperatorDefinition
                 ),
@@ -291,9 +276,11 @@ impl SourceDocument {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SourceDocumentKind {
-    Donder { original_value: Value },
-    Effect { source: String },
-    Operator { source: String },
+    Data,
+    /// Scripts keep their source text exactly; the GUI never rewrites code.
+    Script {
+        source: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

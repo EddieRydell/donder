@@ -124,33 +124,48 @@ fn same_file_references_share_geometry_and_survive_placement_removal() {
     std::fs::create_dir_all(root.join("layouts")).unwrap();
     write_root_content(
         &root,
-        "imports:\n- from: { documents: [layouts/main.layout.donder] }\n  as: layout\nshow:\n  type: project\n  setup:\n    type: setup\n    layout: layout.main\n    patch: { type: patch, routes: [] }\n    controllers: []\n  sequences: []\n",
+        "import layout from <layouts/main.data.donder>;",
+        "  setup: Setup {
+    description: none,
+    layout: layout.main,
+    patch: Patch { description: none, routes: [] },
+    controllers: [],
+  },
+  sequences: [],",
     );
     std::fs::write(
-        root.join("layouts/main.layout.donder"),
+        root.join("layouts/main.data.donder"),
         r#"
-assembly:
-  type: fixture
-  elements:
-  - id: 11
-    name: Pixel
-    reverse: false
-    shape: {type: pixel}
-    diameter: 0.01
-    transform: {position: { x: 1, y: 0, z: 0 }}
-main:
-  type: layout
-  fixtures:
-  - id: 1
-    name: A
-    type: fixture
-    definition: assembly
-  - id: 2
-    name: B
-    type: fixture
-    definition: assembly
-    transform:
-      position: { x: 10, y: 0, z: 0 }
+FixtureDefinition assembly {
+  description: none,
+  shapes: [
+    Shape {
+      name: pixel,
+      diameter: 0.01m,
+      reverse: false,
+      transform: Transform { position: (1m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+      geometry: Pixel,
+    },
+  ],
+}
+
+Layout main {
+  description: none,
+  items: [
+    Fixture {
+      name: a,
+      description: none,
+      definition: assembly,
+      transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+    },
+    Fixture {
+      name: b,
+      description: none,
+      definition: assembly,
+      transform: Transform { position: (10m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+    },
+  ],
+}
 "#,
     )
     .unwrap();
@@ -162,11 +177,11 @@ main:
     let layout_request = || GuiDocumentRequest {
         owned_path: Vec::new(),
         project_revision: state.snapshot().project_revision,
-        path: "layouts/main.layout.donder".into(),
+        path: "layouts/main.data.donder".into(),
         object_key: Some("main".into()),
         view: DocumentViewId::Layout,
     };
-    state.open_file_path("layouts/main.layout.donder");
+    state.open_file_path("layouts/main.data.donder");
     let layout = layout_document(state.get_gui_document(layout_request()).document);
     let assembly = &fixture_reference(&layout, 0);
     assert_eq!(assembly.path, layout.path);
@@ -175,7 +190,7 @@ main:
             &state,
             assembly,
             FixtureGuiEdit::MoveElement {
-                id: 11,
+                id: 1,
                 delta: Point3Meters {
                     x_meters: 3.0,
                     y_meters: 4.0,
@@ -185,7 +200,7 @@ main:
         ),
         GuiDocument::Fixture { .. }
     ));
-    state.open_file_path("layouts/main.layout.donder");
+    state.open_file_path("layouts/main.data.donder");
     let layout = layout_document(state.get_gui_document(layout_request()).document);
     assert_eq!(
         layout
@@ -222,14 +237,14 @@ main:
         1
     );
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        state.project_session().unwrap().project
+    crate::desktop_foundation_tests::tests::assert_reloads(
+        &root,
+        &state.project_session().unwrap(),
     );
 }
 
 #[test]
-fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_edits() {
+fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_edits() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_test_project_files("Acceptance").unwrap()).unwrap();
@@ -277,7 +292,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     assert_eq!(layout.fixtures.len(), 1);
     assert!(layout.render_plan.pixels.is_empty());
     let definition = fixture_reference(&layout, 0);
-    assert_eq!(definition.path, "fixtures/strip.fixture.donder");
+    assert_eq!(definition.path, "fixtures/strip.data.donder");
     let elements = (1..=3)
         .map(|id| GuiFixtureElement {
             id,
@@ -312,6 +327,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     let grouped = vec![GuiLayoutFixture {
         id: 100,
         name: "Both strips".into(),
+        description: None,
         kind: GuiLayoutFixtureKind::Group {
             children: vec![layout.fixtures[0].clone(), second],
         },
@@ -338,6 +354,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
                 destination: None,
             },
             ports: vec![SetupControllerPort {
+                name: "port_1".into(),
                 id: 1,
                 address: 1,
                 slot_count: 21,
@@ -402,7 +419,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
                 initial_color,
                 effect: SequenceEffectReference::Custom {
                     module_id: initial.source.project_module_id().to_string(),
-                    path: "effects/standard.effect.donder".into(),
+                    path: "effects/standard.donder".into(),
                     effect_name: "Pulse".into(),
                 },
                 target: FixtureTarget { fixture: 1 },
@@ -541,10 +558,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_yaml_
     }
     assert!(illuminated);
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        final_session.project
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &final_session);
 }
 
 #[test]
@@ -555,17 +569,17 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     let starter = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let library = root.join("rig");
     let paths = [
-        "layouts/outputs.layout.donder",
-        "patches/outputs.patch.donder",
-        "setups/main.setup.donder",
-        "fixtures/vertical.fixture.donder",
+        "layouts/outputs.data.donder",
+        "patches/outputs.data.donder",
+        "setups/main.data.donder",
+        "fixtures/vertical.data.donder",
     ];
     for path in paths {
         let text = std::fs::read_to_string(starter.join(path)).unwrap();
         let bytes = paths
             .iter()
             .fold(text, |text, path| {
-                text.replace(&format!("- {path}"), &format!("- rig/{path}"))
+                text.replace(&format!("<{path}>"), &format!("<rig/{path}>"))
             })
             .into_bytes();
         std::fs::create_dir_all(library.join(path).parent().unwrap()).unwrap();
@@ -574,9 +588,24 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     std::fs::create_dir_all(root.join("setups")).unwrap();
     write_root_content(
         &root,
-        "imports:\n- from: { documents: [setups/main.setup.donder] }\n  as: setups\nshow:\n  type: project\n  setup: setups.main\n  sequences: []\n",
+        "import setups from <setups/main.data.donder>;",
+        "  setup: setups.main,\n  sequences: [],",
     );
-    std::fs::write(root.join("setups/main.setup.donder"), "imports:\n- from: { documents: [rig/layouts/outputs.layout.donder] }\n  as: layout\n- from: { documents: [rig/patches/outputs.patch.donder] }\n  as: patch\n- from: { documents: [rig/setups/main.setup.donder] }\n  as: controllers\nmain:\n  type: setup\n  layout: layout.outputs_layout\n  patch: patch.outputs\n  controllers: [controllers.output_controller]\n").unwrap();
+    std::fs::write(
+        root.join("setups/main.data.donder"),
+        "import layout from <rig/layouts/outputs.data.donder>;
+import patch from <rig/patches/outputs.data.donder>;
+import controllers from <rig/setups/main.data.donder>;
+
+Setup main {
+  description: none,
+  layout: layout.outputs_layout,
+  patch: patch.outputs,
+  controllers: [controllers.output_controller],
+}
+",
+    )
+    .unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
     let mut settings = state.snapshot().settings;
@@ -645,7 +674,7 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     );
     let imported_request = GuiDocumentRequest {
         owned_path: Vec::new(),
-        path: "rig/setups/main.setup.donder".into(),
+        path: "rig/setups/main.data.donder".into(),
         ..request()
     };
     assert!(matches!(
@@ -694,10 +723,7 @@ fn local_controller_and_layout_copies_preserve_shared_files_and_reopen() {
     );
     state.save_all().unwrap();
     let saved = state.project_session().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        saved.project
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &saved);
     for path in paths {
         let document = original
             .source
@@ -819,10 +845,7 @@ fn shape_handles_conversion_and_undo_preserve_output_order() {
         after_conversion.project
     );
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        after_conversion.project
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after_conversion);
 }
 
 #[test]
@@ -856,8 +879,8 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         assert_eq!(
             definition.path.replace('\\', "/"),
             match storage {
-                FixtureStorage::Inline | FixtureStorage::SameFile => "project.donder",
-                FixtureStorage::NewFile => "fixtures/my_strip.fixture.donder",
+                FixtureStorage::Inline | FixtureStorage::SameFile => "project.data.donder",
+                FixtureStorage::NewFile => "fixtures/my_strip.data.donder",
             }
         );
         let mut second = layout.fixtures[0].clone();
@@ -866,6 +889,7 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         let group = GuiLayoutFixture {
             id: 3,
             name: "Group".into(),
+            description: None,
             kind: GuiLayoutFixtureKind::Group {
                 children: vec![second],
             },
@@ -914,14 +938,11 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         state.redo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *after);
         state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            after.project
-        );
-        let text = std::fs::read_to_string(root.join("project.donder")).unwrap();
-        assert!(!text.contains("fixture_1:"));
+        crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
+        let text = std::fs::read_to_string(root.join("project.data.donder")).unwrap();
+        assert!(!text.contains("fixture_1"));
         if matches!(storage, FixtureStorage::NewFile) {
-            assert!(root.join("fixtures/my_strip.fixture.donder").exists());
+            assert!(root.join("fixtures/my_strip.data.donder").exists());
         }
     }
 }
@@ -1047,9 +1068,9 @@ fn inline_fixture_copies_have_independent_ownership() {
             .is_empty()
     );
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        state.project_session().unwrap().project
+    crate::desktop_foundation_tests::tests::assert_reloads(
+        &root,
+        &state.project_session().unwrap(),
     );
 }
 
@@ -1060,7 +1081,14 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     write_new_project_files(&root, &new_test_project_files("Inline show").unwrap()).unwrap();
     write_root_content(
         &root,
-        "show:\n  type: project\n  setup:\n    type: setup\n    layout: {type: layout, fixtures: []}\n    patch: {type: patch, routes: []}\n    controllers: []\n  sequences: []\n",
+        "",
+        "  setup: Setup {
+    description: none,
+    layout: Layout { description: none, items: [] },
+    patch: Patch { description: none, routes: [] },
+    controllers: [],
+  },
+  sequences: [],",
     );
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
@@ -1098,7 +1126,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
     ) else {
         panic!("owned fixture edit failed")
     };
-    assert_eq!(document.name, "Owned strip");
+    assert_eq!(document.name, "owned_strip");
     assert_eq!(document.render_plan.pixels.len(), 1);
     let after = state.project_session().unwrap();
     assert!(after.project.reusable_layouts().is_empty());
@@ -1120,7 +1148,42 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
         write_new_project_files(&root, &new_test_project_files("Owned show").unwrap()).unwrap();
         write_root_content(
             &root,
-            "show:\n  type: project\n  setup:\n    type: setup\n    layout:\n      type: layout\n      fixtures:\n      - id: 1\n        name: My Strip\n        type: fixture\n        definition: {type: fixture, elements: []}\n    patch: {type: patch, routes: []}\n    controllers:\n    - id: 1\n      type: controller\n      protocol: {type: e131, source_name: Test, bind_address: 0.0.0.0, priority: 100, mode: multicast}\n      ports: [{id: 1, slot_count: 512, universe: 1}]\n  sequences:\n  - id: 1\n    type: sequence\n    duration: 1s\n    frame_rate: 30\n    audio: null\n    layers: []\n    effects: []\n    composition_graph:\n      nodes: [{id: 1, position: {x: 0, y: 0}, type: output}]\n      edges: []\n",
+            "",
+            "  setup: Setup {
+    description: none,
+    layout: Layout {
+      description: none,
+      items: [
+        Fixture {
+          name: my_strip,
+          description: none,
+          definition: FixtureDefinition { description: none, shapes: [] },
+          transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+        },
+      ],
+    },
+    patch: Patch { description: none, routes: [] },
+    controllers: [
+      Controller main {
+        description: none,
+        protocol: E131 { source_name: \"Test\", bind_address: \"0.0.0.0\", priority: 100, mode: Multicast },
+        ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
+      },
+    ],
+  },
+  sequences: [
+    Sequence main {
+      description: none,
+      duration: 1s,
+      frame_rate: 30,
+      audio: none,
+      marks: [],
+      layers: [],
+      clips: [],
+      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+      automation: [],
+    },
+  ],",
         );
         let state = DesktopState::new(|_| {});
         state.open_project_path(root.as_str());
@@ -1213,10 +1276,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
                 // The promoted and final unlinked states cover both persisted ownership forms.
                 if matches!(step, 0 | 3) {
                     state.save_all().unwrap();
-                    assert_eq!(
-                        donder_project_io::load_project(&root).unwrap().project,
-                        after.project
-                    );
+                    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
                 }
             }
         }
@@ -1226,8 +1286,10 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
             .setup(session.project.root().setup.id())
             .unwrap();
         assert_eq!(
-            session.project.layout(setup.layout.id()).unwrap().fixtures[0].name,
-            "My Strip"
+            session.project.layout(setup.layout.id()).unwrap().fixtures[0]
+                .name
+                .as_str(),
+            "my_strip"
         );
         assert_eq!(session.project.definitions().fixtures.definitions.len(), 1);
         assert_eq!(session.project.reusable_controllers().len(), 1);
@@ -1292,7 +1354,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
             module_id, path, ..
         } = &hue_shift.operator;
         assert_eq!(module_id, &id.0.module_id().to_string());
-        assert_eq!(path, "operators/standard.operator.donder");
+        assert_eq!(path, "operators/standard.donder");
         let edit = |edit| state.apply_gui_edit(request(), GuiEditCommand::Sequence { edit });
         let connection = document.composition_graph.edges[0].clone();
         let inserted = edit(SequenceGuiEdit::AddGraphOperatorNode {
@@ -1373,12 +1435,9 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
         );
         let accepted = state.project_session().unwrap();
         state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            accepted.project
-        );
+        crate::desktop_foundation_tests::tests::assert_reloads(&root, &accepted);
         let authored = std::fs::read_to_string(root.join(id.0.document())).unwrap();
-        assert!(authored.contains("operators/standard.operator.donder"));
+        assert!(authored.contains("operators/standard.donder"));
         assert!(authored.contains("operators.HueShift"));
         assert!(matches!(
             edit(SequenceGuiEdit::ConnectGraphNodes {
@@ -1413,7 +1472,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
     write_new_project_files(&root, &new_test_project_files("Sequences").unwrap()).unwrap();
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
-    state.open_file_path("project.donder");
+    state.open_file_path("project.data.donder");
     let mut settings = state.snapshot().settings;
     settings.autosave_project_edits = false;
     state.update_app_settings(settings);
@@ -1455,7 +1514,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
             inline
         );
         assert_eq!(result.source.owned_path.is_empty(), !inline);
-        assert_eq!(result.source.path != "project.donder", new_file);
+        assert_eq!(result.source.path != "project.data.donder", new_file);
         let sequence = after.project.sequence(source.id()).unwrap();
         assert_eq!(sequence.duration.as_seconds_f32(), 30.0);
         assert_eq!(sequence.frame_rate, 40);
@@ -1464,10 +1523,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         state.redo_active_edit();
         assert_eq!(*state.project_session().unwrap(), *after);
         state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            after.project
-        );
+        crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
     }
     let before = state.project_session().unwrap();
     let color = before
@@ -1560,6 +1616,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
                 fixtures: vec![GuiLayoutFixture {
                     id: 2,
                     name: "Group".into(),
+                    description: None,
                     kind: GuiLayoutFixtureKind::Group {
                         children: layout.fixtures,
                     },
@@ -1617,10 +1674,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
             before.project.definitions().fixtures
         );
         state.save_all().unwrap();
-        assert_eq!(
-            donder_project_io::load_project(&root).unwrap().project,
-            changed.project
-        );
+        crate::desktop_foundation_tests::tests::assert_reloads(&root, &changed);
     }
 }
 
@@ -1660,6 +1714,7 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
     let group = |id, name: &str, children| GuiLayoutFixture {
         id,
         name: name.into(),
+        description: None,
         kind: GuiLayoutFixtureKind::Group { children },
     };
     edit_layout(
@@ -1769,10 +1824,7 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
         GuiDocument::Fixture { .. }
     ));
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        current.project
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &current);
 }
 
 #[test]
@@ -1818,6 +1870,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
             fixtures: vec![GuiLayoutFixture {
                 id: 2,
                 name: "Group".into(),
+                description: None,
                 kind: GuiLayoutFixtureKind::Group {
                     children: layout.fixtures,
                 },
@@ -1904,10 +1957,7 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
         assert_eq!(*state.project_session().unwrap(), *after);
     }
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        after.project
-    );
+    crate::desktop_foundation_tests::tests::assert_reloads(&root, &after);
 }
 
 #[test]
@@ -2008,14 +2058,19 @@ fn line_endpoints_move_independently_with_rotation_scale_and_history() {
         }
     }
     state.save_all().unwrap();
-    assert_eq!(
-        donder_project_io::load_project(&root).unwrap().project,
-        state.project_session().unwrap().project
+    crate::desktop_foundation_tests::tests::assert_reloads(
+        &root,
+        &state.project_session().unwrap(),
     );
 }
 
-fn write_root_content(root: &camino::Utf8Path, content: &str) {
+/// Replace the root document with `imports` and a `Project show` holding
+/// `fields` after its metadata and description.
+fn write_root_content(root: &camino::Utf8Path, imports: &str, fields: &str) {
     let metadata = donder_project_io::ProjectMetadata::read(root).unwrap();
-    let text = metadata.initialize_document(content).unwrap();
+    let text = format!(
+        "{imports}\nProject show {{\n  format: {},\n  id: \"{}\",\n  description: none,\n{fields}\n}}\n",
+        metadata.format_version, metadata.project_id
+    );
     std::fs::write(root.join(donder_project_io::PROJECT_ROOT_FILE), text).unwrap();
 }

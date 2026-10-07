@@ -12,8 +12,11 @@
 
 mod analysis;
 mod diagnostics;
+mod document;
 mod errors;
 mod imports;
+mod inclusion;
+mod index;
 mod loader;
 mod ownership_edit;
 pub use ownership_edit::maintain_ownership_sources;
@@ -25,21 +28,23 @@ pub use project_config::{
 };
 mod path_refactor;
 mod project_edit;
-mod schema;
 mod serialization;
 mod source;
 mod source_copy;
 
 pub use analysis::{ProjectRecovery, RecoveryDocument, RecoveryDocumentKind, RecoveryObject};
 pub use diagnostics::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoRelatedLocation, ProjectCheckReport,
-    TextPosition, TextRange,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoFix, IoRelatedLocation,
+    ProjectCheckReport, TextPosition, TextRange,
 };
+pub use document::{DECLARATION_TYPE_NAMES, document_schema};
 pub use errors::{ExportProjectError, LoadProjectError};
 pub use imports::{
     available_reusable_sources, ensure_document_can_reference_object,
     ensure_document_can_reference_source, link_reusable_source,
 };
+pub use inclusion::{Inclusion, include_document};
+pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
 pub use path_refactor::{
     PathChangeImpact, PathChangePlan, PathChangeSourceKind, apply_path_change, plan_path_change,
 };

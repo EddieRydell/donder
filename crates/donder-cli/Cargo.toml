@@ -11,6 +11,9 @@ camino.workspace = true
 clap.workspace = true
 donder-language.workspace = true
 donder-project-io.workspace = true
+donder-language-server.workspace = true
+lsp-server.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

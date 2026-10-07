@@ -13,11 +13,11 @@ const definition = (path, displayName) => ({
 });
 
 test("custom operator identity includes its declaring document", () => {
-  const first = definition("operators/first.operator.donder", "First Gain");
-  const second = definition("operators/second.operator.donder", "Second Gain");
+  const first = definition("operators/first.donder", "First Gain");
+  const second = definition("operators/second.donder", "Second Gain");
 
   assert.notEqual(graphOperatorKey(first.operator), graphOperatorKey(second.operator));
-  assert.equal(graphOperatorKey(second.operator), "custom:project:operators/second.operator.donder:Gain");
+  assert.equal(graphOperatorKey(second.operator), "custom:project:operators/second.donder:Gain");
   assert.equal(
     graphOperatorDefinition([first, second], second.operator).displayName,
     "Second Gain"
@@ -25,8 +25,8 @@ test("custom operator identity includes its declaring document", () => {
 });
 
 test("operator lookup rejects a reference absent from the project catalog", () => {
-  const available = definition("operators/first.operator.donder", "First Gain");
-  const missing = definition("operators/second.operator.donder", "Second Gain");
+  const available = definition("operators/first.donder", "First Gain");
+  const missing = definition("operators/second.donder", "Second Gain");
 
   assert.throws(
     () => graphOperatorDefinition([available], missing.operator),

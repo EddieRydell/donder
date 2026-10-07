@@ -1,12 +1,11 @@
 use crate::diagnostics::{
-    effect_diagnostics, load_error_diagnostic, operator_diagnostics, parse_yaml_value,
-    push_load_error_diagnostics,
+    data_diagnostics, load_error_diagnostic, push_load_error_diagnostics, script_diagnostics,
 };
 use crate::loader::Loader;
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, LoadProjectError, PROJECT_ROOT_FILE,
-    ProjectCheckReport, ProjectMetadata, ProjectSession, ProjectWorkspace, SourceDocumentFormat,
-    analysis, source_document_format,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, ProjectCheckReport,
+    ProjectMetadata, ProjectSession, ProjectWorkspace, SourceDocumentFormat, analysis,
+    source_document_format,
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexSet;
@@ -16,18 +15,7 @@ use std::{fs, io};
 pub struct ProjectLoadError(pub Vec<IoDiagnostic>);
 impl std::fmt::Display for ProjectLoadError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let messages = self
-            .0
-            .iter()
-            .map(|diagnostic| {
-                let location = diagnostic
-                    .range
-                    .as_ref()
-                    .map(|range| format!(":{}:{}", range.start.line + 1, range.start.character + 1))
-                    .unwrap_or_default();
-                format!("{}{location}: {}", diagnostic.path, diagnostic.message)
-            })
-            .collect::<Vec<_>>();
+        let messages = self.0.iter().map(ToString::to_string).collect::<Vec<_>>();
         write!(formatter, "{}", messages.join("\n"))
     }
 }
@@ -68,7 +56,8 @@ pub fn check_project_with_overrides(
             None
         }
     };
-    let mut checked_dsl_documents = IndexSet::new();
+    let mut checked_scripts = IndexSet::new();
+    let mut index = crate::ProjectIndex::default();
     let compiled = config.as_ref().and_then(|config| {
         let workspace = match ProjectWorkspace::new(root, config.clone()) {
             Ok(workspace) => workspace,
@@ -80,6 +69,7 @@ pub fn check_project_with_overrides(
                     code: IoDiagnosticCode::DonderLoad,
                     message,
                     detail: None,
+                    fix: None,
                     related: Vec::new(),
                 });
                 return None;
@@ -95,7 +85,11 @@ pub fn check_project_with_overrides(
                 }
             }
             let result = loader.load();
-            checked_dsl_documents = loader.checked_dsl_documents;
+            checked_scripts = loader.checked_scripts;
+            let mut links = loader.links.into_inner();
+            links.sort_by_key(|link| (link.span.start, link.span.end));
+            links.dedup();
+            index.links = links;
             result
         });
         match result {
@@ -117,10 +111,24 @@ pub fn check_project_with_overrides(
     let recovery = analysis::analyze_project_documents(
         root,
         overrides,
-        &checked_dsl_documents,
+        &checked_scripts,
         active_documents.as_ref(),
         &mut diagnostics,
     );
+    if let (Some(compiled), Some(config)) = (&compiled, &config) {
+        crate::inclusion::unreferenced_documents(
+            compiled,
+            config.project_id,
+            recovery.documents.keys().cloned(),
+            |path| {
+                overrides
+                    .get(path)
+                    .cloned()
+                    .or_else(|| fs::read_to_string(root.join(path)).ok())
+            },
+            &mut diagnostics,
+        );
+    }
     analysis::sort_diagnostics(&mut diagnostics);
     let session = compiled.filter(|_| {
         !diagnostics
@@ -131,29 +139,15 @@ pub fn check_project_with_overrides(
         session,
         recovery,
         diagnostics,
+        index,
     }
 }
 
 pub fn check_document_text(path: &Utf8Path, text: &str) -> Vec<IoDiagnostic> {
     match source_document_format(path) {
-        SourceDocumentFormat::Effect => return effect_diagnostics(path, text),
-        SourceDocumentFormat::Operator => return operator_diagnostics(path, text),
-        SourceDocumentFormat::Donder => return analysis::check_donder_document_text(path, text),
-        SourceDocumentFormat::Other => {}
-    }
-
-    match parse_yaml_value(path, text) {
-        Ok(_) => Vec::new(),
-        Err(LoadProjectError::ParseYaml { message, range, .. }) => vec![IoDiagnostic {
-            path: path.to_path_buf(),
-            range,
-            severity: IoDiagnosticSeverity::Error,
-            code: IoDiagnosticCode::YamlParse,
-            message,
-            detail: None,
-            related: Vec::new(),
-        }],
-        Err(error) => vec![load_error_diagnostic(error)],
+        SourceDocumentFormat::Script => script_diagnostics(path, text),
+        SourceDocumentFormat::Data => data_diagnostics(path, text),
+        SourceDocumentFormat::Other => Vec::new(),
     }
 }
 
@@ -166,9 +160,7 @@ pub fn check_project_document_text(
     if local_diagnostics.iter().any(|diagnostic| {
         matches!(
             diagnostic.code,
-            IoDiagnosticCode::YamlParse
-                | IoDiagnosticCode::EffectCompile
-                | IoDiagnosticCode::OperatorCompile
+            IoDiagnosticCode::DataSyntax | IoDiagnosticCode::ScriptCompile
         )
     }) {
         return local_diagnostics;

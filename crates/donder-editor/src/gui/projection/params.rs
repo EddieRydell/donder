@@ -39,6 +39,7 @@ pub(in crate::gui) fn effect_params(
             Some(SequenceEffectParam {
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
+                description: param.description.clone(),
                 kind,
                 options: param_options(&param.ty),
                 range: param_range(param),
@@ -67,7 +68,7 @@ pub(in crate::gui) fn sequence_composition_graph_node(
                 SequenceGraphNodeKind::Layer {
                     layer_id: layer_id.0,
                     layer_name: layer
-                        .map(|layer| layer.name.clone())
+                        .map(|layer| layer.name.as_str().to_string())
                         .unwrap_or_else(|| format!("Layer {}", layer_id.0)),
                     layer_color: layer
                         .map(|layer| layer.color.to_hex())
@@ -76,6 +77,7 @@ pub(in crate::gui) fn sequence_composition_graph_node(
                 }
             }
             CompositionGraphNodeKind::Operator(operator) => SequenceGraphNodeKind::Operator {
+                name: operator.name.as_str().to_string(),
                 operator: graph_operator_to_gui(&operator.operator),
                 params: graph_operator_params(session, sequence, &node.id, operator),
             },
@@ -129,6 +131,7 @@ fn graph_operator_params(
             Some(SequenceEffectParam {
                 supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
+                description: declaration.description.clone(),
                 kind,
                 options: param_options(&declaration.ty),
                 range: param_range(declaration),
@@ -148,20 +151,28 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
         operator: graph_operator_to_gui(&operator),
         source_name: definition.source_name.clone(),
         display_name: definition.display_name.clone(),
+        description: definition.description().map(str::to_string),
         inputs: definition.inputs().iter().map(graph_port_to_gui).collect(),
         outputs: vec![graph_port_to_gui(definition.output())],
-        params: definition
-            .params()
-            .iter()
-            .filter_map(|param| {
-                Some(crate::dto::SequenceEffectDefinitionParam {
-                    supports_automation: param.supports_automation(),
-                    name: param.name.as_str().to_string(),
-                    kind: param_kind(&param.ty)?,
-                })
-            })
-            .collect(),
+        params: definition_params_to_gui(definition.params()),
     }
+}
+
+/// The parameters a definition declares, as the inspector lists them.
+pub(in crate::gui) fn definition_params_to_gui(
+    params: &[donder_language::dsl::ParamDecl],
+) -> Vec<crate::dto::SequenceEffectDefinitionParam> {
+    params
+        .iter()
+        .filter_map(|param| {
+            Some(crate::dto::SequenceEffectDefinitionParam {
+                supports_automation: param.supports_automation(),
+                name: param.name.as_str().to_string(),
+                description: param.description.clone(),
+                kind: param_kind(&param.ty)?,
+            })
+        })
+        .collect()
 }
 
 fn graph_port_to_gui(port: &OperatorPortDefinition) -> SequenceGraphPortDefinition {
@@ -368,7 +379,7 @@ pub(in crate::gui) fn effect_param_value(
             value: value.as_str().to_string(),
         },
         EffectParamValue::Marks(value) => SequenceEffectParamValue::Marks {
-            key: value.name.clone(),
+            key: value.name.as_str().to_string(),
         },
         EffectParamValue::Curve(source) => SequenceEffectParamValue::Curve {
             value: SequenceCurveValue {

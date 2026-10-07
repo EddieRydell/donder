@@ -13,6 +13,7 @@ pub struct PixelRouteId(pub u32);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Patch {
     pub id: PatchId,
+    pub description: Option<String>,
     pub routes: Vec<PixelRoute>,
 }
 

@@ -8,6 +8,7 @@ pub struct SetupId(pub ObjectIdentity);
 #[derive(Clone, Debug, PartialEq)]
 pub struct Setup {
     pub id: SetupId,
+    pub description: Option<String>,
     pub layout: crate::layout::LayoutSource,
     pub patch: crate::patch::PatchSource,
     pub controllers: Vec<crate::controller::ControllerSource>,

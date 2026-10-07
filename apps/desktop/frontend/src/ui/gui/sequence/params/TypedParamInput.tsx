@@ -1,4 +1,5 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../../editor/host";
+import { isSecondaryClick } from "../../../../platform";
 import { useContext, useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { OverlayPortal } from "../../../OverlayPortal";
 import * as AlertDialog from "@radix-ui/react-alert-dialog";
@@ -62,7 +63,7 @@ function TypedParamValue({
 
   if (!param.editable && !automated) {
     return (
-      <ParamShell name={param.name}>
+      <ParamShell name={param.name} description={param.description}>
         <div className="effect-param-unavailable">Unavailable</div>
       </ParamShell>
     );
@@ -81,9 +82,9 @@ function TypedParamValue({
         );
   switch (param.value.type) {
     case "int":
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={1} range={param.range} disabled={automated} commit={(value) => commit({ type: "int", value: Math.round(value) })} /></ParamValueRow></ParamShell>;
     case "float":
-      return <ParamShell name={param.name} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
+      return <ParamShell name={param.name} description={param.description} automated={automated}><ParamValueRow actions={automationActions}><NumberParam key={`${param.name}:${param.value.value}`} value={param.value.value} step={0.05} range={param.range} disabled={automated} commit={(value) => commit({ type: "float", value })} /></ParamValueRow></ParamShell>;
     case "bool":
       return (
         <BoolParam
@@ -96,7 +97,7 @@ function TypedParamValue({
       );
     case "color":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
           <ColorPicker
             value={param.value.value}
             label={param.name}
@@ -106,7 +107,7 @@ function TypedParamValue({
       );
     case "enum":
       return (
-        <ParamShell name={param.name} automated={automated}>
+        <ParamShell name={param.name} description={param.description} automated={automated}>
           <ParamValueRow actions={automationActions}>
             <select value={param.value.value} disabled={automated} onChange={(event) => void commit({ type: "enum", value: event.currentTarget.value })}>
               {param.options.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -116,7 +117,7 @@ function TypedParamValue({
       );
     case "curve":
       return (
-        <ParamShell name={param.name} automated={automated}>
+        <ParamShell name={param.name} description={param.description} automated={automated}>
         <CurveValueEditor name={param.name} value={param.value.value} sources={curveLibrary}
           commit={(value) => commit({ type: "curve", value })}
           disabled={automated} actions={automationActions} />
@@ -124,7 +125,7 @@ function TypedParamValue({
       );
     case "gradient":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
         <GradientValueEditor name={param.name} value={param.value.value} sources={gradientLibrary}
           commit={(value) => commit({ type: "gradient", value })} />
         </ParamShell>
@@ -143,10 +144,10 @@ function TypedParamValue({
       return <GradientArrayParam sources={gradientLibrary} name={param.name} values={param.value.values} commit={(values) => commit({ type: "gradientArray", values })} />;
     case "marks":
       return (
-        <ParamShell name={param.name}>
+        <ParamShell name={param.name} description={param.description}>
           <select value={param.value.key} onChange={(event) => void commit({ type: "marks", key: event.currentTarget.value })}>
             {markCollections.map((collection) => (
-              <option key={collection.key} value={collection.key}>{collection.name}</option>
+              <option key={collection.key} value={collection.key}>{collection.key}</option>
             ))}
           </select>
         </ParamShell>
@@ -154,10 +155,11 @@ function TypedParamValue({
   }
 }
 
-function ParamShell({ name, automated = false, children }: { name: string; automated?: boolean; children: ReactNode }) {
+function ParamShell({ name, description, automated = false, children }: { name: string; description: string | null; automated?: boolean; children: ReactNode }) {
   return (
     <div className={`effect-param-group ${automated ? "effect-param-automated" : ""}`}>
       <div className="effect-param-name">{name}</div>
+      {description !== null && <div className="effect-param-description">{description}</div>}
       {children}
     </div>
   );
@@ -749,6 +751,7 @@ export function CurveParam({
         role="img"
         aria-label={`${name} curve`}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
@@ -793,6 +796,7 @@ export function CurveParam({
               tabIndex={0}
               onPointerDown={(event) => {
                 event.stopPropagation();
+                if (isSecondaryClick(event)) return;
                 event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
                 draggingPoint.current = index;
                 setSelectedIndex(index);
@@ -1026,6 +1030,7 @@ export function GradientParam({
         className="color-curve-gradient"
         style={{ background: gradient }}
         onPointerDown={(event) => {
+          if (isSecondaryClick(event)) return;
           if (readOnly) {
             requestInlineEdit?.();
             return;
@@ -1045,7 +1050,7 @@ export function GradientParam({
               style={{ left: `${point.time * 100}%` }}
               onPointerDown={(event) => {
                 if (!event.currentTarget.contains(event.target as Node)) return;
-                if (event.button !== 0) return;
+                if (event.button !== 0 || isSecondaryClick(event)) return;
                 event.preventDefault();
                 event.stopPropagation();
                 startStopDrag(index, event.pointerId, event.clientX);

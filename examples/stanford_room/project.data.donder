@@ -1,0 +1,14 @@
+import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/vixen.donder>;
+import operators from <operators/standard.donder>;
+import setups from <setups/main.data.donder>;
+import sequences from <sequences/main.data.donder>;
+import sequences_2 from <sequences/sequence_2.data.donder>;
+import sequences_3 from <sequences/hidden_daggers.data.donder>;
+
+Project stanford_room {
+  format: 1,
+  id: "0c6c3dda-8f24-40e8-9fb1-0b0336525108",
+  description: none,
+  setup: setups.main,
+  sequences: [sequences.main, sequences_2.sequence_2, sequences_3.hidden_daggers],
+}

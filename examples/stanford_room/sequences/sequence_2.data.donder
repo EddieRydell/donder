@@ -1,0 +1,33 @@
+import layouts from <layouts/main.data.donder>;
+import effects from <effects/standard.donder>;
+import effects_2 from <effects/vixen.donder>;
+
+Sequence sequence_2 {
+  description: none,
+  duration: 453.0909729s,
+  frame_rate: 144,
+  audio: <audio/Dylnmatrix - Inner Demons (Equilibria Remix) [Free Download in Description].mp3>,
+  marks: [MarkCollection { name: marks, description: none, color: #38bdf8, times: [] }],
+  layers: [Layer { name: default, description: none, color: #38bdf8, enabled: true }],
+  clips: [
+    Clip {
+      name: pulse,
+      description: none,
+      layer: default,
+      start: 308.205291748s,
+      duration: 0.325412273s,
+      target: layouts.main.desk_legs,
+      scope: WholeTarget,
+      effect: effects.Pulse,
+      params: { gradient: [(0.0, #ffffff)], pulse_shape: [(0.0, 1.0), (1.0, 0.0)] },
+    },
+  ],
+  graph: Graph {
+    nodes: [
+      LayerNode { layer: default, position: (80.0, 80.0) },
+      OutputNode { position: (420.0, 80.0) },
+    ],
+    edges: [Edge { from: default, to: output }],
+  },
+  automation: [],
+}

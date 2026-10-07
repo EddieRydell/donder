@@ -8,14 +8,14 @@ use std::fs;
 fn copy_preserves_local_imports_and_audio_and_is_independently_editable() {
     let (_temp, root) = common::starter_copy();
     let directory = root.parent().unwrap();
-    let sequence = root.join("sequences/layer_test.sequence.donder");
+    let sequence = root.join("sequences/layer_test.data.donder");
     fs::create_dir(root.join("audio")).unwrap();
     fs::write(root.join("audio/test.wav"), b"test audio").unwrap();
     fs::write(
         &sequence,
         fs::read_to_string(&sequence)
             .unwrap()
-            .replace("audio: null", "audio: audio/test.wav"),
+            .replace("audio: none", "audio: <audio/test.wav>"),
     )
     .unwrap();
     let original = load_project(&root).unwrap();

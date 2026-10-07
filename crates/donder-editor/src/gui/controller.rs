@@ -28,6 +28,7 @@ pub(super) fn project_controller(
             .iter()
             .map(|port| SetupControllerPort {
                 id: port.id.0,
+                name: port.name.as_str().to_string(),
                 address: match port.address {
                     ControllerPortAddress::E131Universe(address)
                     | ControllerPortAddress::ArtNetPort(address) => address,
@@ -49,6 +50,7 @@ pub(super) fn project_document(
     };
     GuiDocument::Controller {
         document: ControllerGuiDocument {
+            description: controller.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
             controller: project_controller(session, &id, controller),
@@ -62,7 +64,12 @@ pub(super) fn edit(
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<(), GuiMutationError> {
-    let controller = domain_controller(ControllerId(resolved.object_identity()), config, ports)?;
+    let id = ControllerId(resolved.object_identity());
+    let description = session
+        .project
+        .controller(&id)
+        .and_then(|controller| controller.description.clone());
+    let controller = domain_controller(id, description, config, ports)?;
     session
         .project
         .replace_controller(&controller.id.clone(), controller)
@@ -71,6 +78,7 @@ pub(super) fn edit(
 
 pub(super) fn domain_controller(
     id: ControllerId,
+    description: Option<String>,
     config: SetupControllerConfig,
     ports: Vec<SetupControllerPort>,
 ) -> Result<Controller, GuiMutationError> {
@@ -122,6 +130,7 @@ pub(super) fn domain_controller(
         .map(|port| {
             Ok(ControllerPort {
                 id: ControllerPortId(port.id),
+                name: super::model::typed_name(&port.name)?,
                 slot_count: port.slot_count,
                 address: match protocol {
                     ControllerProtocol::E131(_) => {
@@ -141,6 +150,7 @@ pub(super) fn domain_controller(
         .collect::<Result<_, GuiMutationError>>()?;
     let controller = Controller {
         id,
+        description,
         protocol,
         ports,
     };

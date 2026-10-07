@@ -8,7 +8,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     use std::fs;
     let (_temporary, root) = starter_copy();
     fs::write(
-        root.join("effects/array-values.effect.donder"),
+        root.join("effects/array-values.donder"),
         r#"
         effect ArrayValues {
             param shapes: array<curve>;
@@ -18,22 +18,15 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
     "#,
     )
     .unwrap();
-    let path = "sequences/empty.sequence.donder";
+    let path = "sequences/empty.data.donder";
     let original = fs::read_to_string(root.join(path)).unwrap();
-    let mut authored: yaml_serde::Value = yaml_serde::from_str(&original).unwrap();
-    let effects = authored["imports"]
-        .as_sequence_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|import| import["as"].as_str() == Some("effects"))
-        .unwrap();
-    effects["from"]["documents"]
-        .as_sequence_mut()
-        .unwrap()
-        .push(yaml_serde::Value::String(
-            "effects/array-values.effect.donder".into(),
-        ));
-    fs::write(root.join(path), yaml_serde::to_string(&authored).unwrap()).unwrap();
+    let authored = original.replacen(
+        "import effects from <effects/standard.donder>",
+        "import effects from <effects/standard.donder>, <effects/array-values.donder>",
+        1,
+    );
+    assert_ne!(authored, original);
+    fs::write(root.join(path), authored).unwrap();
     load_project(&root).expect("array parameter fixture loads");
     let state = DesktopState::new(|_| {});
     state.open_project_path(root.as_str());
@@ -178,8 +171,8 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         assert!(matches!(linked, SequenceLibrarySource::Library { .. }));
     }
     state.save_all().unwrap();
-    assert_eq!(
-        load_project(&root).unwrap().project,
-        state.project_session().unwrap().project
+    crate::desktop_foundation_tests::tests::assert_reloads(
+        &root,
+        &state.project_session().unwrap(),
     );
 }

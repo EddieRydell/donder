@@ -82,20 +82,21 @@ impl Rebase for Setup {
     }
 }
 
-fn next_local_id<'a>(
+/// A name for a newly owned sequence or controller, unique among its owner's
+/// owned members of that kind.
+fn next_local_name<'a>(
     identities: impl Iterator<Item = &'a ObjectIdentity>,
     sequence: bool,
-) -> Result<u32, String> {
-    identities
+    prefix: &str,
+) -> crate::dsl::Identifier {
+    let taken = identities
         .filter_map(|id| match id.owned_path().last() {
-            Some(OwnedObjectSlot::Sequence(id)) if sequence => Some(*id),
-            Some(OwnedObjectSlot::Controller(id)) if !sequence => Some(*id),
+            Some(OwnedObjectSlot::Sequence(name)) if sequence => Some(name.as_str()),
+            Some(OwnedObjectSlot::Controller(name)) if !sequence => Some(name.as_str()),
             _ => None,
         })
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or_else(|| "No local object IDs remain.".into())
+        .collect::<std::collections::HashSet<_>>();
+    crate::names::unique_name(prefix, |name| taken.contains(name))
 }
 
 fn fixture_mut(
@@ -354,10 +355,11 @@ fn make_independent_candidate(
                 return Err("This controller is already independent.".into());
             };
             let from = id.0.clone();
-            let next = next_local_id(
+            let next = next_local_name(
                 current.controllers.iter().map(|source| &source.id().0),
                 false,
-            )?;
+                from.root_source().object(),
+            );
             let to = setup.0.owned(OwnedObjectSlot::Controller(next));
             let mut value = project
                 .controller(id)
@@ -441,10 +443,11 @@ fn copy_sequence(project: &mut DonderProject, index: usize) -> Result<(), String
         return Err("This sequence is already independent.".into());
     };
     let from = id.0.clone();
-    let next = next_local_id(
+    let next = next_local_name(
         project.root.sequences.iter().map(|source| &source.id().0),
         true,
-    )?;
+        from.root_source().object(),
+    );
     let to = ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Sequence(next));
     let mut value = project
         .sequence(id)
@@ -514,30 +517,37 @@ fn add_sequence_candidate(
     {
         return Err("Sequence duration and frame rate must be positive.".into());
     }
-    let next = next_local_id(
+    let next = next_local_name(
         project.root.sequences.iter().map(|source| &source.id().0),
         true,
-    )?;
+        "sequence",
+    );
     let id = SequenceId(
         ObjectIdentity::from(project.root.id.0.clone()).owned(OwnedObjectSlot::Sequence(next)),
     );
     let layer_id = SequenceLayerId(0);
+    let name = |text: &str| {
+        crate::dsl::Identifier::new(text.to_string())
+            .unwrap_or_else(|_| unreachable!("literal names are valid"))
+    };
     let sequence = Sequence {
         id: id.clone(),
+        description: None,
         duration,
         frame_rate,
         audio: SequenceAudio::None,
         mark_collections: vec![MarkCollection {
             key: MarkCollectionKey {
-                name: "marks".to_string(),
+                name: name("marks"),
             },
-            name: "Marks".to_string(),
+            description: None,
             display_color: color,
             marks: Vec::new(),
         }],
         layers: vec![SequenceLayer {
             id: layer_id.clone(),
-            name: "Default".to_string(),
+            name: name("default"),
+            description: None,
             color,
             enabled: true,
         }],

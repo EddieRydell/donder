@@ -10,6 +10,9 @@ use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
 use crate::dto::*;
 use crate::state_tasks::WorkingCopyPayload;
 
+/// A rewrite of one document's text.
+type DocumentChange = Box<dyn FnOnce(&str) -> Result<String, String>>;
+
 impl WorkingDocument {
     pub(super) fn new(path: &Utf8Path, text: String) -> Self {
         Self {
@@ -93,6 +96,137 @@ impl DesktopState {
         self.invalidate_prepared_project();
         self.schedule_working_copy(false);
         Ok(self.update_snapshot(|snapshot| snapshot.status = "Checking project".into()))
+    }
+
+    /// Apply language-server edits to project documents, loading any that are
+    /// not open into unsaved buffers with tabs, as a rename across files does.
+    pub fn apply_text_edits(
+        &self,
+        project_epoch: u32,
+        edits: Vec<DocumentTextEdits>,
+    ) -> Result<AppSnapshot, String> {
+        let root = self.project_root_path().ok_or("No project is loaded.")?;
+        let changes = edits
+            .into_iter()
+            .map(|document_edits| {
+                let absolute = donder_language_server::uri_path(&document_edits.uri)
+                    .ok_or("Edits name a document outside the project.")?;
+                let relative = super::project_relative(&root, &absolute)
+                    .ok_or("Edits name a document outside the project.")?;
+                let edits = document_edits
+                    .edits
+                    .into_iter()
+                    .map(|edit| lsp_types::TextEdit {
+                        range: lsp_types::Range::new(
+                            lsp_types::Position::new(
+                                edit.range.start.line,
+                                edit.range.start.character,
+                            ),
+                            lsp_types::Position::new(edit.range.end.line, edit.range.end.character),
+                        ),
+                        new_text: edit.text,
+                    })
+                    .collect::<Vec<_>>();
+                let change: DocumentChange =
+                    Box::new(move |text| Ok(donder_language_server::apply_edits(text, &edits)));
+                Ok((relative, change))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        self.change_documents(project_epoch, changes)
+    }
+
+    /// Import an unreferenced document from the project root, as the
+    /// diagnostic on it proposes.
+    pub fn include_document(
+        &self,
+        project_epoch: u32,
+        inclusion: DocumentInclusion,
+    ) -> Result<AppSnapshot, String> {
+        let identifier = |name: String| {
+            donder_language::dsl::Identifier::new(name.clone())
+                .map_err(|_| format!("`{name}` is not a name."))
+        };
+        let inclusion = donder_project_io::Inclusion {
+            document: inclusion.document.into(),
+            alias: identifier(inclusion.alias)?,
+            sequences: inclusion
+                .sequences
+                .into_iter()
+                .map(identifier)
+                .collect::<Result<_, _>>()?,
+        };
+        let change: DocumentChange =
+            Box::new(move |text| donder_project_io::include_document(text, &inclusion));
+        self.change_documents(
+            project_epoch,
+            vec![(donder_project_io::PROJECT_ROOT_FILE.into(), change)],
+        )
+    }
+
+    /// Rewrite project documents' text, loading any that are not open into
+    /// unsaved buffers with tabs.
+    fn change_documents(
+        &self,
+        project_epoch: u32,
+        changes: Vec<(Utf8PathBuf, DocumentChange)>,
+    ) -> Result<AppSnapshot, String> {
+        let _authoring = lock_unpoisoned(&self.authoring);
+        let root = self.project_root_path().ok_or("No project is loaded.")?;
+        {
+            let mut workspace = lock_unpoisoned(&self.workspace);
+            if workspace.view.project_epoch != project_epoch {
+                return Err("The project changed before the edits were received".into());
+            }
+            for (relative, change) in changes {
+                if !workspace.documents.contains_key(&relative) {
+                    let text = std::fs::read_to_string(root.join(&relative))
+                        .map_err(|error| format!("{relative}: {error}"))?;
+                    workspace
+                        .documents
+                        .insert(relative.clone(), WorkingDocument::new(&relative, text));
+                }
+                if !workspace.tabs.contains(&relative) {
+                    workspace.tabs.push(relative.clone());
+                }
+                let document = workspace
+                    .documents
+                    .get_mut(&relative)
+                    .ok_or("Document is not open")?;
+                if document.buffer.read_only {
+                    return Err(format!(
+                        "{relative} is not editable in the current project."
+                    ));
+                }
+                let text = change(&document.buffer.text)?;
+                document.edit(text);
+            }
+            workspace.view.state_revision += 1;
+            workspace.view.project_revision += 1;
+            workspace.typed_revision = None;
+            workspace.project = LoadedProject::Checking;
+            workspace.view.project_health = ProjectHealth::Checking;
+            workspace.view.active_document_descriptor = None;
+        }
+        lock_unpoisoned(&self.gui_history).clear();
+        self.invalidate_prepared_project();
+        self.schedule_working_copy(false);
+        Ok(self.update_snapshot(|snapshot| snapshot.status = "Checking project".into()))
+    }
+
+    /// The text of every loaded document, by project-relative path.
+    pub fn working_texts(&self) -> Vec<(Utf8PathBuf, String)> {
+        lock_unpoisoned(&self.workspace)
+            .documents
+            .iter()
+            .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
+            .collect()
+    }
+
+    pub fn working_text(&self, path: &Utf8Path) -> Option<String> {
+        lock_unpoisoned(&self.workspace)
+            .documents
+            .get(path)
+            .map(|document| document.buffer.text.clone())
     }
 
     pub(super) fn invalidate_prepared_project(&self) {
@@ -488,7 +622,7 @@ pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
 mod tests {
     use super::*;
     use crate::desktop_foundation_tests::tests::starter_copy;
-    const SEQUENCE: &str = "sequences/layer_test.sequence.donder";
+    const SEQUENCE: &str = "sequences/layer_test.data.donder";
 
     fn project() -> (tempfile::TempDir, Utf8PathBuf, DesktopState) {
         let (temporary, root) = starter_copy();
@@ -654,7 +788,7 @@ mod tests {
     #[test]
     fn new_gui_documents_remain_unsaved_and_are_available_to_text_analysis() {
         let (_temporary, root, state) = project();
-        let path = "sequences/new_sequence.sequence.donder";
+        let path = "sequences/new_sequence.data.donder";
         state
             .create_sequence(NewSequenceRequest {
                 storage: crate::dto::NewSequenceStorage::NewFile {
@@ -693,7 +827,7 @@ mod tests {
                 project_epoch: snapshot.project_epoch,
                 path: path.into(),
                 expected_document_revision: buffer.document_revision,
-                text: format!("{}\n# still unsaved\n", buffer.text),
+                text: buffer.text.replace("frame_rate: 60", "frame_rate: 30"),
             })
             .unwrap();
         state.working_copy.finish_pending();
@@ -1012,7 +1146,8 @@ mod tests {
         state.open_project_path(root.as_str());
         state.open_file_path(SEQUENCE);
         let original = state.snapshot().active_buffer.unwrap().text;
-        let updated = format!("{original}\n# written outside Donder\n");
+        let updated = original.replace("frame_rate: 144", "frame_rate: 90");
+        assert_ne!(updated, original);
         std::fs::write(root.join(SEQUENCE), &updated).unwrap();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         loop {

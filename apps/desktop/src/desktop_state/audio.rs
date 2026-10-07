@@ -235,17 +235,17 @@ mod tests {
             (
                 donder_language::ownership::edit::OwnershipSite::ProjectSetup,
                 donder_project_io::SourceObjectKind::Setup,
-                "setups/main.setup.donder",
+                "setups/main.data.donder",
             ),
             (
                 donder_language::ownership::edit::OwnershipSite::ProjectSequence(0),
                 donder_project_io::SourceObjectKind::Sequence,
-                "sequences/main.sequence.donder",
+                "sequences/main.data.donder",
             ),
         ] {
             let source = session
                 .source
-                .add_yaml_document(path.into(), vec![(kind, "main".into())])
+                .add_data_document(path.into(), vec![(kind, "main".into())])
                 .unwrap()
                 .remove(0);
             donder_language::ownership::edit::make_reusable(&mut session.project, &site, source)

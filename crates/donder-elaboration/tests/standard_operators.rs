@@ -40,9 +40,10 @@ fn edge(from: u32, to: u32, port: &str) -> EffectGraphEdge {
     }
 }
 
-/// A node for one of the project's operators, with default parameters.
-fn project_operator(project: &DonderProject, name: &str) -> CompositionGraphNodeKind {
+/// Node `id` for one of the project's operators, with default parameters.
+fn project_operator(project: &DonderProject, id: u32, name: &str) -> CompositionGraphNodeKind {
     CompositionGraphNodeKind::Operator(GraphOperatorNode {
+        name: donder_language::names::object_name(&format!("operator_{id}")),
         operator: project
             .definitions()
             .operators
@@ -94,8 +95,10 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
     }
     let mut sequence = project.sequence(&id).unwrap().clone();
     sequence.automation_clips.clear();
-    let operator = |index: usize| {
+    // Node `id` runs operator `index`.
+    let operator = |id: u32, index: usize| {
         CompositionGraphNodeKind::Operator(GraphOperatorNode {
+            name: donder_language::names::object_name(&format!("operator_{id}")),
             operator: refs[index].clone(),
             params: Default::default(),
         })
@@ -108,9 +111,9 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
                     layer_id: sequence.layers[0].id.clone(),
                 },
             ),
-            node(1, operator(0)),
-            node(2, operator(1)),
-            node(3, operator(2)),
+            node(1, operator(1, 0)),
+            node(2, operator(2, 1)),
+            node(3, operator(3, 2)),
             node(4, CompositionGraphNodeKind::Output),
         ],
         edges: vec![
@@ -126,7 +129,10 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
     // The shared clock stays a graph node. Duplicating it gives each consumer a
     // private source, which is fused into it with the consumer's query time as
     // the source's clock, while preserving the authored behavior.
-    sequence.composition_graph.nodes.push(node(5, operator(0)));
+    sequence
+        .composition_graph
+        .nodes
+        .push(node(5, operator(5, 0)));
     sequence
         .composition_graph
         .edges
@@ -168,7 +174,7 @@ fn black_layer_through(blacken: fn(&mut Sequence), operators: &[(&str, &str)]) -
     let mut edges = vec![edge(0, 2, "input")];
     let mut previous = 1;
     for (id, (name, port)) in (10..).zip(operators) {
-        nodes.push(node(id, project_operator(&project, name)));
+        nodes.push(node(id, project_operator(&project, id, name)));
         edges.push(edge(previous, id, port));
         previous = id;
     }
@@ -245,7 +251,7 @@ fn disconnected_operator_branches_are_preserved_but_not_prepared() {
     let definitions = &project.definitions().operators;
     let make_node = |id, name| CompositionGraphNode {
         position: GraphNodePosition { x: 100.0, y: 100.0 },
-        ..node(id, project_operator(&project, name))
+        ..node(id, project_operator(&project, id, name))
     };
     let mut sequence = project.sequence(&id).unwrap().clone();
     let graph = &mut sequence.composition_graph;

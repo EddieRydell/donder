@@ -1,16 +1,39 @@
 use crate::common;
 
 use camino::Utf8Path;
+use donder_language::fixture::FixtureElementId;
 use donder_language::layout::{FixtureInstanceId, LayoutFixtureKind};
 use donder_project_io::{export_project, load_project, save_project};
+
+const ASSEMBLY: &str = r#"
+FixtureDefinition assembly {
+  description: none,
+  shapes: [
+    Shape {
+      name: first,
+      diameter: 0.01m,
+      reverse: false,
+      transform: Transform { position: (1m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+      geometry: Pixel,
+    },
+    Shape {
+      name: second,
+      diameter: 0.02m,
+      reverse: false,
+      transform: Transform { position: (2m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+      geometry: Pixel,
+    },
+  ],
+}
+"#;
 
 #[test]
 fn inline_definitions_keep_source_ownership_and_pixel_order() {
     let (_temporary, root) = common::starter_copy();
     let root = root.as_path();
-    let fixture_path = root.join("fixtures/vertical.fixture.donder");
+    let fixture_path = root.join("fixtures/vertical.data.donder");
     let mut source = std::fs::read_to_string(&fixture_path).unwrap();
-    source.push_str("\nassembly:\n  type: fixture\n  elements:\n  - id: 90\n    name: First\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.01\n    transform: {position: {x: 1, y: 0, z: 0}}\n  - id: 10\n    name: Second\n    reverse: false\n    shape: {type: pixel}\n    diameter: 0.02\n    transform: {position: {x: 2, y: 0, z: 0}}\n");
+    source.push_str(ASSEMBLY);
     std::fs::write(&fixture_path, source).unwrap();
     // The extra definition is indexed even though no layout uses it yet.
     let mut loaded = load_project(root).unwrap();
@@ -25,10 +48,14 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         .unwrap();
     assert_eq!(
         id.0.document(),
-        Utf8Path::new("fixtures/vertical.fixture.donder")
+        Utf8Path::new("fixtures/vertical.data.donder")
     );
-    assert_eq!(definition.elements[0].id.0, 90);
+    assert_eq!(definition.elements[0].name.as_str(), "first");
+    // Shape identities follow document order, so a reorder renumbers them.
     definition.elements.swap(0, 1);
+    for (index, element) in definition.elements.iter_mut().enumerate() {
+        element.id = FixtureElementId(index as u32 + 1);
+    }
     loaded
         .project
         .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
@@ -52,20 +79,20 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
         definition
             .elements
             .iter()
-            .map(|part| part.id.0)
+            .map(|part| part.name.as_str())
             .collect::<Vec<_>>(),
-        [10, 90]
+        ["second", "first"]
     );
     let layout = saved.project.reusable_layouts().values().next().unwrap();
     assert!(matches!(
-        layout.fixture(FixtureInstanceId(1)).unwrap().kind,
+        layout.fixture(FixtureInstanceId(2)).unwrap().kind,
         LayoutFixtureKind::Fixture { .. }
     ));
 }
 
 #[test]
 fn all_shape_parameters_round_trip_in_authored_order() {
-    use donder_language::fixture::{FixtureElementId, FixtureShape, GridAxis, GridCorner};
+    use donder_language::fixture::{FixtureShape, GridAxis, GridCorner};
     let mut session = common::load_project(&common::starter_root());
     let (id, mut fixture) = session
         .project
@@ -123,8 +150,8 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         .enumerate()
         .map(|(index, shape)| {
             let mut element = template.clone();
-            element.id = FixtureElementId(100 - index as u32);
-            element.name = format!("Shape {index}");
+            element.id = FixtureElementId(index as u32 + 1);
+            element.name = donder_language::names::object_name(&format!("shape_{index}"));
             element.shape = shape;
             element.reverse = index % 2 == 0;
             element

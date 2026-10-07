@@ -21,19 +21,13 @@ fn moves_imported_setup_sequence_effect_and_operator_and_reloads() {
     fs::create_dir(root.join("moved")).expect("directory");
     let mut session = load_project(&root).expect("load");
     for (source, destination) in [
-        ("setups/main.setup.donder", "moved/main.setup.donder"),
+        ("setups/main.data.donder", "moved/main.data.donder"),
         (
-            "sequences/layer_test.sequence.donder",
-            "moved/layer_test.sequence.donder",
+            "sequences/layer_test.data.donder",
+            "moved/layer_test.data.donder",
         ),
-        (
-            "effects/impact-burst.effect.donder",
-            "moved/impact-burst.effect.donder",
-        ),
-        (
-            "operators/gain.operator.donder",
-            "moved/gain.operator.donder",
-        ),
+        ("effects/impact-burst.donder", "moved/impact-burst.donder"),
+        ("operators/gain.donder", "moved/gain.donder"),
     ] {
         session = move_path(&session, source, destination);
     }
@@ -48,12 +42,12 @@ fn moves_directories_with_documents_and_referenced_audio() {
     fs::create_dir(root.join("library")).expect("directory");
     fs::create_dir_all(root.join("audio")).unwrap();
     fs::write(root.join("audio/test.wav"), b"test audio").unwrap();
-    let sequence = root.join("sequences/layer_test.sequence.donder");
+    let sequence = root.join("sequences/layer_test.data.donder");
     fs::write(
         &sequence,
         fs::read_to_string(&sequence)
             .unwrap()
-            .replace("audio: null", "audio: audio/test.wav"),
+            .replace("audio: none", "audio: <audio/test.wav>"),
     )
     .unwrap();
     let session = load_project(&root).expect("load");
@@ -63,9 +57,13 @@ fn moves_directories_with_documents_and_referenced_audio() {
         session.source.referenced_assets[0].relative_path,
         "library/audio/test.wav"
     );
-    assert!(session.source.documents.keys().any(
-        |document| document.path() == Utf8Path::new("library/effects/scan-sweep.effect.donder")
-    ));
+    assert!(
+        session
+            .source
+            .documents
+            .keys()
+            .any(|document| document.path() == Utf8Path::new("library/effects/scan-sweep.donder"))
+    );
     let reloaded = load_project(&root).expect("reload");
     assert_eq!(reloaded.project, session.project);
 }
@@ -77,8 +75,8 @@ fn rejects_collisions_root_escapes_and_descendant_moves() {
     assert!(
         plan_path_change(
             &session,
-            Utf8Path::new("project.donder"),
-            Utf8Path::new("setups/main.setup.donder")
+            Utf8Path::new("project.data.donder"),
+            Utf8Path::new("setups/main.data.donder")
         )
         .expect_err("collision")
         .contains("Destination already exists")
@@ -95,8 +93,8 @@ fn rejects_collisions_root_escapes_and_descendant_moves() {
     assert!(
         plan_path_change(
             &session,
-            Utf8Path::new("project.donder"),
-            Utf8Path::new("../outside.donder")
+            Utf8Path::new("project.data.donder"),
+            Utf8Path::new("../outside.data.donder")
         )
         .expect_err("escape")
         .contains("escape")

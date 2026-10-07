@@ -9,6 +9,9 @@ use indexmap::IndexMap;
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectInst {
     pub id: EffectInstId,
+    /// Unique among the sequence's clips; automation bindings use it.
+    pub name: Identifier,
+    pub description: Option<String>,
     pub layer_id: SequenceLayerId,
     pub start: DonderTime,
     pub duration: DonderDuration,
@@ -111,6 +114,11 @@ impl EffectDefinition {
     pub fn implementation(&self) -> &EffectImplementation {
         &self.implementation
     }
+    pub fn description(&self) -> Option<&str> {
+        match &self.implementation {
+            EffectImplementation::Dsl(compiled) => compiled.description(),
+        }
+    }
     pub fn custom(id: EffectDefinitionId, compiled: CompiledEffect) -> Self {
         Self {
             id: EffectRef::Custom(id),
@@ -152,6 +160,7 @@ pub struct CurveId(pub SourceIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CurveDefinition {
+    pub description: Option<String>,
     pub curve: Curve,
 }
 
@@ -160,6 +169,7 @@ pub struct GradientId(pub SourceIdentity);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientDefinition {
+    pub description: Option<String>,
     pub gradient: Gradient,
 }
 

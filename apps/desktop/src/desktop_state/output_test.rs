@@ -107,11 +107,13 @@ mod tests {
                     },
                     ports: vec![
                         SetupControllerPort {
+                            name: "port_1".into(),
                             id: 1,
                             address: 4,
                             slot_count: 6,
                         },
                         SetupControllerPort {
+                            name: "port_2".into(),
                             id: 2,
                             address: 9,
                             slot_count: 6,

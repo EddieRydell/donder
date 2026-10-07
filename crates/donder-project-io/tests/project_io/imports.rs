@@ -4,31 +4,32 @@ use camino::Utf8PathBuf;
 use donder_language::identity::DocumentId;
 use donder_language::imports::ImportAlias;
 use donder_project_io::{
-    SourceObjectKind, check_project, check_project_with_overrides,
+    PROJECT_ROOT_FILE, SourceObjectKind, check_project, check_project_with_overrides,
     ensure_document_can_reference_source, project_source_texts,
 };
 
 fn root() -> Utf8PathBuf {
-    Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter")
+    common::starter_root()
 }
 
+/// The starter's sources, with `EFFECT` no longer imported by the root.
 fn sources() -> donder_project_io::SourceOverrides {
     let mut sources = project_source_texts(&root()).unwrap();
     let project = sources
-        .get_mut(&Utf8PathBuf::from("project.donder"))
+        .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
         .unwrap();
     *project = project
         .replace("\r\n", "\n")
-        .replace("    - effects/impact-burst.effect.donder\n", "");
+        .replace(&format!("<{EFFECT}>, "), "");
     sources
 }
 
-const EFFECT: &str = "effects/impact-burst.effect.donder";
-const EXTRA: &str = "effects/import-test.effect.donder";
+const EFFECT: &str = "effects/impact-burst.donder";
+const EXTRA: &str = "effects/import-test.donder";
 
-/// A minimal project whose only imports are `declarations`, with `EFFECT`
+/// A minimal project whose only imports are `imports`, with `EFFECT`
 /// defining `ImpactBurst` and `EXTRA` holding `extra`.
-fn tiny_project(declarations: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) {
+fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     std::fs::create_dir(root.join("effects")).unwrap();
@@ -39,13 +40,13 @@ fn tiny_project(declarations: &str, extra: &str) -> (tempfile::TempDir, Utf8Path
     .unwrap();
     std::fs::write(root.join(EXTRA), extra).unwrap();
     std::fs::write(
-        root.join("project.donder"),
-        format!(
-            "imports:\n{declarations}main:\n  type: project\n  setup:\n    type: setup\n    layout: {{ type: layout, fixtures: [] }}\n    patch: {{ type: patch, routes: [] }}\n    controllers: []\n  sequences: []\n"
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document(
+            imports,
+            "  setup: Setup {\n    description: none,\n    layout: Layout { description: none, items: [] },\n    patch: Patch { description: none, routes: [] },\n    controllers: [],\n  },\n  sequences: [],\n",
         ),
     )
     .unwrap();
-    common::write_workspace_metadata(&root);
     (temporary, root)
 }
 
@@ -61,7 +62,7 @@ fn grouped_declarations_preserve_ordered_targets() {
     }
     let alias = aliases[2];
     let (_temporary, root) = tiny_project(
-        &format!("- from: {{ documents: [{EFFECT}, {EXTRA}] }}\n  as: {alias}\n"),
+        &format!("import {alias} from <{EFFECT}>, <{EXTRA}>;\n"),
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
     let report = check_project(&root);
@@ -69,7 +70,7 @@ fn grouped_declarations_preserve_ordered_targets() {
     let session = report.session.unwrap();
     let module = session.source.project_module_id();
     let edge =
-        &session.source.documents[&DocumentId::new(module, "project.donder".into())].imports()[0];
+        &session.source.documents[&DocumentId::new(module, PROJECT_ROOT_FILE.into())].imports()[0];
     assert_eq!(edge.alias(), alias);
     assert_eq!(
         edge.targets()
@@ -87,7 +88,7 @@ fn invalid_aliases_are_rejected() {
     }
     // The loader validates aliases through `ImportAlias::new`.
     let (_temporary, root) = tiny_project(
-        &format!("- from: {{ documents: [{EFFECT}] }}\n  as: 'with-hyphen'\n"),
+        &format!("import builtins from <{EFFECT}>;\n"),
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
     assert!(check_project(&root).session.is_none());
@@ -95,30 +96,26 @@ fn invalid_aliases_are_rejected() {
 
 #[test]
 fn grouped_collisions_report_both_source_occurrences() {
-    for (documents, second, message) in [
+    for (imports, message) in [
         (
-            format!("{EFFECT}, {EFFECT}"),
-            None,
+            format!("import fx from <{EFFECT}>, <{EFFECT}>;\n"),
             "imported more than once",
         ),
         (
-            EFFECT.into(),
-            Some(("other", EFFECT)),
+            format!("import fx from <{EFFECT}>;\nimport other from <{EFFECT}>;\n"),
             "imported more than once",
         ),
-        (EFFECT.into(), Some(("fx", EXTRA)), "duplicate import alias"),
         (
-            format!("{EFFECT}, {EXTRA}"),
-            None,
+            format!("import fx from <{EFFECT}>;\nimport fx from <{EXTRA}>;\n"),
+            "duplicate import alias",
+        ),
+        (
+            format!("import fx from <{EFFECT}>, <{EXTRA}>;\n"),
             "duplicate exported object",
         ),
     ] {
-        let mut declaration = format!("- from: {{ documents: [{documents}] }}\n  as: fx\n");
-        if let Some((alias, path)) = second {
-            declaration += &format!("- from: {{ documents: [{path}] }}\n  as: {alias}\n");
-        }
         let (_temporary, root) = tiny_project(
-            &declaration,
+            &imports,
             "effect ImpactBurst { sample { hsv(0.0, 1.0, 1.0) } }",
         );
         let report = check_project(&root);
@@ -127,7 +124,7 @@ fn grouped_collisions_report_both_source_occurrences() {
             .iter()
             .find(|diagnostic| diagnostic.message.contains(message))
             .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
-        assert_eq!(diagnostic.path, "project.donder");
+        assert_eq!(diagnostic.path, PROJECT_ROOT_FILE);
         assert!(diagnostic.range.is_some());
         assert_eq!(diagnostic.related.len(), 1);
         assert!(diagnostic.related[0].range.is_some());
@@ -139,28 +136,22 @@ fn grouped_collisions_report_both_source_occurrences() {
 fn missing_group_member_points_at_its_own_path_token() {
     let mut sources = sources();
     let project = sources
-        .get_mut(&Utf8PathBuf::from("project.donder"))
+        .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
         .unwrap();
-    *project = project.replace("\r\n", "\n").replacen("imports:\n",
-        &format!("imports:\n- from:\n    documents:\n    - {EFFECT}\n    - effects/missing.effect.donder\n  as: fx\n"), 1);
-    let missing_line = project
-        .lines()
-        .position(|line| line.contains("effects/missing.effect.donder"))
-        .unwrap();
+    let missing = "<effects/missing.donder>";
+    *project = format!("import fx from <{EFFECT}>, {missing};\n{project}");
+    let start = project.find(missing).unwrap() as u32;
     let report = check_project_with_overrides(&root(), &sources);
     let diagnostic = report
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.message.contains("target does not exist"))
-        .unwrap();
+        .unwrap_or_else(|| panic!("{:?}", report.diagnostics));
     let range = diagnostic.range.as_ref().unwrap();
-    assert_eq!(
-        (range.start.line, range.start.character),
-        (missing_line as u32, 6)
-    );
+    assert_eq!((range.start.line, range.start.character), (0, start));
     assert_eq!(
         range.end.character - range.start.character,
-        "effects/missing.effect.donder".len() as u32
+        missing.len() as u32
     );
 }
 
@@ -169,16 +160,16 @@ fn imported_names_are_not_transitive_and_wrong_kinds_do_not_resolve() {
     for reference in ["setups.outputs_layout", "effects.Pulse", "missing.main"] {
         let mut sources = sources();
         let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
+            .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
             .unwrap();
+        assert!(project.contains("setup: setups.main"));
         *project = project.replace("setup: setups.main", &format!("setup: {reference}"));
         let report = check_project_with_overrides(&root(), &sources);
         assert!(report.session.is_none(), "{reference}");
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.path == "project.donder"),
+            report.diagnostics.iter().any(
+                |diagnostic| diagnostic.path == PROJECT_ROOT_FILE && diagnostic.range.is_some()
+            ),
             "{:?}",
             report.diagnostics
         );
@@ -208,40 +199,40 @@ fn local_imports_use_safe_document_paths() {
     }
     // The loader validates import paths through `validate_document_path`.
     let (_temporary, root) = tiny_project(
-        "- from: { documents: ['../escape.donder'] }\n  as: fx\n",
+        "import fx from <../escape.donder>;\n",
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
     let report = check_project(&root);
     assert!(report.session.is_none());
     assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("safe module-relative")),
+        report.diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("safe project-relative")
+            && diagnostic.range.is_some()),
         "{:?}",
         report.diagnostics
     );
-    for path in ["effects/Upper-name_1.effect.donder", "effects/a b.donder"] {
+    for path in ["effects/Upper-name_1.donder", "effects/a b.data.donder"] {
         assert!(donder_project_io::validate_document_path(path).is_ok());
     }
 }
 
 #[test]
-fn mutual_yaml_imports_work_in_either_traversal_order() {
-    for first in ["curves/a.curve.donder", "curves/b.curve.donder"] {
+fn mutual_data_imports_work_in_either_traversal_order() {
+    for first in ["curves/a.data.donder", "curves/b.data.donder"] {
         let mut sources = sources();
         for (own, other) in [("a", "b"), ("b", "a")] {
-            sources.insert(format!("curves/{own}.curve.donder").into(),
-                format!("imports:\n- from: {{ documents: [curves/{other}.curve.donder] }}\n  as: other\n{own}:\n  type: curve\n  points:\n  - position: 0.0\n    value: 1.0\n"));
+            sources.insert(
+                format!("curves/{own}.data.donder").into(),
+                format!(
+                    "import other from <curves/{other}.data.donder>;\n\nCurve {own} {{ description: none, points: [(0.0, 1.0)] }}\n"
+                ),
+            );
         }
         let project = sources
-            .get_mut(&Utf8PathBuf::from("project.donder"))
+            .get_mut(&Utf8PathBuf::from(PROJECT_ROOT_FILE))
             .unwrap();
-        *project = project.replace("\r\n", "\n").replacen(
-            "imports:\n",
-            &format!("imports:\n- from: {{ documents: [{first}] }}\n  as: curves\n"),
-            1,
-        );
+        *project = format!("import curves from <{first}>;\n{project}");
         let report = check_project_with_overrides(&root(), &sources);
         assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     }
@@ -251,7 +242,7 @@ fn mutual_yaml_imports_work_in_either_traversal_order() {
 fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases() {
     let mut session = donder_project_io::load_project(&root()).unwrap();
     let module = session.source.project_module_id();
-    let from = DocumentId::new(module, "sequences/empty.sequence.donder".into());
+    let from = DocumentId::new(module, "sequences/empty.data.donder".into());
     let own = session
         .project
         .sequences()
@@ -268,13 +259,13 @@ fn edit_visibility_reuses_imports_skips_self_and_allocates_deterministic_aliases
     let definitions = &session.project.definitions().effects.definitions;
     let existing = definitions
         .keys()
-        .find(|id| id.0.document().as_str() == "effects/standard.effect.donder")
+        .find(|id| id.0.document().as_str() == "effects/standard.donder")
         .unwrap()
         .0
         .clone();
     let another = definitions
         .keys()
-        .find(|id| id.0.document().as_str() == "effects/mark-impact-burst.effect.donder")
+        .find(|id| id.0.document().as_str() == "effects/mark-impact-burst.donder")
         .unwrap()
         .0
         .clone();

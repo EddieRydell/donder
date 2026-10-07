@@ -1,7 +1,7 @@
 mod params;
 use params::{
     curve_library, effect_params, gradient_library, graph_node_id,
-    graph_operator_definition_to_gui, param_kind, sequence_composition_graph_node,
+    graph_operator_definition_to_gui, sequence_composition_graph_node,
 };
 
 pub(super) fn project_sequence(
@@ -33,6 +33,8 @@ pub(super) fn project_sequence(
         .map(|(index, effect)| SequenceEffect {
             index: index as u32,
             id: effect.id.0,
+            name: effect.name.as_str().to_string(),
+            description: effect.description.clone(),
             layer_id: effect.layer_id.0,
             start_seconds: effect.start.as_seconds_f32(),
             duration_seconds: effect.duration.as_seconds_f32(),
@@ -87,6 +89,7 @@ pub(super) fn project_sequence(
     };
     GuiDocument::Sequence {
         document: SequenceGuiDocument {
+            description: sequence.description.clone(),
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
@@ -97,8 +100,8 @@ pub(super) fn project_sequence(
                 .mark_collections
                 .iter()
                 .map(|collection| SequenceMarkCollection {
-                    key: collection.key.name.clone(),
-                    name: collection.name.clone(),
+                    key: collection.key.name.as_str().to_string(),
+                    description: collection.description.clone(),
                     color: collection.display_color.to_hex(),
                     marks_seconds: collection
                         .marks
@@ -116,7 +119,8 @@ pub(super) fn project_sequence(
                 .iter()
                 .map(|layer| SequenceLayer {
                     id: layer.id.0,
-                    name: layer.name.clone(),
+                    name: layer.name.as_str().to_string(),
+                    description: layer.description.clone(),
                     color: layer.color.to_hex(),
                     enabled: layer.enabled,
                     is_default: layer.id.0 == 0,
@@ -237,7 +241,7 @@ fn push_lanes(
             target: FixtureTarget {
                 fixture: fixture.id.0,
             },
-            label: fixture.name.clone(),
+            label: fixture.name.as_str().to_string(),
             kind: if children.is_some() {
                 SequenceLaneKind::Group
             } else {
@@ -262,7 +266,7 @@ fn effect_target_label(session: &ProjectSession, target: &DomainFixtureTarget) -
         .project
         .layout(&target.layout)
         .and_then(|layout| layout.fixture(target.fixture))
-        .map(|fixture| fixture.name.clone())
+        .map(|fixture| fixture.name.as_str().to_string())
         .unwrap_or_else(|| format!("Missing fixture {}", target.fixture.0))
 }
 
@@ -287,19 +291,10 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
             let source = effect_ref_to_gui(&EffectRef::Custom(id.clone()));
             SequenceEffectDefinition {
                 name: definition.display_name.clone(),
+                description: definition.description().map(str::to_string),
                 effect: source,
                 import_path: Some(id.0.document().to_string()),
-                params: definition
-                    .params()
-                    .iter()
-                    .filter_map(|param| {
-                        Some(SequenceEffectDefinitionParam {
-                            supports_automation: param.supports_automation(),
-                            name: param.name.as_str().to_string(),
-                            kind: param_kind(&param.ty)?,
-                        })
-                    })
-                    .collect(),
+                params: params::definition_params_to_gui(definition.params()),
             }
         })
         .collect()
@@ -316,8 +311,8 @@ use crate::dto::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
     SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectReference,
-    SequenceEffectScope, SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLaneKind,
-    SequenceLayer, SequenceMarkCollection, SequenceTimelineClipKind,
+    SequenceEffectDefinition, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
+    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
+    SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

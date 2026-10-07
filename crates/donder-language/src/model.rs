@@ -80,6 +80,7 @@ pub struct ProjectId(pub SourceIdentity);
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProjectRoot {
     pub id: ProjectId,
+    pub description: Option<String>,
     pub setup: crate::setup::SetupSource,
     pub sequences: Vec<crate::sequence::SequenceSource>,
 }

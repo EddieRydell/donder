@@ -1,0 +1,142 @@
+Gradient warm_gradient {
+  description: none,
+  stops: [(0.0, #fff4d6), (0.35, #ffb000), (1.0, #ff2a00)],
+}
+
+Gradient cool_gradient {
+  description: none,
+  stops: [(0.0, #d9ffff), (0.45, #00a6ff), (1.0, #3d00ff)],
+}
+
+Gradient club_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.25, #ff2bd6), (0.6, #2de2ff), (1.0, #7cff00)],
+}
+
+Gradient fire_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.18, #ffd15c), (0.55, #ff4a00), (1.0, #1a0000)],
+}
+
+Gradient ice_glass_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.18, #b9f7ff), (0.55, #40b8ff), (1.0, #1020a8)],
+}
+
+Gradient electric_blue_gradient {
+  description: none,
+  stops: [(0.0, #f8ffff), (0.18, #00f0ff), (0.52, #0066ff), (1.0, #050044)],
+}
+
+Gradient neon_candy_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.2, #ff2bd6), (0.5, #00f5ff), (0.75, #fff200), (1.0, #7cff00)],
+}
+
+Gradient laser_magenta_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.22, #ff55ff), (0.58, #ba00ff), (1.0, #180020)],
+}
+
+Gradient acid_green_gradient {
+  description: none,
+  stops: [(0.0, #f6ffd6), (0.28, #b7ff00), (0.65, #00ff66), (1.0, #003315)],
+}
+
+Gradient sodium_vapor_gradient {
+  description: none,
+  stops: [(0.0, #fff8df), (0.35, #ffb300), (0.72, #ff5a00), (1.0, #3b0700)],
+}
+
+Gradient molten_gold_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.2, #ffe680), (0.5, #ff9d00), (0.78, #b83a00), (1.0, #120300)],
+}
+
+Gradient ember_core_gradient {
+  description: none,
+  stops: [(0.0, #fff0d8), (0.16, #ff7a00), (0.5, #e00020), (0.82, #4d0015), (1.0, #000000)],
+}
+
+Gradient plasma_storm_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.18, #55ffea), (0.42, #3355ff), (0.7, #ff00aa), (1.0, #20003f)],
+}
+
+Gradient aurora_gradient {
+  description: none,
+  stops: [(0.0, #062b31), (0.2, #00d2a8), (0.48, #77ff66), (0.72, #5b7cff), (1.0, #2a005f)],
+}
+
+Gradient sunset_pop_gradient {
+  description: none,
+  stops: [(0.0, #fff1a8), (0.25, #ff8a00), (0.52, #ff006a), (0.78, #7a2cff), (1.0, #050019)],
+}
+
+Gradient deep_ocean_gradient {
+  description: none,
+  stops: [(0.0, #d8ffff), (0.25, #00c2c7), (0.55, #0065a8), (1.0, #000b2e)],
+}
+
+Gradient mint_violet_gradient {
+  description: none,
+  stops: [(0.0, #eaffff), (0.25, #7cffc7), (0.55, #48a0ff), (1.0, #b33cff)],
+}
+
+Gradient hot_pink_lime_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.22, #ff1493), (0.55, #ffea00), (1.0, #39ff14)],
+}
+
+Gradient redline_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.18, #ff3030), (0.55, #b00000), (1.0, #120000)],
+}
+
+Gradient white_strobe_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.3, #f3fbff), (0.72, #b9cfff), (1.0, #000000)],
+}
+
+Gradient blacklight_gradient {
+  description: none,
+  stops: [(0.0, #1b003d), (0.3, #5600ff), (0.62, #ff00f5), (1.0, #00124d)],
+}
+
+Gradient cyberpunk_gradient {
+  description: none,
+  stops: [(0.0, #00fff0), (0.25, #005eff), (0.5, #ff00cc), (0.76, #ffea00), (1.0, #050505)],
+}
+
+Gradient pastel_sherbet_gradient {
+  description: none,
+  stops: [(0.0, #fff2f8), (0.25, #ff9fd6), (0.5, #ffd166), (0.75, #8cffc1), (1.0, #9db6ff)],
+}
+
+Gradient prism_gradient {
+  description: none,
+  stops: [
+    (0.0, #ff0033), (0.18, #ff9d00), (0.34, #fff200), (0.5, #00ff66), (0.68, #00b7ff),
+    (0.84, #4b3cff), (1.0, #d600ff),
+  ],
+}
+
+Gradient ghost_blue_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.22, #d8f7ff), (0.58, #7ca7ff), (1.0, #060c35)],
+}
+
+Gradient royal_purple_gradient {
+  description: none,
+  stops: [(0.0, #fff7ff), (0.25, #c464ff), (0.58, #6c00d4), (1.0, #120022)],
+}
+
+Gradient toxic_sludge_gradient {
+  description: none,
+  stops: [(0.0, #f8ff9d), (0.28, #a7ff00), (0.6, #00b84d), (1.0, #1b2b00)],
+}
+
+Gradient arctic_pink_gradient {
+  description: none,
+  stops: [(0.0, #ffffff), (0.24, #9ff7ff), (0.55, #7d7cff), (1.0, #ff66d8)],
+}

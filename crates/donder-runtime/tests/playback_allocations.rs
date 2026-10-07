@@ -215,8 +215,8 @@ fn borrowed_sequence_output_seeks_and_clears_without_allocating() {
 fn warmed_enum_automation_and_constant_arrays_do_not_allocate() {
     let effect = compile_effect(
         "effect Mode {
-            param mode: enum { short, much_longer_option } = short;
-            sample { if mode == much_longer_option { rgb(1.0, 0.0, 0.0) } else { rgb(0.0, 0.0, 0.0) } }
+            param mode: enum { Short, MuchLongerOption } = Short;
+            sample { if mode == MuchLongerOption { rgb(1.0, 0.0, 0.0) } else { rgb(0.0, 0.0, 0.0) } }
         }",
     );
     let automation = whole_sequence_automation(
@@ -375,15 +375,15 @@ fn prepared_reductions_do_not_allocate_on_the_first_frame() {
 fn enum_choices_and_constant_loads_do_not_allocate() {
     let effect = compile_effect(
         "effect EnumChoices {
-            param mode: enum { short, much_longer_option } = short;
-            param late: enum { short, much_longer_option } = much_longer_option;
-            param gate: enum { off, on } = on;
-            param closed: enum { off, on } = off;
-            param shape: enum { one, two } = two;
+            param mode: enum { Short, MuchLongerOption } = Short;
+            param late: enum { Short, MuchLongerOption } = MuchLongerOption;
+            param gate: enum { Off, On } = On;
+            param closed: enum { Off, On } = Off;
+            param shape: enum { One, Two } = Two;
             sample {
                 let mode = if progress > 0.5 { late } else { mode };
                 let gate = if progress < 0.5 { closed } else { gate };
-                if mode == much_longer_option && gate == on && shape == two { #ffffff } else { #000000 }
+                if mode == MuchLongerOption && gate == On && shape == Two { #ffffff } else { #000000 }
             }
         }",
     );
@@ -542,7 +542,7 @@ fn hoisted_resources_and_curve_automation_do_not_allocate_from_the_first_frame()
 #[test]
 fn dsl_curve_automation_releases_previous_sample_before_update() {
     let pulse = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.effect.donder"
+        "../../../examples/starter/effects/standard.donder"
     ))
     .unwrap()
     .into_iter()
@@ -600,7 +600,7 @@ fn nested_signal_nodes_do_not_displace_upstream_vm_storage() {
         .unwrap()
         .remove(0);
     let invert = compile_operators(include_str!(
-        "../../../examples/starter/operators/standard.operator.donder"
+        "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()
     .into_iter()
@@ -667,21 +667,21 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
 }
 
 const STARTER_EFFECTS: [&str; 7] = [
-    include_str!("../../../examples/starter/effects/impact-burst.effect.donder"),
-    include_str!("../../../examples/starter/effects/mark-impact-burst.effect.donder"),
-    include_str!("../../../examples/starter/effects/scan-sweep.effect.donder"),
-    include_str!("../../../examples/starter/effects/shimmer-field.effect.donder"),
-    include_str!("../../../examples/starter/effects/sparkle-comet.effect.donder"),
-    include_str!("../../../examples/starter/effects/standard.effect.donder"),
-    include_str!("../../../examples/starter/effects/vixen.effect.donder"),
+    include_str!("../../../examples/starter/effects/impact-burst.donder"),
+    include_str!("../../../examples/starter/effects/mark-impact-burst.donder"),
+    include_str!("../../../examples/starter/effects/scan-sweep.donder"),
+    include_str!("../../../examples/starter/effects/shimmer-field.donder"),
+    include_str!("../../../examples/starter/effects/sparkle-comet.donder"),
+    include_str!("../../../examples/starter/effects/standard.donder"),
+    include_str!("../../../examples/starter/effects/vixen.donder"),
 ];
 
 const OPERATOR_LIBRARIES: [&str; 4] = [
-    include_str!("../../../examples/starter/operators/standard.operator.donder"),
-    include_str!("../../../examples/starter/operators/gain.operator.donder"),
-    include_str!("../../../examples/starter/operators/time-warp.operator.donder"),
+    include_str!("../../../examples/starter/operators/standard.donder"),
+    include_str!("../../../examples/starter/operators/gain.donder"),
+    include_str!("../../../examples/starter/operators/time-warp.donder"),
     // FreezeFrame and HueMap; its other operators repeat the starter's.
-    include_str!("../../../examples/stanford_room/operators/standard.operator.donder"),
+    include_str!("../../../examples/stanford_room/operators/standard.donder"),
 ];
 
 /// Operators that address pixels explicitly, alone and in reductions.

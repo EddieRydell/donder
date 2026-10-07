@@ -33,9 +33,9 @@ test("semantic tree sorts directories first with natural case-insensitive orderi
 
 test("diagnostic paths resolve from absolute project paths", () => {
   const tree = buildSemanticTree(
-    [entry("sequences/show.sequence.donder", "file", "sequence")],
+    [entry("sequences/show.data.donder", "file", "sequence")],
     [{
-      path: "C:\\project\\sequences\\show.sequence.donder",
+      path: "C:\\project\\sequences\\show.data.donder",
       range: null,
       severity: "error",
       code: "test",

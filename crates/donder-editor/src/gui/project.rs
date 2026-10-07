@@ -11,6 +11,7 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
 
     GuiDocument::Project {
         document: ProjectGuiDocument {
+            description: session.project.root().description.clone(),
             available_sources: super::ownership::available_sources(
                 session,
                 resolved.identity.document_id(),

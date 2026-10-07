@@ -104,6 +104,34 @@ over every frame):
 Stanford's FreezeFrame samples an empty layer, so preparation removes it; the
 rest of the show is its mark effects, gradients and hue operators.
 
+## Apple Silicon
+
+Host evaluation on October 6, 2026 (Apple M5 Max, macOS 26.7, AC power,
+Criterion with the benchmark thread at user-interactive QoS):
+
+| Workload | Result |
+| --- | ---: |
+| Stanford show, 150 pixels, mean per frame | 2.83 µs |
+| Stanford show, p99 / slowest frame | 11.9 µs / 194 µs |
+| Stanford preparation | 3.4 ms |
+| `prepare_starter` | 1.08 ms |
+| `prepared_effect_suite_4x512_pixels` | 36.5 µs |
+| `prepared_600_pixels_4_layers_3_operators` | 152.9 µs |
+| `prepared_temporal/standard_echo/1600` | 107.0 µs |
+| `prepared_marks/chase` | 4.85 µs |
+| `render_playback_dense_60_frames` | 1.36 ms |
+
+The Stanford rows time every frame of the show, five passes. On efficiency
+cores (`taskpolicy -b`) the show averaged 6.9 µs per frame, still far inside a
+144 fps frame (6.9 ms).
+
+On macOS the risk is wake-up timing, not evaluation. A `recv_timeout` frame loop
+like the live output worker, at 144 fps, woke about 1 ms late (p99 1.7 ms) at
+default or user-interactive QoS. Under background throttling, which App Nap
+applies to apps that are hidden and silent, it woke 50 to 100 ms late and missed
+93% of frames, whatever the thread's QoS. `Info.plist` therefore sets
+`NSAppSleepDisabled`; the Preview host runs from the same bundle executable.
+
 ## ESP32 memory placement
 
 The ESP32 runs code from flash through a small cache, so hot code lives in

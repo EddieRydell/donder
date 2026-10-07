@@ -1,93 +1,18 @@
 use crate::common;
 
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{check_project_with_overrides, project_source_texts};
+use camino::Utf8PathBuf;
+use donder_language::data::tree::{DataField, DataValue, Spanned};
+use donder_project_io::{
+    PROJECT_ROOT_FILE, SourceDocumentFormat, check_project_with_overrides, project_source_texts,
+    source_document_format,
+};
 use std::collections::BTreeSet;
-use yaml_serde::Value;
-
-#[derive(Clone, Debug)]
-enum Step {
-    Key(String),
-    Index(usize),
-}
-
-fn at<'a>(mut value: &'a mut Value, steps: &[Step]) -> &'a mut Value {
-    for step in steps {
-        value = match step {
-            Step::Key(key) => value
-                .as_mapping_mut()
-                .unwrap()
-                .get_mut(Value::String(key.clone()))
-                .unwrap(),
-            Step::Index(index) => &mut value.as_sequence_mut().unwrap()[*index],
-        };
-    }
-    value
-}
-
-// Exercise real authored shapes recursively. Sample one mapping per parser
-// (context, type, and keys), so repeated objects do not repeat the same check.
-fn mapping_paths(
-    value: &Value,
-    path: &mut Vec<Step>,
-    seen: &mut BTreeSet<String>,
-    output: &mut Vec<Vec<Step>>,
-) {
-    match value {
-        Value::Mapping(map) => {
-            // Top-level objects and parameter values are keyed by authored
-            // names; their `type` field selects the parser, not the name.
-            let context = match path.as_slice() {
-                [_] => Some("<object>"),
-                [.., Step::Key(container), Step::Key(_)] if container == "params" => {
-                    Some("params.*")
-                }
-                _ => path.iter().rev().find_map(|step| match step {
-                    Step::Key(key) => Some(key.as_str()),
-                    _ => None,
-                }),
-            };
-            // Both name-keyed containers are skipped; their values are still
-            // visited and tested below.
-            if !path.is_empty() && context != Some("params") {
-                let keys = map
-                    .keys()
-                    .map(|key| key.as_str().unwrap())
-                    .collect::<BTreeSet<_>>();
-                let kind = map
-                    .get(Value::String("type".into()))
-                    .and_then(Value::as_str);
-                if seen.insert(format!("{context:?}:{kind:?}:{keys:?}")) {
-                    output.push(path.clone());
-                }
-            }
-            for (key, child) in map {
-                path.push(Step::Key(key.as_str().unwrap().to_owned()));
-                mapping_paths(child, path, seen, output);
-                path.pop();
-            }
-        }
-        Value::Sequence(items) => {
-            for (index, child) in items.iter().enumerate() {
-                path.push(Step::Index(index));
-                mapping_paths(child, path, seen, output);
-                path.pop();
-            }
-        }
-        _ => {}
-    }
-}
 
 #[test]
 fn operator_names_require_project_definitions_and_explicit_imports() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("examples/starter");
+    let root = common::starter_root();
     let original = project_source_texts(&root).unwrap();
-    let path = Utf8PathBuf::from("sequences/layer_test.sequence.donder");
+    let path = Utf8PathBuf::from("sequences/layer_test.data.donder");
     let source = &original[&path];
     assert!(source.contains("operator: operators.TimeWarp"));
     // Every operator name goes through the same reference resolution.
@@ -102,184 +27,241 @@ fn operator_names_require_project_definitions_and_explicit_imports() {
     assert_eq!(original, project_source_texts(&root).unwrap());
 }
 
+/// The byte offset just inside the braces of one record per record type,
+/// with the type's name.
+fn record_openings(
+    fields: &Spanned<Vec<DataField>>,
+    ty: &str,
+    seen: &mut BTreeSet<String>,
+    output: &mut Vec<(String, usize)>,
+) {
+    if seen.insert(ty.to_string()) {
+        output.push((ty.to_string(), fields.span.start + 1));
+    }
+    for field in &fields.value {
+        value_openings(&field.value, seen, output);
+    }
+}
+
+fn value_openings(
+    value: &Spanned<DataValue>,
+    seen: &mut BTreeSet<String>,
+    output: &mut Vec<(String, usize)>,
+) {
+    match &value.value {
+        DataValue::Record(ty, fields) | DataValue::Named(ty, _, fields) => {
+            record_openings(fields, ty.value.as_str(), seen, output);
+        }
+        DataValue::List(items) | DataValue::Tuple(items) => {
+            for item in items {
+                value_openings(item, seen, output);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[test]
-fn every_starter_mapping_shape_rejects_extra_fields_at_the_source_location() {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join("examples/starter");
+fn every_starter_record_type_rejects_extra_fields_at_the_source_location() {
+    let root = common::starter_root();
     let original = project_source_texts(&root).unwrap();
     let mut seen = BTreeSet::new();
     let mut checked = 0;
     for (path, source) in &original {
-        if path.extension() != Some("donder")
-            || path.as_str().ends_with(".effect.donder")
-            || path.as_str().ends_with(".operator.donder")
-        {
+        if source_document_format(path) != SourceDocumentFormat::Data {
             continue;
         }
-        let value: Value = yaml_serde::from_str(source).unwrap();
-        let mut paths = Vec::new();
-        mapping_paths(&value, &mut Vec::new(), &mut seen, &mut paths);
-        for steps in paths {
-            let mut edited = value.clone();
-            at(&mut edited, &steps).as_mapping_mut().unwrap().insert(
-                Value::String("unexpected_schema_field".into()),
-                Value::String("schema_marker".into()),
+        let (document, diagnostics) = donder_language::data::parse(source);
+        assert!(diagnostics.is_empty(), "{path}: {diagnostics:?}");
+        let mut openings = Vec::new();
+        for declaration in &document.declarations {
+            record_openings(
+                &declaration.fields,
+                declaration.ty.value.as_str(),
+                &mut seen,
+                &mut openings,
             );
-            let text = yaml_serde::to_string(&edited).unwrap();
-            let (line, source_line) = text
-                .lines()
-                .enumerate()
-                .find(|(_, line)| line.contains("unexpected_schema_field:"))
-                .unwrap();
+        }
+        for (ty, offset) in openings {
+            let marker = " unexpected_schema_field: none,";
+            let text = format!("{}{marker}{}", &source[..offset], &source[offset..]);
+            let at = offset + 1;
+            let line = text[..at].matches('\n').count() as u32;
+            let character = (at - text[..at].rfind('\n').map_or(0, |index| index + 1)) as u32;
             let mut overrides = original.clone();
-            overrides.insert(path.clone(), text.clone());
+            overrides.insert(path.clone(), text);
             let report = check_project_with_overrides(&root, &overrides);
-            assert!(report.session.is_none(), "accepted {path}:{steps:?}");
+            assert!(report.session.is_none(), "accepted {path}: {ty}");
             let diagnostic = report
                 .diagnostics
                 .iter()
-                .find(|d| {
-                    d.message.contains("unknown field")
-                        && d.message.contains("unexpected_schema_field")
-                })
-                .unwrap_or_else(|| panic!("{path}:{steps:?}: {:?}", report.diagnostics));
+                .find(|d| d.message.contains("unexpected_schema_field"))
+                .unwrap_or_else(|| panic!("{path}: {ty}: {:?}", report.diagnostics));
             assert_eq!(&diagnostic.path, path);
             let range = diagnostic.range.as_ref().unwrap();
-            assert_eq!(range.start.line, line as u32);
             assert_eq!(
-                range.start.character,
-                source_line.find("schema_marker").unwrap() as u32
+                (range.start.line, range.start.character),
+                (line, character),
+                "{path}: {ty}"
             );
             checked += 1;
         }
     }
-    assert!(checked >= 53, "only exercised {checked} mapping shapes");
+    assert!(checked >= 20, "only exercised {checked} record types");
     assert_eq!(original, project_source_texts(&root).unwrap());
 }
+
+const SMALL_PROJECT: &str = r#"
+Setup setup { description: none, layout: layout, patch: patch, controllers: [] }
+
+Layout layout {
+  description: none,
+  items: [
+    Fixture {
+      name: pixel,
+      description: none,
+      definition: pixel,
+      transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+    },
+  ],
+}
+
+FixtureDefinition pixel {
+  description: none,
+  shapes: [
+    Shape {
+      name: pixel,
+      diameter: 0.01m,
+      reverse: false,
+      transform: Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) },
+      geometry: Pixel,
+    },
+  ],
+}
+
+Patch patch { description: none, routes: [] }
+
+Sequence show {
+  description: none,
+  duration: 10s,
+  frame_rate: 60,
+  audio: none,
+  marks: [],
+  layers: [Layer { name: main, description: none, color: #ffffff, enabled: true }],
+  clips: [
+    Clip {
+      name: defaults,
+      description: none,
+      layer: main,
+      start: 0s,
+      duration: 10s,
+      target: layout.pixel,
+      scope: PerFixture,
+      effect: fx.Defaults,
+      params: { level: 0.5 },
+    },
+  ],
+  graph: Graph {
+    nodes: [LayerNode { layer: main, position: (0.0, 0.0) }, OutputNode { position: (1.0, 0.0) }],
+    edges: [Edge { from: main, to: output }],
+  },
+  automation: [],
+}
+"#;
 
 fn small_project() -> (tempfile::TempDir, Utf8PathBuf) {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().to_path_buf()).unwrap();
     std::fs::write(
-        root.join("project.donder"),
-        r#"imports:
-- from: { documents: [effect.effect.donder] }
-  as: fx
-main:
-  type: project
-  setup: setup
-  sequences: [show]
-setup:
-  type: setup
-  layout: layout
-  patch: patch
-  controllers: []
-layout:
-  type: layout
-  fixtures:
-  - id: 1
-    name: Pixel
-    type: fixture
-    definition: pixel
-pixel:
-  type: fixture
-  elements: [{ id: 1, name: Pixel, reverse: false, shape: {type: pixel}, diameter: 0.01 }]
-patch:
-  type: patch
-  routes: []
-show:
-  type: sequence
-  duration: 10s
-  frame_rate: 60
-  layers: [{ id: 0, name: Main, color: '#ffffff', enabled: true }]
-  effects:
-  - id: 1
-    layer_id: 0
-    start: 0s
-    duration: 10s
-    target: { layout: layout, fixture: 1 }
-    scope: per_fixture
-    effect: fx.Defaults
-    params: { level: { type: float, value: 0.5 } }
-  composition_graph:
-    nodes:
-    - { id: 1, type: layer, layer_id: 0, position: { x: 0, y: 0 } }
-    - { id: 2, type: output, position: { x: 1, y: 0 } }
-    edges: [{ from: 1, from_port: output, to: 2, to_port: input }]
-  automation_clips: []
-"#,
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document(
+            "import fx from <effect.donder>;\n",
+            "  setup: setup,\n  sequences: [show],\n",
+        ) + SMALL_PROJECT,
     )
     .unwrap();
-    std::fs::write(root.join("effect.effect.donder"), "effect Defaults { param level: float in 0.0..1.0 = 0.5; sample { rgb(level, level, level) } }").unwrap();
-    common::write_workspace_metadata(&root);
+    std::fs::write(
+        root.join("effect.donder"),
+        "effect Defaults { param level: float in 0.0..1.0 = 0.5; param tint: color = #ffffff; sample { rgb(level, level, level) } }",
+    )
+    .unwrap();
     common::load_project(&root);
     (temporary, root)
 }
 
-#[test]
-fn misspelled_optional_params_cannot_load_as_defaults_or_be_saved() {
+/// Every edit of the small project's root document is rejected with a
+/// diagnostic containing `expected`.
+fn assert_rejected(edits: &[(&str, &str, &str)]) {
     let (_temp, root) = small_project();
     let original = project_source_texts(&root).unwrap();
-    let path = Utf8PathBuf::from("project.donder");
-    let mut overrides = original.clone();
-    overrides.insert(
-        path.clone(),
-        original[&path].replace("    params:", "    param:"),
-    );
-    let report = check_project_with_overrides(&root, &overrides);
-    assert!(report.session.is_none());
-    assert!(
-        report.diagnostics.iter().any(|d| d.message
-            == "effect instance has an unknown field `param`"
-            && d.range.is_some()),
-        "{:?}",
-        report.diagnostics
-    );
+    let path = Utf8PathBuf::from(PROJECT_ROOT_FILE);
+    for (before, after, expected) in edits {
+        assert!(original[&path].contains(before), "{before}");
+        let mut overrides = original.clone();
+        overrides.insert(path.clone(), original[&path].replace(before, after));
+        let report = check_project_with_overrides(&root, &overrides);
+        assert!(report.session.is_none(), "{after}");
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(expected) && d.range.is_some()),
+            "{after}: {:?}",
+            report.diagnostics
+        );
+    }
     assert_eq!(original, project_source_texts(&root).unwrap());
-    // Omission is still legitimate, and the authored default is preserved.
-    overrides.insert(
-        path.clone(),
-        original[&path].replace("    params: { level: { type: float, value: 0.5 } }\n", ""),
-    );
+}
+
+#[test]
+fn misspelled_params_cannot_load_as_defaults() {
+    assert_rejected(&[
+        ("params: { level: 0.5 }", "param: { level: 0.5 }", "param"),
+        ("params: { level: 0.5 }", "params: { levle: 0.5 }", "levle"),
+    ]);
+    // Leaving every parameter to its default is written as `{}`.
+    let (_temp, root) = small_project();
+    let mut overrides = project_source_texts(&root).unwrap();
+    let path = Utf8PathBuf::from(PROJECT_ROOT_FILE);
+    let text = overrides[&path].replace("params: { level: 0.5 }", "params: {}");
+    overrides.insert(path, text);
     let report = check_project_with_overrides(&root, &overrides);
     assert!(report.session.is_some(), "{:?}", report.diagnostics);
 }
 
 #[test]
-fn graph_variants_and_non_string_keys_cannot_be_silently_discarded() {
-    let (_temp, root) = small_project();
-    let original = project_source_texts(&root).unwrap();
-    let path = Utf8PathBuf::from("project.donder");
-    for (before, after, expected) in [
+fn parameter_values_are_typed_by_their_definitions() {
+    assert_rejected(&[
+        ("level: 0.5", "level: 1", "a float"),
+        ("level: 0.5", "level: #ffffff", "a float"),
+        ("level: 0.5", "level: [0.5]", "a float"),
+        ("level: 0.5", "level: 0.5, tint: 0.5", "a color"),
+        ("level: 0.5", "level: 0.5, level: 0.4", "once each"),
         (
-            "type: output, position:",
-            "type: output, params: {}, position:",
-            "graph node has an unknown field `params`",
+            "level: 0.5",
+            "tint: #000000, level: 0.5",
+            "definition's order",
+        ),
+    ]);
+}
+
+#[test]
+fn graph_variants_cannot_carry_other_variants_fields() {
+    assert_rejected(&[
+        (
+            "OutputNode { position: (1.0, 0.0) }",
+            "OutputNode { params: {}, position: (1.0, 0.0) }",
+            "params",
         ),
         (
-            "type: layer, layer_id:",
-            "type: layer, operator: blend, layer_id:",
-            "graph node has an unknown field `operator`",
+            "LayerNode { layer: main,",
+            "LayerNode { operator: blend, layer: main,",
+            "operator",
         ),
         (
-            "frame_rate: 60",
-            "frame_rate: 60\n  42: ignored",
-            "sequence keys must be strings",
+            "edges: [Edge { from: main, to: output }]",
+            "edges: [Edge { from: main, to: output.input }]",
+            "output",
         ),
-    ] {
-        assert!(original[&path].contains(before));
-        let mut overrides = original.clone();
-        overrides.insert(path.clone(), original[&path].replace(before, after));
-        let report = check_project_with_overrides(&root, &overrides);
-        assert!(report.session.is_none());
-        assert!(
-            report.diagnostics.iter().any(|d| d.message == expected),
-            "{:?}",
-            report.diagnostics
-        );
-    }
+    ]);
 }

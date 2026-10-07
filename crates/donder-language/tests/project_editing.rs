@@ -23,18 +23,22 @@ fn identity(document: &str, object: &str) -> SourceIdentity {
 }
 
 fn data() -> ProjectData {
-    let source = identity("project.donder", "project");
+    let source = identity("project.data.donder", "project");
     let setup = ObjectIdentity::from(source.clone()).owned(OwnedObjectSlot::Setup);
     ProjectData {
         root: ProjectRoot {
+            description: None,
             id: ProjectId(source),
             setup: ValueSource::Inline(Box::new(Setup {
+                description: None,
                 id: SetupId(setup.clone()),
                 layout: ValueSource::Inline(Box::new(Layout {
+                    description: None,
                     id: LayoutId(setup.owned(OwnedObjectSlot::Layout)),
                     fixtures: vec![],
                 })),
                 patch: ValueSource::Inline(Box::new(Patch {
+                    description: None,
                     id: PatchId(setup.owned(OwnedObjectSlot::Patch)),
                     routes: vec![],
                 })),
@@ -66,9 +70,10 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
 
     let fixture_id = FixtureDefinitionId(identity("fixture.donder", "fixture"));
     let mut fixture = FixtureDefinition {
+        description: None,
         elements: vec![FixtureElement {
             id: FixtureElementId(1),
-            name: "pixel".into(),
+            name: donder_language::names::object_name("pixel"),
             transform: FixtureTransform::default(),
             diameter: DistanceSpan::from_meters(0.01),
             reverse: false,
@@ -88,8 +93,9 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     };
     let layout_id = layout.id.clone();
     layout.fixtures.push(LayoutFixture {
+        description: None,
         id: FixtureInstanceId(1),
-        name: "fixture".into(),
+        name: donder_language::names::object_name("fixture"),
         kind: LayoutFixtureKind::Fixture {
             definition: ValueSource::Reference(fixture_id.clone()),
             transform: FixtureTransform::default(),
@@ -130,7 +136,7 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
     let accepted = project.clone();
     let current = accepted.playback_geometry(&layout_id).unwrap();
     let mut layout = project.layout(&layout_id).unwrap().clone();
-    layout.fixtures[0].name = "renamed fixture".into();
+    layout.fixtures[0].name = donder_language::names::object_name("renamed fixture");
     project.replace_layout(&layout_id, layout).unwrap();
     assert!(!std::ptr::eq(
         current,
@@ -204,6 +210,7 @@ fn related_replacements_commit_together_and_do_not_change_prior_snapshots() {
     let mut project = DonderProject::try_new(data()).unwrap();
     let before = project.clone();
     let named_layout = Layout {
+        description: None,
         id: LayoutId(identity("layout.donder", "layout").into()),
         fixtures: vec![],
     };
@@ -244,6 +251,7 @@ fn a_failed_later_batch_request_rolls_back_earlier_changes() {
     let mut project = DonderProject::try_new(data()).unwrap();
     let before = project.clone();
     let layout = Layout {
+        description: None,
         id: LayoutId(identity("layout.donder", "layout").into()),
         fixtures: vec![],
     };

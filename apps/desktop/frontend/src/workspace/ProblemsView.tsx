@@ -1,5 +1,7 @@
 import { AlertTriangle, CircleX } from "lucide-react";
 import { useMemo } from "react";
+import { commands } from "../api";
+import { runSnapshotCommand } from "../store";
 import { THEME_METRICS } from "../theme";
 import type { AppSnapshot } from "../types";
 import type { AppStaticSnapshot } from "../store";
@@ -67,6 +69,19 @@ export function ProblemsView({ snapshot }: { snapshot: AppStaticSnapshot }) {
                       </small>
                     </span>
                   </button>
+                  {diagnostic.inclusion !== null && (
+                    <button
+                      type="button"
+                      className="problem-fix"
+                      onClick={() => {
+                        const inclusion = diagnostic.inclusion;
+                        if (inclusion === null) return;
+                        void runSnapshotCommand(() => commands.includeDocument(snapshot.projectEpoch, inclusion));
+                      }}
+                    >
+                      Import from the project root
+                    </button>
+                  )}
                   {diagnostic.related.map((related, relatedIndex) => (
                     <button
                       type="button"

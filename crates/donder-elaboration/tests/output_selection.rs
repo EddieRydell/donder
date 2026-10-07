@@ -352,8 +352,15 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
     let mut sequence = project.sequence(&id).unwrap().clone();
     sequence.automation_clips.clear();
     // Effects target the second port; the first must still receive inverted black.
+    let second = project
+        .layout(&sequence.effects[0].target.layout)
+        .unwrap()
+        .iter_fixtures()
+        .find(|fixture| fixture.name.as_str() == "output_02")
+        .unwrap()
+        .id;
     for effect in &mut sequence.effects {
-        effect.target.fixture = FixtureInstanceId(2);
+        effect.target.fixture = second;
     }
     let output = sequence
         .composition_graph
@@ -394,6 +401,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         id: CompositionGraphNodeId(10000),
         position: GraphNodePosition { x: 0.0, y: 0.0 },
         kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
+            name: donder_language::names::object_name("operator"),
             operator: invert,
             params: Default::default(),
         }),

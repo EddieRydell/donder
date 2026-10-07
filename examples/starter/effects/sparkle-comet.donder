@@ -1,0 +1,35 @@
+effect SparkleComet {
+  param gradient: gradient;
+  param position: curve in 0.0..1.0;
+  param intensity: curve in 0.0..1.0;
+  param color_mode: enum { GradientTail, BrightHead, RainbowHue } = GradientTail;
+  param head_color: color = #ffffff;
+  param reverse: bool = false;
+  param wrap: bool = false;
+  param tail_width: float in 0.001..1.0 = 0.18;
+  param head_width: float in 0.001..1.0 = 0.035;
+  param sparkle_density: float in 0.0..1.0 = 0.35;
+  param sparkle_speed: float in 0.01..100.0 = 14.0;
+  param sparkle_gain: float in 0.0..1.0 = 0.75;
+  param seed: float in 0.0..1000.0 = 0.0;
+
+  sample {
+    let fraction = if reverse { 1.0 - pixel.fraction } else { pixel.fraction };
+    let distance = abs(fraction - position[progress]);
+    let distance = if wrap { min(distance, 1.0 - distance) } else { distance };
+    let trail = 1.0 - smoothstep(0.0, tail_width, distance);
+    let core = 1.0 - smoothstep(0.0, head_width, distance);
+    let bucket = floor(time * sparkle_speed + pixel.index * 0.13);
+    let sparkle =
+      if rand(seed + pixel.index * 19.0 + bucket * 47.0) < sparkle_density {
+        (sin(time * sparkle_speed * TAU + pixel.index) + 1.0) * 0.5
+      } else { 0.0 };
+    let level = max(max(trail, core), sparkle * trail * sparkle_gain) * intensity[progress];
+    let value = gradient[1.0 - distance / tail_width];
+    let value =
+      if color_mode == BrightHead { mix(value, head_color, core) }
+      else if color_mode == RainbowHue { hsv(fraction * 6.0 + progress * 6.0, 1.0, 1.0) }
+      else { value };
+    mix(#000000, value, level)
+  }
+}

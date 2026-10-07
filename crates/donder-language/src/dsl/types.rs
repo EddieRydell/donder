@@ -5,7 +5,18 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    Ord,
+    PartialOrd,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
 pub struct Identifier(Arc<str>);
 
 impl Identifier {

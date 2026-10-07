@@ -13,6 +13,7 @@ use crate::dto::{
 };
 
 mod controller;
+mod description;
 mod dispatch;
 mod document;
 mod edit;

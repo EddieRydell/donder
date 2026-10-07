@@ -21,8 +21,8 @@ pub fn apply_window_state<R: Runtime>(window: &Window<R>, state: &PersistedWindo
     if !state_is_visible_on_monitor(window, state) {
         return;
     }
-    use tauri::{LogicalSize, PhysicalPosition};
-    let _ = window.set_size(LogicalSize::new(state.width as f32, state.height as f32));
+    use tauri::{PhysicalPosition, PhysicalSize};
+    let _ = window.set_size(PhysicalSize::new(state.width, state.height));
     let _ = window.set_position(PhysicalPosition::new(state.x, state.y));
     if state.maximized {
         let _ = window.maximize();

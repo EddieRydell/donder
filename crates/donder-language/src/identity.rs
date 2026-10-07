@@ -60,15 +60,16 @@ impl SourceIdentity {
     }
 }
 
-/// A stable ownership slot. Collection members use authored local IDs, never
-/// list positions, so reordering does not change addresses.
+/// A stable ownership slot. Collection members use their names or authored
+/// local IDs, never list positions, so reordering does not change addresses.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum OwnedObjectSlot {
     Setup,
     Layout,
     Patch,
-    Controller(u32),
-    Sequence(u32),
+    /// An owned controller or sequence is named like a declaration.
+    Controller(crate::dsl::Identifier),
+    Sequence(crate::dsl::Identifier),
     Fixture(u32),
 }
 

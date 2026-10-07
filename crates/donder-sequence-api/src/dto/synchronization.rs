@@ -23,6 +23,24 @@ pub struct DocumentUpdate {
     pub text: String,
 }
 
+/// Language-server edits to one document, which may not be open: a rename
+/// that reaches other files.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentTextEdits {
+    /// The document's `file:` URI.
+    pub uri: String,
+    pub edits: Vec<DocumentTextEdit>,
+}
+
+/// A range replaced with text; positions count UTF-16 code units.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentTextEdit {
+    pub range: TextRange,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GuiDocumentResult {

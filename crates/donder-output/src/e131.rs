@@ -210,6 +210,7 @@ mod tests {
             },
         };
         let port = ControllerPort {
+            name: donder_language::names::object_name("port"),
             id: ControllerPortId(1),
             address: ControllerPortAddress::E131Universe(42),
             slot_count: 3,

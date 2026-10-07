@@ -473,3 +473,21 @@ mod library_array_acceptance;
 
 #[cfg(test)]
 mod sequence_rows_acceptance;
+
+/// `absolute`'s path inside the project `root`, however a client spelled it:
+/// `\` or `/`, a verbatim prefix, or a lowercase drive letter.
+fn project_relative(root: &Utf8Path, absolute: &Utf8Path) -> Option<Utf8PathBuf> {
+    fn normalized(path: &Utf8Path) -> String {
+        let text = path.as_str().replace('\\', "/");
+        let text = text.strip_prefix("//?/").unwrap_or(&text).to_string();
+        let mut characters = text.chars();
+        match (characters.next(), characters.next()) {
+            (Some(drive), Some(':')) => format!("{}{}", drive.to_ascii_lowercase(), &text[1..]),
+            _ => text,
+        }
+    }
+    let root = normalized(root);
+    let absolute = normalized(absolute);
+    let relative = absolute.strip_prefix(&root)?.strip_prefix('/')?;
+    Some(Utf8PathBuf::from(relative))
+}

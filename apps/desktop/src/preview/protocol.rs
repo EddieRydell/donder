@@ -82,6 +82,7 @@ pub(crate) enum PreviewEvent {
     Ready,
     GeometryChanged { window: PreviewWindowState },
     Closed { window: PreviewWindowState },
+    QuitRequested,
     Error { message: String },
 }
 

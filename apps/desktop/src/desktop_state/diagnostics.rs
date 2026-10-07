@@ -1,5 +1,7 @@
-use crate::dto::{DiagnosticSeverity, ProjectDiagnostic, RelatedDiagnosticLocation};
-use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, ProjectCheckReport};
+use crate::dto::{
+    DiagnosticSeverity, DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation,
+};
+use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, IoFix, ProjectCheckReport};
 
 pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic {
     ProjectDiagnostic {
@@ -42,6 +44,18 @@ pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic
                 message: related.message.clone(),
             })
             .collect(),
+        inclusion: match &diagnostic.fix {
+            Some(IoFix::Include(inclusion)) => Some(DocumentInclusion {
+                document: inclusion.document.to_string(),
+                alias: inclusion.alias.as_str().to_string(),
+                sequences: inclusion
+                    .sequences
+                    .iter()
+                    .map(|sequence| sequence.as_str().to_string())
+                    .collect(),
+            }),
+            Some(IoFix::Replace(_)) | None => None,
+        },
     }
 }
 

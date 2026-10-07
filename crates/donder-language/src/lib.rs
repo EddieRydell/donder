@@ -19,9 +19,13 @@ pub use alloc::rc::Rc as Shared;
 #[cfg(feature = "atomic")]
 pub use alloc::sync::Arc as Shared;
 
+#[cfg(feature = "host")]
+pub mod analysis;
 pub mod automation;
 #[cfg(feature = "host")]
 pub mod controller;
+#[cfg(feature = "host")]
+pub mod data;
 pub mod dsl;
 #[cfg(feature = "host")]
 pub mod effect;
@@ -34,6 +38,8 @@ pub mod geometry;
 pub mod identity;
 #[cfg(feature = "host")]
 pub mod imports;
+#[cfg(feature = "host")]
+pub mod names;
 #[cfg(feature = "host")]
 pub use imports::{
     ImportAlias, ImportDeclaration, ImportSource, SourceReference, is_valid_import_alias,

@@ -1,4 +1,5 @@
 import { useState, type DragEvent } from "react";
+import { isSecondaryClick } from "../../../platform";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { commands } from "../../../api";
 import { runGuiEditCommand } from "../../../store";
@@ -93,7 +94,7 @@ function LayoutTreeItem({ item, parent, next, pixels, selected, onSelect, contro
       onDragStart={(event) => { controls.start(item, event); }} onDragEnd={controls.end}
       onDragOver={(event) => { const target = location(event); if (controls.over(target, event) && target.position === "inside") setOpen(true); }}
       onDrop={(event) => { controls.drop(location(event), event); }}
-      onClick={(event) => { if (!isGroup || event.shiftKey || event.ctrlKey || event.metaKey) event.preventDefault(); onSelect(item.id, event.shiftKey || event.ctrlKey || event.metaKey); }}>
+      onClick={(event) => { if (isSecondaryClick(event)) { event.preventDefault(); return; } if (!isGroup || event.shiftKey || event.ctrlKey || event.metaKey) event.preventDefault(); onSelect(item.id, event.shiftKey || event.ctrlKey || event.metaKey); }}>
       <span className="composition-tree-icon" aria-hidden="true">{isGroup
         ? open ? <ChevronDown size={THEME_METRICS.iconSizeExtraSmall} /> : <ChevronRight size={THEME_METRICS.iconSizeExtraSmall} />
         : null}</span>

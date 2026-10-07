@@ -52,7 +52,7 @@ fn temporal_frame_caches_and_fusion_match_uncached_sampling_through_nested_opera
         mark_workload::mark_show(200, false),
     ];
     let operators = compile_operators(include_str!(
-        "../../../examples/starter/operators/standard.operator.donder"
+        "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
     let compiled = |name| {

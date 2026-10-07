@@ -17,6 +17,7 @@ pub(super) fn project_curve(session: &ProjectSession, resolved: &ResolvedGuiObje
     };
     GuiDocument::Curve {
         document: CurveGuiDocument {
+            description: definition.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
             points: model::curve_points(&definition.curve),
@@ -38,6 +39,7 @@ pub(super) fn project_gradient(
     };
     GuiDocument::Gradient {
         document: GradientGuiDocument {
+            description: definition.description.clone(),
             path: resolved.identity.document().to_string(),
             object_key: resolved.identity.object().to_string(),
             stops: model::gradient_stops(&definition.gradient),

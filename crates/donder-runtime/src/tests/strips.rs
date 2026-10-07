@@ -332,7 +332,7 @@ fn starter_sources(directory: &str, extension: &str) -> Vec<String> {
 }
 
 fn starter_effects() -> Vec<CompiledEffect> {
-    let effects: Vec<_> = starter_sources("effects", ".effect.donder")
+    let effects: Vec<_> = starter_sources("effects", ".donder")
         .iter()
         .flat_map(|source| compile_effects(source).unwrap())
         .collect();
@@ -1041,7 +1041,7 @@ impl StripSignals for Run {
 /// per-pixel branches and inside reductions with per-pixel bounds.
 #[test]
 fn operator_samples_in_strips_match_lone_pixels() {
-    let mut sources = starter_sources("operators", ".operator.donder");
+    let mut sources = starter_sources("operators", ".donder");
     sources.push(
         "operator Smear { input source; sample { source.at(time - pixel.fraction * 0.5) } }
         operator Shift { input source; sample {

@@ -46,6 +46,7 @@ use wasm_bindgen::prelude::*;
 
 mod audio;
 mod editing;
+mod language_server;
 mod page_layout;
 mod rasters;
 mod sources;
@@ -120,18 +121,20 @@ impl BrowserSession {
             .map_err(|error| JsValue::from_str(&format!("Invalid session config: {error}")))?;
         validate_session_values(config.frame_rate, config.duration_seconds)?;
         page_layout::validate_page(&config.page)?;
-        let document = DocumentId::new(BROWSER_PROJECT_MODULE, "browser-demo.donder".into());
+        let document = DocumentId::new(BROWSER_PROJECT_MODULE, "browser-demo.data.donder".into());
         let project_source = SourceIdentity::from_document(document, "demo".into());
         let project_object = ObjectIdentity::from(project_source.clone());
         let setup_object = project_object.owned(OwnedObjectSlot::Setup);
         let layout_id = LayoutId(setup_object.owned(OwnedObjectSlot::Layout));
         let setup = Setup {
+            description: None,
             id: SetupId(setup_object.clone()),
             layout: ValueSource::Inline(Box::new(page_layout::page_layout(
                 layout_id.clone(),
                 &config.page,
             ))),
             patch: ValueSource::Inline(Box::new(Patch {
+                description: None,
                 id: PatchId(setup_object.owned(OwnedObjectSlot::Patch)),
                 routes: Vec::new(),
             })),
@@ -141,6 +144,7 @@ impl BrowserSession {
         };
         let data = ProjectData {
             root: ProjectRoot {
+                description: None,
                 id: ProjectId(project_source.clone()),
                 setup: ValueSource::Inline(Box::new(setup)),
                 sequences: Vec::new(),
@@ -274,9 +278,9 @@ fn set_mark_collections(
         .map(|collection| {
             Ok(donder_language::sequence::MarkCollection {
                 key: donder_language::sequence::MarkCollectionKey {
-                    name: collection.key.clone(),
+                    name: donder_language::names::object_name(&collection.key),
                 },
-                name: collection.name.clone(),
+                description: None,
                 display_color: Color::from_hex(&collection.color).ok_or_else(|| {
                     JsValue::from_str(&format!(
                         "Mark color {} is not a hex color.",
