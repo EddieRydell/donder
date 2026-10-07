@@ -197,7 +197,7 @@ impl Analysis<'_> {
             Unary::Smoothstep | Unary::Rand | Unary::Saturation | Unary::Intensity => {
                 Interval::new(0.0, 1.0, value.nan || op == Unary::Smoothstep)
             }
-            Unary::Hue => Interval::new(0.0, 1.0, false),
+            Unary::Hue | Unary::Red | Unary::Green | Unary::Blue => Interval::new(0.0, 1.0, false),
             Unary::Sin | Unary::Cos => Interval::new(-1.0, 1.0, true),
             _ => Interval::ANY,
         }
@@ -210,12 +210,12 @@ impl Analysis<'_> {
             Binary::Subtract | Binary::IntSubtract => left.corners(right, |a, b| a - b),
             Binary::Multiply | Binary::IntMultiply => left.corners(right, |a, b| a * b),
             Binary::Divide if right.excludes_zero() => left.corners(right, |a, b| a / b),
-            Binary::Min => Interval::new(
+            Binary::Min | Binary::IntMin => Interval::new(
                 left.min.min(right.min),
                 left.max.min(right.max),
                 left.nan || right.nan,
             ),
-            Binary::Max => Interval::new(
+            Binary::Max | Binary::IntMax => Interval::new(
                 left.min.max(right.min),
                 left.max.max(right.max),
                 left.nan || right.nan,

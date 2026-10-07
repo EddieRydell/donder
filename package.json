@@ -12,6 +12,7 @@
   "scripts": {
     "firmware:build": "node firmware/esp32/firmware.mjs build",
     "firmware:cargo": "node firmware/esp32/firmware.mjs cargo",
+    "generate:builtins": "cargo run -p donder-cli -- builtins docs/effect_builtins.md",
     "generate:bindings": "pnpm --dir apps/desktop bindings && cargo run -p donder-sequence-api --bin export_typescript",
     "typecheck": "pnpm generate:bindings && pnpm --dir apps/desktop/frontend typecheck",
     "lint": "pnpm --dir apps/desktop/frontend lint",

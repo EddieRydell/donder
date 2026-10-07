@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@codemirror/commands": "catalog:",
-    "@codemirror/lang-cpp": "catalog:",
     "@codemirror/lang-yaml": "catalog:",
     "@codemirror/language": "catalog:",
     "@codemirror/lint": "catalog:",

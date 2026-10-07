@@ -15,6 +15,33 @@ pub fn clamp_float(value: f32, min: f32, max: f32) -> f32 {
 /// Floored remainder: a nonzero result takes the divisor's sign. Remainder by
 /// zero and `i32::MIN % -1` are zero.
 #[inline(always)]
+pub fn int_binary(op: crate::dsl::bytecode::IntBinary, left: i32, right: i32) -> i32 {
+    use crate::dsl::bytecode::IntBinary;
+    match op {
+        IntBinary::Add => left.wrapping_add(right),
+        IntBinary::Subtract => left.wrapping_sub(right),
+        IntBinary::Multiply => left.wrapping_mul(right),
+        IntBinary::Remainder => int_remainder(left, right),
+        IntBinary::FloorDivide => int_floor_divide(left, right),
+        IntBinary::Min => left.min(right),
+        IntBinary::Max => left.max(right),
+    }
+}
+
+/// Floored quotient, consistent with [`int_remainder`]: `value == quotient *
+/// divisor + remainder`. Division by zero is zero and `i32::MIN // -1` wraps.
+pub fn int_floor_divide(value: i32, divisor: i32) -> i32 {
+    if divisor == 0 {
+        return 0;
+    }
+    let quotient = value.wrapping_div(divisor);
+    if value.wrapping_rem(divisor) != 0 && (value < 0) != (divisor < 0) {
+        quotient - 1
+    } else {
+        quotient
+    }
+}
+
 pub fn int_remainder(value: i32, divisor: i32) -> i32 {
     let remainder = value.checked_rem(divisor).unwrap_or(0);
     if remainder != 0 && (remainder < 0) != (divisor < 0) {
@@ -429,6 +456,9 @@ pub fn float_unary(op: crate::dsl::bytecode::FloatUnary, value: f32) -> f32 {
         FloatUnary::Rand => deterministic_random_seed(value),
         FloatUnary::Sin => math(micromath::F32Ext::sin),
         FloatUnary::Cos => math(micromath::F32Ext::cos),
+        FloatUnary::Tan => math(tan),
+        FloatUnary::Exp => math(exp),
+        FloatUnary::Log => math(log),
         FloatUnary::Abs => math(f32::abs),
         FloatUnary::Floor => math(libm::floorf),
         FloatUnary::Ceil => math(libm::ceilf),
@@ -457,7 +487,36 @@ pub fn float_binary(op: crate::dsl::bytecode::FloatBinary, left: f32, right: f32
         FloatBinary::Min => left.min(right),
         FloatBinary::Max => left.max(right),
         FloatBinary::Atan2 => libm::atan2f(left, right),
+        FloatBinary::Power => power(left, right),
     }
+}
+
+// Large math routines stay out of line, so firmware keeps them in flash
+// rather than copying them into every caller in instruction RAM.
+#[inline(never)]
+fn tan(value: f32) -> f32 {
+    libm::tanf(value)
+}
+
+#[inline(never)]
+fn exp(value: f32) -> f32 {
+    libm::expf(value)
+}
+
+#[inline(never)]
+fn log(value: f32) -> f32 {
+    libm::logf(value)
+}
+
+#[inline(never)]
+fn power(base: f32, exponent: f32) -> f32 {
+    libm::powf(base, exponent)
+}
+
+/// One 8-bit channel as a fraction of full brightness.
+#[inline(always)]
+pub fn color_channel(channel: u8) -> f32 {
+    f32::from(channel) * (1.0 / 255.0)
 }
 
 /// Clamped cubic interpolation of an already normalized position.

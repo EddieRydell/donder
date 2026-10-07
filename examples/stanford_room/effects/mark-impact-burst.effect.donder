@@ -18,7 +18,7 @@ effect MarkImpactBurst {
     let mark = mark_last_index(beats, time - offset_seconds);
     let hit_time = mark_at(beats, mark);
     let age = time - hit_time - offset_seconds;
-    // Before the first mark the hit time is NaN, which renders black.
+    -- Before the first mark the hit time is NaN, which renders black.
     guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= burst_seconds);
     let child_progress = age / burst_seconds;
     let selected_gradient = gradients[mark % len(gradients)];

@@ -258,6 +258,10 @@ pub enum FloatUnary {
     Negate,
     Sin,
     Cos,
+    Tan,
+    Exp,
+    /// Natural logarithm.
+    Log,
     Abs,
     Floor,
     Ceil,
@@ -284,6 +288,8 @@ pub enum FloatBinary {
     ValueOr,
     /// Angle in radians: left is y, right is x.
     Atan2,
+    /// Left raised to the right.
+    Power,
 }
 
 #[derive(
@@ -294,6 +300,10 @@ pub enum IntBinary {
     Subtract,
     Multiply,
     Remainder,
+    /// Floored quotient; division by zero is zero.
+    FloorDivide,
+    Min,
+    Max,
 }
 
 #[derive(
@@ -322,6 +332,9 @@ pub enum ColorComponent {
     Hue,
     Saturation,
     Intensity,
+    Red,
+    Green,
+    Blue,
 }
 
 #[derive(

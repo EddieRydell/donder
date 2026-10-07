@@ -146,6 +146,10 @@ pub(crate) enum Unary {
     Not,
     Sin,
     Cos,
+    Tan,
+    Exp,
+    /// Natural logarithm; NaN below zero.
+    Log,
     Abs,
     Floor,
     Ceil,
@@ -160,6 +164,9 @@ pub(crate) enum Unary {
     Hue,
     Saturation,
     Intensity,
+    Red,
+    Green,
+    Blue,
     Invert,
     Len,
     MarkCount,
@@ -183,6 +190,10 @@ pub(crate) enum Binary {
     IntSubtract,
     IntMultiply,
     IntRemainder,
+    /// Floored quotient; division by zero is zero.
+    IntFloorDivide,
+    IntMin,
+    IntMax,
     Min,
     Max,
     ValueOr,
@@ -213,6 +224,8 @@ pub(crate) enum Binary {
     SectionPosition,
     /// A float multiplied by itself an integer number of times.
     Power,
+    /// A float raised to a float exponent.
+    PowerFloat,
 }
 
 impl Binary {
@@ -223,6 +236,8 @@ impl Binary {
                 | Self::Multiply
                 | Self::IntAdd
                 | Self::IntMultiply
+                | Self::IntMin
+                | Self::IntMax
                 | Self::Min
                 | Self::Max
                 | Self::Equal
@@ -639,6 +654,9 @@ fn unary_type(op: Unary) -> Type {
         Unary::Negate
         | Unary::Sin
         | Unary::Cos
+        | Unary::Tan
+        | Unary::Exp
+        | Unary::Log
         | Unary::Abs
         | Unary::Floor
         | Unary::Ceil
@@ -649,6 +667,9 @@ fn unary_type(op: Unary) -> Type {
         | Unary::Smoothstep
         | Unary::Rand
         | Unary::Hue
+        | Unary::Red
+        | Unary::Green
+        | Unary::Blue
         | Unary::Saturation
         | Unary::Intensity
         | Unary::QuerySeconds
@@ -672,11 +693,15 @@ fn binary_type(op: Binary, left: &Type) -> Type {
         | Binary::MarkLast
         | Binary::CurveFirstCrossing
         | Binary::SectionPosition
-        | Binary::Power => Type::Float,
+        | Binary::Power
+        | Binary::PowerFloat => Type::Float,
         Binary::IntAdd
         | Binary::IntSubtract
         | Binary::IntMultiply
         | Binary::IntRemainder
+        | Binary::IntFloorDivide
+        | Binary::IntMin
+        | Binary::IntMax
         | Binary::MarkLastIndex => Type::Int,
         Binary::Less
         | Binary::LessEqual

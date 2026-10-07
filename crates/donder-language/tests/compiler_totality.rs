@@ -312,7 +312,8 @@ fn deeply_nested_source_reports_a_diagnostic() {
     );
     let nested_unary = format!(
         "effect Probe {{ sample {{ rgb({}1, 0.0, 0.0) }} }}",
-        "-".repeat(512)
+        // Spaced, because `--` starts a comment.
+        "- ".repeat(512)
     );
     let nested_parentheses = format!(
         "effect Probe {{ sample {{ rgb({}1{}, 0.0, 0.0) }} }}",

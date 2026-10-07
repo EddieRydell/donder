@@ -291,11 +291,12 @@ impl BrowserSession {
 }
 
 /// Split a DSL source into one document per declaration, named
-/// `<Name>.effect.donder` or `<Name>.operator.donder`. Text between declarations
-/// (comments) is not part of any document.
+/// `<Name>.effect.donder` or `<Name>.operator.donder`. Every document carries
+/// the source's functions, which any declaration may call. Other text between
+/// declarations (comments) is not part of any document.
 #[wasm_bindgen(js_name = declarationSources)]
 pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
-    let declarations = donder_language::dsl::declaration_spans(source).map_err(|diagnostics| {
+    let messages = |diagnostics: Vec<donder_language::dsl::Diagnostic>| {
         JsValue::from_str(
             &diagnostics
                 .into_iter()
@@ -303,7 +304,18 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
                 .collect::<Vec<_>>()
                 .join("\n"),
         )
-    })?;
+    };
+    let declarations = donder_language::dsl::declaration_spans(source).map_err(messages)?;
+    let functions = donder_language::dsl::function_spans(source)
+        .map_err(messages)?
+        .into_iter()
+        .map(|span| {
+            source
+                .get(span.start..span.end)
+                .map(|text| format!("{text}\n\n"))
+                .ok_or_else(|| JsValue::from_str("Function span is outside its source."))
+        })
+        .collect::<Result<String, JsValue>>()?;
     let documents = declarations
         .into_iter()
         .map(|declaration| {
@@ -321,7 +333,7 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
             Ok(BrowserSourceDocument {
                 path: format!("{}.{suffix}.donder", declaration.name.as_str()),
                 kind,
-                source: format!("{text}\n"),
+                source: format!("{functions}{text}\n"),
             })
         })
         .collect::<Result<Vec<_>, JsValue>>()?;

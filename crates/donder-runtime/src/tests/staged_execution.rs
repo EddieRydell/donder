@@ -70,8 +70,8 @@ fn frame_caches_match_run_sampling_for_temporal_reductions_tails_seeks_and_neste
         "operator Temporal {
             input source;
             sample {
-                // Query-uniform sample times use frame caches; times that
-                // vary with a reduction index sample per iteration.
+                -- Query-uniform sample times use frame caches; times that
+                -- vary with a reduction index sample per iteration.
                 let base = mix(rgb(0.1, 0.2, 0.3), source.at(time - 0.04), 0.5);
                 max(base, max for i in 0..3 {
                     let t = time - i * 0.04;

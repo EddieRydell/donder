@@ -54,6 +54,8 @@ pub(crate) enum TokenKind {
     Minus,
     Star,
     Slash,
+    SlashSlash,
+    Arrow,
     Percent,
     Eof,
     Error(LexError),
@@ -63,6 +65,7 @@ pub(crate) enum TokenKind {
 pub(crate) enum Keyword {
     Effect,
     Operator,
+    Fn,
     Let,
     Guard,
     If,
@@ -77,7 +80,6 @@ pub(crate) enum Keyword {
 pub(crate) enum LexError {
     UnexpectedCharacter,
     InvalidColor,
-    UnterminatedComment,
 }
 
 pub(crate) fn lex(source: &str) -> Vec<Token> {
@@ -99,9 +101,7 @@ struct Lexer<'a> {
 
 impl Lexer<'_> {
     fn next(&mut self) -> Token {
-        if let Some(error) = self.skip_trivia() {
-            return error;
-        }
+        self.skip_trivia();
         let start = self.cursor;
         let Some(character) = self.bump() else {
             return self.token(TokenKind::Eof, start);
@@ -117,9 +117,9 @@ impl Lexer<'_> {
             ';' => TokenKind::Semicolon,
             ',' => TokenKind::Comma,
             '+' => TokenKind::Plus,
-            '-' => TokenKind::Minus,
+            '-' => self.pair('>', TokenKind::Arrow, TokenKind::Minus),
             '*' => TokenKind::Star,
-            '/' => TokenKind::Slash,
+            '/' => self.pair('/', TokenKind::SlashSlash, TokenKind::Slash),
             '%' => TokenKind::Percent,
             '<' => self.pair('=', TokenKind::LessEqual, TokenKind::Less),
             '>' => self.pair('=', TokenKind::GreaterEqual, TokenKind::Greater),
@@ -174,25 +174,14 @@ impl Lexer<'_> {
         self.token(kind, start)
     }
 
-    fn skip_trivia(&mut self) -> Option<Token> {
+    /// Skip whitespace and `--` line comments.
+    fn skip_trivia(&mut self) {
         loop {
             self.take_while(char::is_whitespace);
-            let rest = &self.source[self.cursor..];
-            if rest.starts_with("//") {
-                self.take_while(|character| character != '\n');
-            } else if rest.starts_with("/*") {
-                let start = self.cursor;
-                match rest.get(2..).and_then(|comment| comment.find("*/")) {
-                    Some(end) => self.cursor += end + 4,
-                    None => {
-                        self.cursor = self.source.len();
-                        let error = TokenKind::Error(LexError::UnterminatedComment);
-                        return Some(self.token(error, start));
-                    }
-                }
-            } else {
-                return None;
+            if !self.source[self.cursor..].starts_with("--") {
+                return;
             }
+            self.take_while(|character| character != '\n');
         }
     }
 
@@ -246,6 +235,7 @@ fn keyword(text: &str) -> Option<Keyword> {
     Some(match text {
         "effect" => Keyword::Effect,
         "operator" => Keyword::Operator,
+        "fn" => Keyword::Fn,
         "let" => Keyword::Let,
         "guard" => Keyword::Guard,
         "if" => Keyword::If,

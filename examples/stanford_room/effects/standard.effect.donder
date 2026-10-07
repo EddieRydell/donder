@@ -18,7 +18,7 @@ effect Gradient {
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
-    // Rounding can step just outside the projected span.
+    -- Rounding can step just outside the projected span.
     let position = if span > 0.000000001 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     gradient_color_scaled(gradient, position, 1.0)
   }
@@ -72,7 +72,7 @@ effect Wipe {
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
-    // Rounding can step just outside the projected span.
+    -- Rounding can step just outside the projected span.
     let position = if span > 0.000000001 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     let chase_value = if reverse { 1.0 - position } else { position };
     let travel_start = if extend_to_start { -pulse_width } else { 0.0 };
@@ -134,13 +134,13 @@ effect MarkPulse {
   param sections_per_mark: int in 1..100 = 3;
   param seed: float in 0.0..1000.0 = 0.0;
 
-  // Prepared section queries preserve fixture boundaries and short final sections.
-  // A new mark retriggers the entire selection, discarding every older pulse.
+  -- Prepared section queries preserve fixture boundaries and short final sections.
+  -- A new mark retriggers the entire selection, discarding every older pulse.
   sample {
     let hit_time = mark_last(beats, time - offset_seconds);
     let child_start = hit_time + offset_seconds;
     let age = time - child_start;
-    // Before the first mark the hit time is NaN, which renders black.
+    -- Before the first mark the hit time is NaN, which renders black.
     guard !(child_start < 0.0 || age < 0.0 || age >= decay_seconds);
     let total_sections = section_count(section_width_pixels);
     let current_section = section_index(section_width_pixels);
@@ -163,8 +163,8 @@ effect MarkChase {
   param chase_position: curve in 0.0..1.0;
   param pulse_shape: curve in 0.0..1.0;
 
-  // One arrival per mark and pixel: a new mark replaces this pulse only on arrival.
-  // All marks share the trajectory; its first crossing defines the travel delay.
+  -- One arrival per mark and pixel: a new mark replaces this pulse only on arrival.
+  -- All marks share the trajectory; its first crossing defines the travel delay.
   sample {
     let item_count = ceil(target.count / section_width_pixels);
     let item_index = floor(pixel.index / section_width_pixels);
@@ -175,7 +175,7 @@ effect MarkChase {
     let mark = mark_last_index(beats, time - offset_seconds - chase_seconds * hit);
     let hit_time = mark_at(beats, mark);
     let age = time - hit_time - offset_seconds;
-    // Before the first mark the hit time is NaN, which renders black.
+    -- Before the first mark the hit time is NaN, which renders black.
     guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= chase_seconds);
     let child_progress = age / chase_seconds;
     let selected_gradient = gradients[mark % len(gradients)];
@@ -196,17 +196,17 @@ effect MarkWipe {
   param offset_seconds: float in -1.0..1.0 = 0.0;
   param wipe_seconds: float in 0.01..10.0 = 0.5;
   param pulse_width: float in 0.01..1.0 = 0.15;
-  // Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
+  -- Curve values are turns: 0 = 0 degrees, 0.25 = 90 degrees, 1 = 360 degrees.
   param direction_angle: curve in 0.0..1.0;
   param wipe_positions: array<curve>;
   param pulse_shape: curve in 0.0..1.0;
 
-  // Direction is sampled at the mark's time.
+  -- Direction is sampled at the mark's time.
   sample {
     let mark = mark_last_index(beats, time - offset_seconds);
     let hit_time = mark_at(beats, mark);
     let age = time - hit_time - offset_seconds;
-    // Before the first mark the hit time is NaN, which renders black.
+    -- Before the first mark the hit time is NaN, which renders black.
     guard !(hit_time + offset_seconds < 0.0 || age < 0.0 || age >= wipe_seconds);
     let child_progress = age / wipe_seconds;
     let selected_gradient = gradients[mark % len(gradients)];
@@ -218,7 +218,7 @@ effect MarkWipe {
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
-    // Rounding can step just outside the projected span.
+    -- Rounding can step just outside the projected span.
     let position = if span > 0.000000001 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     let travel_end = max(0.0, 1.0 - pulse_width);
     let query_position = if travel_end > 0.0 { child_progress / travel_end } else { 1.0 };

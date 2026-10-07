@@ -7,7 +7,7 @@ use donder_project_io::{PROJECT_ROOT_FILE, ProjectMetadata};
 #[command(
     name = "donder",
     version,
-    about = "Check and copy local Donder projects"
+    about = "Check and copy local Donder projects, and generate language references"
 )]
 pub struct Cli {
     #[arg(short, long, default_value = ".")]
@@ -29,6 +29,8 @@ enum Command {
     Check,
     /// Copy the loaded project and referenced assets into a new folder.
     Copy { destination: Utf8PathBuf },
+    /// Write the generated effect-language builtin reference.
+    Builtins { output: Utf8PathBuf },
 }
 
 pub fn run(cli: Cli) -> Result<(), String> {
@@ -53,6 +55,13 @@ pub fn run(cli: Cli) -> Result<(), String> {
                 report.copied_assets.len(),
                 destination
             );
+            Ok(())
+        }
+        Command::Builtins { output } => {
+            let text = donder_language::dsl::builtins::builtin_reference();
+            donder_project_io::atomic_write(&output, text.as_bytes())
+                .map_err(|error| error.to_string())?;
+            println!("Wrote {output}");
             Ok(())
         }
     }
