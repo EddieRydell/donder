@@ -404,6 +404,9 @@ impl<'a> Emitter<'a> {
             Unary::Negate => Some(float(FloatUnary::Negate)),
             Unary::Sin => Some(float(FloatUnary::Sin)),
             Unary::Cos => Some(float(FloatUnary::Cos)),
+            Unary::Tan => Some(float(FloatUnary::Tan)),
+            Unary::Exp => Some(float(FloatUnary::Exp)),
+            Unary::Log => Some(float(FloatUnary::Log)),
             Unary::Abs => Some(float(FloatUnary::Abs)),
             Unary::Floor => Some(float(FloatUnary::Floor)),
             Unary::Ceil => Some(float(FloatUnary::Ceil)),
@@ -428,10 +431,18 @@ impl<'a> Emitter<'a> {
             Unary::Not => Instruction::Not { dst, a },
             Unary::IntToFloat => Instruction::IntToFloat { dst, a },
             Unary::FloatToInt => Instruction::FloatToInt { dst, a },
-            Unary::Hue | Unary::Saturation | Unary::Intensity => Instruction::ColorComponent {
+            Unary::Hue
+            | Unary::Saturation
+            | Unary::Intensity
+            | Unary::Red
+            | Unary::Green
+            | Unary::Blue => Instruction::ColorComponent {
                 op: match op {
                     Unary::Hue => ColorComponent::Hue,
                     Unary::Saturation => ColorComponent::Saturation,
+                    Unary::Red => ColorComponent::Red,
+                    Unary::Green => ColorComponent::Green,
+                    Unary::Blue => ColorComponent::Blue,
                     _ => ColorComponent::Intensity,
                 },
                 dst,
@@ -495,10 +506,14 @@ impl<'a> Emitter<'a> {
             Max => float(FloatBinary::Max),
             ValueOr => float(FloatBinary::ValueOr),
             Atan2 => float(FloatBinary::Atan2),
+            PowerFloat => float(FloatBinary::Power),
             IntAdd => int(IntBinary::Add),
             IntSubtract => int(IntBinary::Subtract),
             IntMultiply => int(IntBinary::Multiply),
             IntRemainder => int(IntBinary::Remainder),
+            IntFloorDivide => int(IntBinary::FloorDivide),
+            IntMin => int(IntBinary::Min),
+            IntMax => int(IntBinary::Max),
             Less => float_compare(CompareOp::Less),
             LessEqual => float_compare(CompareOp::LessEqual),
             Greater => float_compare(CompareOp::Greater),

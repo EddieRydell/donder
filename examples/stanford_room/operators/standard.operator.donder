@@ -1,4 +1,4 @@
-// Editable project-local composition operators.
+-- Editable project-local composition operators.
 operator Max {
   input a;
   input b;
@@ -56,7 +56,7 @@ operator Colorize {
 
 operator HueShift {
   input source;
-  // Turns.
+  -- Turns.
   param shift: float in 0.0..1.0 = 0.0;
 
   sample { hsv(hue(source) + shift, saturation(source), intensity(source)) }
@@ -75,7 +75,7 @@ operator Echo {
   param repeats: int in 1..32 = 3;
   param decay: float in 0.0..1.0 = 0.5;
 
-  // Samples before the sequence are black, so early echoes add nothing.
+  -- Samples before the sequence are black, so early echoes add nothing.
   sample {
     max for repeat in 0..=repeats {
       input.at(time - seconds * repeat) * pow(decay, repeat)
@@ -88,7 +88,7 @@ operator FreezeFrame {
   param interval_seconds: float in 0.001..10.0 = 0.01;
   param fade_seconds: float in 0.001..60.0 = 1.0;
 
-  // Keeps at most 32 snapshots; samples before the sequence are black.
+  -- Keeps at most 32 snapshots; samples before the sequence are black.
   sample {
     let capture_index = floor(time / interval_seconds);
     let snapshots = int(min(32.0, ceil(fade_seconds / interval_seconds)));
@@ -103,10 +103,10 @@ operator FreezeFrame {
 
 operator Blur {
   input input;
-  // Pixels averaged on each side, along each fixture's pixel order.
+  -- Pixels averaged on each side, along each fixture's pixel order.
   param radius: int in 1..16 = 2;
 
-  // Tent weights, renormalized where a fixture ends so its edges keep their level.
+  -- Tent weights, renormalized where a fixture ends so its edges keep their level.
   sample {
     let first = int(max(-radius, -pixel.index));
     let last = int(min(radius, target.count - 1 - pixel.index));

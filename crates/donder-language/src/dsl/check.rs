@@ -1,5 +1,6 @@
 //! Name resolution and type checking. A declaration is lowered straight into
 //! its definition IR; diagnostics point at the syntax that produced a node.
+use super::builtins::{BuiltinFunction, builtin};
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
 use super::ir::interval::{Bounds, interval};
 use super::ir::{Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, Ternary, Unary};
@@ -9,6 +10,7 @@ use super::types::{Identifier, Type, Value};
 use super::{Diagnostic, MAX_DSL_LOOP_ITERATIONS};
 use crate::dsl::bytecode::SignalPixel;
 use crate::values::Color;
+use std::rc::Rc;
 
 /// One checked effect or operator.
 #[derive(Clone, Debug)]
@@ -27,19 +29,114 @@ pub(crate) struct Definition {
 }
 
 pub(crate) fn check(module: Module) -> Result<Vec<Definition>, Vec<Diagnostic>> {
+    let functions: Rc<[Function]> = module.functions.into();
+    let mut diagnostics = check_functions(&functions);
     let mut definitions = Vec::new();
-    let mut diagnostics = Vec::new();
-    for declaration in module.declarations {
-        match Checker::declaration(declaration) {
-            Ok(definition) => definitions.push(definition),
-            Err(errors) => diagnostics.extend(errors),
+    if diagnostics.is_empty() {
+        for declaration in module.declarations {
+            match Checker::declaration(declaration, functions.clone()) {
+                Ok(definition) => definitions.push(definition),
+                Err(errors) => diagnostics.extend(errors),
+            }
         }
     }
-    if diagnostics.is_empty() {
+    // A function's error repeats at every call that inlines it.
+    let mut unique = Vec::new();
+    for diagnostic in diagnostics {
+        if !unique.contains(&diagnostic) {
+            unique.push(diagnostic);
+        }
+    }
+    if unique.is_empty() {
         Ok(definitions)
     } else {
-        Err(diagnostics)
+        Err(unique)
     }
+}
+
+/// Check every function's declaration and, once on its own, its body, so a
+/// function nobody calls is still valid. Iteration bounds that depend on
+/// arguments are proven where the function is inlined.
+fn check_functions(functions: &Rc<[Function]>) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for (index, function) in functions.iter().enumerate() {
+        let name = function.name.name.as_str();
+        if builtin(name).is_some() || RESERVED.contains(&name) {
+            diagnostics.push(Diagnostic::new(
+                function.name.span,
+                format!("`{name}` is a builtin or reserved name"),
+            ));
+        }
+        if functions[..index]
+            .iter()
+            .any(|other| other.name.name == function.name.name)
+        {
+            diagnostics.push(Diagnostic::new(
+                function.name.span,
+                format!("`{name}` is declared twice"),
+            ));
+        }
+        let mut types = Vec::new();
+        for (position, (arg, ty)) in function.args.iter().enumerate() {
+            if RESERVED.contains(&arg.name.as_str()) {
+                diagnostics.push(Diagnostic::new(
+                    arg.span,
+                    format!("`{}` is a reserved name", arg.name.as_str()),
+                ));
+            }
+            if function.args[..position]
+                .iter()
+                .any(|(other, _)| other.name == arg.name)
+            {
+                diagnostics.push(Diagnostic::new(
+                    arg.span,
+                    format!("`{}` is declared twice", arg.name.as_str()),
+                ));
+            }
+            match resolve_type(ty) {
+                Ok(ty) => types.push(ty),
+                Err(diagnostic) => diagnostics.push(diagnostic),
+            }
+        }
+        let result =
+            resolve_type(&function.result).map_err(|diagnostic| diagnostics.push(diagnostic));
+        let (Ok(result), true) = (result, types.len() == function.args.len()) else {
+            continue;
+        };
+        let graph = Graph::new(
+            types
+                .iter()
+                .map(|ty| Param {
+                    ty: ty.clone(),
+                    domain: super::ir::Domain::PARAM,
+                })
+                .collect(),
+            0,
+        );
+        let mut checker = Checker {
+            graph,
+            params: Vec::new(),
+            inputs: Vec::new(),
+            scopes: Vec::new(),
+            length_bounds: Vec::new(),
+            diagnostics: Vec::new(),
+            functions: functions.clone(),
+            frames: vec![index],
+            standalone: true,
+        };
+        for (position, (arg, _)) in function.args.iter().enumerate() {
+            let node = checker.graph.add(Op::Param(position as u32));
+            checker.scopes.push((arg.name.clone(), node));
+        }
+        if let Some(value) = checker
+            .tail_block(&function.body, Mode::Value)
+            .and_then(|outcome| outcome.value)
+        {
+            checker.require(value, &result, function.body.result.span);
+        }
+        diagnostics.extend(checker.diagnostics);
+    }
+    diagnostics
 }
 
 /// Names with a fixed meaning in every definition.
@@ -77,12 +174,21 @@ struct Checker {
     scopes: Vec<(Identifier, Node)>,
     length_bounds: Vec<Node>,
     diagnostics: Vec<Diagnostic>,
+    functions: Rc<[Function]>,
+    /// Functions being inlined, innermost last. Their bodies see only their
+    /// arguments and context values.
+    frames: Vec<usize>,
+    /// Checking a function body on its own, with arguments of unknown value.
+    standalone: bool,
 }
 
 type Checked<T> = Option<T>;
 
 impl Checker {
-    fn declaration(declaration: Declaration) -> Result<Definition, Vec<Diagnostic>> {
+    fn declaration(
+        declaration: Declaration,
+        functions: Rc<[Function]>,
+    ) -> Result<Definition, Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         let mut params = Vec::new();
         let mut names: Vec<&Identifier> = Vec::new();
@@ -163,6 +269,9 @@ impl Checker {
             scopes: Vec::new(),
             length_bounds: Vec::new(),
             diagnostics,
+            functions,
+            frames: Vec::new(),
+            standalone: false,
         };
         let root = checker.tail_block(sample, Mode::Tail).and_then(|outcome| {
             let value = outcome.value?;
@@ -382,7 +491,12 @@ impl Checker {
         match self.operand(expr)? {
             Operand::Node(node) => Some(node),
             Operand::Option(name, span) => {
-                self.error(span, format!("unknown name `{}`", name.as_str()));
+                let hint = if self.frames.is_empty() {
+                    ""
+                } else {
+                    "; a function sees only its arguments and context values"
+                };
+                self.error(span, format!("unknown name `{}`{hint}", name.as_str()));
                 None
             }
         }
@@ -452,10 +566,15 @@ impl Checker {
         if let Some((_, node)) = self.scopes.iter().rev().find(|(bound, _)| bound == name) {
             return Some(Operand::Node(*node));
         }
-        if let Some(index) = self.params.iter().position(|param| &param.name == name) {
+        let in_function = !self.frames.is_empty();
+        if let Some(index) = self.params.iter().position(|param| &param.name == name)
+            && !in_function
+        {
             return Some(Operand::Node(self.graph.add(Op::Param(index as u32))));
         }
-        if let Some(input) = self.inputs.iter().position(|input| input == name) {
+        if let Some(input) = self.inputs.iter().position(|input| input == name)
+            && !in_function
+        {
             // A signal used as a color samples the current pixel now.
             let time = self.graph.add(Op::Context(Context::Time));
             return Some(Operand::Node(self.graph.add(Op::Sample {
@@ -522,7 +641,9 @@ impl Checker {
         span: TextSpan,
     ) -> Checked<Node> {
         let input = match &target.kind {
-            ExprKind::Name(name) => self.inputs.iter().position(|input| input == name),
+            ExprKind::Name(name) if self.frames.is_empty() => {
+                self.inputs.iter().position(|input| input == name)
+            }
             _ => None,
         };
         let Some(input) = input else {
@@ -595,8 +716,13 @@ impl Checker {
         let collection = self.value(target)?;
         match self.ty(collection).clone() {
             Type::Array(_) => {
-                let index = self.int(index)?;
-                Some(self.graph.binary(Binary::Index, collection, index))
+                // A float index floors; clamping makes truncation agree below zero.
+                let position = self.value(index)?;
+                let position = match self.ty(position) {
+                    Type::Float => self.graph.unary(Unary::FloatToInt, position),
+                    _ => self.require(position, &Type::Int, index.span)?,
+                };
+                Some(self.graph.binary(Binary::Index, collection, position))
             }
             Type::Curve => {
                 let position = self.float(index)?;
@@ -666,16 +792,26 @@ impl Checker {
                 let (scale, _) = floats(graph);
                 graph.binary(Binary::ColorScale, b, scale)
             }
-            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Remainder
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Multiply
+            | BinaryOp::Remainder
+            | BinaryOp::FloorDivide
                 if ints =>
             {
                 let op = match op {
                     BinaryOp::Add => Binary::IntAdd,
                     BinaryOp::Subtract => Binary::IntSubtract,
                     BinaryOp::Multiply => Binary::IntMultiply,
+                    BinaryOp::FloorDivide => Binary::IntFloorDivide,
                     _ => Binary::IntRemainder,
                 };
                 graph.binary(op, a, b)
+            }
+            BinaryOp::FloorDivide if numeric(&left_ty) && numeric(&right_ty) => {
+                let (a, b) = floats(graph);
+                let quotient = graph.binary(Binary::Divide, a, b);
+                graph.unary(Unary::Floor, quotient)
             }
             BinaryOp::Add
             | BinaryOp::Subtract
@@ -810,8 +946,8 @@ impl Checker {
             otherwise,
         } = reduction;
         let (reducer, otherwise) = (*reducer, otherwise.as_ref());
-        let start = self.int(start);
-        let end = self.int(end);
+        let start = self.bound_value(start);
+        let end = self.bound_value(end);
         let (start, end) = (start?, end?);
         let end = if *inclusive {
             let one = self.graph.int(1);
@@ -896,9 +1032,25 @@ impl Checker {
         Some(self.graph.finish_loop(id, reducer, body, filter, default))
     }
 
+    /// A reduction bound, which counts whole iterations.
+    fn bound_value(&mut self, expr: &Expr) -> Checked<Node> {
+        let node = self.value(expr)?;
+        if *self.ty(node) == Type::Float {
+            self.error(
+                expr.span,
+                "reduction bounds are ints; this is a float, so convert it with `int(...)` or divide with `//`",
+            );
+            return None;
+        }
+        self.require(node, &Type::Int, expr.span)
+    }
+
     /// Prove that `count` stays within the iteration limit, or defer the proof
     /// to binding when it depends on parameter lengths.
     fn bound(&mut self, count: Node, span: TextSpan, what: &str) -> Checked<()> {
+        if self.standalone {
+            return Some(());
+        }
         let ranges = param_ranges(&self.params);
         let lengths = vec![None; self.params.len()];
         let range = interval(
@@ -926,33 +1078,21 @@ impl Checker {
     }
 
     fn call(&mut self, name: &Name, args: &[Expr], span: TextSpan) -> Checked<Node> {
-        let function = name.name.as_str();
-        let arity = match function {
-            "sin" | "cos" | "abs" | "floor" | "ceil" | "trunc" | "round_even" | "sqrt"
-            | "is_nan" | "int" | "rand" | "hue" | "saturation" | "intensity" | "invert" | "len"
-            | "mark_count" | "section_count" | "section_index" | "section_position" => 1,
-            "min"
-            | "max"
-            | "value_or"
-            | "atan2"
-            | "pow"
-            | "curve_first_crossing"
-            | "mark_last"
-            | "mark_last_index"
-            | "mark_at" => 2,
-            "clamp"
-            | "smoothstep"
-            | "mix"
-            | "rgb"
-            | "hsv"
-            | "gradient_color_scaled"
-            | "curve_last_crossing" => 3,
-            "curve_clamped" => 4,
-            _ => {
-                self.error(name.span, format!("unknown function `{function}`"));
-                return None;
-            }
+        let Some(builtin) = builtin(name.name.as_str()) else {
+            return match self
+                .functions
+                .iter()
+                .position(|function| function.name.name == name.name)
+            {
+                Some(index) => self.inline(index, args, span),
+                None => {
+                    let message = format!("unknown function `{}`", name.name.as_str());
+                    self.error(name.span, message);
+                    None
+                }
+            };
         };
+        let (function, arity) = (builtin.name, builtin.arity());
         if args.len() != arity {
             let message = format!(
                 "`{function}` takes {arity} argument{}, found {}",
@@ -966,75 +1106,168 @@ impl Checker {
             let value = checker.float(&args[0])?;
             Some(checker.graph.unary(op, value))
         };
-        Some(match function {
-            "sin" => graph_unary(self, Unary::Sin)?,
-            "cos" => graph_unary(self, Unary::Cos)?,
-            "abs" => graph_unary(self, Unary::Abs)?,
-            "floor" => graph_unary(self, Unary::Floor)?,
-            "ceil" => graph_unary(self, Unary::Ceil)?,
-            "trunc" => graph_unary(self, Unary::Trunc)?,
-            "round_even" => graph_unary(self, Unary::RoundEven)?,
-            "sqrt" => graph_unary(self, Unary::Sqrt)?,
-            "rand" => graph_unary(self, Unary::Rand)?,
-            "int" => graph_unary(self, Unary::FloatToInt)?,
-            "is_nan" => {
+        use BuiltinFunction as F;
+        Some(match builtin.function {
+            F::Sin => graph_unary(self, Unary::Sin)?,
+            F::Cos => graph_unary(self, Unary::Cos)?,
+            F::Tan => graph_unary(self, Unary::Tan)?,
+            F::Exp => graph_unary(self, Unary::Exp)?,
+            F::Log => graph_unary(self, Unary::Log)?,
+            F::Floor => graph_unary(self, Unary::Floor)?,
+            F::Ceil => graph_unary(self, Unary::Ceil)?,
+            F::Trunc => graph_unary(self, Unary::Trunc)?,
+            F::RoundEven => graph_unary(self, Unary::RoundEven)?,
+            F::Sqrt => graph_unary(self, Unary::Sqrt)?,
+            F::Rand => graph_unary(self, Unary::Rand)?,
+            F::Int => graph_unary(self, Unary::FloatToInt)?,
+            F::Round => {
+                // Halves round away from zero; adding 0.5 would round
+                // 0.49999997 up.
+                let value = self.float(&args[0])?;
+                let whole = self.graph.unary(Unary::Trunc, value);
+                let fraction = self.graph.binary(Binary::Subtract, value, whole);
+                let fraction = self.graph.unary(Unary::Abs, fraction);
+                let half = self.graph.float(0.5);
+                let away = self.graph.binary(Binary::GreaterEqual, fraction, half);
+                let sign = self.float_sign(value);
+                let next = self.graph.binary(Binary::Add, whole, sign);
+                self.graph.select(away, next, whole)
+            }
+            F::Fract => {
+                let value = self.float(&args[0])?;
+                let floor = self.graph.unary(Unary::Floor, value);
+                self.graph.binary(Binary::Subtract, value, floor)
+            }
+            F::Step => {
+                let edge = self.float(&args[0])?;
+                let value = self.float(&args[1])?;
+                let above = self.graph.binary(Binary::GreaterEqual, value, edge);
+                let below = self.graph.binary(Binary::Less, value, edge);
+                let (one, zero, nan) = (
+                    self.graph.float(1.0),
+                    self.graph.float(0.0),
+                    self.graph.float(f32::NAN),
+                );
+                let low = self.graph.select(below, zero, nan);
+                self.graph.select(above, one, low)
+            }
+            F::IsNan => {
                 let value = self.float(&args[0])?;
                 self.graph.binary(Binary::NotEqual, value, value)
             }
-            "hue" | "saturation" | "intensity" | "invert" => {
+            F::Hue | F::Saturation | F::Intensity | F::Red | F::Green | F::Blue | F::Invert => {
                 let color = self.typed(&args[0], &Type::Color)?;
-                let op = match function {
-                    "hue" => Unary::Hue,
-                    "saturation" => Unary::Saturation,
-                    "intensity" => Unary::Intensity,
+                let op = match builtin.function {
+                    F::Hue => Unary::Hue,
+                    F::Saturation => Unary::Saturation,
+                    F::Intensity => Unary::Intensity,
+                    F::Red => Unary::Red,
+                    F::Green => Unary::Green,
+                    F::Blue => Unary::Blue,
                     _ => Unary::Invert,
                 };
                 self.graph.unary(op, color)
             }
-            "min" | "max" => {
-                let a = self.value(&args[0])?;
-                if *self.ty(a) == Type::Color && function == "max" {
-                    let b = self.typed(&args[1], &Type::Color)?;
-                    self.graph.binary(Binary::ColorMax, a, b)
-                } else {
-                    let a = self.require(a, &Type::Float, args[0].span)?;
-                    let b = self.float(&args[1])?;
-                    let op = if function == "min" {
-                        Binary::Min
-                    } else {
-                        Binary::Max
-                    };
-                    self.graph.binary(op, a, b)
+            F::Abs | F::Sign => {
+                let value = self.value(&args[0])?;
+                match (self.ty(value).clone(), builtin.function) {
+                    (Type::Int, F::Abs) => {
+                        let negated = self.graph.unary(Unary::IntNegate, value);
+                        self.graph.binary(Binary::IntMax, value, negated)
+                    }
+                    (Type::Int, _) => {
+                        let zero = self.graph.int(0);
+                        let positive = self.graph.binary(Binary::IntGreater, value, zero);
+                        let negative = self.graph.binary(Binary::IntLess, value, zero);
+                        let (one, minus_one) = (self.graph.int(1), self.graph.int(-1));
+                        let low = self.graph.select(negative, minus_one, zero);
+                        self.graph.select(positive, one, low)
+                    }
+                    (_, F::Abs) => {
+                        let value = self.require(value, &Type::Float, args[0].span)?;
+                        self.graph.unary(Unary::Abs, value)
+                    }
+                    _ => {
+                        let value = self.require(value, &Type::Float, args[0].span)?;
+                        self.float_sign(value)
+                    }
                 }
             }
-            "value_or" | "atan2" => {
+            F::Min | F::Max => {
+                let a = self.value(&args[0])?;
+                let b = self.value(&args[1])?;
+                let max = builtin.function == F::Max;
+                match (self.ty(a).clone(), self.ty(b).clone()) {
+                    (Type::Color, _) if max => {
+                        let b = self.require(b, &Type::Color, args[1].span)?;
+                        self.graph.binary(Binary::ColorMax, a, b)
+                    }
+                    (Type::Int, Type::Int) => {
+                        let op = if max { Binary::IntMax } else { Binary::IntMin };
+                        self.graph.binary(op, a, b)
+                    }
+                    _ => {
+                        let a = self.require(a, &Type::Float, args[0].span)?;
+                        let b = self.require(b, &Type::Float, args[1].span)?;
+                        let op = if max { Binary::Max } else { Binary::Min };
+                        self.graph.binary(op, a, b)
+                    }
+                }
+            }
+            F::Clamp => {
+                let values = [
+                    self.value(&args[0]),
+                    self.value(&args[1]),
+                    self.value(&args[2]),
+                ];
+                let [value, low, high] = [values[0]?, values[1]?, values[2]?];
+                if [value, low, high]
+                    .iter()
+                    .all(|&node| *self.ty(node) == Type::Int)
+                {
+                    let raised = self.graph.binary(Binary::IntMax, value, low);
+                    self.graph.binary(Binary::IntMin, raised, high)
+                } else {
+                    let value = self.require(value, &Type::Float, args[0].span)?;
+                    let low = self.require(low, &Type::Float, args[1].span)?;
+                    let high = self.require(high, &Type::Float, args[2].span)?;
+                    self.graph.ternary(Ternary::Clamp, value, low, high)
+                }
+            }
+            F::ValueOr | F::Atan2 => {
                 let a = self.float(&args[0])?;
                 let b = self.float(&args[1])?;
-                let op = if function == "value_or" {
+                let op = if builtin.function == F::ValueOr {
                     Binary::ValueOr
                 } else {
                     Binary::Atan2
                 };
                 self.graph.binary(op, a, b)
             }
-            "pow" => {
+            F::Pow => {
                 let base = self.float(&args[0])?;
-                let exponent = self.int(&args[1])?;
-                self.bound(exponent, args[1].span, "power")?;
-                self.graph.binary(Binary::Power, base, exponent)
+                let exponent = self.value(&args[1])?;
+                // Repeated multiplication is exact; it needs a small,
+                // non-negative count.
+                if *self.ty(exponent) == Type::Int && self.counts(exponent) {
+                    self.graph.binary(Binary::Power, base, exponent)
+                } else {
+                    let exponent = self.require(exponent, &Type::Float, args[1].span)?;
+                    self.graph.binary(Binary::PowerFloat, base, exponent)
+                }
             }
-            "clamp" | "rgb" | "hsv" => {
+            F::Rgb | F::Hsv => {
                 let a = self.float(&args[0])?;
                 let b = self.float(&args[1])?;
                 let c = self.float(&args[2])?;
-                let op = match function {
-                    "clamp" => Ternary::Clamp,
-                    "rgb" => Ternary::Rgb,
-                    _ => Ternary::Hsv,
+                let op = if builtin.function == F::Rgb {
+                    Ternary::Rgb
+                } else {
+                    Ternary::Hsv
                 };
                 self.graph.ternary(op, a, b, c)
             }
-            "smoothstep" => {
+            F::Smoothstep => {
                 let low = self.float(&args[0])?;
                 let high = self.float(&args[1])?;
                 let value = self.float(&args[2])?;
@@ -1043,7 +1276,7 @@ impl Checker {
                 let position = self.graph.binary(Binary::Divide, offset, width);
                 self.graph.unary(Unary::Smoothstep, position)
             }
-            "mix" => {
+            F::Mix => {
                 let a = self.value(&args[0])?;
                 if *self.ty(a) == Type::Color {
                     let b = self.typed(&args[1], &Type::Color)?;
@@ -1056,7 +1289,7 @@ impl Checker {
                     self.graph.ternary(Ternary::Mix, a, b, amount)
                 }
             }
-            "curve_clamped" => {
+            F::CurveClamped => {
                 let curve = self.typed(&args[0], &Type::Curve)?;
                 let position = self.float(&args[1])?;
                 let min = self.float(&args[2])?;
@@ -1064,7 +1297,7 @@ impl Checker {
                 let value = self.graph.binary(Binary::CurveSample, curve, position);
                 self.graph.ternary(Ternary::Clamp, value, min, max)
             }
-            "gradient_color_scaled" => {
+            F::GradientColorScaled => {
                 let gradient = self.typed(&args[0], &Type::Gradient)?;
                 let position = self.float(&args[1])?;
                 let scale = self.float(&args[2])?;
@@ -1075,38 +1308,38 @@ impl Checker {
                     .binary(Binary::GradientSample, gradient, position);
                 self.graph.binary(Binary::ColorScale, color, scale)
             }
-            "curve_first_crossing" => {
+            F::CurveFirstCrossing => {
                 let curve = self.typed(&args[0], &Type::Curve)?;
                 let value = self.float(&args[1])?;
                 self.graph.binary(Binary::CurveFirstCrossing, curve, value)
             }
-            "curve_last_crossing" => {
+            F::CurveLastCrossing => {
                 let curve = self.typed(&args[0], &Type::Curve)?;
                 let value = self.float(&args[1])?;
                 let before = self.float(&args[2])?;
                 self.graph
                     .ternary(Ternary::CurveLastCrossing, curve, value, before)
             }
-            "mark_count" => {
+            F::MarkCount => {
                 let marks = self.typed(&args[0], &Type::Marks)?;
                 self.graph.unary(Unary::MarkCount, marks)
             }
-            "mark_at" => {
+            F::MarkAt => {
                 let marks = self.typed(&args[0], &Type::Marks)?;
                 let index = self.int(&args[1])?;
                 self.graph.binary(Binary::MarkAt, marks, index)
             }
-            "mark_last" | "mark_last_index" => {
+            F::MarkLast | F::MarkLastIndex => {
                 let marks = self.typed(&args[0], &Type::Marks)?;
                 let time = self.float(&args[1])?;
-                let op = if function == "mark_last" {
+                let op = if builtin.function == F::MarkLast {
                     Binary::MarkLast
                 } else {
                     Binary::MarkLastIndex
                 };
                 self.graph.binary(op, marks, time)
             }
-            "len" => {
+            F::Len => {
                 let value = self.value(&args[0])?;
                 match self.ty(value) {
                     Type::Array(_) => self.graph.unary(Unary::Len, value),
@@ -1119,24 +1352,94 @@ impl Checker {
                     }
                 }
             }
-            "section_count" | "section_index" => {
+            F::SectionCount | F::SectionIndex => {
                 let width = self.int(&args[0])?;
-                let op = if function == "section_count" {
+                let op = if builtin.function == F::SectionCount {
                     Unary::SectionCount
                 } else {
                     Unary::SectionIndex
                 };
                 self.graph.unary(op, width)
             }
-            "section_position" => {
+            F::SectionPosition => {
                 let width = self.float(&args[0])?;
                 let one = self.graph.float(1.0);
                 let width = self.graph.binary(Binary::Max, width, one);
                 let inverse = self.graph.binary(Binary::Divide, one, width);
                 self.graph.binary(Binary::SectionPosition, width, inverse)
             }
-            _ => unreachable!("arity table covers every builtin"),
         })
+    }
+
+    /// -1, 0 or 1 by sign; zeros and NaN pass through.
+    fn float_sign(&mut self, value: Node) -> Node {
+        let zero = self.graph.float(0.0);
+        let positive = self.graph.binary(Binary::Greater, value, zero);
+        let negative = self.graph.binary(Binary::Less, value, zero);
+        let (one, minus_one) = (self.graph.float(1.0), self.graph.float(-1.0));
+        let low = self.graph.select(negative, minus_one, value);
+        self.graph.select(positive, one, low)
+    }
+
+    /// Whether an int is provably a small non-negative count.
+    fn counts(&self, node: Node) -> bool {
+        if self.standalone {
+            return false;
+        }
+        let ranges = param_ranges(&self.params);
+        let lengths = vec![None; self.params.len()];
+        let range = interval(
+            &self.graph,
+            node,
+            &Bounds {
+                ranges: &ranges,
+                lengths: &lengths,
+            },
+        );
+        range.min >= 0.0 && range.max <= MAX_DSL_LOOP_ITERATIONS as f64 && !range.max.is_nan()
+    }
+
+    /// Inline a call of a user function: its arguments are checked in the
+    /// caller, its body sees only them and the context values.
+    fn inline(&mut self, index: usize, args: &[Expr], span: TextSpan) -> Checked<Node> {
+        let functions = self.functions.clone();
+        let function = &functions[index];
+        let name = function.name.name.as_str();
+        if self.frames.contains(&index) {
+            self.error(
+                span,
+                format!("`{name}` calls itself; functions cannot recurse"),
+            );
+            return None;
+        }
+        if args.len() != function.args.len() {
+            let arity = function.args.len();
+            let message = format!(
+                "`{name}` takes {arity} argument{}, found {}",
+                if arity == 1 { "" } else { "s" },
+                args.len()
+            );
+            self.error(span, message);
+            return None;
+        }
+        let mut bound = Vec::new();
+        for ((arg, ty), expr) in function.args.iter().zip(args) {
+            let ty = resolve_type(ty).ok()?;
+            bound.push((arg.name.clone(), self.typed(expr, &ty)));
+        }
+        let bound = bound
+            .into_iter()
+            .map(|(name, node)| Some((name, node?)))
+            .collect::<Option<Vec<_>>>()?;
+        let result = resolve_type(&function.result).ok()?;
+        let caller = core::mem::replace(&mut self.scopes, bound);
+        self.frames.push(index);
+        let value = self
+            .tail_block(&function.body, Mode::Value)
+            .and_then(|outcome| outcome.value);
+        self.frames.pop();
+        self.scopes = caller;
+        self.require(value?, &result, function.body.result.span)
     }
 }
 
@@ -1350,6 +1653,7 @@ fn operator_text(op: BinaryOp) -> &'static str {
         BinaryOp::Subtract => "-",
         BinaryOp::Multiply => "*",
         BinaryOp::Divide => "/",
+        BinaryOp::FloorDivide => "//",
         BinaryOp::Remainder => "%",
         BinaryOp::Less => "<",
         BinaryOp::LessEqual => "<=",

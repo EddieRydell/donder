@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 camino.workspace = true
 clap.workspace = true
+donder-language.workspace = true
 donder-project-io.workspace = true
 
 [dev-dependencies]

@@ -31,6 +31,11 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
             value,
         )?))),
         Hue => Some(Value::Float(sampling::color_hue(as_color(value)?))),
+        Red => Some(Value::Float(sampling::color_channel(as_color(value)?.red))),
+        Green => Some(Value::Float(sampling::color_channel(
+            as_color(value)?.green,
+        ))),
+        Blue => Some(Value::Float(sampling::color_channel(as_color(value)?.blue))),
         Saturation => Some(Value::Float(sampling::color_saturation(as_color(value)?))),
         Intensity => Some(Value::Float(sampling::color_intensity(as_color(value)?))),
         Invert => Some(Value::Color(sampling::invert_color(as_color(value)?))),
@@ -42,7 +47,8 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
             Value::Marks(marks) => Some(Value::Int(sampling::length_int(marks.as_slice().len()))),
             _ => None,
         },
-        Sin | Cos | SectionCount | SectionIndex | QuerySeconds | QueryProgress => None,
+        Sin | Cos | Tan | Exp | Log | SectionCount | SectionIndex | QuerySeconds
+        | QueryProgress => None,
     }
 }
 
@@ -61,6 +67,9 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
         IntSubtract => ints().map(|(a, b)| Value::Int(a.wrapping_sub(b)))?,
         IntMultiply => ints().map(|(a, b)| Value::Int(a.wrapping_mul(b)))?,
         IntRemainder => ints().map(|(a, b)| Value::Int(sampling::int_remainder(a, b)))?,
+        IntFloorDivide => ints().map(|(a, b)| Value::Int(sampling::int_floor_divide(a, b)))?,
+        IntMin => ints().map(|(a, b)| Value::Int(a.min(b)))?,
+        IntMax => ints().map(|(a, b)| Value::Int(a.max(b)))?,
         Min => {
             floats().map(|(a, b)| Value::Float(sampling::float_binary(FloatBinary::Min, a, b)))?
         }
@@ -123,7 +132,7 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             _ => return None,
         },
         Power => Value::Float(power(as_float(left)?, as_int(right)?)),
-        Atan2 | SectionPosition => return None,
+        Atan2 | PowerFloat | SectionPosition => return None,
     })
 }
 
