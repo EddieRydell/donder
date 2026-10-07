@@ -61,6 +61,7 @@ export function TitleBar() {
             "file.openProject",
             "file.save",
             "file.reloadFromDisk",
+            "file.closeEditor",
             "file.settings"
           ]}
         />

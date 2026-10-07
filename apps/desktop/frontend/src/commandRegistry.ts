@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { commands } from "./api";
 import { effectiveEditorViewMode } from "./editorViewMode";
 import { openProjectDialog, runWorkspaceTransition, useTransitionStore } from "./workspaceTransitions";
@@ -19,6 +20,8 @@ export type CommandId =
   | "file.openProject"
   | "file.save"
   | "file.reloadFromDisk"
+  | "file.closeEditor"
+  | "file.closeWindow"
   | "file.settings"
   | "edit.undo"
   | "edit.redo"
@@ -69,6 +72,13 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "reloadFile", path });
     useAppStore.getState().resetGuiLocalState();
   }, hasProject),
+  "file.closeEditor": command("Close Editor", "File", ["tab", "file"], async () => {
+    const path = useAppStore.getState().snapshot?.activeFile;
+    if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "closeFile", path });
+  }, () => (useAppStore.getState().snapshot?.activeFile ?? null) !== null, [{ key: "w" }]),
+  "file.closeWindow": command("Close Window", "File", ["quit", "exit"], async () => {
+    await getCurrentWindow().close();
+  }, always, [{ key: "w", shift: true }]),
   "file.settings": command("Settings...", "File", ["preferences"], () => {
     window.dispatchEvent(new CustomEvent("donder:settings"));
   }, always, [{ key: "," }]),

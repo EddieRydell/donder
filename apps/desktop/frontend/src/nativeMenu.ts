@@ -116,7 +116,8 @@ export async function installNativeMenu(): Promise<() => void> {
           await item("file.save"),
           await item("file.reloadFromDisk"),
           await separator(),
-          await PredefinedMenuItem.new({ item: "CloseWindow" })
+          await item("file.closeEditor"),
+          await item("file.closeWindow")
         ]
       }),
       isTextEditingTarget(document.activeElement) ? textEdit : canvasEdit,
