@@ -3,68 +3,93 @@ use crate::common;
 use camino::Utf8Path;
 use donder_language::identity::OwnedObjectSlot;
 use donder_language::ownership::ValueSource;
-use donder_project_io::{load_project, save_project};
+use donder_project_io::{PROJECT_ROOT_FILE, load_project, save_project};
 
-const INLINE_PROJECT: &str = r#"
-show:
-  type: project
-  setup:
-    type: setup
-    layout:
-      type: layout
-      fixtures:
-      - id: 1
-        name: Test strip
-        type: fixture
-        definition:
-          type: fixture
-          elements:
-          - id: 1
-            name: Pixel
-            reverse: false
-            shape: {type: pixel}
-            diameter: 0.01
-    patch:
-      type: patch
-      routes:
-      - id: 1
-        target:
-          layout: {owner: show, path: [setup, layout]}
-          fixture: 1
-        controller: {owner: show, path: [setup, {type: controller, id: 3}]}
-        port: 1
-        start_slot: 0
-        encoding: {type: rgb, order: [0, 1, 2]}
-        gamma: 1
-        brightness: 1
-    controllers:
-    - type: controller
-      id: 3
-      protocol: {type: e131, source_name: Test, bind_address: 0.0.0.0, priority: 100, mode: multicast}
-      ports: [{id: 1, slot_count: 512, universe: 1}]
-    - type: controller
-      id: 8
-      protocol: {type: e131, source_name: Spare, bind_address: 0.0.0.0, priority: 100, mode: multicast}
-      ports: [{id: 1, slot_count: 512, universe: 2}]
-  sequences:
-  - type: sequence
-    id: 4
-    duration: 1s
-    frame_rate: 30
-    audio: null
-    layers: []
-    effects: []
-    composition_graph:
-      nodes: [{id: 1, position: {x: 0, y: 0}, type: output}]
-      edges: []
-"#;
+const TRANSFORM: &str =
+    "Transform { position: (0m, 0m, 0m), rotation: (0.0, 0.0, 0.0), scale: (1.0, 1.0, 1.0) }";
+
+/// Every owned object written in place: a setup with its layout, an inline
+/// fixture definition, a patch, two controllers, and a sequence.
+fn inline_fields() -> String {
+    format!(
+        r#"  setup: Setup {{
+    description: none,
+    layout: Layout {{
+      description: none,
+      items: [
+        Fixture {{
+          name: test_strip,
+          description: none,
+          definition: FixtureDefinition {{
+            description: none,
+            shapes: [Shape {{ name: pixel, diameter: 0.01m, reverse: false, transform: {TRANSFORM}, geometry: Pixel }}],
+          }},
+          transform: {TRANSFORM},
+        }},
+      ],
+    }},
+    patch: Patch {{
+      description: none,
+      routes: [
+        Route {{
+          target: main.setup.layout.test_strip,
+          pixels: none,
+          controller: main.setup.controllers.controller_3,
+          port: port_1,
+          start_slot: 0,
+          encoding: Rgb {{ order: (0, 1, 2) }},
+          gamma: 1.0,
+          brightness: 1.0,
+        }},
+      ],
+    }},
+    controllers: [
+      {CONTROLLER},
+      Controller spare_8 {{
+        description: none,
+        protocol: E131 {{ source_name: "Spare", bind_address: "0.0.0.0", priority: 100, mode: Multicast }},
+        ports: [Port {{ name: port_1, address: Universe {{ universe: 2 }}, slots: 512 }}],
+      }},
+    ],
+  }},
+  sequences: [
+    {SEQUENCE},
+  ],
+"#
+    )
+}
+
+const CONTROLLER: &str = r#"Controller controller_3 {
+        description: none,
+        protocol: E131 { source_name: "Test", bind_address: "0.0.0.0", priority: 100, mode: Multicast },
+        ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 512 }],
+      }"#;
+
+const SEQUENCE: &str = r#"Sequence song_4 {
+      description: none,
+      duration: 1s,
+      frame_rate: 30,
+      audio: none,
+      marks: [],
+      layers: [],
+      clips: [],
+      graph: Graph { nodes: [OutputNode { position: (0.0, 0.0) }], edges: [] },
+      automation: [],
+    }"#;
+
+fn inline_project() -> String {
+    common::root_document("", &inline_fields())
+}
+
+fn write_inline_project(root: &Utf8Path) {
+    std::fs::write(root.join(PROJECT_ROOT_FILE), inline_project()).unwrap();
+}
 
 #[test]
 fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
+    write_inline_project(root);
     let mut session = common::load_project(root);
     assert!(session.project.reusable_setups().is_empty());
     assert!(session.project.reusable_layouts().is_empty());
@@ -85,7 +110,10 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     let address = setup.controllers[0].id().clone();
     assert_eq!(
         address.0.owned_path(),
-        &[OwnedObjectSlot::Setup, OwnedObjectSlot::Controller(3)]
+        &[
+            OwnedObjectSlot::Setup,
+            OwnedObjectSlot::Controller(donder_language::names::object_name("controller_3"))
+        ]
     );
     setup.controllers.reverse();
     assert_eq!(setup.controllers[1].id(), &address);
@@ -103,41 +131,52 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
     save_project(&session).unwrap();
     let reloaded = common::load_project(root);
     assert_eq!(session.project, reloaded.project);
-    let text = std::fs::read_to_string(root.join("project.donder")).unwrap();
-    let document: yaml_serde::Value = yaml_serde::from_str(&text).unwrap();
-    assert_eq!(document.as_mapping().unwrap().len(), 2);
-    assert!(document.as_mapping().unwrap().contains_key("workspace"));
-    assert!(document.as_mapping().unwrap().contains_key("show"));
+    let text = std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).unwrap();
+    let (document, diagnostics) = donder_language::data::parse(&text);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(document.declarations.len(), 1);
+    assert_eq!(document.declarations[0].name.value.as_str(), "main");
 }
 
 #[test]
-fn ownership_rejects_duplicate_ids_malformed_types_and_dangling_addresses() {
+fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
+    let fields = inline_fields();
     for (text, expected) in [
         (
-            INLINE_PROJECT.replace("id: 8", "id: 3"),
-            "Controller appears more than once",
+            fields.replace("Controller spare_8", "Controller controller_3"),
+            "appears more than once",
         ),
         (
-            INLINE_PROJECT.replace("type: controller, id: 3", "type: controller, id: 99"),
-            "MissingController",
+            fields.replace(
+                "controller: main.setup.controllers.controller_3",
+                "controller: main.setup.controllers.controller_99",
+            ),
+            "main.setup.controllers.controller_99",
         ),
         (
-            INLINE_PROJECT.replace("path: [setup, layout]", "path: [layout]"),
-            "Invalid ownership path",
+            fields.replace(
+                "target: main.setup.layout.test_strip",
+                "target: main.layout.test_strip",
+            ),
+            "main.layout",
         ),
         (
-            INLINE_PROJECT.replace("type: layout", "type: patch"),
-            "Expected type `layout`",
+            fields.replace("layout: Layout {", "layout: Patch {"),
+            "Layout",
         ),
         (
-            INLINE_PROJECT.replace("    id: 4", "    id: 4\n    typo: true"),
-            "unknown field `typo`",
+            fields.replace("frame_rate: 30,", "frame_rate: 30,\n      typo: true,"),
+            "typo",
         ),
+        (fields.replace("port: port_1", "port: port_9"), "port_9"),
     ] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temporary.path()).unwrap();
-        std::fs::write(root.join("project.donder"), text).unwrap();
-        common::write_workspace_metadata(root);
+        std::fs::write(
+            root.join(PROJECT_ROOT_FILE),
+            common::root_document("", &text),
+        )
+        .unwrap();
         let error = load_project(root)
             .expect_err("invalid ownership must fail")
             .to_string();
@@ -153,11 +192,10 @@ fn document_moves_keep_owned_targets_attached_to_their_owner() {
     use donder_language::identity::DocumentId;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
+    write_inline_project(root);
     let mut session = common::load_project(root);
     let before = session.project.root().id.0.document_id().clone();
-    let after = DocumentId::new(before.module_id(), "renamed/project.donder".into());
+    let after = DocumentId::new(before.module_id(), "renamed/project.data.donder".into());
     donder_language::source_remap::remap_document_paths(
         &mut session.project,
         &[(before, after.clone())].into(),
@@ -176,43 +214,35 @@ fn document_moves_keep_owned_targets_attached_to_their_owner() {
 
 #[test]
 fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
+    let spare_start = inline_fields().find("      Controller spare_8").unwrap();
+    let spare_end = inline_fields()[spare_start..].find("      },\n").unwrap() + spare_start + 9;
     for separate_file in [false, true] {
         let temporary = tempfile::tempdir().unwrap();
         let root = Utf8Path::from_path(temporary.path()).unwrap();
-        let mut document: yaml_serde::Value = yaml_serde::from_str(INLINE_PROJECT).unwrap();
-        let controller = document["show"]["setup"]["controllers"]
-            .as_sequence_mut()
-            .unwrap()
-            .remove(1);
-        let mut controller = controller.as_mapping().unwrap().clone();
-        controller.remove(yaml_serde::Value::String("id".into()));
-        let mut reusable = yaml_serde::Mapping::new();
-        reusable.insert("spare".into(), yaml_serde::Value::Mapping(controller));
-        let reference = if separate_file {
-            std::fs::write(
-                root.join("controllers.donder"),
-                yaml_serde::to_string(&reusable).unwrap(),
+        let fields = inline_fields();
+        let spare = fields[spare_start..spare_end]
+            .trim()
+            .trim_end_matches(',')
+            .replace("Controller spare_8", "Controller spare");
+        let (imports, reference) = if separate_file {
+            std::fs::write(root.join("controllers.data.donder"), format!("{spare}\n")).unwrap();
+            (
+                "import controllers from <controllers.data.donder>;\n",
+                "controllers.spare",
             )
-            .unwrap();
-            document["imports"] = yaml_serde::from_str(
-                "[{from: {documents: [controllers.donder]}, as: controllers}]",
-            )
-            .unwrap();
-            "controllers.spare"
         } else {
-            document.as_mapping_mut().unwrap().extend(reusable);
-            "spare"
+            ("", "spare")
         };
-        document["show"]["setup"]["controllers"]
-            .as_sequence_mut()
-            .unwrap()
-            .push(reference.into());
-        std::fs::write(
-            root.join("project.donder"),
-            yaml_serde::to_string(&document).unwrap(),
-        )
-        .unwrap();
-        common::write_workspace_metadata(root);
+        let fields = format!(
+            "{}      {reference},\n{}",
+            &fields[..spare_start],
+            &fields[spare_end..]
+        );
+        let mut text = common::root_document(imports, &fields);
+        if !separate_file {
+            text.push_str(&format!("\n{spare}\n"));
+        }
+        std::fs::write(root.join(PROJECT_ROOT_FILE), text).unwrap();
         let mut session = common::load_project(root);
         assert_eq!(session.project.reusable_controllers().len(), 1);
         let ValueSource::Inline(mut setup) = session.project.root().setup.clone() else {
@@ -240,8 +270,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
     use donder_project_io::SourceObjectKind;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
+    write_inline_project(root);
     let mut session = common::load_project(root);
     let document = session.project.root().id.0.document_id().clone();
     let setup = session.project.root().setup.id().clone();
@@ -341,8 +370,7 @@ fn independent_setup_retargets_a_linked_patch_to_its_copied_owned_children() {
     use donder_project_io::SourceObjectKind;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
+    write_inline_project(root);
     let mut session = common::load_project(root);
     let document = session.project.root().id.0.document_id().clone();
     let setup = session.project.root().setup.id().clone();
@@ -427,14 +455,13 @@ fn promoting_an_owned_setup_to_another_file_preserves_nested_identity_and_routin
     use donder_project_io::{SourceObjectKind, ensure_document_can_reference_object};
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
-    std::fs::write(root.join("project.donder"), INLINE_PROJECT).unwrap();
-    common::write_workspace_metadata(root);
+    write_inline_project(root);
     let mut session = common::load_project(root);
     let document = session.project.root().id.0.document_id().clone();
     let destination = session
         .source
-        .add_yaml_document(
-            "setups/venue.donder".into(),
+        .add_data_document(
+            "setups/venue.data.donder".into(),
             vec![(SourceObjectKind::Setup, "venue".into())],
         )
         .unwrap()
@@ -493,27 +520,23 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     let library = root.join("library");
     std::fs::create_dir(&library).unwrap();
-    let mut source: yaml_serde::Value = yaml_serde::from_str(INLINE_PROJECT).unwrap();
-    let mut sequence = source["show"]["sequences"][0].clone();
-    sequence
-        .as_mapping_mut()
-        .unwrap()
-        .remove(yaml_serde::Value::String("id".into()));
-    sequence["audio"] = "library/song.wav".into();
-    let library_doc = yaml_serde::Mapping::from_iter([("song".into(), sequence)]);
     std::fs::write(
-        library.join("project.donder"),
-        yaml_serde::to_string(&library_doc).unwrap(),
+        library.join("songs.data.donder"),
+        format!(
+            "{}\n",
+            SEQUENCE
+                .replace("Sequence song_4", "Sequence song")
+                .replace("audio: none", "audio: <library/song.wav>")
+        ),
     )
     .unwrap();
     std::fs::write(library.join("song.wav"), b"test audio asset").unwrap();
-    source["show"]["sequences"] = yaml_serde::Value::Sequence(vec!["songs.song".into()]);
-    let project_doc = format!(
-        "imports:\n- from: {{ documents: [library/project.donder] }}\n  as: songs\n{}",
-        yaml_serde::to_string(&source).unwrap()
-    );
-    std::fs::write(root.join("project.donder"), project_doc).unwrap();
-    common::write_workspace_metadata(root);
+    let fields = inline_fields().replace(SEQUENCE, "songs.song");
+    std::fs::write(
+        root.join(PROJECT_ROOT_FILE),
+        common::root_document("import songs from <library/songs.data.donder>;\n", &fields),
+    )
+    .unwrap();
     let mut session = common::load_project(root);
     let shared = session
         .project
@@ -546,9 +569,9 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
         reloaded.source.referenced_assets
     );
     assert!(
-        std::fs::read_to_string(root.join("project.donder"))
+        std::fs::read_to_string(root.join(PROJECT_ROOT_FILE))
             .unwrap()
-            .contains("library/song.wav")
+            .contains("<library/song.wav>")
     );
     assert_eq!(
         std::fs::read(library.join("song.wav")).unwrap(),

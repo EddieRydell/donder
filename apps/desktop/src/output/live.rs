@@ -515,6 +515,7 @@ mod tests {
         );
         // Invalid protocol address forces a codec failure before any network send.
         let controller = Controller {
+            description: None,
             id: id.clone(),
             protocol: ControllerProtocol::ArtNet(ArtNetConfig {
                 bind_address: "127.0.0.1:0".parse().unwrap(),
@@ -522,6 +523,7 @@ mod tests {
                 mode: ArtNetMode::Unicast,
             }),
             ports: vec![ControllerPort {
+                name: donder_language::names::object_name("port"),
                 id: ControllerPortId(1),
                 address: ControllerPortAddress::ArtNetPort(u16::MAX),
                 slot_count: 6,

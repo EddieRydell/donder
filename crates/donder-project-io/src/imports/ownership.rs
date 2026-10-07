@@ -2,125 +2,65 @@ use super::*;
 use donder_language::identity::{ObjectIdentity, OwnedObjectSlot};
 
 impl Loader {
+    /// A declared object, or an object it owns: the owner's reference
+    /// followed by the owning fields, `show.setup.controllers.main`.
     pub(crate) fn resolve_object_reference(
         &self,
         document: &DocumentId,
-        value: &Value,
+        reference: &Reference,
         expected: SourceObjectKind,
     ) -> Result<ObjectIdentity, LoadProjectError> {
-        let error = |message: &str| LoadProjectError::InvalidDocument {
-            path: document.path().to_owned(),
-            range: source_range_for_value(document.path(), value),
-            message: message.into(),
-        };
-        if let Some(reference) = value.as_str() {
-            let object = self.resolve_reference(document, reference)?;
-            if object.source_kind() != expected {
-                return Err(error("Reference has the wrong object type."));
+        let (root, mut rest) = self.resolve_declared(document, reference)?;
+        let mut kind = root.source_kind();
+        let mut identity = ObjectIdentity::from(root.source_identity().clone());
+        while let Some((field, after)) = rest.split_first() {
+            let (slot, after) = match field.value.as_str() {
+                "setup" => (OwnedObjectSlot::Setup, after),
+                "layout" => (OwnedObjectSlot::Layout, after),
+                "patch" => (OwnedObjectSlot::Patch, after),
+                "controllers" | "sequences" => {
+                    let (member, after) = after
+                        .split_first()
+                        .ok_or_else(|| self.unresolved(document, reference))?;
+                    let member = member.value.clone();
+                    if field.value.as_str() == "controllers" {
+                        (OwnedObjectSlot::Controller(member), after)
+                    } else {
+                        (OwnedObjectSlot::Sequence(member), after)
+                    }
+                }
+                _ => return Err(self.unresolved(document, reference)),
+            };
+            let member = matches!(
+                slot,
+                OwnedObjectSlot::Controller(_) | OwnedObjectSlot::Sequence(_)
+            );
+            kind = kind
+                .owned_child_kind(&slot)
+                .ok_or_else(|| self.unresolved(document, reference))?;
+            identity = identity.owned(slot);
+            if member
+                && let Some(segment) = rest.get(1)
+                && let Some(target) = self.member_span(&identity)
+            {
+                self.link(document, segment.span, target);
             }
-            return Ok(object.source_identity().clone().into());
+            rest = after;
         }
-        parse_mapping(document.path(), value, "owned object address", |fields| {
-            let root = self.resolve_reference(document, fields.string("owner")?)?;
-            let mut kind = root.source_kind();
-            let mut identity = ObjectIdentity::from(root.source_identity().clone());
-            let path = fields.sequence("path")?;
-            if path.is_empty() {
-                return Err(error("Owned object addresses require a non-empty path."));
-            }
-            for part in path {
-                let slot = match part.as_str() {
-                    Some("setup") => OwnedObjectSlot::Setup,
-                    Some("layout") => OwnedObjectSlot::Layout,
-                    Some("patch") => OwnedObjectSlot::Patch,
-                    Some(_) => return Err(error("Unknown ownership slot.")),
-                    None => parse_mapping(
-                        document.path(),
-                        part,
-                        "collection ownership slot",
-                        |fields| {
-                            Ok(match fields.string("type")? {
-                                "controller" => OwnedObjectSlot::Controller(fields.u32("id")?),
-                                "sequence" => OwnedObjectSlot::Sequence(fields.u32("id")?),
-                                "fixture" => OwnedObjectSlot::Fixture(fields.u32("id")?),
-                                _ => return Err(error("Unknown collection ownership slot.")),
-                            })
-                        },
-                    )?,
-                };
-                kind = kind
-                    .owned_child_kind(&slot)
-                    .ok_or_else(|| error("Invalid ownership path for this object type."))?;
-                identity = identity.owned(slot);
-            }
-            if kind != expected {
-                return Err(error("Owned address has the wrong object type."));
-            }
-            Ok(identity)
-        })
+        if kind != expected {
+            return Err(self.invalid(
+                document,
+                reference.span,
+                format!(
+                    "`{}` is {}, not {}",
+                    reference.text(),
+                    kind_name(&kind),
+                    kind_name(&expected)
+                ),
+            ));
+        }
+        Ok(identity)
     }
-}
-
-pub(crate) fn write_object_reference(
-    session: &ProjectSession,
-    from: &DocumentId,
-    kind: SourceObjectKind,
-    identity: &ObjectIdentity,
-) -> Result<Value, ExportProjectError> {
-    if let Some(source) = identity.source() {
-        return write_source_reference(session, from, kind, source).map(Value::String);
-    }
-    let root = identity.root_source();
-    let error = || ExportProjectError::InvalidReference {
-        path: from.path().to_owned(),
-        reference: root.object().into(),
-        message: "Invalid owned object address.".into(),
-    };
-    let root_kind = session
-        .source
-        .documents
-        .get(root.document_id())
-        .and_then(|document| {
-            document
-                .objects
-                .iter()
-                .find(|object| object.id == root.object())
-        })
-        .map(|object| object.kind.clone())
-        .ok_or_else(error)?;
-    let mut resolved_kind = root_kind.clone();
-    let mut path = Vec::new();
-    for slot in identity.owned_path() {
-        resolved_kind = resolved_kind.owned_child_kind(slot).ok_or_else(error)?;
-        path.push(match slot {
-            OwnedObjectSlot::Setup => Value::String("setup".into()),
-            OwnedObjectSlot::Layout => Value::String("layout".into()),
-            OwnedObjectSlot::Patch => Value::String("patch".into()),
-            OwnedObjectSlot::Controller(id)
-            | OwnedObjectSlot::Sequence(id)
-            | OwnedObjectSlot::Fixture(id) => {
-                let name = match slot {
-                    OwnedObjectSlot::Controller(_) => "controller",
-                    OwnedObjectSlot::Sequence(_) => "sequence",
-                    _ => "fixture",
-                };
-                Value::Mapping(Mapping::from_iter([
-                    (Value::String("type".into()), Value::String(name.into())),
-                    (Value::String("id".into()), Value::Number((*id).into())),
-                ]))
-            }
-        });
-    }
-    if resolved_kind != kind || !session.owned_object_exists(&kind, identity) {
-        return Err(error());
-    }
-    Ok(Value::Mapping(Mapping::from_iter([
-        (
-            Value::String("owner".into()),
-            Value::String(write_source_reference(session, from, root_kind, root)?),
-        ),
-        (Value::String("path".into()), Value::Sequence(path)),
-    ])))
 }
 
 pub fn ensure_document_can_reference_object(

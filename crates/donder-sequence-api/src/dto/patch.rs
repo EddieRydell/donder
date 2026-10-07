@@ -3,6 +3,8 @@ use super::*;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub object_key: String,
     pub routes: Vec<GuiPixelRoute>,

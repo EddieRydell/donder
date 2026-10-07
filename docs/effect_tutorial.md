@@ -5,10 +5,11 @@ effect and a first operator. Each step adds one idea. The [language
 reference](effect_language.md) has the full rules and the [builtin
 reference](effect_builtins.md) describes every function.
 
-Effects live in `.effect.donder` documents and operators in `.operator.donder`
-documents. Open one in Donder's source editor, or start from
-`examples/starter/effects/standard.effect.donder`. A document may hold several
-declarations; each becomes a choice when you place an effect on the timeline.
+Effects and operators live in script documents, files ending in `.donder`
+(data documents end in `.data.donder`). Open one in Donder's source editor, or
+start from `examples/starter/effects/standard.donder`. A script may hold several
+declarations of either kind; each effect becomes a choice when you place an
+effect on the timeline.
 
 ## 1. A solid color
 
@@ -75,17 +76,18 @@ parameters are drawn in the editor and can be automated.
 ```text
 effect Sweep {
   param colors: gradient;
-  param direction: enum { forward, backward } = forward;
+  param direction: enum { Forward, Backward } = Forward;
 
   sample {
-    let position = if direction == forward { progress } else { 1.0 - progress };
+    let position = if direction == Forward { progress } else { 1.0 - progress };
     colors[fract(pixel.fraction + position)]
   }
 }
 ```
 
 `let` names a value. `if` is an expression, so it always has an `else`. An enum
-parameter offers its options in the inspector and compares by name.
+parameter offers its options in the inspector and compares by name. Options are
+`PascalCase`.
 
 ## 6. Guards: drawing only some pixels
 
@@ -197,8 +199,7 @@ those pixels black.
 ## 11. Functions
 
 ```text
--- Brightness of a soft dot of `width` around `head`.
-fn glow(position: float, head: float, width: float) -> float {
+fn glow "Brightness of a soft dot of `width` around `head`." (position: float, head: float, width: float) -> float {
   max(0.0, 1.0 - abs(position - head) / width)
 }
 
@@ -217,6 +218,10 @@ A function names a calculation you use more than once. Its arguments and result
 have types, and it sees only its arguments and context values like `time`, so
 pass parameters in. Calls are expanded where they appear, so functions cost
 nothing at playback.
+
+The string after `glow` is an optional description. Effects, operators and
+parameters take one too (`effect TwoDots "Two dots chasing." {`,
+`param color: color = #ffcc00 "Dot color.";`), and the inspector shows them.
 
 ## 12. A first operator
 

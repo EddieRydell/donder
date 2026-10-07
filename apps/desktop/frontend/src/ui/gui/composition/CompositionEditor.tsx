@@ -35,6 +35,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const [menuTarget, setMenuTarget] = useState<number | null>(null);
   const [action, setAction] = useState<TreeAction | null>(null);
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [storage, setStorage] = useState<FixtureStorage>("inline");
   const [error, setError] = useState<string | null>(null);
   const request = useAppStore((state) => state.guiRequest);
@@ -81,9 +82,9 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     } else {
       let fixtures: GuiLayoutFixture[];
       if (action.type === "rename") {
-        fixtures = updateLayoutItem(gui.document.fixtures, action.id, (item) => ({ ...item, name: name.trim() }));
+        fixtures = updateLayoutItem(gui.document.fixtures, action.id, (item) => ({ ...item, name: name.trim(), description: description.trim() === "" ? null : description.trim() }));
       } else {
-        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), kind: { type: "group", children: [] } });
+        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), description: null, kind: { type: "group", children: [] } });
       }
       await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "setFixtures", fixtures }), action.origin);
     }
@@ -98,6 +99,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     const fixtures = addChild(gui.document.fixtures, parent, {
       id,
       name: definition.objectKey,
+      description: null,
       kind: { type: "fixture", definition: { type: "reference", source: definition }, transform: identityTransform(position) }
     });
     await runGuiEditCommand((currentRequest) => commands.applyLayoutGuiEdit(currentRequest, { type: "setFixtures", fixtures }), request);
@@ -166,8 +168,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={duplicate}>Duplicate selection</ContextMenu.Item>
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => {
               if (request === null) return;
-              setAction({ type: "rename", id: target.id, origin: request }); setName(target.name); setError(null);
-            }}>Rename</ContextMenu.Item>
+              setAction({ type: "rename", id: target.id, origin: request }); setName(target.name); setDescription(target.description ?? ""); setError(null);
+            }}>Name and description</ContextMenu.Item>
             <ContextMenu.Item className="menu-item danger" disabled={!editable} onSelect={remove}>Delete selection</ContextMenu.Item>
           </>}
         </ContextMenu.Content>
@@ -176,10 +178,11 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     <Dialog.Root open={action !== null} onOpenChange={(open) => { if (!open && !pending) setAction(null); }}>
       <Dialog.Portal><Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content composition-add-dialog" aria-describedby={undefined}>
-          <Dialog.Title>{action?.type === "rename" ? "Rename" : action?.type === "group" ? "Add group" : "Add fixture"}</Dialog.Title>
+          <Dialog.Title>{action?.type === "rename" ? "Name and description" : action?.type === "group" ? "Add group" : "Add fixture"}</Dialog.Title>
           <form className="setup-authoring-form" onSubmit={(event) => { event.preventDefault(); void submitAction().catch(reportError); }}>
             <fieldset disabled={!editable}>
               <label>Name<input required value={name} onFocus={(event) => { event.currentTarget.select(); }} onChange={(event) => { setName(event.target.value); }} /></label>
+              {action?.type === "rename" && <label className="description-field">Description<textarea rows={3} value={description} onChange={(event) => { setDescription(event.target.value); }} /></label>}
               {action?.type === "fixture" && <details className="composition-add-advanced">
                 <summary>Advanced settings</summary>
                 <label>Save fixture in<select value={storage} onChange={(event) => { if (event.target.value === "inline" || event.target.value === "sameFile" || event.target.value === "newFile") setStorage(event.target.value); }}>
@@ -191,7 +194,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
               </details>}
               {error !== null && <p role="alert">{error}</p>}
               <div className="dialog-actions">
-                <button type="submit" disabled={name.trim() === ""}>{action?.type === "rename" ? "Rename" : "Add"}</button>
+                <button type="submit" disabled={name.trim() === ""}>{action?.type === "rename" ? "Apply" : "Add"}</button>
                 <Dialog.Close asChild><button type="button">Cancel</button></Dialog.Close>
               </div>
             </fieldset>

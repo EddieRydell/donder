@@ -58,6 +58,7 @@ import {
   type AutomationHover
 } from "./sequenceAutomationLayout";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
+import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
 import { markSnapTimes, snapDeltaToMarks, snapToMark } from "./sequenceSnap";
 
 import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
@@ -663,6 +664,10 @@ export function SequenceCanvas({
     void runSnapshotCommand(() => commands.audioSeek(positionSeconds));
   };
   const timeFromCanvasX = (x: number) => clamp(roundToNanosecond(viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond), 0, document.durationSeconds);
+  const effectTree = useMemo(
+    () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
+    [document.effectDefinitions]
+  );
   const addEffectFromContextMenu = async (definition: SequenceEffectDefinition, menu: SequenceContextMenu) => {
     const hasMarksParams = definition.params.some((param) => param.kind === "marks");
     let markCollectionKey = hasMarksParams ? activeMarkCollectionKey ?? document.markCollections[0]?.key ?? null : null;
@@ -671,8 +676,7 @@ export function SequenceCanvas({
       await runGuiEditCommand((request) =>
         commands.applySequenceGuiEdit(request, {
           type: "createMarkCollection",
-          key: newCollectionKey,
-          name: "Marks",
+          name: newCollectionKey,
           color: defaultMarkColor(document.markCollections.length)
         })
       );
@@ -702,8 +706,7 @@ export function SequenceCanvas({
       await runGuiEditCommand((request) =>
         commands.applySequenceGuiEdit(request, {
           type: "createMarkCollection",
-          key: newCollectionKey,
-          name: "Marks",
+          name: newCollectionKey,
           color: defaultMarkColor(document.markCollections.length)
         })
       );
@@ -726,8 +729,7 @@ export function SequenceCanvas({
       await runGuiEditCommand((request) =>
         commands.applySequenceGuiEdit(request, {
           type: "createMarkCollection",
-          key: newCollectionKey,
-          name: "Marks",
+          name: newCollectionKey,
           color: defaultMarkColor(document.markCollections.length)
         })
       );
@@ -1464,21 +1466,14 @@ export function SequenceCanvas({
                 </ContextMenu.SubTrigger>
                 <ContextMenu.Portal container={overlayContainer}>
                   <ContextMenu.SubContent className="menu-content">
-                    {document.effectDefinitions.length === 0 ? (
-                      <ContextMenu.Item className="menu-item" disabled>
-                        No effects
-                      </ContextMenu.Item>
-                    ) : (
-                      document.effectDefinitions.map((definition) => (
-                        <ContextMenu.Item
-                          key={`${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
-                          className="menu-item"
-                          onSelect={() => void addEffectFromContextMenu(definition, sequenceContextMenu)}
-                        >
-                          {definition.name}
-                        </ContextMenu.Item>
-                      ))
-                    )}
+                    <DefinitionMenuItems
+                      menu={ContextMenu}
+                      tree={effectTree}
+                      label={(definition) => definition.name}
+                      itemKey={(definition) => `${definition.effect.moduleId}:${definition.effect.path}:${definition.effect.effectName}`}
+                      onSelect={(definition) => void addEffectFromContextMenu(definition, sequenceContextMenu)}
+                      empty="No effects"
+                    />
                   </ContextMenu.SubContent>
                 </ContextMenu.Portal>
               </ContextMenu.Sub>
@@ -1507,7 +1502,7 @@ export function SequenceCanvas({
                           className="menu-item"
                           onSelect={() => void addMarkFromContextMenu(collection.key, sequenceContextMenu)}
                         >
-                          <span style={{ color: collection.color }}>{collection.name}</span>
+                          <span style={{ color: collection.color }}>{collection.key}</span>
                         </ContextMenu.Item>
                       ))
                     )}

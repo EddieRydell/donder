@@ -1,0 +1,13 @@
+import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
+import vixen from <effects/vixen.donder>;
+import operators from <operators/standard.donder>;
+import setups from <setups/main.data.donder>;
+import sequences from <sequences/empty.data.donder>, <sequences/layer_test.data.donder>;
+
+Project starter {
+  format: 1,
+  id: "00000000-0000-4000-8000-000000000001",
+  description: none,
+  setup: setups.main,
+  sequences: [sequences.empty, sequences.layer_test],
+}

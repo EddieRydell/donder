@@ -13,6 +13,15 @@ pub(super) fn edit_fixture(
     resolved: &super::ResolvedGuiObject,
     edit: FixtureGuiEdit,
 ) -> Result<(), GuiMutationError> {
+    update_fixture_definition(session, resolved, |fixture| edit_geometry(fixture, edit))
+}
+
+/// Update the open fixture definition, declared or owned by a layout fixture.
+pub(super) fn update_fixture_definition(
+    session: &mut ProjectSession,
+    resolved: &super::ResolvedGuiObject,
+    update: impl FnOnce(&mut FixtureDefinition) -> Result<(), GuiMutationError>,
+) -> Result<(), GuiMutationError> {
     match resolved.owned_path.as_slice() {
         [] => {
             let id = FixtureDefinitionId(resolved.identity.clone());
@@ -26,7 +35,7 @@ pub(super) fn edit_fixture(
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Fixture definition was not loaded.".into())
                 })?;
-            edit_geometry(&mut fixture, edit)?;
+            update(&mut fixture)?;
             session
                 .project
                 .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
@@ -38,7 +47,12 @@ pub(super) fn edit_fixture(
         [parent @ .., crate::dto::GuiOwnedStep::Fixture { id }] => {
             let parent = parent.iter().fold(
                 donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
-                |address, step| address.owned(step.into()),
+                |address, step| {
+                    address.owned(
+                        step.try_into()
+                            .unwrap_or_else(|_| unreachable!("projected owned paths are valid")),
+                    )
+                },
             );
             let mut layout = session
                 .project
@@ -59,7 +73,7 @@ pub(super) fn edit_fixture(
                     "Fixture is not owned inline.".into(),
                 ));
             };
-            edit_geometry(value, edit)?;
+            update(value)?;
             session
                 .project
                 .replace_layout(&layout.id.clone(), layout)
@@ -131,7 +145,11 @@ fn edit_geometry(
                         .ok_or_else(|| GuiMutationError::Invalid("No shape IDs remain.".into()))?;
                     Ok(FixtureElement {
                         id: FixtureElementId(next),
-                        name: format!("{} {}", element.name, ordinal + 1),
+                        name: donder_language::names::object_name(&format!(
+                            "{}_{}",
+                            element.name.as_str(),
+                            ordinal + 1
+                        )),
                         transform: FixtureTransform {
                             position: checked_point(Point3Meters {
                                 x_meters: pixel.position.x,
@@ -157,6 +175,7 @@ pub(super) fn domain_geometry(
     elements: Vec<GuiFixtureElement>,
 ) -> Result<FixtureDefinition, GuiMutationError> {
     let geometry = FixtureDefinition {
+        description: None,
         elements: elements
             .into_iter()
             .map(domain_element)
@@ -227,7 +246,7 @@ pub(super) fn domain_element(
     };
     let element = FixtureElement {
         id: FixtureElementId(element.id),
-        name: element.name,
+        name: super::model::typed_name(&element.name)?,
         transform: checked_transform(element.transform)?,
         diameter: pixel_diameter(element.diameter_meters)?,
         reverse: element.reverse,
@@ -296,7 +315,7 @@ pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     };
     GuiFixtureElement {
         id: element.id.0,
-        name: element.name.clone(),
+        name: element.name.as_str().to_string(),
         transform: gui_transform(&element.transform),
         diameter_meters: element.diameter.as_meters_f32(),
         reverse: element.reverse,

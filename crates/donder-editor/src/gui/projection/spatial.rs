@@ -25,7 +25,12 @@ pub(in crate::gui) fn project_fixture(
         [parent @ .., GuiOwnedStep::Fixture { id }] => {
             let parent = parent.iter().fold(
                 donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
-                |address, step| address.owned(step.into()),
+                |address, step| {
+                    address.owned(
+                        step.try_into()
+                            .unwrap_or_else(|_| unreachable!("projected owned paths are valid")),
+                    )
+                },
             );
             let Some(placement) = session
                 .project
@@ -41,7 +46,7 @@ pub(in crate::gui) fn project_fixture(
             else {
                 return blocked("Fixture is not owned inline.", Vec::new());
             };
-            (value, placement.name.clone())
+            (value, placement.name.as_str().to_string())
         }
         _ => return blocked("Unsupported owned fixture path.", Vec::new()),
     };
@@ -80,6 +85,7 @@ pub(in crate::gui) fn project_fixture(
     }
     GuiDocument::Fixture {
         document: FixtureGuiDocument {
+            description: definition.description.clone(),
             name,
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
@@ -121,6 +127,7 @@ pub(in crate::gui) fn project_layout(
     }
     GuiDocument::Layout {
         document: LayoutGuiDocument {
+            description: layout.description.clone(),
             path: resolved.identity.document().to_string(),
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
@@ -147,7 +154,8 @@ pub fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
 fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
     GuiLayoutFixture {
         id: fixture.id.0,
-        name: fixture.name.clone(),
+        name: fixture.name.as_str().to_string(),
+        description: fixture.description.clone(),
         kind: match &fixture.kind {
             LayoutFixtureKind::Fixture {
                 definition,

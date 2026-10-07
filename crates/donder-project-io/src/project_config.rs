@@ -1,13 +1,12 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use serde::Serialize;
 use std::{fs, io, io::Write};
 use uuid::Uuid;
 
-pub const PROJECT_ROOT_FILE: &str = "project.donder";
+pub const PROJECT_ROOT_FILE: &str = "project.data.donder";
 pub const PROJECT_FORMAT_VERSION: u8 = 1;
 
-/// Workspace identity stored in the root document's `workspace` block.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+/// Workspace identity: the root `Project` declaration's `format` and `id`.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectMetadata {
     pub format_version: u8,
     pub project_id: Uuid,
@@ -34,43 +33,39 @@ impl ProjectMetadata {
 
     pub fn parse(text: &str) -> Result<Self, crate::LoadProjectError> {
         let path = Utf8Path::new(PROJECT_ROOT_FILE);
-        let document = crate::diagnostics::parse_yaml_value(path, text)?;
-        Self::from_document(&document)
-    }
-
-    pub(crate) fn from_document(
-        document: &yaml_serde::Value,
-    ) -> Result<Self, crate::LoadProjectError> {
-        let path = Utf8Path::new(PROJECT_ROOT_FILE);
-        let invalid =
-            |value: &yaml_serde::Value, message: String| crate::LoadProjectError::InvalidDocument {
+        let (document, diagnostics) = crate::document::read(text);
+        if !diagnostics.is_empty() {
+            return Err(crate::LoadProjectError::InvalidData {
                 path: path.into(),
-                range: crate::diagnostics::source_range_for_value(path, value),
-                message,
-            };
-        let value = document
-            .as_mapping()
-            .and_then(|map| map.get("workspace"))
-            .ok_or_else(|| {
-                invalid(
-                    document,
-                    "project.donder must contain a workspace metadata block".into(),
-                )
+                diagnostics: diagnostics
+                    .into_iter()
+                    .map(|diagnostic| crate::diagnostics::data_diagnostic(path, text, diagnostic))
+                    .collect(),
+            });
+        }
+        let (span, project) = document
+            .declarations
+            .iter()
+            .find_map(|(_, span, declaration)| match declaration {
+                crate::document::Declaration::Project(project) => Some((*span, project)),
+                _ => None,
+            })
+            .ok_or_else(|| crate::LoadProjectError::InvalidDocument {
+                path: path.into(),
+                range: None,
+                message: format!("{PROJECT_ROOT_FILE} must declare a `Project`"),
             })?;
-        let metadata =
-            crate::loader::mapping::parse_mapping(path, value, "workspace metadata", |fields| {
-                let format_version = u8::try_from(fields.u32("format_version")?)
-                    .map_err(|error| invalid(value, error.to_string()))?;
-                let project_id = Uuid::parse_str(fields.string("project_id")?)
-                    .map_err(|error| invalid(value, format!("Invalid project_id: {error}")))?;
-                Ok(Self {
-                    format_version,
-                    project_id,
-                })
-            })?;
-        metadata
-            .validate()
-            .map_err(|message| invalid(value, message))?;
+        let invalid = |message: String| crate::LoadProjectError::InvalidDocument {
+            path: path.into(),
+            range: Some(crate::diagnostics::byte_range(text, span.start, span.end)),
+            message,
+        };
+        let metadata = Self {
+            format_version: project.format,
+            project_id: Uuid::parse_str(&project.id)
+                .map_err(|error| invalid(format!("Invalid project id: {error}")))?,
+        };
+        metadata.validate().map_err(invalid)?;
         Ok(metadata)
     }
 
@@ -85,26 +80,6 @@ impl ProjectMetadata {
             return Err("Project ID must not be nil".into());
         }
         Ok(())
-    }
-
-    /// Initialize a root document without replacing existing workspace metadata.
-    pub fn initialize_document(&self, source: &str) -> Result<String, String> {
-        self.validate()?;
-        let value = crate::diagnostics::parse_yaml_value(Utf8Path::new(PROJECT_ROOT_FILE), source)
-            .map_err(|error| error.to_string())?;
-        let document = value
-            .as_mapping()
-            .ok_or("document root must be a mapping")?;
-        if document.contains_key("workspace") {
-            return Err("project.donder already contains a workspace block".into());
-        }
-        let mut root = yaml_serde::Mapping::new();
-        root.insert(
-            yaml_serde::Value::String("workspace".into()),
-            yaml_serde::to_value(self).map_err(|error| error.to_string())?,
-        );
-        root.extend(document.clone());
-        yaml_serde::to_string(&root).map_err(|error| error.to_string())
     }
 }
 
@@ -150,7 +125,7 @@ pub fn validate_relative_path(value: &str) -> Result<(), String> {
 
 pub fn validate_document_path(value: &str) -> Result<(), String> {
     validate_relative_path(value)?;
-    if !value.ends_with(".donder") {
+    if !value.ends_with(donder_language::data::SCRIPT_SUFFIX) {
         return Err(format!("`{value}` must be a Donder document"));
     }
     Ok(())

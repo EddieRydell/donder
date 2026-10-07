@@ -15,6 +15,29 @@ pub(crate) mod tests {
         load_project(&workspace.join("examples/starter")).unwrap()
     }
 
+    /// Saving `session` and reopening `root` gives back the same documents.
+    /// Loading assigns fresh session identities, so the printed text, which
+    /// holds every authored value, is what must match.
+    pub(crate) fn assert_reloads(root: &Utf8Path, session: &donder_project_io::ProjectSession) {
+        let loaded = load_project(root).unwrap();
+        let documents = |session: &donder_project_io::ProjectSession| {
+            session
+                .source
+                .documents
+                .keys()
+                .map(|id| {
+                    (
+                        id.path().to_string(),
+                        donder_project_io::source_document_text(session, id)
+                            .unwrap()
+                            .unwrap(),
+                    )
+                })
+                .collect::<std::collections::BTreeMap<_, _>>()
+        };
+        assert_eq!(documents(&loaded), documents(session));
+    }
+
     pub(crate) fn starter_copy() -> (tempfile::TempDir, Utf8PathBuf) {
         let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -48,7 +71,7 @@ pub(crate) mod tests {
         let request = GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: 0,
-            path: "setups/main.setup.donder".to_string(),
+            path: "setups/main.data.donder".to_string(),
             view: DocumentViewId::Setup,
             object_key: Some("main".to_string()),
         };
@@ -95,8 +118,8 @@ pub(crate) mod tests {
         let snapshot = state.open_project_path(root.as_str());
         let error = state
             .plan_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.effect.donder".to_string(),
-                destination: "effects/impact.effect.donder".to_string(),
+                source: "effects/impact-burst.donder".to_string(),
+                destination: "effects/impact.donder".to_string(),
                 project_revision: snapshot.project_revision.saturating_sub(1),
             })
             .unwrap_err();
@@ -111,25 +134,25 @@ pub(crate) mod tests {
         let mut settings = state.snapshot().settings;
         settings.autosave_project_edits = false;
         state.update_app_settings(settings);
-        let snapshot = state.open_file_path("sequences/layer_test.sequence.donder");
+        let snapshot = state.open_file_path("sequences/layer_test.data.donder");
         let buffer = snapshot.active_buffer.unwrap();
         state
             .update_document(crate::dto::DocumentUpdate {
                 project_epoch: snapshot.project_epoch,
                 path: buffer.path,
                 expected_document_revision: buffer.document_revision,
-                text: format!("{}\n# unsaved change\n", buffer.text),
+                text: buffer.text.replace("frame_rate: 144", "frame_rate: 90"),
             })
             .unwrap();
         let revision = state.snapshot().project_revision;
         let error = state
             .apply_workspace_path_change(WorkspacePathChangeRequest {
-                source: "effects/impact-burst.effect.donder".to_string(),
-                destination: "effects/impact.effect.donder".to_string(),
+                source: "effects/impact-burst.donder".to_string(),
+                destination: "effects/impact.donder".to_string(),
                 project_revision: revision,
             })
             .unwrap_err();
         assert!(error.contains("saved"));
-        assert!(root.join("effects/impact-burst.effect.donder").is_file());
+        assert!(root.join("effects/impact-burst.donder").is_file());
     }
 }

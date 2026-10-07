@@ -138,7 +138,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
     use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
     use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let definitions = compile_effects(include_str!(
-        "../../../examples/starter/effects/standard.effect.donder"
+        "../../../examples/starter/effects/standard.donder"
     ))
     .unwrap();
     let chase = definitions
@@ -204,7 +204,7 @@ pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
                 ("gradient", gradient),
                 (
                     "gradient_mode",
-                    Value::Enum(Identifier::new("across_items".into()).unwrap()),
+                    Value::Enum(Identifier::new("AcrossItems".into()).unwrap()),
                 ),
                 ("pulse_overlap", Value::Float(12.0 + index as f32)),
                 ("section_width_pixels", Value::Int(3 + index as i32 % 4)),

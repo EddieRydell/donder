@@ -169,7 +169,7 @@ fn fusing_a_black_source_folds_its_consumer() {
 #[test]
 fn black_inputs_fold_samples_and_shift_later_inputs() {
     let library = compile_operators(include_str!(
-        "../../../../examples/starter/operators/standard.operator.donder"
+        "../../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
     let find = |name: &str| {
@@ -377,19 +377,19 @@ fn fusion_preserves_resource_parameters() {
     let definitions = operators(
         "operator Inner { input source;
             param levels: array<float>; param shape: curve in 0.0..1.0;
-            param colors: gradient; param mode: enum { first, second } = second;
+            param colors: gradient; param mode: enum { First, Second } = Second;
             param beats: marks;
             sample {
                 let values = [levels[0], value_or(shape[progress], 0.3), levels[1]];
                 let gain = values[pixel.index % 3];
-                let gain = if mode == first { gain * 0.5 } else { gain };
+                let gain = if mode == First { gain * 0.5 } else { gain };
                 let gain = gain + sum for i in 0..len(beats) { mark_at(beats, i) * 0.01 };
                 max(source.at(time) * gain, colors[progress])
             }
         }
         operator Outer { input source;
             param unused: array<float>; param unused_shape: curve in 0.0..1.0;
-            param unused_colors: gradient; param unused_mode: enum { first, second } = first;
+            param unused_colors: gradient; param unused_mode: enum { First, Second } = First;
             param unused_beats: marks;
             sample { source.at(time) * 0.7 }
         }",

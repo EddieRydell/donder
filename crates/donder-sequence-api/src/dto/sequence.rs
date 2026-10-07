@@ -33,6 +33,8 @@ pub struct SequenceGradientLibraryItem {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
@@ -55,6 +57,7 @@ pub struct SequenceGuiDocument {
 pub struct SequenceLayer {
     pub id: u32,
     pub name: String,
+    pub description: Option<String>,
     pub color: String,
     pub enabled: bool,
     pub is_default: bool,
@@ -163,6 +166,9 @@ pub struct SequenceClipRasterUnavailable {
 pub struct SequenceEffect {
     pub index: u32,
     pub id: u32,
+    /// The clip's name, which automation bindings use.
+    pub name: String,
+    pub description: Option<String>,
     pub layer_id: u32,
     pub start_seconds: f32,
     pub duration_seconds: f32,
@@ -215,6 +221,8 @@ pub enum SequenceGraphNodeKind {
         enabled: bool,
     },
     Operator {
+        /// The node's name, which edges and automation bindings use.
+        name: String,
         operator: SequenceGraphOperator,
         params: Vec<SequenceEffectParam>,
     },
@@ -227,6 +235,8 @@ pub struct SequenceGraphOperatorDefinition {
     pub operator: SequenceGraphOperator,
     pub source_name: String,
     pub display_name: String,
+    /// The script's description of the operator.
+    pub description: Option<String>,
     pub inputs: Vec<SequenceGraphPortDefinition>,
     pub outputs: Vec<SequenceGraphPortDefinition>,
     pub params: Vec<SequenceEffectDefinitionParam>,
@@ -252,6 +262,8 @@ pub enum SequenceGraphPortCardinality {
 pub struct SequenceEffectParam {
     pub supports_automation: bool,
     pub name: String,
+    /// The script's description of the parameter.
+    pub description: Option<String>,
     pub kind: SequenceEffectParamKind,
     pub options: Vec<String>,
     pub range: Option<SequenceParamRange>,
@@ -278,6 +290,8 @@ pub struct SequenceParamRange {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceEffectDefinition {
     pub name: String,
+    /// The script's description of the effect.
+    pub description: Option<String>,
     pub effect: SequenceEffectReference,
     #[serde(rename = "import")]
     pub import_path: Option<String>,
@@ -289,6 +303,8 @@ pub struct SequenceEffectDefinition {
 pub struct SequenceEffectDefinitionParam {
     pub supports_automation: bool,
     pub name: String,
+    /// The script's description of the parameter.
+    pub description: Option<String>,
     pub kind: SequenceEffectParamKind,
 }
 
@@ -313,8 +329,9 @@ pub enum SequenceLaneKind {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceMarkCollection {
+    /// The collection's name, which effect parameters use.
     pub key: String,
-    pub name: String,
+    pub description: Option<String>,
     pub color: String,
     pub marks_seconds: Vec<f32>,
 }

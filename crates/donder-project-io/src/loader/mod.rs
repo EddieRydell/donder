@@ -1,33 +1,139 @@
-use donder_language::model::ProjectData;
-use donder_language::ownership::ValueSource;
-pub(crate) mod inspection;
-use inspection::string_field;
-pub(crate) mod mapping;
-use crate::imports::parse_imports;
-use donder_language::fixture::FixtureDefinitionId;
-use donder_language::imports::SourceReference;
-use donder_language::layout::LayoutId;
-pub(crate) mod parse;
+//! Project loading. Documents are read and indexed, imports followed, and
+//! declarations then resolved into typed state, where every object gets a
+//! fresh session identity.
 mod resolve;
 
-pub(crate) use parse::mapping;
-use parse::{ResolvedObject, SourceObjectValue, parse_curve, parse_gradient, parse_project_fields};
+use std::cell::RefCell;
+use std::fs;
+use std::sync::Arc;
+
+use camino::{Utf8Path, Utf8PathBuf};
+use donder_language::controller::ControllerId;
+use donder_language::data::schema::NO_SPAN;
+use donder_language::dsl::{TextSpan, compile_script};
+use donder_language::effect::{
+    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
+};
+use donder_language::fixture::FixtureDefinitionId;
+use donder_language::identity::{DocumentId, SourceIdentity};
+use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+use donder_language::layout::LayoutId;
+use donder_language::model::{
+    DonderProject, ProjectData, ProjectDefinitionStores, ProjectId, ProjectRoot,
+};
+use donder_language::operator::{OperatorDefinitionId, custom_operator_definition};
+use donder_language::ownership::ValueSource;
+use donder_language::patch::PatchId;
+use donder_language::sequence::SequenceId;
+use donder_language::setup::SetupId;
+use indexmap::{IndexMap, IndexSet};
+
+use crate::diagnostics::{byte_range, data_diagnostic, dsl_diagnostic};
+use crate::document::{self, Declaration};
+use crate::imports::ParsedImport;
+use crate::index::{Link, LinkTarget, ScriptMember};
+use crate::source::{
+    ProjectSession, ReferencedAsset, SourceDocument, SourceDocumentKind, SourceObjectId,
+    SourceObjectKind, SourceProject,
+};
+use crate::{IoDiagnosticCode, LoadProjectError, TextRange};
 use resolve::DomainResolver;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum ResolvedObject {
+    Project(ProjectId),
+    Setup(SetupId),
+    Controller(ControllerId),
+    Layout(LayoutId),
+    Patch(PatchId),
+    FixtureDefinition(FixtureDefinitionId),
+    Curve(CurveId),
+    Gradient(GradientId),
+    Sequence(SequenceId),
+    EffectDefinition(EffectDefinitionId),
+    OperatorDefinition(OperatorDefinitionId),
+}
+
+impl ResolvedObject {
+    fn new(kind: SourceObjectKind, identity: SourceIdentity) -> Option<Self> {
+        Some(match kind {
+            SourceObjectKind::Project => Self::Project(ProjectId(identity)),
+            SourceObjectKind::Setup => Self::Setup(SetupId(identity.into())),
+            SourceObjectKind::Controller => Self::Controller(ControllerId(identity.into())),
+            SourceObjectKind::Layout => Self::Layout(LayoutId(identity.into())),
+            SourceObjectKind::Patch => Self::Patch(PatchId(identity.into())),
+            SourceObjectKind::FixtureDefinition => {
+                Self::FixtureDefinition(FixtureDefinitionId(identity))
+            }
+            SourceObjectKind::Curve => Self::Curve(CurveId(identity)),
+            SourceObjectKind::Gradient => Self::Gradient(GradientId(identity)),
+            SourceObjectKind::Sequence => Self::Sequence(SequenceId(identity.into())),
+            SourceObjectKind::EffectDefinition => {
+                Self::EffectDefinition(EffectDefinitionId(identity))
+            }
+            SourceObjectKind::OperatorDefinition => {
+                Self::OperatorDefinition(OperatorDefinitionId(identity))
+            }
+            SourceObjectKind::EffectInstance => return None,
+        })
+    }
+
+    pub(crate) fn source_identity(&self) -> &SourceIdentity {
+        match self {
+            Self::Project(id) => &id.0,
+            Self::Setup(id) => id.0.root_source(),
+            Self::Controller(id) => id.0.root_source(),
+            Self::Layout(id) => id.0.root_source(),
+            Self::Patch(id) => id.0.root_source(),
+            Self::FixtureDefinition(id) => &id.0,
+            Self::Curve(id) => &id.0,
+            Self::Gradient(id) => &id.0,
+            Self::Sequence(id) => id.0.root_source(),
+            Self::EffectDefinition(id) => &id.0,
+            Self::OperatorDefinition(id) => &id.0,
+        }
+    }
+
+    pub(crate) fn source_kind(&self) -> SourceObjectKind {
+        match self {
+            Self::Project(_) => SourceObjectKind::Project,
+            Self::Setup(_) => SourceObjectKind::Setup,
+            Self::Controller(_) => SourceObjectKind::Controller,
+            Self::Layout(_) => SourceObjectKind::Layout,
+            Self::Patch(_) => SourceObjectKind::Patch,
+            Self::FixtureDefinition(_) => SourceObjectKind::FixtureDefinition,
+            Self::Curve(_) => SourceObjectKind::Curve,
+            Self::Gradient(_) => SourceObjectKind::Gradient,
+            Self::Sequence(_) => SourceObjectKind::Sequence,
+            Self::EffectDefinition(_) => SourceObjectKind::EffectDefinition,
+            Self::OperatorDefinition(_) => SourceObjectKind::OperatorDefinition,
+        }
+    }
+}
+
+/// A data document's text and its declarations by name.
+pub(crate) struct DataDocument {
+    pub(crate) text: String,
+    pub(crate) declarations: IndexMap<String, (TextSpan, Declaration)>,
+    /// Each declaration's name span.
+    pub(crate) names: IndexMap<String, TextSpan>,
+}
 
 pub(super) struct Loader {
     pub(crate) workspace: crate::ProjectWorkspace,
-    pub(crate) entrypoint: donder_language::identity::DocumentId,
-    pub(crate) documents: IndexMap<donder_language::identity::DocumentId, SourceDocument>,
-    pub(crate) visible_objects:
-        IndexMap<donder_language::identity::DocumentId, IndexMap<SourceReference, ResolvedObject>>,
-    pub(crate) import_locations:
-        IndexMap<donder_language::identity::DocumentId, Vec<crate::imports::ParsedImport>>,
-    pub(crate) loading_documents: IndexSet<donder_language::identity::DocumentId>,
+    pub(crate) entrypoint: DocumentId,
+    pub(crate) documents: IndexMap<DocumentId, SourceDocument>,
+    pub(crate) data: IndexMap<DocumentId, Arc<DataDocument>>,
+    pub(crate) visible_objects: IndexMap<DocumentId, IndexMap<SourceReference, ResolvedObject>>,
+    pub(crate) import_locations: IndexMap<DocumentId, Vec<ParsedImport>>,
+    pub(crate) loading_documents: IndexSet<DocumentId>,
     pub(crate) definitions: ProjectDefinitionStores,
     pub(crate) referenced_assets: Vec<ReferencedAsset>,
     pub(crate) next_asset_id: u32,
-    pub(crate) checked_dsl_documents: IndexSet<Utf8PathBuf>,
-    pub(crate) source_overrides: IndexMap<donder_language::identity::DocumentId, String>,
+    pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
+    pub(crate) source_overrides: IndexMap<DocumentId, String>,
+    /// Where each resolved name points, for the language server.
+    pub(crate) links: RefCell<Vec<Link>>,
 }
 
 impl Loader {
@@ -40,7 +146,7 @@ impl Loader {
                 range: None,
                 message,
             })?;
-        let entrypoint = donder_language::identity::DocumentId::new(
+        let entrypoint = DocumentId::new(
             workspace.metadata.project_id,
             crate::PROJECT_ROOT_FILE.into(),
         );
@@ -48,23 +154,17 @@ impl Loader {
             workspace,
             entrypoint,
             documents: IndexMap::new(),
+            data: IndexMap::new(),
             visible_objects: IndexMap::new(),
             import_locations: IndexMap::new(),
             loading_documents: IndexSet::new(),
             definitions: ProjectDefinitionStores::default(),
             referenced_assets: Vec::new(),
             next_asset_id: 1,
+            checked_scripts: IndexSet::new(),
             source_overrides: IndexMap::new(),
-            checked_dsl_documents: IndexSet::new(),
+            links: RefCell::new(Vec::new()),
         })
-    }
-
-    pub(super) fn source_identity(
-        &self,
-        document: &donder_language::identity::DocumentId,
-        object: String,
-    ) -> donder_language::identity::SourceIdentity {
-        donder_language::identity::SourceIdentity::from_document(document.clone(), object)
     }
 
     pub(super) fn load(&mut self) -> Result<ProjectSession, LoadProjectError> {
@@ -90,12 +190,33 @@ impl Loader {
         })
     }
 
+    /// The text range of `span` in a loaded data document.
+    pub(crate) fn range(&self, document: &DocumentId, span: TextSpan) -> Option<TextRange> {
+        (span != NO_SPAN)
+            .then(|| self.data.get(document))
+            .flatten()
+            .map(|data| byte_range(&data.text, span.start, span.end))
+    }
+
+    pub(crate) fn invalid(
+        &self,
+        document: &DocumentId,
+        span: TextSpan,
+        message: impl Into<String>,
+    ) -> LoadProjectError {
+        LoadProjectError::InvalidDocument {
+            path: document.path().to_path_buf(),
+            range: self.range(document, span),
+            message: message.into(),
+        }
+    }
+
     fn resolve_loaded_objects(
         &mut self,
         project: &mut ProjectData,
     ) -> Result<(), LoadProjectError> {
-        // Every indexed object needs typed state, including unused objects in imported
-        // documents. Saving never falls back to an unresolved original YAML value.
+        // Every declared object gets typed state, including objects nothing
+        // uses, so saving can always print every declaration.
         let objects: Vec<_> = self
             .visible_objects
             .iter()
@@ -106,8 +227,7 @@ impl Loader {
                     .map(|(_, object)| (document.clone(), object.clone()))
             })
             .collect();
-
-        let active_entrypoint = self.entrypoint.clone();
+        let entrypoint = self.entrypoint.clone();
         let mut resolver = DomainResolver {
             loader: self,
             project,
@@ -115,62 +235,25 @@ impl Loader {
         for (document, object) in objects {
             match object {
                 ResolvedObject::Project(id) => {
-                    if active_entrypoint != document || resolver.project.root.id != id {
-                        return Err(LoadProjectError::InvalidDocument {
-                            path: document.path().to_path_buf(),
-                            range: None,
-                            message:
-                                "project objects must belong to the root project.donder document"
-                                    .to_string(),
-                        });
+                    if entrypoint != document || resolver.project.root.id != id {
+                        let span = resolver.loader.declaration_span(&id.0);
+                        return Err(resolver.loader.invalid(
+                            &document,
+                            span,
+                            format!("a project is declared only in {}", crate::PROJECT_ROOT_FILE),
+                        ));
                     }
                 }
-                ResolvedObject::Setup(id) => {
-                    resolver.resolve_setup(&id)?;
-                }
-                ResolvedObject::Controller(id) => {
-                    resolver.resolve_controller(&id)?;
-                }
-                ResolvedObject::Layout(id) => {
-                    resolver.resolve_layout(&id)?;
-                }
-                ResolvedObject::Patch(id) => {
-                    resolver.resolve_patch(&id)?;
-                }
-                ResolvedObject::FixtureDefinition(id) => {
-                    resolver.resolve_fixture(&id)?;
-                }
-                ResolvedObject::Curve(id) => {
-                    resolver.resolve_curve(document.path(), &id)?;
-                }
-                ResolvedObject::Gradient(id) => {
-                    if !resolver
-                        .project
-                        .definitions
-                        .gradients
-                        .definitions
-                        .contains_key(&id)
-                    {
-                        return Err(missing_exported_definition(&document, &id.0));
-                    }
-                }
-                ResolvedObject::Sequence(id) => {
-                    resolver.resolve_sequence(&id)?;
-                }
-                ResolvedObject::EffectDefinition(id) => {
-                    resolver.resolve_effect_definition(&id)?;
-                }
-                ResolvedObject::OperatorDefinition(id) => {
-                    if !resolver
-                        .project
-                        .definitions
-                        .operators
-                        .definitions
-                        .contains_key(&id)
-                    {
-                        return Err(missing_exported_definition(&document, &id.0));
-                    }
-                }
+                ResolvedObject::Setup(id) => resolver.resolve_setup(&id)?,
+                ResolvedObject::Controller(id) => resolver.resolve_controller(&id)?,
+                ResolvedObject::Layout(id) => resolver.resolve_layout(&id)?,
+                ResolvedObject::Patch(id) => resolver.resolve_patch(&id)?,
+                ResolvedObject::FixtureDefinition(id) => resolver.resolve_fixture(&id)?,
+                ResolvedObject::Sequence(id) => resolver.resolve_sequence(&id)?,
+                ResolvedObject::Curve(_)
+                | ResolvedObject::Gradient(_)
+                | ResolvedObject::EffectDefinition(_)
+                | ResolvedObject::OperatorDefinition(_) => {}
             }
         }
         Ok(())
@@ -178,28 +261,26 @@ impl Loader {
 
     pub(super) fn load_document(
         &mut self,
-        document_id: &donder_language::identity::DocumentId,
+        document_id: &DocumentId,
     ) -> Result<(), LoadProjectError> {
         if self.documents.contains_key(document_id) {
             return Ok(());
         }
         if self.loading_documents.contains(document_id) {
-            // Import cycles are valid: each Donder document indexes its local objects
-            // before resolving imports, so the active document is already visible.
+            // Import cycles are valid: each document indexes its declarations
+            // before following imports, so the active document is visible.
             return Ok(());
         }
         self.loading_documents.insert(document_id.clone());
         let absolute = self.absolute_document_path(document_id)?;
         let result = match crate::source_document_format(document_id.path()) {
-            crate::SourceDocumentFormat::Effect => {
-                self.load_effect_document(document_id, &absolute)
-            }
-            crate::SourceDocumentFormat::Operator => {
-                self.load_operator_document(document_id, &absolute)
-            }
-            crate::SourceDocumentFormat::Donder | crate::SourceDocumentFormat::Other => {
-                self.load_donder_document(document_id, &absolute)
-            }
+            crate::SourceDocumentFormat::Script => self.load_script(document_id, &absolute),
+            crate::SourceDocumentFormat::Data => self.load_data(document_id, &absolute),
+            crate::SourceDocumentFormat::Other => Err(LoadProjectError::InvalidDocument {
+                path: document_id.path().to_path_buf(),
+                range: None,
+                message: "not a Donder document".into(),
+            }),
         };
         self.loading_documents.shift_remove(document_id);
         result
@@ -207,7 +288,7 @@ impl Loader {
 
     pub(super) fn absolute_document_path(
         &self,
-        document_id: &donder_language::identity::DocumentId,
+        document_id: &DocumentId,
     ) -> Result<Utf8PathBuf, LoadProjectError> {
         if document_id.module_id() != self.workspace.metadata.project_id {
             return Err(LoadProjectError::InvalidDocument {
@@ -242,9 +323,9 @@ impl Loader {
         Ok(path)
     }
 
-    pub(super) fn read_source(
+    fn read_source(
         &self,
-        document_id: &donder_language::identity::DocumentId,
+        document_id: &DocumentId,
         absolute: &Utf8Path,
     ) -> Result<String, LoadProjectError> {
         if let Some(source) = self.source_overrides.get(document_id) {
@@ -256,18 +337,16 @@ impl Loader {
         })
     }
 
-    pub(super) fn load_effect_document(
+    fn load_script(
         &mut self,
-        document_id: &donder_language::identity::DocumentId,
+        document_id: &DocumentId,
         absolute: &Utf8Path,
     ) -> Result<(), LoadProjectError> {
         let relative = document_id.path();
         let source = self.read_source(document_id, absolute)?;
-        if let Ok(path) = absolute.strip_prefix(&self.workspace.root) {
-            self.checked_dsl_documents.insert(path.to_path_buf());
-        }
-        let compiled =
-            compile_effects(&source).map_err(|diagnostics| LoadProjectError::InvalidEffect {
+        self.checked_scripts.insert(relative.to_path_buf());
+        let script =
+            compile_script(&source).map_err(|diagnostics| LoadProjectError::InvalidScript {
                 path: relative.to_path_buf(),
                 diagnostics: diagnostics
                     .into_iter()
@@ -276,101 +355,60 @@ impl Loader {
                             relative,
                             &source,
                             diagnostic,
-                            IoDiagnosticCode::EffectCompile,
+                            IoDiagnosticCode::ScriptCompile,
                         )
                     })
                     .collect(),
             })?;
         let mut visible = IndexMap::new();
         let mut objects = Vec::new();
-        for effect in compiled {
-            let name = effect.name().as_str().to_string();
-            let id = EffectDefinitionId(self.source_identity(document_id, name.clone()));
-            self.definitions
-                .effects
-                .insert(id.clone(), EffectDefinition::custom(id.clone(), effect));
-            let source_object = SourceObjectId {
-                kind: SourceObjectKind::EffectDefinition,
-                id: name.clone(),
-            };
-            objects.push(source_object);
-            visible.insert(
-                SourceReference::Local(Identifier::new(name.clone()).map_err(|_| {
-                    LoadProjectError::InvalidDocument {
-                        path: document_id.path().to_path_buf(),
-                        range: None,
-                        message: format!("invalid object name `{name}`"),
-                    }
-                })?),
-                ResolvedObject::EffectDefinition(id),
-            );
-        }
-        self.visible_objects.insert(document_id.clone(), visible);
-        let document =
-            SourceDocument::new(Vec::new(), objects, SourceDocumentKind::Effect { source })
-                .map_err(|message| LoadProjectError::InvalidDocument {
+        let declared = script
+            .effects
+            .into_iter()
+            .map(|effect| {
+                let name = effect.name().clone();
+                let id = EffectDefinitionId(SourceIdentity::from_document(
+                    document_id.clone(),
+                    name.as_str().to_string(),
+                ));
+                self.definitions
+                    .effects
+                    .insert(id.clone(), EffectDefinition::custom(id.clone(), effect));
+                (name, ResolvedObject::EffectDefinition(id))
+            })
+            .collect::<Vec<_>>();
+        let declared = declared
+            .into_iter()
+            .chain(script.operators.into_iter().map(|operator| {
+                let name = operator.name().clone();
+                let id = OperatorDefinitionId(SourceIdentity::from_document(
+                    document_id.clone(),
+                    name.as_str().to_string(),
+                ));
+                self.definitions
+                    .operators
+                    .insert(id.clone(), custom_operator_definition(id.clone(), operator));
+                (name, ResolvedObject::OperatorDefinition(id))
+            }));
+        for (name, object) in declared.collect::<Vec<_>>() {
+            objects.push(SourceObjectId {
+                kind: object.source_kind(),
+                id: name.as_str().to_string(),
+            });
+            if visible
+                .insert(SourceReference::Local(name.clone()), object)
+                .is_some()
+            {
+                return Err(LoadProjectError::InvalidDocument {
                     path: relative.to_path_buf(),
                     range: None,
-                    message,
-                })?;
-        self.import_locations
-            .insert(document_id.clone(), Vec::new());
-        self.documents.insert(document_id.clone(), document);
-        Ok(())
-    }
-
-    pub(super) fn load_operator_document(
-        &mut self,
-        document_id: &donder_language::identity::DocumentId,
-        absolute: &Utf8Path,
-    ) -> Result<(), LoadProjectError> {
-        let relative = document_id.path();
-        let source = self.read_source(document_id, absolute)?;
-        if let Ok(path) = absolute.strip_prefix(&self.workspace.root) {
-            self.checked_dsl_documents.insert(path.to_path_buf());
-        }
-        let compiled = compile_operators(&source).map_err(|diagnostics| {
-            LoadProjectError::InvalidOperator {
-                path: relative.to_path_buf(),
-                diagnostics: diagnostics
-                    .into_iter()
-                    .map(|diagnostic| {
-                        dsl_diagnostic(
-                            relative,
-                            &source,
-                            diagnostic,
-                            IoDiagnosticCode::OperatorCompile,
-                        )
-                    })
-                    .collect(),
+                    message: format!("`{}` is declared twice", name.as_str()),
+                });
             }
-        })?;
-        let mut visible = IndexMap::new();
-        let mut objects = Vec::new();
-        for operator in compiled {
-            let name = operator.name().as_str().to_string();
-            let id = OperatorDefinitionId(self.source_identity(document_id, name.clone()));
-            let definition = custom_operator_definition(id.clone(), operator);
-            self.definitions.operators.insert(id.clone(), definition);
-            let source_object = SourceObjectId {
-                kind: SourceObjectKind::OperatorDefinition,
-                id: name.clone(),
-            };
-            objects.push(source_object);
-            visible.insert(
-                SourceReference::Local(Identifier::new(name.clone()).map_err(|_| {
-                    LoadProjectError::InvalidDocument {
-                        path: document_id.path().to_path_buf(),
-                        range: None,
-                        message: format!("invalid object name `{name}`"),
-                    }
-                })?),
-                ResolvedObject::OperatorDefinition(id),
-            );
         }
         self.visible_objects.insert(document_id.clone(), visible);
         let document =
-            SourceDocument::new(Vec::new(), objects, SourceDocumentKind::Operator { source })
+            SourceDocument::new(Vec::new(), objects, SourceDocumentKind::Script { source })
                 .map_err(|message| LoadProjectError::InvalidDocument {
                     path: relative.to_path_buf(),
                     range: None,
@@ -382,161 +420,233 @@ impl Loader {
         Ok(())
     }
 
-    pub(super) fn load_donder_document(
+    fn load_data(
         &mut self,
-        document_id: &donder_language::identity::DocumentId,
+        document_id: &DocumentId,
         absolute: &Utf8Path,
     ) -> Result<(), LoadProjectError> {
         let relative = document_id.path();
         let text = self.read_source(document_id, absolute)?;
-        let value = parse_yaml_value(relative, &text)?;
-        let map = mapping(&value).ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: relative.to_path_buf(),
-            range: None,
-            message: "document root must be a mapping".to_string(),
-        })?;
-        let imports = parse_imports(relative, map)?;
-        let mut visible = IndexMap::new();
-
-        let mut objects = Vec::new();
-        for (key, object_value) in map {
-            let Some(key) = key.as_str() else {
-                return Err(LoadProjectError::InvalidDocument {
-                    path: relative.to_path_buf(),
-                    range: None,
-                    message: "object keys must be strings".to_string(),
-                });
-            };
-            if key == "imports"
-                || (relative == Utf8Path::new(crate::PROJECT_ROOT_FILE) && key == "workspace")
-            {
-                continue;
-            }
-            Identifier::new(key.to_string()).map_err(|_| LoadProjectError::InvalidDocument {
+        let (parsed, diagnostics) = document::read(&text);
+        if !diagnostics.is_empty() {
+            return Err(LoadProjectError::InvalidData {
                 path: relative.to_path_buf(),
-                range: source_range_for_value(relative, object_value),
-                message: format!("invalid object identifier `{key}`"),
-            })?;
-            let object_type = string_field(relative, object_value, "type")?;
-            let object = match object_type {
-                "project" => {
-                    parse_project_fields(relative, object_value)?;
-                    ResolvedObject::Project(ProjectId(
-                        self.source_identity(document_id, key.to_string()),
-                    ))
-                }
-                "setup" => ResolvedObject::Setup(SetupId(
-                    self.source_identity(document_id, key.to_string()).into(),
-                )),
-                "controller" => ResolvedObject::Controller(ControllerId(
-                    self.source_identity(document_id, key.to_string()).into(),
-                )),
-                "layout" => ResolvedObject::Layout(LayoutId(
-                    self.source_identity(document_id, key.to_string()).into(),
-                )),
-                "patch" => ResolvedObject::Patch(PatchId(
-                    self.source_identity(document_id, key.to_string()).into(),
-                )),
-                "fixture" => ResolvedObject::FixtureDefinition(FixtureDefinitionId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
-                "curve" => ResolvedObject::Curve(CurveId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
-                "gradient" => ResolvedObject::Gradient(GradientId(
-                    self.source_identity(document_id, key.to_string()),
-                )),
-                "sequence" => ResolvedObject::Sequence(SequenceId(
-                    self.source_identity(document_id, key.to_string()).into(),
-                )),
-                other => {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: relative.to_path_buf(),
-                        range: source_range_for_field_value(relative, object_value, "type"),
-                        message: format!("unsupported object type `{other}`"),
-                    });
-                }
-            };
-            if let ResolvedObject::Curve(id) = &object {
-                self.definitions.curves.insert(
-                    id.clone(),
-                    CurveDefinition {
-                        curve: parse_curve(relative, object_value)?,
-                    },
-                );
-            }
-            if let ResolvedObject::Gradient(id) = &object {
-                self.definitions.gradients.insert(
-                    id.clone(),
-                    GradientDefinition {
-                        gradient: parse_gradient(relative, object_value)?,
-                    },
-                );
-            }
-            let source_object = SourceObjectId {
-                kind: object.source_kind(),
-                id: key.to_string(),
-            };
-            objects.push(source_object);
-            visible.insert(
-                SourceReference::Local(Identifier::new(key.to_string()).map_err(|_| {
-                    LoadProjectError::InvalidDocument {
-                        path: document_id.path().to_path_buf(),
-                        range: None,
-                        message: format!("invalid object name `{key}`"),
-                    }
-                })?),
-                object,
-            );
+                diagnostics: diagnostics
+                    .into_iter()
+                    .map(|diagnostic| data_diagnostic(relative, &text, diagnostic))
+                    .collect(),
+            });
         }
-
+        let imports = parsed
+            .imports
+            .iter()
+            .map(|import| {
+                let range = |span: TextSpan| Some(byte_range(&text, span.start, span.end));
+                Ok(ParsedImport {
+                    declaration: ImportDeclaration {
+                        alias: ImportAlias::new(import.alias.value.as_str()).map_err(
+                            |message| LoadProjectError::InvalidDocument {
+                                path: relative.to_path_buf(),
+                                range: range(import.alias.span),
+                                message,
+                            },
+                        )?,
+                        source: ImportSource::LocalDocuments {
+                            documents: import
+                                .paths
+                                .iter()
+                                .map(|path| Utf8PathBuf::from(&path.value))
+                                .collect(),
+                        },
+                    },
+                    range: range(import.alias.span),
+                    alias_span: import.alias.span,
+                    source_ranges: import.paths.iter().map(|path| range(path.span)).collect(),
+                })
+            })
+            .collect::<Result<Vec<_>, LoadProjectError>>()?;
+        let mut visible = IndexMap::new();
+        let mut objects = Vec::new();
+        let mut declarations = IndexMap::new();
+        let mut names = IndexMap::new();
+        for (name, span, declaration) in parsed.declarations {
+            names.insert(name.value.as_str().to_string(), name.span);
+            let identity =
+                SourceIdentity::from_document(document_id.clone(), name.value.as_str().to_string());
+            let kind = declaration.kind();
+            match &declaration {
+                Declaration::Curve(curve) => {
+                    let value = resolve::curve(&curve.points).map_err(|message| {
+                        LoadProjectError::InvalidDocument {
+                            path: relative.to_path_buf(),
+                            range: Some(byte_range(&text, span.start, span.end)),
+                            message,
+                        }
+                    })?;
+                    self.definitions.curves.insert(
+                        CurveId(identity.clone()),
+                        CurveDefinition {
+                            description: curve.description.clone(),
+                            curve: value,
+                        },
+                    );
+                }
+                Declaration::Gradient(gradient) => {
+                    let value = resolve::gradient(&gradient.stops).map_err(|message| {
+                        LoadProjectError::InvalidDocument {
+                            path: relative.to_path_buf(),
+                            range: Some(byte_range(&text, span.start, span.end)),
+                            message,
+                        }
+                    })?;
+                    self.definitions.gradients.insert(
+                        GradientId(identity.clone()),
+                        GradientDefinition {
+                            description: gradient.description.clone(),
+                            gradient: value,
+                        },
+                    );
+                }
+                _ => {}
+            }
+            let object = ResolvedObject::new(kind.clone(), identity)
+                .unwrap_or_else(|| unreachable!("declarations are source objects"));
+            objects.push(SourceObjectId {
+                kind,
+                id: name.value.as_str().to_string(),
+            });
+            visible.insert(SourceReference::Local(name.value.clone()), object);
+            declarations.insert(name.value.as_str().to_string(), (span, declaration));
+        }
         self.visible_objects.insert(document_id.clone(), visible);
-
+        self.data.insert(
+            document_id.clone(),
+            Arc::new(DataDocument {
+                text,
+                declarations,
+                names,
+            }),
+        );
         let import_edges = self.load_imports(document_id, &imports)?;
-
-        let document = SourceDocument::new(
-            import_edges,
-            objects,
-            SourceDocumentKind::Donder {
-                original_value: value,
-            },
-        )
-        .map_err(|message| LoadProjectError::InvalidDocument {
-            path: relative.to_path_buf(),
-            range: None,
-            message,
-        })?;
+        let document = SourceDocument::new(import_edges, objects, SourceDocumentKind::Data)
+            .map_err(|message| LoadProjectError::InvalidDocument {
+                path: relative.to_path_buf(),
+                range: None,
+                message,
+            })?;
         self.documents.insert(document_id.clone(), document);
         Ok(())
     }
 
-    pub(super) fn resolve_project(
+    /// Record that the name at `span` in `document` points at `target`.
+    pub(crate) fn link(&self, document: &DocumentId, span: TextSpan, target: LinkTarget) {
+        if span != NO_SPAN {
+            self.links.borrow_mut().push(Link {
+                document: document.clone(),
+                span,
+                target,
+            });
+        }
+    }
+
+    /// Where a declared object's name is: a data declaration's name, or a
+    /// script declaration by name.
+    pub(crate) fn declared_target(&self, object: &ResolvedObject) -> Option<LinkTarget> {
+        let identity = object.source_identity();
+        match object {
+            ResolvedObject::EffectDefinition(_) | ResolvedObject::OperatorDefinition(_) => {
+                Some(LinkTarget::Script {
+                    document: identity.document_id().clone(),
+                    declaration: identity.object().to_string(),
+                    member: ScriptMember::Declaration,
+                })
+            }
+            _ => self
+                .data
+                .get(identity.document_id())
+                .and_then(|data| data.names.get(identity.object()))
+                .map(|span| LinkTarget::Data {
+                    document: identity.document_id().clone(),
+                    span: *span,
+                }),
+        }
+    }
+
+    /// The name of the owned collection member `identity` addresses.
+    pub(crate) fn member_span(
+        &self,
+        identity: &donder_language::identity::ObjectIdentity,
+    ) -> Option<LinkTarget> {
+        let root = identity.root_source();
+        let data = self.data.get(root.document_id())?;
+        let declaration = &data.declarations.get(root.object())?.1;
+        resolve::member_name(declaration, identity.owned_path()).map(|span| LinkTarget::Data {
+            document: root.document_id().clone(),
+            span,
+        })
+    }
+
+    /// The declaration span of a declared object, or none for scripts.
+    pub(crate) fn declaration_span(&self, identity: &SourceIdentity) -> TextSpan {
+        self.data
+            .get(identity.document_id())
+            .and_then(|data| data.declarations.get(identity.object()))
+            .map_or(NO_SPAN, |(span, _)| *span)
+    }
+
+    /// The data document holding a declared object.
+    pub(crate) fn declaration(
+        &self,
+        identity: &SourceIdentity,
+    ) -> Result<Arc<DataDocument>, LoadProjectError> {
+        self.data
+            .get(identity.document_id())
+            .filter(|data| data.declarations.contains_key(identity.object()))
+            .cloned()
+            .ok_or_else(|| LoadProjectError::InvalidReference {
+                path: identity.document().to_path_buf(),
+                range: None,
+                reference: identity.object().to_string(),
+            })
+    }
+
+    fn resolve_project(
         &mut self,
-        entrypoint: &donder_language::identity::DocumentId,
+        entrypoint: &DocumentId,
     ) -> Result<ProjectData, LoadProjectError> {
-        let root_object = self.single_project_object(entrypoint)?;
-        let root_id = ProjectId(
-            self.source_identity(
-                entrypoint,
-                Identifier::new(root_object.key.clone())
-                    .map_err(|_| LoadProjectError::InvalidDocument {
-                        path: entrypoint.path().to_path_buf(),
-                        range: None,
-                        message: "project object key is not a valid identifier".to_string(),
-                    })?
-                    .as_str()
-                    .to_string(),
-            ),
-        );
-        let (setup_ref, sequence_refs) =
-            parse_project_fields(entrypoint.path(), root_object.value)?;
+        let data = self.data.get(entrypoint).cloned().ok_or_else(|| {
+            LoadProjectError::InvalidDocument {
+                path: entrypoint.path().to_path_buf(),
+                range: None,
+                message: "the root document is not loaded".into(),
+            }
+        })?;
+        let mut projects = data
+            .declarations
+            .iter()
+            .filter_map(|(name, (span, declaration))| match declaration {
+                Declaration::Project(project) => Some((name, *span, project)),
+                _ => None,
+            });
+        let (name, _, root) = projects
+            .next()
+            .ok_or_else(|| LoadProjectError::InvalidDocument {
+                path: entrypoint.path().to_path_buf(),
+                range: None,
+                message: "the root document declares no `Project`".into(),
+            })?;
+        if let Some((_, span, _)) = projects.next() {
+            return Err(self.invalid(entrypoint, span, "the root document declares one `Project`"));
+        }
+        let root_id = ProjectId(SourceIdentity::from_document(
+            entrypoint.clone(),
+            name.clone(),
+        ));
         let mut project = ProjectData {
             root: ProjectRoot {
                 id: root_id.clone(),
-                setup: ValueSource::Reference(SetupId(
-                    self.source_identity(entrypoint, "__loading_setup".into())
-                        .into(),
-                )),
+                description: root.description.clone(),
+                setup: ValueSource::Reference(SetupId(root_id.0.clone().into())),
                 sequences: Vec::new(),
             },
             setups: IndexMap::new(),
@@ -551,162 +661,14 @@ impl Loader {
             loader: self,
             project: &mut project,
         };
-        let setup = resolver.setup_source(entrypoint, &owner, &setup_ref)?;
-        let sequences = sequence_refs
+        let setup = resolver.setup_source(entrypoint, &owner, &root.setup)?;
+        let sequences = root
+            .sequences
             .iter()
-            .map(|value| resolver.sequence_source(entrypoint, &owner, value))
+            .map(|source| resolver.sequence_source(entrypoint, &owner, source))
             .collect::<Result<_, _>>()?;
-        project.root = ProjectRoot {
-            id: root_id,
-            setup,
-            sequences,
-        };
+        project.root.setup = setup;
+        project.root.sequences = sequences;
         Ok(project)
     }
-
-    fn single_project_object<'a>(
-        &'a self,
-        document_id: &donder_language::identity::DocumentId,
-    ) -> Result<SourceObjectValue<'a>, LoadProjectError> {
-        let path = document_id.path();
-        let document = self.donder_document(document_id)?;
-        let mut found = None;
-        let document_map = mapping(document).ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: None,
-            message: "document root must be a mapping".to_string(),
-        })?;
-        for (key, value) in document_map.iter() {
-            let Some(key) = key.as_str() else {
-                continue;
-            };
-            if key == "imports" || key == "workspace" {
-                continue;
-            }
-            if string_field(path, value, "type")? == "project" {
-                if found.is_some() {
-                    return Err(LoadProjectError::InvalidDocument {
-                        path: path.to_path_buf(),
-                        range: source_range_for_value(path, value),
-                        message: "entrypoint must contain exactly one project object".to_string(),
-                    });
-                }
-                found = Some(SourceObjectValue {
-                    key: key.to_string(),
-                    value,
-                });
-            }
-        }
-        found.ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: path.to_path_buf(),
-            range: None,
-            message: "entrypoint must contain a project object".to_string(),
-        })
-    }
-
-    pub(super) fn object_value(
-        &self,
-        id: &ResolvedObject,
-    ) -> Result<(donder_language::identity::DocumentId, String, Value), LoadProjectError> {
-        let identity = id.source_identity();
-        if !self
-            .documents
-            .get(identity.document_id())
-            .is_some_and(|document| {
-                document
-                    .objects
-                    .iter()
-                    .any(|object| object.kind == id.source_kind() && object.id == identity.object())
-            })
-        {
-            return Err(LoadProjectError::InvalidReference {
-                path: identity.document().to_path_buf(),
-                range: None,
-                reference: id.id_string(),
-            });
-        }
-        let document = self.donder_document(identity.document_id())?;
-        let document_map = mapping(document).ok_or_else(|| LoadProjectError::InvalidDocument {
-            path: identity.document().to_path_buf(),
-            range: None,
-            message: "document root must be a mapping".to_string(),
-        })?;
-        let value = document_map
-            .get(Value::String(identity.object().to_string()))
-            .ok_or_else(|| LoadProjectError::InvalidReference {
-                path: identity.document().to_path_buf(),
-                range: None,
-                reference: identity.object().to_string(),
-            })?
-            .clone();
-        Ok((
-            identity.document_id().clone(),
-            identity.object().to_string(),
-            value,
-        ))
-    }
-
-    fn donder_document<'a>(
-        &'a self,
-        document_id: &donder_language::identity::DocumentId,
-    ) -> Result<&'a Value, LoadProjectError> {
-        let path = document_id.path();
-        let document =
-            self.documents
-                .get(document_id)
-                .ok_or_else(|| LoadProjectError::InvalidDocument {
-                    path: path.to_path_buf(),
-                    range: None,
-                    message: "document not loaded".to_string(),
-                })?;
-        match &document.kind {
-            SourceDocumentKind::Donder { original_value } => Ok(original_value),
-            SourceDocumentKind::Effect { .. } => Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: "expected YAML Donder document".to_string(),
-            }),
-            SourceDocumentKind::Operator { .. } => Err(LoadProjectError::InvalidDocument {
-                path: path.to_path_buf(),
-                range: None,
-                message: "expected YAML Donder document".to_string(),
-            }),
-        }
-    }
 }
-
-fn missing_exported_definition(
-    document: &donder_language::identity::DocumentId,
-    identity: &donder_language::identity::SourceIdentity,
-) -> LoadProjectError {
-    LoadProjectError::InvalidReference {
-        path: document.path().to_path_buf(),
-        range: None,
-        reference: identity.object().to_string(),
-    }
-}
-
-use std::fs;
-
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::controller::ControllerId;
-use donder_language::dsl::{Identifier, compile_effects, compile_operators};
-use donder_language::effect::{
-    CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
-};
-use donder_language::model::{DonderProject, ProjectDefinitionStores, ProjectId, ProjectRoot};
-use donder_language::operator::{OperatorDefinitionId, custom_operator_definition};
-use donder_language::patch::PatchId;
-use donder_language::sequence::SequenceId;
-use donder_language::setup::SetupId;
-use indexmap::{IndexMap, IndexSet};
-use yaml_serde::Value;
-
-use crate::diagnostics::{
-    dsl_diagnostic, parse_yaml_value, source_range_for_field_value, source_range_for_value,
-};
-use crate::source::{
-    ProjectSession, ReferencedAsset, SourceDocument, SourceDocumentKind, SourceObjectId,
-    SourceObjectKind, SourceProject,
-};
-use crate::{IoDiagnosticCode, LoadProjectError};

@@ -15,6 +15,8 @@ pub struct ParamDecl {
     /// Present exactly for `int`, `float`, and `curve` params.
     pub range: Option<ParamRange>,
     pub default: Option<Value>,
+    /// Shown in the inspector beside the parameter.
+    pub description: Option<String>,
 }
 
 /// Inclusive declared range. A curve param's range bounds its point values.

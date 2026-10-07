@@ -1,0 +1,15 @@
+import layout from <layouts/main.data.donder>;
+import patches from <patches/main.data.donder>;
+
+Setup main {
+  description: none,
+  layout: layout.main,
+  patch: patches.main,
+  controllers: [dig_quad],
+}
+
+Controller dig_quad {
+  description: none,
+  protocol: E131 { source_name: "Donder", bind_address: "0.0.0.0", priority: 100, mode: Multicast },
+  ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 450 }],
+}

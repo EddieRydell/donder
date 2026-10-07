@@ -1,0 +1,17 @@
+[package]
+name = "donder-language-server"
+edition.workspace = true
+version.workspace = true
+description = "Donder language server core, independent of its transport"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+camino.workspace = true
+donder-language.workspace = true
+donder-project-io.workspace = true
+indexmap.workspace = true
+lsp-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true

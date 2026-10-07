@@ -56,7 +56,7 @@ fn starter_sequence_behavioral_checksums_run_in_the_normal_test_gate() {
     let time = sample_time_from_frame(3594, renderer.frame_rate()).unwrap();
     let mut playback = renderer.into_playback();
     let rendered = playback.evaluate(time);
-    assert_eq!(checksum_frame(3594, &rendered), 0xaa28_e560_49eb_1e76);
+    assert_eq!(checksum_frame(3594, &rendered), 0x8e17_0149_b1c7_4e56);
 }
 
 #[test]
@@ -72,7 +72,8 @@ fn output_fixtures_preserve_layout_instance_order() {
             .fixtures()
             .map(|fixture| fixture.fixture_id)
             .collect::<Vec<_>>(),
-        (1..=30).collect::<Vec<_>>()
+        // Item 1 is the `all_outputs` group around the 30 fixtures.
+        (2..=31).collect::<Vec<_>>()
     );
     assert!(frame.fixtures().all(|fixture| fixture.pixels.len() == 113));
 }

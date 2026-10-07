@@ -97,6 +97,10 @@ pub enum GuiEditCommand {
         config: SetupControllerConfig,
         ports: Vec<SetupControllerPort>,
     },
+    /// Set the open object's description; empty text removes it.
+    Description {
+        description: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -139,6 +143,8 @@ pub enum DocumentViewId {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CurveGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub object_key: String,
     pub points: Vec<SequenceCurvePoint>,
@@ -147,6 +153,8 @@ pub struct CurveGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct GradientGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub object_key: String,
     pub stops: Vec<SequenceGradientStop>,
@@ -155,6 +163,8 @@ pub struct GradientGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
     pub object_key: String,
@@ -165,6 +175,8 @@ pub struct ProjectGuiDocument {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub available_sources: Vec<GuiObjectRef>,
     pub path: String,
     pub source_ref: GuiObjectRef,
@@ -190,6 +202,8 @@ pub struct SetupController {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ControllerGuiDocument {
+    /// The open object's description, edited with `GuiEditCommand::Description`.
+    pub description: Option<String>,
     pub path: String,
     pub object_key: String,
     pub controller: SetupController,
@@ -199,6 +213,8 @@ pub struct ControllerGuiDocument {
 #[serde(rename_all = "camelCase")]
 pub struct SetupControllerPort {
     pub id: u32,
+    /// Unique within the controller; patch routes refer to it.
+    pub name: String,
     pub address: u16,
     pub slot_count: u16,
 }
@@ -277,9 +293,16 @@ pub enum GuiOwnedStep {
     Setup,
     Layout,
     Patch,
-    Controller { id: u32 },
-    Sequence { id: u32 },
-    Fixture { id: u32 },
+    /// Owned controllers and sequences are named.
+    Controller {
+        name: String,
+    },
+    Sequence {
+        name: String,
+    },
+    Fixture {
+        id: u32,
+    },
 }
 
 impl From<&donder_language::identity::OwnedObjectSlot> for GuiOwnedStep {
@@ -289,22 +312,32 @@ impl From<&donder_language::identity::OwnedObjectSlot> for GuiOwnedStep {
             OwnedObjectSlot::Setup => Self::Setup,
             OwnedObjectSlot::Layout => Self::Layout,
             OwnedObjectSlot::Patch => Self::Patch,
-            OwnedObjectSlot::Controller(id) => Self::Controller { id: *id },
-            OwnedObjectSlot::Sequence(id) => Self::Sequence { id: *id },
+            OwnedObjectSlot::Controller(name) => Self::Controller {
+                name: name.as_str().to_string(),
+            },
+            OwnedObjectSlot::Sequence(name) => Self::Sequence {
+                name: name.as_str().to_string(),
+            },
             OwnedObjectSlot::Fixture(id) => Self::Fixture { id: *id },
         }
     }
 }
-impl From<&GuiOwnedStep> for donder_language::identity::OwnedObjectSlot {
-    fn from(slot: &GuiOwnedStep) -> Self {
-        match slot {
+impl TryFrom<&GuiOwnedStep> for donder_language::identity::OwnedObjectSlot {
+    type Error = String;
+
+    fn try_from(slot: &GuiOwnedStep) -> Result<Self, String> {
+        let name = |name: &str| {
+            donder_language::dsl::Identifier::new(name.to_string())
+                .map_err(|_| format!("`{name}` is not an object name."))
+        };
+        Ok(match slot {
             GuiOwnedStep::Setup => Self::Setup,
             GuiOwnedStep::Layout => Self::Layout,
             GuiOwnedStep::Patch => Self::Patch,
-            GuiOwnedStep::Controller { id } => Self::Controller(*id),
-            GuiOwnedStep::Sequence { id } => Self::Sequence(*id),
+            GuiOwnedStep::Controller { name: text } => Self::Controller(name(text)?),
+            GuiOwnedStep::Sequence { name: text } => Self::Sequence(name(text)?),
             GuiOwnedStep::Fixture { id } => Self::Fixture(*id),
-        }
+        })
     }
 }
 

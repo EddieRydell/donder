@@ -1,7 +1,8 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { useState } from "react";
+import { useContext, useMemo, useState } from "react";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type {
@@ -16,9 +17,13 @@ import type {
   SequenceEffectCommonEdit
 } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
+import { OverlayPortal } from "../../OverlayPortal";
+import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
+import { NameField } from "./NameField";
+import { DescriptionField } from "../DescriptionField";
 import { defaultMarkColor, nextCollectionKey } from "./marks";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
@@ -37,11 +42,6 @@ const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
   { id: "layers", label: "Layers" },
   { id: "marks", label: "Marks" },
 ];
-
-function selectedEffectDefinitionValue(effect: SequenceEffect, definitions: SequenceEffectDefinition[]) {
-  const index = definitions.findIndex((definition) => effectReferencesEqual(definition.effect, effect.effectReference));
-  return index < 0 ? "" : String(index);
-}
 
 function effectReferencesEqual(left: SequenceEffectDefinition["effect"], right: SequenceEffectDefinition["effect"]) {
   return left.moduleId === right.moduleId
@@ -380,6 +380,11 @@ function EffectInspectorPanel({
 }) {
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
+  const overlayContainer = useContext(OverlayPortal);
+  const effectTree = useMemo(
+    () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
+    [document.effectDefinitions]
+  );
 
   if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
     if (sequenceSelection.type !== "clips") {
@@ -495,7 +500,9 @@ function EffectInspectorPanel({
     );
   }
 
-  const currentScriptValue = selectedEffectDefinitionValue(effect, document.effectDefinitions);
+  const currentDefinition = document.effectDefinitions.find((definition) =>
+    effectReferencesEqual(definition.effect, effect.effectReference)
+  );
   const resizeEffect = (startSeconds: number, durationSeconds: number) =>
     runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
@@ -510,9 +517,27 @@ function EffectInspectorPanel({
     <>
       <h2>Effect Parameters</h2>
       <div className="effect-inspector-fields">
-        <div className="inspector-readout-grid">
-          <Readout label="ID" value={String(effect.id)} />
-        </div>
+        <NameField
+          name={effect.name}
+          label="Name"
+          commit={(name) =>
+            runGuiEditCommand((request) =>
+              commands.applySequenceGuiEdit(request, { type: "renameClip", id: effect.id, name })
+            )
+          }
+        />
+        <DescriptionField
+          description={effect.description}
+          onCommit={(description) =>
+            runGuiEditCommand((request) =>
+              commands.applySequenceGuiEdit(request, {
+                type: "setItemDescription",
+                item: { type: "clip", id: effect.id },
+                description
+              })
+            )
+          }
+        />
         <label>
           Layer
           <select
@@ -568,30 +593,37 @@ function EffectInspectorPanel({
         </div>
         <label>
           Effect type
-          <select
-            value={currentScriptValue}
-            disabled={document.effectDefinitions.length === 0}
-            onChange={(event) => {
-              const definition = document.effectDefinitions[Number(event.currentTarget.value)]?.effect;
-              if (definition === undefined) return;
-              void runGuiEditCommand((request) =>
-                commands.applySequenceGuiEdit(request, {
-                  type: "changeEffectDefinition",
-                  initialColor: THEME_COLORS.white,
-                  id: effect.id,
-                  effect: definition
-                })
-              );
-            }}
-          >
-            {currentScriptValue === "" && <option value="">{effect.effect}</option>}
-            {document.effectDefinitions.map((definition, index) => (
-              <option key={effectReferenceKey(definition.effect)} value={String(index)}>
-                {definition.name}
-              </option>
-            ))}
-          </select>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger className="definition-picker" disabled={document.effectDefinitions.length === 0}>
+              <span>{currentDefinition?.name ?? effect.effect}</span>
+              <ChevronDown size={THEME_METRICS.iconSizeSmall} aria-hidden />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal container={overlayContainer}>
+              <DropdownMenu.Content className="menu-content" align="start" sideOffset={THEME_METRICS.menuOffset}>
+                <DefinitionMenuItems
+                  menu={DropdownMenu}
+                  tree={effectTree}
+                  label={(definition) => definition.name}
+                  itemKey={(definition) => effectReferenceKey(definition.effect)}
+                  onSelect={(definition) =>
+                    void runGuiEditCommand((request) =>
+                      commands.applySequenceGuiEdit(request, {
+                        type: "changeEffectDefinition",
+                        initialColor: THEME_COLORS.white,
+                        id: effect.id,
+                        effect: definition.effect
+                      })
+                    )
+                  }
+                  empty="No effects"
+                />
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </label>
+        {currentDefinition !== undefined && currentDefinition.description !== null && (
+          <p className="effect-param-description">{currentDefinition.description}</p>
+        )}
       </div>
       <label>
         Scope
@@ -724,8 +756,7 @@ function MarkInspectorPanel({
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "createMarkCollection",
-        key,
-        name,
+        name: key,
         color: defaultMarkColor(document.markCollections.length)
       })
     ).then(() => {
@@ -735,7 +766,7 @@ function MarkInspectorPanel({
   };
 
   const deleteCollection = (collection: SequenceMarkCollection) => {
-    if (collection.marksSeconds.length > 0 && !window.confirm(`Delete ${collection.name} and ${collection.marksSeconds.length} marks?`)) return;
+    if (collection.marksSeconds.length > 0 && !window.confirm(`Delete ${collection.key} and ${collection.marksSeconds.length} marks?`)) return;
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "deleteMarkCollection",
@@ -821,10 +852,25 @@ function MarkInspectorPanel({
           }}
         >
           {document.markCollections.map((collection) => (
-            <option key={collection.key} value={collection.key}>{collection.name}</option>
+            <option key={collection.key} value={collection.key}>{collection.key}</option>
           ))}
         </select>
       </label>
+      {activeCollection !== null && (
+        <DescriptionField
+          label={`${activeCollection.key} description`}
+          description={activeCollection.description}
+          onCommit={(description) =>
+            runGuiEditCommand((request) =>
+              commands.applySequenceGuiEdit(request, {
+                type: "setItemDescription",
+                item: { type: "markCollection", key: activeCollection.key },
+                description
+              })
+            )
+          }
+        />
+      )}
       <div className="mark-section">
         <h3>Collections</h3>
         <button type="button" className="neutral-button icon-text-button" onClick={createCollection}>
@@ -839,7 +885,7 @@ function MarkInspectorPanel({
                   type="radio"
                   name="active-mark-collection"
                   checked={activeCollection?.key === collection.key}
-                  aria-label={`Use ${collection.name} for new marks`}
+                  aria-label={`Use ${collection.key} for new marks`}
                   onChange={() => {
                     setActiveMarkCollectionKey(collection.key);
                   }}
@@ -847,7 +893,7 @@ function MarkInspectorPanel({
                 <input
                   type="checkbox"
                   checked={visibleMarkCollectionKeys.has(collection.key)}
-                  aria-label={`Show ${collection.name}`}
+                  aria-label={`Show ${collection.key}`}
                   onChange={(event) => {
                     const next = new Set(visibleMarkCollectionKeys);
                     if (event.currentTarget.checked) {
@@ -860,7 +906,7 @@ function MarkInspectorPanel({
                 />
                 <ColorPicker
                   value={collection.color}
-                  label={`${collection.name} color`}
+                  label={`${collection.key} color`}
                   commit={(color) =>
                     runGuiEditCommand((request) =>
                       commands.applySequenceGuiEdit(request, {
@@ -875,12 +921,12 @@ function MarkInspectorPanel({
                   <input
                     key={`${collection.key}:edit-name`}
                     autoFocus
-                    defaultValue={collection.name}
+                    defaultValue={collection.key}
                     aria-label="Collection name"
                     onBlur={(event) => {
-                      const name = event.currentTarget.value.trim() || collection.name;
+                      const name = event.currentTarget.value.trim() || collection.key;
                       setEditingCollectionKey(null);
-                      if (name === collection.name) return;
+                      if (name === collection.key) return;
                       void runGuiEditCommand((request) =>
                         commands.applySequenceGuiEdit(request, {
                           type: "renameMarkCollection",
@@ -898,14 +944,14 @@ function MarkInspectorPanel({
                       setActiveMarkCollectionKey(collection.key);
                     }}
                   >
-                    {collection.name}
+                    {collection.key}
                   </button>
                 )}
                 <button
                   type="button"
                   className="icon-button neutral-icon-button"
                   title="Edit collection name"
-                  aria-label={`Edit ${collection.name}`}
+                  aria-label={`Edit ${collection.key}`}
                   onClick={() => {
                     setEditingCollectionKey(collection.key);
                   }}
@@ -916,7 +962,7 @@ function MarkInspectorPanel({
                   type="button"
                   className="icon-button danger-icon-button"
                   title="Delete collection"
-                  aria-label={`Delete ${collection.name}`}
+                  aria-label={`Delete ${collection.key}`}
                   onClick={() => {
                     deleteCollection(collection);
                   }}
@@ -942,7 +988,7 @@ function MarkInspectorPanel({
                   }}
                 >
                   {document.markCollections.map((collection) => (
-                    <option key={collection.key} value={collection.key}>{collection.name}</option>
+                    <option key={collection.key} value={collection.key}>{collection.key}</option>
                   ))}
                 </select>
                 <input
