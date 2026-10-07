@@ -1,5 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { editShortcutTarget, isMac } from "../../../platform";
+import { editShortcutTarget, hasPrimaryModifier, isMac } from "../../../platform";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ChevronRight, Layers, SlidersHorizontal, Monitor } from "lucide-react";
@@ -179,7 +179,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
         <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas" {...editShortcutTarget(["selectAll"])}
           onKeyDown={(event) => {
             if (event.target instanceof Element && event.target.closest(".graph-flow-node-controls, input, textarea, select, button, [contenteditable=true]") !== null) return;
-            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+            if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") {
               event.preventDefault(); event.stopPropagation();
               setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
               setFlowEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));

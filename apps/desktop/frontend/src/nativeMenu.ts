@@ -1,85 +1,99 @@
 import { CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu } from "@tauri-apps/api/menu";
-import { commandRegistry, runCommand, type CommandId } from "./commandRegistry";
-import { handledEditShortcuts, isTextEditingTarget, shortcutAccelerator, type EditShortcut } from "./platform";
+import { EDIT_MENU, FILE_MENU, VIEW_MENU, type AppMenuEntry } from "./appMenus";
+import { commandRegistry, runCommand, sequenceOpen, type CommandId } from "./commandRegistry";
+import { EDIT_SHORTCUT_KEYS, editTarget, handledEditShortcuts, shortcutAccelerator, type EditShortcut, type EditTarget } from "./platform";
 import { useAppStore } from "./store";
-import { MARK_DISPLAY_MODE_EVENT, markDisplayModeValue, setGlobalMarkDisplayMode, type MarkDisplayMode } from "./ui/gui/sequence/marks";
-import { requestOpenLayerGraph } from "./ui/uiEvents";
+import { MARK_DISPLAY_MODES, MARK_DISPLAY_MODE_EVENT, markDisplayModeValue, setGlobalMarkDisplayMode } from "./ui/gui/sequence/marks";
+import { runFocusedEditorAction } from "./ui/source/monaco";
 import { runWorkspaceTransition } from "./workspaceTransitions";
 
 const separator = () => PredefinedMenuItem.new({ item: "Separator" });
 const EDIT_MENU_INDEX = 2;
+const EDIT_LABELS: Record<EditShortcut, string> = { cut: "Cut", copy: "Copy", paste: "Paste", selectAll: "Select All" };
 
 /** Delivers a menu shortcut to the focused element as the key event the editor canvases handle. */
-function forwardShortcut(key: string) {
-  (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key, metaKey: true, bubbles: true, cancelable: true }));
+function forwardShortcut(shortcut: EditShortcut) {
+  (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: EDIT_SHORTCUT_KEYS[shortcut], metaKey: true, bubbles: true, cancelable: true }));
 }
 
 /** Installs the macOS app menu. The menu receives shortcuts before the page, so it owns them and the in-page shortcut handler stays off. */
 export async function installNativeMenu(): Promise<() => void> {
-  const commandItems = new Map<CommandId, MenuItem>();
-  const item = async (id: CommandId) => {
-    const command = commandRegistry[id];
-    const shortcut = command.shortcuts[0];
-    const menuItem = await MenuItem.new({
-      text: command.label,
-      enabled: command.enabled(),
+  // Every item whose enabled or checked state follows the app, with how to read that state.
+  const tracked: Array<{ item: MenuItem | CheckMenuItem; enabled: () => boolean; checked?: () => boolean }> = [];
+
+  const command = async (id: CommandId) => {
+    const definition = commandRegistry[id];
+    const shortcut = definition.shortcuts[0];
+    const options = {
+      text: definition.label,
+      enabled: definition.enabled(),
       ...(shortcut === undefined ? {} : { accelerator: shortcutAccelerator(shortcut) }),
       action: () => { runCommand(id); }
-    });
-    commandItems.set(id, menuItem);
-    return menuItem;
+    };
+    const { checked } = definition;
+    const item = checked === undefined ? await MenuItem.new(options) : await CheckMenuItem.new({ ...options, checked: checked() });
+    tracked.push({ item, enabled: definition.enabled, ...(checked === undefined ? {} : { checked }) });
+    return item;
   };
+  const markDisplay = async () => {
+    const items = await Promise.all(MARK_DISPLAY_MODES.map(async ({ mode, label }) => {
+      const checked = () => markDisplayModeValue() === mode;
+      const item = await CheckMenuItem.new({ text: label, checked: checked(), action: () => { setGlobalMarkDisplayMode(mode); } });
+      tracked.push({ item, enabled: sequenceOpen, checked });
+      return item;
+    }));
+    return Submenu.new({ text: "Mark Display", items });
+  };
+  const entries = (menu: AppMenuEntry[]) => Promise.all(menu.map((entry) => {
+    switch (entry.type) {
+      case "command": return command(entry.id);
+      case "separator": return separator();
+      case "markDisplay": return markDisplay();
+    }
+  }));
 
-  const settings = () => useAppStore.getState().snapshot?.settings;
-  const guiMode = await CheckMenuItem.new({
-    text: commandRegistry["view.toggleGuiMode"].label,
-    checked: (settings()?.editorViewMode ?? "gui") === "gui",
-    action: () => { runCommand("view.toggleGuiMode"); }
-  });
-  const spectrogram = await CheckMenuItem.new({
-    text: commandRegistry["view.toggleSpectrogram"].label,
-    checked: settings()?.sequenceSpectrogramEnabled ?? false,
-    action: () => { runCommand("view.toggleSpectrogram"); }
-  });
-  const layerGraph = await MenuItem.new({ text: "Layer Graph", action: requestOpenLayerGraph });
-  const markModes: Array<[MarkDisplayMode, string]> = [["overlay", "Overlay"], ["strip", "Strip"], ["hidden", "Hidden"]];
-  const markItems = await Promise.all(markModes.map(([mode, text]) => CheckMenuItem.new({
-    text,
-    checked: markDisplayModeValue() === mode,
-    action: () => { setGlobalMarkDisplayMode(mode); }
-  })));
-  const markDisplay = await Submenu.new({ text: "Mark Display", items: markItems });
-
-  // macOS gives menu shortcuts to the menu before the page. Text fields and the code editor need
-  // the native Edit actions; elsewhere Donder's undo runs and the canvases receive their shortcuts.
-  const textEdit = await Submenu.new({
-    text: "Edit",
-    items: await Promise.all((["Undo", "Redo", "Separator", "Cut", "Copy", "Paste", "SelectAll"] as const)
-      .map((native) => PredefinedMenuItem.new({ item: native })))
-  });
+  // macOS gives menu shortcuts to the menu before the page, so the Edit menu follows focus:
+  // text fields get the native actions, the code editor runs Monaco's own actions, and elsewhere
+  // Donder's undo runs and the focused canvas receives the shortcuts it handles.
+  const nativeClipboard = () => Promise.all((["Cut", "Copy", "Paste"] as const).map((item) => PredefinedMenuItem.new({ item })));
+  const codeAction = (text: string, accelerator: string, action: Parameters<typeof runFocusedEditorAction>[0]) =>
+    MenuItem.new({ text, accelerator, action: () => { runFocusedEditorAction(action); } });
   const forwardedItems = new Map<EditShortcut, MenuItem>();
-  const forwarded = async (shortcut: EditShortcut, text: string, key: string) => {
-    const menuItem = await MenuItem.new({
-      text,
-      accelerator: `CmdOrCtrl+${key.toUpperCase()}`,
+  const forwarded = async (shortcut: EditShortcut) => {
+    const item = await MenuItem.new({
+      text: EDIT_LABELS[shortcut],
+      accelerator: shortcutAccelerator({ key: EDIT_SHORTCUT_KEYS[shortcut] }),
       enabled: false,
-      action: () => { forwardShortcut(key); }
+      action: () => { forwardShortcut(shortcut); }
     });
-    forwardedItems.set(shortcut, menuItem);
-    return menuItem;
+    forwardedItems.set(shortcut, item);
+    return item;
   };
-  const canvasEdit = await Submenu.new({
-    text: "Edit",
-    items: [
-      await item("edit.undo"),
-      await item("edit.redo"),
-      await separator(),
-      await forwarded("cut", "Cut", "x"),
-      await forwarded("copy", "Copy", "c"),
-      await forwarded("paste", "Paste", "v"),
-      await forwarded("selectAll", "Select All", "a")
-    ]
-  });
+  const editMenus: Record<EditTarget, Submenu> = {
+    text: await Submenu.new({
+      text: "Edit",
+      items: await Promise.all((["Undo", "Redo", "Separator", "Cut", "Copy", "Paste", "SelectAll"] as const).map((item) => PredefinedMenuItem.new({ item })))
+    }),
+    code: await Submenu.new({
+      text: "Edit",
+      items: [
+        await codeAction("Undo", shortcutAccelerator({ key: "z" }), "undo"),
+        await codeAction("Redo", shortcutAccelerator({ key: "z", shift: true }), "redo"),
+        await separator(),
+        ...await nativeClipboard(),
+        await codeAction(EDIT_LABELS.selectAll, shortcutAccelerator({ key: EDIT_SHORTCUT_KEYS.selectAll }), "editor.action.selectAll")
+      ]
+    }),
+    app: await Submenu.new({
+      text: "Edit",
+      items: [
+        ...await entries(EDIT_MENU),
+        await separator(),
+        ...await Promise.all((Object.keys(EDIT_SHORTCUT_KEYS) as EditShortcut[]).map(forwarded))
+      ]
+    })
+  };
+  let currentEdit = editTarget(document.activeElement);
 
   const menu = await Menu.new({
     items: [
@@ -88,7 +102,7 @@ export async function installNativeMenu(): Promise<() => void> {
         items: [
           await PredefinedMenuItem.new({ item: { About: null } }),
           await separator(),
-          await item("file.settings"),
+          await command("file.settings"),
           await separator(),
           await PredefinedMenuItem.new({ item: "Services" }),
           await separator(),
@@ -103,44 +117,9 @@ export async function installNativeMenu(): Promise<() => void> {
           })
         ]
       }),
-      await Submenu.new({
-        text: "File",
-        items: [
-          await item("file.newProject"),
-          await item("file.newSequence"),
-          await item("file.copyProject"),
-          await separator(),
-          await item("file.openProject"),
-          await item("workbench.quickOpen"),
-          await separator(),
-          await item("file.save"),
-          await item("file.reloadFromDisk"),
-          await separator(),
-          await item("file.closeEditor"),
-          await item("file.closeWindow")
-        ]
-      }),
-      isTextEditingTarget(document.activeElement) ? textEdit : canvasEdit,
-      await Submenu.new({
-        text: "View",
-        items: [
-          await item("workbench.commandPalette"),
-          await separator(),
-          guiMode,
-          await item("view.toggleProjectTree"),
-          await item("view.focusExplorer"),
-          await item("view.focusSearch"),
-          await item("view.focusProblems"),
-          await separator(),
-          spectrogram,
-          layerGraph,
-          markDisplay,
-          await separator(),
-          await item("project.reload"),
-          await separator(),
-          await PredefinedMenuItem.new({ item: "Fullscreen" })
-        ]
-      }),
+      await Submenu.new({ text: "File", items: [...await entries(FILE_MENU), await command("file.closeWindow")] }),
+      editMenus[currentEdit],
+      await Submenu.new({ text: "View", items: [...await entries(VIEW_MENU), await separator(), await PredefinedMenuItem.new({ item: "Fullscreen" })] }),
       await Submenu.new({
         text: "Window",
         items: [
@@ -154,67 +133,42 @@ export async function installNativeMenu(): Promise<() => void> {
   });
   await menu.setAsAppMenu();
 
-  // Menu state follows the snapshot: enabled commands and the view toggles.
   // Each update is an IPC call, so only changed values are sent.
-  const sent = new Map<object, string>();
-  const send = (target: object, key: string, value: boolean, apply: () => Promise<void>) => {
-    const encoded = `${key}:${String(value)}`;
-    if (sent.get(target) === encoded) return;
-    sent.set(target, encoded);
-    void apply();
+  const sent = new Map<object, { enabled?: boolean; checked?: boolean }>();
+  const send = (item: MenuItem | CheckMenuItem, enabled: boolean, checked?: boolean) => {
+    const previous = sent.get(item) ?? {};
+    sent.set(item, { enabled, ...(checked === undefined ? {} : { checked }) });
+    if (previous.enabled !== enabled) void item.setEnabled(enabled);
+    if (checked !== undefined && previous.checked !== checked && item instanceof CheckMenuItem) void item.setChecked(checked);
   };
+  let swap = Promise.resolve();
   const sync = () => {
-    for (const [id, menuItem] of commandItems) {
-      const enabled = commandRegistry[id].enabled();
-      send(menuItem, "enabled", enabled, () => menuItem.setEnabled(enabled));
-    }
-    const state = useAppStore.getState();
-    const sequenceOpen = state.guiDocument?.type === "sequence";
-    const gui = (state.snapshot?.settings.editorViewMode ?? "gui") === "gui";
-    const spectrogramOn = state.snapshot?.settings.sequenceSpectrogramEnabled ?? false;
-    for (const [menuItem, id] of [[guiMode, "view.toggleGuiMode"], [spectrogram, "view.toggleSpectrogram"]] as const) {
-      const enabled = commandRegistry[id].enabled();
-      send(menuItem, "enabled", enabled, () => menuItem.setEnabled(enabled));
-    }
-    send(guiMode, "checked", gui, () => guiMode.setChecked(gui));
-    send(spectrogram, "checked", spectrogramOn, () => spectrogram.setChecked(spectrogramOn));
-    for (const menuItem of [layerGraph, markDisplay]) send(menuItem, "enabled", sequenceOpen, () => menuItem.setEnabled(sequenceOpen));
-  };
-  const syncMarks = () => {
-    markItems.forEach((menuItem, index) => { void menuItem.setChecked(markModes[index]?.[0] === markDisplayModeValue()); });
+    for (const { item, enabled, checked } of tracked) send(item, enabled(), checked?.());
+    // Only the focused canvas's own Edit shortcuts are live.
+    const handled = handledEditShortcuts(document.activeElement);
+    for (const [shortcut, item] of forwardedItems) send(item, handled.includes(shortcut));
+    const nextEdit = editTarget(document.activeElement);
+    if (nextEdit === currentEdit) return;
+    currentEdit = nextEdit;
+    swap = swap
+      .then(() => menu.removeAt(EDIT_MENU_INDEX))
+      .then(() => menu.insert(editMenus[nextEdit], EDIT_MENU_INDEX))
+      .catch((error: unknown) => { useAppStore.getState().setError(`The Edit menu could not follow focus: ${String(error)}`); });
   };
   sync();
 
-  let textEditing = isTextEditingTarget(document.activeElement);
-  let swap = Promise.resolve();
-  const onFocusChange = () => {
-    // Focus moves through <body> between elements; read the settled target.
-    window.setTimeout(() => {
-      // Only the focused canvas's own Edit shortcuts are live.
-      const handled = handledEditShortcuts(document.activeElement);
-      for (const [shortcut, menuItem] of forwardedItems) {
-        const enabled = handled.includes(shortcut);
-        send(menuItem, "enabled", enabled, () => menuItem.setEnabled(enabled));
-      }
-      const next = isTextEditingTarget(document.activeElement);
-      if (next === textEditing) return;
-      textEditing = next;
-      swap = swap.then(async () => {
-        await menu.removeAt(EDIT_MENU_INDEX);
-        await menu.insert(next ? textEdit : canvasEdit, EDIT_MENU_INDEX);
-      });
-    }, 0);
-  };
+  // Focus moves through <body> between elements; read the settled target.
+  const onFocusChange = () => { window.setTimeout(sync, 0); };
   document.addEventListener("focusin", onFocusChange);
   document.addEventListener("focusout", onFocusChange);
   const unsubscribe = useAppStore.subscribe((state, previous) => {
     if (state.snapshot !== previous.snapshot || state.guiDocument !== previous.guiDocument) sync();
   });
-  window.addEventListener(MARK_DISPLAY_MODE_EVENT, syncMarks);
+  window.addEventListener(MARK_DISPLAY_MODE_EVENT, sync);
   return () => {
     unsubscribe();
     document.removeEventListener("focusin", onFocusChange);
     document.removeEventListener("focusout", onFocusChange);
-    window.removeEventListener(MARK_DISPLAY_MODE_EVENT, syncMarks);
+    window.removeEventListener(MARK_DISPLAY_MODE_EVENT, sync);
   };
 }

@@ -881,7 +881,7 @@ export function SequenceCanvas({
         const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
         const focusedEffectId = selectedEffectId(selected);
         const activeSelection = sequenceSelection ?? selectionFromSingle(selected);
-        if ((event.ctrlKey || event.metaKey) && !isTextEntryElement(event.target)) {
+        if (hasPrimaryModifier(event) && !isTextEntryElement(event.target)) {
           const key = event.key.toLowerCase();
           if ((key === "c" || key === "x") && activeSelection !== null && selectionCount(activeSelection) > 0) {
             event.preventDefault();

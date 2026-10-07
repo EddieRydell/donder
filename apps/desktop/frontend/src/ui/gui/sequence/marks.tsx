@@ -9,6 +9,12 @@ import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, typ
 
 export type MarkDisplayMode = "overlay" | "strip" | "hidden";
 
+export const MARK_DISPLAY_MODES: Array<{ mode: MarkDisplayMode; label: string }> = [
+  { mode: "overlay", label: "Overlay" },
+  { mode: "strip", label: "Strip" },
+  { mode: "hidden", label: "Hidden" }
+];
+
 const DEFAULT_MARK_COLORS = [THEME_COLORS.markBlue, THEME_COLORS.markOrange, THEME_COLORS.markGreen, THEME_COLORS.markPink, THEME_COLORS.markYellow, THEME_COLORS.markRed];
 
 const MARK_DRAWING = {

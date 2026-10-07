@@ -211,7 +211,6 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"]): 
 function isEditableShortcutTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
-  if (target.closest(".cm-editor")) return true;
   return target.closest("input, textarea, select") !== null;
 }
 

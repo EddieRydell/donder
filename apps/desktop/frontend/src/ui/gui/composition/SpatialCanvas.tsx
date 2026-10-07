@@ -1,5 +1,5 @@
 import { useSpatialGuides } from "./spatialViewState";
-import { editShortcutTarget, isMac, isSecondaryClick } from "../../../platform";
+import { editShortcutTarget, hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
@@ -127,9 +127,9 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
       onKeyDown={(event) => {
         const enabled = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
         if (gesture.current === null && !fixture.active && (fixtureTools?.tool === null || fixtureTools?.tool === undefined)) {
-          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); return; }
+          if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") { event.preventDefault(); onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); return; }
           if (enabled && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); onDelete(); return; }
-          if (enabled && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") { event.preventDefault(); onDuplicate(); return; }
+          if (enabled && hasPrimaryModifier(event) && event.key.toLowerCase() === "d") { event.preventDefault(); onDuplicate(); return; }
           if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
             event.preventDefault();
             const anchor = selection[0];

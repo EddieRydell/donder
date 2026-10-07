@@ -5,7 +5,8 @@ import { openProjectDialog, runWorkspaceTransition, useTransitionStore } from ".
 import { navigateToText } from "./workspace/navigation";
 import { runSnapshotCommand, useAppStore } from "./store";
 import type { SidebarView } from "./types";
-import { formatShortcut, hasPrimaryModifier, isMac, type Shortcut } from "./platform";
+import { editTarget, formatShortcut, hasPrimaryModifier, isMac, type Shortcut } from "./platform";
+import { requestOpenLayerGraph } from "./ui/uiEvents";
 
 import { GUI_HISTORY_CHANGED_EVENT } from "./editor/host";
 
@@ -27,6 +28,7 @@ export type CommandId =
   | "edit.redo"
   | "view.toggleGuiMode"
   | "view.toggleSpectrogram"
+  | "view.openLayerGraph"
   | "view.toggleProjectTree"
   | "view.focusExplorer"
   | "view.focusSearch"
@@ -40,13 +42,16 @@ export type CommandDefinition = {
   category: "File" | "Edit" | "View" | "Project" | "Workbench";
   keywords: string[];
   shortcuts: Shortcut[];
-  shortcut?: string;
   enabled: () => boolean;
+  /** Present on toggles: whether the setting is on. */
+  checked?: () => boolean;
   run: () => Promise<void> | void;
 };
 
 const always = () => true;
 const hasProject = () => useAppStore.getState().snapshot?.projectRoot !== null;
+export const sequenceOpen = () => useAppStore.getState().guiDocument?.type === "sequence";
+const settings = () => useAppStore.getState().snapshot?.settings;
 const focusSidebar = (view: SidebarView) => () => {
   window.dispatchEvent(new CustomEvent<SidebarView>(FOCUS_SIDEBAR_EVENT, { detail: view }));
 };
@@ -92,23 +97,30 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
     await runSnapshotCommand(commands.redoActiveEdit);
     window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
   }, hasProject, isMac ? [{ key: "z", shift: true }] : [{ key: "z", shift: true }, { key: "y" }]),
-  "view.toggleGuiMode": command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
-    const mode = (useAppStore.getState().snapshot?.settings.editorViewMode ?? "gui") === "gui" ? "text" : "gui";
-    const snapshot = await runSnapshotCommand(() => commands.setEditorViewMode(mode));
-    if (mode === "gui" && snapshot.projectHealth !== "ready" && snapshot.activeFile !== null) {
-      const diagnostic = snapshot.diagnostics.find((item) => item.severity === "error");
-      await navigateToText(snapshot.activeFile, diagnostic?.range ?? null);
-      focusSidebar("problems")();
-    }
-  }, hasProject),
-  "view.toggleSpectrogram": command("Show Spectrogram", "View", ["audio", "waveform", "frequency"], async () => {
-    const settings = useAppStore.getState().snapshot?.settings;
-    if (settings === undefined) return;
-    await runSnapshotCommand(() => commands.updateAppSettings({
-      ...settings,
-      sequenceSpectrogramEnabled: !(settings.sequenceSpectrogramEnabled ?? false)
-    }));
-  }, hasProject),
+  "view.toggleGuiMode": {
+    ...command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
+      const mode = (settings()?.editorViewMode ?? "gui") === "gui" ? "text" : "gui";
+      const snapshot = await runSnapshotCommand(() => commands.setEditorViewMode(mode));
+      if (mode === "gui" && snapshot.projectHealth !== "ready" && snapshot.activeFile !== null) {
+        const diagnostic = snapshot.diagnostics.find((item) => item.severity === "error");
+        await navigateToText(snapshot.activeFile, diagnostic?.range ?? null);
+        focusSidebar("problems")();
+      }
+    }, hasProject),
+    checked: () => (settings()?.editorViewMode ?? "gui") === "gui"
+  },
+  "view.toggleSpectrogram": {
+    ...command("Show Spectrogram", "View", ["audio", "waveform", "frequency"], async () => {
+      const current = settings();
+      if (current === undefined) return;
+      await runSnapshotCommand(() => commands.updateAppSettings({
+        ...current,
+        sequenceSpectrogramEnabled: !(current.sequenceSpectrogramEnabled ?? false)
+      }));
+    }, hasProject),
+    checked: () => settings()?.sequenceSpectrogramEnabled ?? false
+  },
+  "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, sequenceOpen),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);
   }, always, [{ key: "b" }]),
@@ -134,6 +146,12 @@ export function runCommand(id: CommandId) {
   void command.run();
 }
 
+/** The command's shortcuts as the platform writes them, such as "⇧⌘Z" or "Ctrl+Shift+Z / Ctrl+Y". */
+export function shortcutLabel(id: CommandId): string | undefined {
+  const { shortcuts } = commandRegistry[id];
+  return shortcuts.length === 0 ? undefined : shortcuts.map(formatShortcut).join(" / ");
+}
+
 /** Keyboard shortcuts for platforms without a native app menu; on macOS the menu owns them. */
 export function installGlobalShortcuts() {
   const onKeyDown = (event: KeyboardEvent) => {
@@ -141,7 +159,9 @@ export function installGlobalShortcuts() {
     const key = event.key.toLowerCase();
     const id = (Object.keys(commandRegistry) as CommandId[]).find((candidate) => commandRegistry[candidate].shortcuts.some((shortcut) =>
       shortcut.key === key && (shortcut.shift === true) === event.shiftKey));
-    if (id === undefined || useTransitionStore.getState().inProgress || !commandRegistry[id].enabled()) return;
+    if (id === undefined || !commandRegistry[id].enabled()) return;
+    // Text fields and the code editor keep their own undo history.
+    if ((id === "edit.undo" || id === "edit.redo") && editTarget(event.target) !== "app") return;
     event.preventDefault();
     runCommand(id);
   };
@@ -157,7 +177,5 @@ function command(
   enabled: () => boolean = always,
   shortcuts: Shortcut[] = []
 ): CommandDefinition {
-  return shortcuts.length === 0
-    ? { label, category, keywords, shortcuts, enabled, run }
-    : { label, category, keywords, shortcuts, shortcut: shortcuts.map(formatShortcut).join(" / "), enabled, run };
+  return { label, category, keywords, shortcuts, enabled, run };
 }
