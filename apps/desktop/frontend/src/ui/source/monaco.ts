@@ -40,9 +40,14 @@ import { THEME_CODE_EDITOR } from "../../theme";
 
 export { monaco };
 
+/** The editor whose text has keyboard focus; its find and rename inputs are ordinary text fields. */
+export function focusedCodeEditor() {
+  return monaco.editor.getEditors().find((editor) => editor.hasTextFocus());
+}
+
 /** Runs a Monaco action in the editor with keyboard focus, for app menus that receive its shortcuts first. */
 export function runFocusedEditorAction(action: "undo" | "redo" | "editor.action.selectAll") {
-  monaco.editor.getEditors().find((editor) => editor.hasTextFocus())?.trigger("menu", action, null);
+  focusedCodeEditor()?.trigger("menu", action, null);
 }
 
 export const DATA_LANGUAGE = "donder-data";

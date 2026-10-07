@@ -1,3 +1,5 @@
+import { focusedCodeEditor } from "./ui/source/monaco";
+
 export const isMac = navigator.userAgent.includes("Mac");
 
 export type Shortcut = { key: string; shift?: boolean };
@@ -18,7 +20,7 @@ const TEXT_INPUT_TYPES = new Set(["text", "search", "email", "url", "tel", "pass
 export type EditTarget = "text" | "code" | "app";
 
 export function editTarget(target: EventTarget | null): EditTarget {
-  if (target instanceof Element && target.closest(".monaco-editor") !== null) return "code";
+  if (focusedCodeEditor() !== undefined) return "code";
   if (target instanceof HTMLInputElement) return TEXT_INPUT_TYPES.has(target.type) ? "text" : "app";
   if (target instanceof HTMLTextAreaElement || (target instanceof HTMLElement && target.isContentEditable)) return "text";
   return "app";
