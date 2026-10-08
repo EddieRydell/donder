@@ -116,6 +116,7 @@ Setup setup { description: none, layout: layout, patch: patch, controllers: [] }
 
 Layout layout {
   description: none,
+  root: [pixel],
   items: [
     Fixture {
       name: pixel,
@@ -262,6 +263,55 @@ fn graph_variants_cannot_carry_other_variants_fields() {
             "edges: [Edge { from: main, to: output }]",
             "edges: [Edge { from: main, to: output.input }]",
             "output",
+        ),
+    ]);
+}
+
+#[test]
+fn layout_groups_share_members_and_reject_unknown_repeated_cyclic_or_orphaned_items() {
+    let shared = "  root: [left, right],\n  items: [\n    Group { name: left, description: none, members: [pixel] },\n    Group { name: right, description: none, members: [left, pixel] },\n";
+    let (_temp, root) = small_project();
+    let path = Utf8PathBuf::from(PROJECT_ROOT_FILE);
+    let mut overrides = project_source_texts(&root).unwrap();
+    let text = overrides[&path].replace("  root: [pixel],\n  items: [\n", shared);
+    overrides.insert(path, text);
+    let report = check_project_with_overrides(&root, &overrides);
+    let session = report.session.expect("shared members load");
+    let layout = session.project.layouts().next().unwrap();
+    let id = |name: &str| {
+        layout
+            .iter_fixtures()
+            .find(|item| item.name.as_str() == name)
+            .unwrap()
+            .id
+    };
+    // `pixel` belongs to both groups and keeps its first position in `right`.
+    assert_eq!(layout.members(id("left")), [id("pixel")]);
+    assert_eq!(layout.members(id("right")), [id("pixel")]);
+    assert_eq!(
+        layout.parents(id("pixel")),
+        [Some(id("left")), Some(id("right"))]
+    );
+    assert_rejected(&[
+        (
+            "root: [pixel],",
+            "root: [pixle],",
+            "unknown layout member `pixle`",
+        ),
+        (
+            "root: [pixel],",
+            "root: [pixel, pixel],",
+            "`pixel` is listed twice",
+        ),
+        (
+            "  root: [pixel],\n  items: [\n",
+            "  root: [pixel, a],\n  items: [\n    Group { name: a, description: none, members: [b] },\n    Group { name: b, description: none, members: [a] },\n",
+            "contains itself",
+        ),
+        (
+            "root: [pixel],",
+            "root: [],",
+            "`pixel` is not in `root` or any group",
         ),
     ]);
 }

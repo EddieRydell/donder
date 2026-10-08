@@ -1,4 +1,5 @@
 import type { GuiFixtureElement, GuiLayoutFixture, Point3Meters, SpatialRenderPlan } from "../../../types";
+import { descendants, layoutIndex, memberFixtures } from "./layoutGraph";
 
 export type Box = { left: number; right: number; bottom: number; top: number };
 export type SpatialItem = { id: number; owners: number[]; descendants: number[]; origin: Point3Meters; bounds: Box };
@@ -31,14 +32,17 @@ export function fixtureItems(elements: GuiFixtureElement[], plan: SpatialRenderP
 }
 export function layoutItems(fixtures: GuiLayoutFixture[], plan: SpatialRenderPlan): SpatialItem[] {
   const boxes = pixelBounds(plan);
-  const visit = (fixtures: GuiLayoutFixture[]): SpatialItem[] => fixtures.flatMap((fixture) => {
-    if (fixture.kind.type === "fixture") return [item(fixture.id, fixture.kind.transform.position, boxes)];
-    const children = visit(fixture.kind.children);
-    const owners = [...new Set(children.flatMap((child) => child.owners))];
-    const bounds = children.length === 0 ? { left: 0, right: 0, bottom: 0, top: 0 } : unionBounds(children.map((child) => child.bounds));
-    return [{ id: fixture.id, owners, descendants: children.map((child) => child.id), origin: { xMeters: bounds.left, yMeters: bounds.bottom, zMeters: 0 }, bounds }, ...children];
+  const items = layoutIndex(fixtures);
+  const placed = new Map(fixtures.flatMap((fixture) => fixture.kind.type === "fixture" ? [[fixture.id, item(fixture.id, fixture.kind.transform.position, boxes)] as const] : []));
+  return fixtures.map((fixture) => {
+    const own = placed.get(fixture.id);
+    if (own !== undefined) return own;
+    const below = descendants(items, fixture.id).slice(1);
+    const owners = below.filter((id) => placed.has(id));
+    const ownerBoxes = owners.flatMap((id) => { const owner = placed.get(id); return owner === undefined ? [] : [owner.bounds]; });
+    const bounds = ownerBoxes.length === 0 ? { left: 0, right: 0, bottom: 0, top: 0 } : unionBounds(ownerBoxes);
+    return { id: fixture.id, owners, descendants: below, origin: { xMeters: bounds.left, yMeters: bounds.bottom, zMeters: 0 }, bounds };
   });
-  return visit(fixtures);
 }
 /** Prefer selected ancestor groups; never move a descendant twice. */
 export function selectedItems(items: SpatialItem[], selection: number[]): SpatialItem[] {
@@ -80,11 +84,13 @@ export function repeatOffsets(rows: number, columns: number, x: number, y: numbe
   if (![rows, columns].every((value) => Number.isInteger(value) && value >= 1) || rows * columns > 1001 || !Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Use positive row and column counts, at most 1,000 copies, and finite spacing.");
   return Array.from({ length: rows * columns }, (_, index) => ({ xMeters: index % columns * x + 0, yMeters: Math.floor(index / columns) * y + 0, zMeters: 0 })).slice(1);
 }
+/** Move each placed fixture once, even when several moved groups share it. */
 export function moveLayout(fixtures: GuiLayoutFixture[], moves: SpatialMove[]): GuiLayoutFixture[] {
-  const byOwner = new Map(moves.map((move) => [move.id, move.delta]));
-  const visit = (items: GuiLayoutFixture[], inherited?: Point3Meters): GuiLayoutFixture[] => items.map((item) => {
-    const delta = inherited ?? byOwner.get(item.id);
-    return { ...item, kind: item.kind.type === "group" ? { ...item.kind, children: visit(item.kind.children, delta) } : delta === undefined ? item.kind : { ...item.kind, transform: { ...item.kind.transform, position: plus(item.kind.transform.position, delta) } } };
+  const items = layoutIndex(fixtures);
+  const deltas = new Map<number, Point3Meters>();
+  for (const move of moves) for (const id of memberFixtures(items, move.id)) if (!deltas.has(id)) deltas.set(id, move.delta);
+  return fixtures.map((fixture) => {
+    const delta = deltas.get(fixture.id);
+    return fixture.kind.type === "fixture" && delta !== undefined ? { ...fixture, kind: { ...fixture.kind, transform: { ...fixture.kind.transform, position: plus(fixture.kind.transform.position, delta) } } } : fixture;
   });
-  return visit(fixtures);
 }

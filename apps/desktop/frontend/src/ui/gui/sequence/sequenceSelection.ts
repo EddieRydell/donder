@@ -1,8 +1,8 @@
-import type { FixtureTarget, SequenceEditorDocument, SequenceEffect, SequenceAutomationResize, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
+import type { SequenceEditorDocument, SequenceEffect, SequenceAutomationResize, SequenceMarkCollection, SequenceMarkRef, SequenceSelection } from "../../../editor/types";
 
 import { clamp, type GuiFocus } from "../shared";
 
-import { targetAtLane, targetsEqual } from "./sequenceTargets";
+import { nearestLane, targetAtLane } from "./sequenceTargets";
 import { THEME_METRICS } from "../../../theme";
 import type { SequenceRowLayout, SequenceRowHeightMap, AutomationClipLayout, AutomationDraft } from "./sequenceAutomationLayout";
 
@@ -84,29 +84,20 @@ export function buildSequenceClipLayout(
   bounds: SequenceClipLayoutBounds,
   rows: SequenceRowLayout[]
 ): SequenceClipLayout[] {
-  const laneIndexByTarget = new Map(document.lanes.map((lane, index) => [lane.target.fixture, index]));
+  const lanesByTarget = new Map<number, number[]>();
+  document.lanes.forEach((lane, index) => { lanesByTarget.set(lane.target.fixture, [...lanesByTarget.get(lane.target.fixture) ?? [], index]); });
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]));
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
-  const clips: SequenceClip[] = [];
-  for (const effect of document.effects) {
-    const activeDraft = draftById.get(effect.id) ?? null;
-    const clip: SequenceClip = activeDraft === null
-      ? {
-          effect,
-          laneIndex: laneIndexForTarget(laneIndexByTarget, effect.target)
-        }
-      : clipFromDraft(document, effect, activeDraft);
-    if (!effectIntersectsTimeRange(clip.effect, visibleStartSeconds, visibleEndSeconds)) continue;
-    clips.push(clip);
-  }
-
+  // A clip shows on every lane of its target, including a draft's destination target.
   const byLane = new Map<number, SequenceClip[]>();
-  for (const clip of clips) {
-    if (clip.laneIndex < 0) continue;
-    const laneClips = byLane.get(clip.laneIndex) ?? [];
-    laneClips.push(clip);
-    byLane.set(clip.laneIndex, laneClips);
+  for (const original of document.effects) {
+    const activeDraft = draftById.get(original.id);
+    const effect = activeDraft === undefined ? original : effectFromDraft(document, original, activeDraft);
+    if (!effectIntersectsTimeRange(effect, visibleStartSeconds, visibleEndSeconds)) continue;
+    for (const laneIndex of lanesByTarget.get(effect.target.fixture) ?? []) {
+      byLane.set(laneIndex, [...byLane.get(laneIndex) ?? [], { effect, laneIndex }]);
+    }
   }
 
   const layouts: SequenceClipLayout[] = [];
@@ -140,26 +131,19 @@ export function buildSequenceClipLayout(
   return layouts;
 }
 
-function clipFromDraft(
+function effectFromDraft(
   document: SequenceEditorDocument,
   effect: SequenceEffect,
   draft: SequenceDraft
-): SequenceClip {
+): SequenceEffect {
   const draftLane = document.lanes[draft.laneIndex];
   return {
-    effect: {
-      ...effect,
-      startSeconds: draft.startSeconds,
-      durationSeconds: draft.durationSeconds,
-      target: draftLane?.target ?? effect.target,
-      targetLabel: draftLane?.label ?? effect.targetLabel
-    },
-    laneIndex: draft.laneIndex
+    ...effect,
+    startSeconds: draft.startSeconds,
+    durationSeconds: draft.durationSeconds,
+    target: draftLane?.target ?? effect.target,
+    targetLabel: draftLane?.label ?? effect.targetLabel
   };
-}
-
-function laneIndexForTarget(lanes: Map<number, number>, target: FixtureTarget): number {
-  return lanes.get(target.fixture) ?? 0;
 }
 
 function effectIntersectsTimeRange(effect: SequenceEffect, startSeconds: number, endSeconds: number): boolean {
@@ -375,7 +359,8 @@ function rectsIntersect(left: { x: number; y: number; width: number; height: num
 
 export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automation: AutomationClipLayout[], marquee: SequenceMarquee): SequenceSelection {
   const box = normalizedRect(marquee.startX, marquee.startY, marquee.x, marquee.y);
-  return { type: "clips", automationIds: automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id), effectIds: clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id) };
+  // A clip drawn on several lanes is selected once.
+  return { type: "clips", automationIds: [...new Set(automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id))], effectIds: [...new Set(clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id))] };
 }
 
 /** A mark-ruler marquee selects the marks its time span covers. */
@@ -399,7 +384,8 @@ export function selectionFromMarqueeMarks(
   return { type: "marks", marks };
 }
 
-export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
+/** `anchorLane` is the lane the gesture started on; each clip moves from its target's lane nearest it. */
+export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, anchorLane: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
   const clips = [
     ...document.effects.filter((clip) => selection.effectIds.includes(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "effects" as const })),
     ...document.automationClips.filter((clip) => selection.automationIds.includes(clip.id)).map((clip) => ({ ...clip, kind: "automation" as const }))
@@ -409,7 +395,7 @@ export function clipSelectionGesture(document: SequenceEditorDocument, selection
   let minLane = -Infinity;
   let maxLane = Infinity;
   for (const clip of clips) {
-    const lane = document.lanes.findIndex((lane) => targetsEqual(lane.target, clip.rowTarget));
+    const lane = nearestLane(document, clip.rowTarget, anchorLane);
     if (lane < 0) throw new Error("Clip row target is missing.");
     minLane = Math.max(minLane, -lane);
     maxLane = Math.min(maxLane, document.lanes.length - 1 - lane);
@@ -421,7 +407,7 @@ export function clipSelectionGesture(document: SequenceEditorDocument, selection
   const effects: SequenceDraft[] = [];
   const automation: AutomationDraft[] = [];
   for (const clip of clips) {
-    const laneIndex = document.lanes.findIndex((lane) => targetsEqual(lane.target, clip.rowTarget)) + laneDelta;
+    const laneIndex = nearestLane(document, clip.rowTarget, anchorLane) + laneDelta;
     const timing = { id: clip.id, startSeconds: clip.startSeconds + (edge === "right" ? 0 : timeDeltaSeconds), durationSeconds: clip.durationSeconds + (edge === "none" ? 0 : edge === "left" ? -timeDeltaSeconds : timeDeltaSeconds) };
     if (clip.kind === "effects") effects.push({ ...timing, laneIndex });
     else {
@@ -430,7 +416,7 @@ export function clipSelectionGesture(document: SequenceEditorDocument, selection
     }
   }
   const edit = edge === "none"
-    ? { type: "moveClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, timeDeltaSeconds, laneDelta }
+    ? { type: "moveClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, timeDeltaSeconds, anchorLane, laneDelta }
     : { type: "resizeClips" as const, effectIds: selection.effectIds, automationIds: selection.automationIds, edge, automation: automationResize, timeDeltaSeconds };
   return { effects, automation, edit, changed: timeDeltaSeconds !== 0 || laneDelta !== 0 };
 }

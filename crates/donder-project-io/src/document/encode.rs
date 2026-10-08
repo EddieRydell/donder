@@ -13,7 +13,9 @@ use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
 use donder_language::execution::PixelEncoding;
 use donder_language::fixture::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
 use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_language::layout::{FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
+use donder_language::layout::{
+    FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind,
+};
 use donder_language::ownership::ValueSource;
 use donder_language::patch::Patch;
 use donder_language::sequence::{
@@ -251,12 +253,26 @@ impl Encoder<'_> {
     }
 
     pub(crate) fn layout(&self, layout: &Layout) -> Result<types::Layout, ExportProjectError> {
+        let member_names = |members: &[FixtureInstanceId]| {
+            members
+                .iter()
+                .map(|&member| {
+                    layout
+                        .fixture(member)
+                        .map(|fixture| name(&fixture.name))
+                        .ok_or_else(|| {
+                            self.error(&member.0.to_string(), "the layout member is missing")
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
         Ok(types::Layout {
             description: layout.description.clone(),
+            root: member_names(&layout.root)?,
             items: layout
                 .fixtures
                 .iter()
-                .map(|fixture| self.layout_item(fixture))
+                .map(|fixture| self.layout_item(fixture, &member_names))
                 .collect::<Result<_, _>>()?,
         })
     }
@@ -264,15 +280,13 @@ impl Encoder<'_> {
     fn layout_item(
         &self,
         fixture: &LayoutFixture,
+        member_names: &impl Fn(&[FixtureInstanceId]) -> Result<Vec<Name>, ExportProjectError>,
     ) -> Result<types::LayoutItem, ExportProjectError> {
         Ok(match &fixture.kind {
-            LayoutFixtureKind::Group { children } => types::LayoutItem::Group {
+            LayoutFixtureKind::Group { members } => types::LayoutItem::Group {
                 name: name(&fixture.name),
                 description: fixture.description.clone(),
-                items: children
-                    .iter()
-                    .map(|child| self.layout_item(child))
-                    .collect::<Result<_, _>>()?,
+                members: member_names(members)?,
             },
             LayoutFixtureKind::Fixture {
                 definition,

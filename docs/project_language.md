@@ -126,7 +126,7 @@ identities in document order.
 | Object | Unique within |
 | --- | --- |
 | Top-level declarations | their document |
-| Fixtures and groups, at any depth | their layout |
+| Fixtures and groups | their layout |
 | Fixture shapes | their fixture definition |
 | Ports | their controller |
 | Layers and graph nodes together; clips; mark collections | their sequence |
@@ -141,8 +141,8 @@ converted to `snake_case` (`Time Warp` becomes `time_warp`).
 - a bare name resolves in the enclosing scope: a declaration of the same
   document, or a layer, clip, node or mark collection of the same sequence;
 - `alias.name` reaches a top-level declaration of an imported document;
-- `layout.fixture` reaches a fixture or group of a layout, whatever group it sits
-  in, so moving a fixture between groups changes no reference;
+- `layout.fixture` reaches a fixture or group of a layout, whatever groups list
+  it, so changing group membership changes no reference;
 - an owned object is reached through its owner and the owning fields:
   `show.setup.layout`, `show.setup.controllers.main`, `show.setup.layout.desk`.
 
@@ -287,22 +287,18 @@ Controller output_controller {
 ```text
 Layout outputs_layout {
   description: none,
+  root: [all_outputs],
   items: [
-    Group {
-      name: all_outputs,
+    Group { name: all_outputs, description: none, members: [output_01] },
+    Fixture {
+      name: output_01,
       description: none,
-      items: [
-        Fixture {
-          name: output_01,
-          description: none,
-          definition: fixtures.vertical_113,
-          transform: Transform {
-            position: (0m, 0m, 0m),
-            rotation: (0.0, 0.0, 0.0),
-            scale: (1.0, 1.0, 1.0),
-          },
-        },
-      ],
+      definition: fixtures.vertical_113,
+      transform: Transform {
+        position: (0m, 0m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
     },
   ],
 }
@@ -325,11 +321,17 @@ FixtureDefinition vertical_113 {
 }
 ```
 
-- `Layout`: `description`, `items`, each
-  `Group { name, description, items }` or
+- `Layout`: `description`, `root`, `items`. `items` lists every fixture and
+  group once, each `Group { name, description, members }` or
   `Fixture { name, description, definition, transform }`, where `definition` is
   a `FixtureDefinition` reference or `FixtureDefinition { ... }` owned by that
-  fixture.
+  fixture. Fixture order in `items` is placement order.
+- `root` and a group's `members` name items of the layout in display order. An
+  item may be a member of several groups, and of the root as well. Each list
+  names an item once, a group cannot contain itself through its members, and
+  every item is in `root` or some group.
+- A group targets its fixtures depth-first in member order; a fixture reached
+  more than once keeps its first position.
 - `Transform`: `position`, an `(x, y, z)` tuple of distances within 2 km of the
   origin; `rotation` in degrees and `scale`, each a tuple of floats.
 - `FixtureDefinition`: `description`, `shapes: [Shape]`.
@@ -366,8 +368,9 @@ Patch outputs {
 }
 ```
 
-- `Route`: `target` (a fixture or group), `pixels`, `controller`, `port` (a port
-  of that controller), `start_slot`, `encoding`, `gamma`, `brightness`.
+- `Route`: `target` (a fixture; groups are not routed), `pixels`, `controller`,
+  `port` (a port of that controller), `start_slot`, `encoding`, `gamma`,
+  `brightness`.
 - `pixels` is `PixelSpan { start, count }`, or `none` to route the whole target,
   including later pixel-count edits.
 - `encoding` is `Rgb { order: (r, g, b) }` or `Rgbw { order: (r, g, b, w) }`,
@@ -467,15 +470,16 @@ output node is what plays. Nodes not connected to the output may remain while
 you edit, and are not prepared. An operator on the output path must have every
 input connected.
 
-Every fixture or group has one clip row and one automation row. An automation
-clip's row is only placement: moving it between rows does not change its
-bindings. One clip can bind several parameters. The curve's `0..1` value maps
-onto each parameter's declared range (a curve parameter's point values), an
-enum's options in order, or a bool (on at 0.5). Several clips may bind the same
-parameter if they do not overlap in time; preparation merges them into one
-envelope. Before the first clip the parameter holds that clip's first value,
-and in a gap it holds the value the previous clip ended on, so splitting a clip
-leaves playback unchanged. When the GUI deletes a bound clip or operator, or
+Every fixture or group has one clip row and one automation row. A member of
+several groups shows its rows under each, and every copy holds the same clips.
+An automation clip's row is only placement: moving it between rows does not
+change its bindings. One clip can bind several parameters. The curve's `0..1`
+value maps onto each parameter's declared range (a curve parameter's point
+values), an enum's options in order, or a bool (on at 0.5). Several clips may
+bind the same parameter if they do not overlap in time; preparation merges them
+into one envelope. Before the first clip the parameter holds that clip's first
+value, and in a gap it holds the value the previous clip ended on, so splitting
+a clip leaves playback unchanged. When the GUI deletes a bound clip or operator, or
 replaces its definition so a parameter no longer fits, the binding moves to
 `detached` with that reason, so it can be reattached rather than silently lost.
 

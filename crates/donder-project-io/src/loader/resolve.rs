@@ -25,7 +25,8 @@ use donder_language::fixture::{
 };
 use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
 use donder_language::layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
+    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
+    LayoutId,
 };
 use donder_language::model::ProjectData;
 use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
@@ -111,27 +112,17 @@ fn owned<'a>(declaration: &'a Declaration, path: &[OwnedObjectSlot]) -> Option<O
 }
 
 /// The identity a layout assigns its item `name`, and the item's name span:
-/// items are numbered from 1 in document order, groups before their items.
-fn fixture_index(
-    items: &[types::LayoutItem],
-    name: &Identifier,
-    next: &mut u32,
-) -> Option<(u32, TextSpan)> {
-    for item in items {
-        let id = *next;
-        *next += 1;
-        let (item_name, children) = match item {
-            types::LayoutItem::Group { name, items, .. } => (name, Some(items)),
-            types::LayoutItem::Fixture { name, .. } => (name, None),
-        };
-        if &item_name.0.value == name {
-            return Some((id, item_name.0.span));
+/// items are numbered from 1 in document order.
+fn fixture_index(items: &[types::LayoutItem], name: &Identifier) -> Option<(u32, TextSpan)> {
+    items.iter().zip(1..).find_map(|(item, id)| {
+        let (types::LayoutItem::Group {
+            name: item_name, ..
         }
-        if let Some(found) = children.and_then(|children| fixture_index(children, name, next)) {
-            return Some(found);
-        }
-    }
-    None
+        | types::LayoutItem::Fixture {
+            name: item_name, ..
+        }) = item;
+        (&item_name.0.value == name).then_some((id, item_name.0.span))
+    })
 }
 
 /// The name span of the owned collection member at the end of `path`.
@@ -512,7 +503,7 @@ impl DomainResolver<'_> {
         )?);
         let (index, item) = self
             .with_owned(&layout.0, |owned| match owned {
-                Owned::Layout(layout) => fixture_index(&layout.items, &fixture.value, &mut 1),
+                Owned::Layout(layout) => fixture_index(&layout.items, &fixture.value),
                 _ => None,
             })
             .ok_or_else(|| {
@@ -707,70 +698,130 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         layout: &types::Layout,
     ) -> Result<Layout, LoadProjectError> {
-        Ok(Layout {
+        // Items are numbered in authored order; members may name later items.
+        let mut ids = std::collections::HashMap::new();
+        for (index, item) in layout.items.iter().enumerate() {
+            let (types::LayoutItem::Group {
+                name: item_name, ..
+            }
+            | types::LayoutItem::Fixture {
+                name: item_name, ..
+            }) = item;
+            let id = u32::try_from(index + 1)
+                .map(FixtureInstanceId)
+                .map_err(|_| self.invalid(document, item_name.0.span, "too many layout items"))?;
+            if ids.insert(name(item_name), id).is_some() {
+                return Err(self.invalid(
+                    document,
+                    item_name.0.span,
+                    format!(
+                        "duplicate layout item name `{}`",
+                        item_name.0.value.as_str()
+                    ),
+                ));
+            }
+        }
+        let members = |names: &[Name]| {
+            names
+                .iter()
+                .map(|member| {
+                    ids.get(&member.0.value).copied().ok_or_else(|| {
+                        self.invalid(
+                            document,
+                            member.0.span,
+                            format!("unknown layout member `{}`", member.0.value.as_str()),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let root = members(&layout.root)?;
+        let groups = layout
+            .items
+            .iter()
+            .map(|item| match item {
+                types::LayoutItem::Group { members: names, .. } => members(names),
+                types::LayoutItem::Fixture { .. } => Ok(Vec::new()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut fixtures = Vec::with_capacity(layout.items.len());
+        for ((item, group), id) in layout.items.iter().zip(groups).zip(1..) {
+            fixtures.push(self.layout_item(document, FixtureInstanceId(id), item, group)?);
+        }
+        let resolved = Layout {
             id: id.clone(),
             description: layout.description.clone(),
-            fixtures: self.layout_items(document, &layout.items, &mut 1)?,
-        })
+            fixtures,
+            root,
+        };
+        resolved.validate_membership().map_err(|error| {
+            let (item, message) = match error {
+                LayoutError::DuplicateMember(item) => (item, "is listed twice in one group"),
+                LayoutError::Cycle(item) => (item, "contains itself through its members"),
+                LayoutError::Unreachable(item) => (item, "is not in `root` or any group"),
+                _ => unreachable!("resolved members name existing items"),
+            };
+            let (types::LayoutItem::Group { name, .. } | types::LayoutItem::Fixture { name, .. }) =
+                &layout.items[item.0 as usize - 1];
+            self.invalid(
+                document,
+                name.0.span,
+                format!("layout item `{}` {message}", name.0.value.as_str()),
+            )
+        })?;
+        Ok(resolved)
     }
 
-    fn layout_items(
+    fn layout_item(
         &mut self,
         document: &DocumentId,
-        items: &[types::LayoutItem],
-        next: &mut u32,
-    ) -> Result<Vec<LayoutFixture>, LoadProjectError> {
-        let mut fixtures = Vec::with_capacity(items.len());
-        for item in items {
-            let id = FixtureInstanceId(*next);
-            *next += 1;
-            fixtures.push(match item {
-                types::LayoutItem::Group {
-                    name: group,
-                    description,
-                    items,
-                } => LayoutFixture {
-                    id,
-                    name: name(group),
-                    description: description.clone(),
-                    kind: LayoutFixtureKind::Group {
-                        children: self.layout_items(document, items, next)?,
+        id: FixtureInstanceId,
+        item: &types::LayoutItem,
+        members: Vec<FixtureInstanceId>,
+    ) -> Result<LayoutFixture, LoadProjectError> {
+        Ok(match item {
+            types::LayoutItem::Group {
+                name: group,
+                description,
+                ..
+            } => LayoutFixture {
+                id,
+                name: name(group),
+                description: description.clone(),
+                kind: LayoutFixtureKind::Group { members },
+            },
+            types::LayoutItem::Fixture {
+                name: fixture,
+                description,
+                definition,
+                transform,
+            } => LayoutFixture {
+                id,
+                name: name(fixture),
+                description: description.clone(),
+                kind: LayoutFixtureKind::Fixture {
+                    definition: match definition {
+                        Source::Reference(reference) => {
+                            let ResolvedObject::FixtureDefinition(definition) =
+                                self.loader.resolve_reference(
+                                    document,
+                                    reference,
+                                    SourceObjectKind::FixtureDefinition,
+                                )?
+                            else {
+                                return Err(self.loader.unresolved(document, reference));
+                            };
+                            self.resolve_fixture(&definition)?;
+                            FixtureSource::Reference(definition)
+                        }
+                        Source::Inline(definition) => FixtureSource::Inline(
+                            self.fixture_definition(document, fixture.0.span, definition)?,
+                        ),
                     },
+                    transform: self.transform(document, fixture.0.span, transform)?,
                 },
-                types::LayoutItem::Fixture {
-                    name: fixture,
-                    description,
-                    definition,
-                    transform,
-                } => LayoutFixture {
-                    id,
-                    name: name(fixture),
-                    description: description.clone(),
-                    kind: LayoutFixtureKind::Fixture {
-                        definition: match definition {
-                            Source::Reference(reference) => {
-                                let ResolvedObject::FixtureDefinition(definition) =
-                                    self.loader.resolve_reference(
-                                        document,
-                                        reference,
-                                        SourceObjectKind::FixtureDefinition,
-                                    )?
-                                else {
-                                    return Err(self.loader.unresolved(document, reference));
-                                };
-                                self.resolve_fixture(&definition)?;
-                                FixtureSource::Reference(definition)
-                            }
-                            Source::Inline(definition) => FixtureSource::Inline(
-                                self.fixture_definition(document, fixture.0.span, definition)?,
-                            ),
-                        },
-                        transform: self.transform(document, fixture.0.span, transform)?,
-                    },
-                },
-            });
-        }
-        Ok(fixtures)
+            },
+        })
     }
 
     fn transform(

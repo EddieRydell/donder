@@ -16,6 +16,7 @@ fn inline_fields() -> String {
     description: none,
     layout: Layout {{
       description: none,
+      root: [test_strip],
       items: [
         Fixture {{
           name: test_strip,

@@ -128,7 +128,10 @@ pub struct LayoutGuiDocument {
     pub path: String,
     pub source_ref: GuiObjectRef,
     pub object_key: String,
+    /// Every fixture and group once; fixture order is placement order.
     pub fixtures: Vec<GuiLayoutFixture>,
+    /// Top-level members in display order.
+    pub root: Vec<u32>,
     pub available_fixtures: Vec<GuiObjectRef>,
     pub render_plan: SpatialRenderPlan,
 }
@@ -153,9 +156,8 @@ pub enum GuiLayoutFixtureKind {
         definition: GuiFixtureSource,
         transform: Transform,
     },
-    Group {
-        children: Vec<GuiLayoutFixture>,
-    },
+    /// Members may belong to several groups.
+    Group { members: Vec<u32> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -165,10 +167,26 @@ pub enum GuiLayoutFixtureKind {
     rename_all_fields = "camelCase"
 )]
 pub enum LayoutGuiEdit {
-    ReparentFixture {
+    /// Move a member between groups; `None` is the root. Same group reorders.
+    MoveMember {
         id: u32,
-        parent: Option<u32>,
+        from: Option<u32>,
+        to: Option<u32>,
         before: Option<u32>,
+    },
+    /// List an item in another group as well.
+    AddMember {
+        id: u32,
+        to: Option<u32>,
+        before: Option<u32>,
+    },
+    RemoveMember {
+        id: u32,
+        from: Option<u32>,
+    },
+    /// Delete fixtures and groups everywhere.
+    RemoveItems {
+        ids: Vec<u32>,
     },
     DuplicateFixture {
         id: u32,
@@ -185,6 +203,7 @@ pub enum LayoutGuiEdit {
     },
     SetFixtures {
         fixtures: Vec<GuiLayoutFixture>,
+        root: Vec<u32>,
     },
     MoveFixture {
         id: u32,

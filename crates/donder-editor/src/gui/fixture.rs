@@ -59,11 +59,9 @@ pub(super) fn update_fixture_definition(
                 .layout(&donder_language::layout::LayoutId(parent))
                 .cloned()
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
-            let placement = super::layout::find_fixture_mut(
-                &mut layout.fixtures,
-                donder_language::layout::FixtureInstanceId(*id),
-            )
-            .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
+            let placement = layout
+                .fixture_mut(donder_language::layout::FixtureInstanceId(*id))
+                .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
             let donder_language::layout::LayoutFixtureKind::Fixture {
                 definition: FixtureSource::Inline(value),
                 ..

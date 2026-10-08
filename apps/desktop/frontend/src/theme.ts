@@ -232,6 +232,7 @@ export const THEME_METRICS = {
   sequenceLaneIndent: cssNumber("--donder-sequence-lane-indent"),
   sequenceDisclosureSize: cssNumber("--donder-sequence-disclosure-size"),
   sequenceDisclosureGap: cssNumber("--donder-sequence-disclosure-gap"),
+  sequenceSharedBadgeWidth: cssNumber("--donder-sequence-shared-badge-width"),
   sequenceClipMinWidth: cssNumber("--donder-sequence-clip-min-width"),
   sequenceClipMinHeight: cssNumber("--donder-sequence-clip-min-height"),
   sequenceClipSlotOffset: cssNumber("--donder-sequence-clip-slot-offset"),

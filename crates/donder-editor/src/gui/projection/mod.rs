@@ -19,13 +19,7 @@ pub(super) fn project_sequence(
             )],
         );
     };
-    let lanes = active_layout(session)
-        .map(|layout| {
-            let mut lanes = Vec::new();
-            push_lanes(&layout.fixtures, 0, &mut lanes);
-            lanes
-        })
-        .unwrap_or_default();
+    let lanes = active_layout(session).map(layout_lanes).unwrap_or_default();
     let effects = sequence
         .effects
         .iter()
@@ -226,33 +220,56 @@ fn sequence_audio(
         })
 }
 
-/// Lanes in layout order with each lane's depth, so editors can show the tree.
-fn push_lanes(
-    fixtures: &[donder_language::layout::LayoutFixture],
-    depth: u32,
-    lanes: &mut Vec<SequenceLane>,
-) {
-    for fixture in fixtures {
-        let children = match &fixture.kind {
-            donder_language::layout::LayoutFixtureKind::Group { children } => Some(children),
-            donder_language::layout::LayoutFixtureKind::Fixture { .. } => None,
-        };
-        lanes.push(SequenceLane {
+/// The timeline lanes: the layout root walked depth-first, with each item's
+/// depth. A member of several groups has a lane under each.
+pub(crate) fn lane_walk(
+    layout: &donder_language::layout::Layout,
+) -> Vec<(&donder_language::layout::LayoutFixture, u32)> {
+    fn push<'a>(
+        layout: &'a donder_language::layout::Layout,
+        members: &[donder_language::layout::FixtureInstanceId],
+        depth: u32,
+        lanes: &mut Vec<(&'a donder_language::layout::LayoutFixture, u32)>,
+    ) {
+        for &member in members {
+            if let Some(fixture) = layout.fixture(member) {
+                lanes.push((fixture, depth));
+                push(layout, fixture.members(), depth + 1, lanes);
+            }
+        }
+    }
+    let mut lanes = Vec::new();
+    push(layout, &layout.root, 0, &mut lanes);
+    lanes
+}
+
+/// Lanes with the hierarchy depth and how many lanes share each target.
+fn layout_lanes(layout: &donder_language::layout::Layout) -> Vec<SequenceLane> {
+    let mut lanes = lane_walk(layout)
+        .into_iter()
+        .map(|(fixture, depth)| SequenceLane {
             target: FixtureTarget {
                 fixture: fixture.id.0,
             },
             label: fixture.name.as_str().to_string(),
-            kind: if children.is_some() {
-                SequenceLaneKind::Group
-            } else {
-                SequenceLaneKind::Fixture
+            kind: match fixture.kind {
+                donder_language::layout::LayoutFixtureKind::Group { .. } => SequenceLaneKind::Group,
+                donder_language::layout::LayoutFixtureKind::Fixture { .. } => {
+                    SequenceLaneKind::Fixture
+                }
             },
             depth,
-        });
-        if let Some(children) = children {
-            push_lanes(children, depth + 1, lanes);
-        }
+            occurrences: 0,
+        })
+        .collect::<Vec<_>>();
+    let mut counts = std::collections::HashMap::<u32, u32>::new();
+    for lane in &lanes {
+        *counts.entry(lane.target.fixture).or_default() += 1;
     }
+    for lane in &mut lanes {
+        lane.occurrences = counts[&lane.target.fixture];
+    }
+    lanes
 }
 
 fn effect_target(target: &DomainFixtureTarget) -> FixtureTarget {

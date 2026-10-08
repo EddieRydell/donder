@@ -132,6 +132,7 @@ pub(in crate::gui) fn project_layout(
             source_ref: resolved.source_ref(),
             object_key: resolved.identity.object().to_string(),
             fixtures: layout.fixtures.iter().map(fixture).collect(),
+            root: layout.root.iter().map(|member| member.0).collect(),
             available_fixtures: crate::gui::ownership::available_sources(
                 session,
                 resolved.identity.document_id(),
@@ -179,8 +180,8 @@ fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
                 },
                 transform: crate::gui::fixture::gui_transform(value),
             },
-            LayoutFixtureKind::Group { children } => GuiLayoutFixtureKind::Group {
-                children: children.iter().map(self::fixture).collect(),
+            LayoutFixtureKind::Group { members } => GuiLayoutFixtureKind::Group {
+                members: members.iter().map(|member| member.0).collect(),
             },
         },
     }

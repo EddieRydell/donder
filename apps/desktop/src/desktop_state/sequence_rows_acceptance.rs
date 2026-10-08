@@ -25,6 +25,7 @@ fn moving_and_resizing_a_mixed_selection_is_atomic_and_never_rebinds_automation(
         effect_ids: vec![timeline.effect],
         automation_ids: vec![timeline.automation],
         time_delta_seconds: 1.0,
+        anchor_lane: 0,
         lane_delta: 1,
     });
     let moved = timeline.sequence();
@@ -206,27 +207,20 @@ impl Timeline {
         }
     }
 
+    /// The target of every timeline lane, in display order.
     fn targets(&self) -> Vec<FixtureTarget> {
-        let session = self.state.project_session().unwrap();
-        let setup = session
-            .project
-            .setup(session.project.root().setup.id())
-            .unwrap();
-        session
-            .project
-            .layout(setup.layout.id())
-            .unwrap()
-            .iter_fixtures()
-            .map(|fixture| FixtureTarget {
-                fixture: fixture.id.0,
-            })
-            .collect()
+        let GuiDocument::Sequence { document } =
+            self.state.get_gui_document(self.request()).document
+        else {
+            panic!("sequence document missing")
+        };
+        document.lanes.into_iter().map(|lane| lane.target).collect()
     }
 
-    fn paste(&self, target: FixtureTarget) -> SequenceSelection {
+    fn paste(&self, lane: u32) -> SequenceSelection {
         self.selection_edit(SequenceSelectionEdit::Paste {
             anchor: SequencePasteAnchor {
-                target: Some(target),
+                lane: Some(lane),
                 time_seconds: 0.0,
             },
         })
@@ -246,7 +240,7 @@ fn mixed_clipboard_remaps_bindings_and_is_one_undoable_persisted_edit() {
     let SequenceSelection::Clips {
         effect_ids,
         automation_ids,
-    } = timeline.paste(target.clone())
+    } = timeline.paste(1)
     else {
         panic!("clip selection missing")
     };
@@ -316,9 +310,10 @@ fn automation_row_placement_survives_target_reorder_and_history_without_rebindin
             owned_path: Vec::new(),
         },
         GuiEditCommand::Layout {
-            edit: LayoutGuiEdit::ReparentFixture {
+            edit: LayoutGuiEdit::MoveMember {
                 id: target.fixture,
-                parent: Some(root_group),
+                from: Some(root_group),
+                to: Some(root_group),
                 before: None,
             },
         },
@@ -345,8 +340,7 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
         selection: timeline.selection(),
     });
     let before = timeline.sequence();
-    let SequenceSelection::Clips { effect_ids, .. } = timeline.paste(timeline.targets()[1].clone())
-    else {
+    let SequenceSelection::Clips { effect_ids, .. } = timeline.paste(1) else {
         panic!("clip selection missing")
     };
     timeline.selection_edit(SequenceSelectionEdit::Copy {
@@ -360,7 +354,7 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
         timeline.request(),
         SequenceSelectionEdit::Paste {
             anchor: SequencePasteAnchor {
-                target: timeline.targets().last().cloned(),
+                lane: Some(timeline.targets().len() as u32 - 1),
                 time_seconds: 0.0,
             },
         },
@@ -384,9 +378,7 @@ fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
     timeline.selection_edit(SequenceSelectionEdit::Copy {
         selection: selection(),
     });
-    let SequenceSelection::Clips { automation_ids, .. } =
-        timeline.paste(timeline.targets()[1].clone())
-    else {
+    let SequenceSelection::Clips { automation_ids, .. } = timeline.paste(1) else {
         panic!("clip selection missing")
     };
     let sequence = timeline.sequence();
@@ -407,9 +399,7 @@ fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
     timeline.selection_edit(SequenceSelectionEdit::Cut {
         selection: selection(),
     });
-    let SequenceSelection::Clips { automation_ids, .. } =
-        timeline.paste(timeline.targets()[2].clone())
-    else {
+    let SequenceSelection::Clips { automation_ids, .. } = timeline.paste(2) else {
         panic!("clip selection missing")
     };
     let pasted = timeline.sequence();
@@ -420,4 +410,95 @@ fn copying_an_envelope_is_unbound_but_cutting_preserves_available_bindings() {
         .unwrap();
     assert_eq!(moved.bindings, original.bindings);
     assert_eq!(moved.curve, original.curve);
+}
+
+#[test]
+fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
+    let timeline = Timeline::new();
+    let session = timeline.state.project_session().unwrap();
+    let setup = session
+        .project
+        .setup(session.project.root().setup.id())
+        .unwrap();
+    let layout_id = setup.layout.id().clone();
+    let request = GuiDocumentRequest {
+        project_revision: timeline.state.snapshot().project_revision,
+        path: layout_id.0.document().to_string(),
+        view: DocumentViewId::Layout,
+        object_key: Some(layout_id.0.root_source().object().into()),
+        owned_path: Vec::new(),
+    };
+    let GuiDocument::Layout { document: layout } =
+        timeline.state.get_gui_document(request.clone()).document
+    else {
+        panic!("layout document missing")
+    };
+    let lanes = timeline.targets();
+    let (first, second) = (lanes[1].fixture, lanes[2].fixture);
+    let mut fixtures = layout.fixtures;
+    fixtures.push(crate::dto::GuiLayoutFixture {
+        id: 100,
+        name: "Pair".into(),
+        description: None,
+        kind: crate::dto::GuiLayoutFixtureKind::Group {
+            members: vec![first, second],
+        },
+    });
+    let mut root = layout.root;
+    root.push(100);
+    let result = timeline.state.apply_gui_edit(
+        GuiDocumentRequest {
+            project_revision: timeline.state.snapshot().project_revision,
+            ..request
+        },
+        GuiEditCommand::Layout {
+            edit: LayoutGuiEdit::SetFixtures { fixtures, root },
+        },
+    );
+    assert!(
+        matches!(result.document, GuiDocument::Layout { .. }),
+        "{:?}",
+        result.document
+    );
+    // The shared fixtures appear under both groups, as the same targets.
+    let GuiDocument::Sequence { document } =
+        timeline.state.get_gui_document(timeline.request()).document
+    else {
+        panic!("sequence document missing")
+    };
+    let pair = lanes.len();
+    let lanes = document.lanes;
+    assert_eq!(lanes.len(), pair + 3);
+    assert_eq!(lanes[pair].target.fixture, 100);
+    assert_eq!(lanes[pair + 1].target.fixture, first);
+    assert_eq!(lanes[pair + 2].target.fixture, second);
+    assert_eq!((lanes[1].occurrences, lanes[pair + 1].occurrences), (2, 2));
+    assert_eq!((lanes[0].occurrences, lanes[pair].occurrences), (1, 1));
+    assert_eq!(lanes[pair + 1].depth, 1);
+    let effect_target = || {
+        timeline
+            .sequence()
+            .effects
+            .iter()
+            .find(|effect| effect.id.0 == timeline.effect)
+            .unwrap()
+            .target
+            .fixture
+            .0
+    };
+    let move_clip = |anchor_lane: usize, lane_delta| {
+        timeline.selection_edit(SequenceSelectionEdit::MoveClips {
+            effect_ids: vec![timeline.effect],
+            automation_ids: vec![],
+            time_delta_seconds: 0.0,
+            anchor_lane: anchor_lane as u32,
+            lane_delta,
+        });
+    };
+    move_clip(0, 1);
+    assert_eq!(effect_target(), first);
+    // Moving up from the copy under `Pair` reaches `Pair`, not the lane above
+    // the first copy.
+    move_clip(pair + 1, -1);
+    assert_eq!(effect_target(), 100);
 }

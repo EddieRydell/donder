@@ -105,14 +105,12 @@ fn layout_targets_remain_independent_after_definition_flattening() {
     let layout = Layout {
         description: None,
         id: LayoutId(identity("layout").into()),
-        fixtures: vec![LayoutFixture {
-            description: None,
-            id: FixtureInstanceId(100),
-            name: donder_language::names::object_name("All"),
-            kind: LayoutFixtureKind::Group {
-                children: vec![instance(1, "assembly"), instance(2, "assembly")],
-            },
-        }],
+        fixtures: vec![
+            group(100, "All", &[1, 2]),
+            instance(1, "assembly"),
+            instance(2, "assembly"),
+        ],
+        root: vec![FixtureInstanceId(100)],
     };
     let layout = prepared.prepare_layout(&layout);
     let target = |fixture| FixtureTarget {
@@ -123,21 +121,148 @@ fn layout_targets_remain_independent_after_definition_flattening() {
         layout
             .target(&target(100))
             .unwrap()
-            .iter()
             .map(|instance| instance.id)
             .collect::<Vec<_>>(),
         vec![FixtureInstanceId(1), FixtureInstanceId(2)]
     );
     for id in [1, 2] {
-        let selected = layout.target(&target(id)).unwrap();
+        let selected = layout.target(&target(id)).unwrap().collect::<Vec<_>>();
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, FixtureInstanceId(id));
         assert_eq!(selected[0].pixels.len(), 4);
     }
+    assert!(matches!(
+        layout.target(&target(20)),
+        Err(LayoutError::MissingFixture(FixtureInstanceId(20)))
+    ));
+}
+
+fn group(id: u32, name: &str, members: &[u32]) -> LayoutFixture {
+    LayoutFixture {
+        description: None,
+        id: FixtureInstanceId(id),
+        name: donder_language::names::object_name(name),
+        kind: LayoutFixtureKind::Group {
+            members: members.iter().copied().map(FixtureInstanceId).collect(),
+        },
+    }
+}
+
+fn shared_layout() -> Layout {
+    // `roofs` and `left_side` share fixture 1; `everything` reaches it twice.
+    Layout {
+        description: None,
+        id: LayoutId(identity("layout").into()),
+        fixtures: vec![
+            instance(1, "assembly"),
+            instance(2, "assembly"),
+            instance(3, "assembly"),
+            group(10, "roofs", &[2, 1]),
+            group(11, "left_side", &[1, 3]),
+            group(12, "everything", &[10, 11]),
+        ],
+        root: vec![FixtureInstanceId(12)],
+    }
+}
+
+#[test]
+fn groups_share_members_and_keep_first_positions() {
+    let definitions = definitions(&[("assembly", vec![pixel(7, 1.0)])]);
+    let layout = shared_layout();
+    layout.validate(&definitions.definitions).unwrap();
+    let ids = |values: &[u32]| {
+        values
+            .iter()
+            .copied()
+            .map(FixtureInstanceId)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(layout.members(FixtureInstanceId(10)), ids(&[2, 1]));
+    assert_eq!(layout.members(FixtureInstanceId(11)), ids(&[1, 3]));
+    assert_eq!(layout.members(FixtureInstanceId(12)), ids(&[2, 1, 3]));
+    let target = FixtureTarget {
+        layout: layout.id.clone(),
+        fixture: FixtureInstanceId(12),
+    };
+    let counts = definitions.pixel_counts().unwrap();
+    assert_eq!(layout.target_pixel_count(&target, &counts), Ok(3));
+    let prepared = PreparedFixtureDefinitions::prepare(&definitions).prepare_layout(&layout);
     assert_eq!(
-        layout.target(&target(20)).unwrap_err(),
-        LayoutError::MissingFixture(FixtureInstanceId(20))
+        prepared
+            .target(&target)
+            .unwrap()
+            .map(|instance| instance.id)
+            .collect::<Vec<_>>(),
+        ids(&[2, 1, 3])
     );
+    // Placement order is the authored fixture order, independent of membership.
+    assert_eq!(
+        prepared
+            .instances
+            .iter()
+            .map(|instance| instance.id)
+            .collect::<Vec<_>>(),
+        ids(&[1, 2, 3])
+    );
+}
+
+#[test]
+fn layout_membership_must_be_acyclic_unique_and_reachable() {
+    let definitions = definitions(&[("assembly", vec![pixel(7, 1.0)])]);
+    let mut cycle = shared_layout();
+    cycle.fixtures[3] = group(10, "roofs", &[2, 1, 12]);
+    assert!(matches!(
+        cycle.validate(&definitions.definitions),
+        Err(LayoutError::Cycle(_))
+    ));
+    let mut repeated = shared_layout();
+    repeated.fixtures[3] = group(10, "roofs", &[2, 1, 2]);
+    assert_eq!(
+        repeated.validate(&definitions.definitions),
+        Err(LayoutError::DuplicateMember(FixtureInstanceId(2)))
+    );
+    let mut missing = shared_layout();
+    missing.root.push(FixtureInstanceId(99));
+    assert_eq!(
+        missing.validate(&definitions.definitions),
+        Err(LayoutError::MissingFixture(FixtureInstanceId(99)))
+    );
+    let mut orphan = shared_layout();
+    orphan.fixtures.push(instance(4, "assembly"));
+    assert_eq!(
+        orphan.validate(&definitions.definitions),
+        Err(LayoutError::Unreachable(FixtureInstanceId(4)))
+    );
+}
+
+#[test]
+fn membership_edits_keep_items_reachable() {
+    let id = FixtureInstanceId;
+    let mut layout = shared_layout();
+    // Listing a fixture in another group keeps its existing membership.
+    layout.add_member(id(3), Some(id(10)), Some(id(2))).unwrap();
+    assert_eq!(
+        layout.children(Some(id(10))).unwrap(),
+        &[id(3), id(2), id(1)]
+    );
+    assert_eq!(layout.parents(id(3)), vec![Some(id(10)), Some(id(11))]);
+    assert!(layout.add_member(id(3), Some(id(10)), None).is_err());
+    assert!(layout.add_member(id(12), Some(id(10)), None).is_err());
+    // Moving between groups changes one membership; moving within reorders.
+    layout.move_member(id(1), Some(id(11)), None, None).unwrap();
+    assert_eq!(layout.root, vec![id(12), id(1)]);
+    assert_eq!(layout.children(Some(id(11))).unwrap(), &[id(3)]);
+    layout.move_member(id(1), None, None, Some(id(12))).unwrap();
+    assert_eq!(layout.root, vec![id(1), id(12)]);
+    // An item removed from its last group moves to the root.
+    layout.remove_member(id(2), Some(id(10))).unwrap();
+    assert_eq!(layout.root, vec![id(1), id(12), id(2)]);
+    // Deleting a group keeps its members; orphans move to the root.
+    layout.remove_items(&[id(12)]).unwrap();
+    assert_eq!(layout.root, vec![id(1), id(2), id(10), id(11)]);
+    assert!(layout.fixture(id(12)).is_none());
+    let definitions = definitions(&[("assembly", vec![pixel(7, 1.0)])]);
+    layout.validate(&definitions.definitions).unwrap();
 }
 
 #[test]
@@ -179,6 +304,7 @@ fn empty_layouts_and_definitions_are_valid_authoring_states() {
         description: None,
         id: LayoutId(identity("layout").into()),
         fixtures: vec![],
+        root: vec![],
     };
     assert!(prepared.prepare_layout(&layout).instances.is_empty());
 }

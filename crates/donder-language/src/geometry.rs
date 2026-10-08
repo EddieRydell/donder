@@ -3,7 +3,6 @@
 //! Expands shapes and layout transforms without compiling effects or creating
 //! playback state. Both the editor and elaboration use this same geometry.
 
-use std::ops::Range;
 use std::sync::Arc;
 
 use crate::fixture::{
@@ -11,8 +10,7 @@ use crate::fixture::{
     FixtureTransform,
 };
 use crate::layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
-    LayoutId,
+    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixtureKind, LayoutId,
 };
 use glam::{Affine3A, EulerRot, Quat, Vec3};
 use indexmap::IndexMap;
@@ -46,8 +44,8 @@ pub struct PreparedFixtureInstance {
 pub struct PreparedLayout {
     pub id: LayoutId,
     pub instances: Vec<PreparedFixtureInstance>,
-    /// Each target selects a contiguous traversal range of whole instances.
-    targets: IndexMap<FixtureInstanceId, Range<usize>>,
+    /// Each target selects its member instances in target order.
+    targets: IndexMap<FixtureInstanceId, Vec<usize>>,
 }
 
 impl PreparedFixtureDefinitions {
@@ -73,35 +71,33 @@ impl PreparedFixtureDefinitions {
             instances: Vec::new(),
             targets: IndexMap::new(),
         };
-        self.prepare_layout_fixtures(&layout.fixtures, &mut prepared);
-        prepared
-    }
-
-    fn prepare_layout_fixtures(&self, fixtures: &[LayoutFixture], prepared: &mut PreparedLayout) {
-        for fixture in fixtures {
-            let start = prepared.instances.len();
-            match &fixture.kind {
-                LayoutFixtureKind::Fixture {
-                    definition,
-                    transform,
-                } => {
-                    prepared.instances.push(PreparedFixtureInstance {
-                        id: fixture.id,
-                        pixels: match definition {
-                            FixtureSource::Inline(value) => prepare_geometry(value).into(),
-                            FixtureSource::Reference(id) => self.definitions[id].clone(),
-                        },
-                        transform: fixture_transform(transform),
-                    });
-                }
-                LayoutFixtureKind::Group { children } => {
-                    self.prepare_layout_fixtures(children, prepared);
-                }
+        let mut indices = IndexMap::new();
+        for fixture in layout.iter_fixtures() {
+            if let LayoutFixtureKind::Fixture {
+                definition,
+                transform,
+            } = &fixture.kind
+            {
+                indices.insert(fixture.id, prepared.instances.len());
+                prepared.instances.push(PreparedFixtureInstance {
+                    id: fixture.id,
+                    pixels: match definition {
+                        FixtureSource::Inline(value) => prepare_geometry(value).into(),
+                        FixtureSource::Reference(id) => self.definitions[id].clone(),
+                    },
+                    transform: fixture_transform(transform),
+                });
             }
-            prepared
-                .targets
-                .insert(fixture.id, start..prepared.instances.len());
         }
+        for fixture in layout.iter_fixtures() {
+            let members = layout
+                .members(fixture.id)
+                .iter()
+                .map(|id| indices[id])
+                .collect();
+            prepared.targets.insert(fixture.id, members);
+        }
+        prepared
     }
 }
 
@@ -118,15 +114,15 @@ impl PreparedLayout {
     pub fn target(
         &self,
         target: &FixtureTarget,
-    ) -> Result<&[PreparedFixtureInstance], LayoutError> {
+    ) -> Result<impl Iterator<Item = &PreparedFixtureInstance>, LayoutError> {
         if target.layout != self.id {
             return Err(LayoutError::WrongLayout(target.layout.clone()));
         }
-        let range = self
+        let members = self
             .targets
             .get(&target.fixture)
             .ok_or(LayoutError::MissingFixture(target.fixture))?;
-        Ok(&self.instances[range.clone()])
+        Ok(members.iter().map(|&index| &self.instances[index]))
     }
 }
 

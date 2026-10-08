@@ -14,6 +14,9 @@ import { FixtureEditor } from "./FixtureEditor";
 import { Placement } from "./FixtureFields";
 import { SpatialCanvas } from "./SpatialCanvas";
 import { LayoutAddMenu } from "./LayoutAddMenu";
+import { ChevronRight } from "lucide-react";
+import { THEME_METRICS } from "../../../theme";
+import { descendants, layoutIndex, membersOf, membershipCount, nextLayoutId, withMember } from "./layoutGraph";
 
 type Document = Extract<GuiDocument, { type: "fixture" | "layout" }>;
 const identityTransform = (position: Point3Meters = { xMeters: 0, yMeters: 0, zMeters: 0 }): Transform => ({ position, rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });
@@ -32,7 +35,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const setSelected = (id: number | null) => { setSelection(id === null ? [] : [id]); };
   const items = layoutItems(gui.document.fixtures, gui.document.renderPlan);
   const chosen = selectedItems(items, selection);
-  const [menuTarget, setMenuTarget] = useState<number | null>(null);
+  /** The right-clicked row: an item and the group listing it (`null` for the root). */
+  const [menuTarget, setMenuTarget] = useState<{ id: number; parent: number | null } | null>(null);
   const [action, setAction] = useState<TreeAction | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -45,8 +49,17 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const readOnly = useAppStore((state) => state.snapshot?.activeBuffer?.readOnly ?? false);
   const ready = request !== null && revision === request.projectRevision;
   const editable = ready && !pending && !readOnly;
-  const target = menuTarget !== null ? findLayoutItem(gui.document.fixtures, menuTarget) : null;
-  const instance = selected !== null ? findLayoutItem(gui.document.fixtures, selected) : null;
+  const { fixtures: layoutFixtures, root } = gui.document;
+  const layout = layoutIndex(layoutFixtures);
+  const target = menuTarget !== null ? layout.get(menuTarget.id) ?? null : null;
+  const targetParent = menuTarget?.parent ?? null;
+  const instance = selected !== null ? layout.get(selected) ?? null : null;
+  const setLayout = (fixtures: GuiLayoutFixture[], origin: GuiDocumentRequest | null, nextRoot = root) =>
+    runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures, root: nextRoot }), origin);
+  const updateItem = (id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture) => layoutFixtures.map((item) => item.id === id ? update(item) : item);
+  /** Groups that can list the target without containing themselves or listing it twice. */
+  const destinations = target === null ? [] : layoutFixtures.filter((group) =>
+    group.kind.type === "group" && !descendants(layout, target.id).includes(group.id) && !membersOf(group).includes(target.id));
   const fixtureSource = (fixture: GuiLayoutFixture): GuiObjectRef => {
     if (fixture.kind.type !== "fixture") throw new Error("Select a fixture.");
     if (fixture.kind.definition.type === "reference") return fixture.kind.definition.source;
@@ -55,9 +68,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const reportError = (error: unknown) => { setError(String(error)); };
   const changeTransform = (transform: Transform) => {
     if (instance === null) return;
-    const fixtures = updateLayoutItem(gui.document.fixtures, instance.id, (item) => item.kind.type === "fixture" ? { ...item, kind: { ...item.kind, transform } } : item);
-    void runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "setFixtures", fixtures }), request)
-      .then(() => { setError(null); }).catch(reportError);
+    const fixtures = updateItem(instance.id, (item) => item.kind.type === "fixture" ? { ...item, kind: { ...item.kind, transform } } : item);
+    void setLayout(fixtures, request).then(() => { setError(null); }).catch(reportError);
   };
   const beginAdd = (type: "group" | "fixture", parent = target?.id ?? null, position?: Point3Meters) => {
     if (request === null) return;
@@ -71,22 +83,19 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   const submitAction = async () => {
     if (action === null || name.trim() === "") return;
     let definitionToOpen: GuiObjectRef | null = null;
-    const id = nextInstanceId(gui.document.fixtures);
+    const id = nextLayoutId(layoutFixtures);
     if (action.type === "fixture") {
       const result = await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
         type: "addDefinition", name: name.trim(), storage, parent: action.parent, transform: identityTransform(action.position)
       }), action.origin);
-      const added = result.document.type === "layout" ? findLayoutItem(result.document.document.fixtures, id) : null;
+      const added = result.document.type === "layout" ? result.document.document.fixtures.find((item) => item.id === id) ?? null : null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
       definitionToOpen = fixtureSource(added);
+    } else if (action.type === "rename") {
+      await setLayout(updateItem(action.id, (item) => ({ ...item, name: name.trim(), description: description.trim() === "" ? null : description.trim() })), action.origin);
     } else {
-      let fixtures: GuiLayoutFixture[];
-      if (action.type === "rename") {
-        fixtures = updateLayoutItem(gui.document.fixtures, action.id, (item) => ({ ...item, name: name.trim(), description: description.trim() === "" ? null : description.trim() }));
-      } else {
-        fixtures = addChild(gui.document.fixtures, action.parent, { id, name: name.trim(), description: null, kind: { type: "group", children: [] } });
-      }
-      await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, { type: "setFixtures", fixtures }), action.origin);
+      const added = withMember(layoutFixtures, root, action.parent, { id, name: name.trim(), description: null, kind: { type: "group", members: [] } });
+      await setLayout(added.fixtures, action.origin, added.root);
     }
     setSelected(action.type === "rename" ? action.id : id);
     setAction(null);
@@ -95,19 +104,19 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   };
   const addExistingFixtureAt = async (definition: GuiObjectRef, parent: number | null, position?: Point3Meters) => {
     if (request === null) return;
-    const id = nextInstanceId(gui.document.fixtures);
-    const fixtures = addChild(gui.document.fixtures, parent, {
+    const id = nextLayoutId(layoutFixtures);
+    const added = withMember(layoutFixtures, root, parent, {
       id,
       name: definition.objectKey,
       description: null,
       kind: { type: "fixture", definition: { type: "reference", source: definition }, transform: identityTransform(position) }
     });
-    await runGuiEditCommand((currentRequest) => commands.applyLayoutGuiEdit(currentRequest, { type: "setFixtures", fixtures }), request);
+    await setLayout(added.fixtures, request, added.root);
     setSelected(id);
     setError(null);
   };
   const moveSelection = async (moves: SpatialMove[]) => {
-    await runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures: moveLayout(gui.document.fixtures, moves) }), request);
+    await setLayout(moveLayout(layoutFixtures, moves), request);
     setError(null);
   };
   const repeat = (offsets: Point3Meters[]) => {
@@ -122,10 +131,13 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       }).catch(reportError);
   };
   const duplicate = () => { repeat([{ xMeters: 0, yMeters: 0, zMeters: 0 }]); };
+  /** Delete the selection everywhere; members of a deleted group stay in the layout. */
   const remove = () => {
-    let fixtures = gui.document.fixtures;
-    for (const item of chosen) fixtures = updateLayoutItem(fixtures, item.id, () => null);
-    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "setFixtures", fixtures }), request).then(() => { setSelection([]); setError(null); }).catch(reportError);
+    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "removeItems", ids: chosen.map((item) => item.id) }), request)
+      .then(() => { setSelection([]); setError(null); }).catch(reportError);
+  };
+  const membershipEdit = (edit: { type: "addMember"; id: number; to: number | null; before: null } | { type: "removeMember"; id: number; from: number | null }) => {
+    void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, edit), request).then(() => { setError(null); }).catch(reportError);
   };
   const layoutMenu = {
     availableFixtures: gui.document.availableFixtures,
@@ -140,13 +152,14 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
         <aside className="layout-hierarchy layout-tree-sidebar" onContextMenuCapture={(event) => {
           const row = event.target instanceof Element ? event.target.closest("[data-layout-item]") : null;
           const id = row === null ? null : Number(row.getAttribute("data-layout-item"));
-          setMenuTarget(id);
+          const parent = row?.getAttribute("data-layout-parent") ?? null;
+          setMenuTarget(id === null ? null : { id, parent: parent === null ? null : Number(parent) });
           if (id !== null && !selection.includes(id)) setSelected(id);
         }}>
           {!inline && <h2 className="composition-title">{gui.document.sourceRef.ownedPath.length > 0 ? "Layout" : documentLabel(gui.document.path, gui.document.objectKey)}</h2>}
           {error !== null && action === null && <p role="alert">{error}</p>}
           <fieldset className="composition-controls" disabled={!editable}>
-            <LayoutTree items={gui.document.fixtures} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
+            <LayoutTree fixtures={layoutFixtures} root={root} pixels={gui.document.renderPlan.pixels} selected={selection} onSelect={(id, additive = false) => { setSelection(selectionClick(selection, id, additive)); }} enabled={editable} request={request} onError={reportError} />
             <SpatialSelectionControls items={chosen} disabled={!editable} onMove={(moves) => { void moveSelection(moves).catch(reportError); }} onRepeat={repeat} onDuplicate={duplicate} onDelete={remove} />
             {instance?.kind.type === "fixture" && <><Placement value={instance.kind.transform} onChange={changeTransform} /><OwnershipActions sources={gui.document.availableFixtures} key={instance.id} source={fixtureSource(instance)} slot={{ type: "fixture", id: instance.id }} label={instance.name} /></>}
           </fieldset>
@@ -165,6 +178,16 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
             if (target.kind.type === "fixture") void navigateToGuiObject(fixtureSource(target)).catch(reportError);
           }}>Edit fixture</ContextMenu.Item>}
           {target !== null && <>
+            <ContextMenu.Sub>
+              <ContextMenu.SubTrigger className="menu-item" disabled={!editable || destinations.length === 0}><span>Add to group</span><ChevronRight size={THEME_METRICS.iconSizeSmall} aria-hidden /></ContextMenu.SubTrigger>
+              <ContextMenu.Portal><ContextMenu.SubContent className="menu-content">
+                {destinations.map((group) => <ContextMenu.Item key={group.id} className="menu-item" disabled={!editable} onSelect={() => { membershipEdit({ type: "addMember", id: target.id, to: group.id, before: null }); }}>{group.name}</ContextMenu.Item>)}
+              </ContextMenu.SubContent></ContextMenu.Portal>
+            </ContextMenu.Sub>
+            {(targetParent !== null || membershipCount(layoutFixtures, root, target.id) > 1) && <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => { membershipEdit({ type: "removeMember", id: target.id, from: targetParent }); }}>
+              {targetParent === null ? "Remove from top level" : `Remove from ${layout.get(targetParent)?.name ?? "group"}`}
+            </ContextMenu.Item>}
+            <ContextMenu.Separator className="menu-separator" />
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={duplicate}>Duplicate selection</ContextMenu.Item>
             <ContextMenu.Item className="menu-item" disabled={!editable} onSelect={() => {
               if (request === null) return;
@@ -215,40 +238,7 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
   </div>;
 }
 
-function addChild(items: GuiLayoutFixture[], parentId: number | null, child: GuiLayoutFixture): GuiLayoutFixture[] {
-  if (parentId === null) return [...items, child];
-  return items.map((item) => item.id === parentId && item.kind.type === "group"
-    ? { ...item, kind: { type: "group", children: [...item.kind.children, child] } }
-    : item.kind.type === "group" ? { ...item, kind: { type: "group", children: addChild(item.kind.children, parentId, child) } } : item);
-}
-
-function nextInstanceId(fixtures: GuiLayoutFixture[]): number {
-  return Math.max(0, ...fixtures.map((fixture) => Math.max(fixture.id, fixture.kind.type === "group" ? nextInstanceId(fixture.kind.children) - 1 : 0))) + 1;
-}
-
 function documentLabel(path: string, objectKey: string): string {
   const name = path.split(/[\\/]/).pop();
   return name === undefined || name === "" ? objectKey : name;
-}
-function findLayoutItem(items: GuiLayoutFixture[], id: number): GuiLayoutFixture | null {
-  for (const item of items) {
-    if (item.id === id) return item;
-    if (item.kind.type === "group") {
-      const child = findLayoutItem(item.kind.children, id);
-      if (child !== null) return child;
-    }
-  }
-  return null;
-}
-
-function updateLayoutItem(items: GuiLayoutFixture[], id: number, update: (item: GuiLayoutFixture) => GuiLayoutFixture | null): GuiLayoutFixture[] {
-  return items.flatMap((item) => {
-    if (item.id === id) {
-      const changed = update(item);
-      return changed === null ? [] : [changed];
-    }
-    return [item.kind.type === "group"
-      ? { ...item, kind: { type: "group" as const, children: updateLayoutItem(item.kind.children, id, update) } }
-      : item];
-  });
 }

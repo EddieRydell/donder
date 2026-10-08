@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
+import { fileURLToPath, URL } from "node:url";
+import { createServer } from "vite";
 import { constrainPoint, constrainedMove, snapPoint, spatialUnits, visibleGridStep } from "./spatialSnapping.ts";
-import { arrange, boxSelection, fixtureItems, layoutItems, moveLayout, repeatOffsets, selectedItems, selectionClick } from "./spatialSelection.ts";
+
+// spatialSelection imports sibling modules, so load it through Vite.
+const server = await createServer({
+  configFile: false,
+  root: fileURLToPath(new URL("../../../..", import.meta.url)),
+  server: { middlewareMode: true, ws: false },
+  optimizeDeps: { noDiscovery: true }
+});
+after(() => server.close());
+const { arrange, boxSelection, fixtureItems, layoutItems, moveLayout, repeatOffsets, selectedItems, selectionClick } = await server.ssrLoadModule("/src/ui/gui/composition/spatialSelection.ts");
 const p = (x, y, z = 0) => ({ xMeters: x, yMeters: y, zMeters: z });
 const settings = { enabled: true, spacingMeters: 0.1, unit: "meters" };
 const none = { shiftKey: false, ctrlKey: false, metaKey: false };
@@ -44,18 +55,28 @@ test("endpoint and guide priority preserve constraints and bypass", () => {
 });
 const transform = (x, y = 0) => ({ position: p(x, y), rotation: { xDegrees: 0, yDegrees: 0, zDegrees: 0 }, scale: { x: 1, y: 1, z: 1 } });
 const fixture = (id, x) => ({ id, name: `Fixture ${id}`, kind: { type: "fixture", transform: transform(x), definition: { type: "inline", elements: [] } } });
-const group = (id, children) => ({ id, name: `Group ${id}`, kind: { type: "group", children } });
+const group = (id, members) => ({ id, name: `Group ${id}`, kind: { type: "group", members } });
+const position = (fixtures, id) => fixtures.find((item) => item.id === id).kind.transform.position;
 test("nested group selection moves each descendant once and preserves source geometry", () => {
-  const fixtures = [group(10, [fixture(1, 1), group(11, [fixture(2, 3)])]), fixture(3, 8)];
+  const fixtures = [group(10, [1, 11]), fixture(1, 1), group(11, [2]), fixture(2, 3), fixture(3, 8)];
   const items = layoutItems(fixtures, { pixels: [] });
   const selected = selectedItems(items, [1, 2, 10, 11, 3]);
   assert.deepEqual(selected.map((item) => item.id), [10, 3]);
   const moved = moveLayout(fixtures, selected.map((item) => ({ id: item.id, delta: p(2, -1) })));
-  assert.deepEqual(moved[0].kind.children[0].kind.transform.position, p(3, -1));
-  assert.deepEqual(moved[0].kind.children[1].kind.children[0].kind.transform.position, p(5, -1));
-  assert.deepEqual(moved[1].kind.transform.position, p(10, -1));
-  assert.equal(fixtures[0].kind.children[0].kind.transform.position.xMeters, 1);
-  assert.equal(moved[0].kind.children[0].kind.definition, fixtures[0].kind.children[0].kind.definition);
+  assert.deepEqual(position(moved, 1), p(3, -1));
+  assert.deepEqual(position(moved, 2), p(5, -1));
+  assert.deepEqual(position(moved, 3), p(10, -1));
+  assert.equal(position(fixtures, 1).xMeters, 1);
+  assert.equal(moved[1].kind.definition, fixtures[1].kind.definition);
+});
+test("groups sharing a fixture move it once", () => {
+  const fixtures = [group(10, [1, 2]), group(11, [2, 3]), fixture(1, 1), fixture(2, 3), fixture(3, 8)];
+  const items = layoutItems(fixtures, { pixels: [] });
+  assert.deepEqual(items.find((item) => item.id === 11).owners, [2, 3]);
+  const selected = selectedItems(items, [10, 11]);
+  assert.deepEqual(selected.map((item) => item.id), [10, 11]);
+  const moved = moveLayout(fixtures, selected.map((item) => ({ id: item.id, delta: p(1, 0) })));
+  assert.deepEqual([1, 2, 3].map((id) => position(moved, id).xMeters), [2, 4, 9]);
 });
 test("alignment, equal gaps, and marquee use visible pixel bounds", () => {
   const elements = [1, 2, 3].map((id) => ({ id, transform: transform(0) }));

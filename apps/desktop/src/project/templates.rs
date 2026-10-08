@@ -28,7 +28,7 @@ Project {project} {{
   description: none,
   setup: Setup {{
     description: none,
-    layout: Layout {{ description: none, items: [] }},
+    layout: Layout {{ description: none, root: [], items: [] }},
     patch: Patch {{ description: none, routes: [] }},
     controllers: [],
   }},

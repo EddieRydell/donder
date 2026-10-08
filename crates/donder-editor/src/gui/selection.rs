@@ -179,22 +179,14 @@ pub(super) fn paste_sequence_clipboard(
                 source,
                 cut,
             } => {
-                let layout = active_layout(session)
+                let targets = lane_targets(session)
                     .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
-                let targets = layout
-                    .iter_fixtures()
-                    .map(|fixture| FixtureTarget {
-                        layout: layout.id.clone(),
-                        fixture: fixture.id,
-                    })
-                    .collect::<Vec<_>>();
-                let anchor_target = anchor.target.as_ref().ok_or_else(|| {
+                let anchor_lane = anchor.lane.ok_or_else(|| {
                     GuiMutationError::Invalid("Select a target row before pasting clips.".into())
-                })?;
-                let anchor_lane = targets
-                    .iter()
-                    .position(|target| target.fixture.0 == anchor_target.fixture)
-                    .ok_or_else(|| GuiMutationError::Invalid("Paste target is missing.".into()))?;
+                })? as usize;
+                if anchor_lane >= targets.len() {
+                    return Err(GuiMutationError::Invalid("Paste target is missing.".into()));
+                }
                 let min_start = effects
                     .iter()
                     .map(|effect| effect.start_seconds)
@@ -522,6 +514,7 @@ pub(super) fn move_clip_selection(
     effect_ids: &[u32],
     automation_ids: &[u32],
     time_delta_seconds: f32,
+    anchor_lane: usize,
     lane_delta: i32,
 ) -> Result<(), GuiMutationError> {
     let mut draft = session
@@ -529,19 +522,10 @@ pub(super) fn move_clip_selection(
         .sequence(sequence_id)
         .cloned()
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".into()))?;
-    let layout = active_layout(session)
+    let targets = lane_targets(session)
         .ok_or_else(|| GuiMutationError::Invalid("Active layout is missing.".into()))?;
-    let targets = layout
-        .iter_fixtures()
-        .map(|fixture| FixtureTarget {
-            layout: layout.id.clone(),
-            fixture: fixture.id,
-        })
-        .collect::<Vec<_>>();
     let destination = |target: &FixtureTarget| -> Result<FixtureTarget, GuiMutationError> {
-        let index = targets
-            .iter()
-            .position(|candidate| candidate == target)
+        let index = nearest_lane(&targets, target, anchor_lane)
             .ok_or_else(|| GuiMutationError::Invalid("Clip row target is missing.".into()))?;
         let destination = index as i64 + i64::from(lane_delta);
         usize::try_from(destination)
@@ -717,26 +701,40 @@ fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec
     grouped
 }
 
-fn target_lane_index(session: &ProjectSession, target: &FixtureTarget) -> Option<usize> {
+/// The target of every timeline lane, in display order.
+fn lane_targets(session: &ProjectSession) -> Option<Vec<FixtureTarget>> {
     let layout = active_layout(session)?;
-    if layout.id != target.layout {
-        return None;
-    }
-    layout
-        .iter_fixtures()
-        .position(|fixture| fixture.id == target.fixture)
+    Some(
+        super::projection::lane_walk(layout)
+            .into_iter()
+            .map(|(fixture, _)| FixtureTarget {
+                layout: layout.id.clone(),
+                fixture: fixture.id,
+            })
+            .collect(),
+    )
+}
+
+/// The lane of `target` nearest `anchor`; the earlier one on a tie.
+fn nearest_lane(lanes: &[FixtureTarget], target: &FixtureTarget, anchor: usize) -> Option<usize> {
+    lanes
+        .iter()
+        .enumerate()
+        .filter(|(_, lane)| *lane == target)
+        .min_by_key(|(index, _)| index.abs_diff(anchor))
+        .map(|(index, _)| index)
+}
+
+/// A target's first lane, which clipboard entries use as their row.
+fn target_lane_index(session: &ProjectSession, target: &FixtureTarget) -> Option<usize> {
+    nearest_lane(&lane_targets(session)?, target, 0)
 }
 
 pub(super) fn target_for_lane(
     session: &ProjectSession,
     lane_index: usize,
 ) -> Option<FixtureTarget> {
-    let layout = active_layout(session)?;
-    let fixture = layout.iter_fixtures().nth(lane_index)?.id;
-    Some(FixtureTarget {
-        layout: layout.id.clone(),
-        fixture,
-    })
+    lane_targets(session)?.into_iter().nth(lane_index)
 }
 
 pub(super) fn mark_param_names(

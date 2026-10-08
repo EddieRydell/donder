@@ -151,6 +151,7 @@ FixtureDefinition assembly {
 
 Layout main {
   description: none,
+  root: [a, b],
   items: [
     Fixture {
       name: a,
@@ -224,7 +225,16 @@ Layout main {
         reloaded.source.documents.len(),
         accepted.source.documents.len()
     );
-    layout_document(edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: vec![] }).document);
+    layout_document(
+        edit_layout(
+            &state,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: vec![],
+                root: vec![],
+            },
+        )
+        .document,
+    );
     assert_eq!(
         state
             .project_session()
@@ -324,16 +334,27 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
         unreachable!()
     };
     *position = transform(10.0);
-    let grouped = vec![GuiLayoutFixture {
-        id: 100,
-        name: "Both strips".into(),
-        description: None,
-        kind: GuiLayoutFixtureKind::Group {
-            children: vec![layout.fixtures[0].clone(), second],
+    let grouped = vec![
+        GuiLayoutFixture {
+            id: 100,
+            name: "Both strips".into(),
+            description: None,
+            kind: GuiLayoutFixtureKind::Group {
+                members: vec![layout.fixtures[0].id, second.id],
+            },
         },
-    }];
+        layout.fixtures[0].clone(),
+        second,
+    ];
     let layout = layout_document(
-        edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: grouped }).document,
+        edit_layout(
+            &state,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: grouped,
+                root: vec![100],
+            },
+        )
+        .document,
     );
     assert_eq!(
         layout
@@ -717,6 +738,7 @@ Setup main {
             &state,
             LayoutGuiEdit::SetFixtures {
                 fixtures: layout.fixtures,
+                root: layout.root,
             },
         )
         .document,
@@ -890,15 +912,14 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
             id: 3,
             name: "Group".into(),
             description: None,
-            kind: GuiLayoutFixtureKind::Group {
-                children: vec![second],
-            },
+            kind: GuiLayoutFixtureKind::Group { members: vec![2] },
         };
         layout_document(
             edit_layout(
                 &state,
                 LayoutGuiEdit::SetFixtures {
-                    fixtures: vec![layout.fixtures[0].clone(), group.clone()],
+                    fixtures: vec![layout.fixtures[0].clone(), group.clone(), second.clone()],
+                    root: vec![layout.fixtures[0].id, 3],
                 },
             )
             .document,
@@ -907,7 +928,8 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
             edit_layout(
                 &state,
                 LayoutGuiEdit::SetFixtures {
-                    fixtures: vec![group],
+                    fixtures: vec![group, second],
+                    root: vec![3],
                 },
             )
             .document,
@@ -925,7 +947,14 @@ fn fixture_storage_and_removal_preserve_shared_data_and_undo() {
         );
         let before = state.project_session().unwrap();
         let removed = layout_document(
-            edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: vec![] }).document,
+            edit_layout(
+                &state,
+                LayoutGuiEdit::SetFixtures {
+                    fixtures: vec![],
+                    root: vec![],
+                },
+            )
+            .document,
         );
         assert!(removed.fixtures.is_empty());
         let after = state.project_session().unwrap();
@@ -1040,7 +1069,10 @@ fn inline_fixture_copies_have_independent_ownership() {
                     view: DocumentViewId::Layout,
                 },
                 GuiEditCommand::Layout {
-                    edit: LayoutGuiEdit::SetFixtures { fixtures: vec![] },
+                    edit: LayoutGuiEdit::SetFixtures {
+                        fixtures: vec![],
+                        root: vec![],
+                    },
                 },
             )
             .document,
@@ -1056,7 +1088,16 @@ fn inline_fixture_copies_have_independent_ownership() {
             .len(),
         0
     );
-    layout_document(edit_layout(&state, LayoutGuiEdit::SetFixtures { fixtures: vec![] }).document);
+    layout_document(
+        edit_layout(
+            &state,
+            LayoutGuiEdit::SetFixtures {
+                fixtures: vec![],
+                root: vec![],
+            },
+        )
+        .document,
+    );
     assert!(
         state
             .project_session()
@@ -1084,7 +1125,7 @@ fn nested_layout_and_fixture_edits_keep_the_owner_and_history() {
         "",
         "  setup: Setup {
     description: none,
-    layout: Layout { description: none, items: [] },
+    layout: Layout { description: none, root: [], items: [] },
     patch: Patch { description: none, routes: [] },
     controllers: [],
   },
@@ -1153,6 +1194,7 @@ fn ownership_controls_promote_and_unlink_every_slot_with_save_and_history() {
     description: none,
     layout: Layout {
       description: none,
+      root: [my_strip],
       items: [
         Fixture {
           name: my_strip,
@@ -1613,14 +1655,17 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
         edit_layout(
             &state,
             LayoutGuiEdit::SetFixtures {
-                fixtures: vec![GuiLayoutFixture {
+                fixtures: std::iter::once(GuiLayoutFixture {
                     id: 2,
                     name: "Group".into(),
                     description: None,
                     kind: GuiLayoutFixtureKind::Group {
-                        children: layout.fixtures,
+                        members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
                     },
-                }],
+                })
+                .chain(layout.fixtures)
+                .collect(),
+                root: vec![2],
             },
         );
         let before = state.project_session().unwrap();
@@ -1628,16 +1673,24 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
             edit_layout(&state, LayoutGuiEdit::DuplicateFixture { id: 2 }).document,
         );
         let after = state.project_session().unwrap();
-        assert_eq!(duplicate.fixtures.len(), 2);
-        let GuiLayoutFixtureKind::Group { children } = &duplicate.fixtures[1].kind else {
+        // The group copy lists its own copied member, after the original in the root.
+        assert_eq!(
+            duplicate
+                .fixtures
+                .iter()
+                .map(|fixture| fixture.id)
+                .collect::<Vec<_>>(),
+            [2, 3, 1, 4]
+        );
+        assert_eq!(duplicate.root, [2, 3]);
+        let GuiLayoutFixtureKind::Group { members } = &duplicate.fixtures[1].kind else {
             panic!("Expected copied group")
         };
-        assert_eq!(duplicate.fixtures[1].id, 3);
-        assert_eq!(children[0].id, 4);
+        assert_eq!(members, &[4]);
         let GuiLayoutFixtureKind::Fixture {
             definition,
             transform: placement,
-        } = &children[0].kind
+        } = &duplicate.fixtures[3].kind
         else {
             panic!("Expected copied fixture")
         };
@@ -1679,7 +1732,7 @@ fn duplicated_groups_own_geometry_and_preserve_original_sources() {
 }
 
 #[test]
-fn layout_tree_moves_preserve_owned_identity_and_support_history() {
+fn layout_membership_edits_preserve_owned_identity_and_support_history() {
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8PathBuf::from_path_buf(temporary.path().join("show")).unwrap();
     write_new_project_files(&root, &new_test_project_files("Tree").unwrap()).unwrap();
@@ -1702,33 +1755,34 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
     let layout = layout_document(
         edit_layout(
             &state,
-            LayoutGuiEdit::ReparentFixture {
+            LayoutGuiEdit::MoveMember {
                 id: 2,
-                parent: None,
+                from: None,
+                to: None,
                 before: None,
             },
         )
         .document,
     );
+    assert_eq!(layout.root, [1, 2]);
     let first_source = fixture_reference(&layout, 0);
-    let group = |id, name: &str, children| GuiLayoutFixture {
+    let group = |id, name: &str, members| GuiLayoutFixture {
         id,
         name: name.into(),
         description: None,
-        kind: GuiLayoutFixtureKind::Group { children },
+        kind: GuiLayoutFixtureKind::Group { members },
     };
     edit_layout(
         &state,
         LayoutGuiEdit::SetFixtures {
             fixtures: vec![
-                group(
-                    3,
-                    "First group",
-                    vec![layout.fixtures[0].clone(), group(5, "Nested", vec![])],
-                ),
+                group(3, "First group", vec![1, 5]),
+                group(5, "Nested", vec![]),
+                layout.fixtures[0].clone(),
                 layout.fixtures[1].clone(),
                 group(4, "Second group", vec![]),
             ],
+            root: vec![3, 2, 4],
         },
     );
     let initial = state.project_session().unwrap();
@@ -1746,18 +1800,38 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
         .fixture(fixture_id(1))
         .unwrap()
         .clone();
-    for (id, parent, before) in [
-        (2, Some(3), Some(1)),
-        (1, Some(4), None),
-        (4, Some(3), Some(5)),
-        (2, None, Some(3)),
-        (2, None, None),
+    for edit in [
+        LayoutGuiEdit::MoveMember {
+            id: 2,
+            from: None,
+            to: Some(3),
+            before: Some(1),
+        },
+        // A fixture may belong to several groups.
+        LayoutGuiEdit::AddMember {
+            id: 1,
+            to: Some(4),
+            before: None,
+        },
+        LayoutGuiEdit::MoveMember {
+            id: 4,
+            from: None,
+            to: Some(3),
+            before: Some(5),
+        },
+        LayoutGuiEdit::MoveMember {
+            id: 2,
+            from: Some(3),
+            to: None,
+            before: Some(3),
+        },
+        LayoutGuiEdit::RemoveMember {
+            id: 1,
+            from: Some(3),
+        },
     ] {
         let before_session = state.project_session().unwrap();
-        let result = edit_layout(
-            &state,
-            LayoutGuiEdit::ReparentFixture { id, parent, before },
-        );
+        let result = edit_layout(&state, edit);
         assert!(
             !matches!(result.document, GuiDocument::Blocked { .. }),
             "{:?}",
@@ -1783,35 +1857,58 @@ fn layout_tree_moves_preserve_owned_identity_and_support_history() {
         assert_eq!(*state.project_session().unwrap(), *after);
     }
     let current = state.project_session().unwrap();
+    let layout = current.project.layout(layout_id).unwrap();
+    assert_eq!(layout.root, [fixture_id(2), fixture_id(3)]);
     assert_eq!(
-        current
-            .project
-            .layout(layout_id)
-            .unwrap()
-            .fixtures
-            .iter()
-            .map(|item| item.id.0)
-            .collect::<Vec<_>>(),
-        vec![3, 2]
+        layout.children(Some(fixture_id(3))).unwrap(),
+        [fixture_id(4), fixture_id(5)]
     );
-    for (id, parent, before) in [
-        (3, Some(5), None),
-        (3, Some(3), None),
-        (2, Some(1), None),
-        (2, Some(4), Some(5)),
-        (99, None, None),
+    assert_eq!(
+        layout.children(Some(fixture_id(4))).unwrap(),
+        [fixture_id(1)]
+    );
+    for edit in [
+        // Cycles, non-group destinations, repeated members and missing items.
+        LayoutGuiEdit::MoveMember {
+            id: 3,
+            from: None,
+            to: Some(5),
+            before: None,
+        },
+        LayoutGuiEdit::AddMember {
+            id: 3,
+            to: Some(3),
+            before: None,
+        },
+        LayoutGuiEdit::AddMember {
+            id: 2,
+            to: Some(1),
+            before: None,
+        },
+        LayoutGuiEdit::AddMember {
+            id: 1,
+            to: Some(4),
+            before: None,
+        },
+        LayoutGuiEdit::RemoveMember {
+            id: 2,
+            from: Some(4),
+        },
+        LayoutGuiEdit::MoveMember {
+            id: 99,
+            from: None,
+            to: None,
+            before: None,
+        },
     ] {
-        let result = edit_layout(
-            &state,
-            LayoutGuiEdit::ReparentFixture { id, parent, before },
-        );
+        let result = edit_layout(&state, edit);
         assert!(matches!(result.document, GuiDocument::Blocked { .. }));
         assert!(std::sync::Arc::ptr_eq(
             &current,
             &state.project_session().unwrap()
         ));
     }
-    // Group ancestry is not part of an owned fixture's address.
+    // Group membership is not part of an owned fixture's address.
     let request = GuiDocumentRequest {
         project_revision: state.snapshot().project_revision,
         path: first_source.path,
@@ -1867,14 +1964,17 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
     edit_layout(
         &state,
         LayoutGuiEdit::SetFixtures {
-            fixtures: vec![GuiLayoutFixture {
+            fixtures: std::iter::once(GuiLayoutFixture {
                 id: 2,
                 name: "Group".into(),
                 description: None,
                 kind: GuiLayoutFixtureKind::Group {
-                    children: layout.fixtures,
+                    members: layout.fixtures.iter().map(|fixture| fixture.id).collect(),
                 },
-            }],
+            })
+            .chain(layout.fixtures)
+            .collect(),
+            root: vec![2],
         },
     );
     let before = state.project_session().unwrap();
@@ -1899,18 +1999,26 @@ fn repeated_groups_are_independent_ordered_and_one_history_edit() {
         )
         .document,
     );
-    assert_eq!(result.fixtures.len(), 3);
-    for (copy, x, y) in [
-        (&result.fixtures[1], 5.0, 1.0),
-        (&result.fixtures[2], 8.0, 2.0),
-    ] {
-        let GuiLayoutFixtureKind::Group { children } = &copy.kind else {
+    // Copies follow the original in offset order, each with its own copied member.
+    assert_eq!(result.root, [2, 5, 3]);
+    let item = |id| {
+        result
+            .fixtures
+            .iter()
+            .find(|fixture| fixture.id == id)
+            .unwrap()
+    };
+    for (copy, x, y) in [(5, 5.0, 1.0), (3, 8.0, 2.0)] {
+        let GuiLayoutFixtureKind::Group { members } = &item(copy).kind else {
             panic!("Expected group")
+        };
+        let [member] = members[..] else {
+            panic!("Expected one copied member")
         };
         let GuiLayoutFixtureKind::Fixture {
             definition,
             transform,
-        } = &children[0].kind
+        } = &item(member).kind
         else {
             panic!("Expected fixture")
         };

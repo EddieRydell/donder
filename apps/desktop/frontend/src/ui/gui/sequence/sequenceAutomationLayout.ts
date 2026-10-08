@@ -33,6 +33,8 @@ type CanvasRect = { x: number; y: number; width: number; height: number };
 
 export type AutomationClipLayout = {
   clip: AutomationClipView;
+  /** The lane drawing this copy; a target shared by several groups has several. */
+  laneIndex: number;
   rect: CanvasRect;
   /** Canvas span of the content window; shares the clip's vertical extent. */
   curveRect: CanvasRect;
@@ -131,12 +133,10 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
   }
 
   const layouts: AutomationClipLayout[] = [];
-  for (const laneClips of byAutomationLane.values()) {
-    const first = laneClips[0];
-    if (first === undefined) continue;
-    const row = rows.find((row) => row.target.fixture === first.rowTarget.fixture && row.kind === "automation");
-    if (row === undefined) throw new Error("Automation clip has no timeline row.");
-    for (const group of groupOverlappingClips(laneClips)) {
+  for (const [target, laneClips] of byAutomationLane) {
+    const targetRows = rows.filter((row) => row.target.fixture === target && row.kind === "automation");
+    if (targetRows.length === 0) throw new Error("Automation clip has no timeline row.");
+    for (const row of targetRows) for (const group of groupOverlappingClips(laneClips)) {
       const assigned = assignOverlapSlots(group);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       for (const clip of assigned) {
@@ -150,6 +150,7 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
         };
         layouts.push({
           clip,
+          laneIndex: row.laneIndex,
           rect,
           curveRect: {
             ...rect,
@@ -515,13 +516,14 @@ export function fitCanvasLabel(ctx: CanvasRenderingContext2D, label: string, max
   return fitted.length > 0 ? `${fitted}${ellipsis}` : ellipsis;
 }
 
-/** Fixture ids of lanes inside collapsed groups. Lanes are depth-first with their depth. */
-export function collapsedLaneTargets(lanes: SequenceLane[], collapsedGroups: ReadonlySet<number>): Set<number> {
+/** Indices of lanes inside collapsed groups. Lanes are depth-first with their depth; collapsing
+ * a group collapses every copy of it. */
+export function collapsedLanes(lanes: SequenceLane[], collapsedGroups: ReadonlySet<number>): Set<number> {
   const hidden = new Set<number>();
   let collapsedDepth: number | null = null;
-  for (const lane of lanes) {
+  for (const [index, lane] of lanes.entries()) {
     if (collapsedDepth !== null && lane.depth > collapsedDepth) {
-      hidden.add(lane.target.fixture);
+      hidden.add(index);
       continue;
     }
     collapsedDepth = lane.kind === "group" && collapsedGroups.has(lane.target.fixture) ? lane.depth : null;
@@ -530,11 +532,11 @@ export function collapsedLaneTargets(lanes: SequenceLane[], collapsedGroups: Rea
 }
 
 /** Rows of hidden lanes take no height; the rows below move up. */
-export function collapseRows(rows: SequenceRowLayout[], hiddenTargets: ReadonlySet<number>): SequenceRowLayout[] {
-  if (hiddenTargets.size === 0) return rows;
+export function collapseRows(rows: SequenceRowLayout[], hiddenLanes: ReadonlySet<number>): SequenceRowLayout[] {
+  if (hiddenLanes.size === 0) return rows;
   let top = 0;
   return rows.map((row) => {
-    const height = hiddenTargets.has(row.target.fixture) ? 0 : row.height;
+    const height = hiddenLanes.has(row.laneIndex) ? 0 : row.height;
     const collapsed = { ...row, top, height, bottom: top + height };
     top += height;
     return collapsed;

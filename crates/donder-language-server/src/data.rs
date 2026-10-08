@@ -468,14 +468,11 @@ fn layout_items(workspace: &Workspace, text: &str, prefix: &[&str]) -> Vec<Strin
         match &value.value {
             DataValue::Record(ty, fields) if matches!(ty.value.as_str(), "Group" | "Fixture") => {
                 for field in &fields.value {
-                    match (&field.value.value, field.name.value.as_str()) {
-                        (DataValue::Reference(segments), "name") if segments.len() == 1 => {
-                            names.push(segments[0].value.as_str().to_string());
-                        }
-                        (DataValue::List(items), "items") => {
-                            items.iter().for_each(|item| collect(item, names));
-                        }
-                        _ => {}
+                    if let (DataValue::Reference(segments), "name") =
+                        (&field.value.value, field.name.value.as_str())
+                        && segments.len() == 1
+                    {
+                        names.push(segments[0].value.as_str().to_string());
                     }
                 }
             }

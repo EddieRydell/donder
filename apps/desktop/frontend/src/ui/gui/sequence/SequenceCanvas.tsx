@@ -21,7 +21,7 @@ import { activeMarkCollection, defaultMarkColor, drawMarkRulerLabel, drawSequenc
 import { TAP_MARK_EVENT } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
-import { targetAtLane, targetsEqual } from "./sequenceTargets";
+import { lanesForTarget, nearestLane, targetAtLane, targetsEqual } from "./sequenceTargets";
 import { SequenceWaveform } from "./sequenceWaveform";
 import { drawClipRaster, useSequenceClipRasters } from "./sequenceClipRasters";
 import { useSequenceTransport } from "./SequenceTransportControls";
@@ -43,7 +43,7 @@ import {
   rowFromCanvasY,
   sequenceRowLayout,
   collapseRows,
-  collapsedLaneTargets,
+  collapsedLanes,
   type SequenceRowLayout,
   type SequenceRowKind,
   removeAutomationCurvePoint,
@@ -130,7 +130,7 @@ type SequenceDragState =
   | { kind: "stripResize"; strip: TimelineStrip; startY: number; initialHeight: number; active: boolean }
   | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
-  | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; rowTarget: FixtureTarget; resize: "none" | "left" | "right" }
+  | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automationPoint"; clipId: number; index: number; active: boolean; inserted: boolean }
   | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
   | { kind: "marquee"; state: SequenceMarquee }
@@ -223,9 +223,13 @@ export function SequenceCanvas({
   const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
   const [seekHover, setSeekHover] = useState<SeekHover | null>(null);
   const [rangeDraft, setRangeDraft] = useState<PlaybackRange | null>(null);
-  const [selectedTarget, setSelectedTarget] = useState<FixtureTarget | null>(null);
-  const selectedLaneIndex = selectedTarget === null ? null : document.lanes.findIndex((lane) => targetsEqual(lane.target, selectedTarget));
-  const setSelectedLaneIndex = (index: number) => { setSelectedTarget(targetAtLane(document, index)); };
+  // A target may have several lanes; the selection keeps the chosen lane, or its target's nearest
+  // lane after the layout changes.
+  const [selectedRow, setSelectedRow] = useState<{ target: FixtureTarget; lane: number } | null>(null);
+  const selectedLaneIndex = selectedRow === null ? null
+    : document.lanes[selectedRow.lane] !== undefined && targetsEqual(targetAtLane(document, selectedRow.lane), selectedRow.target) ? selectedRow.lane
+    : nearestLane(document, selectedRow.target, selectedRow.lane);
+  const setSelectedLaneIndex = (index: number) => { setSelectedRow({ target: targetAtLane(document, index), lane: index }); };
   const [selectedTimeSeconds, setSelectedTimeSeconds] = useState<number | null>(null);
   const [marquee, setMarquee] = useState<SequenceMarquee | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -267,7 +271,7 @@ export function SequenceCanvas({
   );
   // Group lanes collapse like folders in a file tree; their members take no rows.
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<number>>(() => new Set());
-  const hiddenLanes = useMemo(() => collapsedLaneTargets(document.lanes, collapsedGroups), [document.lanes, collapsedGroups]);
+  const hiddenLanes = useMemo(() => collapsedLanes(document.lanes, collapsedGroups), [document.lanes, collapsedGroups]);
   const layoutRows = useCallback(
     (rowHeights: SequenceRowHeightMap, reveal: boolean) =>
       collapseRows(sequenceRowLayout(document.lanes, document.automationClips, rowHeights, initialSequenceLaneHeight(settings), automationRowHeight, reveal), hiddenLanes),
@@ -577,7 +581,11 @@ export function SequenceCanvas({
       if (row.kind === "effects" && lane.kind === "group") {
         drawDisclosure(ctx, labelLayout.disclosureX, labelY, collapsedGroups.has(lane.target.fixture));
       }
-      ctx.fillText(fitCanvasLabel(ctx, label, left - labelLayout.textX - THEME_METRICS.sequenceLabelX), labelLayout.textX, labelY + THEME_METRICS.sequenceLabelYOffset);
+      const shared = row.kind === "effects" && lane.occurrences > 1;
+      const badgeX = sharedBadgeX(left);
+      ctx.fillText(fitCanvasLabel(ctx, label, (shared ? badgeX : left) - labelLayout.textX - THEME_METRICS.sequenceLabelX), labelLayout.textX, labelY + THEME_METRICS.sequenceLabelYOffset);
+      // The same target under several groups; clicking the badge visits its next lane.
+      if (shared) ctx.fillText(`×${lane.occurrences}`, badgeX, labelY + THEME_METRICS.sequenceLabelYOffset);
       if (rowResizeHover?.laneIndex === row.laneIndex && rowResizeHover.rowKind === row.kind) {
         ctx.fillStyle = SEQUENCE_COLORS.accent;
         ctx.fillRect(0, y + row.height - THEME_METRICS.sequenceLaneResizeIndicatorHeight / 2, rect.width, THEME_METRICS.sequenceLaneResizeIndicatorHeight);
@@ -962,12 +970,13 @@ export function SequenceCanvas({
             event.preventDefault();
             const focused = document.effects.find((effect) => effect.id === focusedEffectId);
             const automation = selected?.type === "automationClip" ? document.automationClips.find((clip) => clip.id === selected.id) : undefined;
-            const target = selectedTarget ?? focused?.target ?? automation?.rowTarget ?? null;
+            const fallbackTarget = focused?.target ?? automation?.rowTarget;
+            const lane = selectedLaneIndex ?? (fallbackTarget === undefined ? -1 : nearestLane(document, fallbackTarget, 0));
             const markTime = selectedMark === null ? undefined : document.markCollections.find((collection) => collection.key === selectedMark.collectionKey)?.marksSeconds[selectedMark.index];
             const timeSeconds = selectedTimeSeconds ?? focused?.startSeconds ?? automation?.startSeconds ?? markTime ?? 0;
             void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, {
               type: "paste",
-              anchor: { target, timeSeconds }
+              anchor: { lane: lane < 0 ? null : lane, timeSeconds }
             })).then((result) => {
               updateSequenceSelection(result.selection);
               setSelected(singleSelectionFocus(result.selection));
@@ -1073,7 +1082,7 @@ export function SequenceCanvas({
           updateSequenceSelection(active?.type === "clips" && active.automationIds.includes(automationHit.clip.id) ? active : { type: "clips", effectIds: [], automationIds: [automationHit.clip.id] });
           setSequenceContextMenu({
             kind: "automation",
-            laneIndex: document.lanes.findIndex((lane) => targetsEqual(lane.target, automationHit.clip.rowTarget)),
+            laneIndex: automationHit.laneIndex,
             startSeconds,
             clipId: automationHit.clip.id
           });
@@ -1207,6 +1216,17 @@ export function SequenceCanvas({
           const lane = document.lanes[laneIndex];
           if (lane === undefined) return;
           const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
+          if (row?.kind === "effects" && lane.occurrences > 1 && x >= sharedBadgeX(left)) {
+            const copies = lanesForTarget(document, lane.target);
+            const next = copies.find((copy) => copy > laneIndex) ?? copies[0] ?? laneIndex;
+            const nextRow = rows.find((candidate) => candidate.laneIndex === next && candidate.kind === "effects");
+            setSelectedLaneIndex(next);
+            if (nextRow !== undefined) {
+              const maxScrollY = Math.max(0, expandedTimelineHeight(rows) - Math.max(1, canvasSize.height - top));
+              setViewport((previous) => ({ ...previous, scrollY: clamp(nextRow.top, 0, maxScrollY) }));
+            }
+            return;
+          }
           if (row?.kind === "effects" && lane.kind === "group" && x < laneLabelLayout(lane).textX) {
             const group = lane.target.fixture;
             setCollapsedGroups((current) => {
@@ -1247,7 +1267,7 @@ export function SequenceCanvas({
           setSelected({ type: "automationClip", id: automationHit.clip.id });
           const active = sequenceSelectionRef.current;
           updateSequenceSelection(active?.type === "clips" && active.automationIds.includes(automationHit.clip.id) && !event.shiftKey && !event.ctrlKey && !event.metaKey ? active : nextAutomationSelection(active, automationHit.clip.id, event.shiftKey, event.ctrlKey || event.metaKey));
-          setSelectedLaneIndex(document.lanes.findIndex((lane) => targetsEqual(lane.target, automationHit.clip.rowTarget)));
+          setSelectedLaneIndex(automationHit.laneIndex);
           setSelectedTimeSeconds(automationHit.clip.startSeconds);
           drag.current = {
             kind: "automation",
@@ -1256,7 +1276,7 @@ export function SequenceCanvas({
             startY: y,
             active: false,
             originalStartSeconds: automationHit.clip.startSeconds,
-            rowTarget: automationHit.clip.rowTarget,
+            laneIndex: automationHit.laneIndex,
             resize: automationHit.resize
           };
           return;
@@ -1443,11 +1463,10 @@ export function SequenceCanvas({
           setDragCursor("grabbing");
           const selection = sequenceSelectionRef.current;
           if (current.resize === "none" && selection?.type === "clips" && selection.automationIds.length > 0) {
-            const sourceTarget = current.kind === "automation" ? current.rowTarget : targetAtLane(document, current.laneIndex);
             const sourceKind = current.kind === "automation" ? "automation" : "effects";
-            const before = rows.find((row) => targetsEqual(row.target, sourceTarget) && row.kind === sourceKind);
+            const before = rows.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
             const expanded = layoutRows(viewport.rowHeights, true);
-            const after = expanded.find((row) => targetsEqual(row.target, sourceTarget) && row.kind === sourceKind);
+            const after = expanded.find((row) => row.laneIndex === current.laneIndex && row.kind === sourceKind);
             if (before === undefined || after === undefined) throw new Error("Dragged clip row is missing.");
             // Keep the grabbed row under the pointer while exposing empty drop rows.
             setViewport((previous) => ({ ...previous, scrollY: previous.scrollY + after.top - before.top }));
@@ -1457,9 +1476,9 @@ export function SequenceCanvas({
         }
         const selection = sequenceSelectionRef.current;
         if (selection?.type !== "clips") return;
-        const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
+        const sourceLane = current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         setGroupDraft(gesture.effects);
         setAutomationDrafts(gesture.automation);
       }}
@@ -1556,15 +1575,15 @@ export function SequenceCanvas({
         const clearDrafts = () => { setGroupDraft([]); setAutomationDrafts([]); setRevealAutomation(false); };
         const selection = sequenceSelectionRef.current;
         if (!current.active || selection?.type !== "clips") { clearDrafts(); return; }
-        const sourceLane = current.kind === "automation" ? document.lanes.findIndex((lane) => targetsEqual(lane.target, current.rowTarget)) : current.laneIndex;
+        const sourceLane = current.laneIndex;
         const destinationLane = laneIndexFromCanvasY(event.nativeEvent.offsetY, top, viewport.scrollY, document.lanes.length, rows);
-        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
+        const gesture = clipSelectionGesture(document, selection, current.resize, clipGestureDelta(current, event), sourceLane, destinationLane - sourceLane, hasPrimaryModifier(event) ? "stretch" : "crop");
         if (!gesture.changed) { clearDrafts(); return; }
         void runGuiEditCommand((request) => commands.applySequenceSelectionEdit(request, gesture.edit), gestureRequest.current).then((result) => {
           updateSequenceSelection(result.selection);
           setSelected(singleSelectionFocus(result.selection));
           const laneDelta = gesture.edit.type === "moveClips" ? gesture.edit.laneDelta : 0;
-          setSelectedTarget(targetAtLane(document, sourceLane + laneDelta));
+          setSelectedLaneIndex(sourceLane + laneDelta);
           const grabbed = current.kind === "automation" ? gesture.automation.find((clip) => clip.id === current.id) : gesture.effects.find((clip) => clip.id === current.id);
           if (grabbed !== undefined) setSelectedTimeSeconds(grabbed.startSeconds);
         }).finally(clearDrafts);
@@ -1933,6 +1952,11 @@ function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: 
 }
 
 /** A lane label's disclosure triangle and text positions, indented by depth like a file tree. */
+/** Left edge of a shared lane's "×N" badge in the label column. */
+function sharedBadgeX(left: number) {
+  return left - THEME_METRICS.sequenceLabelX - THEME_METRICS.sequenceSharedBadgeWidth;
+}
+
 function laneLabelLayout(lane: SequenceLane) {
   const disclosureX = THEME_METRICS.sequenceLabelX + lane.depth * THEME_METRICS.sequenceLaneIndent;
   return { disclosureX, textX: disclosureX + THEME_METRICS.sequenceDisclosureSize + THEME_METRICS.sequenceDisclosureGap };

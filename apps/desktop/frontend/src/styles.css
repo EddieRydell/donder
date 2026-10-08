@@ -438,6 +438,7 @@
   --donder-sequence-lane-indent: 12px;
   --donder-sequence-disclosure-size: 8px;
   --donder-sequence-disclosure-gap: 6px;
+  --donder-sequence-shared-badge-width: 28px;
   --donder-sequence-clip-min-width: 12px;
   --donder-sequence-clip-min-height: 8px;
   --donder-sequence-clip-slot-offset: 2px;
@@ -4511,7 +4512,7 @@ button.status-chip:hover {
 .layout-tree-sidebar > .composition-controls { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .composition-tree { display: flex; flex-direction: column; flex: 1; gap: var(--donder-space-2); min-height: 0; overflow: auto; padding: var(--donder-space-8); border: var(--donder-border-width) solid var(--donder-border-soft); border-radius: var(--donder-radius-md); background: var(--donder-bg-page); cursor: context-menu; }
 .composition-tree-empty { margin: 0; padding: var(--donder-space-6); color: var(--donder-text); font-size: var(--donder-font-size-xl); line-height: var(--donder-line-height-relaxed); }
-.composition-tree-item > summary { display: grid; grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr); align-items: center; gap: var(--donder-space-3); width: 100%; min-width: 0; padding: var(--donder-space-3) var(--donder-space-4); border: 0; border-radius: var(--donder-radius-md); background: transparent; text-align: left; }
+.composition-tree-item > summary { display: grid; grid-template-columns: auto minmax(0, max-content) minmax(0, 1fr) auto; align-items: center; gap: var(--donder-space-3); width: 100%; min-width: 0; padding: var(--donder-space-3) var(--donder-space-4); border: 0; border-radius: var(--donder-radius-md); background: transparent; text-align: left; }
 .composition-tree-item > summary { cursor: pointer; list-style: none; }
 .composition-tree-item > summary::-webkit-details-marker { display: none; }
 .composition-tree-item > summary:hover, .composition-tree-item > summary.selected { background: var(--donder-accent-subtle); color: var(--donder-text-strong); }
@@ -4519,6 +4520,7 @@ button.status-chip:hover {
 .composition-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-meta { min-width: 0; overflow: hidden; color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
 .composition-tree-icon { color: var(--donder-text-muted); width: var(--donder-icon-size-xs); display: inline-flex; align-items: center; }
+.composition-tree-shared { padding: 0 var(--donder-space-3); border: var(--donder-border-width) solid var(--donder-border-soft); border-radius: var(--donder-radius-pill); color: var(--donder-text-muted); font-size: var(--donder-font-size-sm); white-space: nowrap; }
 .composition-add-dialog { width: min(var(--donder-command-dialog-width), calc(100vw - var(--donder-space-14) * 2)); }
 .fixture-editor-sidebar { overflow: auto; }
 .fixture-editor-sidebar > .composition-controls { flex: none; gap: var(--donder-space-6); }
