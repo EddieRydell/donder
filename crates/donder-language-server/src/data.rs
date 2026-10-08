@@ -8,6 +8,7 @@ use donder_language::compiler::TextSpan;
 use donder_language::data::{DataDocument, DataField, DataValue, Spanned, is_pascal_case};
 use donder_language::data::{Definition, Fields, Schema, Shape};
 use donder_project_io::{DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema};
+use donder_runtime_types::Type;
 
 use crate::navigation::script_member;
 use crate::workspace::{Kind, Workspace, kind};
@@ -813,34 +814,28 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
                     if !options.is_empty() {
                         return options;
                     }
-                    let ty = symbol
-                        .detail
-                        .split_once(':')
-                        .map_or("", |(_, ty)| ty.trim());
-                    if ty.starts_with("bool") {
-                        ["true", "false"]
-                            .iter()
-                            .map(|word| Completion::new(*word, CompletionKind::Keyword))
-                            .collect()
-                    } else if ty.starts_with("marks") {
-                        names_for(Wanted::Marks)
-                            .into_iter()
-                            .map(|name| Completion::new(name, CompletionKind::Reference))
-                            .collect()
-                    } else if ty.starts_with("curve") || ty.starts_with("gradient") {
-                        let wanted = if ty.starts_with("curve") {
-                            "Curve"
-                        } else {
-                            "Gradient"
-                        };
-                        visible(workspace, text)
-                            .into_iter()
-                            .filter(|(_, kind)| kind == wanted)
-                            .map(|(name, _)| Completion::new(name, CompletionKind::Reference))
-                            .collect()
-                    } else {
-                        Vec::new()
-                    }
+                    let wanted = match symbol.ty {
+                        Some(Type::Bool) => {
+                            return ["true", "false"]
+                                .iter()
+                                .map(|word| Completion::new(*word, CompletionKind::Keyword))
+                                .collect();
+                        }
+                        Some(Type::Marks) => {
+                            return names_for(Wanted::Marks)
+                                .into_iter()
+                                .map(|name| Completion::new(name, CompletionKind::Reference))
+                                .collect();
+                        }
+                        Some(Type::Curve) => "Curve",
+                        Some(Type::Gradient) => "Gradient",
+                        _ => return Vec::new(),
+                    };
+                    visible(workspace, text)
+                        .into_iter()
+                        .filter(|(_, kind)| kind == wanted)
+                        .map(|(name, _)| Completion::new(name, CompletionKind::Reference))
+                        .collect()
                 }
             }
         }

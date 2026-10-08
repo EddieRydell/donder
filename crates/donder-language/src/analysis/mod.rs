@@ -13,6 +13,7 @@ pub use script::{
 };
 
 use crate::compiler::TextSpan;
+use donder_runtime_types::Type;
 
 /// What a token is, for highlighting.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -68,6 +69,9 @@ pub struct Symbol {
     /// A one-line summary, such as the declaration's source.
     pub detail: String,
     pub description: Option<String>,
+    /// The type of a parameter, argument, `let` or loop index, when it is
+    /// known.
+    pub ty: Option<Type>,
     /// The enclosing symbol.
     pub parent: Option<usize>,
 }
