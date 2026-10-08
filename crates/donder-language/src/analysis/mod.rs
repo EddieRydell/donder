@@ -12,6 +12,7 @@ pub use script::{
     script_signature, type_text,
 };
 
+use crate::NameKind;
 use crate::compiler::TextSpan;
 use donder_runtime_types::Type;
 
@@ -56,6 +57,19 @@ pub enum SymbolKind {
     Let,
     Index,
     EnumOption,
+}
+
+impl SymbolKind {
+    /// The rule a new name for this symbol must follow.
+    pub fn name_kind(self) -> NameKind {
+        match self {
+            Self::Effect | Self::Operator => NameKind::Definition,
+            Self::Function => NameKind::Function,
+            Self::Param | Self::Input => NameKind::Member,
+            Self::Argument | Self::Let | Self::Index => NameKind::Value,
+            Self::EnumOption => NameKind::EnumOption,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

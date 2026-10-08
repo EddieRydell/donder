@@ -53,7 +53,7 @@ fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) 
 #[test]
 fn grouped_declarations_preserve_ordered_targets() {
     let aliases = [
-        "Fx",
+        "effect",
         "_fx2",
         "an_alias_longer_than_thirty_two_bytes_is_valid",
     ];
@@ -83,12 +83,12 @@ fn grouped_declarations_preserve_ordered_targets() {
 
 #[test]
 fn invalid_aliases_are_rejected() {
-    for alias in ["builtins", "effect", "if", "1fx", "with-hyphen", "é", ""] {
+    for alias in ["Fx", "none", "from", "1fx", "with-hyphen", "é", ""] {
         assert!(ImportAlias::new(alias).is_err(), "{alias}");
     }
     // The loader validates aliases through `ImportAlias::new`.
     let (_temporary, root) = tiny_project(
-        &format!("import builtins from <{EFFECT}>;\n"),
+        &format!("import Fx from <{EFFECT}>;\n"),
         "effect Extra { sample { hsv(0.0, 1.0, 1.0) } }",
     );
     assert!(check_project(&root).session.is_none());

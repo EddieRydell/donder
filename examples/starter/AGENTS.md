@@ -74,8 +74,9 @@ parameters name one of the sequence's mark collections.
 Scripts use Donder's effect language. Effects declare typed parameters and
 produce each pixel's color in a `sample` block of immutable `let` bindings,
 guards and reductions. Operators declare `input` signals and sample them to
-transform or combine layers. `--` starts a comment. Enum options are
-`PascalCase`: `param direction: enum { Outward, Inward } = Outward;`. A
+transform or combine layers. `--` starts a comment. Effects, operators and enum
+options are `PascalCase`; parameters, inputs, functions and `let` names are
+`snake_case`: `param direction: enum { Outward, Inward } = Outward;`. A
 declaration or parameter may carry a description, which the app shows:
 
 ```text

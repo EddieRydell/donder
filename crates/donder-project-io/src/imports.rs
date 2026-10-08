@@ -3,7 +3,7 @@ pub use ownership::{
 };
 mod ownership;
 use crate::loader::{Loader, ResolvedObject};
-use crate::source::{ImportEdge, ProjectSession, SourceDocument, SourceObjectKind};
+use crate::source::{ImportEdge, ProjectSession, SourceObjectKind};
 use crate::{
     ExportProjectError, IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoRelatedLocation,
     LoadProjectError, TextRange,
@@ -60,13 +60,12 @@ fn ensure_document_imports_target(
             reference: reference.to_string(),
             message: format!("no canonical import alias exists for {kind:?} references"),
         })?;
-    let alias = available_import_alias(document, alias_base).ok_or_else(|| {
-        ExportProjectError::InvalidReference {
-            path: from_path.to_path_buf(),
-            reference: reference.to_string(),
-            message: format!("no import alias remains for `{alias_base}`"),
-        }
-    })?;
+    let alias = donder_language::unique_name(alias_base, |candidate| {
+        document
+            .imports
+            .iter()
+            .any(|import| import.declaration.alias.as_str() == candidate)
+    });
     if target_document.module_id() != from_document.module_id() {
         return Err(ExportProjectError::InvalidReference {
             path: from_path.to_path_buf(),
@@ -76,7 +75,7 @@ fn ensure_document_imports_target(
     }
     document.imports.push(ImportEdge {
         declaration: ImportDeclaration {
-            alias: ImportAlias::new(&alias).map_err(|message| {
+            alias: ImportAlias::new(alias.as_str()).map_err(|message| {
                 ExportProjectError::InvalidReference {
                     path: from_path.to_path_buf(),
                     reference: reference.to_string(),
@@ -109,24 +108,6 @@ pub fn ensure_document_can_reference_source(
         identity.object(),
         identity.document_id().clone(),
     )
-}
-
-fn available_import_alias(document: &SourceDocument, base: &str) -> Option<String> {
-    if document
-        .imports
-        .iter()
-        .all(|import| import.declaration.alias.as_str() != base)
-    {
-        return Some(base.to_string());
-    }
-    (2_u32..)
-        .map(|suffix| format!("{base}_{suffix}"))
-        .find(|candidate| {
-            document
-                .imports
-                .iter()
-                .all(|import| import.declaration.alias.as_str() != candidate.as_str())
-        })
 }
 
 pub(crate) fn canonical_reference_alias(kind: &SourceObjectKind) -> Option<&'static str> {

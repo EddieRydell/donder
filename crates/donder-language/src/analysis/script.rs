@@ -317,14 +317,14 @@ impl Walker<'_> {
     fn declaration(&mut self, declaration: &Declaration) {
         self.parent = None;
         let (kind, keyword) = match declaration.kind {
-            DeclarationKind::Effect => (SymbolKind::Effect, "effect"),
-            DeclarationKind::Operator => (SymbolKind::Operator, "operator"),
+            DeclarationKind::Effect => (SymbolKind::Effect, Keyword::Effect),
+            DeclarationKind::Operator => (SymbolKind::Operator, Keyword::Operator),
         };
         let symbol = self.define(
             &declaration.name,
             kind,
             declaration.span,
-            format!("{keyword} {}", declaration.name.name.as_str()),
+            format!("{} {}", keyword.text(), declaration.name.name.as_str()),
             declaration.description.clone(),
             None,
         );
@@ -752,9 +752,9 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
             .collect();
     }
     let Some((keyword, tokens)) = context.enclosing() else {
-        return ["effect", "operator", "fn"]
-            .iter()
-            .map(|word| Completion::new(*word, CompletionKind::Keyword))
+        return [Keyword::Effect, Keyword::Operator, Keyword::Fn]
+            .into_iter()
+            .map(|keyword| Completion::new(keyword.text(), CompletionKind::Keyword))
             .collect();
     };
     let mut completions = Vec::new();
@@ -894,8 +894,15 @@ pub fn script_completions(source: &str, offset: usize) -> Vec<Completion> {
                 )),
         );
     }
-    for word in ["let", "guard", "if", "else", "true", "false"] {
-        completions.push(Completion::new(word, CompletionKind::Keyword));
+    for keyword in [
+        Keyword::Let,
+        Keyword::Guard,
+        Keyword::If,
+        Keyword::Else,
+        Keyword::True,
+        Keyword::False,
+    ] {
+        completions.push(Completion::new(keyword.text(), CompletionKind::Keyword));
     }
     completions
 }

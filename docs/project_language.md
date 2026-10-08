@@ -190,8 +190,8 @@ import layouts from <layouts/outputs.data.donder>;
 - An import binds an alias to the top-level declarations of one or more
   documents, which must not repeat names. Paths are relative to the project root
   and cannot leave it.
-- Aliases are identifiers; keywords and `builtins` are reserved. A document
-  imports each target once.
+- Aliases follow the rule for object names: `snake_case` and not a keyword. A
+  document imports each target once.
 - An import exposes its documents' own declarations, not what those documents
   import. Each document declares the imports it uses.
 - Mutual imports are valid: the loader indexes a document's declarations before

@@ -7,6 +7,7 @@ use super::ir::interval::{Bounds, interval};
 use super::ir::{Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, Ternary, Unary};
 use super::syntax::ast::*;
 use super::syntax::lexer::TextSpan;
+use crate::names::{NameError, NameKind, name_from_text, pascal_from_snake};
 use donder_runtime_types::Color;
 use donder_runtime_types::bytecode::MAX_ITERATIONS;
 use donder_runtime_types::bytecode::SignalPixel;
@@ -76,12 +77,7 @@ fn check_functions(
     let mut diagnostics = Vec::new();
     for (index, function) in functions.iter().enumerate() {
         let name = function.name.name.as_str();
-        if builtin(name).is_some() || RESERVED.contains(&name) {
-            diagnostics.push(Diagnostic::new(
-                function.name.span,
-                format!("`{name}` is a builtin or reserved name"),
-            ));
-        }
+        diagnostics.extend(name_diagnostic(NameKind::Function, &function.name));
         if functions[..index]
             .iter()
             .any(|other| other.name.name == function.name.name)
@@ -93,12 +89,7 @@ fn check_functions(
         }
         let mut types = Vec::new();
         for (position, (arg, ty)) in function.args.iter().enumerate() {
-            if RESERVED.contains(&arg.name.as_str()) {
-                diagnostics.push(Diagnostic::new(
-                    arg.span,
-                    format!("`{}` is a reserved name", arg.name.as_str()),
-                ));
-            }
+            diagnostics.extend(name_diagnostic(NameKind::Value, arg));
             if function.args[..position]
                 .iter()
                 .any(|(other, _)| other.name == arg.name)
@@ -156,10 +147,18 @@ fn check_functions(
     diagnostics
 }
 
-/// Names with a fixed meaning in every definition.
-const RESERVED: &[&str] = &[
-    "time", "duration", "progress", "pixel", "target", "PI", "TAU",
-];
+/// The diagnostic for a name that breaks its kind's rule. A name in the wrong
+/// case carries the right spelling as its fix.
+fn name_diagnostic(kind: NameKind, name: &Name) -> Option<Diagnostic> {
+    let text = name.name.as_str();
+    let error = kind.check(text).err()?;
+    let diagnostic = Diagnostic::new(name.span, error.message(text));
+    Some(match error {
+        NameError::NotPascalCase => diagnostic.with_fix(pascal_from_snake(text)),
+        NameError::NotSnakeCase => diagnostic.with_fix(name_from_text(text, text)),
+        NameError::Keyword | NameError::Context | NameError::Builtin => diagnostic,
+    })
+}
 
 /// A block's result where guards may produce nothing: whether it holds a value,
 /// and the value, which is meaningless when it does not. A guard's skipped
@@ -213,19 +212,12 @@ impl Checker {
         let mut diagnostics = Vec::new();
         let mut params = Vec::new();
         let mut names: Vec<&Identifier> = Vec::new();
-        let name_check = |name: &Name, diagnostics: &mut Vec<Diagnostic>| {
-            if RESERVED.contains(&name.name.as_str()) {
-                diagnostics.push(Diagnostic::new(
-                    name.span,
-                    format!("`{}` is a reserved name", name.name.as_str()),
-                ));
-            }
-        };
+        diagnostics.extend(name_diagnostic(NameKind::Definition, &declaration.name));
         for input in &declaration.inputs {
-            name_check(input, &mut diagnostics);
+            diagnostics.extend(name_diagnostic(NameKind::Member, input));
         }
         for param in &declaration.params {
-            name_check(&param.name, &mut diagnostics);
+            diagnostics.extend(name_diagnostic(NameKind::Member, &param.name));
             match check_param(param) {
                 Ok(param) => params.push(param),
                 Err(diagnostic) => diagnostics.push(diagnostic),
@@ -381,11 +373,8 @@ impl Checker {
         for statement in &block.statements {
             match statement {
                 Statement::Let { name, ty, value } => {
-                    if RESERVED.contains(&name.name.as_str()) {
-                        self.error(
-                            name.span,
-                            format!("`{}` is a reserved name", name.name.as_str()),
-                        );
+                    if let Some(diagnostic) = name_diagnostic(NameKind::Value, name) {
+                        self.diagnostics.push(diagnostic);
                         failed = true;
                         continue;
                     }
@@ -995,6 +984,8 @@ impl Checker {
             );
             return None;
         };
+        self.diagnostics
+            .extend(name_diagnostic(NameKind::Value, index));
         self.scopes.push((index.name.clone(), index_node));
         let outcome = self.tail_block(body, Mode::Tail);
         self.scopes.pop();
@@ -1655,13 +1646,8 @@ pub(crate) fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
         TypeKind::Enum(options) => {
             let mut names = Vec::new();
             for option in options {
-                if !crate::data::tree::is_pascal_case(option.name.as_str()) {
-                    let pascal = crate::names::pascal_from_snake(option.name.as_str());
-                    return Err(Diagnostic::new(
-                        option.span,
-                        format!("enum options are PascalCase: write `{pascal}`"),
-                    )
-                    .with_fix(pascal));
+                if let Some(diagnostic) = name_diagnostic(NameKind::EnumOption, option) {
+                    return Err(diagnostic);
                 }
                 if names.contains(&option.name) {
                     return Err(Diagnostic::new(

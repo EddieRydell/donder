@@ -631,6 +631,14 @@ pub(crate) fn builtin(name: &str) -> Option<&'static Builtin> {
     BUILTINS.iter().find(|builtin| builtin.name == name)
 }
 
+/// Whether `name` is a context value or the scope of context fields, like
+/// `time` or `pixel`.
+pub(crate) fn is_context_name(name: &str) -> bool {
+    CONTEXT
+        .iter()
+        .any(|value| value.name.split('.').next() == Some(name))
+}
+
 /// A context value: a reserved name or a `pixel` or `target` field.
 #[derive(Debug)]
 pub struct ContextValue {

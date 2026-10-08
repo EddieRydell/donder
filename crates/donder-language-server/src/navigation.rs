@@ -1,5 +1,6 @@
 //! What a name refers to, wherever it is written: definitions, references and
 //! renames across data documents and scripts.
+use donder_language::NameKind;
 use donder_language::analysis::TokenClass;
 use donder_language::analysis::{ScriptAnalysis, SymbolKind, analyze_script, data_tokens};
 use donder_language::compiler::TextSpan;
@@ -12,8 +13,13 @@ pub enum Target {
     /// A name other documents may use: a data name, an import alias, or a
     /// script declaration or member.
     Link(LinkTarget),
-    /// A name only its script sees: a function, argument, `let` or index.
-    Local { uri: String, span: TextSpan },
+    /// A name only its script sees: a function, argument, `let` or index, or
+    /// any symbol of a script outside the project.
+    Local {
+        uri: String,
+        span: TextSpan,
+        kind: SymbolKind,
+    },
 }
 
 /// A script symbol as a target, linked when the script is in the project.
@@ -26,6 +32,7 @@ pub fn script_symbol_target(
     let local = || Target::Local {
         uri: uri.to_string(),
         span: analysis.symbols[symbol].span,
+        kind: analysis.symbols[symbol].kind,
     };
     let entry = &analysis.symbols[symbol];
     let parent = |index: usize| analysis.symbols[index].parent;
@@ -138,7 +145,7 @@ pub fn target_at(workspace: &Workspace, uri: &str, text: &str, offset: usize) ->
 /// Where a target is declared.
 pub fn definition(workspace: &Workspace, target: &Target) -> Option<(String, TextSpan)> {
     match target {
-        Target::Local { uri, span } => Some((uri.clone(), *span)),
+        Target::Local { uri, span, .. } => Some((uri.clone(), *span)),
         Target::Link(LinkTarget::Data { document, span })
         | Target::Link(LinkTarget::Import { document, span }) => {
             Some((workspace.document_uri(document)?, *span))
@@ -160,7 +167,7 @@ pub fn definition(workspace: &Workspace, target: &Target) -> Option<(String, Tex
 pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextSpan)> {
     let mut found = Vec::new();
     match target {
-        Target::Local { uri, span } => {
+        Target::Local { uri, span, .. } => {
             if let Some(text) = workspace.text(uri) {
                 let analysis = analyze_script(&text);
                 if let Some(symbol) = analysis
@@ -213,32 +220,14 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
 
 /// Whether `name` may replace the target's name.
 pub fn valid_name(target: &Target, name: &str) -> Result<(), String> {
-    let identifier = donder_runtime_types::Identifier::new(name.to_string()).is_ok()
-        && donder_language::is_valid_import_alias(name);
-    match target {
-        Target::Link(LinkTarget::Data { .. }) => {
-            if donder_language::is_object_name(name) {
-                Ok(())
-            } else {
-                Err(format!("`{name}` is not a snake_case name"))
-            }
-        }
-        Target::Link(LinkTarget::Script {
-            member: ScriptMember::Option { .. },
-            ..
-        }) => {
-            if identifier && donder_language::data::is_pascal_case(name) {
-                Ok(())
-            } else {
-                Err(format!("enum options are PascalCase; `{name}` is not"))
-            }
-        }
-        _ => {
-            if identifier {
-                Ok(())
-            } else {
-                Err(format!("`{name}` is not a name"))
-            }
-        }
-    }
+    let kind = match target {
+        Target::Link(LinkTarget::Data { .. } | LinkTarget::Import { .. }) => NameKind::Object,
+        Target::Link(LinkTarget::Script { member, .. }) => match member {
+            ScriptMember::Declaration => NameKind::Definition,
+            ScriptMember::Param(_) | ScriptMember::Input(_) => NameKind::Member,
+            ScriptMember::Option { .. } => NameKind::EnumOption,
+        },
+        Target::Local { kind, .. } => kind.name_kind(),
+    };
+    kind.check(name).map_err(|error| error.message(name))
 }

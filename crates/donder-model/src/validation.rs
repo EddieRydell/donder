@@ -561,7 +561,7 @@ fn validate_sequence_names(sequence: &Sequence) -> Result<(), SequenceValidation
                 }),
         );
     for name in names {
-        if !donder_language::is_object_name(name.as_str()) {
+        if !donder_language::NameKind::Object.accepts(name.as_str()) {
             return Err(sequence_error(format!(
                 "`{}` is not a snake_case name",
                 name.as_str()

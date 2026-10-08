@@ -213,7 +213,7 @@ impl Layout {
             if !ids.insert(fixture.id) {
                 return Err(LayoutError::DuplicateId(fixture.id));
             }
-            if !donder_language::is_object_name(fixture.name.as_str()) {
+            if !donder_language::NameKind::Object.accepts(fixture.name.as_str()) {
                 return Err(LayoutError::InvalidName(fixture.id));
             }
             if !names.insert(fixture.name.clone()) {
