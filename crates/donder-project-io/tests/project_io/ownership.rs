@@ -1,8 +1,8 @@
 use crate::common;
 
 use camino::Utf8Path;
-use donder_language::identity::OwnedObjectSlot;
-use donder_language::ownership::ValueSource;
+use donder_model::OwnedObjectSlot;
+use donder_model::ValueSource;
 use donder_project_io::{PROJECT_ROOT_FILE, load_project, save_project};
 
 const TRANSFORM: &str =
@@ -113,7 +113,7 @@ fn nested_objects_roundtrip_without_named_sibling_definitions() {
         address.0.owned_path(),
         &[
             OwnedObjectSlot::Setup,
-            OwnedObjectSlot::Controller(donder_language::names::object_name("controller_3"))
+            OwnedObjectSlot::Controller(donder_language::object_name("controller_3"))
         ]
     );
     setup.controllers.reverse();
@@ -190,19 +190,16 @@ fn ownership_rejects_duplicate_names_malformed_types_and_dangling_addresses() {
 
 #[test]
 fn document_moves_keep_owned_targets_attached_to_their_owner() {
-    use donder_language::identity::DocumentId;
+    use donder_model::DocumentId;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
     write_inline_project(root);
     let mut session = common::load_project(root);
     let before = session.project.root().id.0.document_id().clone();
     let after = DocumentId::new(before.module_id(), "renamed/project.data.donder".into());
-    donder_language::source_remap::remap_document_paths(
-        &mut session.project,
-        &[(before, after.clone())].into(),
-    )
-    .unwrap();
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::remap_document_paths(&mut session.project, &[(before, after.clone())].into())
+        .unwrap();
+    donder_model::validate_project(&session.project).unwrap();
     let setup = session
         .project
         .setup(session.project.root().setup.id())
@@ -266,8 +263,8 @@ fn same_file_and_other_file_links_preserve_reusable_objects_after_detaching() {
 
 #[test]
 fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() {
-    use donder_language::layout::FixtureInstanceId;
-    use donder_language::ownership::edit::{OwnershipSite, make_independent, make_reusable};
+    use donder_model::FixtureInstanceId;
+    use donder_model::{OwnershipSite, make_independent, make_reusable};
     use donder_project_io::SourceObjectKind;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
@@ -320,7 +317,7 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
             .add_object(&document, kind.clone(), name)
             .unwrap();
         make_reusable(&mut session.project, site, destination).unwrap();
-        donder_language::validation::validate_project(&session.project).unwrap();
+        donder_model::validate_project(&session.project).unwrap();
         save_project(&session).unwrap();
         assert_eq!(session.project, common::load_project(root).project);
     }
@@ -360,14 +357,14 @@ fn every_owned_kind_can_become_reusable_and_independent_without_losing_routes() 
         session.project.setup(&reusable_setup.id).unwrap(),
         &reusable_setup
     );
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project(root).project);
 }
 
 #[test]
 fn independent_setup_retargets_a_linked_patch_to_its_copied_owned_children() {
-    use donder_language::ownership::edit::{OwnershipSite, make_independent, make_reusable};
+    use donder_model::{OwnershipSite, make_independent, make_reusable};
     use donder_project_io::SourceObjectKind;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
@@ -409,14 +406,14 @@ fn independent_setup_retargets_a_linked_patch_to_its_copied_owned_children() {
         &original_patch
     );
     assert_eq!(session.project.setup(&shared.id).unwrap(), &shared);
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project(root).project);
 }
 
 #[test]
 fn independent_layout_copies_active_sequences_and_preserves_the_reusable_originals() {
-    use donder_language::ownership::edit::{OwnershipSite, make_independent};
+    use donder_model::{OwnershipSite, make_independent};
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
     let setup = session.project.root().setup.id().clone();
@@ -447,12 +444,12 @@ fn independent_layout_copies_active_sequences_and_preserves_the_reusable_origina
         )
         .unwrap();
     }
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
 }
 
 #[test]
 fn promoting_an_owned_setup_to_another_file_preserves_nested_identity_and_routing() {
-    use donder_language::ownership::edit::{OwnershipSite, make_independent, make_reusable};
+    use donder_model::{OwnershipSite, make_independent, make_reusable};
     use donder_project_io::{SourceObjectKind, ensure_document_can_reference_object};
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
@@ -475,20 +472,20 @@ fn promoting_an_owned_setup_to_another_file_preserves_nested_identity_and_routin
     .unwrap();
     let reusable = session.project.root().setup.id().clone();
     ensure_document_can_reference_object(&mut session, &document, &reusable.0).unwrap();
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project(root).project);
     let shared = session.project.setup(&reusable).unwrap().clone();
     make_independent(&mut session.project, &OwnershipSite::ProjectSetup).unwrap();
     assert_eq!(session.project.setup(&reusable).unwrap(), &shared);
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
     save_project(&session).unwrap();
     assert_eq!(session.project, common::load_project(root).project);
 }
 
 #[test]
 fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
-    use donder_language::ownership::edit::{OwnershipSite, make_independent};
+    use donder_model::{OwnershipSite, make_independent};
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
     let setup = session.project.root().setup.id().clone();
@@ -514,8 +511,8 @@ fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
 }
 #[test]
 fn making_an_imported_sequence_independent_keeps_its_local_audio() {
-    use donder_language::ownership::edit::{OwnershipSite, make_independent};
-    use donder_language::sequence::SequenceAudio;
+    use donder_model::SequenceAudio;
+    use donder_model::{OwnershipSite, make_independent};
     use donder_project_io::maintain_ownership_sources;
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();
@@ -581,8 +578,8 @@ fn making_an_imported_sequence_independent_keeps_its_local_audio() {
 }
 #[test]
 fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequences() {
-    use donder_language::layout::LayoutId;
-    use donder_language::ownership::edit::{OwnershipSite, use_existing};
+    use donder_model::LayoutId;
+    use donder_model::{OwnershipSite, use_existing};
     use donder_project_io::{SourceObjectKind, maintain_ownership_sources};
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
     let mut session = common::load_project(&root);
@@ -607,9 +604,7 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
     replacement.id = LayoutId(source.clone().into());
     session
         .project
-        .apply_edits([donder_language::model::ProjectEdit::InsertLayout(
-            replacement.clone(),
-        )])
+        .apply_edits([donder_model::ProjectEdit::InsertLayout(replacement.clone())])
         .unwrap();
     use_existing(
         &mut session.project,
@@ -653,5 +648,5 @@ fn selecting_another_layout_retargets_only_the_current_setup_and_active_sequence
         )
         .unwrap();
     }
-    donder_language::validation::validate_project(&session.project).unwrap();
+    donder_model::validate_project(&session.project).unwrap();
 }

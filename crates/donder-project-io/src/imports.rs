@@ -8,27 +8,27 @@ use crate::{
     ExportProjectError, IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, IoRelatedLocation,
     LoadProjectError, TextRange,
 };
-use donder_language::data::schema::Reference;
-use donder_language::data::tree::Spanned;
-use donder_language::dsl::Identifier;
-use donder_language::identity::{DocumentId, SourceIdentity};
-use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+use donder_language::data::Reference;
+use donder_language::data::Spanned;
+use donder_language::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+use donder_model::{DocumentId, SourceIdentity};
+use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ParsedImport {
     pub(crate) declaration: ImportDeclaration,
     pub(crate) range: Option<TextRange>,
-    pub(crate) alias_span: donder_language::dsl::TextSpan,
+    pub(crate) alias_span: donder_language::compiler::TextSpan,
     pub(crate) source_ranges: Vec<Option<TextRange>>,
 }
 
 fn ensure_document_imports_target(
     session: &mut ProjectSession,
-    from_document: &donder_language::identity::DocumentId,
+    from_document: &donder_model::DocumentId,
     kind: &SourceObjectKind,
     reference: &str,
-    target_document: donder_language::identity::DocumentId,
+    target_document: donder_model::DocumentId,
 ) -> Result<(), ExportProjectError> {
     let from_path = from_document.path();
     let document = session
@@ -94,7 +94,7 @@ fn ensure_document_imports_target(
 
 pub fn ensure_document_can_reference_source(
     session: &mut ProjectSession,
-    from_document: &donder_language::identity::DocumentId,
+    from_document: &donder_model::DocumentId,
     kind: SourceObjectKind,
     identity: &SourceIdentity,
 ) -> Result<(), ExportProjectError> {
@@ -177,7 +177,7 @@ pub(crate) fn write_source_reference(
         })?;
     Ok(SourceReference::Qualified {
         alias,
-        name: donder_language::dsl::Identifier::new(identity.object().to_string()).map_err(
+        name: donder_runtime_types::Identifier::new(identity.object().to_string()).map_err(
             |error| ExportProjectError::InvalidReference {
                 path: from_document.path().to_path_buf(),
                 reference: identity.object().to_string(),
@@ -369,11 +369,11 @@ impl Loader {
 
     pub(crate) fn resolve_import(
         &self,
-        importer: &donder_language::identity::DocumentId,
+        importer: &donder_model::DocumentId,
         import: &ParsedImport,
-    ) -> Result<Vec<donder_language::identity::DocumentId>, LoadProjectError> {
+    ) -> Result<Vec<donder_model::DocumentId>, LoadProjectError> {
         match &import.declaration.source {
-            donder_language::imports::ImportSource::LocalDocuments { documents } => documents
+            donder_language::ImportSource::LocalDocuments { documents } => documents
                 .iter()
                 .enumerate()
                 .map(|(index, path)| {
@@ -384,10 +384,7 @@ impl Loader {
                             message,
                         }
                     })?;
-                    let target = donder_language::identity::DocumentId::new(
-                        importer.module_id(),
-                        path.clone(),
-                    );
+                    let target = donder_model::DocumentId::new(importer.module_id(), path.clone());
                     let absolute = self.absolute_document_path(&target)?;
                     if !absolute.is_file() && !self.source_overrides.contains_key(&target) {
                         return Err(LoadProjectError::InvalidDocument {

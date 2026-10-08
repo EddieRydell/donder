@@ -38,10 +38,7 @@ pub(super) struct WorkspaceState {
     pub tabs: Vec<Utf8PathBuf>,
     pub typed_revision: Option<u32>,
     pub close_authorization: Option<(u32, u32)>,
-    pub render_target: Option<(
-        donder_language::setup::SetupId,
-        donder_language::sequence::SequenceId,
-    )>,
+    pub render_target: Option<(donder_model::SetupId, donder_model::SequenceId)>,
     /// Persistence key of the sequence the transport has loaded.
     pub transport_view_key: Option<String>,
 }

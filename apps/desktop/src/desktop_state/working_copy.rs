@@ -143,7 +143,7 @@ impl DesktopState {
         inclusion: DocumentInclusion,
     ) -> Result<AppSnapshot, String> {
         let identifier = |name: String| {
-            donder_language::dsl::Identifier::new(name.clone())
+            donder_runtime_types::Identifier::new(name.clone())
                 .map_err(|_| format!("`{name}` is not a name."))
         };
         let inclusion = donder_project_io::Inclusion {

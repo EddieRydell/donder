@@ -9,13 +9,13 @@ pub(crate) use strip::{Pixels, STRIP, Strip, StripSignals, StripWorkspace};
 
 use parameters::{CurveParameter, ParameterAddress, ParameterValues};
 
-use super::types::{Identifier, Type, Value};
-use crate::values::{Color, Curve, Gradient, Marks, SampleDuration};
 use alloc::boxed::Box;
 #[cfg(test)]
 use alloc::string::String;
 use alloc::vec::Vec;
-use donder_language::Shared as Arc;
+use donder_runtime_types::Shared as Arc;
+use donder_runtime_types::{Color, Curve, Gradient, Marks, SampleDuration};
+use donder_runtime_types::{Identifier, Type, Value};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RunContext {
@@ -48,7 +48,7 @@ pub(crate) struct BoundParams {
 impl BoundParams {
     /// Materialize compiler-checked inputs once; no VM-bank validation is repeated here.
     pub(crate) fn from_validated(
-        params: &donder_language::dsl::BoundParams,
+        params: &donder_runtime_types::BoundParams,
         cache: &mut DslBindCache,
     ) -> Self {
         Self::from_values(params.types().iter().zip(params.iter_values()), cache)
@@ -60,7 +60,7 @@ impl BoundParams {
         values: Vec<Value>,
         cache: &mut DslBindCache,
     ) -> Result<Self, RuntimeError> {
-        let accepted = donder_language::dsl::BoundParams::bind_values(types, values)
+        let accepted = donder_runtime_types::BoundParams::bind_values(types, values)
             .map_err(|error| RuntimeError::new(error.message))?;
         Ok(Self::from_validated(&accepted, cache))
     }
@@ -119,7 +119,8 @@ impl BoundParams {
                     // Three detached shared allocations; forward samples use the raw points.
                     points
                         .checked_mul(
-                            size_of::<crate::values::CurvePoint>() + size_of::<CrossingSegment>(),
+                            size_of::<donder_runtime_types::CurvePoint>()
+                                + size_of::<CrossingSegment>(),
                         )?
                         .checked_add(
                             size_of::<PreparedCurve>()
@@ -262,7 +263,7 @@ impl PreparedCurve {
     }
 
     fn update_window(&mut self, curve: &Curve, min: f32, max: f32, position: f32) {
-        crate::automation::curve_window_into(
+        donder_runtime_types::curve_window_into(
             Arc::make_mut(&mut self.raw),
             curve,
             min,
@@ -384,8 +385,8 @@ impl PreparedCurveCrossings {
 mod curve_crossing_tests {
     use super::{Arc, PreparedCurve, prepared_curve_crossing};
     use crate::sampling::curve_crossing;
-    use crate::values::{Curve, CurvePoint};
     use alloc::vec;
+    use donder_runtime_types::{Curve, CurvePoint};
 
     fn prepared(points: &[(f32, f32)]) -> PreparedCurve {
         PreparedCurve::new(Arc::new(Curve {

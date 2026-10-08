@@ -559,7 +559,7 @@ with data:
 
 ## Validity
 
-`donder_language::validation::validate_sequence` is the single sequence
+`donder_model::validate_sequence` is the single sequence
 validator. Project loading and checked GUI edits run it before accepting state;
 preparation does not repeat it.
 

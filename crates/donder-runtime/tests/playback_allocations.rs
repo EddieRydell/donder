@@ -5,17 +5,18 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::sync::Arc;
 
-use donder_language::dsl::{
-    CompiledEffect, Identifier, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
-    SampleInvocation, Type, Value, compile_effects, compile_operators,
-};
-use donder_language::execution::{
-    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
-};
-use donder_language::values::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
+use donder_language::compiler::{
+    CompiledEffect, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants, compile_effects,
+    compile_operators,
 };
 use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
+use donder_runtime_types::{
+    Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
+};
+use donder_runtime_types::{
+    FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
+};
+use donder_runtime_types::{Identifier, SampleInvocation, Type, Value};
 
 struct CountingAllocator;
 
@@ -143,7 +144,7 @@ fn invoke(
         .iter()
         .map(|(name, value)| (identifier(name), value.clone()))
         .collect();
-    let params = donder_language::dsl::bind_params(
+    let params = donder_language::compiler::bind_params(
         effect.params(),
         values.iter().map(|(name, value)| (name, value)),
     )
@@ -163,7 +164,7 @@ fn whole_sequence_automation(
         duration: SampleDuration::from_ticks(8_000_000),
         curve,
         mapping: param.automation_mapping().unwrap(),
-        quantity: donder_language::execution::AutomatedQuantity::Value,
+        quantity: donder_runtime_types::AutomatedQuantity::Value,
         param_index: param_index as u16,
     }
 }
@@ -649,8 +650,8 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
         &effect,
         &[("shape", Value::Curve(empty))],
         vec![PreparedAutomation {
-            mapping: donder_language::automation::AutomationMapping::Curve { min: 0.5, max: 1.0 },
-            quantity: donder_language::execution::AutomatedQuantity::Value,
+            mapping: donder_runtime_types::AutomationMapping::Curve { min: 0.5, max: 1.0 },
+            quantity: donder_runtime_types::AutomatedQuantity::Value,
             ..automation
         }],
     ));

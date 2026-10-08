@@ -1,15 +1,14 @@
-pub(crate) use donder_language::dsl::bytecode;
+pub(crate) use donder_runtime_types::bytecode;
 #[cfg(test)]
 mod sample;
-pub(crate) use donder_language::dsl::types;
 mod vm;
 
-pub(crate) use donder_language::dsl::{OperatorProgram, SampleProgram};
-pub(crate) use donder_language::execution::SpatialContext;
+pub(crate) use donder_runtime_types::SpatialContext;
+pub(crate) use donder_runtime_types::{OperatorProgram, SampleProgram};
+#[cfg(test)]
+pub(crate) use donder_runtime_types::{Type, Value};
 #[cfg(test)]
 pub(crate) use sample::sample_once;
-#[cfg(test)]
-pub(crate) use types::{Type, Value};
 pub(crate) use vm::AutomationPlan;
 #[cfg(test)]
 pub(crate) use vm::RuntimeError;

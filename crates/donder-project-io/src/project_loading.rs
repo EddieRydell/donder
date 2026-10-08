@@ -79,7 +79,7 @@ pub fn check_project_with_overrides(
             for (path, text) in overrides {
                 if path.extension() == Some("donder") {
                     loader.source_overrides.insert(
-                        donder_language::identity::DocumentId::new(config.project_id, path.clone()),
+                        donder_model::DocumentId::new(config.project_id, path.clone()),
                         text.clone(),
                     );
                 }
@@ -153,7 +153,7 @@ pub fn check_document_text(path: &Utf8Path, text: &str) -> Vec<IoDiagnostic> {
 
 pub fn check_project_document_text(
     session: &ProjectSession,
-    document: &donder_language::identity::DocumentId,
+    document: &donder_model::DocumentId,
     text: &str,
 ) -> Vec<IoDiagnostic> {
     let local_diagnostics = check_document_text(document.path(), text);

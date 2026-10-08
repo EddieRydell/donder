@@ -213,7 +213,7 @@ fn workspace_role(
     if relative == Utf8Path::new(donder_project_io::PROJECT_ROOT_FILE) {
         return WorkspaceEntryRole::Entrypoint;
     }
-    let document_id = donder_language::identity::DocumentId::new(module_id, relative.to_path_buf());
+    let document_id = donder_model::DocumentId::new(module_id, relative.to_path_buf());
     if let Some(document) = session.source.documents.get(&document_id) {
         let fallback = match document.kind() {
             donder_project_io::SourceDocumentKind::Script { .. } => WorkspaceEntryRole::Effect,

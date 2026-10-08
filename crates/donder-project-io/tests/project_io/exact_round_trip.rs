@@ -49,10 +49,8 @@ fn saving_normalizes_whitespace_and_keeps_every_token_and_list_order() {
     let mut edited = common::load_project(&root);
     assert_eq!(session.project, edited.project);
     let mut sequence = edited.project.sequence(&sequence_id).unwrap().clone();
-    sequence.layers[0].name = donder_language::names::object_name(&format!(
-        "{}_edited",
-        sequence.layers[0].name.as_str()
-    ));
+    sequence.layers[0].name =
+        donder_language::object_name(&format!("{}_edited", sequence.layers[0].name.as_str()));
     sequence.effects.reverse();
     let names = sequence
         .effects
@@ -141,8 +139,8 @@ fn removing_only_typed_object_rejects_save_before_any_write() {
     session
         .project
         .apply_edits([
-            donder_language::model::ProjectEdit::ReplaceRoot(project_root),
-            donder_language::model::ProjectEdit::RemoveSequence(id.clone()),
+            donder_model::ProjectEdit::ReplaceRoot(project_root),
+            donder_model::ProjectEdit::RemoveSequence(id.clone()),
         ])
         .unwrap();
     // Typed edits preserve project validity; source inventory must still agree at save time.
@@ -156,10 +154,7 @@ fn removing_only_typed_object_rejects_save_before_any_write() {
 
 #[test]
 fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
-    use donder_language::{
-        identity::{DocumentId, SourceIdentity},
-        sequence::SequenceId,
-    };
+    use donder_model::{DocumentId, SequenceId, SourceIdentity};
     let (_temporary, root, session) = starter_copy();
     let before = donder_project_io::project_source_texts(&root).unwrap();
     let original = &session.project.reusable_sequences()[session.project.root().sequences[0].id()];
@@ -176,7 +171,7 @@ fn typed_objects_without_source_inventory_cannot_be_silently_omitted() {
             SequenceId(SourceIdentity::from_document(document, "unregistered".into()).into());
         candidate
             .project
-            .apply_edits([donder_language::model::ProjectEdit::InsertSequence(added)])
+            .apply_edits([donder_model::ProjectEdit::InsertSequence(added)])
             .unwrap();
         assert!(save_project(&candidate).is_err());
         assert_eq!(

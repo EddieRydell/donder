@@ -2,7 +2,7 @@
 
 This separate Cargo workspace builds the controller loader for the classic ESP32:
 Wi-Fi upload and control, flash storage, and four-output WS281x playback. It
-consumes `donder-runtime` and `donder-language` with default features off;
+consumes `donder-runtime` and `donder-runtime-types` with default features off;
 parsing, imports, target resolution and output selection stay on the host. The
 local `crates/donder-device-storage` crate owns the LittleFS configuration record
 (name, station network and claim token) and the two show slots. How the controller behaves is described in

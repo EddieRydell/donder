@@ -2,12 +2,12 @@
 //! output. Before lowering, black signals are folded into their consumers and
 //! an operator consumed once is fused into its consumer, so the boundary
 //! between them disappears from the prepared programs.
-use donder_language::dsl::Instance;
-use donder_language::model::AcceptedSequence;
-use donder_language::operator::composition_graph_output_dependencies;
-use donder_language::sequence::{CompositionGraphNodeKind, SequenceLayerId};
-use donder_language::values::Color;
+use donder_language::compiler::Instance;
+use donder_model::AcceptedSequence;
+use donder_model::composition_graph_output_dependencies;
+use donder_model::{CompositionGraphNodeKind, SequenceLayerId};
 use donder_runtime::{SequenceBuilder, SequenceRoot, SignalHandle};
+use donder_runtime_types::Color;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -62,8 +62,7 @@ pub(super) fn prepare<'id>(
         .collect::<Vec<_>>();
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
-    let duration =
-        donder_language::values::sample_duration_seconds_f32(accepted.timing().duration());
+    let duration = donder_runtime_types::sample_duration_seconds_f32(accepted.timing().duration());
     // Admission guarantees one output, connected operator ports and an acyclic graph.
     while let Some(index) = ready.pop() {
         let node = &graph.nodes[index];
@@ -79,13 +78,12 @@ pub(super) fn prepare<'id>(
                         .iter()
                         .map(|(port, source)| (port.0.as_str(), *source))
                         .collect::<IndexMap<_, _>>();
-                    let instance =
-                        operator
-                            .invocation()
-                            .instance(donder_language::dsl::ProgramConstants {
-                                duration_seconds: Some(duration),
-                                ..Default::default()
-                            });
+                    let instance = operator.invocation().instance(
+                        donder_language::compiler::ProgramConstants {
+                            duration_seconds: Some(duration),
+                            ..Default::default()
+                        },
+                    );
                     let inputs = operator
                         .definition()
                         .inputs()

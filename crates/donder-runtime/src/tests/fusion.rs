@@ -7,13 +7,11 @@ use super::evaluation::{
 use super::playback;
 use super::std;
 use crate::dsl::{RuntimeError, StripWorkspace};
-use donder_language::dsl::bytecode::{Instruction, SignalPixel};
-use donder_language::dsl::{
-    CompiledOperator, Instance, OperatorInvocation, ProgramConstants, SampleInvocation, Value,
-    compile_operators,
-};
-use donder_language::execution::{PreparedAutomation, SpatialContext};
-use donder_language::values::{Color, SampleTime};
+use donder_language::compiler::{CompiledOperator, Instance, ProgramConstants, compile_operators};
+use donder_runtime_types::bytecode::{Instruction, SignalPixel};
+use donder_runtime_types::{Color, SampleTime};
+use donder_runtime_types::{OperatorInvocation, SampleInvocation, Value};
+use donder_runtime_types::{PreparedAutomation, SpatialContext};
 use std::prelude::rust_2024::*;
 
 fn instance(operator: &CompiledOperator, values: &[(&str, Value)]) -> Instance {
@@ -371,9 +369,7 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
 
 #[test]
 fn fusion_preserves_resource_parameters() {
-    use donder_language::values::{
-        Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration,
-    };
+    use donder_runtime_types::{Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration};
     let definitions = operators(
         "operator Inner { input source;
             param levels: array<float>; param shape: curve in 0.0..1.0;
@@ -482,8 +478,8 @@ fn fusion_preserves_resource_parameters() {
 
 #[test]
 fn automated_sources_fuse_only_at_the_consumers_own_time() {
-    use donder_language::automation::AutomationMapping;
-    use donder_language::values::{Curve, CurvePoint, SampleDuration};
+    use donder_runtime_types::AutomationMapping;
+    use donder_runtime_types::{Curve, CurvePoint, SampleDuration};
     let definitions = operators(
         "operator Gain { input source; param gain: float in 0.0..1.0 = 0.7;
             sample { source.at(time) * gain }
@@ -511,7 +507,7 @@ fn automated_sources_fuse_only_at_the_consumers_own_time() {
             }
             .into(),
             mapping: AutomationMapping::Float { min: 0.2, max: 0.9 },
-            quantity: donder_language::execution::AutomatedQuantity::Value,
+            quantity: donder_runtime_types::AutomatedQuantity::Value,
         }]) as Box<[PreparedAutomation]>
     };
     let automated = |operator: &CompiledOperator| {

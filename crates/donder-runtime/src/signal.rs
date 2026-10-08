@@ -3,11 +3,11 @@ use crate::dsl::bytecode::BytecodeProgram;
 use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, StripWorkspace};
 use crate::sequence::programs::ExecutableGraph;
 pub(crate) use crate::targets::PreparedTarget;
-use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-pub(crate) use donder_language::execution::PreparedAutomation;
+pub(crate) use donder_runtime_types::PreparedAutomation;
+use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// Raw construction/archive data. This representation is not executable by itself:
 /// Archive admission checks it before publishing immutable playback state.
@@ -16,7 +16,7 @@ pub(crate) use donder_language::execution::PreparedAutomation;
 pub(crate) struct PreparedSignalGraph<P = Box<[BytecodeProgram]>, A = Box<[PreparedAutomation]>> {
     pub frame_rate: u32,
     pub frame_count: u32,
-    #[rkyv(with = donder_language::values::archive::Microseconds)]
+    #[rkyv(with = donder_runtime_types::Microseconds)]
     pub duration: SampleDuration,
     pub fixtures: Box<[PreparedFixture]>,
     pub fixture_pixel_offsets: Box<[usize]>,
@@ -61,9 +61,9 @@ pub struct PreparedFixture {
 
 #[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedEffect<A = Box<[PreparedAutomation]>> {
-    #[rkyv(with = donder_language::values::archive::Microseconds)]
+    #[rkyv(with = donder_runtime_types::Microseconds)]
     pub start_time: SampleTime,
-    #[rkyv(with = donder_language::values::archive::Microseconds)]
+    #[rkyv(with = donder_runtime_types::Microseconds)]
     pub duration: SampleDuration,
     pub target: usize,
     pub program: usize,

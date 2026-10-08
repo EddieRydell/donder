@@ -1,11 +1,11 @@
 //! Resolve authoring identities once, before lowering anything for playback.
 
 use crate::PrepareOutputs;
-use donder_language::controller::{ControllerId, ControllerPort};
-use donder_language::layout::Layout;
-use donder_language::model::{AcceptedSequence, DonderProject};
-use donder_language::patch::Patch;
-use donder_language::sequence::SequenceId;
+use donder_model::Layout;
+use donder_model::Patch;
+use donder_model::SequenceId;
+use donder_model::{AcceptedSequence, DonderProject};
+use donder_model::{ControllerId, ControllerPort};
 use indexmap::IndexSet;
 
 pub(crate) struct SelectedPort<'a> {
@@ -18,14 +18,12 @@ pub(crate) struct Selection<'a> {
     pub(crate) sequence: AcceptedSequence<'a>,
     pub(crate) layout: &'a Layout,
     pub(crate) geometry: &'a [(
-        donder_language::layout::FixtureInstanceId,
-        donder_language::execution::FixtureGeometry,
+        donder_model::FixtureInstanceId,
+        donder_runtime_types::FixtureGeometry,
     )],
     pub(crate) patch: &'a Patch,
-    pub(crate) encodings: &'a indexmap::IndexMap<
-        donder_language::patch::PixelRouteId,
-        donder_language::execution::OutputEncoding,
-    >,
+    pub(crate) encodings:
+        &'a indexmap::IndexMap<donder_model::PixelRouteId, donder_runtime_types::OutputEncoding>,
     pub(crate) ports: Vec<SelectedPort<'a>>,
 }
 
@@ -125,8 +123,8 @@ pub(crate) fn resolve<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use donder_language::controller::ControllerPortId;
-    use donder_language::identity::SourceIdentity;
+    use donder_model::ControllerPortId;
+    use donder_model::SourceIdentity;
 
     fn starter() -> DonderProject {
         let path = camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
@@ -238,9 +236,9 @@ mod tests {
             .reusable_sequences()
             .keys()
             .cloned()
-            .map(donder_language::model::ProjectEdit::RemoveSequence)
+            .map(donder_model::ProjectEdit::RemoveSequence)
             .collect::<Vec<_>>();
-        edits.push(donder_language::model::ProjectEdit::ReplaceRoot(root));
+        edits.push(donder_model::ProjectEdit::ReplaceRoot(root));
         project.apply_edits(edits).unwrap();
         assert!(resolve(&project, &sequence, PrepareOutputs::All).is_none());
     }

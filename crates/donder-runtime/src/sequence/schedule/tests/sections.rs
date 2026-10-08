@@ -1,6 +1,6 @@
 use super::*;
 use crate::dsl::bytecode::FloatBinary;
-use crate::values::Color;
+use donder_runtime_types::Color;
 
 fn sequence(
     selected: bool,

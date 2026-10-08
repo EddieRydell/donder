@@ -33,7 +33,7 @@ pub use sequence::{
 };
 pub use signal::PreparedFixture;
 
-use donder_language::{automation, sampling, values};
+use donder_runtime_types::sampling;
 
 mod archive;
 mod clip;

@@ -5,7 +5,7 @@ use crate::dto::{
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection, SequenceSelectionEdit,
     SequenceSelectionEditResult,
 };
-use donder_language::sequence::{AutomationTarget, Sequence, SequenceId};
+use donder_model::{AutomationTarget, Sequence, SequenceId};
 use std::sync::Arc;
 
 struct Timeline {

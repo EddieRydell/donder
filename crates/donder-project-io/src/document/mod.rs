@@ -6,9 +6,10 @@ pub(crate) mod save;
 pub(crate) mod types;
 
 use crate::source::SourceObjectKind;
-use donder_language::data::schema::{Data, Decoder, Record, Schema, declaration};
-use donder_language::data::tree::{DataDeclaration, DataDocument, DataImport, Spanned};
-use donder_language::dsl::{Diagnostic, Identifier, TextSpan};
+use donder_language::compiler::{Diagnostic, TextSpan};
+use donder_language::data::{Data, Decoder, Record, Schema, declaration};
+use donder_language::data::{DataDeclaration, DataDocument, DataImport, Spanned};
+use donder_runtime_types::Identifier;
 
 /// One top-level declaration of a data document.
 #[derive(Clone, Debug, PartialEq)]

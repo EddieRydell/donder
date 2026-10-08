@@ -8,6 +8,8 @@ license = "MIT"
 [dependencies]
 camino.workspace = true
 donder-language.workspace = true
+donder-model.workspace = true
+donder-runtime-types.workspace = true
 donder-project-io.workspace = true
 donder-sequence-api.workspace = true
 indexmap.workspace = true

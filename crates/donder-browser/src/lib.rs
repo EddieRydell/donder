@@ -12,28 +12,25 @@
 )]
 
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::controller::ControllerId;
-use donder_language::dsl::{compile_effects, compile_operators};
-use donder_language::effect::{EffectDefinition, EffectDefinitionId};
-use donder_language::fixture::{
-    FixtureDefinition, FixtureElement, FixtureElementId, FixtureShape, FixtureTransform,
-};
-use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_language::layout::{
-    FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
-};
-use donder_language::model::{
+use donder_language::compiler::{compile_effects, compile_operators};
+use donder_language::{Distance, DistanceSpan, DonderDuration, Point3};
+use donder_model::ControllerId;
+use donder_model::SequenceId;
+use donder_model::ValueSource;
+use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
+use donder_model::{
     DonderProject, ProjectData, ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
 };
-use donder_language::ownership::ValueSource;
-use donder_language::patch::{Patch, PatchId};
-use donder_language::sequence::SequenceId;
-use donder_language::setup::{Setup, SetupId};
-use donder_language::values::{
-    Color, Distance, DistanceSpan, DonderDuration, Point3, sample_time_from_seconds_f32,
+use donder_model::{EffectDefinition, EffectDefinitionId};
+use donder_model::{
+    FixtureDefinition, FixtureElement, FixtureElementId, FixtureShape, FixtureTransform,
 };
+use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_model::{Patch, PatchId};
+use donder_model::{Setup, SetupId};
 use donder_project_io::ProjectSession;
 use donder_runtime::SequencePlayback;
+use donder_runtime_types::{Color, sample_time_from_seconds_f32};
 use donder_sequence_api::{
     BrowserCompileDiagnostic as DiagnosticView, BrowserCompileResult as CompileView,
     BrowserPageNode, BrowserSessionConfig,
@@ -63,7 +60,7 @@ fn js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
 }
 
 fn diagnostics_view(
-    diagnostics: Vec<donder_language::dsl::Diagnostic>,
+    diagnostics: Vec<donder_language::compiler::Diagnostic>,
 ) -> Result<Vec<DiagnosticView>, JsValue> {
     diagnostics
         .into_iter()
@@ -138,9 +135,7 @@ impl BrowserSession {
                 id: PatchId(setup_object.owned(OwnedObjectSlot::Patch)),
                 routes: Vec::new(),
             })),
-            controllers: Vec::<
-                ValueSource<Box<donder_language::controller::Controller>, ControllerId>,
-            >::new(),
+            controllers: Vec::<ValueSource<Box<donder_model::Controller>, ControllerId>>::new(),
         };
         let data = ProjectData {
             root: ProjectRoot {
@@ -164,13 +159,9 @@ impl BrowserSession {
                 JsValue::from_str("Sequence duration is outside the supported range.")
             })?,
         );
-        let sequence_id = donder_language::ownership::edit::add_sequence(
-            &mut project,
-            duration,
-            config.frame_rate,
-            Color::BLACK,
-        )
-        .map_err(|error| JsValue::from_str(&error))?;
+        let sequence_id =
+            donder_model::add_sequence(&mut project, duration, config.frame_rate, Color::BLACK)
+                .map_err(|error| JsValue::from_str(&error))?;
         let mut session = sources::initial_session(project, &project_source)?;
         for source in &config.sources {
             sources::install_source(
@@ -276,9 +267,9 @@ fn set_mark_collections(
     sequence.mark_collections = collections
         .iter()
         .map(|collection| {
-            Ok(donder_language::sequence::MarkCollection {
-                key: donder_language::sequence::MarkCollectionKey {
-                    name: donder_language::names::object_name(&collection.key),
+            Ok(donder_model::MarkCollection {
+                key: donder_model::MarkCollectionKey {
+                    name: donder_language::object_name(&collection.key),
                 },
                 description: None,
                 display_color: Color::from_hex(&collection.color).ok_or_else(|| {
@@ -291,9 +282,9 @@ fn set_mark_collections(
                     .marks_seconds
                     .iter()
                     .map(|&seconds| {
-                        donder_language::values::DonderTime::try_from_seconds_f32(seconds).map_err(
-                            |_| JsValue::from_str("Mark times must be non-negative seconds."),
-                        )
+                        donder_language::DonderTime::try_from_seconds_f32(seconds).map_err(|_| {
+                            JsValue::from_str("Mark times must be non-negative seconds.")
+                        })
                     })
                     .collect::<Result<_, _>>()?,
             })

@@ -7,9 +7,9 @@ use super::std;
 use std::prelude::rust_2024::*;
 
 use crate::dsl::StripWorkspace;
-use donder_language::dsl::Value;
-use donder_language::execution::SpatialContext;
-use donder_language::values::{Color, Gradient};
+use donder_runtime_types::SpatialContext;
+use donder_runtime_types::Value;
+use donder_runtime_types::{Color, Gradient};
 
 const SPATIAL: SpatialContext = SpatialContext {
     position: [0.0; 2],

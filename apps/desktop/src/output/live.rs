@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use donder_language::controller::{Controller, ControllerId};
+use donder_model::{Controller, ControllerId};
 use donder_output::OutputTransports;
 use indexmap::IndexMap;
 
@@ -501,11 +501,11 @@ mod tests {
 
     #[test]
     fn failed_blackout_retains_original_failure_and_drops_transports() {
-        use donder_language::controller::{
+        use donder_model::{
             ArtNetConfig, ArtNetMode, ControllerPort, ControllerPortAddress, ControllerPortId,
             ControllerProtocol,
         };
-        use donder_language::identity::{DocumentId, SourceIdentity};
+        use donder_model::{DocumentId, SourceIdentity};
         let id = ControllerId(
             SourceIdentity::from_document(
                 DocumentId::new(uuid::Uuid::new_v4(), "controller.donder".into()),
@@ -523,7 +523,7 @@ mod tests {
                 mode: ArtNetMode::Unicast,
             }),
             ports: vec![ControllerPort {
-                name: donder_language::names::object_name("port"),
+                name: donder_language::object_name("port"),
                 id: ControllerPortId(1),
                 address: ControllerPortAddress::ArtNetPort(u16::MAX),
                 slot_count: 6,

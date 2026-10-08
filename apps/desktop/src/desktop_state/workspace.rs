@@ -305,8 +305,8 @@ impl DesktopState {
             workspace.view.active_file = workspace.view.active_file.as_deref().map(remap);
             workspace.render_target = workspace.render_target.as_ref().map(|(setup, sequence)| {
                 (
-                    donder_language::setup::SetupId(plan.remap_object_identity(&setup.0)),
-                    donder_language::sequence::SequenceId(plan.remap_object_identity(&sequence.0)),
+                    donder_model::SetupId(plan.remap_object_identity(&setup.0)),
+                    donder_model::SequenceId(plan.remap_object_identity(&sequence.0)),
                 )
             });
             workspace.view.project_revision += 1;

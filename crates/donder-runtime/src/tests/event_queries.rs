@@ -3,9 +3,9 @@ use super::playback;
 use super::std;
 use crate::dsl::RunContext;
 use crate::dsl::StripWorkspace;
-use donder_language::dsl::Value;
-use donder_language::execution::SpatialContext;
-use donder_language::values::{Color, Gradient, GradientStop, SampleDuration};
+use donder_runtime_types::SpatialContext;
+use donder_runtime_types::Value;
+use donder_runtime_types::{Color, Gradient, GradientStop, SampleDuration};
 use std::prelude::rust_2024::*;
 
 /// One parameter: its name, its declared type and range, and its value.
@@ -38,7 +38,7 @@ fn sample(params: &[Param], body: &str) -> Color {
     let fixed = compile_effect(&format!(
         "effect Query {{ {declarations} sample {{ {body} }} }}"
     ));
-    let evaluate = |invocation: &donder_language::dsl::Invocation| {
+    let evaluate = |invocation: &donder_language::compiler::Invocation| {
         playback::lower_sample(invocation).evaluate(
             &context,
             &spatial,

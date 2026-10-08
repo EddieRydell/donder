@@ -10,7 +10,7 @@ pub(super) enum RenderInputSignature {
 pub(super) struct RenderInputSignatureData {
     effect: EffectInst,
     frame_rate: u32,
-    sequence_duration: donder_language::values::DonderDuration,
+    sequence_duration: donder_language::DonderDuration,
     automation_clips: Vec<AutomationInputSignature>,
     definition: Option<EffectDefinition>,
     curve_references: Vec<(CurveId, Option<CurveDefinition>)>,
@@ -23,7 +23,7 @@ pub(super) struct RenderInputSignatureData {
 pub(super) struct AutomationInputSignature {
     clip_id: u32,
     start: DonderTime,
-    duration: donder_language::values::DonderDuration,
+    duration: donder_language::DonderDuration,
     curve: Curve,
     bindings: Vec<AutomationBinding>,
 }
@@ -40,10 +40,9 @@ pub(super) fn render_signature(
     let layout = project
         .layout(setup.layout.id())
         .ok_or_else(|| "raster layout selection is unavailable".to_string())?;
-    let geometry = donder_language::geometry::PreparedFixtureDefinitions::prepare(
-        &project.definitions().fixtures,
-    )
-    .prepare_layout(layout);
+    let geometry =
+        donder_model::PreparedFixtureDefinitions::prepare(&project.definitions().fixtures)
+            .prepare_layout(layout);
     let target_pixels = geometry
         .target(&effect.target)
         .map_err(|error| format!("{error:?}"))?
@@ -258,10 +257,7 @@ pub(super) fn hash_effect_inst<H: Hasher>(effect: &EffectInst, state: &mut H) {
     }
 }
 
-pub(super) fn hash_effect_target<H: Hasher>(
-    target: &donder_language::layout::FixtureTarget,
-    state: &mut H,
-) {
+pub(super) fn hash_effect_target<H: Hasher>(target: &donder_model::FixtureTarget, state: &mut H) {
     target.hash(state);
 }
 
@@ -356,7 +352,7 @@ pub(super) fn hash_optional_effect_definition<H: Hasher>(
 }
 
 pub(super) fn hash_effect_definition<H: Hasher>(definition: &EffectDefinition, state: &mut H) {
-    let donder_language::effect::EffectImplementation::Dsl(compiled) = definition.implementation();
+    let donder_model::EffectImplementation::Dsl(compiled) = definition.implementation();
     hash_compiled_effect(compiled, state);
 }
 
@@ -411,7 +407,7 @@ pub(super) fn hash_marks<H: Hasher>(marks: &[DonderTime], state: &mut H) {
 
 #[derive(Clone, Debug, PartialEq)]
 struct RasterTargetPixel {
-    fixture_id: donder_language::layout::FixtureInstanceId,
+    fixture_id: donder_model::FixtureInstanceId,
     fixture_pixel_index: usize,
     position: [f32; 2],
 }

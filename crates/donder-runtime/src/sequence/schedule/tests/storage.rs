@@ -1,5 +1,5 @@
 use super::*;
-use crate::values::Color;
+use donder_runtime_types::Color;
 
 #[derive(Clone, Copy)]
 enum Selection {

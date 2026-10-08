@@ -9,6 +9,8 @@ license = "MIT"
 [dependencies]
 camino.workspace = true
 donder-language.workspace = true
+donder-model.workspace = true
+donder-runtime-types.workspace = true
 donder-project-io.workspace = true
 indexmap.workspace = true
 lsp-types.workspace = true

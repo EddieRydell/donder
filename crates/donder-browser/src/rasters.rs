@@ -16,9 +16,8 @@ impl BrowserSession {
             .clip(effect_id)
             .ok_or_else(|| JsValue::from_str("The requested effect clip was not found."))?;
         let settings = donder_sequence_api::AppSettings::default().effect_raster;
-        let start_seconds = donder_language::values::sample_time_seconds_f32(clip.start_time());
-        let duration_seconds =
-            donder_language::values::sample_duration_seconds_f32(clip.duration());
+        let start_seconds = donder_runtime_types::sample_time_seconds_f32(clip.start_time());
+        let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(clip.duration());
         let stride_columns = (duration_seconds * clip.frame_rate() as f32
             / settings.min_frame_stride.max(1) as f32)
             .ceil()

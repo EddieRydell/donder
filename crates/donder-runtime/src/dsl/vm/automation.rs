@@ -4,12 +4,12 @@
 //! belong to the plan, not to a tagged parameter value supplied during playback.
 
 use super::{Arc, BoundParams, CurveParameter, Identifier, PreparedCurve};
-use crate::automation::AutomationMapping;
 use crate::sampling::{curve_area, sample_curve};
 use crate::signal::PreparedAutomation;
-use crate::values::{Curve, MICROS_PER_SECOND, SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec::Vec};
-use donder_language::execution::AutomatedQuantity;
+use donder_runtime_types::AutomatedQuantity;
+use donder_runtime_types::AutomationMapping;
+use donder_runtime_types::{Curve, MICROS_PER_SECOND, SampleDuration, SampleTime};
 
 #[derive(Clone, Debug)]
 pub(crate) struct AutomationPlan {

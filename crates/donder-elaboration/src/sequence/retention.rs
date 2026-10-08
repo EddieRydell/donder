@@ -1,8 +1,8 @@
 //! Selected output cells and the additional input domain reachable operators need.
 use crate::selection::Selection;
-use donder_language::execution::{FixtureGeometry, TargetGeometry};
-use donder_language::patch::PixelRouteId;
-use donder_language::sequence::CompositionGraphNodeId;
+use donder_model::CompositionGraphNodeId;
+use donder_model::PixelRouteId;
+use donder_runtime_types::{FixtureGeometry, TargetGeometry};
 use indexmap::IndexMap;
 use std::collections::{BTreeSet, HashSet};
 

@@ -1,4 +1,3 @@
-#![cfg_attr(not(feature = "host"), no_std)]
 #![deny(unsafe_code)]
 #![cfg_attr(
     not(test),
@@ -11,56 +10,17 @@
     )
 )]
 
-extern crate alloc;
-
-// Shared executable values use one pointer policy across compiler and runtime.
-#[cfg(not(feature = "atomic"))]
-pub use alloc::rc::Rc as Shared;
-#[cfg(feature = "atomic")]
-pub use alloc::sync::Arc as Shared;
-
-#[cfg(feature = "host")]
 pub mod analysis;
-pub mod automation;
-#[cfg(feature = "host")]
-pub mod controller;
-#[cfg(feature = "host")]
+pub mod compiler;
 pub mod data;
-pub mod dsl;
-#[cfg(feature = "host")]
-pub mod effect;
-pub mod execution;
-#[cfg(feature = "host")]
-pub mod fixture;
-#[cfg(feature = "host")]
-pub mod geometry;
-#[cfg(feature = "host")]
-pub mod identity;
-#[cfg(feature = "host")]
-pub mod imports;
-#[cfg(feature = "host")]
-pub mod names;
-#[cfg(feature = "host")]
+mod imports;
+mod names;
 pub use imports::{
     ImportAlias, ImportDeclaration, ImportSource, SourceReference, is_valid_import_alias,
 };
-#[cfg(feature = "host")]
-pub mod layout;
-#[cfg(feature = "host")]
-pub mod model;
-#[cfg(feature = "host")]
-pub mod operator;
-#[cfg(feature = "host")]
-pub mod ownership;
-#[cfg(feature = "host")]
-pub mod patch;
-pub mod sampling;
-#[cfg(feature = "host")]
-pub mod sequence;
-#[cfg(feature = "host")]
-pub mod setup;
-#[cfg(feature = "host")]
-pub mod source_remap;
-#[cfg(feature = "host")]
-pub mod validation;
-pub mod values;
+pub use names::{is_object_name, name_from_text, object_name, unique_name};
+mod quantities;
+pub use quantities::{
+    Distance, DistanceSpan, DonderDuration, DonderTime, NANOS_PER_SECOND, Point3, Rotation3,
+    Scale3, SecondsError, sample_duration_from_donder_duration, sample_time_from_donder_time,
+};

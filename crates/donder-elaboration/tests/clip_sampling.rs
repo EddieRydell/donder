@@ -1,12 +1,10 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::sequence::{
-    AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId,
-};
-use donder_language::values::SampleTime;
+use donder_model::{AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId};
 use donder_runtime::LoadLimits;
 use donder_runtime::decode_sequence;
 use donder_runtime::encode_sequence;
+use donder_runtime_types::SampleTime;
 
 #[test]
 fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {

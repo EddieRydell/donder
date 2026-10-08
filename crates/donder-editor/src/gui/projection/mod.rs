@@ -127,7 +127,7 @@ pub(super) fn project_sequence(
     }
 }
 
-fn automation_clips(sequence: &donder_language::sequence::Sequence) -> Vec<SequenceAutomationClip> {
+fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomationClip> {
     sequence
         .automation_clips
         .iter()
@@ -197,10 +197,10 @@ pub(super) fn active_layout(session: &ProjectSession) -> Option<&Layout> {
 
 fn sequence_audio(
     session: &ProjectSession,
-    document: &donder_language::identity::DocumentId,
-    audio: &donder_language::sequence::SequenceAudio,
+    document: &donder_model::DocumentId,
+    audio: &donder_model::SequenceAudio,
 ) -> Option<SequenceAudio> {
-    let donder_language::sequence::SequenceAudio::Asset(id) = audio else {
+    let donder_model::SequenceAudio::Asset(id) = audio else {
         return None;
     };
     session
@@ -222,14 +222,12 @@ fn sequence_audio(
 
 /// The timeline lanes: the layout root walked depth-first, with each item's
 /// depth. A member of several groups has a lane under each.
-pub(crate) fn lane_walk(
-    layout: &donder_language::layout::Layout,
-) -> Vec<(&donder_language::layout::LayoutFixture, u32)> {
+pub(crate) fn lane_walk(layout: &donder_model::Layout) -> Vec<(&donder_model::LayoutFixture, u32)> {
     fn push<'a>(
-        layout: &'a donder_language::layout::Layout,
-        members: &[donder_language::layout::FixtureInstanceId],
+        layout: &'a donder_model::Layout,
+        members: &[donder_model::FixtureInstanceId],
         depth: u32,
-        lanes: &mut Vec<(&'a donder_language::layout::LayoutFixture, u32)>,
+        lanes: &mut Vec<(&'a donder_model::LayoutFixture, u32)>,
     ) {
         for &member in members {
             if let Some(fixture) = layout.fixture(member) {
@@ -244,7 +242,7 @@ pub(crate) fn lane_walk(
 }
 
 /// Lanes with the hierarchy depth and how many lanes share each target.
-fn layout_lanes(layout: &donder_language::layout::Layout) -> Vec<SequenceLane> {
+fn layout_lanes(layout: &donder_model::Layout) -> Vec<SequenceLane> {
     let mut lanes = lane_walk(layout)
         .into_iter()
         .map(|(fixture, depth)| SequenceLane {
@@ -253,10 +251,8 @@ fn layout_lanes(layout: &donder_language::layout::Layout) -> Vec<SequenceLane> {
             },
             label: fixture.name.as_str().to_string(),
             kind: match fixture.kind {
-                donder_language::layout::LayoutFixtureKind::Group { .. } => SequenceLaneKind::Group,
-                donder_language::layout::LayoutFixtureKind::Fixture { .. } => {
-                    SequenceLaneKind::Fixture
-                }
+                donder_model::LayoutFixtureKind::Group { .. } => SequenceLaneKind::Group,
+                donder_model::LayoutFixtureKind::Fixture { .. } => SequenceLaneKind::Fixture,
             },
             depth,
             occurrences: 0,
@@ -316,10 +312,10 @@ fn effect_definitions(session: &ProjectSession) -> Vec<SequenceEffectDefinition>
         })
         .collect()
 }
-use donder_language::effect::{EffectRef, EffectScope};
-use donder_language::layout::{FixtureTarget as DomainFixtureTarget, Layout};
-use donder_language::operator::OperatorRef;
-use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget, SequenceId};
+use donder_model::OperatorRef;
+use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId};
+use donder_model::{EffectRef, EffectScope};
+use donder_model::{FixtureTarget as DomainFixtureTarget, Layout};
 use donder_project_io::ProjectSession;
 
 mod spatial;

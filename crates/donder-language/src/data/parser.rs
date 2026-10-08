@@ -3,11 +3,11 @@
 //! next `,` or closing bracket, so the rest of the document keeps its tree.
 use super::literal;
 use super::tree::*;
-use crate::dsl::Diagnostic;
-use crate::dsl::Identifier;
-use crate::dsl::TextSpan;
-use crate::dsl::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_mode};
-use crate::values::Color;
+use crate::compiler::Diagnostic;
+use crate::compiler::TextSpan;
+use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_mode};
+use donder_runtime_types::Color;
+use donder_runtime_types::Identifier;
 
 const MAX_NESTING: usize = 128;
 

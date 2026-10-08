@@ -3,8 +3,8 @@
 //! definitions are the schema: `#[derive(Data)]` generates parsing, printing
 //! and the shapes the generated reference and the language server read.
 use donder_data_derive::Data;
-use donder_language::data::schema::{Meters, Name, NamedSource, Params, Path, Reference, Source};
-use donder_language::values::Color;
+use donder_language::data::{Meters, Name, NamedSource, Params, Path, Reference, Source};
+use donder_runtime_types::Color;
 use std::time::Duration;
 
 #[derive(Clone, Debug, PartialEq, Data)]

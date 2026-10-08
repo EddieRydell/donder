@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::gui::GuiMutationError;
-use donder_language::sequence::SequenceId;
+use donder_model::SequenceId;
 use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};

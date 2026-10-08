@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
 use crate::ControllerPortFrame;
-use donder_language::controller::{
+use donder_model::{
     ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId, E131Config, E131Mode,
 };
 use sacn::packet::{
@@ -181,8 +181,8 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, UdpSocket};
     use std::time::Duration;
 
-    use donder_language::controller::{ControllerPort, ControllerPortAddress};
-    use donder_language::identity::{DocumentId, SourceIdentity};
+    use donder_model::{ControllerPort, ControllerPortAddress};
+    use donder_model::{DocumentId, SourceIdentity};
     use sacn::packet::{AcnRootLayerProtocol, E131RootLayerData};
     use uuid::Uuid;
 
@@ -210,7 +210,7 @@ mod tests {
             },
         };
         let port = ControllerPort {
-            name: donder_language::names::object_name("port"),
+            name: donder_language::object_name("port"),
             id: ControllerPortId(1),
             address: ControllerPortAddress::E131Universe(42),
             slot_count: 3,

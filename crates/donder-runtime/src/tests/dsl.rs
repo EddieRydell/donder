@@ -7,17 +7,17 @@ use super::evaluation::{
 use super::playback;
 use super::std;
 use crate::dsl::{RunContext, RuntimeError, StripWorkspace};
-use donder_language::dsl::bytecode::SignalPixel;
-use donder_language::dsl::{Color, Value, compile_effects, compile_operators};
-use donder_language::values::{Marks, SampleDuration, SampleTime};
+use donder_language::compiler::{compile_effects, compile_operators};
+use donder_runtime_types::bytecode::SignalPixel;
+use donder_runtime_types::{Color, Value};
+use donder_runtime_types::{Marks, SampleDuration, SampleTime};
 use std::prelude::rust_2024::*;
 
-const SPATIAL: donder_language::execution::SpatialContext =
-    donder_language::execution::SpatialContext {
-        position: [0.0; 2],
-        min: [0.0; 2],
-        max: [0.0; 2],
-    };
+const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 const WHITE: Color = Color {
     red: 255,
@@ -50,7 +50,7 @@ fn pixel(index: usize, count: usize) -> PixelContext {
     }
 }
 
-fn messages(diagnostics: &[donder_language::dsl::Diagnostic]) -> String {
+fn messages(diagnostics: &[donder_language::compiler::Diagnostic]) -> String {
     diagnostics
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
@@ -553,7 +553,7 @@ fn choices_hold_one_enum_type() {
 }
 
 fn enum_value(name: &str) -> Value {
-    Value::Enum(donder_language::dsl::Identifier::new(name.into()).unwrap())
+    Value::Enum(donder_runtime_types::Identifier::new(name.into()).unwrap())
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::identity::DocumentId;
+use donder_model::DocumentId;
 use donder_project_io::ProjectSession;
 
 /// All source tabs use project-relative paths.

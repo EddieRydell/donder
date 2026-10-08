@@ -1,7 +1,7 @@
 //! Compact physical selections with their original logical sampling coordinates.
 //! These structures are both the archive and the executable representation.
 use alloc::{boxed::Box, vec::Vec};
-use donder_language::Shared;
+use donder_runtime_types::Shared;
 
 use crate::dsl::SpatialContext;
 use crate::signal::PreparedPixel;

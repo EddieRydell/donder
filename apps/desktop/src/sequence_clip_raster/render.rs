@@ -37,9 +37,8 @@ pub(super) fn render_effect_raster(
     let renderer = renderer
         .clip(effect_id)
         .ok_or_else(|| RasterRenderFailure::Error("raster clip selection is unavailable".into()))?;
-    let start_seconds = donder_language::values::sample_time_seconds_f32(renderer.start_time());
-    let duration_seconds =
-        donder_language::values::sample_duration_seconds_f32(renderer.duration());
+    let start_seconds = donder_runtime_types::sample_time_seconds_f32(renderer.start_time());
+    let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(renderer.duration());
     if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
         return Err(RasterRenderFailure::Error(
             "effect duration must be positive and finite".to_string(),
@@ -107,7 +106,7 @@ fn raster_column_time(
     clip: &donder_runtime::SequenceClip<'_>,
     column: usize,
     columns: usize,
-) -> Result<donder_language::values::SampleTime, RasterRenderFailure> {
+) -> Result<donder_runtime_types::SampleTime, RasterRenderFailure> {
     clip.raster_column_time(column, columns)
         .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))
 }

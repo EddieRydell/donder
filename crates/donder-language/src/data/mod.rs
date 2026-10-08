@@ -10,12 +10,20 @@
 pub(crate) mod literal;
 mod parser;
 mod printer;
-pub mod schema;
-pub mod tree;
+pub(crate) mod schema;
+pub(crate) mod tree;
 
 pub use literal::{canonical_distance, canonical_duration, canonical_float};
 pub use parser::parse;
 pub use printer::print;
+pub use schema::{
+    Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, NamedSource, Params,
+    Path, Record, Reference, Schema, Shape, Source, declaration, decode_record, field, record,
+    spanned, variant,
+};
+pub use tree::{
+    DataDeclaration, DataDocument, DataField, DataImport, DataValue, Spanned, is_pascal_case,
+};
 
 /// Data documents and scripts share the effect language's file extension;
 /// data adds `.data` before it.

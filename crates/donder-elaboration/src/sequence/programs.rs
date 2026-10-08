@@ -1,9 +1,10 @@
 //! Lowering and interning. Instances of one definition usually lower to the
 //! same program with different bound values; playback keeps one copy.
-use donder_language::Shared;
-use donder_language::dsl::{
-    Instance, OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition,
-    SampleInvocation, SampleProgram,
+use donder_language::compiler::Instance;
+use donder_runtime_types::Shared;
+use donder_runtime_types::{
+    OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition, SampleInvocation,
+    SampleProgram,
 };
 
 #[derive(Default)]

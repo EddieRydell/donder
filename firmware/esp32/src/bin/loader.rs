@@ -29,9 +29,9 @@ use core::{
     fmt::Write as _,
     sync::atomic::{AtomicU32, Ordering::Relaxed},
 };
-use donder_language::values::SampleTime;
+use donder_runtime_types::SampleTime;
 #[cfg(feature = "i2s-output")]
-use donder_language::values::sample_time_from_frame;
+use donder_runtime_types::sample_time_from_frame;
 #[cfg(feature = "i2s-output")]
 use donder_runtime::FrameTiming;
 use donder_runtime::{HEADER_BYTES, LoadError, LoadLimits, SequencePlayback, decode_sequence};

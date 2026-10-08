@@ -1,8 +1,8 @@
 use crate::selection::Selection;
-use donder_language::execution::{FixtureGeometry, TargetGeometry, TargetScope};
-use donder_language::layout::FixtureInstanceId;
-use donder_language::patch::PixelRouteId;
+use donder_model::FixtureInstanceId;
+use donder_model::PixelRouteId;
 use donder_runtime::{FixtureHandle, SequenceBuilder};
+use donder_runtime_types::{FixtureGeometry, TargetGeometry, TargetScope};
 use indexmap::IndexMap;
 
 pub(super) fn targets(
@@ -72,7 +72,7 @@ pub(super) fn prepare<'id>(
                             .map(|&index| (index, &geometry[index])),
                         TargetScope::PerFixture,
                     );
-                    let retained = |pixel: &&donder_language::execution::TargetPixel| {
+                    let retained = |pixel: &&donder_runtime_types::TargetPixel| {
                         cells[pixel.fixture()].binary_search(&pixel.cell()).is_ok()
                     };
                     let start = original

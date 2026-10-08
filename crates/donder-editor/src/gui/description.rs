@@ -1,12 +1,12 @@
 //! Object descriptions: the prose a data object carries in place of comments,
 //! shown and edited with the open object.
-use donder_language::controller::ControllerId;
-use donder_language::effect::{CurveId, GradientId};
-use donder_language::layout::LayoutId;
-use donder_language::model::ProjectEdit;
-use donder_language::patch::PatchId;
-use donder_language::sequence::SequenceId;
-use donder_language::setup::SetupId;
+use donder_model::ControllerId;
+use donder_model::LayoutId;
+use donder_model::PatchId;
+use donder_model::ProjectEdit;
+use donder_model::SequenceId;
+use donder_model::SetupId;
+use donder_model::{CurveId, GradientId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject};

@@ -1,7 +1,7 @@
 use crate::common;
 
 use camino::Utf8PathBuf;
-use donder_language::data::tree::{DataField, DataValue, Spanned};
+use donder_language::data::{DataField, DataValue, Spanned};
 use donder_project_io::{
     PROJECT_ROOT_FILE, SourceDocumentFormat, check_project_with_overrides, project_source_texts,
     source_document_format,

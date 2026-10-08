@@ -119,8 +119,8 @@ pub(crate) fn analyze_working_copy(request: &WorkingCopyPayload) -> Option<Proje
 
 pub(crate) struct RenderRefreshPayload {
     pub project: Arc<ProjectSession>,
-    pub setup_id: donder_language::setup::SetupId,
-    pub sequence_id: donder_language::sequence::SequenceId,
+    pub setup_id: donder_model::SetupId,
+    pub sequence_id: donder_model::SequenceId,
     pub project_epoch: u32,
     pub project_revision: u32,
 }

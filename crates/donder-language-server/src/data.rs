@@ -4,9 +4,9 @@ use donder_language::analysis::{
     Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind, analyze_script,
     data_token_stream,
 };
-use donder_language::data::schema::{Definition, Fields, Schema, Shape};
-use donder_language::data::tree::{DataDocument, DataField, DataValue, Spanned, is_pascal_case};
-use donder_language::dsl::TextSpan;
+use donder_language::compiler::TextSpan;
+use donder_language::data::{DataDocument, DataField, DataValue, Spanned, is_pascal_case};
+use donder_language::data::{Definition, Fields, Schema, Shape};
 use donder_project_io::{DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema};
 
 use crate::navigation::script_member;

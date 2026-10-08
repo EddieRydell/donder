@@ -1,8 +1,8 @@
 use crate::common;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::identity::DocumentId;
-use donder_language::values::{DonderDuration, DonderTime};
+use donder_language::{DonderDuration, DonderTime};
+use donder_model::DocumentId;
 use donder_project_io::{
     IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, TextRange, check_document_text,
     check_project, check_project_document_text,
@@ -31,15 +31,13 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
         .clone();
     sequence.frame_rate = 1;
     sequence.duration = DonderDuration(Duration::from_secs(4_300));
-    let error =
-        donder_language::validation::validate_sequence(&session.project, &sequence).unwrap_err();
+    let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
     assert!(error.message.contains("runtime clock range"), "{error:?}");
 
     sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
     sequence.effects[0].start = DonderTime(Duration::from_nanos(500));
     sequence.effects[0].duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
-    let error =
-        donder_language::validation::validate_sequence(&session.project, &sequence).unwrap_err();
+    let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
     assert!(error.message.contains("after rounding"), "{error:?}");
 }
 
@@ -58,7 +56,7 @@ fn project_validation_rejects_invalid_edited_curve_definitions() {
     definition.curve.points[0].position = f32::NAN;
     let error = session
         .project
-        .apply_edits([donder_language::model::ProjectEdit::SetCurveDefinition {
+        .apply_edits([donder_model::ProjectEdit::SetCurveDefinition {
             id,
             value: definition,
         }])
@@ -97,28 +95,27 @@ fn invalid_gradient_stops_are_rejected_on_load_and_after_edits() {
     definition.gradient.stops[0].position = f32::NAN;
     let error = session
         .project
-        .apply_edits(
-            [donder_language::model::ProjectEdit::SetGradientDefinition {
-                id,
-                value: definition,
-            }],
-        )
+        .apply_edits([donder_model::ProjectEdit::SetGradientDefinition {
+            id,
+            value: definition,
+        }])
         .unwrap_err();
     assert!(error.to_string().contains("Gradient"), "{error}");
 }
 
 #[test]
 fn edited_operator_parameters_validate_inline_resources() {
-    use donder_language::dsl::{Identifier, compile_operators};
-    use donder_language::effect::{EffectParamValue, GradientSource};
-    use donder_language::identity::SourceIdentity;
-    use donder_language::operator::{
-        GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
-    };
-    use donder_language::sequence::{
+    use donder_language::compiler::compile_operators;
+    use donder_model::SourceIdentity;
+    use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, GraphNodePosition,
     };
-    use donder_language::values::{Color, Gradient, GradientStop};
+    use donder_model::{EffectParamValue, GradientSource};
+    use donder_model::{
+        GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
+    };
+    use donder_runtime_types::Identifier;
+    use donder_runtime_types::{Color, Gradient, GradientStop};
 
     let mut session = starter_session().clone();
     let document = session
@@ -143,12 +140,10 @@ fn edited_operator_parameters_validate_inline_resources() {
     .remove(0);
     session
         .project
-        .apply_edits(
-            [donder_language::model::ProjectEdit::SetOperatorDefinition {
-                id: id.clone(),
-                value: custom_operator_definition(id.clone(), compiled),
-            }],
-        )
+        .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
+            id: id.clone(),
+            value: custom_operator_definition(id.clone(), compiled),
+        }])
         .unwrap();
     let sequence_id = session
         .project
@@ -159,7 +154,7 @@ fn edited_operator_parameters_validate_inline_resources() {
         .clone();
     let mut sequence = session.project.sequence(&sequence_id).unwrap().clone();
     let mut operator = GraphOperatorNode {
-        name: donder_language::names::object_name("operator"),
+        name: donder_language::object_name("operator"),
         operator: OperatorRef::Custom(id),
         params: Default::default(),
     };

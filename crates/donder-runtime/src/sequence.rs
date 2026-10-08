@@ -1,7 +1,7 @@
 use crate::patch::PreparedPatch;
 use crate::signal::{EvaluationWorkspace, PreparedSignalGraph, SignalGraph};
-use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec};
+use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 mod builder;
 pub(crate) mod programs;
@@ -10,7 +10,7 @@ pub use builder::{
     EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
     SignalHandle, TargetHandle, WindowHandle,
 };
-use donder_language::execution::SequenceTiming;
+use donder_runtime_types::SequenceTiming;
 use programs::AdmittedPrograms;
 
 /// Frozen playback data; authoring, elaboration, networking, and pin timing are external.
@@ -243,13 +243,13 @@ mod tests {
     use super::*;
     use crate::dsl::bytecode::{Banks, BytecodeProgram, Instruction, Slot};
     use crate::signal::{PreparedSignalKind, PreparedSignalNode, PreparedTarget, SignalPlan};
-    use crate::values::SampleDuration;
     use alloc::vec;
     use alloc::vec::Vec;
-    use donder_language::dsl::{OperatorDefinition, SampleDefinition};
-    use donder_language::execution::{
+    use donder_runtime_types::SampleDuration;
+    use donder_runtime_types::{
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceWindow, TargetScope,
     };
+    use donder_runtime_types::{OperatorDefinition, SampleDefinition};
 
     mod routing;
 

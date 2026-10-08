@@ -167,7 +167,7 @@ pub(crate) fn byte_position(text: &str, byte_offset: usize) -> TextPosition {
     }
 }
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::dsl::{Diagnostic as DslDiagnostic, compile_script};
+use donder_language::compiler::{Diagnostic as DslDiagnostic, compile_script};
 
 use crate::{LoadProjectError, ProjectRecovery, ProjectSession};
 

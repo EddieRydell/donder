@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
-use donder_language::dsl::Identifier;
-use donder_language::sequence::AutomationTarget;
-use donder_language::values::sample_time_from_frame;
+use donder_model::AutomationTarget;
 use donder_project_io::load_project;
+use donder_runtime_types::Identifier;
+use donder_runtime_types::sample_time_from_frame;
 
 struct CountingAllocator;
 
@@ -129,7 +129,7 @@ fn prepared_controller_sampling_does_not_allocate() {
         "source.at(time + offset_seconds, target.count - 1 - pixel.index)",
         "source.at_global(time + offset_seconds, 226 + pixel.index)",
     ] {
-        let compiled = donder_language::dsl::compile_operators(&format!(
+        let compiled = donder_language::compiler::compile_operators(&format!(
             "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
         )).unwrap().remove(0);
         let definition_id = project
@@ -141,15 +141,12 @@ fn prepared_controller_sampling_does_not_allocate() {
             .unwrap()
             .0
             .clone();
-        let definition =
-            donder_language::operator::custom_operator_definition(definition_id.clone(), compiled);
+        let definition = donder_model::custom_operator_definition(definition_id.clone(), compiled);
         project
-            .apply_edits(
-                [donder_language::model::ProjectEdit::SetOperatorDefinition {
-                    id: definition_id,
-                    value: definition,
-                }],
-            )
+            .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
+                id: definition_id,
+                value: definition,
+            }])
             .unwrap();
         let output = prepare(&project, &sequence_id, PrepareOutputs::All).unwrap();
         assert_prepared_sampling_does_not_allocate(output, &[0, 8494, 7150, 7151, 7152, 0], query);
@@ -157,7 +154,7 @@ fn prepared_controller_sampling_does_not_allocate() {
 
     // Exercise the project-owned bounded Echo loop through the same prepared
     // controller path, including temporal queries and backward seeks.
-    let echo = donder_language::dsl::compile_operators(include_str!(
+    let echo = donder_language::compiler::compile_operators(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap()

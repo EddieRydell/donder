@@ -1,6 +1,6 @@
 # Effect language builtins
 
-<!-- Generated from crates/donder-language/src/dsl/builtins.rs by `pnpm generate:builtins`; do not edit. -->
+<!-- Generated from crates/donder-language/src/compiler/builtins.rs by `pnpm generate:builtins`; do not edit. -->
 
 Every builtin function and context value of the [effect language](effect_language.md). An int argument is accepted wherever a float is expected. Signatures listing both int and float forms keep ints as ints when every argument is an int.
 

@@ -10,6 +10,8 @@ license = "MIT"
 camino = { workspace = true, features = ["serde1"] }
 donder-data-derive.workspace = true
 donder-language.workspace = true
+donder-model.workspace = true
+donder-runtime-types.workspace = true
 indexmap.workspace = true
 uuid.workspace = true
 tempfile.workspace = true

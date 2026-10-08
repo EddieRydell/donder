@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use donder_language::values::SampleTime;
+use donder_runtime_types::SampleTime;
 use donder_test_support::fixtures;
 use donder_test_support::fixtures::layered;
 use donder_test_support::playback;

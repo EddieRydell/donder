@@ -3,8 +3,8 @@
 use crate::dsl::{AutomationPlan, StripWorkspace};
 use crate::evaluation::RunPixel;
 use crate::signal::{EffectAutomationWorkspace, PreparedClip, PreparedEffect, SignalGraph};
-use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::{collections::BTreeMap, vec, vec::Vec};
+use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 #[derive(Clone, Copy)]
 pub struct SequenceClip<'a> {
@@ -18,14 +18,14 @@ impl<'a> SequenceClip<'a> {
         &self,
         column: usize,
         columns: usize,
-    ) -> Result<SampleTime, crate::values::SampleTimeError> {
+    ) -> Result<SampleTime, donder_runtime_types::SampleTimeError> {
         if columns == 0 || column >= columns {
-            return Err(crate::values::SampleTimeError::OutOfRange);
+            return Err(donder_runtime_types::SampleTimeError::OutOfRange);
         }
         let rate = u64::from(self.frame_rate());
         let ticks = u64::from(self.start_time().as_ticks());
         let end = ticks + u64::from(self.duration().as_ticks());
-        let micros = u64::from(crate::values::MICROS_PER_SECOND);
+        let micros = u64::from(donder_runtime_types::MICROS_PER_SECOND);
         let start_frame = (ticks * rate).div_ceil(micros);
         let end_frame = (end * rate).div_ceil(micros);
         let active_frames = end_frame.saturating_sub(start_frame).max(1);
@@ -33,7 +33,7 @@ impl<'a> SequenceClip<'a> {
         let offset =
             ((2 * column as u64 + 1) * active_frames / (2 * columns as u64)).min(active_frames - 1);
         let frame = (start_frame + offset).min(u64::from(self.frame_count().saturating_sub(1)));
-        crate::values::sample_time_from_frame(frame as u32, self.frame_rate())
+        donder_runtime_types::sample_time_from_frame(frame as u32, self.frame_rate())
     }
     fn effect(&self) -> &'a PreparedEffect<AutomationPlan> {
         &self.graph.data.effects[self.clip.effect]

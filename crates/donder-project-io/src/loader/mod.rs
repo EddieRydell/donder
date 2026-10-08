@@ -8,24 +8,22 @@ use std::fs;
 use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::controller::ControllerId;
-use donder_language::data::schema::NO_SPAN;
-use donder_language::dsl::{TextSpan, compile_script};
-use donder_language::effect::{
+use donder_language::compiler::{TextSpan, compile_script};
+use donder_language::data::NO_SPAN;
+use donder_language::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+use donder_model::ControllerId;
+use donder_model::FixtureDefinitionId;
+use donder_model::LayoutId;
+use donder_model::PatchId;
+use donder_model::SequenceId;
+use donder_model::SetupId;
+use donder_model::ValueSource;
+use donder_model::{
     CurveDefinition, CurveId, EffectDefinition, EffectDefinitionId, GradientDefinition, GradientId,
 };
-use donder_language::fixture::FixtureDefinitionId;
-use donder_language::identity::{DocumentId, SourceIdentity};
-use donder_language::imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
-use donder_language::layout::LayoutId;
-use donder_language::model::{
-    DonderProject, ProjectData, ProjectDefinitionStores, ProjectId, ProjectRoot,
-};
-use donder_language::operator::{OperatorDefinitionId, custom_operator_definition};
-use donder_language::ownership::ValueSource;
-use donder_language::patch::PatchId;
-use donder_language::sequence::SequenceId;
-use donder_language::setup::SetupId;
+use donder_model::{DocumentId, SourceIdentity};
+use donder_model::{DonderProject, ProjectData, ProjectDefinitionStores, ProjectId, ProjectRoot};
+use donder_model::{OperatorDefinitionId, custom_operator_definition};
 use indexmap::{IndexMap, IndexSet};
 
 use crate::diagnostics::{byte_range, data_diagnostic, dsl_diagnostic};
@@ -575,7 +573,7 @@ impl Loader {
     /// The name of the owned collection member `identity` addresses.
     pub(crate) fn member_span(
         &self,
-        identity: &donder_language::identity::ObjectIdentity,
+        identity: &donder_model::ObjectIdentity,
     ) -> Option<LinkTarget> {
         let root = identity.root_source();
         let data = self.data.get(root.document_id())?;
@@ -656,7 +654,7 @@ impl Loader {
             sequences: IndexMap::new(),
             definitions: self.definitions.clone(),
         };
-        let owner = donder_language::identity::ObjectIdentity::from(root_id.0.clone());
+        let owner = donder_model::ObjectIdentity::from(root_id.0.clone());
         let mut resolver = DomainResolver {
             loader: self,
             project: &mut project,

@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use camino::Utf8Path;
-use donder_language::effect::EffectInst;
-use donder_language::identity::SourceIdentity;
-use donder_language::sequence::SequenceId;
-use donder_language::values::{DonderDuration, DonderTime};
+use donder_language::{DonderDuration, DonderTime};
+use donder_model::EffectInst;
+use donder_model::SequenceId;
+use donder_model::SourceIdentity;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use crate::dto::{

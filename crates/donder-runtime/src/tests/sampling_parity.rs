@@ -1,5 +1,5 @@
 use crate::sampling::multiply_colors;
-use crate::values::Color;
+use donder_runtime_types::Color;
 
 #[test]
 fn color_multiply_rounds_to_nearest_for_every_channel_pair() {

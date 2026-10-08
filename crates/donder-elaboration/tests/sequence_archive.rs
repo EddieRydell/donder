@@ -1,11 +1,11 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::values::sample_time_from_frame;
 use donder_runtime::HEADER_BYTES;
 use donder_runtime::LoadError;
 use donder_runtime::LoadLimits;
 use donder_runtime::decode_sequence;
 use donder_runtime::encode_sequence;
+use donder_runtime_types::sample_time_from_frame;
 
 #[test]
 fn selected_sequences_roundtrip_and_structurally_corrupt_uploads_are_rejected() {

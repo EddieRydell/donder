@@ -1,12 +1,8 @@
 //! Source/import bookkeeping after typed ownership edits. No serialization or reload.
 use crate::{ExportProjectError, ProjectSession, ensure_document_can_reference_object};
-use donder_language::{
-    effect::{EffectParamValue, EffectRef},
-    identity::{DocumentId, ObjectIdentity},
-    layout::LayoutFixtureKind,
-    operator::OperatorRef,
-    ownership::ValueSource,
-    sequence::{CompositionGraphNodeKind, SequenceAudio},
+use donder_model::{
+    CompositionGraphNodeKind, DocumentId, EffectParamValue, EffectRef, LayoutFixtureKind,
+    ObjectIdentity, OperatorRef, SequenceAudio, ValueSource,
 };
 use std::collections::{BTreeMap, BTreeSet};
 

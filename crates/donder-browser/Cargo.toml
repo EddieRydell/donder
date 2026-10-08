@@ -10,8 +10,10 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-donder-elaboration = { workspace = true, features = ["browser"] }
-donder-language = { workspace = true, features = ["browser"] }
+donder-elaboration.workspace = true
+donder-language.workspace = true
+donder-model = { workspace = true, features = ["browser"] }
+donder-runtime-types.workspace = true
 donder-runtime.workspace = true
 donder-sequence-api.workspace = true
 donder-editor.workspace = true

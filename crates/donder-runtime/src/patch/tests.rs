@@ -1,6 +1,6 @@
 use super::{PixelEncoding, PreparedPatch, PreparedPixelRoute};
-use crate::values::Color;
 use alloc::{vec, vec::Vec};
+use donder_runtime_types::Color;
 
 #[test]
 fn rgbw_extraction_channel_order_and_lookup_are_applied_exactly() {

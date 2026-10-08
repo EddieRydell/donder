@@ -12,7 +12,7 @@ pub(crate) fn new_project_files(
     project_name: &str,
     initial_color: &str,
 ) -> Result<Vec<ProjectBoilerplateFile>, String> {
-    let initial_color = donder_language::values::Color::from_hex(initial_color)
+    let initial_color = donder_runtime_types::Color::from_hex(initial_color)
         .ok_or("Invalid initial project color.")?
         .to_hex();
     let project = project_name_from_text(project_name);
@@ -115,7 +115,7 @@ pub(crate) fn write_new_project_files(
 
 /// The project's declaration name: its display name in `snake_case`.
 fn project_name_from_text(name: &str) -> String {
-    let name = donder_language::names::name_from_text(name, "project");
+    let name = donder_language::name_from_text(name, "project");
     if matches!(name.as_str(), "import" | "from" | "none" | "true" | "false")
         || name.starts_with('_')
     {
@@ -284,19 +284,19 @@ mod tests {
             if name == "HueShift" {
                 let shift = &definition.params()[0];
                 assert_eq!(shift.name.as_str(), "shift");
-                assert_eq!(shift.ty, donder_language::dsl::Type::Float);
-                assert_eq!(shift.default, Some(donder_language::dsl::Value::Float(0.0)));
+                assert_eq!(shift.ty, donder_runtime_types::Type::Float);
+                assert_eq!(shift.default, Some(donder_runtime_types::Value::Float(0.0)));
             }
         }
     }
 
     #[test]
     fn stanford_standard_operators_include_canonical_definitions() {
-        let canonical = donder_language::dsl::compile_operators(include_str!(
+        let canonical = donder_language::compiler::compile_operators(include_str!(
             "../../../../examples/starter/operators/standard.donder"
         ))
         .unwrap();
-        let stanford = donder_language::dsl::compile_operators(include_str!(
+        let stanford = donder_language::compiler::compile_operators(include_str!(
             "../../../../examples/stanford_room/operators/standard.donder"
         ))
         .unwrap();

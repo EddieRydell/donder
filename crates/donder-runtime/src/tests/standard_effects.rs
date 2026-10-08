@@ -2,18 +2,17 @@ use super::evaluation::{PixelContext, SampleEvaluation, bind};
 use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
-const SPATIAL: donder_language::execution::SpatialContext =
-    donder_language::execution::SpatialContext {
-        position: [0.0; 2],
-        min: [0.0; 2],
-        max: [0.0; 2],
-    };
+const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 use crate::dsl::RunContext;
 use crate::dsl::StripWorkspace;
-use donder_language::dsl::Value;
-use donder_language::dsl::compile_effects;
-use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
+use donder_language::compiler::compile_effects;
+use donder_runtime_types::Value;
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration};
 
 #[test]
 fn standard_pulse_obeys_linear_falloff_without_an_extra_envelope() {

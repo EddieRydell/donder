@@ -9,15 +9,17 @@ use crate::dsl::{
     StripSignals, StripWorkspace,
 };
 use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
-use donder_language::dsl::{
-    CompiledEffect, CompiledOperator, Identifier, Instance, Invocation, OperatorDefinition,
-    OperatorInvocation, ParamDecl, ParamRange, ProgramConstants, SampleDefinition,
-    SampleInvocation, Type, Value,
+use donder_language::compiler::{
+    CompiledEffect, CompiledOperator, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
 };
-use donder_language::execution::{
+use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
+use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
 };
-use donder_language::values::{Color, Curve, CurvePoint, Marks, SampleDuration, SampleTime};
+use donder_runtime_types::{
+    Identifier, OperatorDefinition, OperatorInvocation, SampleDefinition, SampleInvocation, Type,
+    Value,
+};
 use std::prelude::rust_2024::*;
 
 /// A test signal source. An error is reported as the operator's result.
@@ -276,7 +278,7 @@ pub(super) trait Definition {
         &self,
         values: Vec<Value>,
         automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_language::dsl::BindingError>;
+    ) -> Result<Invocation, donder_runtime_types::BindingError>;
 }
 
 impl Definition for CompiledEffect {
@@ -287,7 +289,7 @@ impl Definition for CompiledEffect {
         &self,
         values: Vec<Value>,
         automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_language::dsl::BindingError> {
+    ) -> Result<Invocation, donder_runtime_types::BindingError> {
         self.invoke(values, automation)
     }
 }
@@ -300,7 +302,7 @@ impl Definition for CompiledOperator {
         &self,
         values: Vec<Value>,
         automation: Box<[PreparedAutomation]>,
-    ) -> Result<Invocation, donder_language::dsl::BindingError> {
+    ) -> Result<Invocation, donder_runtime_types::BindingError> {
         self.invoke(values, automation)
     }
 }
@@ -313,12 +315,12 @@ pub(super) fn bind(definition: &impl Definition, values: &[(&str, Value)]) -> In
 pub(super) fn try_bind(
     definition: &impl Definition,
     values: &[(&str, Value)],
-) -> Result<Invocation, donder_language::dsl::BindingError> {
+) -> Result<Invocation, donder_runtime_types::BindingError> {
     let named: Vec<_> = values
         .iter()
         .map(|(name, value)| (Identifier::new((*name).into()).unwrap(), value.clone()))
         .collect();
-    let values = donder_language::dsl::bind_params(
+    let values = donder_language::compiler::bind_params(
         definition.declarations(),
         named.iter().map(|(name, value)| (name, value)),
     )?;
@@ -346,7 +348,7 @@ pub(super) fn runtime_instance(
                 duration: SampleDuration::from_ticks(1),
                 curve: Curve { points: Vec::new() }.into(),
                 mapping: param.automation_mapping().unwrap(),
-                quantity: donder_language::execution::AutomatedQuantity::Value,
+                quantity: donder_runtime_types::AutomatedQuantity::Value,
                 param_index: index as u16,
             });
             values.push(placeholder(param));
@@ -386,13 +388,13 @@ fn placeholder(param: &ParamDecl) -> Value {
 /// Lowered programs place automated parameters first, in declaration order;
 /// integral slots follow them and keep their placeholder values.
 fn rebind(
-    values: &donder_language::dsl::BoundParams,
+    values: &donder_runtime_types::BoundParams,
     automation: &[PreparedAutomation],
     slots: Vec<Value>,
 ) -> Vec<Value> {
     let parameters = automation
         .iter()
-        .filter(|binding| binding.quantity == donder_language::execution::AutomatedQuantity::Value)
+        .filter(|binding| binding.quantity == donder_runtime_types::AutomatedQuantity::Value)
         .count();
     assert_eq!(parameters, slots.len());
     let mut values: Vec<Value> = values.iter_values().collect();

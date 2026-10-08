@@ -12,7 +12,7 @@ pub use script::{
     script_signature, type_text,
 };
 
-use crate::dsl::TextSpan;
+use crate::compiler::TextSpan;
 
 /// What a token is, for highlighting.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

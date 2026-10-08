@@ -2,7 +2,7 @@
 //! renames across data documents and scripts.
 use donder_language::analysis::TokenClass;
 use donder_language::analysis::{ScriptAnalysis, SymbolKind, analyze_script, data_tokens};
-use donder_language::dsl::TextSpan;
+use donder_language::compiler::TextSpan;
 use donder_project_io::{LinkTarget, ScriptMember};
 
 use crate::workspace::{Kind, Workspace, kind};
@@ -213,11 +213,11 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
 
 /// Whether `name` may replace the target's name.
 pub fn valid_name(target: &Target, name: &str) -> Result<(), String> {
-    let identifier = donder_language::dsl::Identifier::new(name.to_string()).is_ok()
-        && donder_language::imports::is_valid_import_alias(name);
+    let identifier = donder_runtime_types::Identifier::new(name.to_string()).is_ok()
+        && donder_language::is_valid_import_alias(name);
     match target {
         Target::Link(LinkTarget::Data { .. }) => {
-            if donder_language::names::is_object_name(name) {
+            if donder_language::is_object_name(name) {
                 Ok(())
             } else {
                 Err(format!("`{name}` is not a snake_case name"))
@@ -227,7 +227,7 @@ pub fn valid_name(target: &Target, name: &str) -> Result<(), String> {
             member: ScriptMember::Option { .. },
             ..
         }) => {
-            if identifier && donder_language::data::tree::is_pascal_case(name) {
+            if identifier && donder_language::data::is_pascal_case(name) {
                 Ok(())
             } else {
                 Err(format!("enum options are PascalCase; `{name}` is not"))

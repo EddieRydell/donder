@@ -45,7 +45,7 @@ fn error(ident: &Ident, message: &str) -> Tokens {
 }
 
 fn schema() -> Tokens {
-    quote!(::donder_language::data::schema)
+    quote!(::donder_language::data)
 }
 
 /// Statements reading each field from `reader`, then the struct-literal body.
@@ -99,8 +99,8 @@ fn record(ident: &Ident, fields: &FieldsNamed) -> Tokens {
         impl #schema::Record for #ident {
             const TYPE: &'static str = #text;
             fn decode_fields(
-                fields: &::donder_language::data::tree::Spanned<
-                    ::std::vec::Vec<::donder_language::data::tree::DataField>,
+                fields: &::donder_language::data::Spanned<
+                    ::std::vec::Vec<::donder_language::data::DataField>,
                 >,
                 decoder: &mut #schema::Decoder,
             ) -> ::core::option::Option<Self> {
@@ -109,18 +109,18 @@ fn record(ident: &Ident, fields: &FieldsNamed) -> Tokens {
                 reader.finish(decoder)?;
                 ::core::option::Option::Some(Self { #build })
             }
-            fn encode_fields(&self) -> ::std::vec::Vec<::donder_language::data::tree::DataField> {
+            fn encode_fields(&self) -> ::std::vec::Vec<::donder_language::data::DataField> {
                 #writes
             }
         }
         impl #schema::Data for #ident {
             fn decode(
-                value: &::donder_language::data::tree::Spanned<::donder_language::data::tree::DataValue>,
+                value: &::donder_language::data::Spanned<::donder_language::data::DataValue>,
                 decoder: &mut #schema::Decoder,
             ) -> ::core::option::Option<Self> {
                 #schema::decode_record(value, decoder)
             }
-            fn encode(&self) -> ::donder_language::data::tree::DataValue {
+            fn encode(&self) -> ::donder_language::data::DataValue {
                 #schema::record(#text, #schema::Record::encode_fields(self))
             }
             fn shape(schema: &mut #schema::Schema) -> #schema::Shape {
@@ -186,10 +186,10 @@ fn choice(ident: &Ident, variants: &[(&Ident, Option<&FieldsNamed>)]) -> Tokens 
     quote! {
         impl #schema::Data for #ident {
             fn decode(
-                value: &::donder_language::data::tree::Spanned<::donder_language::data::tree::DataValue>,
+                value: &::donder_language::data::Spanned<::donder_language::data::DataValue>,
                 decoder: &mut #schema::Decoder,
             ) -> ::core::option::Option<Self> {
-                use ::donder_language::data::tree::DataValue;
+                use ::donder_language::data::DataValue;
                 match &value.value {
                     DataValue::Variant(name) => match name.value.as_str() {
                         #(#bare,)*
@@ -202,7 +202,7 @@ fn choice(ident: &Ident, variants: &[(&Ident, Option<&FieldsNamed>)]) -> Tokens 
                     _ => decoder.mismatch(value, #expected),
                 }
             }
-            fn encode(&self) -> ::donder_language::data::tree::DataValue {
+            fn encode(&self) -> ::donder_language::data::DataValue {
                 match self {
                     #(#encodes,)*
                 }

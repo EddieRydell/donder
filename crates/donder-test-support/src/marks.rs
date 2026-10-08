@@ -1,9 +1,10 @@
 //! Host-prepared mark fixtures using the same editable effects as projects.
 use crate::workload::{Workload, sample_fixture};
-use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
-use donder_language::values::{
+use donder_language::compiler::{bind_params, compile_effects};
+use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
+use donder_runtime_types::{Identifier, Value};
 
 pub fn mark_show(count: usize, pulse: bool) -> Workload {
     let definitions = compile_effects(include_str!(

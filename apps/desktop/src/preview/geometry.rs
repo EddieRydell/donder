@@ -1,5 +1,5 @@
-use donder_language::geometry::PreparedFixtureDefinitions;
-use donder_language::model::DonderProject;
+use donder_model::DonderProject;
+use donder_model::PreparedFixtureDefinitions;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PreviewGeometry {

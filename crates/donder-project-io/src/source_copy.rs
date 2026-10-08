@@ -1,7 +1,7 @@
 use crate::{ExportReport, ProjectSession, SourceProject};
 use camino::Utf8Path;
-use donder_language::identity::DocumentId;
-use donder_language::imports::ImportSource;
+use donder_language::ImportSource;
+use donder_model::DocumentId;
 use std::collections::BTreeMap;
 
 /// Rewrite document identities and imports using their resolved targets.

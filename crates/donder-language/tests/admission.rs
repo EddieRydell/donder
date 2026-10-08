@@ -2,14 +2,14 @@
 //! effect and operator admissions built on it accept minimal programs and
 //! reject every malformed slot, block, nesting, limit, pool, parameter and
 //! signal reference.
-use donder_language::Shared;
-use donder_language::dsl::bytecode::{
+use donder_runtime_types::Shared;
+use donder_runtime_types::bytecode::{
     Bank, Banks, BytecodeProgram, CompareOp, ContextRead, FloatBinary, FloatUnary, Input,
     Instruction, MAX_DEPTH, MAX_ROW_BYTES, NO_FRAME_CACHE, ParameterKind, ProgramContext, Reducer,
     Resource, SignalPixel, Slot, Span,
 };
-use donder_language::dsl::{OperatorProgram, SampleProgram, Type};
-use donder_language::values::{Color, Curve, Gradient, Marks};
+use donder_runtime_types::{Color, Curve, Gradient, Marks};
+use donder_runtime_types::{OperatorProgram, SampleProgram, Type};
 
 const RED: Color = Color {
     red: 255,
@@ -957,7 +957,7 @@ fn resource_constants_and_picks_stay_within_their_pools() {
 #[test]
 fn parameter_reads_stay_within_their_bound_banks() {
     let enum_type = Type::Enum(vec![
-        donder_language::dsl::Identifier::new("a".into()).unwrap(),
+        donder_runtime_types::Identifier::new("a".into()).unwrap(),
     ]);
     let array_type = Type::Array(Box::new(Type::Float));
     let dst = Slot::scalar(0);

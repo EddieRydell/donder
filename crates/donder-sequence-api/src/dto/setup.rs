@@ -262,9 +262,9 @@ pub enum SetupControllerConfig {
     },
 }
 
-impl From<&donder_language::controller::ControllerProtocol> for SetupControllerConfig {
-    fn from(protocol: &donder_language::controller::ControllerProtocol) -> Self {
-        use donder_language::controller::{ArtNetMode, ControllerProtocol, E131Mode};
+impl From<&donder_model::ControllerProtocol> for SetupControllerConfig {
+    fn from(protocol: &donder_model::ControllerProtocol) -> Self {
+        use donder_model::{ArtNetMode, ControllerProtocol, E131Mode};
         match protocol {
             ControllerProtocol::E131(config) => Self::E131 {
                 source_name: config.source_name.clone(),
@@ -305,9 +305,9 @@ pub enum GuiOwnedStep {
     },
 }
 
-impl From<&donder_language::identity::OwnedObjectSlot> for GuiOwnedStep {
-    fn from(slot: &donder_language::identity::OwnedObjectSlot) -> Self {
-        use donder_language::identity::OwnedObjectSlot;
+impl From<&donder_model::OwnedObjectSlot> for GuiOwnedStep {
+    fn from(slot: &donder_model::OwnedObjectSlot) -> Self {
+        use donder_model::OwnedObjectSlot;
         match slot {
             OwnedObjectSlot::Setup => Self::Setup,
             OwnedObjectSlot::Layout => Self::Layout,
@@ -322,12 +322,12 @@ impl From<&donder_language::identity::OwnedObjectSlot> for GuiOwnedStep {
         }
     }
 }
-impl TryFrom<&GuiOwnedStep> for donder_language::identity::OwnedObjectSlot {
+impl TryFrom<&GuiOwnedStep> for donder_model::OwnedObjectSlot {
     type Error = String;
 
     fn try_from(slot: &GuiOwnedStep) -> Result<Self, String> {
         let name = |name: &str| {
-            donder_language::dsl::Identifier::new(name.to_string())
+            donder_runtime_types::Identifier::new(name.to_string())
                 .map_err(|_| format!("`{name}` is not an object name."))
         };
         Ok(match slot {

@@ -1,6 +1,6 @@
 pub(super) fn register_sequence_audio_asset(
     session: &mut ProjectSession,
-    document: &donder_language::identity::DocumentId,
+    document: &donder_model::DocumentId,
     import_path: &str,
 ) -> Result<AssetId, GuiMutationError> {
     if let Some(asset) = session.source.referenced_assets.iter_mut().find(|asset| {
@@ -55,7 +55,7 @@ pub(super) fn register_sequence_audio_asset(
 }
 
 pub(super) fn effect_mut(
-    sequence: &mut donder_language::sequence::Sequence,
+    sequence: &mut donder_model::Sequence,
     id: u32,
 ) -> Result<&mut EffectInst, GuiMutationError> {
     sequence
@@ -66,7 +66,7 @@ pub(super) fn effect_mut(
 }
 
 pub(super) fn composition_graph_node_mut<'a>(
-    sequence: &'a mut donder_language::sequence::Sequence,
+    sequence: &'a mut donder_model::Sequence,
     id: &CompositionGraphNodeId,
 ) -> Result<&'a mut CompositionGraphNode, GuiMutationError> {
     sequence
@@ -90,7 +90,7 @@ pub(super) fn parse_graph_node_id(value: &str) -> Result<CompositionGraphNodeId,
 }
 
 pub(super) fn ensure_graph_node_exists(
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     node_id: &CompositionGraphNodeId,
 ) -> Result<(), GuiMutationError> {
     if sequence
@@ -108,7 +108,7 @@ pub(super) fn ensure_graph_node_exists(
 }
 
 pub(super) fn graph_input_cardinality(
-    definitions: &donder_language::operator::OperatorDefinitionStore,
+    definitions: &donder_model::OperatorDefinitionStore,
     kind: &CompositionGraphNodeKind,
     source_name: &str,
 ) -> Option<OperatorPortCardinality> {
@@ -126,7 +126,7 @@ pub(super) fn graph_input_cardinality(
     }
 }
 
-pub(super) fn next_composition_node_id(sequence: &donder_language::sequence::Sequence) -> u32 {
+pub(super) fn next_composition_node_id(sequence: &donder_model::Sequence) -> u32 {
     sequence
         .composition_graph
         .nodes
@@ -138,7 +138,7 @@ pub(super) fn next_composition_node_id(sequence: &donder_language::sequence::Seq
 }
 
 pub(super) fn create_sequence_layer(
-    sequence: &mut donder_language::sequence::Sequence,
+    sequence: &mut donder_model::Sequence,
     name: String,
     color: String,
     position: Option<(f32, f32)>,
@@ -163,15 +163,13 @@ pub(super) fn create_sequence_layer(
     let layer_node_id = CompositionGraphNodeId(next_composition_node_id(sequence));
     typed_name(&name)?;
     let name = fresh_name(&name, |candidate| sequence_name_taken(sequence, candidate));
-    sequence
-        .layers
-        .push(donder_language::sequence::SequenceLayer {
-            id: SequenceLayerId(next_layer_id),
-            name,
-            description: None,
-            color: parse_color(&color)?,
-            enabled: true,
-        });
+    sequence.layers.push(donder_model::SequenceLayer {
+        id: SequenceLayerId(next_layer_id),
+        name,
+        description: None,
+        color: parse_color(&color)?,
+        enabled: true,
+    });
     let (x, y) = position.unwrap_or((80.0, 120.0 + next_layer_id as f32 * 80.0));
     sequence.composition_graph.nodes.push(CompositionGraphNode {
         id: layer_node_id.clone(),
@@ -221,17 +219,14 @@ pub fn source_identity_from_gui(
     let module_id = uuid::Uuid::parse_str(module_id)
         .map_err(|_| GuiMutationError::Invalid("Source module ID is invalid.".to_string()))?;
     Ok(SourceIdentity::from_document(
-        donder_language::identity::DocumentId::new(module_id, Utf8PathBuf::from(path)),
+        donder_model::DocumentId::new(module_id, Utf8PathBuf::from(path)),
         object.to_string(),
     ))
 }
 
 /// Whether a name is used by a layer, graph node or the output node: they
 /// share the graph's namespace.
-pub(super) fn sequence_name_taken(
-    sequence: &donder_language::sequence::Sequence,
-    name: &str,
-) -> bool {
+pub(super) fn sequence_name_taken(sequence: &donder_model::Sequence, name: &str) -> bool {
     name == "output"
         || sequence.layers.iter().any(|layer| layer.name.as_str() == name)
         || sequence
@@ -242,7 +237,7 @@ pub(super) fn sequence_name_taken(
 }
 
 pub(super) fn mark_collection_mut<'a>(
-    sequence: &'a mut donder_language::sequence::Sequence,
+    sequence: &'a mut donder_model::Sequence,
     key: &str,
 ) -> Result<&'a mut MarkCollection, GuiMutationError> {
     sequence
@@ -253,7 +248,7 @@ pub(super) fn mark_collection_mut<'a>(
 }
 
 pub(super) fn automation_clip_mut(
-    sequence: &mut donder_language::sequence::Sequence,
+    sequence: &mut donder_model::Sequence,
     id: u32,
 ) -> Result<&mut AutomationClip, GuiMutationError> {
     sequence
@@ -274,12 +269,12 @@ pub(super) fn typed_name(text: &str) -> Result<Identifier, GuiMutationError> {
             "Names need at least one letter or digit.".into(),
         ));
     }
-    Ok(donder_language::names::object_name(text))
+    Ok(donder_language::object_name(text))
 }
 
 /// A fresh name from `text`, made unique against `taken`.
 pub(super) fn fresh_name(text: &str, taken: impl Fn(&str) -> bool) -> Identifier {
-    donder_language::names::unique_name(donder_language::names::object_name(text).as_str(), taken)
+    donder_language::unique_name(donder_language::object_name(text).as_str(), taken)
 }
 
 pub(super) fn identifier(value: &str) -> Result<Identifier, GuiMutationError> {
@@ -519,23 +514,22 @@ pub fn point3_meters(point: Point3) -> Point3Meters {
 use std::fs;
 
 use camino::Utf8PathBuf;
-use donder_language::dsl::Identifier;
-use donder_language::effect::{
+use donder_language::{Distance, Point3, Rotation3 as DomainRotation3, Scale3 as DomainScale3};
+use donder_model::SourceIdentity;
+use donder_model::{
+    AssetId, AutomationClip, CompositionGraphNode, CompositionGraphNodeId,
+    CompositionGraphNodeKind, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
+    MarkCollectionKey, SequenceLayerId, automation_value_at,
+};
+use donder_model::{
     CurveId, CurveSource, EffectInst, EffectParamValue, EffectScope, GradientId, GradientSource,
 };
-use donder_language::identity::SourceIdentity;
-use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_language::operator::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
-use donder_language::sequence::{
-    AssetId, AutomationClip, AutomationMapping, AutomationValue, CompositionGraphNode,
-    CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge, GraphNodePosition,
-    GraphPortId, MarkCollection, MarkCollectionKey, SequenceLayerId, automation_value_at,
-};
-use donder_language::values::{
-    Color, Curve, CurvePoint, Distance, Gradient, GradientStop, Point3,
-    Rotation3 as DomainRotation3, Scale3 as DomainScale3,
-};
+use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
+use donder_model::{OperatorDefinitionId, OperatorPortCardinality, OperatorRef};
 use donder_project_io::{ProjectSession, ReferencedAsset, SourceObjectKind};
+use donder_runtime_types::Identifier;
+use donder_runtime_types::{AutomationMapping, AutomationValue};
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 
 use super::GuiMutationError;
 use crate::dto::{
@@ -549,10 +543,8 @@ pub(super) fn create_object_document(
     kind: donder_project_io::SourceObjectKind,
     name: &str,
     directory: &str,
-) -> Result<donder_language::identity::SourceIdentity, GuiMutationError> {
-    let key = donder_language::names::object_name(name)
-        .as_str()
-        .to_string();
+) -> Result<donder_model::SourceIdentity, GuiMutationError> {
+    let key = donder_language::object_name(name).as_str().to_string();
     for index in 1_u32.. {
         let stem = if index == 1 {
             key.clone()
@@ -584,12 +576,12 @@ pub(super) fn create_object_document(
 
 pub fn object_identity_from_gui(
     reference: &crate::dto::GuiObjectRef,
-) -> Result<donder_language::identity::ObjectIdentity, GuiMutationError> {
+) -> Result<donder_model::ObjectIdentity, GuiMutationError> {
     let root =
         source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;
     reference.owned_path.iter().try_fold(
         root.into(),
-        |address: donder_language::identity::ObjectIdentity, step| {
+        |address: donder_model::ObjectIdentity, step| {
             Ok(address.owned(step.try_into().map_err(GuiMutationError::Invalid)?))
         },
     )

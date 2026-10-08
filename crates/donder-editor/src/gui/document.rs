@@ -106,10 +106,10 @@ pub struct ResolvedGuiObject {
 impl ResolvedGuiObject {
     /// The resolved object's address. Owned paths are checked when the object
     /// is resolved, so every step converts.
-    pub fn object_identity(&self) -> donder_language::identity::ObjectIdentity {
+    pub fn object_identity(&self) -> donder_model::ObjectIdentity {
         self.owned_path.iter().fold(
             self.identity.clone().into(),
-            |address: donder_language::identity::ObjectIdentity, step| {
+            |address: donder_model::ObjectIdentity, step| {
                 address.owned(
                     step.try_into()
                         .unwrap_or_else(|_| unreachable!("resolved owned paths are valid")),

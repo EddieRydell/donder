@@ -1,11 +1,11 @@
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::controller::{ControllerId, ControllerPortId};
-use donder_language::model::DonderProject;
-use donder_language::sequence::SequenceId;
-use donder_language::setup::SetupId;
-use donder_language::values::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
+use donder_model::DonderProject;
+use donder_model::SequenceId;
+use donder_model::SetupId;
+use donder_model::{ControllerId, ControllerPortId};
 use donder_output::ControllerPortFrame;
 use donder_runtime::{PlaybackRate, SequencePlayback};
+use donder_runtime_types::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
 use std::time::Duration;
 
 use crate::dto::{AudioTransportSnapshot, AudioTransportState};
