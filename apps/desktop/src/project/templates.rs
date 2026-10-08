@@ -116,9 +116,7 @@ pub(crate) fn write_new_project_files(
 /// The project's declaration name: its display name in `snake_case`.
 fn project_name_from_text(name: &str) -> String {
     let name = donder_language::name_from_text(name, "project");
-    if matches!(name.as_str(), "import" | "from" | "none" | "true" | "false")
-        || name.starts_with('_')
-    {
+    if name.starts_with('_') {
         format!("project_{}", name.trim_start_matches('_'))
     } else {
         name

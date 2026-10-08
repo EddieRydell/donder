@@ -6,6 +6,7 @@ use super::{
     TokenClass, contains,
 };
 use crate::compiler::builtins::{BUILTINS, Builtin, CONTEXT, ContextValue, builtin};
+use crate::compiler::check::resolve_type;
 use crate::compiler::syntax::ast::*;
 use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_with_comments};
 use crate::compiler::{Diagnostic, TextSpan};
@@ -247,6 +248,7 @@ impl Walker<'_> {
         extent: TextSpan,
         detail: String,
         description: Option<String>,
+        ty: Option<Type>,
     ) -> usize {
         self.symbols.push(Symbol {
             name: name.name.as_str().to_string(),
@@ -255,6 +257,7 @@ impl Walker<'_> {
             extent,
             detail,
             description,
+            ty,
             parent: self.parent,
         });
         self.symbols.len() - 1
@@ -283,6 +286,7 @@ impl Walker<'_> {
                 function.span,
                 detail,
                 function.description.clone(),
+                None,
             );
             self.functions.push((function.name.name.clone(), symbol));
         }
@@ -291,7 +295,14 @@ impl Walker<'_> {
             self.options.clear();
             for (name, ty) in &function.args {
                 let detail = format!("{}: {}", name.name.as_str(), self.text(ty.span));
-                let argument = self.define(name, SymbolKind::Argument, name.span, detail, None);
+                let argument = self.define(
+                    name,
+                    SymbolKind::Argument,
+                    name.span,
+                    detail,
+                    None,
+                    resolve_type(ty).ok(),
+                );
                 self.scopes.push((name.name.clone(), argument));
             }
             self.block(&function.body);
@@ -315,6 +326,7 @@ impl Walker<'_> {
             declaration.span,
             format!("{keyword} {}", declaration.name.name.as_str()),
             declaration.description.clone(),
+            None,
         );
         self.parent = Some(symbol);
         self.options.clear();
@@ -324,6 +336,7 @@ impl Walker<'_> {
                 SymbolKind::Input,
                 input.span,
                 format!("input {}", input.name.as_str()),
+                None,
                 None,
             );
             self.scopes.push((input.name.clone(), input_symbol));
@@ -348,6 +361,7 @@ impl Walker<'_> {
                 param.name.span.to(end),
                 detail,
                 param.description.clone(),
+                resolve_type(&param.ty).ok(),
             );
             self.scopes.push((param.name.name.clone(), param_symbol));
             let parent = self.parent.replace(param_symbol);
@@ -359,8 +373,14 @@ impl Walker<'_> {
                         option.name.as_str(),
                         param.name.name.as_str()
                     );
-                    let option_symbol =
-                        self.define(option, SymbolKind::EnumOption, option.span, detail, None);
+                    let option_symbol = self.define(
+                        option,
+                        SymbolKind::EnumOption,
+                        option.span,
+                        detail,
+                        None,
+                        None,
+                    );
                     options.push((option.name.clone(), option_symbol));
                 }
             }
@@ -387,20 +407,22 @@ impl Walker<'_> {
             match statement {
                 Statement::Let { name, ty, value } => {
                     self.expr(value);
-                    let ty = ty
-                        .as_ref()
-                        .map(|ty| self.text(ty.span).to_string())
-                        .or_else(|| {
-                            self.bindings
+                    let (text, ty) = match ty {
+                        Some(ty) => (Some(self.text(ty.span).to_string()), resolve_type(ty).ok()),
+                        None => {
+                            let inferred = self
+                                .bindings
                                 .iter()
                                 .find(|(span, _)| *span == name.span)
-                                .map(|(_, ty)| type_text(ty))
-                        });
-                    let detail = match ty {
-                        Some(ty) => format!("let {}: {ty}", name.name.as_str()),
+                                .map(|(_, ty)| ty.clone());
+                            (inferred.as_ref().map(type_text), inferred)
+                        }
+                    };
+                    let detail = match text {
+                        Some(text) => format!("let {}: {text}", name.name.as_str()),
                         None => format!("let {}", name.name.as_str()),
                     };
-                    let symbol = self.define(name, SymbolKind::Let, name.span, detail, None);
+                    let symbol = self.define(name, SymbolKind::Let, name.span, detail, None, ty);
                     self.scopes.push((name.name.clone(), symbol));
                 }
                 Statement::Guard {
@@ -507,6 +529,7 @@ impl Walker<'_> {
                     reduction.index.span,
                     format!("{}: int", reduction.index.name.as_str()),
                     None,
+                    Some(Type::Int),
                 );
                 self.scopes.push((reduction.index.name.clone(), index));
                 self.block(&reduction.body);
@@ -911,20 +934,19 @@ pub fn script_signature(source: &str, offset: usize) -> Option<SignatureHelp> {
                         .collect()
                 } else {
                     let analysis = analyze_script(source);
-                    let function = analysis.symbols.iter().find(|symbol| {
-                        symbol.kind == SymbolKind::Function && symbol.name == name
-                    })?;
-                    let parameters = function
-                        .detail
-                        .split_once('(')
-                        .and_then(|(_, rest)| rest.rsplit_once(')'))
-                        .map(|(args, _)| {
-                            args.split(", ")
-                                .filter(|arg| !arg.is_empty())
-                                .map(str::to_string)
-                                .collect()
+                    let (index, function) =
+                        analysis.symbols.iter().enumerate().find(|(_, symbol)| {
+                            symbol.kind == SymbolKind::Function && symbol.name == name
+                        })?;
+                    // An argument's detail is its `name: type` in the function's.
+                    let parameters = analysis
+                        .symbols
+                        .iter()
+                        .filter(|symbol| {
+                            symbol.kind == SymbolKind::Argument && symbol.parent == Some(index)
                         })
-                        .unwrap_or_default();
+                        .map(|argument| argument.detail.clone())
+                        .collect();
                     vec![Signature {
                         label: function.detail.clone(),
                         parameters,

@@ -375,8 +375,9 @@ fn keyword(text: &str, mode: LexMode) -> Option<Keyword> {
     })
 }
 
-/// Whether `text` is one identifier token, as used for authored names.
-pub(crate) fn is_identifier(text: &str) -> bool {
-    let tokens = lex(text);
+/// Whether `text` is one identifier token in `mode`, as used for authored
+/// names: an identifier that is not one of the mode's keywords.
+pub(crate) fn is_identifier(text: &str, mode: LexMode) -> bool {
+    let tokens = lex_mode(text, mode);
     matches!(tokens.as_slice(), [token, end] if token.kind == TokenKind::Identifier && end.kind == TokenKind::Eof)
 }

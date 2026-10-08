@@ -3,10 +3,12 @@
 //! object it creates.
 use donder_runtime_types::Identifier;
 
+use crate::compiler::syntax::lexer::{LexMode, is_identifier};
+
 /// Whether `text` is a valid object name: `snake_case`, starting with a
-/// lowercase letter or `_`.
+/// lowercase letter or `_`, and not a data-document keyword such as `none`.
 pub fn is_object_name(text: &str) -> bool {
-    crate::data::tree::is_snake_case(text) && Identifier::new(text.to_string()).is_ok()
+    crate::data::tree::is_snake_case(text) && is_identifier(text, LexMode::Data)
 }
 
 /// The first of `prefix`, `prefix_2`, `prefix_3`, ... that `taken` rejects.
@@ -48,7 +50,9 @@ pub(crate) fn pascal_from_snake(text: &str) -> String {
 }
 
 /// A display text turned into an object name: `Output 01` becomes
-/// `output_01`, and `Time Warp` and `TimeWarp` become `time_warp`.
+/// `output_01`, and `Time Warp` and `TimeWarp` become `time_warp`. A name
+/// that would start with a digit or be a data-document keyword starts with
+/// `_`: `None` becomes `_none`.
 pub fn name_from_text(text: &str, fallback: &str) -> String {
     let mut name = String::new();
     let mut previous_lower = false;
@@ -72,7 +76,9 @@ pub fn name_from_text(text: &str, fallback: &str) -> String {
     let name = name.trim_end_matches('_').to_string();
     if name.is_empty() {
         fallback.to_string()
-    } else {
+    } else if is_identifier(&name, LexMode::Data) {
         name
+    } else {
+        format!("_{name}")
     }
 }

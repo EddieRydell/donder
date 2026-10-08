@@ -1638,7 +1638,7 @@ fn number(kind: &LiteralKind) -> Option<f32> {
     }
 }
 
-fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
+pub(crate) fn resolve_type(ty: &TypeExpr) -> Result<Type, Diagnostic> {
     Ok(match &ty.kind {
         TypeKind::Named(name) => match name.as_str() {
             "int" => Type::Int,

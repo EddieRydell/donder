@@ -1,5 +1,6 @@
 use camino::Utf8PathBuf;
 
+use crate::compiler::syntax::lexer::{LexMode, is_identifier};
 use donder_runtime_types::Identifier;
 
 /// The semantic source of an import. Locations and parser-specific spans are
@@ -80,5 +81,5 @@ impl std::fmt::Display for SourceReference {
 pub fn is_valid_import_alias(value: &str) -> bool {
     value != "builtins"
         && Identifier::new(value.to_string()).is_ok()
-        && crate::compiler::syntax::lexer::is_identifier(value)
+        && is_identifier(value, LexMode::Script)
 }
