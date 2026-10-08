@@ -255,7 +255,16 @@ pub struct PreparedAutomation {
     pub duration: SampleDuration,
     pub curve: Arc<Curve>,
     pub mapping: AutomationMapping,
+    pub quantity: AutomatedQuantity,
     pub param_index: u16,
+}
+
+/// What an automated slot holds: the parameter's value, or that float value
+/// integrated over the definition's time.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub enum AutomatedQuantity {
+    Value,
+    Integral,
 }
 
 impl PreparedAutomation {

@@ -7,6 +7,7 @@ use crate::signal::{
     PreparedEffect, PreparedEffectAutomation, PreparedSignalGraph, PreparedSignalKind,
     PreparedSignalNode,
 };
+use crate::values::SampleTime;
 use alloc::{boxed::Box, vec, vec::Vec};
 
 #[derive(Clone, Debug)]
@@ -87,13 +88,14 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
     }
     let graph = graph.map_automation(
         |effect| {
+            let origin = effect.start_time;
             map_effect(effect, |params, bindings| {
-                AutomationPlan::from_accepted(params, &bindings)
+                AutomationPlan::from_accepted(params, &bindings, origin)
             })
         },
         |node| {
             map_node(node, |params, bindings| {
-                AutomationPlan::from_accepted(params, &bindings)
+                AutomationPlan::from_accepted(params, &bindings, SampleTime::from_ticks(0))
             })
         },
     );

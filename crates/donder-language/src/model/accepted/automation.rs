@@ -1,6 +1,6 @@
 //! Resolve authored automation to declaration slots during project admission.
 use crate::dsl::ParamDecl;
-use crate::execution::PreparedAutomation;
+use crate::execution::{AutomatedQuantity, PreparedAutomation};
 use crate::sequence::{AutomationTarget, Sequence};
 use crate::validation::ProjectValidationError;
 use crate::values::{SampleDuration, SampleTime};
@@ -56,6 +56,7 @@ pub(super) fn admit(
                 duration: SampleDuration::from_ticks(envelope.duration.as_micros_rounded() as u32),
                 curve: Arc::new(curve),
                 mapping,
+                quantity: AutomatedQuantity::Value,
                 param_index,
             })
         })

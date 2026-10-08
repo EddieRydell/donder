@@ -1,7 +1,8 @@
 //! Immutable, schema-checked inputs for portable program construction.
 //! Runtime parameter banks and prepared curve caches belong to the interpreter.
 use super::{Type, Value};
-use crate::execution::PreparedAutomation;
+use crate::automation::AutomationMapping;
+use crate::execution::{AutomatedQuantity, PreparedAutomation};
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -62,6 +63,8 @@ impl BoundParams {
             binding.duration.as_ticks() != 0
                 && binding.curve.validate().is_ok()
                 && binding.mapping.is_well_formed()
+                && (binding.quantity == AutomatedQuantity::Value
+                    || matches!(binding.mapping, AutomationMapping::Float { .. }))
                 && self
                     .types
                     .get(usize::from(binding.param_index))

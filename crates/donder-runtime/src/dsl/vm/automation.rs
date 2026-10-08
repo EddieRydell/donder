@@ -5,15 +5,28 @@
 
 use super::{Arc, BoundParams, CurveParameter, Identifier, PreparedCurve};
 use crate::automation::AutomationMapping;
-use crate::sampling::sample_curve;
+use crate::sampling::{curve_area, sample_curve};
 use crate::signal::PreparedAutomation;
-use crate::values::{Curve, SampleDuration, SampleTime};
+use crate::values::{Curve, MICROS_PER_SECOND, SampleDuration, SampleTime};
 use alloc::{boxed::Box, vec::Vec};
+use donder_language::execution::AutomatedQuantity;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct AutomationPlan {
     bindings: Box<[Binding]>,
     windows: Box<[Window]>,
+    /// Where the program's time starts: its clip's start, or the sequence's.
+    origin: SampleTime,
+}
+
+impl Default for AutomationPlan {
+    fn default() -> Self {
+        Self {
+            bindings: Box::default(),
+            windows: Box::default(),
+            origin: SampleTime::from_ticks(0),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -28,6 +41,11 @@ struct Binding {
 #[derive(Clone, Debug)]
 enum Destination {
     Float {
+        slot: usize,
+        min: f32,
+        max: f32,
+    },
+    FloatIntegral {
         slot: usize,
         min: f32,
         max: f32,
@@ -110,8 +128,13 @@ impl AutomationPlan {
                 start: binding.start,
                 duration: binding.duration,
                 curve: Arc::clone(&binding.curve),
+                quantity: match binding.destination {
+                    Destination::FloatIntegral { .. } => AutomatedQuantity::Integral,
+                    _ => AutomatedQuantity::Value,
+                },
                 mapping: match &binding.destination {
-                    Destination::Float { min, max, .. } => AutomationMapping::Float {
+                    Destination::Float { min, max, .. }
+                    | Destination::FloatIntegral { min, max, .. } => AutomationMapping::Float {
                         min: *min,
                         max: *max,
                     },
@@ -137,7 +160,11 @@ impl AutomationPlan {
 
     /// Materialize automation already checked with the language invocation.
     /// The parameter banks must be the materialization of that invocation's inputs.
-    pub(crate) fn from_accepted(params: &BoundParams, bindings: &[PreparedAutomation]) -> Self {
+    pub(crate) fn from_accepted(
+        params: &BoundParams,
+        bindings: &[PreparedAutomation],
+        origin: SampleTime,
+    ) -> Self {
         use crate::dsl::bytecode::ParameterKind;
         let values = &params.values;
         let mut admitted = Vec::with_capacity(bindings.len());
@@ -151,51 +178,63 @@ impl AutomationPlan {
                 .iter()
                 .filter(|ty| ParameterKind::for_type(ty) == kind)
                 .count();
-            let destination = match &binding.mapping {
-                AutomationMapping::Float { min, max } => Destination::Float {
-                    slot,
-                    min: *min,
-                    max: *max,
-                },
-                AutomationMapping::Int { min, max } => Destination::Int {
-                    slot,
-                    min: *min,
-                    max: *max,
-                },
-                AutomationMapping::Bool => Destination::Bool { slot },
-                AutomationMapping::Enum { values: options } => Destination::Enum {
-                    slot,
-                    first: options[0].clone(),
-                    rest: options[1..].into(),
-                },
-                AutomationMapping::Curve { min, max } => {
-                    let point_capacity = binding.curve.points.len().max(1);
-                    let window = match windows.iter().position(|window| window.slot == slot) {
-                        Some(index) => {
-                            let window = &mut windows[index];
-                            window.point_capacity = window.point_capacity.max(point_capacity);
-                            Arc::make_mut(&mut window.curve)
-                                .reserve_window_capacity(window.point_capacity);
-                            index
-                        }
-                        None => {
-                            let mut curve = PreparedCurve::new(values.curves[slot].owned());
-                            curve.reserve_window_capacity(point_capacity);
-                            let index = windows.len();
-                            windows.push(Window {
-                                slot,
-                                curve: Arc::new(curve),
-                                point_capacity,
-                            });
-                            index
-                        }
-                    };
-                    Destination::Curve {
-                        window,
+            let destination = match (&binding.mapping, binding.quantity) {
+                (AutomationMapping::Float { min, max }, AutomatedQuantity::Integral) => {
+                    Destination::FloatIntegral {
+                        slot,
                         min: *min,
                         max: *max,
                     }
                 }
+                (_, AutomatedQuantity::Integral) => {
+                    unreachable!("admission accepts integrals of float automation only")
+                }
+                (mapping, AutomatedQuantity::Value) => match mapping {
+                    AutomationMapping::Float { min, max } => Destination::Float {
+                        slot,
+                        min: *min,
+                        max: *max,
+                    },
+                    AutomationMapping::Int { min, max } => Destination::Int {
+                        slot,
+                        min: *min,
+                        max: *max,
+                    },
+                    AutomationMapping::Bool => Destination::Bool { slot },
+                    AutomationMapping::Enum { values: options } => Destination::Enum {
+                        slot,
+                        first: options[0].clone(),
+                        rest: options[1..].into(),
+                    },
+                    AutomationMapping::Curve { min, max } => {
+                        let point_capacity = binding.curve.points.len().max(1);
+                        let window = match windows.iter().position(|window| window.slot == slot) {
+                            Some(index) => {
+                                let window = &mut windows[index];
+                                window.point_capacity = window.point_capacity.max(point_capacity);
+                                Arc::make_mut(&mut window.curve)
+                                    .reserve_window_capacity(window.point_capacity);
+                                index
+                            }
+                            None => {
+                                let mut curve = PreparedCurve::new(values.curves[slot].owned());
+                                curve.reserve_window_capacity(point_capacity);
+                                let index = windows.len();
+                                windows.push(Window {
+                                    slot,
+                                    curve: Arc::new(curve),
+                                    point_capacity,
+                                });
+                                index
+                            }
+                        };
+                        Destination::Curve {
+                            window,
+                            min: *min,
+                            max: *max,
+                        }
+                    }
+                },
             };
             admitted.push(Binding {
                 parameter: binding.param_index,
@@ -208,6 +247,7 @@ impl AutomationPlan {
         Self {
             bindings: admitted.into(),
             windows: windows.into(),
+            origin,
         }
     }
 
@@ -225,6 +265,21 @@ impl AutomationPlan {
                 Destination::Float { slot, min, max } => {
                     let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);
                     values.floats[*slot] = min + (max - min) * amount;
+                }
+                Destination::FloatIntegral { slot, min, max } => {
+                    // Admission keeps automation values in 0..1, so the
+                    // value's clamp never applies and the area is exact.
+                    let ticks = binding.duration.as_ticks() as f32;
+                    let position = |at: SampleTime| {
+                        (i64::from(at.as_ticks()) - i64::from(binding.start.as_ticks())) as f32
+                            / ticks
+                    };
+                    let area = curve_area(&binding.curve, position(self.origin), position(time));
+                    let elapsed = (i64::from(time.as_ticks()) - i64::from(self.origin.as_ticks()))
+                        as f32
+                        / MICROS_PER_SECOND as f32;
+                    let seconds = ticks / MICROS_PER_SECOND as f32;
+                    values.floats[*slot] = min * elapsed + (max - min) * seconds * area;
                 }
                 Destination::Int { slot, min, max } => {
                     let amount = sample_curve(&binding.curve, position).clamp(0.0, 1.0);

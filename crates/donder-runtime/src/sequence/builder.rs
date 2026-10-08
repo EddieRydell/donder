@@ -268,7 +268,8 @@ impl<'id> SequenceBuilder<'id> {
             }
         };
         let params = BoundParams::from_validated(invocation.params(), &mut self.bind_cache);
-        let automation_plan = AutomationPlan::from_accepted(&params, invocation.automation());
+        let automation_plan =
+            AutomationPlan::from_accepted(&params, invocation.automation(), window.start);
         let index = self.effects.len();
         let automation = if invocation.automation().is_empty() {
             None
@@ -320,7 +321,11 @@ impl<'id> SequenceBuilder<'id> {
             }
         };
         let params = BoundParams::from_validated(invocation.params(), &mut self.bind_cache);
-        let automation_plan = AutomationPlan::from_accepted(&params, invocation.automation());
+        let automation_plan = AutomationPlan::from_accepted(
+            &params,
+            invocation.automation(),
+            SampleTime::from_ticks(0),
+        );
         let inputs = (0..invocation.program().input_count())
             .map(|index| input(index).index)
             .collect();

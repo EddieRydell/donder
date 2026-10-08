@@ -10,7 +10,7 @@ use super::ir::{
     Binary, Context, Domain, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops, Unary,
 };
 use super::types::{Type, Value};
-use crate::execution::PreparedAutomation;
+use crate::execution::{AutomatedQuantity, PreparedAutomation};
 use crate::values::Color;
 
 /// Context values shared by every sample of a prepared invocation. An absent
@@ -73,6 +73,34 @@ impl Instance {
         let pixel_count = constants
             .pixel_count
             .map(|count| fixed(&mut slots, Type::Int, Value::Int(count)));
+        // The integral of an automated parameter is a slot that playback
+        // writes from a copy of the parameter's binding.
+        let mut automation = automation.to_vec();
+        let mut integrals = Vec::new();
+        for node in super::lower::reachable(&definition.graph, definition.root) {
+            let Op::ParamIntegral(index) = *definition.graph.op(node) else {
+                continue;
+            };
+            let Some(binding) = automation
+                .iter()
+                .find(|binding| u32::from(binding.param_index) == index)
+            else {
+                continue;
+            };
+            let slot = slots.len() as u32;
+            let integral = PreparedAutomation {
+                quantity: AutomatedQuantity::Integral,
+                param_index: slot as u16,
+                ..binding.clone()
+            };
+            slots.push(Param {
+                ty: Type::Float,
+                domain: Domain::TIME,
+            });
+            values.push(Value::Float(0.0));
+            automation.push(integral);
+            integrals.push((index, slot));
+        }
         let mut graph = Graph::new(slots, definition.graph.inputs());
         let mut substitute = Bind {
             values: values
@@ -82,6 +110,7 @@ impl Instance {
                 .collect(),
             duration,
             pixel_count,
+            integrals,
         };
         let root =
             Rebuild::new(&definition.graph).node(&mut graph, definition.root, &mut substitute)?;
@@ -89,7 +118,7 @@ impl Instance {
             graph,
             root,
             values,
-            automation: automation.to_vec(),
+            automation,
         })
     }
 
@@ -107,6 +136,7 @@ impl Instance {
                 duration: crate::values::SampleDuration::from_ticks(1),
                 curve: crate::Shared::new(crate::values::Curve { points: Vec::new() }),
                 mapping: crate::automation::AutomationMapping::Bool,
+                quantity: AutomatedQuantity::Value,
                 param_index: index as u16,
             })
             .collect::<Vec<_>>();
@@ -238,9 +268,23 @@ struct Bind {
     values: Vec<Option<Value>>,
     duration: Option<u32>,
     pixel_count: Option<u32>,
+    /// The slot holding each automated parameter's integral.
+    integrals: Vec<(u32, u32)>,
 }
 
 impl Substitute for Bind {
+    /// A parameter without automation integrates to `parameter * time`.
+    fn param_integral(&mut self, target: &mut Graph, index: u32) -> Node {
+        match self.integrals.iter().find(|(param, _)| *param == index) {
+            Some(&(_, slot)) => target.add(Op::Param(slot)),
+            None => {
+                let value = target.add(Op::Param(index));
+                let time = target.add(Op::Context(Context::Time));
+                target.binary(Binary::Multiply, value, time)
+            }
+        }
+    }
+
     fn context(&mut self, target: &mut Graph, context: Context) -> Node {
         match (context, self.duration, self.pixel_count) {
             (Context::Duration, Some(slot), _) | (Context::TargetCount, _, Some(slot)) => {

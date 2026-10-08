@@ -640,6 +640,12 @@ pub enum Instruction {
         min: Slot,
         max: Slot,
     },
+    /// Float: a curve resource's area from position 0 to a float position.
+    CurveIntegral {
+        dst: Slot,
+        curve: Slot,
+        position: Slot,
+    },
     /// Float: the first position where the curve reaches a float value, or
     /// the last before a float position when `before` is present.
     CurveCrossing {
@@ -985,6 +991,11 @@ impl Instruction {
                 v(Color, dst, Write);
             }
             I::CurveSample {
+                dst,
+                curve,
+                position,
+            }
+            | I::CurveIntegral {
                 dst,
                 curve,
                 position,

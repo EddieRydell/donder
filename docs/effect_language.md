@@ -65,8 +65,10 @@ outside the range are rejected, never clamped, so code can rely on it instead of
 re-validating its inputs.
 
 Parameters of type float, int, bool, enum and curve can be automated. Automation
-maps its normalized curve onto the declared range, an enum's options in order, or
-a bool's false and true halves.
+maps its normalized curve (values in 0..1) onto the declared range, an enum's
+options in order, or a bool's false and true halves. `integral(speed)` integrates
+a float parameter over time, so a speed or rate used as `integral(speed)` rather
+than `time * speed` keeps its place when automation changes it.
 
 ## Expressions
 
@@ -92,7 +94,9 @@ expression it produces.
   or measured with `len()`; they hold numbers, bools or colors.
 
 Curves and gradients are indexed by a normalized position: `level[0.5]`,
-`colors[t]`. Arrays are indexed by a number that clamps to the first or last
+`colors[t]`. `curve_integral(rate, progress) * duration` accumulates a curve
+over the clip, so a varying rate or speed gives a count or position without
+jumps. Arrays are indexed by a number that clamps to the first or last
 element, so `colors[position * len(colors)]` picks a color directly; a float
 index rounds down. An empty array yields the element type's default, and
 `len()` is zero. Comparisons do not chain; combine them with `&&` and `||`.

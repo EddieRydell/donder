@@ -122,7 +122,11 @@ impl Analysis<'_> {
                 let (start, end) = (self.of(data.start), self.of(data.end));
                 Interval::new(start.min, end.max - 1.0, false)
             }
-            Op::Context(_) | Op::Sample { .. } | Op::Reduce(_) | Op::Items(_) => Interval::ANY,
+            Op::ParamIntegral(_)
+            | Op::Context(_)
+            | Op::Sample { .. }
+            | Op::Reduce(_)
+            | Op::Items(_) => Interval::ANY,
             Op::Pick { items, .. } => {
                 let items = items.clone();
                 items

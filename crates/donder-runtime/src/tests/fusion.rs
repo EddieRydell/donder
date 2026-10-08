@@ -511,6 +511,7 @@ fn automated_sources_fuse_only_at_the_consumers_own_time() {
             }
             .into(),
             mapping: AutomationMapping::Float { min: 0.2, max: 0.9 },
+            quantity: donder_language::execution::AutomatedQuantity::Value,
         }]) as Box<[PreparedAutomation]>
     };
     let automated = |operator: &CompiledOperator| {

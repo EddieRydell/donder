@@ -36,7 +36,7 @@ use donder_language::sequence::{
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
     MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
-    SequenceLayer, SequenceLayerId,
+    SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
 };
 use donder_language::setup::{Setup, SetupId};
 use donder_language::values::{
@@ -1340,13 +1340,21 @@ impl DomainResolver<'_> {
                     ));
                 }
             }
+            let automation_curve = curve(&clip.curve)
+                .map_err(|message| self.invalid(document, clip.row.span, message))?;
+            if !automation_curve_is_normalized(&automation_curve) {
+                return Err(self.invalid(
+                    document,
+                    clip.row.span,
+                    "automation curve values must lie in 0..1",
+                ));
+            }
             automation_clips.push(AutomationClip {
                 id: AutomationClipId(index as u32 + 1),
                 start: DonderTime(clip.start),
                 duration: DonderDuration(clip.duration),
                 row_target: self.fixture_target(document, &clip.row)?,
-                curve: curve(&clip.curve)
-                    .map_err(|message| self.invalid(document, clip.row.span, message))?,
+                curve: automation_curve,
                 bindings,
                 detached_bindings,
             });

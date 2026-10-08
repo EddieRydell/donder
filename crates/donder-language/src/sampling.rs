@@ -118,6 +118,42 @@ pub fn sample_curve_points(points: &[CurvePoint], position: f32) -> f32 {
     previous.value + (point.value - previous.value) * t
 }
 
+/// The area under the curve from position 0 to `position`. End values are
+/// held beyond the authored points, as in sampling.
+pub fn curve_integral(curve: &Curve, position: f32) -> f32 {
+    curve_area(curve, 0.0, position)
+}
+
+/// The signed area under the curve between two positions, holding end values
+/// beyond the authored points.
+pub fn curve_area(curve: &Curve, from: f32, to: f32) -> f32 {
+    let points = &curve.points;
+    if from.is_nan() || to.is_nan() || points.is_empty() {
+        return f32::NAN;
+    }
+    curve_area_from_start(points, to) - curve_area_from_start(points, from)
+}
+
+/// The signed area from the first point's position to `position`.
+fn curve_area_from_start(points: &[CurvePoint], position: f32) -> f32 {
+    let first = &points[0];
+    if position <= first.position {
+        return (position - first.position) * first.value;
+    }
+    let mut area = 0.0;
+    for pair in points.windows(2) {
+        let (start, finish) = (&pair[0], &pair[1]);
+        if position < finish.position {
+            let fraction = (position - start.position) / (finish.position - start.position);
+            let value = start.value + (finish.value - start.value) * fraction;
+            return area + (position - start.position) * (start.value + value) * 0.5;
+        }
+        area += (finish.position - start.position) * (start.value + finish.value) * 0.5;
+    }
+    let last = &points[points.len() - 1];
+    area + (position - last.position) * last.value
+}
+
 #[inline]
 pub fn curve_crossing(curve: &Curve, value: f32, fallback: f32) -> f32 {
     let Some(first) = curve.points.first() else {

@@ -11,7 +11,7 @@ effect ScanSweep {
 
   sample {
     let position = section_position(section_width_pixels);
-    let scan_progress = (progress * repeats) % 1.0;
+    let scan_progress = (integral(repeats) / duration) % 1.0;
     let scan_position = if direction == RightToLeft { 1.0 - scan_progress } else { scan_progress };
     let target_position =
       if direction == CenterOut { abs(position - 0.5) * 2.0 }

@@ -115,6 +115,15 @@ pub struct AutomationClip {
 /// Well under one frame at any supported frame rate.
 const CROP_TOLERANCE_SECONDS: f64 = 1e-4;
 
+/// Automation curves hold normalized values that parameters map onto their
+/// ranges.
+pub fn automation_curve_is_normalized(curve: &Curve) -> bool {
+    curve
+        .points
+        .iter()
+        .all(|point| (0.0..=1.0).contains(&point.value))
+}
+
 impl AutomationClip {
     pub fn end(&self) -> core::time::Duration {
         self.start.0.saturating_add(self.duration.0)

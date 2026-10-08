@@ -241,6 +241,19 @@ NaN in either argument gives NaN.
 let on = step(0.5, progress);
 ```
 
+### `integral`
+
+```text
+integral(parameter: float) -> float
+```
+
+A float parameter integrated over time, in its units times seconds.
+Integrates from the clip's start in an effect, or the sequence's start in an operator. A fixed value gives `parameter * time`; automation is integrated exactly, so a changing speed or rate never jumps. The argument must name a float parameter.
+
+```text
+let phase = integral(speed) * TAU;
+```
+
 ## Rounding and conversion
 
 ### `floor`
@@ -492,6 +505,19 @@ Indexing a curve, `curve[position]`, samples it at a position in 0..1; an empty 
 
 ```text
 let level = curve_clamped(envelope, progress, 0.0, 1.0);
+```
+
+### `curve_integral`
+
+```text
+curve_integral(curve: curve, position: float) -> float
+```
+
+The area under the curve from position 0 to `position`.
+End values are held beyond the authored points, so the area keeps growing past them; a negative position gives a negative area. Multiply by `duration` to integrate a rate over the clip's seconds. An empty curve or a NaN position gives NaN.
+
+```text
+let spawned = curve_integral(rate, progress) * duration;
 ```
 
 ### `gradient_color_scaled`

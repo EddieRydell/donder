@@ -574,7 +574,8 @@ preparation does not repeat it.
   cardinality are checked even on disconnected branches.
 - Active automation bindings target existing parameters that support
   automation. A clip binds a target at most once (active or detached), and clips
-  that bind the same target do not overlap.
+  that bind the same target do not overlap. Automation curve values lie in
+  0..1.
 
 ## Saving
 
