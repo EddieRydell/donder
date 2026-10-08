@@ -49,6 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<Rotation3Degrees>()
         .register::<Scale3>()
         .register::<SequenceExportPort>()
+        .register::<SequenceExportOptions>()
         .register::<LiveOutputSnapshot>()
         .register::<LiveOutputState>()
         .register::<LiveOutputControllerSnapshot>()

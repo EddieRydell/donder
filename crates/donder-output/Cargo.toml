@@ -2,7 +2,7 @@
 name = "donder-output"
 edition.workspace = true
 version.workspace = true
-description = "Donder E1.31 and Art-Net output transports"
+description = "Donder E1.31 and Art-Net output transports and FSEQ export"
 authors = ["Donder"]
 license = "MIT"
 
@@ -10,8 +10,11 @@ license = "MIT"
 artnet_protocol.workspace = true
 donder-language.workspace = true
 donder-model.workspace = true
+donder-runtime.workspace = true
+donder-runtime-types.workspace = true
 indexmap.workspace = true
 sacn.workspace = true
+zstd.workspace = true
 
 [dev-dependencies]
 uuid.workspace = true

@@ -360,6 +360,21 @@ impl SourceObjectKind {
 }
 
 impl ProjectSession {
+    /// The asset a sequence's audio names, resolved in the declaring document's module.
+    pub fn audio_asset(
+        &self,
+        document: &DocumentId,
+        audio: &donder_model::SequenceAudio,
+    ) -> Option<&ReferencedAsset> {
+        let donder_model::SequenceAudio::Asset(id) = audio else {
+            return None;
+        };
+        self.source
+            .referenced_assets
+            .iter()
+            .find(|asset| asset.id == *id && asset.module_id == document.module_id())
+    }
+
     /// Check an owned address against the typed tree, never against source names.
     pub fn owned_object_exists(
         &self,

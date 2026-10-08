@@ -32,7 +32,7 @@ pub use dto::output::{
     DeviceSerialPort, DeviceTransportStatus, DonderDeviceClaim, DonderDeviceConnection,
     DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
     LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
-    Point3Meters, SequenceExportPort,
+    Point3Meters, SequenceExportOptions, SequenceExportPort,
 };
 pub use dto::patch::{
     GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,

@@ -24,9 +24,9 @@ has one owner:
 | `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
-| `donder-output` | E1.31 and Art-Net transports. |
+| `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
-| `donder-cli` | `check`, `copy`, `lsp` (the language server over stdio) and the generated builtin reference. |
+| `donder-cli` | `check`, `copy`, `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts. Edit helpers mutate the candidate session they are given. |
 | `donder-sequence-api` | The serialized editor contract (DTOs and `SequenceGuiEdit`), exported to TypeScript for both hosts. |
 | `donder-browser` | A WASM session for the website: an in-memory project, editing through `donder-editor`, preparation and playback. |

@@ -41,8 +41,9 @@ export const commands = {
 	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
-	sequenceExportPorts: (request: GuiDocumentRequest) => typedError<SequenceExportPort[], string>(__TAURI_INVOKE("sequence_export_ports", { request })),
+	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
+	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
 	deviceFirmwareInfo: () => typedError<DeviceFirmwareInfo, string>(__TAURI_INVOKE("device_firmware_info")),
 	installDeviceFirmware: (port: string, progress: Channel<DeviceInstallProgress>) => typedError<null, string>(__TAURI_INVOKE("install_device_firmware", { port, progress })),
@@ -845,6 +846,12 @@ export type SequenceEffectParamValue = { type: "int"; value: number } | { type: 
 export type SequenceEffectReference = { type: "custom"; moduleId: string; path: string; effectName: string };
 
 export type SequenceEffectScope = "perFixture" | "wholeTarget";
+
+export type SequenceExportOptions = {
+	ports: SequenceExportPort[],
+	/**  The whole-millisecond FSEQ step closest to the authored frame rate. */
+	fseqStepMillis: number,
+};
 
 export type SequenceExportPort = {
 	index: number,

@@ -200,14 +200,8 @@ fn sequence_audio(
     document: &donder_model::DocumentId,
     audio: &donder_model::SequenceAudio,
 ) -> Option<SequenceAudio> {
-    let donder_model::SequenceAudio::Asset(id) = audio else {
-        return None;
-    };
     session
-        .source
-        .referenced_assets
-        .iter()
-        .find(|asset| asset.id == *id && asset.module_id == document.module_id())
+        .audio_asset(document, audio)
         .map(|asset| SequenceAudio {
             import_path: asset.relative_path.to_string(),
             resolved_path: asset.absolute_path.to_string(),
