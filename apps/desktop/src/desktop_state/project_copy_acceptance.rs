@@ -33,8 +33,9 @@ fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {
                     id: 1,
                     name: "Unsaved group".into(),
                     description: None,
-                    kind: GuiLayoutFixtureKind::Group { children: vec![] },
+                    kind: GuiLayoutFixtureKind::Group { members: vec![] },
                 }],
+                root: vec![1],
             },
         );
         assert!(matches!(result.document, GuiDocument::Layout { .. }));

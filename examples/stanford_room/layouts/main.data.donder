@@ -1,133 +1,119 @@
 Layout main {
   description: none,
+  root: [desk],
   items: [
-    Group {
-      name: desk,
+    Group { name: desk, description: none, members: [desk_top, desk_legs] },
+    Group { name: desk_top, description: none, members: [desk_left, desk_front, desk_right] },
+    Fixture {
+      name: desk_left,
       description: none,
-      items: [
-        Group {
-          name: desk_top,
-          description: none,
-          items: [
-            Fixture {
-              name: desk_left,
-              description: none,
-              definition: fixture_1,
-              transform: Transform {
-                position: (0m, 1m, 0m),
-                rotation: (0.0, 0.0, 180.0),
-                scale: (1.0, 1.0, 1.0),
-              },
+      definition: fixture_1,
+      transform: Transform {
+        position: (0m, 1m, 0m),
+        rotation: (0.0, 0.0, 180.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: desk_front,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: line_1,
+            diameter: 0.01m,
+            reverse: false,
+            transform: Transform {
+              position: (0.000023m, -0.003221m, 0m),
+              rotation: (0.0, 0.0, 0.25693592),
+              scale: (1.0, 1.0, 1.0),
             },
-            Fixture {
-              name: desk_front,
-              description: none,
-              definition: FixtureDefinition {
-                description: none,
-                shapes: [
-                  Shape {
-                    name: line_1,
-                    diameter: 0.01m,
-                    reverse: false,
-                    transform: Transform {
-                      position: (0.000023m, -0.003221m, 0m),
-                      rotation: (0.0, 0.0, 0.25693592),
-                      scale: (1.0, 1.0, 1.0),
-                    },
-                    geometry: Line { length: 1.2959173, count: 40 },
-                  },
-                ],
-              },
-              transform: Transform {
-                position: (-0.001052m, 0.007047m, 0m),
-                rotation: (0.0, 0.0, 0.0),
-                scale: (1.0, 1.0, 1.0),
-              },
+            geometry: Line { length: 1.2959173, count: 40 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (-0.001052m, 0.007047m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: desk_right,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: line_1,
+            diameter: 0.01m,
+            reverse: false,
+            transform: Transform {
+              position: (-0.001052m, -0.002953m, 0m),
+              rotation: (0.0, 0.0, 90.0),
+              scale: (1.0, 1.0, 1.0),
             },
-            Fixture {
-              name: desk_right,
-              description: none,
-              definition: FixtureDefinition {
-                description: none,
-                shapes: [
-                  Shape {
-                    name: line_1,
-                    diameter: 0.01m,
-                    reverse: false,
-                    transform: Transform {
-                      position: (-0.001052m, -0.002953m, 0m),
-                      rotation: (0.0, 0.0, 90.0),
-                      scale: (1.0, 1.0, 1.0),
-                    },
-                    geometry: Line { length: 1.0005907, count: 30 },
-                  },
-                ],
-              },
-              transform: Transform {
-                position: (1.3m, 0m, 0m),
-                rotation: (0.0, 0.0, 0.0),
-                scale: (1.0, 1.0, 1.0),
-              },
+            geometry: Line { length: 1.0005907, count: 30 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (1.3m, 0m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Group { name: desk_legs, description: none, members: [desk_leg_left, desk_leg_right] },
+    Fixture {
+      name: desk_leg_left,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: line_1,
+            diameter: 0.01m,
+            reverse: false,
+            transform: Transform {
+              position: (0.003137m, 0.998588m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
             },
-          ],
-        },
-        Group {
-          name: desk_legs,
-          description: none,
-          items: [
-            Fixture {
-              name: desk_leg_left,
-              description: none,
-              definition: FixtureDefinition {
-                description: none,
-                shapes: [
-                  Shape {
-                    name: line_1,
-                    diameter: 0.01m,
-                    reverse: false,
-                    transform: Transform {
-                      position: (0.003137m, 0.998588m, 0m),
-                      rotation: (0.0, 0.0, -90.0),
-                      scale: (1.0, 1.0, 1.0),
-                    },
-                    geometry: Line { length: 0.998775, count: 25 },
-                  },
-                ],
-              },
-              transform: Transform {
-                position: (0m, -1.02m, 0m),
-                rotation: (0.0, 0.0, 0.0),
-                scale: (1.0, 1.0, 1.0),
-              },
+            geometry: Line { length: 0.998775, count: 25 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (0m, -1.02m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
+    },
+    Fixture {
+      name: desk_leg_right,
+      description: none,
+      definition: FixtureDefinition {
+        description: none,
+        shapes: [
+          Shape {
+            name: line_1,
+            diameter: 0.01m,
+            reverse: false,
+            transform: Transform {
+              position: (0.003137m, 0.998588m, 0m),
+              rotation: (0.0, 0.0, -90.0),
+              scale: (1.0, 1.0, 1.0),
             },
-            Fixture {
-              name: desk_leg_right,
-              description: none,
-              definition: FixtureDefinition {
-                description: none,
-                shapes: [
-                  Shape {
-                    name: line_1,
-                    diameter: 0.01m,
-                    reverse: false,
-                    transform: Transform {
-                      position: (0.003137m, 0.998588m, 0m),
-                      rotation: (0.0, 0.0, -90.0),
-                      scale: (1.0, 1.0, 1.0),
-                    },
-                    geometry: Line { length: 0.998775, count: 25 },
-                  },
-                ],
-              },
-              transform: Transform {
-                position: (1.3m, -1m, 0m),
-                rotation: (0.0, 0.0, 0.0),
-                scale: (1.0, 1.0, 1.0),
-              },
-            },
-          ],
-        },
-      ],
+            geometry: Line { length: 0.998775, count: 25 },
+          },
+        ],
+      },
+      transform: Transform {
+        position: (1.3m, -1m, 0m),
+        rotation: (0.0, 0.0, 0.0),
+        scale: (1.0, 1.0, 1.0),
+      },
     },
   ],
 }

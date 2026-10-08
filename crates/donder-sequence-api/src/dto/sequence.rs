@@ -314,11 +314,14 @@ pub struct SequenceLane {
     pub target: FixtureTarget,
     pub label: String,
     pub kind: SequenceLaneKind,
-    /** Nesting depth in the layout tree; top-level fixtures and groups are 0. */
+    /** Nesting depth below the layout root; top-level fixtures and groups are 0. */
     pub depth: u32,
+    /** How many lanes show this target. Every copy shows the same clips. */
+    pub occurrences: u32,
 }
 
-/** Lanes follow the layout tree depth-first; a group lane precedes its members. */
+/** Lanes walk the layout root depth-first; a group lane precedes its members, and
+ * a member of several groups has a lane under each. */
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SequenceLaneKind {

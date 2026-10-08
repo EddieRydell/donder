@@ -252,7 +252,8 @@ pub struct SequenceMarkRef {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequencePasteAnchor {
-    pub target: Option<FixtureTarget>,
+    /// The timeline lane to paste at; a target may have several lanes.
+    pub lane: Option<u32>,
     pub time_seconds: f32,
 }
 
@@ -320,6 +321,9 @@ pub enum SequenceSelectionEdit {
         effect_ids: Vec<u32>,
         automation_ids: Vec<u32>,
         time_delta_seconds: f32,
+        /// The lane the move started on. Each clip moves from the lane of its
+        /// target nearest this one.
+        anchor_lane: u32,
         lane_delta: i32,
     },
     ResizeClips {

@@ -47,7 +47,6 @@ pub(super) fn render_signature(
     let target_pixels = geometry
         .target(&effect.target)
         .map_err(|error| format!("{error:?}"))?
-        .iter()
         .flat_map(|instance| {
             instance.pixels.iter().enumerate().map(|(index, pixel)| {
                 let position = instance.transform.transform_point3(pixel.position);

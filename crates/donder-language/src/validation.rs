@@ -162,6 +162,16 @@ fn validate_patch(
         let layout = project
             .layout(&route.target.layout)
             .ok_or(ProjectValidationError::MissingLayout)?;
+        if !matches!(
+            layout
+                .fixture(route.target.fixture)
+                .map(|fixture| &fixture.kind),
+            Some(crate::layout::LayoutFixtureKind::Fixture { .. })
+        ) {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Output routes must target a fixture.".into(),
+            ));
+        }
         let target_count = layout
             .target_pixel_count(&route.target, counts)
             .map_err(ProjectValidationError::Layout)?;

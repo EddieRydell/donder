@@ -59,32 +59,51 @@ fn validate_nodes(
 }
 
 pub(super) fn page_layout(id: LayoutId, page: &[BrowserPageNode]) -> Layout {
+    // The page is a tree: every node is listed once, under its parent.
+    fn push(node: &BrowserPageNode, fixtures: &mut Vec<LayoutFixture>) -> FixtureInstanceId {
+        let fixture = match node {
+            BrowserPageNode::Group { id, name, children } => LayoutFixture {
+                description: None,
+                id: FixtureInstanceId(*id),
+                name: donder_language::names::object_name(name),
+                kind: LayoutFixtureKind::Group {
+                    members: children.iter().map(node_id).collect(),
+                },
+            },
+            BrowserPageNode::Fixture { id, name, pixels } => LayoutFixture {
+                description: None,
+                id: FixtureInstanceId(*id),
+                name: donder_language::names::object_name(name),
+                kind: LayoutFixtureKind::Fixture {
+                    definition: ValueSource::Inline(fixture_definition(pixels)),
+                    transform: FixtureTransform::default(),
+                },
+            },
+        };
+        let id = fixture.id;
+        fixtures.push(fixture);
+        if let BrowserPageNode::Group { children, .. } = node {
+            for child in children {
+                push(child, fixtures);
+            }
+        }
+        id
+    }
+    let mut fixtures = Vec::new();
+    let root = page.iter().map(|node| push(node, &mut fixtures)).collect();
     Layout {
         description: None,
         id,
-        fixtures: page.iter().map(layout_fixture).collect(),
+        fixtures,
+        root,
     }
 }
 
-fn layout_fixture(node: &BrowserPageNode) -> LayoutFixture {
+fn node_id(node: &BrowserPageNode) -> FixtureInstanceId {
     match node {
-        BrowserPageNode::Group { id, name, children } => LayoutFixture {
-            description: None,
-            id: FixtureInstanceId(*id),
-            name: donder_language::names::object_name(name),
-            kind: LayoutFixtureKind::Group {
-                children: children.iter().map(layout_fixture).collect(),
-            },
-        },
-        BrowserPageNode::Fixture { id, name, pixels } => LayoutFixture {
-            description: None,
-            id: FixtureInstanceId(*id),
-            name: donder_language::names::object_name(name),
-            kind: LayoutFixtureKind::Fixture {
-                definition: ValueSource::Inline(fixture_definition(pixels)),
-                transform: FixtureTransform::default(),
-            },
-        },
+        BrowserPageNode::Group { id, .. } | BrowserPageNode::Fixture { id, .. } => {
+            FixtureInstanceId(*id)
+        }
     }
 }
 

@@ -1,6 +1,8 @@
 use super::*;
 
-/// Duplicate a placement or group with independently owned geometry.
+/// Duplicate a placement or group with independently owned geometry. A group
+/// copies its members once each, so members shared inside it stay shared. The
+/// copy is listed after the original in every group listing the original.
 /// Existing routes and effects keep targeting the originals.
 pub fn duplicate_layout_fixture(
     project: &mut DonderProject,
@@ -10,46 +12,39 @@ pub fn duplicate_layout_fixture(
     project.checked_edit(|project| duplicate_candidate(project, layout_id, fixture_id))
 }
 
-fn duplicate_candidate(
-    project: &mut DonderProject,
-    layout_id: &LayoutId,
-    fixture_id: FixtureInstanceId,
-) -> Result<FixtureInstanceId, String> {
-    let layout = project.layout(layout_id).ok_or("Layout was not found.")?;
-    let mut copy = layout
-        .fixture(fixture_id)
-        .ok_or("Fixture was not found.")?
-        .clone();
-    let mut next = layout
-        .iter_fixtures()
-        .map(|fixture| fixture.id.0)
-        .max()
-        .unwrap_or(0);
-    let mut taken = layout
-        .iter_fixtures()
-        .map(|fixture| fixture.name.clone())
-        .collect::<std::collections::HashSet<_>>();
+struct Copier<'a> {
+    project: &'a DonderProject,
+    layout: &'a Layout,
+    next: u32,
+    taken: std::collections::HashSet<crate::dsl::Identifier>,
+    copies: indexmap::IndexMap<FixtureInstanceId, LayoutFixture>,
+}
+
+impl Copier<'_> {
     // Every copied placement and group gets its own unique name.
-    fn own(
-        fixture: &mut LayoutFixture,
-        next: &mut u32,
-        taken: &mut std::collections::HashSet<crate::dsl::Identifier>,
-        project: &DonderProject,
-    ) -> Result<(), String> {
-        *next = next
+    fn own(&mut self, id: FixtureInstanceId) -> Result<FixtureInstanceId, String> {
+        if let Some(copy) = self.copies.get(&id) {
+            return Ok(copy.id);
+        }
+        let mut copy = self
+            .layout
+            .fixture(id)
+            .ok_or("Fixture was not found.")?
+            .clone();
+        self.next = self
+            .next
             .checked_add(1)
             .ok_or("No fixture instance IDs remain.")?;
-        fixture.id = FixtureInstanceId(*next);
-        fixture.name =
-            crate::names::unique_name(&format!("{}_copy", fixture.name.as_str()), |name| {
-                taken.iter().any(|taken| taken.as_str() == name)
-            });
-        taken.insert(fixture.name.clone());
-        match &mut fixture.kind {
+        copy.id = FixtureInstanceId(self.next);
+        copy.name = crate::names::unique_name(&format!("{}_copy", copy.name.as_str()), |name| {
+            self.taken.iter().any(|taken| taken.as_str() == name)
+        });
+        self.taken.insert(copy.name.clone());
+        match &mut copy.kind {
             LayoutFixtureKind::Fixture { definition, .. } => {
                 if let FixtureSource::Reference(id) = definition {
                     *definition = FixtureSource::Inline(
-                        project
+                        self.project
                             .definitions
                             .fixtures
                             .definitions
@@ -59,37 +54,52 @@ fn duplicate_candidate(
                     );
                 }
             }
-            LayoutFixtureKind::Group { children } => {
-                for child in children {
-                    own(child, next, taken, project)?;
-                }
+            LayoutFixtureKind::Group { members } => {
+                *members = members
+                    .iter()
+                    .map(|&member| self.own(member))
+                    .collect::<Result<_, _>>()?;
             }
         }
-        Ok(())
+        let copied = copy.id;
+        self.copies.insert(id, copy);
+        Ok(copied)
     }
-    own(&mut copy, &mut next, &mut taken, project)?;
-    let id = copy.id;
-    fn siblings(
-        fixtures: &mut Vec<LayoutFixture>,
-        id: FixtureInstanceId,
-    ) -> Option<(&mut Vec<LayoutFixture>, usize)> {
-        if let Some(index) = fixtures.iter().position(|fixture| fixture.id == id) {
-            return Some((fixtures, index));
-        }
-        for fixture in fixtures {
-            if let LayoutFixtureKind::Group { children } = &mut fixture.kind
-                && let Some(found) = siblings(children, id)
-            {
-                return Some(found);
-            }
-        }
-        None
-    }
+}
+
+fn duplicate_candidate(
+    project: &mut DonderProject,
+    layout_id: &LayoutId,
+    fixture_id: FixtureInstanceId,
+) -> Result<FixtureInstanceId, String> {
+    let layout = project.layout(layout_id).ok_or("Layout was not found.")?;
+    let mut copier = Copier {
+        project,
+        layout,
+        next: layout
+            .iter_fixtures()
+            .map(|fixture| fixture.id.0)
+            .max()
+            .unwrap_or(0),
+        taken: layout
+            .iter_fixtures()
+            .map(|fixture| fixture.name.clone())
+            .collect(),
+        copies: indexmap::IndexMap::new(),
+    };
+    let id = copier.own(fixture_id)?;
+    let copies = copier.copies;
     let layout = project
         .layout_mut(layout_id)
         .ok_or("Layout was not found.")?;
-    let (siblings, index) =
-        siblings(&mut layout.fixtures, fixture_id).ok_or("Fixture was not found.")?;
-    siblings.insert(index + 1, copy);
+    for (original, copy) in copies {
+        let index = layout
+            .fixtures
+            .iter()
+            .position(|fixture| fixture.id == original)
+            .ok_or("Fixture was not found.")?;
+        layout.fixtures.insert(index + 1, copy);
+    }
+    layout.add_beside(id, fixture_id);
     Ok(id)
 }

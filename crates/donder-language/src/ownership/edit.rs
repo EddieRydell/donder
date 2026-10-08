@@ -103,20 +103,13 @@ fn fixture_mut(
     fixtures: &mut [LayoutFixture],
     id: FixtureInstanceId,
 ) -> Option<&mut FixtureSource> {
-    for fixture in fixtures {
-        match &mut fixture.kind {
-            LayoutFixtureKind::Fixture { definition, .. } if fixture.id == id => {
-                return Some(definition);
-            }
-            LayoutFixtureKind::Group { children } => {
-                if let Some(value) = fixture_mut(children, id) {
-                    return Some(value);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
+    fixtures
+        .iter_mut()
+        .find(|fixture| fixture.id == id)
+        .and_then(|fixture| match &mut fixture.kind {
+            LayoutFixtureKind::Fixture { definition, .. } => Some(definition),
+            LayoutFixtureKind::Group { .. } => None,
+        })
 }
 
 fn retarget(project: &mut DonderProject, from: &ObjectIdentity, to: &ObjectIdentity) {

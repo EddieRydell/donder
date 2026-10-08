@@ -7,7 +7,7 @@ mod routing;
 use crate::selection::Selection;
 use donder_language::effect::EffectScope;
 use donder_language::execution::TargetScope;
-use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind};
+use donder_language::layout::FixtureInstanceId;
 use donder_language::operator::composition_graph_output_dependencies;
 use donder_language::sequence::CompositionGraphNodeKind;
 use donder_runtime::PreparedSequence;
@@ -25,8 +25,15 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
         .enumerate()
         .map(|(index, (id, _))| (*id, index))
         .collect::<IndexMap<_, _>>();
-    let mut targets = IndexMap::new();
-    collect_targets(&selected.layout.fixtures, &indexes, &mut targets);
+    // Every group denotes its ordered member fixtures, including empty groups.
+    let targets = selected
+        .layout
+        .iter_fixtures()
+        .map(|item| {
+            let members = selected.layout.members(item.id);
+            (item.id, members.iter().map(|id| indexes[id]).collect())
+        })
+        .collect::<IndexMap<FixtureInstanceId, Vec<usize>>>();
     let routes = routing::targets(&selected, &geometry, &targets);
     let sequence = selected.sequence.sequence();
     let dependencies = composition_graph_output_dependencies(&sequence.composition_graph);
@@ -143,22 +150,4 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
         routing::prepare(builder, &selected, &geometry, &targets, &cells, &fixtures);
         root
     })
-}
-
-/// Every group denotes its ordered leaf fixtures, including empty groups.
-fn collect_targets(
-    nodes: &[LayoutFixture],
-    fixtures: &IndexMap<FixtureInstanceId, usize>,
-    targets: &mut IndexMap<FixtureInstanceId, Vec<usize>>,
-) -> Vec<usize> {
-    let mut members = Vec::new();
-    for node in nodes {
-        let target = match &node.kind {
-            LayoutFixtureKind::Fixture { .. } => vec![fixtures[&node.id]],
-            LayoutFixtureKind::Group { children } => collect_targets(children, fixtures, targets),
-        };
-        members.extend(target.iter().copied());
-        targets.insert(node.id, target);
-    }
-    members
 }

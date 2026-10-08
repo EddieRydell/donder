@@ -43,7 +43,7 @@ fn tiny_project(imports: &str, extra: &str) -> (tempfile::TempDir, Utf8PathBuf) 
         root.join(PROJECT_ROOT_FILE),
         common::root_document(
             imports,
-            "  setup: Setup {\n    description: none,\n    layout: Layout { description: none, items: [] },\n    patch: Patch { description: none, routes: [] },\n    controllers: [],\n  },\n  sequences: [],\n",
+            "  setup: Setup {\n    description: none,\n    layout: Layout { description: none, root: [], items: [] },\n    patch: Patch { description: none, routes: [] },\n    controllers: [],\n  },\n  sequences: [],\n",
         ),
     )
     .unwrap();

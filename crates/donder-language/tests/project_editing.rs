@@ -36,6 +36,7 @@ fn data() -> ProjectData {
                     description: None,
                     id: LayoutId(setup.owned(OwnedObjectSlot::Layout)),
                     fixtures: vec![],
+                    root: vec![],
                 })),
                 patch: ValueSource::Inline(Box::new(Patch {
                     description: None,
@@ -101,6 +102,7 @@ fn geometry_cache_reuses_unchanged_inputs_and_rebuilds_changed_inputs() {
             transform: FixtureTransform::default(),
         },
     });
+    layout.root.push(FixtureInstanceId(1));
     let mut project = DonderProject::try_new(data).unwrap();
     let sequence_id = add_sequence(
         &mut project,
@@ -213,6 +215,7 @@ fn related_replacements_commit_together_and_do_not_change_prior_snapshots() {
         description: None,
         id: LayoutId(identity("layout.donder", "layout").into()),
         fixtures: vec![],
+        root: vec![],
     };
     let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
     setup.layout = ValueSource::Reference(named_layout.id.clone());
@@ -254,6 +257,7 @@ fn a_failed_later_batch_request_rolls_back_earlier_changes() {
         description: None,
         id: LayoutId(identity("layout.donder", "layout").into()),
         fixtures: vec![],
+        root: vec![],
     };
     assert!(
         project

@@ -136,6 +136,7 @@ pub fn apply_sequence_selection_edit(
             effect_ids,
             automation_ids,
             time_delta_seconds,
+            anchor_lane,
             lane_delta,
         } => {
             move_clip_selection(
@@ -144,6 +145,7 @@ pub fn apply_sequence_selection_edit(
                 &effect_ids,
                 &automation_ids,
                 time_delta_seconds,
+                anchor_lane as usize,
                 lane_delta,
             )?;
             Ok(SequenceSelectionMutation {

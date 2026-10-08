@@ -1,6 +1,5 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::layout::{FixtureInstanceId, LayoutFixture, LayoutFixtureKind};
 use donder_language::sequence::{
     AutomationTarget, CompositionGraphNodeKind, EffectGraphEdge, GraphPortId,
 };
@@ -8,27 +7,6 @@ use donder_language::values::SampleTime;
 use donder_runtime::LoadLimits;
 use donder_runtime::decode_sequence;
 use donder_runtime::encode_sequence;
-
-fn target_fixtures(nodes: &[LayoutFixture], target: FixtureInstanceId) -> Vec<u32> {
-    fn visit(
-        nodes: &[LayoutFixture],
-        target: FixtureInstanceId,
-        selected: bool,
-        ids: &mut Vec<u32>,
-    ) {
-        for node in nodes {
-            let selected = selected || node.id == target;
-            match &node.kind {
-                LayoutFixtureKind::Fixture { .. } if selected => ids.push(node.id.0),
-                LayoutFixtureKind::Group { children } => visit(children, target, selected, ids),
-                LayoutFixtureKind::Fixture { .. } => {}
-            }
-        }
-    }
-    let mut ids = Vec::new();
-    visit(nodes, target, false, &mut ids);
-    ids
-}
 
 #[test]
 fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
@@ -106,10 +84,13 @@ fn sparse_clips_match_full_domain_samples_and_survive_archive_roundtrips() {
             let mut workspace = prepare(&reference_project, &sequence.id, PrepareOutputs::All)
                 .unwrap()
                 .into_playback();
-            let fixtures = target_fixtures(
-                &project.layout(&authored.target.layout).unwrap().fixtures,
-                authored.target.fixture,
-            );
+            let fixtures = project
+                .layout(&authored.target.layout)
+                .unwrap()
+                .members(authored.target.fixture)
+                .into_iter()
+                .map(|fixture| fixture.0)
+                .collect::<Vec<_>>();
             let clip = decoded.clip(authored.id.0).unwrap();
             let target_count = clip.target_pixel_count();
             for row_limit in [1, 17, target_count] {

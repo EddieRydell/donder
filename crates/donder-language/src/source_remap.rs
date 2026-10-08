@@ -228,13 +228,12 @@ fn remap_layout_fixtures(
     remaps: &BTreeMap<DocumentId, DocumentId>,
 ) {
     for fixture in fixtures {
-        match &mut fixture.kind {
-            LayoutFixtureKind::Fixture { definition, .. } => {
-                if let crate::fixture::FixtureSource::Reference(id) = definition {
-                    *id = FixtureDefinitionId(remap_identity(&id.0, remaps));
-                }
-            }
-            LayoutFixtureKind::Group { children } => remap_layout_fixtures(children, remaps),
+        if let LayoutFixtureKind::Fixture {
+            definition: crate::fixture::FixtureSource::Reference(id),
+            ..
+        } = &mut fixture.kind
+        {
+            *id = FixtureDefinitionId(remap_identity(&id.0, remaps));
         }
     }
 }

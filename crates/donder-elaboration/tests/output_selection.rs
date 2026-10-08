@@ -145,7 +145,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
     // Two ports wire disjoint spans of one fixture, preserving authored effect coordinates.
     for (index, start) in [(0, 0), (1, 76)] {
         let route = &mut patch.routes[index];
-        route.target.fixture = FixtureInstanceId(1);
+        route.target.fixture = FixtureInstanceId(2);
         route.pixels = Some(PixelSpan { start, count: 37 });
         route.start_slot = 7;
     }

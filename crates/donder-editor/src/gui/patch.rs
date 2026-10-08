@@ -29,8 +29,15 @@ pub(super) fn project_document(
         .layouts()
         .map(|layout| {
             let id = &layout.id;
+            // Routes target fixtures; groups are effect targets only.
             let fixtures = layout
                 .iter_fixtures()
+                .filter(|fixture| {
+                    matches!(
+                        fixture.kind,
+                        donder_language::layout::LayoutFixtureKind::Fixture { .. }
+                    )
+                })
                 .map(|fixture| {
                     Ok(PatchFixtureTarget {
                         id: fixture.id.0,

@@ -54,6 +54,7 @@ pub const DISPLAY: &str = r#"FixtureDefinition pixel {
 
 Layout main {
   description: none,
+  root: [pixel],
   items: [
     Fixture {
       name: pixel,

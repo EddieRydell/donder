@@ -102,18 +102,35 @@ modal; fixtures in another document open in their editor tab. The fixture modal'
 Save and close button saves through the normal project save path before closing;
 a failed save leaves the editor open.
 
+Each fixture is placed once, but a fixture or group may be a member of several
+groups, such as `roofs` and `left_side` both listing `left_roof`. The hierarchy
+shows such an item under every group listing it, with a ×N badge; every row is
+the same item. Right-click a row and use **Add to group** to list it in another
+group, or **Remove from** to take it out of the group that row is in. An item
+taken out of its last group moves to the top level. Deleting a group keeps its
+members; deleting a fixture removes it from every group.
+
 The layout hierarchy supports dragging fixtures and groups. Drop onto the middle
 of a group row to move inside it; the group opens while hovering. Drop near the
 top or bottom of a row to reorder siblings, or onto the bottom drop area to move
-to the top level. Moves preserve fixture names, geometry ownership, and canvas
-positions, and use normal undo/redo. Groups cannot be moved into their descendants.
-Reordering changes layout traversal order, and changing group membership also
-changes which fixtures are included when an effect or patch targets that group.
+to the top level. A drag moves the row out of the group it was dragged from;
+hold Alt to add the item to the destination as well. Moves preserve fixture
+names, geometry ownership, and canvas positions, and use normal undo/redo. A
+group cannot contain itself. Member order sets the order of a group's fixtures
+when an effect targets it as one strand; a fixture reached through several
+members keeps its first position.
+
+In the sequence editor, a member of several groups has a lane under each. Every
+copy shows the same clips; hovering or selecting a clip highlights each copy,
+and moving one moves them all. A vertical drag moves a clip from the copy it was
+grabbed on. Click a lane's ×N badge to jump to its next copy.
 
 Duplicating a fixture or group copies its geometry into independently owned
-values, even when the original used a reusable source. Copies get new names
-(`front_left_copy`) next to the originals. Routes and effect targets keep addressing the
-originals; a copy is not patched automatically.
+values, even when the original used a reusable source. A duplicated group copies
+each member once and lists the copies; the copy joins every group listing the
+original. Copies get new names (`front_left_copy`) next to the originals. Routes
+and effect targets keep addressing the originals; a copy is not patched
+automatically.
 
 ## Authored format
 
@@ -123,6 +140,7 @@ no extra named source object:
 ```text
 Layout main {
   description: none,
+  root: [front_left],
   items: [
     Fixture {
       name: front_left,
@@ -166,21 +184,23 @@ it. Positions and diameters are distances in meters, exact to the micrometer
 (`0.35m`); rotations are degrees and other lengths are meters as floats. Each
 shape and fixture must have at most 1,000,000 pixels. Individual shapes have
 positive counts, while an empty fixture is valid. Shape names are unique within
-the fixture, and fixture and group names are unique within the layout at any
-depth, so routes and clips reach them as `layout.fixture`. Grid dimensions
-multiply to its count; arcs require a nonzero sweep of at most one full turn.
+the fixture, and fixture and group names are unique within the layout, so routes
+and clips reach them as `layout.fixture`. A layout's `root` and each group's
+`members` name its items; every item is in `root` or some group. Grid
+dimensions multiply to its count; arcs require a nonzero sweep of at most one
+full turn.
 
 ## Output and ownership
 
 Preparation expands shapes once into flat pixel buffers and resolves layout
-targets to instance ranges. Playback does not generate shapes or resolve names,
-imports, or groups per frame. Pixels are ordered by shape order, then along each
-shape, reversed where a shape says so.
+targets to ordered member instances. Playback does not generate shapes or
+resolve names, imports, or groups per frame. Pixels are ordered by shape order,
+then along each shape, reversed where a shape says so.
 
 RGB/RGBW encoding, channel order, brightness, and gamma belong to LED routes.
 Routes can select pixel ranges. Changing counts or shape order changes those
-ranges, so review the patch when changing fixture wiring. Effects continue to
-target whole instances or groups.
+ranges, so review the patch when changing fixture wiring. Routes target
+fixtures; effects target whole fixtures or groups.
 
 Copying a layout preserves shared fixtures and instance names, creates its own
 patch, and retargets affected sequences. Shared fixtures remain linked through

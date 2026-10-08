@@ -385,7 +385,9 @@ export type GuiLayoutFixture = {
 	kind: GuiLayoutFixtureKind,
 };
 
-export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSource; transform: Transform } | { type: "group"; children: GuiLayoutFixture[] };
+export type GuiLayoutFixtureKind = { type: "fixture"; definition: GuiFixtureSource; transform: Transform } | 
+/**  Members may belong to several groups. */
+{ type: "group"; members: number[] };
 
 export type GuiObjectRef = {
 	ownedPath: GuiOwnedStep[],
@@ -430,12 +432,21 @@ export type LayoutGuiDocument = {
 	path: string,
 	sourceRef: GuiObjectRef,
 	objectKey: string,
+	/**  Every fixture and group once; fixture order is placement order. */
 	fixtures: GuiLayoutFixture[],
+	/**  Top-level members in display order. */
+	root: number[],
 	availableFixtures: GuiObjectRef[],
 	renderPlan: SpatialRenderPlan,
 };
 
-export type LayoutGuiEdit = { type: "reparentFixture"; id: number; parent: number | null; before: number | null } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
+export type LayoutGuiEdit = 
+/**  Move a member between groups; `None` is the root. Same group reorders. */
+{ type: "moveMember"; id: number; from: number | null; to: number | null; before: number | null } | 
+/**  List an item in another group as well. */
+{ type: "addMember"; id: number; to: number | null; before: number | null } | { type: "removeMember"; id: number; from: number | null } | 
+/**  Delete fixtures and groups everywhere. */
+{ type: "removeItems"; ids: number[] } | { type: "duplicateFixture"; id: number } | { type: "repeatFixtures"; ids: number[]; offsets: Point3Meters[] } | { type: "addDefinition"; name: string; storage: FixtureStorage; parent: number | null; transform: Transform } | { type: "setFixtures"; fixtures: GuiLayoutFixture[]; root: number[] } | { type: "moveFixture"; id: number; delta: Point3Meters };
 
 export type LiveOutputControllerSnapshot = {
 	id: string,
@@ -947,11 +958,16 @@ export type SequenceLane = {
 	target: FixtureTarget,
 	label: string,
 	kind: SequenceLaneKind,
-	/**  Nesting depth in the layout tree; top-level fixtures and groups are 0.  */
+	/**  Nesting depth below the layout root; top-level fixtures and groups are 0.  */
 	depth: number,
+	/**  How many lanes show this target. Every copy shows the same clips.  */
+	occurrences: number,
 };
 
-/**  Lanes follow the layout tree depth-first; a group lane precedes its members.  */
+/**
+ *  Lanes walk the layout root depth-first; a group lane precedes its members, and
+ *  * a member of several groups has a lane under each. 
+ */
 export type SequenceLaneKind = "fixture" | "group";
 
 export type SequenceLayer = {
@@ -989,7 +1005,8 @@ export type SequenceParamRange = {
 };
 
 export type SequencePasteAnchor = {
-	target: FixtureTarget | null,
+	/**  The timeline lane to paste at; a target may have several lanes. */
+	lane: number | null,
 	timeSeconds: number,
 };
 
@@ -997,7 +1014,12 @@ export type SequenceResizeEdge = "left" | "right";
 
 export type SequenceSelection = { type: "clips"; effectIds: number[]; automationIds: number[] } | { type: "marks"; marks: SequenceMarkRef[] };
 
-export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection } | { type: "cut"; selection: SequenceSelection } | { type: "delete"; selection: SequenceSelection } | { type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; effectIds: number[]; automationIds: number[]; timeDeltaSeconds: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
+export type SequenceSelectionEdit = { type: "copy"; selection: SequenceSelection } | { type: "cut"; selection: SequenceSelection } | { type: "delete"; selection: SequenceSelection } | { type: "paste"; anchor: SequencePasteAnchor } | { type: "moveClips"; effectIds: number[]; automationIds: number[]; timeDeltaSeconds: number; 
+/**
+ *  The lane the move started on. Each clip moves from the lane of its
+ *  target nearest this one.
+ */
+anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: number[]; automationIds: number[]; edge: SequenceResizeEdge; automation: SequenceAutomationResize; timeDeltaSeconds: number } | { type: "editEffects"; effectIds: number[]; edit: SequenceEffectCommonEdit } | { type: "moveMarks"; marks: SequenceMarkRef[]; timeDeltaSeconds: number };
 
 export type SequenceSelectionEditResult = {
 	snapshot: AppSnapshot,

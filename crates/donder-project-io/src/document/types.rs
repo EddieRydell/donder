@@ -78,15 +78,20 @@ pub enum PortAddress {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub struct Layout {
     pub description: Option<String>,
+    /// Top-level members, by name, in display order.
+    pub root: Vec<Name>,
+    /// Every fixture and group once; fixture order is placement order.
     pub items: Vec<LayoutItem>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum LayoutItem {
+    /// Members are fixtures or groups of this layout; a member may belong to
+    /// several groups.
     Group {
         name: Name,
         description: Option<String>,
-        items: Vec<LayoutItem>,
+        members: Vec<Name>,
     },
     Fixture {
         name: Name,
