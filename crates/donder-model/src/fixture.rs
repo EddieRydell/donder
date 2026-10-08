@@ -116,7 +116,7 @@ impl FixtureShape {
 
 impl FixtureElement {
     pub fn is_valid(&self) -> bool {
-        donder_language::is_object_name(self.name.as_str())
+        donder_language::NameKind::Object.accepts(self.name.as_str())
             && self.transform.is_valid()
             && self.diameter != DistanceSpan::ZERO
             && self.diameter.as_meters_f32() <= 100.0

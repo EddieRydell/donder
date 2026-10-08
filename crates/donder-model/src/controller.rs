@@ -142,7 +142,9 @@ impl Controller {
             if !ids.insert(port.id) {
                 return Err(ControllerValidationError::DuplicatePort(port.id));
             }
-            if !donder_language::is_object_name(port.name.as_str()) || !names.insert(&port.name) {
+            if !donder_language::NameKind::Object.accepts(port.name.as_str())
+                || !names.insert(&port.name)
+            {
                 return Err(ControllerValidationError::InvalidPortName(port.id));
             }
             if port.slot_count == 0 {

@@ -346,33 +346,61 @@ impl Lexer<'_> {
     }
 }
 
-fn keyword(text: &str, mode: LexMode) -> Option<Keyword> {
-    // Data documents reserve only their own words, so fields may be named
-    // `effect`, `input` or `in`.
-    if mode == LexMode::Data {
-        return Some(match text {
-            "import" => Keyword::Import,
-            "from" => Keyword::From,
-            "none" => Keyword::None,
-            "true" => Keyword::True,
-            "false" => Keyword::False,
-            _ => return None,
-        });
+impl Keyword {
+    pub(crate) fn text(self) -> &'static str {
+        match self {
+            Self::Effect => "effect",
+            Self::Operator => "operator",
+            Self::Fn => "fn",
+            Self::Let => "let",
+            Self::Guard => "guard",
+            Self::If => "if",
+            Self::Else => "else",
+            Self::For => "for",
+            Self::In => "in",
+            Self::True => "true",
+            Self::False => "false",
+            Self::Import => "import",
+            Self::From => "from",
+            Self::None => "none",
+        }
     }
-    Some(match text {
-        "effect" => Keyword::Effect,
-        "operator" => Keyword::Operator,
-        "fn" => Keyword::Fn,
-        "let" => Keyword::Let,
-        "guard" => Keyword::Guard,
-        "if" => Keyword::If,
-        "else" => Keyword::Else,
-        "for" => Keyword::For,
-        "in" => Keyword::In,
-        "true" => Keyword::True,
-        "false" => Keyword::False,
-        _ => return None,
-    })
+}
+
+impl LexMode {
+    /// The words this mode reserves. Data documents reserve only their own,
+    /// so fields may be named `effect`, `input` or `in`.
+    pub(crate) fn keywords(self) -> &'static [Keyword] {
+        match self {
+            Self::Script => &[
+                Keyword::Effect,
+                Keyword::Operator,
+                Keyword::Fn,
+                Keyword::Let,
+                Keyword::Guard,
+                Keyword::If,
+                Keyword::Else,
+                Keyword::For,
+                Keyword::In,
+                Keyword::True,
+                Keyword::False,
+            ],
+            Self::Data => &[
+                Keyword::Import,
+                Keyword::From,
+                Keyword::None,
+                Keyword::True,
+                Keyword::False,
+            ],
+        }
+    }
+}
+
+fn keyword(text: &str, mode: LexMode) -> Option<Keyword> {
+    mode.keywords()
+        .iter()
+        .copied()
+        .find(|keyword| keyword.text() == text)
 }
 
 /// Whether `text` is one identifier token in `mode`, as used for authored

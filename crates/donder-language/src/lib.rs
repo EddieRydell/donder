@@ -15,10 +15,8 @@ pub mod compiler;
 pub mod data;
 mod imports;
 mod names;
-pub use imports::{
-    ImportAlias, ImportDeclaration, ImportSource, SourceReference, is_valid_import_alias,
-};
-pub use names::{is_object_name, name_from_text, object_name, unique_name};
+pub use imports::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
+pub use names::{NameError, NameKind, name_from_text, object_name, unique_name};
 mod quantities;
 pub use quantities::{
     Distance, DistanceSpan, DonderDuration, DonderTime, NANOS_PER_SECOND, Point3, Rotation3,

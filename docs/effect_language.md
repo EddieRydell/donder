@@ -53,8 +53,11 @@ operator does the same over its `input` signals. Parameter types are `int`,
 `array<T>` of any of those but arrays. Required parameters have no default and
 must be supplied by every instance.
 
-Enum options are `PascalCase` (`Forward`, `AcrossItems`); a `snake_case` option
-is an error with a fix. An option is written bare where a value of that enum is
+Effects, operators and enum options are `PascalCase` (`Forward`,
+`AcrossItems`); parameters, inputs, functions, arguments, `let` bindings and
+reduction indexes are `snake_case`. A name in the wrong case is an error with a
+fix. Parameters and inputs appear in data documents, so they also cannot be
+`none`, `import` or `from`. An option is written bare where a value of that enum is
 expected: as a parameter's default and in comparisons with a value of that
 enum, such as `direction == Backward`. In data documents a clip's value for an
 enum parameter is the same bare option.
@@ -200,7 +203,8 @@ from the compiler's builtin table, so it always matches what the compiler
 accepts.
 
 The context names (`time`, `duration`, `progress`, `pixel`, `target`, `PI`,
-`TAU`) are reserved. In an effect, time is measured over the clip; in an
+`TAU`) are reserved, and a function cannot take a builtin's name. In an effect,
+time is measured over the clip; in an
 operator, over the sequence. Spatial values use layout-space meters, after
 fixture transforms.
 

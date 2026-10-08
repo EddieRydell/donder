@@ -1,14 +1,86 @@
-//! Object names. Every object other objects refer to has a `snake_case`
-//! name, unique where it is declared, and the GUI generates one for each
-//! object it creates.
+//! Authored names: the one rule for each kind of name, and the names the GUI
+//! generates. Every object other objects refer to has a `snake_case` name,
+//! unique where it is declared.
 use donder_runtime_types::Identifier;
 
+use crate::compiler::builtins::{builtin, is_context_name};
 use crate::compiler::syntax::lexer::{LexMode, is_identifier};
+use crate::data::tree::{is_pascal_case, is_snake_case};
 
-/// Whether `text` is a valid object name: `snake_case`, starting with a
-/// lowercase letter or `_`, and not a data-document keyword such as `none`.
-pub fn is_object_name(text: &str) -> bool {
-    crate::data::tree::is_snake_case(text) && is_identifier(text, LexMode::Data)
+/// What a name names. Each kind has one rule, which the parsers, the checker,
+/// model validation and the language server's rename all apply.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NameKind {
+    /// A data declaration, item or port, or an import alias: `snake_case`
+    /// and not a data-document keyword.
+    Object,
+    /// An effect or operator: `PascalCase`.
+    Definition,
+    /// An enum option: `PascalCase`.
+    EnumOption,
+    /// A param or input. Data documents write these as field names and after
+    /// `.`, so they are `snake_case` words neither language reserves.
+    Member,
+    /// An argument, `let` or loop index: `snake_case`, not a context name.
+    Value,
+    /// A function: a value name that is not a builtin.
+    Function,
+}
+
+/// Why a name breaks its kind's rule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NameError {
+    NotSnakeCase,
+    NotPascalCase,
+    /// A keyword, or more than one token.
+    Keyword,
+    /// A context value, like `time` or `pixel`.
+    Context,
+    /// A builtin function.
+    Builtin,
+}
+
+impl NameKind {
+    pub fn check(self, text: &str) -> Result<(), NameError> {
+        let pascal = matches!(self, Self::Definition | Self::EnumOption);
+        if pascal && !is_pascal_case(text) {
+            return Err(NameError::NotPascalCase);
+        }
+        if !pascal && !is_snake_case(text) {
+            return Err(NameError::NotSnakeCase);
+        }
+        let script = self != Self::Object;
+        let data = matches!(self, Self::Object | Self::Member);
+        if (script && !is_identifier(text, LexMode::Script))
+            || (data && !is_identifier(text, LexMode::Data))
+        {
+            return Err(NameError::Keyword);
+        }
+        if matches!(self, Self::Member | Self::Value | Self::Function) && is_context_name(text) {
+            return Err(NameError::Context);
+        }
+        if self == Self::Function && builtin(text).is_some() {
+            return Err(NameError::Builtin);
+        }
+        Ok(())
+    }
+
+    pub fn accepts(self, text: &str) -> bool {
+        self.check(text).is_ok()
+    }
+}
+
+impl NameError {
+    /// What is wrong with `name`, for a diagnostic.
+    pub fn message(self, name: &str) -> String {
+        match self {
+            Self::NotSnakeCase => format!("`{name}` must be snake_case"),
+            Self::NotPascalCase => format!("`{name}` must be PascalCase"),
+            Self::Keyword => format!("`{name}` is a keyword"),
+            Self::Context => format!("`{name}` is a reserved name"),
+            Self::Builtin => format!("`{name}` is a builtin"),
+        }
+    }
 }
 
 /// The first of `prefix`, `prefix_2`, `prefix_3`, ... that `taken` rejects.
@@ -76,7 +148,7 @@ pub fn name_from_text(text: &str, fallback: &str) -> String {
     let name = name.trim_end_matches('_').to_string();
     if name.is_empty() {
         fallback.to_string()
-    } else if is_identifier(&name, LexMode::Data) {
+    } else if NameKind::Object.accepts(&name) {
         name
     } else {
         format!("_{name}")
