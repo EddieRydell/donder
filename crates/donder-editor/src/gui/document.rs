@@ -98,7 +98,7 @@ pub fn affected_paths(
 }
 
 pub struct ResolvedGuiObject {
-    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub owned_path: Vec<donder_sequence_api::GuiOwnedStep>,
     pub identity: SourceIdentity,
     pub kind: SourceObjectKind,
 }
@@ -193,7 +193,7 @@ pub fn resolve_request(
     Ok(resolved)
 }
 
-pub fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {
+pub(crate) fn gui_diagnostic(path: &str, code: &str, message: &str) -> ProjectDiagnostic {
     ProjectDiagnostic {
         path: path.to_string(),
         code: code.to_string(),

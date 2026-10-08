@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
 use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
 use crate::layout::LayoutError;
-use crate::model::DonderProject;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
+use crate::project::DonderProject;
 use crate::sequence::{AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence};
 use donder_language::compiler::ParamDecl;
 use donder_language::{

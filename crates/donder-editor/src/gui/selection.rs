@@ -783,7 +783,7 @@ use super::{
     ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiMutationError, SequenceClipboard,
     SequenceSelectionMutation,
 };
-use crate::dto::{
+use donder_sequence_api::{
     SequenceAutomationResize, SequenceEffectCommonEdit, SequenceEffectReference, SequenceMarkRef,
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,
 };

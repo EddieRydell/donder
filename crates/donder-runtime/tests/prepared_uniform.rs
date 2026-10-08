@@ -11,8 +11,7 @@ use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
 };
 use donder_runtime_types::{
-    OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition, SampleInvocation,
-    SampleProgram, Value,
+    OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram, Value,
 };
 use donder_runtime_types::{PreparedAutomation, SequenceTiming, SequenceWindow, TargetScope};
 use donder_test_support::marks as mark_workload;
@@ -83,11 +82,13 @@ fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
     let (inputs, types) = (program.input_count(), program.parameter_types().into());
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
-    OperatorDefinition::new(OperatorProgram::admit(bytecode, inputs, types).unwrap())
-        .bind(operator.params().iter_values().collect())
-        .unwrap()
-        .with_automation(operator.automation().into())
-        .unwrap()
+    OperatorInvocation::bind(
+        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        operator.params().iter_values().collect(),
+    )
+    .unwrap()
+    .with_automation(operator.automation().into())
+    .unwrap()
 }
 
 /// `program` with its query and target blocks rerun for every strip.
@@ -99,9 +100,11 @@ fn unstaged_program(program: &SampleProgram) -> SampleProgram {
 }
 
 fn unstaged_sample(invocation: &SampleInvocation) -> SampleInvocation {
-    SampleDefinition::new(unstaged_program(invocation.program()))
-        .bind(invocation.params().iter_values().collect())
-        .unwrap()
+    SampleInvocation::bind(
+        unstaged_program(invocation.program()),
+        invocation.params().iter_values().collect(),
+    )
+    .unwrap()
 }
 
 /// Every pixel of a `count`-pixel fixture sampled alone: `invocation` on a

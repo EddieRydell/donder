@@ -18,8 +18,6 @@ mod commands;
 mod desktop_foundation_tests;
 mod desktop_state;
 mod device;
-mod dto;
-mod gui;
 mod language_server;
 mod output;
 mod persistence;
@@ -27,7 +25,6 @@ mod preview;
 mod project;
 mod rendering;
 mod sequence_clip_raster;
-mod source_documents;
 mod state_tasks;
 
 pub fn run() -> Result<(), String> {

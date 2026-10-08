@@ -161,11 +161,11 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
 /// The parameters a definition declares, as the inspector lists them.
 pub(in crate::gui) fn definition_params_to_gui(
     params: &[donder_language::compiler::ParamDecl],
-) -> Vec<crate::dto::SequenceEffectDefinitionParam> {
+) -> Vec<donder_sequence_api::SequenceEffectDefinitionParam> {
     params
         .iter()
         .filter_map(|param| {
-            Some(crate::dto::SequenceEffectDefinitionParam {
+            Some(donder_sequence_api::SequenceEffectDefinitionParam {
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
                 description: param.description.clone(),
@@ -559,7 +559,7 @@ use donder_model::{
 use donder_project_io::ProjectSession;
 use donder_runtime_types::{Type, Value as EffectValue};
 
-use crate::dto::{
+use donder_sequence_api::{
     SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind,
     SequenceEffectParamValue, SequenceGradientLibraryItem, SequenceGradientValue,
     SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperator,

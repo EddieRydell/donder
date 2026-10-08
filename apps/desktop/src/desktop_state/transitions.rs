@@ -1,6 +1,9 @@
 use super::{DesktopState, LoadedProject, lock_unpoisoned};
-use crate::dto::*;
 use camino::Utf8Path;
+use donder_sequence_api::{
+    BufferExternalState, DocumentSaveState, ProjectHealth, TransitionDecision, TransitionRequest,
+    TransitionResult, WorkspaceTransition,
+};
 
 impl DesktopState {
     pub fn request_transition(

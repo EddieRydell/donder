@@ -6,7 +6,7 @@ use std::sync::{Mutex, MutexGuard};
 use tauri::{AppHandle, Manager};
 
 use super::model::*;
-use crate::dto::{AppSettings, AppSnapshot, WorkspaceLayoutState};
+use donder_sequence_api::{AppSettings, AppSnapshot, WorkspaceLayoutState};
 
 const FILE_NAME: &str = "desktop-state-v2.json";
 const MAX_RECENT_PROJECTS: usize = 10;
@@ -14,7 +14,7 @@ const MAX_RECENT_PROJECTS: usize = 10;
 pub(crate) fn sequence_viewport_key(
     path: &str,
     object_key: &str,
-    owned_path: &[crate::dto::GuiOwnedStep],
+    owned_path: &[donder_sequence_api::GuiOwnedStep],
 ) -> Result<String, String> {
     let address =
         serde_json::to_string(&(object_key, owned_path)).map_err(|error| error.to_string())?;
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn owned_sequence_views_remain_distinct_after_document_move() {
-        use crate::dto::GuiOwnedStep;
+        use donder_sequence_api::GuiOwnedStep;
         let first = sequence_viewport_key(
             "show.donder",
             "show",
@@ -592,7 +592,7 @@ mod tests {
         let update = |id, value| PersistedSpatialViewStateUpdate {
             path: "show.donder".into(),
             object_key: "show".into(),
-            owned_path: vec![crate::dto::GuiOwnedStep::Fixture { id }],
+            owned_path: vec![donder_sequence_api::GuiOwnedStep::Fixture { id }],
             state: PersistedSpatialViewState {
                 guides: vec![SpatialGuide {
                     axis: SpatialGuideAxis::X,
@@ -621,7 +621,7 @@ mod tests {
             let key = sequence_viewport_key(
                 "folder/show.donder",
                 "show",
-                &[crate::dto::GuiOwnedStep::Fixture { id }],
+                &[donder_sequence_api::GuiOwnedStep::Fixture { id }],
             )
             .unwrap();
             assert_eq!(views[&key].guides[0].position_meters, value);

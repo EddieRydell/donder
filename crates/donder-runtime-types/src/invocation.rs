@@ -5,23 +5,6 @@ use crate::{BindingError, BoundParams, OperatorProgram, SampleProgram, Value};
 use alloc::{boxed::Box, vec::Vec};
 
 #[derive(Clone, Debug)]
-pub struct SampleDefinition(Arc<SampleProgram>);
-
-impl SampleDefinition {
-    pub fn new(program: impl Into<Arc<SampleProgram>>) -> Self {
-        Self(program.into())
-    }
-
-    pub fn bind(&self, values: Vec<Value>) -> Result<SampleInvocation, BindingError> {
-        Ok(SampleInvocation {
-            program: Arc::clone(&self.0),
-            params: self.0.bind(values)?,
-            automation: Box::new([]),
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct SampleInvocation {
     program: Arc<SampleProgram>,
     params: BoundParams,
@@ -29,6 +12,20 @@ pub struct SampleInvocation {
 }
 
 impl SampleInvocation {
+    /// Binds parameter values to a program, with no automation.
+    pub fn bind(
+        program: impl Into<Arc<SampleProgram>>,
+        values: Vec<Value>,
+    ) -> Result<Self, BindingError> {
+        let program = program.into();
+        let params = program.bind(values)?;
+        Ok(Self {
+            program,
+            params,
+            automation: Box::new([]),
+        })
+    }
+
     pub fn program(&self) -> &Arc<SampleProgram> {
         &self.program
     }
@@ -54,23 +51,6 @@ impl SampleInvocation {
 }
 
 #[derive(Clone, Debug)]
-pub struct OperatorDefinition(Arc<OperatorProgram>);
-
-impl OperatorDefinition {
-    pub fn new(program: impl Into<Arc<OperatorProgram>>) -> Self {
-        Self(program.into())
-    }
-
-    pub fn bind(&self, values: Vec<Value>) -> Result<OperatorInvocation, BindingError> {
-        Ok(OperatorInvocation {
-            program: Arc::clone(&self.0),
-            params: self.0.bind(values)?,
-            automation: Box::new([]),
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct OperatorInvocation {
     program: Arc<OperatorProgram>,
     params: BoundParams,
@@ -78,6 +58,20 @@ pub struct OperatorInvocation {
 }
 
 impl OperatorInvocation {
+    /// Binds parameter values to a program, with no automation.
+    pub fn bind(
+        program: impl Into<Arc<OperatorProgram>>,
+        values: Vec<Value>,
+    ) -> Result<Self, BindingError> {
+        let program = program.into();
+        let params = program.bind(values)?;
+        Ok(Self {
+            program,
+            params,
+            automation: Box::new([]),
+        })
+    }
+
     pub fn program(&self) -> &Arc<OperatorProgram> {
         &self.program
     }

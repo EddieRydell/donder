@@ -1,7 +1,17 @@
 use super::DesktopState;
-use crate::dto::*;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
+use donder_sequence_api::{
+    DocumentViewId, FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, FixtureTarget, GuiDocument,
+    GuiDocumentRequest, GuiEditCommand, GuiEditResult, GuiFixtureElement, GuiFixtureShape,
+    GuiFixtureSource, GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep,
+    GuiOwnershipEdit, GuiOwnershipSlot, GuiPixelEncoding, GuiPixelRoute, LayoutGuiDocument,
+    LayoutGuiEdit, NewSequenceRequest, NewSequenceStorage, ObjectKind, Point3Meters,
+    ReusableStorage, Rotation3Degrees, Scale3, SequenceEffectParamValue, SequenceEffectReference,
+    SequenceEffectScope, SequenceGraphEdge, SequenceGraphNodeKind, SequenceGraphOperator,
+    SequenceGuiEdit, SetupControllerConfig, SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
+    Transform,
+};
 
 pub(super) fn edit_layout(state: &DesktopState, edit: LayoutGuiEdit) -> GuiEditResult {
     let session = state.project_session().unwrap();

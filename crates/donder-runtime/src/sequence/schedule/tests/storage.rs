@@ -49,8 +49,8 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
         Box::new([]),
     )
     .unwrap();
-    let ramp = SampleDefinition::new(ramp).bind(vec![]).unwrap();
-    let green = SampleDefinition::new(green).bind(vec![]).unwrap();
+    let ramp = SampleInvocation::bind(ramp, vec![]).unwrap();
+    let green = SampleInvocation::bind(green, vec![]).unwrap();
     let invert = invert.then(|| {
         let operator = OperatorProgram::admit(
             BytecodeProgram {
@@ -83,7 +83,7 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
             Box::new([]),
         )
         .unwrap();
-        OperatorDefinition::new(operator).bind(vec![]).unwrap()
+        OperatorInvocation::bind(operator, vec![]).unwrap()
     });
     let timing = SequenceTiming::admit(
         NonZeroU32::new(60).unwrap(),

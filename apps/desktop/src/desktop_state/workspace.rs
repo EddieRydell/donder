@@ -6,16 +6,16 @@ use super::{
     DesktopState, FsEntryKind, LoadedProject, absolute_project_path, absolute_root_path,
     descriptor_for_path, lock_unpoisoned, path_matches_or_is_child, valid_child_name,
 };
-use crate::dto::{AppSnapshot, EditorViewMode, NewSequenceRequest};
-use crate::dto::{
-    WorkspaceExplorerState, WorkspacePathChangeImpact, WorkspacePathChangePlan,
-    WorkspacePathChangeRequest,
-};
 use crate::persistence::{
     PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate,
     PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
 };
 use crate::project::{new_project_files, write_new_project_files};
+use donder_sequence_api::{AppSnapshot, EditorViewMode, NewSequenceRequest};
+use donder_sequence_api::{
+    WorkspaceExplorerState, WorkspacePathChangeImpact, WorkspacePathChangePlan,
+    WorkspacePathChangeRequest,
+};
 
 impl DesktopState {
     pub fn open_project_path(&self, path: &str) -> AppSnapshot {
@@ -111,9 +111,9 @@ impl DesktopState {
         };
         let relative = Utf8PathBuf::from(path);
         let project = self.project_session();
-        let source_document = project.as_ref().and_then(|project| {
-            crate::source_documents::document_for_editor_path(project, &relative)
-        });
+        let source_document = project
+            .as_ref()
+            .and_then(|project| donder_editor::document_for_editor_path(project, &relative));
         let read_only = match (&project, &source_document) {
             (Some(project), Some(document)) => !project.source.is_project_owned(document),
             _ => false,
@@ -317,7 +317,7 @@ impl DesktopState {
             } else {
                 workspace.typed_revision = None;
                 workspace.project = LoadedProject::Invalid;
-                workspace.view.project_health = crate::dto::ProjectHealth::Invalid;
+                workspace.view.project_health = donder_sequence_api::ProjectHealth::Invalid;
                 workspace.view.settings.editor_view_mode = EditorViewMode::Text;
             }
         }
@@ -410,7 +410,7 @@ impl DesktopState {
                 return self.update_snapshot(|snapshot| {
                     snapshot.settings.editor_view_mode = EditorViewMode::Text;
                     snapshot.workspace_layout.active_sidebar_view =
-                        crate::dto::SidebarView::Problems;
+                        donder_sequence_api::SidebarView::Problems;
                     snapshot.workspace_layout.sidebar_collapsed = false;
                     snapshot.status = "Fix the project errors before entering GUI".into();
                 });
@@ -521,25 +521,25 @@ impl DesktopState {
     pub fn create_sequence(
         &self,
         request: NewSequenceRequest,
-    ) -> Result<crate::dto::NewSequenceResult, String> {
+    ) -> Result<donder_sequence_api::NewSequenceResult, String> {
         let _authoring = self.settled_authoring();
         let project = self.project_session().ok_or("No project is loaded.")?;
         let owner = &project.project.root().id.0;
-        let target = crate::dto::GuiDocumentRequest {
+        let target = donder_sequence_api::GuiDocumentRequest {
             owned_path: Vec::new(),
             project_revision: self.snapshot().project_revision,
             path: owner.document().to_string(),
             object_key: Some(owner.object().to_string()),
-            view: crate::dto::DocumentViewId::Project,
+            view: donder_sequence_api::DocumentViewId::Project,
         };
         let (result, source) = self
             .mutate_gui_project_locked(&target, |session| {
-                let owner = crate::gui::resolve_request(session, &target)
-                    .map_err(crate::gui::GuiMutationError::Invalid)?;
-                crate::gui::create_sequence(session, &owner, request)
+                let owner = donder_editor::resolve_request(session, &target)
+                    .map_err(donder_editor::GuiMutationError::Invalid)?;
+                donder_editor::create_sequence(session, &owner, request)
             })
             .map_err(|error| error.message().to_string())?;
-        Ok(crate::dto::NewSequenceResult {
+        Ok(donder_sequence_api::NewSequenceResult {
             snapshot: result.snapshot,
             source,
         })

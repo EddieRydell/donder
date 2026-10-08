@@ -1,9 +1,9 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
 use donder_model::{FixtureDefinition, FixtureSource};
 use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
+use donder_sequence_api::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
 
 pub(super) fn edit_layout(
     session: &mut ProjectSession,
@@ -248,14 +248,18 @@ fn domain_fixture(
             transform,
         } => LayoutFixtureKind::Fixture {
             definition: match definition {
-                crate::dto::GuiFixtureSource::Inline { elements } => {
+                donder_sequence_api::GuiFixtureSource::Inline { elements } => {
                     let mut definition = super::fixture::domain_geometry(elements)?;
                     definition.description = owned_description;
                     FixtureSource::Inline(definition)
                 }
-                crate::dto::GuiFixtureSource::Reference { source } => FixtureSource::Reference(
-                    reference_definition(session, layout.0.root_source(), source)?,
-                ),
+                donder_sequence_api::GuiFixtureSource::Reference { source } => {
+                    FixtureSource::Reference(reference_definition(
+                        session,
+                        layout.0.root_source(),
+                        source,
+                    )?)
+                }
             },
             transform: checked_transform(transform)?,
         },
@@ -277,7 +281,7 @@ fn add_instance(
     name: String,
     definition: FixtureSource,
     parent: Option<u32>,
-    transform: crate::dto::Transform,
+    transform: donder_sequence_api::Transform,
 ) -> Result<(), GuiMutationError> {
     let name = super::model::typed_name(&name)?;
     let transform = checked_transform(transform)?;
@@ -305,10 +309,10 @@ fn add_instance(
 
 fn translate_fixture(
     fixture: &mut LayoutFixture,
-    delta: &crate::dto::Point3Meters,
+    delta: &donder_sequence_api::Point3Meters,
 ) -> Result<(), GuiMutationError> {
     if let LayoutFixtureKind::Fixture { transform, .. } = &mut fixture.kind {
-        transform.position = super::fixture::checked_point(crate::dto::Point3Meters {
+        transform.position = super::fixture::checked_point(donder_sequence_api::Point3Meters {
             x_meters: transform.position.x.as_meters_f32() + delta.x_meters,
             y_meters: transform.position.y.as_meters_f32() + delta.y_meters,
             z_meters: transform.position.z.as_meters_f32() + delta.z_meters,

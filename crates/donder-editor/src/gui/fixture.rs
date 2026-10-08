@@ -2,7 +2,6 @@ use super::{
     GuiMutationError,
     model::{domain_point3_meters, rotation3_degrees, scale3, source_identity_from_gui},
 };
-use crate::dto::*;
 use donder_language::DistanceSpan;
 use donder_model::SourceIdentity;
 use donder_model::{
@@ -10,6 +9,10 @@ use donder_model::{
     FixtureSource, FixtureTransform, GridAxis, GridCorner,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_sequence_api::{
+    FixtureGuiEdit, GuiFixtureElement, GuiFixtureShape, GuiGridAxis, GuiGridCorner, GuiObjectRef,
+    ObjectKind, Point3Meters, Rotation3Degrees, Scale3, Transform,
+};
 
 pub(super) fn edit_fixture(
     session: &mut ProjectSession,
@@ -47,7 +50,10 @@ pub(super) fn update_fixture_definition(
                 }])
                 .map_err(GuiMutationError::Invalid)
         }
-        [parent @ .., crate::dto::GuiOwnedStep::Fixture { id }] => {
+        [
+            parent @ ..,
+            donder_sequence_api::GuiOwnedStep::Fixture { id },
+        ] => {
             let parent = parent.iter().fold(
                 donder_model::ObjectIdentity::from(resolved.identity.clone()),
                 |address, step| {
@@ -261,7 +267,7 @@ pub(super) fn domain_element(
     Ok(element)
 }
 
-pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
+pub(crate) fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     let shape = match &element.shape {
         FixtureShape::Pixel => GuiFixtureShape::Pixel,
         FixtureShape::Line { length, count } => GuiFixtureShape::Line {
@@ -324,7 +330,7 @@ pub fn gui_element(element: &FixtureElement) -> GuiFixtureElement {
     }
 }
 
-pub fn gui_transform(value: &FixtureTransform) -> Transform {
+pub(crate) fn gui_transform(value: &FixtureTransform) -> Transform {
     Transform {
         position: super::model::point3_meters(value.position),
         rotation: Rotation3Degrees {
@@ -501,7 +507,9 @@ fn pixel_diameter(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
     Ok(DistanceSpan::from_meters(diameter))
 }
 
-pub fn checked_point(point: Point3Meters) -> Result<donder_language::Point3, GuiMutationError> {
+pub(crate) fn checked_point(
+    point: Point3Meters,
+) -> Result<donder_language::Point3, GuiMutationError> {
     if [point.x_meters, point.y_meters, point.z_meters]
         .iter()
         .any(|value| !value.is_finite() || value.abs() > 2_000.0)

@@ -3,8 +3,10 @@ use std::fs;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-use crate::dto::{WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceOperation};
 use donder_project_io::{ProjectRecovery, ProjectSession};
+use donder_sequence_api::{
+    WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceOperation,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum FsEntryKind {
@@ -137,7 +139,7 @@ fn recovery_workspace_role(
         donder_project_io::RecoveryDocumentKind::Data => document
             .objects
             .iter()
-            .map(|object| crate::dto::workspace_role_for_source_object(&object.kind))
+            .map(|object| donder_sequence_api::workspace_role_for_source_object(&object.kind))
             .next()
             .unwrap_or(WorkspaceEntryRole::File),
     }
@@ -222,7 +224,7 @@ fn workspace_role(
         return document
             .objects()
             .iter()
-            .map(|object| crate::dto::workspace_role_for_source_object(object.kind()))
+            .map(|object| donder_sequence_api::workspace_role_for_source_object(object.kind()))
             .next()
             .unwrap_or(fallback);
     }

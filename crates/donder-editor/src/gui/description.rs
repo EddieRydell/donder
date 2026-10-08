@@ -10,7 +10,7 @@ use donder_model::{CurveId, GradientId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::DocumentViewId;
+use donder_sequence_api::DocumentViewId;
 
 /// Text as a description: surrounding whitespace is not kept, and empty
 /// text is no description.

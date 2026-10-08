@@ -81,7 +81,7 @@ impl DesktopState {
         let snapshot = self.snapshot();
         if snapshot.project_epoch != request.project_epoch
             || snapshot.project_revision != request.project_revision
-            || snapshot.project_health != crate::dto::ProjectHealth::Ready
+            || snapshot.project_health != donder_sequence_api::ProjectHealth::Ready
         {
             return;
         }

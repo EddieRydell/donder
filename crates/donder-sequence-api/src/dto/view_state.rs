@@ -1,4 +1,6 @@
-use super::*;
+use crate::*;
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::collections::BTreeMap;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +58,7 @@ pub struct PersistedGraphViewState {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedGraphViewStateUpdate {
-    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub owned_path: Vec<GuiOwnedStep>,
     pub path: String,
     pub object_key: String,
     pub state: PersistedGraphViewState,
@@ -89,7 +91,7 @@ pub struct PersistedEditorViewStateUpdate {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSequenceViewportStateUpdate {
-    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub owned_path: Vec<GuiOwnedStep>,
     pub path: String,
     pub object_key: String,
     pub state: PersistedSequenceViewportState,
@@ -127,7 +129,7 @@ pub struct PersistedSpatialViewState {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSpatialViewStateUpdate {
-    pub owned_path: Vec<crate::dto::GuiOwnedStep>,
+    pub owned_path: Vec<GuiOwnedStep>,
     pub path: String,
     pub object_key: String,
     pub state: PersistedSpatialViewState,

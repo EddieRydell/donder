@@ -1,9 +1,13 @@
-use crate::dto::*;
 use crate::gui::{ResolvedGuiObject, blocked};
 use donder_model::FixtureDefinitionId;
 use donder_model::PreparedFixtureDefinitions;
 use donder_model::{LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_sequence_api::{
+    FixtureGuiDocument, GeometryRenderBounds, GuiDocument, GuiFixtureHandle, GuiFixtureSource,
+    GuiLayoutFixture, GuiLayoutFixtureKind, GuiObjectRef, GuiOwnedStep, LayoutGuiDocument,
+    Point3Meters, SpatialRenderPixel, SpatialRenderPlan,
+};
 
 pub(in crate::gui) fn project_fixture(
     session: &ProjectSession,
@@ -143,7 +147,7 @@ pub(in crate::gui) fn project_layout(
     }
 }
 
-pub fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
+pub(crate) fn definition_ref(id: &FixtureDefinitionId) -> GuiObjectRef {
     ResolvedGuiObject {
         owned_path: Vec::new(),
         identity: id.0.clone(),

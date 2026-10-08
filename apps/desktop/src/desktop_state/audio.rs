@@ -1,8 +1,8 @@
 use super::{DesktopState, lock_unpoisoned};
-use crate::dto::{
+use crate::persistence::{PersistedSequenceTransport, sequence_viewport_key};
+use donder_sequence_api::{
     AppSnapshot, AudioTransportSnapshot, AudioTransportState, GuiDocumentRequest, PlaybackRange,
 };
-use crate::persistence::{PersistedSequenceTransport, sequence_viewport_key};
 
 impl DesktopState {
     pub fn load_sequence_audio(&self, request: GuiDocumentRequest) -> AppSnapshot {
@@ -38,7 +38,7 @@ impl DesktopState {
         let view_key = project
             .as_ref()
             .filter(|_| sequence_id.is_some())
-            .and_then(|project| crate::gui::resolve_request(project, &request).ok())
+            .and_then(|project| donder_editor::resolve_request(project, &request).ok())
             .and_then(|resolved| {
                 let reference = resolved.source_ref();
                 sequence_viewport_key(
@@ -75,7 +75,7 @@ impl DesktopState {
         }
         let audio_transport = lock_unpoisoned(&self.audio).unload();
         lock_unpoisoned(&self.workspace).transport_view_key = None;
-        if self.snapshot().project_health == crate::dto::ProjectHealth::Ready {
+        if self.snapshot().project_health == donder_sequence_api::ProjectHealth::Ready {
             lock_unpoisoned(&self.workspace).render_target = None;
             self.unload_render_session();
         } else {
@@ -102,7 +102,7 @@ impl DesktopState {
     pub fn audio_pause(&self) -> AppSnapshot {
         if self.device_playback.has_devices() {
             return self
-                .device_audio_hold(crate::dto::DevicePlaybackMode::Paused, None, false)
+                .device_audio_hold(donder_sequence_api::DevicePlaybackMode::Paused, None, false)
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).pause();
@@ -115,7 +115,7 @@ impl DesktopState {
         if self.device_playback.has_devices() {
             return self
                 .device_audio_hold(
-                    crate::dto::DevicePlaybackMode::Stopped,
+                    donder_sequence_api::DevicePlaybackMode::Stopped,
                     Some(self.audio_snapshot().home_seconds),
                     false,
                 )
@@ -130,7 +130,11 @@ impl DesktopState {
     pub fn audio_rewind_to_zero(&self) -> AppSnapshot {
         if self.device_playback.has_devices() {
             return self
-                .device_audio_hold(crate::dto::DevicePlaybackMode::Paused, Some(0.0), true)
+                .device_audio_hold(
+                    donder_sequence_api::DevicePlaybackMode::Paused,
+                    Some(0.0),
+                    true,
+                )
                 .unwrap_or_else(|error| self.device_transport_error(error));
         }
         let audio_transport = lock_unpoisoned(&self.audio).rewind_to_zero();
@@ -147,7 +151,7 @@ impl DesktopState {
             }
             return self
                 .device_audio_hold(
-                    crate::dto::DevicePlaybackMode::Paused,
+                    donder_sequence_api::DevicePlaybackMode::Paused,
                     Some(position_seconds.clamp(0.0, duration)),
                     true,
                 )
@@ -312,9 +316,9 @@ impl DesktopState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dto::{AudioTransportState, DocumentViewId, GuiDocument};
     use crate::project::{new_test_project_files, write_new_project_files};
     use camino::Utf8PathBuf;
+    use donder_sequence_api::{AudioTransportState, DocumentViewId, GuiDocument};
 
     #[test]
     fn local_sequence_resolves_and_plays_without_copying() {

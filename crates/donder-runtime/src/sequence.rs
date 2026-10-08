@@ -249,7 +249,7 @@ mod tests {
     use donder_runtime_types::{
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceWindow, TargetScope,
     };
-    use donder_runtime_types::{OperatorDefinition, SampleDefinition};
+    use donder_runtime_types::{OperatorInvocation, SampleInvocation};
 
     mod routing;
 
@@ -300,13 +300,16 @@ mod tests {
             .archive_data()
             .signals
             .programs;
-        let sample =
-            SampleDefinition::new(SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap());
-        let operator = OperatorDefinition::new(
+        let sample = SampleInvocation::bind(
+            SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap(),
+            vec![],
+        )
+        .unwrap();
+        let operator = OperatorInvocation::bind(
             OperatorProgram::admit(raw[2].clone(), 1, Box::new([])).unwrap(),
-        );
-        let sample = sample.bind(vec![]).unwrap();
-        let operator = operator.bind(vec![]).unwrap();
+            vec![],
+        )
+        .unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(61).unwrap(),
@@ -375,9 +378,11 @@ mod tests {
     fn builder_derives_storage_routes_and_schedule_from_handles() {
         use core::num::NonZeroU32;
         let raw = timed_sequence().archive_data().signals.programs[0].clone();
-        let definition =
-            SampleDefinition::new(crate::dsl::SampleProgram::admit(raw, Box::new([])).unwrap());
-        let invocation = definition.bind(vec![]).unwrap();
+        let invocation = SampleInvocation::bind(
+            crate::dsl::SampleProgram::admit(raw, Box::new([])).unwrap(),
+            vec![],
+        )
+        .unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(60).unwrap(),

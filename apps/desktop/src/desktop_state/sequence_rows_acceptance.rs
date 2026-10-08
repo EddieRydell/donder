@@ -1,11 +1,11 @@
 use super::DesktopState;
-use crate::dto::{
+use donder_model::{AutomationTarget, Sequence, SequenceId};
+use donder_sequence_api::{
     DocumentViewId, FixtureTarget, GuiDocument, GuiDocumentRequest, GuiEditCommand, LayoutGuiEdit,
     SequenceAutomationResize, SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit,
     SequencePasteAnchor, SequenceResizeEdge, SequenceSelection, SequenceSelectionEdit,
     SequenceSelectionEditResult,
 };
-use donder_model::{AutomationTarget, Sequence, SequenceId};
 use std::sync::Arc;
 
 struct Timeline {
@@ -436,11 +436,11 @@ fn shared_members_have_a_lane_per_group_and_move_from_the_nearest_copy() {
     let lanes = timeline.targets();
     let (first, second) = (lanes[1].fixture, lanes[2].fixture);
     let mut fixtures = layout.fixtures;
-    fixtures.push(crate::dto::GuiLayoutFixture {
+    fixtures.push(donder_sequence_api::GuiLayoutFixture {
         id: 100,
         name: "Pair".into(),
         description: None,
-        kind: crate::dto::GuiLayoutFixtureKind::Group {
+        kind: donder_sequence_api::GuiLayoutFixtureKind::Group {
             members: vec![first, second],
         },
     });

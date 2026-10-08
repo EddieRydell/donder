@@ -5,7 +5,7 @@ use donder_model::{
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
-use crate::dto::{
+use donder_sequence_api::{
     ControllerGuiDocument, GuiDocument, SetupController, SetupControllerConfig, SetupControllerPort,
 };
 

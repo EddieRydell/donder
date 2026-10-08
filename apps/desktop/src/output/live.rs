@@ -7,11 +7,11 @@ use donder_output::OutputTransports;
 use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
-use crate::dto::{
+use crate::rendering::SequenceRenderService;
+use donder_sequence_api::{
     AudioTransportState, LiveOutputControllerSnapshot, LiveOutputControllerState,
     LiveOutputSnapshot, LiveOutputState,
 };
-use crate::rendering::SequenceRenderService;
 
 const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);

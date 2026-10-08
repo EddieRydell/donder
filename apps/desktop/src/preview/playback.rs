@@ -4,10 +4,10 @@ use donder_runtime::{LoadError, LoadLimits, decode_sequence};
 use donder_runtime::{PlaybackRate, SequencePlayback};
 use donder_runtime_types::sample_time_from_seconds_f32;
 
-use crate::PreviewColor;
+use super::scene::PreviewColor;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PreviewPlaybackState {
+pub(crate) enum PreviewPlaybackState {
     Unavailable,
     Playing,
     Paused,
@@ -20,18 +20,18 @@ pub enum PreviewPlaybackState {
 const CLOCK_RESYNC_TOLERANCE_SECONDS: f32 = 0.025;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PreviewClockUpdate {
+pub(crate) enum PreviewClockUpdate {
     Absorbed,
     Reanchored,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct PreviewClockSnapshot {
-    pub generation: u32,
-    pub state: PreviewPlaybackState,
-    pub position_seconds: f32,
-    pub start_delay_seconds: f32,
-    pub rate: PlaybackRate,
+pub(crate) struct PreviewClockSnapshot {
+    pub(crate) generation: u32,
+    pub(crate) state: PreviewPlaybackState,
+    pub(crate) position_seconds: f32,
+    pub(crate) start_delay_seconds: f32,
+    pub(crate) rate: PlaybackRate,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -56,7 +56,7 @@ impl ClockAnchor {
     }
 }
 
-pub struct PreviewPlayback {
+pub(crate) struct PreviewPlayback {
     sequence: Option<SequencePlayback>,
     colors: Vec<PreviewColor>,
     unlit: PreviewColor,
@@ -65,7 +65,7 @@ pub struct PreviewPlayback {
 }
 
 impl PreviewPlayback {
-    pub fn new(unlit: PreviewColor) -> Self {
+    pub(crate) fn new(unlit: PreviewColor) -> Self {
         Self {
             sequence: None,
             colors: Vec::new(),
@@ -84,7 +84,7 @@ impl PreviewPlayback {
         }
     }
 
-    pub fn set_unlit(&mut self, unlit: PreviewColor) {
+    pub(crate) fn set_unlit(&mut self, unlit: PreviewColor) {
         if self.unlit == unlit {
             return;
         }
@@ -94,7 +94,7 @@ impl PreviewPlayback {
         }
     }
 
-    pub fn replace_content(
+    pub(crate) fn replace_content(
         &mut self,
         sequence_bytes: Option<&[u8]>,
         instance_count: usize,
@@ -118,7 +118,7 @@ impl PreviewPlayback {
         Ok(())
     }
 
-    pub fn set_clock(
+    pub(crate) fn set_clock(
         &mut self,
         snapshot: PreviewClockSnapshot,
         received_at: Instant,
@@ -140,7 +140,7 @@ impl PreviewPlayback {
         PreviewClockUpdate::Reanchored
     }
 
-    pub fn evaluate(&mut self, now: Instant) -> Result<bool, PreviewPlaybackError> {
+    pub(crate) fn evaluate(&mut self, now: Instant) -> Result<bool, PreviewPlaybackError> {
         let Some(sequence) = self.sequence.as_mut() else {
             return Ok(self.last_frame.take().is_some());
         };
@@ -169,11 +169,11 @@ impl PreviewPlayback {
         Ok(true)
     }
 
-    pub fn colors(&self) -> &[PreviewColor] {
+    pub(crate) fn colors(&self) -> &[PreviewColor] {
         &self.colors
     }
 
-    pub fn next_deadline(&self, now: Instant) -> Option<Instant> {
+    pub(crate) fn next_deadline(&self, now: Instant) -> Option<Instant> {
         let sequence = self.sequence.as_ref()?;
         if self.clock.snapshot.state != PreviewPlaybackState::Playing {
             return None;
@@ -200,7 +200,7 @@ fn preview_load_limits() -> LoadLimits {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PreviewPlaybackError {
+pub(crate) enum PreviewPlaybackError {
     Decode(LoadError),
     PixelCount { sequence: usize, scene: usize },
     ClockPosition,

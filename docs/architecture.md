@@ -24,7 +24,6 @@ has one owner:
 | `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
-| `donder-preview` | The native Preview process: archive decoding, playback and the wgpu renderer. |
 | `donder-output` | E1.31 and Art-Net transports. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
 | `donder-cli` | `check`, `copy`, `lsp` (the language server over stdio) and the generated builtin reference. |
@@ -32,7 +31,7 @@ has one owner:
 | `donder-sequence-api` | The serialized editor contract (DTOs and `SequenceGuiEdit`), exported to TypeScript for both hosts. |
 | `donder-browser` | A WASM session for the website: an in-memory project, editing through `donder-editor`, preparation and playback. |
 | `donder-test-support` | Dev-only playback workloads shared by runtime and elaboration tests and benchmarks. |
-| `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, and the React frontend, which exports the editor UI as `@donder/editor` for both hosts. |
+| `apps/desktop` | The Tauri app: workflows, background scheduling and history in `desktop_state` and `state_tasks`, platform IO, the Preview process (`preview/`: playback clock, wgpu renderer and pipe protocol), and the React frontend, which exports the editor UI as `@donder/editor` for both hosts. |
 | `firmware/esp32` | The controller firmware, a separate Cargo workspace. See [ESP32 loading](esp32_loading.md). |
 
 Each crate's `lib.rs` is its public facade; implementation modules are not
@@ -117,7 +116,8 @@ everywhere:
 
 - **Preview.** The desktop sends the encoded archive, projected fixture
   geometry and clock anchors to a separate winit/wgpu process when their
-  revisions change. That process evaluates frames itself, so pixels never cross
+  revisions change. Each pipe message is a JSON header and a binary payload;
+  the archive and fixture instances travel as raw bytes. That process evaluates frames itself, so pixels never cross
   Tauri IPC. Audio state arrives as timestamped anchors that the Preview
   interpolates and corrects to. A separate process also keeps GTK and wgpu from
   sharing one Wayland surface.

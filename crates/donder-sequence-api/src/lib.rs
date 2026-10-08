@@ -14,7 +14,79 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 mod dto;
-pub use dto::*;
+pub use dto::app::{AppSnapshot, ProjectHealth};
+pub use dto::audio::{
+    AudioTransportSnapshot, AudioTransportState, PlaybackFrameTiming, PlaybackRange, PlaybackSpeed,
+};
+pub use dto::browser::{
+    BrowserClipRaster, BrowserCompileDiagnostic, BrowserCompileResult, BrowserEditorState,
+    BrowserOperation, BrowserPageNode, BrowserReplayResult, BrowserSelectionResult,
+    BrowserSessionConfig, BrowserSourceDocument, BrowserSourceKind,
+};
+pub use dto::diagnostics::{
+    DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation, Rotation3Degrees, Scale3,
+};
+pub use dto::output::{
+    ControllerOutputTest, DeviceCapabilities, DeviceFirmwareInfo, DeviceInstallProgress,
+    DeviceOutputCapabilities, DevicePlaybackMode, DevicePlaybackStatus, DeviceSequenceStorage,
+    DeviceSerialPort, DeviceTransportStatus, DonderDeviceClaim, DonderDeviceConnection,
+    DonderDeviceNetwork, DonderDeviceNetworkRequest, DonderDeviceStatus,
+    LiveOutputControllerSnapshot, LiveOutputControllerState, LiveOutputSnapshot, LiveOutputState,
+    Point3Meters, SequenceExportPort,
+};
+pub use dto::patch::{
+    GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, PatchFixtureTarget, PatchGuiDocument,
+    PatchLayout,
+};
+pub use dto::preview::{
+    FixtureGuiDocument, FixtureGuiEdit, FixtureStorage, GeometryRenderBounds, GuiFixtureElement,
+    GuiFixtureHandle, GuiFixtureShape, GuiFixtureSource, GuiGridAxis, GuiGridCorner,
+    GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiDocument, LayoutGuiEdit, PreviewAppearance,
+    SpatialRenderPixel, SpatialRenderPlan,
+};
+pub use dto::sequence::{
+    SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
+    SequenceAutomationDetachmentReason, SequenceClipRaster, SequenceClipRasterError,
+    SequenceClipRasterRequest, SequenceClipRasterRequestItem, SequenceClipRasterResponse,
+    SequenceClipRasterResultBatch, SequenceClipRasterUnavailable, SequenceCompositionGraph,
+    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffect,
+    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectParam,
+    SequenceGradientLibraryItem, SequenceGraphNode, SequenceGraphNodeKind,
+    SequenceGraphOperatorDefinition, SequenceGraphPortCardinality, SequenceGraphPortDefinition,
+    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
+    SequenceParamAutomation, SequenceParamRange, SequenceSelectionEditResult,
+    SequenceTimelineClipKind,
+};
+pub use dto::setup::{
+    BufferExternalState, ControllerGuiDocument, CurveGuiDocument, DiagnosticSeverity,
+    DocumentViewId, GradientGuiDocument, GuiDocument, GuiDocumentRequest, GuiEditCommand,
+    GuiEditResult, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit, GuiOwnershipSlot,
+    ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
+    SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
+};
+pub use dto::synchronization::{
+    DocumentSaveState, DocumentSaveStatus, DocumentTextEdit, DocumentTextEdits, DocumentUpdate,
+    ExternalConflictDecision, GuiDocumentResult, TransitionDecision, TransitionRequest,
+    TransitionResult, WorkspaceTransition,
+};
+pub use dto::view_state::{
+    PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphNodeSize,
+    PersistedGraphViewState, PersistedGraphViewStateUpdate, PersistedGraphViewport,
+    PersistedPreviewWindowState, PersistedSequenceViewportState,
+    PersistedSequenceViewportStateUpdate, PersistedSpatialViewState,
+    PersistedSpatialViewStateUpdate, PersistedWindowState, ProjectRestoreState, SpatialGuide,
+    SpatialGuideAxis,
+};
+pub use dto::workspace::{
+    AppSettings, DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor,
+    EditorBuffer, EditorViewMode, EffectRasterSettings, NewSequenceRequest, NewSequenceResult,
+    NewSequenceStorage, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
+    ProjectSearchRequest, ProjectSearchResponse, SequenceFollowMode, SequenceInitialZoomMode,
+    SidebarView, SpatialSnapSettings, SpatialUnit, TextDocumentSyntax, TextPosition, TextRange,
+    Transform, WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceExplorerState,
+    WorkspaceLayoutState, WorkspaceOperation, WorkspacePathChangeImpact, WorkspacePathChangePlan,
+    WorkspacePathChangeRequest, workspace_role_for_source_object,
+};
 
 // Shared serialized edit contract for desktop and browser clients.
 // Tauri-Specta exports the TypeScript representation in bindings.ts.

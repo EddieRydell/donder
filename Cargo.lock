@@ -1508,7 +1508,6 @@ dependencies = [
  "donder-language-server",
  "donder-model",
  "donder-output",
- "donder-preview",
  "donder-project-io",
  "donder-runtime",
  "donder-runtime-types",
@@ -1618,17 +1617,6 @@ dependencies = [
  "indexmap 2.14.2",
  "sacn",
  "uuid",
-]
-
-[[package]]
-name = "donder-preview"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "donder-runtime",
- "donder-runtime-types",
- "glam",
- "wgpu",
 ]
 
 [[package]]

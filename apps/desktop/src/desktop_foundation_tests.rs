@@ -5,7 +5,9 @@ pub(crate) mod tests {
     use camino::{Utf8Path, Utf8PathBuf};
     use donder_project_io::load_project;
 
-    use crate::dto::{DocumentViewId, GuiDocument, GuiDocumentRequest, WorkspacePathChangeRequest};
+    use donder_sequence_api::{
+        DocumentViewId, GuiDocument, GuiDocumentRequest, WorkspacePathChangeRequest,
+    };
 
     fn starter() -> donder_project_io::ProjectSession {
         let workspace = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -76,7 +78,7 @@ pub(crate) mod tests {
             object_key: Some("main".to_string()),
         };
         let GuiDocument::Setup { document } =
-            crate::gui::project_gui_document(Some(&session), &request)
+            donder_editor::project_gui_document(Some(&session), &request)
         else {
             panic!("setup projection was blocked");
         };
@@ -92,7 +94,7 @@ pub(crate) mod tests {
                 DocumentViewId::Controller,
             ),
         ] {
-            let projection = crate::gui::project_gui_document(
+            let projection = donder_editor::project_gui_document(
                 Some(&session),
                 &GuiDocumentRequest {
                     owned_path: Vec::new(),
@@ -137,7 +139,7 @@ pub(crate) mod tests {
         let snapshot = state.open_file_path("sequences/layer_test.data.donder");
         let buffer = snapshot.active_buffer.unwrap();
         state
-            .update_document(crate::dto::DocumentUpdate {
+            .update_document(donder_sequence_api::DocumentUpdate {
                 project_epoch: snapshot.project_epoch,
                 path: buffer.path,
                 expected_document_revision: buffer.document_revision,

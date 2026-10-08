@@ -158,7 +158,6 @@ crates/donder-model/            Domain model: fixtures, layouts, setups, sequenc
 crates/donder-project-io/       Project loading, imports, diagnostics and saving
 crates/donder-elaboration/      Preparing a sequence for selected outputs
 crates/donder-runtime/          Portable no_std playback runtime and archive format
-crates/donder-preview/          Preview playback and wgpu renderer
 crates/donder-output/           E1.31 and Art-Net transports
 crates/donder-language-server/  Language server for documents and scripts
 crates/donder-cli/              Command-line project tools

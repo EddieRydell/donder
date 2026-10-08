@@ -3,7 +3,7 @@ pub(crate) mod firmware;
 pub(crate) mod playback;
 pub(crate) mod provisioning;
 
-use crate::dto::{
+use donder_sequence_api::{
     DeviceCapabilities, DeviceOutputCapabilities, DevicePlaybackMode, DeviceTransportStatus,
     DonderDeviceNetworkRequest,
 };

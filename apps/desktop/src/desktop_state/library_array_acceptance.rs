@@ -1,5 +1,9 @@
 use super::DesktopState;
-use crate::dto::*;
+use donder_sequence_api::{
+    DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand, SequenceCurveValue,
+    SequenceEffectParamValue, SequenceEffectReference, SequenceEffectScope, SequenceGradientValue,
+    SequenceGuiEdit, SequenceLibrarySource,
+};
 
 #[test]
 fn library_parameter_arrays_preserve_links_when_editing_and_saving() {

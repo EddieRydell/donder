@@ -1,4 +1,4 @@
-use crate::dto::DeviceSerialPort;
+use donder_sequence_api::DeviceSerialPort;
 use std::{
     io::{ErrorKind, Read, Write},
     time::{Duration, Instant},

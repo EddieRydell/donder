@@ -1,9 +1,9 @@
-use crate::dto::{
+use camino::Utf8Path;
+use donder_project_io::{ProjectSession, source_document_text};
+use donder_sequence_api::{
     DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor, DocumentViewId,
     ObjectKind,
 };
-use camino::Utf8Path;
-use donder_project_io::{ProjectSession, source_document_text};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn generated_source_texts(
@@ -29,7 +29,7 @@ pub(crate) fn descriptor_for_path(
     session: &ProjectSession,
     path: &Utf8Path,
 ) -> Option<DocumentDescriptor> {
-    let document = crate::source_documents::document_for_editor_path(session, path)
+    let document = donder_editor::document_for_editor_path(session, path)
         .and_then(|id| session.source.documents.get(&id));
     let objects: Vec<_> = document
         .into_iter()

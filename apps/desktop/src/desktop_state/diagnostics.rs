@@ -1,7 +1,7 @@
-use crate::dto::{
+use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, IoFix, ProjectCheckReport};
+use donder_sequence_api::{
     DiagnosticSeverity, DocumentInclusion, ProjectDiagnostic, RelatedDiagnosticLocation,
 };
-use donder_project_io::{IoDiagnostic, IoDiagnosticSeverity, IoFix, ProjectCheckReport};
 
 pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic {
     ProjectDiagnostic {
@@ -9,12 +9,12 @@ pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic
         range: diagnostic
             .range
             .as_ref()
-            .map(|range| crate::dto::TextRange {
-                start: crate::dto::TextPosition {
+            .map(|range| donder_sequence_api::TextRange {
+                start: donder_sequence_api::TextPosition {
                     line: range.start.line,
                     character: range.start.character,
                 },
-                end: crate::dto::TextPosition {
+                end: donder_sequence_api::TextPosition {
                     line: range.end.line,
                     character: range.end.character,
                 },
@@ -31,16 +31,19 @@ pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic
             .iter()
             .map(|related| RelatedDiagnosticLocation {
                 path: related.path.to_string(),
-                range: related.range.as_ref().map(|range| crate::dto::TextRange {
-                    start: crate::dto::TextPosition {
-                        line: range.start.line,
-                        character: range.start.character,
-                    },
-                    end: crate::dto::TextPosition {
-                        line: range.end.line,
-                        character: range.end.character,
-                    },
-                }),
+                range: related
+                    .range
+                    .as_ref()
+                    .map(|range| donder_sequence_api::TextRange {
+                        start: donder_sequence_api::TextPosition {
+                            line: range.start.line,
+                            character: range.start.character,
+                        },
+                        end: donder_sequence_api::TextPosition {
+                            line: range.end.line,
+                            character: range.end.character,
+                        },
+                    }),
                 message: related.message.clone(),
             })
             .collect(),

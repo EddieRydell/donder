@@ -14,8 +14,8 @@ use donder_runtime_types::Color;
 use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::bytecode::SignalPixel;
 use donder_runtime_types::{
-    BindingError, BoundParams, Identifier, OperatorDefinition, OperatorInvocation, OperatorProgram,
-    SampleDefinition, SampleInvocation, SampleProgram, Type, Value,
+    BindingError, BoundParams, Identifier, OperatorInvocation, OperatorProgram, SampleInvocation,
+    SampleProgram, Type, Value,
 };
 use std::sync::Arc;
 
@@ -347,8 +347,7 @@ impl Instance {
             .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"));
         let program = SampleProgram::admit(lowered.bytecode, lowered.param_types.into())
             .unwrap_or_else(|| unreachable!("lowering emits admissible effect programs"));
-        SampleDefinition::new(program)
-            .bind(lowered.values)
+        SampleInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
             .unwrap_or_else(|_| unreachable!("lowered values match their program"))
     }
@@ -361,8 +360,7 @@ impl Instance {
             .unwrap_or_else(|error| unreachable!("fused operators fit their banks: {error:?}"));
         let program = OperatorProgram::admit(lowered.bytecode, inputs, lowered.param_types.into())
             .unwrap_or_else(|| unreachable!("lowering emits admissible operator programs"));
-        OperatorDefinition::new(program)
-            .bind(lowered.values)
+        OperatorInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
             .unwrap_or_else(|_| unreachable!("lowered values match their program"))
     }

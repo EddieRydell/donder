@@ -10,9 +10,14 @@
     )
 )]
 
-mod dto {
-    pub use donder_sequence_api::*;
-}
-pub mod gui;
-pub mod source_documents;
-pub use gui::*;
+mod gui;
+mod source_documents;
+
+pub use gui::model::source_identity_from_gui;
+pub use gui::{
+    ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiMutationError, ResolvedGuiObject,
+    SequenceClipboard, SequenceSelectionMutation, affected_paths, apply_edit,
+    apply_sequence_selection_edit, blocked, copy_sequence_selection, create_sequence,
+    ensure_owned_gui_document, project_gui_document, resolve_request,
+};
+pub use source_documents::{document_for_editor_path, editor_path};

@@ -8,7 +8,7 @@ use donder_model::DonderDeviceId;
 use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
 
 use crate::desktop_state::lock_unpoisoned;
-use crate::dto::DonderDeviceNetwork;
+use donder_sequence_api::DonderDeviceNetwork;
 
 const SERVICE: &str = "_donder._tcp.local.";
 

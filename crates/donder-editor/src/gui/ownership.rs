@@ -1,10 +1,10 @@
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{GuiOwnershipEdit, GuiOwnershipSlot, ReusableStorage};
 use donder_model::{
     FixtureInstanceId, LayoutId, OwnershipSite, SetupId, make_independent, make_reusable,
     use_existing,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
+use donder_sequence_api::{GuiOwnershipEdit, GuiOwnershipSlot, ReusableStorage};
 
 pub(super) fn edit(
     session: &mut ProjectSession,
@@ -63,7 +63,9 @@ pub(super) fn edit(
     };
     match edit {
         GuiOwnershipEdit::UseExisting { source } => {
-            if source.kind != crate::dto::ObjectKind::from(&kind) || !source.owned_path.is_empty() {
+            if source.kind != donder_sequence_api::ObjectKind::from(&kind)
+                || !source.owned_path.is_empty()
+            {
                 return Err(GuiMutationError::Invalid(
                     "Choose a reusable source of the matching kind.".into(),
                 ));
@@ -116,7 +118,7 @@ pub(super) fn available_sources(
     session: &ProjectSession,
     owner: &donder_model::DocumentId,
     kinds: &[SourceObjectKind],
-) -> Vec<crate::dto::GuiObjectRef> {
+) -> Vec<donder_sequence_api::GuiObjectRef> {
     donder_project_io::available_reusable_sources(session, owner, kinds)
         .into_iter()
         .map(|(kind, identity)| super::patch::object_ref(&identity.into(), kind))

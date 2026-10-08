@@ -1,4 +1,4 @@
-use crate::dto::{AppSettings, WorkspaceLayoutState};
+use donder_sequence_api::{AppSettings, WorkspaceLayoutState};
 
 pub(crate) fn sanitize_workspace_layout(state: WorkspaceLayoutState) -> WorkspaceLayoutState {
     WorkspaceLayoutState {

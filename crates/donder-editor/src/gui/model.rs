@@ -299,7 +299,7 @@ pub(super) fn layout_target_to_effect_target(
     }
 }
 
-pub fn effect_param_value_from_gui(
+pub(crate) fn effect_param_value_from_gui(
     session: &mut ProjectSession,
     owner: &SourceIdentity,
     value: SequenceEffectParamValue,
@@ -503,7 +503,7 @@ pub(super) fn scale3(scale: Scale3) -> DomainScale3 {
     }
 }
 
-pub fn point3_meters(point: Point3) -> Point3Meters {
+pub(crate) fn point3_meters(point: Point3) -> Point3Meters {
     Point3Meters {
         x_meters: point.x.as_meters_f32(),
         y_meters: point.y.as_meters_f32(),
@@ -532,7 +532,7 @@ use donder_runtime_types::{AutomationMapping, AutomationValue};
 use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 
 use super::GuiMutationError;
-use crate::dto::{
+use donder_sequence_api::{
     FixtureTarget, Point3Meters, Rotation3Degrees, Scale3, SequenceCurvePoint,
     SequenceEffectParamValue, SequenceEffectScope, SequenceGradientStop, SequenceGraphOperator,
     SequenceLibrarySource,
@@ -574,8 +574,8 @@ pub(super) fn create_object_document(
     ))
 }
 
-pub fn object_identity_from_gui(
-    reference: &crate::dto::GuiObjectRef,
+pub(crate) fn object_identity_from_gui(
+    reference: &donder_sequence_api::GuiObjectRef,
 ) -> Result<donder_model::ObjectIdentity, GuiMutationError> {
     let root =
         source_identity_from_gui(&reference.module_id, &reference.path, &reference.object_key)?;

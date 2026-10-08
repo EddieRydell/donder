@@ -8,7 +8,7 @@ use donder_runtime::{PlaybackRate, SequencePlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
 use std::time::Duration;
 
-use crate::dto::{AudioTransportSnapshot, AudioTransportState};
+use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState};
 
 pub(crate) struct SequenceRenderService {
     session: Option<PreparedRenderSession>,

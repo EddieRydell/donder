@@ -14,6 +14,31 @@ function requiredPath(name, directoryOnly = false) {
   return resolve(value);
 }
 
+// The runtime's `iram` feature links these modules into instruction RAM; an
+// out-of-line copy left in flash (an unannotated function or closure, or one
+// inlined into flash code under a new name) roughly doubles evaluation time.
+const INSTRUCTION_RAM_MODULES = /^<?donder_runtime(\[[0-9a-f]+\])?::(dsl::vm::strip|evaluation)::/;
+const INSTRUCTION_RAM = [0x40080000, 0x400a0000];
+
+function checkInstructionRamPlacement(nm) {
+  const elf = join(directory, 'target/xtensa-esp32-none-elf/release/loader');
+  const listed = spawnSync(nm, ['--defined-only', '--demangle', elf], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  if (listed.error) throw listed.error;
+  if (listed.status !== 0) throw new Error(`nm failed (${listed.status}).`);
+  let placed = 0;
+  const misplaced = [];
+  for (const line of listed.stdout.split(/\r?\n/)) {
+    const match = line.match(/^([0-9a-f]+) [tT] (.+)$/);
+    if (!match || !INSTRUCTION_RAM_MODULES.test(match[2])) continue;
+    const address = Number.parseInt(match[1], 16);
+    if (address >= INSTRUCTION_RAM[0] && address < INSTRUCTION_RAM[1]) placed += 1;
+    else misplaced.push(match[2].trim());
+  }
+  if (misplaced.length > 0) throw new Error(`Interpreter code linked outside instruction RAM:\n${misplaced.join('\n')}`);
+  if (placed === 0) throw new Error('No interpreter code found in instruction RAM; update INSTRUCTION_RAM_MODULES.');
+  console.log(`Instruction RAM: ${placed} interpreter functions placed.`);
+}
+
 function main() {
   const [mode, ...args] = process.argv.slice(2);
   const digQuad = mode === 'build' && args.length === 2 && args[0] === '--board' && args[1] === 'dig-quad';
@@ -46,6 +71,7 @@ function main() {
   // Check packaging tooling before starting a potentially lengthy build.
   run('espflash', ['--version']);
   run('cargo', ['+esp', 'build', '--release', '--bin', 'loader', '--features', digQuad ? 'dig-quad' : 'i2s-output', '--locked']);
+  checkInstructionRamPlacement(join(compilerBin, process.platform === 'win32' ? 'xtensa-esp32-elf-nm.exe' : 'xtensa-esp32-elf-nm'));
   const output = join(root, 'target/firmware');
   mkdirSync(output, { recursive: true });
   const pending = join(output, 'donder-esp32.build.bin');

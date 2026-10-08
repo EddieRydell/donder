@@ -2,7 +2,7 @@ use donder_model::{CurveId, GradientId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked, model};
-use crate::dto::{
+use donder_sequence_api::{
     CurveGuiDocument, GradientGuiDocument, GuiDocument, SequenceCurvePoint, SequenceGradientStop,
 };
 

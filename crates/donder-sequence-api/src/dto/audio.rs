@@ -1,5 +1,7 @@
-use super::*;
+use crate::*;
 use donder_runtime::{FrameTiming, PlaybackRate};
+use serde::{Deserialize, Serialize};
+use specta::Type;
 use std::num::NonZeroU32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]

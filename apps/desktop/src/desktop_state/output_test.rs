@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
-use crate::dto::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
 use donder_model::ControllerId;
 use donder_output::ControllerPortFrame;
+use donder_sequence_api::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
 
 impl DesktopState {
     pub(crate) fn start_output_test(
@@ -21,7 +21,7 @@ impl DesktopState {
         let session = self
             .project_session()
             .ok_or("Open a valid project to test outputs.")?;
-        let resolved = crate::gui::resolve_request(&session, request)?;
+        let resolved = donder_editor::resolve_request(&session, request)?;
         let id = ControllerId(resolved.object_identity());
         let mut controller = session
             .project
@@ -48,7 +48,7 @@ impl DesktopState {
         };
         let output = {
             let mut service = lock_unpoisoned(&self.live_output);
-            if service.snapshot().state == crate::dto::LiveOutputState::Stopping {
+            if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
                 return Err("Wait for output to finish stopping before starting a test.".into());
             }
             service.test(id.clone(), controller, frame)
@@ -60,12 +60,12 @@ impl DesktopState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dto::{
+    use crate::project::{new_test_project_files, write_new_project_files};
+    use camino::Utf8PathBuf;
+    use donder_sequence_api::{
         GuiDocument, GuiEditCommand, LiveOutputState, SetupControllerConfig, SetupControllerPort,
         SetupGuiEdit,
     };
-    use crate::project::{new_test_project_files, write_new_project_files};
-    use camino::Utf8PathBuf;
     use std::net::UdpSocket;
     use std::time::{Duration, Instant};
 

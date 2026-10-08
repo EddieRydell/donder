@@ -1,7 +1,7 @@
 use super::{DesktopState, lock_unpoisoned};
-use crate::dto::{DocumentViewId, GuiDocumentRequest, SequenceExportPort};
 use donder_model::{ControllerId, ControllerPortId, SequenceId};
 use donder_project_io::ProjectSession;
+use donder_sequence_api::{DocumentViewId, GuiDocumentRequest, SequenceExportPort};
 use std::sync::Arc;
 
 pub(super) fn outputs(
@@ -44,7 +44,7 @@ impl DesktopState {
         let session = self
             .project_session()
             .ok_or("Open a valid project to export.")?;
-        let resolved = crate::gui::resolve_request(&session, request)?;
+        let resolved = donder_editor::resolve_request(&session, request)?;
         let id = SequenceId(resolved.object_identity());
         if !session.project.sequence(&id).is_some() {
             return Err("Sequence is missing.".into());

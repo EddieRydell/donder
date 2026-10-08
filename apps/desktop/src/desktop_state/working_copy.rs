@@ -7,8 +7,12 @@ use donder_project_io::{ProjectCheckReport, ProjectSession, SourceTextWrite};
 
 use super::workspace_state::WorkingDocument;
 use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
-use crate::dto::*;
 use crate::state_tasks::WorkingCopyPayload;
+use donder_sequence_api::{
+    AppSnapshot, BufferExternalState, DocumentInclusion, DocumentSaveState, DocumentTextEdits,
+    DocumentUpdate, EditorBuffer, EditorViewMode, ExternalConflictDecision, ProjectHealth,
+    SidebarView,
+};
 
 /// A rewrite of one document's text.
 type DocumentChange = Box<dyn FnOnce(&str) -> Result<String, String>>;
@@ -622,6 +626,11 @@ pub(super) fn read_disk(path: &Utf8Path) -> Result<Option<Vec<u8>>, String> {
 mod tests {
     use super::*;
     use crate::desktop_foundation_tests::tests::starter_copy;
+    use donder_sequence_api::{
+        DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand, NewSequenceRequest,
+        SequenceGuiEdit, TransitionDecision, TransitionRequest, TransitionResult,
+        WorkspaceTransition,
+    };
     const SEQUENCE: &str = "sequences/layer_test.data.donder";
 
     fn project() -> (tempfile::TempDir, Utf8PathBuf, DesktopState) {
@@ -791,7 +800,7 @@ mod tests {
         let path = "sequences/new_sequence.data.donder";
         state
             .create_sequence(NewSequenceRequest {
-                storage: crate::dto::NewSequenceStorage::NewFile {
+                storage: donder_sequence_api::NewSequenceStorage::NewFile {
                     name: "New Sequence".into(),
                 },
                 initial_color: state

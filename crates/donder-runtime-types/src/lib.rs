@@ -3,8 +3,7 @@
 //! the sampling math shared by constant folding and evaluation.
 //!
 //! An item belongs here only if the runtime consumes it and an upstream crate
-//! produces it. Firmware links `sampling` and `values` functions into IRAM by
-//! module name (`firmware/esp32/rwtext_hook.x`), so those modules keep their names.
+//! produces it.
 #![no_std]
 #![deny(unsafe_code)]
 #![cfg_attr(
@@ -42,7 +41,7 @@ pub use automation::{
 };
 pub use bindings::{BindingError, BoundParams};
 pub use bytecode::BytecodeProgram;
-pub use invocation::{OperatorDefinition, OperatorInvocation, SampleDefinition, SampleInvocation};
+pub use invocation::{OperatorInvocation, SampleInvocation};
 pub use operator::OperatorProgram;
 pub use prepared::{
     AutomatedQuantity, FixtureGeometry, OutputEncoding, PixelEncoding, PreparedAutomation,

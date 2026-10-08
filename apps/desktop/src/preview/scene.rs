@@ -3,14 +3,14 @@ use glam::Vec2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct PreviewInstance {
-    pub center_radius: [f32; 4],
+pub(crate) struct PreviewInstance {
+    pub(crate) center_radius: [f32; 4],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Pod, Zeroable)]
-pub struct PreviewColor {
-    pub rgba: [u8; 4],
+pub(crate) struct PreviewColor {
+    pub(crate) rgba: [u8; 4],
 }
 
 impl PreviewColor {
@@ -22,14 +22,14 @@ impl PreviewColor {
 }
 
 #[derive(Clone, Debug)]
-pub struct PreviewScene {
-    pub revision: u64,
-    pub instances: Vec<PreviewInstance>,
+pub(crate) struct PreviewScene {
+    pub(crate) revision: u64,
+    pub(crate) instances: Vec<PreviewInstance>,
     bounds: PreviewBounds,
 }
 
 impl PreviewScene {
-    pub fn new(revision: u64, instances: Vec<PreviewInstance>) -> Self {
+    pub(crate) fn new(revision: u64, instances: Vec<PreviewInstance>) -> Self {
         let bounds = PreviewBounds::from_instances(&instances);
         Self {
             revision,
@@ -38,13 +38,13 @@ impl PreviewScene {
         }
     }
 
-    pub fn bounds(&self) -> PreviewBounds {
+    pub(crate) fn bounds(&self) -> PreviewBounds {
         self.bounds
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct PreviewBounds {
+pub(crate) struct PreviewBounds {
     min: Vec2,
     max: Vec2,
 }
@@ -79,13 +79,13 @@ fn instance_position(instance: &PreviewInstance) -> Vec2 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PreviewSize {
-    pub width: u32,
-    pub height: u32,
+pub(crate) struct PreviewSize {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
 }
 
 impl PreviewSize {
-    pub fn nonzero(width: u32, height: u32) -> Self {
+    pub(crate) fn nonzero(width: u32, height: u32) -> Self {
         Self {
             width: width.max(1),
             height: height.max(1),
@@ -101,15 +101,15 @@ impl PreviewSize {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct PreviewStyle {
-    pub background_rgb: [u8; 3],
-    pub unlit_rgb: [u8; 3],
-    pub canvas_fill_ratio: f32,
-    pub minimum_radius_pixels: f32,
+pub(crate) struct PreviewStyle {
+    pub(crate) background_rgb: [u8; 3],
+    pub(crate) unlit_rgb: [u8; 3],
+    pub(crate) canvas_fill_ratio: f32,
+    pub(crate) minimum_radius_pixels: f32,
 }
 
 impl PreviewStyle {
-    pub fn validate(self) -> Result<Self, PreviewStyleError> {
+    pub(crate) fn validate(self) -> Result<Self, PreviewStyleError> {
         if !self.canvas_fill_ratio.is_finite()
             || self.canvas_fill_ratio <= 0.0
             || self.canvas_fill_ratio > 1.0
@@ -122,25 +122,25 @@ impl PreviewStyle {
         Ok(self)
     }
 
-    pub fn unlit_color(self) -> PreviewColor {
+    pub(crate) fn unlit_color(self) -> PreviewColor {
         PreviewColor::opaque(self.unlit_rgb)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PreviewStyleError {
+pub(crate) enum PreviewStyleError {
     CanvasFillRatio,
     MinimumRadius,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PreviewCamera {
-    pub pan: Vec2,
-    pub zoom: f32,
+    pub(crate) pan: Vec2,
+    pub(crate) zoom: f32,
 }
 
 impl PreviewCamera {
-    pub fn fit(bounds: PreviewBounds, size: PreviewSize, fill_ratio: f32) -> Self {
+    pub(crate) fn fit(bounds: PreviewBounds, size: PreviewSize, fill_ratio: f32) -> Self {
         let span = (bounds.max - bounds.min).max(Vec2::ONE);
         let available = Vec2::new(size.width as f32, size.height as f32) * fill_ratio;
         let zoom = (available.x / span.x).min(available.y / span.y).max(1.0);

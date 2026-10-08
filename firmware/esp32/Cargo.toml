@@ -40,7 +40,7 @@ heapless = { version = "0.9.3", optional = true }
 picoserve = { version = "0.20.0", default-features = false, features = ["embassy", "json"], optional = true }
 static_cell = { version = "2.1.1", optional = true }
 crc32fast = { version = "1.5.1", default-features = false }
-donder-runtime = { path = "../../crates/donder-runtime", default-features = false }
+donder-runtime = { path = "../../crates/donder-runtime", default-features = false, features = ["iram"] }
 donder-runtime-types = { path = "../../crates/donder-runtime-types" }
 esp-hal = { version = "~1.2.0", features = ["esp32", "unstable"] }
 esp-alloc = { version = "0.11.0", features = ["esp32", "alloc-hooks"] }

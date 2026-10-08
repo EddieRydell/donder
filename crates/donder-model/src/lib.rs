@@ -18,10 +18,10 @@ mod fixture;
 mod geometry;
 mod identity;
 mod layout;
-mod model;
 mod operator;
 mod ownership;
 mod patch;
+mod project;
 mod sequence;
 mod setup;
 mod source_remap;
@@ -52,10 +52,6 @@ pub use layout::{
     FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
     LayoutId, LayoutSource,
 };
-pub use model::{
-    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedSequence, DonderProject, ProjectData,
-    ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
-};
 pub use operator::{
     GraphOperatorNode, GraphValidationError, OperatorDefinition, OperatorDefinitionId,
     OperatorDefinitionStore, OperatorImplementation, OperatorPortCardinality,
@@ -68,6 +64,10 @@ pub use ownership::edit::{
 };
 pub use ownership::{Identified, ValueSource};
 pub use patch::{Patch, PatchId, PatchSource, PixelRoute, PixelRouteId, PixelSpan};
+pub use project::{
+    AcceptedEffectInputs, AcceptedOperatorInputs, AcceptedSequence, DonderProject, ProjectData,
+    ProjectDefinitionStores, ProjectEdit, ProjectId, ProjectRoot,
+};
 pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationEnvelope, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,

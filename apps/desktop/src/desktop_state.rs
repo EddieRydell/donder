@@ -9,14 +9,14 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use crate::dto::{
-    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, ProjectHealth,
-    WorkspaceExplorerState, WorkspaceLayoutState,
-};
 use crate::persistence::PersistenceService;
 use crate::state_tasks::{GuiHistory, LatestScheduler, RenderRefreshPayload, WorkingCopyPayload};
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_project_io::ProjectSession;
+use donder_sequence_api::{
+    AppSettings, AppSnapshot, AudioTransportSnapshot, AudioTransportState, ProjectHealth,
+    WorkspaceExplorerState, WorkspaceLayoutState,
+};
 use workspace_state::WorkspaceState;
 
 #[derive(Clone)]
@@ -56,7 +56,7 @@ pub(crate) struct DesktopServices {
     device_failures: Mutex<std::collections::BTreeMap<donder_model::DonderDeviceId, String>>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
-    sequence_clipboard: Mutex<Option<crate::gui::SequenceClipboard>>,
+    sequence_clipboard: Mutex<Option<donder_editor::SequenceClipboard>>,
     filesystem: Arc<Mutex<()>>,
     persistence: PersistenceService,
     preview_wake: crate::preview::PreviewWake,
@@ -190,7 +190,7 @@ impl DesktopState {
         lock_unpoisoned(&self.audio).snapshot()
     }
 
-    pub fn live_output_snapshot(&self) -> crate::dto::LiveOutputSnapshot {
+    pub fn live_output_snapshot(&self) -> donder_sequence_api::LiveOutputSnapshot {
         self.resume_live_output_if_ready();
         lock_unpoisoned(&self.live_output).snapshot()
     }
@@ -338,7 +338,7 @@ impl DesktopState {
                 );
             };
             let mut service = lock_unpoisoned(&self.live_output);
-            if service.snapshot().state == crate::dto::LiveOutputState::Stopping {
+            if service.snapshot().state == donder_sequence_api::LiveOutputState::Stopping {
                 return Err("Wait for output to finish stopping before starting it again.".into());
             }
             service.enable(
