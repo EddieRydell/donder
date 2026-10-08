@@ -346,6 +346,7 @@ pub(super) fn runtime_instance(
                 duration: SampleDuration::from_ticks(1),
                 curve: Curve { points: Vec::new() }.into(),
                 mapping: param.automation_mapping().unwrap(),
+                quantity: donder_language::execution::AutomatedQuantity::Value,
                 param_index: index as u16,
             });
             values.push(placeholder(param));
@@ -382,13 +383,18 @@ fn placeholder(param: &ParamDecl) -> Value {
     }
 }
 
-/// Lowered programs place automated parameters first, in declaration order.
+/// Lowered programs place automated parameters first, in declaration order;
+/// integral slots follow them and keep their placeholder values.
 fn rebind(
     values: &donder_language::dsl::BoundParams,
     automation: &[PreparedAutomation],
     slots: Vec<Value>,
 ) -> Vec<Value> {
-    assert_eq!(automation.len(), slots.len());
+    let parameters = automation
+        .iter()
+        .filter(|binding| binding.quantity == donder_language::execution::AutomatedQuantity::Value)
+        .count();
+    assert_eq!(parameters, slots.len());
     let mut values: Vec<Value> = values.iter_values().collect();
     for (slot, value) in slots.into_iter().enumerate() {
         assert_eq!(usize::from(automation[slot].param_index), slot);

@@ -96,6 +96,10 @@ pub(super) fn binary(op: Binary, left: &Value, right: &Value, ty: &Type) -> Opti
             Value::Curve(curve) => Value::Float(sampling::sample_curve(curve, as_float(right)?)),
             _ => return None,
         },
+        CurveIntegral => match left {
+            Value::Curve(curve) => Value::Float(sampling::curve_integral(curve, as_float(right)?)),
+            _ => return None,
+        },
         GradientSample => match left {
             Value::Gradient(gradient) => {
                 Value::Color(sampling::sample_gradient(gradient, as_float(right)?))
@@ -265,7 +269,7 @@ impl<'a> Evaluator<'a> {
         match graph.op(node) {
             Op::Constant(constant) => Some(constant.value.clone()),
             Op::Param(index) => self.params.get(*index as usize)?.clone(),
-            Op::Context(_) | Op::Sample { .. } | Op::Items(_) => None,
+            Op::ParamIntegral(_) | Op::Context(_) | Op::Sample { .. } | Op::Items(_) => None,
             Op::Pick { index, items } => {
                 let index = as_int(&self.value(*index)?)?;
                 let item = items[sampling::clamp_array_index(index, items.len())];

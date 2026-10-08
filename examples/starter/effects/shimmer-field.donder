@@ -16,10 +16,11 @@ effect ShimmerField {
   sample {
     let section = floor(pixel.index / section_width_pixels);
     let position = section_position(section_width_pixels);
-    let wave = (sin(time * wave_speed + position * wave_scale) + 1.0) * 0.5;
-    let bucket = floor(time * sparkle_speed + section * sparkle_hold);
+    let wave = (sin(integral(wave_speed) + position * wave_scale) + 1.0) * 0.5;
+    let sparkle_phase = integral(sparkle_speed);
+    let bucket = floor(sparkle_phase + section * sparkle_hold);
     let choice = rand(seed + section * 31.0 + bucket * 101.0);
-    let sparkle = if choice < density { (sin(time * sparkle_speed * TAU + section) + 1.0) * 0.5 } else { 0.0 };
+    let sparkle = if choice < density { (sin(sparkle_phase * TAU + section) + 1.0) * 0.5 } else { 0.0 };
     let level = max(wave * shimmer_level, sparkle * sparkle_level);
     let accent =
       if color_mode == RainbowHue { hsv(position * 6.0 + progress * 6.0, 1.0, 1.0) }

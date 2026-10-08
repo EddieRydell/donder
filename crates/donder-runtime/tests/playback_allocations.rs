@@ -163,6 +163,7 @@ fn whole_sequence_automation(
         duration: SampleDuration::from_ticks(8_000_000),
         curve,
         mapping: param.automation_mapping().unwrap(),
+        quantity: donder_language::execution::AutomatedQuantity::Value,
         param_index: param_index as u16,
     }
 }
@@ -649,6 +650,7 @@ fn empty_curve_automation_preserves_missingness_without_allocating() {
         &[("shape", Value::Curve(empty))],
         vec![PreparedAutomation {
             mapping: donder_language::automation::AutomationMapping::Curve { min: 0.5, max: 1.0 },
+            quantity: donder_language::execution::AutomatedQuantity::Value,
             ..automation
         }],
     ));

@@ -214,6 +214,7 @@ pub(crate) enum Binary {
     ColorMax,
     ColorScale,
     CurveSample,
+    CurveIntegral,
     GradientSample,
     Index,
     MarkAt,
@@ -296,6 +297,9 @@ impl Hash for Constant {
 pub(crate) enum Op {
     Constant(Constant),
     Param(u32),
+    /// A float parameter integrated over the definition's time. Instantiation
+    /// replaces it, so it never reaches preparation.
+    ParamIntegral(u32),
     Context(Context),
     LoopIndex(LoopId),
     Unary(Unary, Node),
@@ -325,6 +329,7 @@ impl Op {
         match *self {
             Self::Constant(_)
             | Self::Param(_)
+            | Self::ParamIntegral(_)
             | Self::Context(_)
             | Self::LoopIndex(_)
             | Self::Reduce(_) => Vec::new(),
@@ -543,6 +548,7 @@ impl Graph {
                 let param = &self.params[*index as usize];
                 (param.ty.clone(), (param.domain, LoopSet::default()))
             }
+            Op::ParamIntegral(_) => (Type::Float, (Domain::TIME, LoopSet::default())),
             Op::Context(context) => (context.ty(), (context.domain(), LoopSet::default())),
             Op::LoopIndex(id) => (Type::Int, (Domain::CONSTANT, LoopSet::single(*id))),
             Op::Reduce(id) => {
@@ -689,6 +695,7 @@ fn binary_type(op: Binary, left: &Type) -> Type {
         | Binary::ValueOr
         | Binary::Atan2
         | Binary::CurveSample
+        | Binary::CurveIntegral
         | Binary::MarkAt
         | Binary::MarkLast
         | Binary::CurveFirstCrossing

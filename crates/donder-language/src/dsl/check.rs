@@ -1327,6 +1327,32 @@ impl Checker {
                 let value = self.graph.binary(Binary::CurveSample, curve, position);
                 self.graph.ternary(Ternary::Clamp, value, min, max)
             }
+            F::Integral => {
+                let parameter = match &args[0].kind {
+                    ExprKind::Name(name)
+                        if self.frames.is_empty()
+                            && !self.scopes.iter().any(|(bound, _)| bound == name) =>
+                    {
+                        self.params
+                            .iter()
+                            .position(|param| &param.name == name && param.ty == Type::Float)
+                    }
+                    _ => None,
+                };
+                let Some(index) = parameter else {
+                    self.error(
+                        args[0].span,
+                        "`integral` needs the name of a float parameter",
+                    );
+                    return None;
+                };
+                self.graph.add(Op::ParamIntegral(index as u32))
+            }
+            F::CurveIntegral => {
+                let curve = self.typed(&args[0], &Type::Curve)?;
+                let position = self.float(&args[1])?;
+                self.graph.binary(Binary::CurveIntegral, curve, position)
+            }
             F::GradientColorScaled => {
                 let gradient = self.typed(&args[0], &Type::Gradient)?;
                 let position = self.float(&args[1])?;

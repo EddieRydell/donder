@@ -235,6 +235,7 @@ fn invocations(
                 duration: SampleDuration::from_ticks(2_000_000),
                 curve: Shared::new(ramp()),
                 mapping: param.automation_mapping()?,
+                quantity: donder_language::execution::AutomatedQuantity::Value,
                 param_index: index as u16,
             })
         })

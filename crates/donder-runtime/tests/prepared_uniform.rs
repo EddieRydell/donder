@@ -57,6 +57,7 @@ fn automation(
         curve: curve.into(),
         param_index,
         mapping,
+        quantity: donder_language::execution::AutomatedQuantity::Value,
     }])
 }
 

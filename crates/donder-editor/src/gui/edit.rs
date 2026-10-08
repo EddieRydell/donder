@@ -651,6 +651,11 @@ pub(super) fn edit_sequence(
         SequenceGuiEdit::UpdateAutomationCurve { id, curve } => {
             let mut curve = curve_from_points(curve);
             curve.collapse_coincident_points();
+            if !automation_curve_is_normalized(&curve) {
+                return Err(GuiMutationError::Invalid(
+                    "Automation values must lie between 0 and 1.".to_string(),
+                ));
+            }
             automation_clip_mut(&mut draft, id)?.curve = curve;
         }
         SequenceGuiEdit::DeleteAutomationClip { id } => {
@@ -897,6 +902,7 @@ use donder_language::sequence::{
     AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
     CompositionGraphNodeKind, GraphNodePosition, MarkCollection, MarkCollectionKey,
     SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
+    automation_curve_is_normalized,
 };
 use donder_language::values::{DonderDuration, DonderTime};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};

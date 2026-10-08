@@ -309,6 +309,7 @@ impl<'a> Emitter<'a> {
         let instruction = match graph.op(node).clone() {
             // Constants and resource parameters load on first use.
             Op::Constant(_) => return,
+            Op::ParamIntegral(_) => unreachable!("instantiation replaces parameter integrals"),
             Op::Param(_) if is_leaf(graph, node) => return,
             Op::Param(index) => {
                 let bank = self.bank_index(index as usize);
@@ -538,6 +539,11 @@ impl<'a> Emitter<'a> {
                 scale: b,
             },
             CurveSample => Instruction::CurveSample {
+                dst,
+                curve: a,
+                position: b,
+            },
+            CurveIntegral => Instruction::CurveIntegral {
                 dst,
                 curve: a,
                 position: b,

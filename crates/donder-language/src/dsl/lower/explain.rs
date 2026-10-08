@@ -61,6 +61,7 @@ fn line(graph: &Graph, node: Node) -> String {
     let op = match graph.op(node) {
         Op::Constant(constant) => format!("{:?}", constant.value),
         Op::Param(index) => format!("p{index}"),
+        Op::ParamIntegral(index) => format!("integral p{index}"),
         Op::Context(context) => format!("{context:?}"),
         Op::LoopIndex(id) => format!("index L{}", id.index()),
         Op::Unary(op, _) => format!("{op:?}"),

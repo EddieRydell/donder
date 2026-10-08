@@ -15,6 +15,9 @@ pub(crate) trait Substitute {
     fn param(&mut self, target: &mut Graph, index: u32) -> Node {
         target.add(Op::Param(index))
     }
+    fn param_integral(&mut self, target: &mut Graph, index: u32) -> Node {
+        target.add(Op::ParamIntegral(index))
+    }
     fn context(&mut self, target: &mut Graph, context: Context) -> Node {
         target.add(Op::Context(context))
     }
@@ -66,6 +69,7 @@ impl<'a> Rebuild<'a> {
         let built = match self.source.op(node).clone() {
             Op::Constant(constant) => target.add(Op::Constant(constant)),
             Op::Param(index) => substitute.param(target, index),
+            Op::ParamIntegral(index) => substitute.param_integral(target, index),
             Op::Context(context) => substitute.context(target, context),
             Op::LoopIndex(_) => unreachable!("a loop index is mapped with its reduction"),
             Op::Unary(op, a) => {

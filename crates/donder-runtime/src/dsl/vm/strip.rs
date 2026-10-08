@@ -1041,6 +1041,11 @@ impl<'m> Machine<'m> {
     }
 
     #[inline(never)]
+    fn curve_integral(&self, curve: Handle, position: f32) -> f32 {
+        crate::sampling::curve_integral(self.curve(curve).curve(), position)
+    }
+
+    #[inline(never)]
     fn curve_crossing(&self, curve: Handle, value: f32) -> f32 {
         self.curve(curve).crossing(value)
     }
@@ -1328,6 +1333,17 @@ impl<'m> Machine<'m> {
                 self.handle(curve),
                 self.float(position),
                 |curve, position| self.curve_sample(curve, position),
+            ),
+            I::CurveIntegral {
+                dst,
+                curve,
+                position,
+            } => apply2(
+                sel,
+                self.float_dst(dst),
+                self.handle(curve),
+                self.float(position),
+                |curve, position| self.curve_integral(curve, position),
             ),
             I::CurveClamped {
                 dst,

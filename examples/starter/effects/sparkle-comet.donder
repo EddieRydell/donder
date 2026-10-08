@@ -19,10 +19,11 @@ effect SparkleComet {
     let distance = if wrap { min(distance, 1.0 - distance) } else { distance };
     let trail = 1.0 - smoothstep(0.0, tail_width, distance);
     let core = 1.0 - smoothstep(0.0, head_width, distance);
-    let bucket = floor(time * sparkle_speed + pixel.index * 0.13);
+    let sparkle_phase = integral(sparkle_speed);
+    let bucket = floor(sparkle_phase + pixel.index * 0.13);
     let sparkle =
       if rand(seed + pixel.index * 19.0 + bucket * 47.0) < sparkle_density {
-        (sin(time * sparkle_speed * TAU + pixel.index) + 1.0) * 0.5
+        (sin(sparkle_phase * TAU + pixel.index) + 1.0) * 0.5
       } else { 0.0 };
     let level = max(max(trail, core), sparkle * trail * sparkle_gain) * intensity[progress];
     let value = gradient[1.0 - distance / tail_width];
