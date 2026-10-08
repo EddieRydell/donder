@@ -4,7 +4,7 @@ use super::*;
 #[specta::specta]
 pub(crate) fn start_output_test(
     request: GuiDocumentRequest,
-    test: crate::dto::ControllerOutputTest,
+    test: donder_sequence_api::ControllerOutputTest,
     app: AppHandle,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
@@ -39,12 +39,14 @@ fn start_live_output_poll(app: AppHandle) {
             let _ = app.emit("live_output_changed", snapshot.clone());
             if matches!(
                 snapshot.state,
-                crate::dto::LiveOutputState::Disabled | crate::dto::LiveOutputState::Error
+                donder_sequence_api::LiveOutputState::Disabled
+                    | donder_sequence_api::LiveOutputState::Error
             ) {
                 state.release_live_output_poll();
                 let restarted = !matches!(
                     state.live_output_snapshot().state,
-                    crate::dto::LiveOutputState::Disabled | crate::dto::LiveOutputState::Error
+                    donder_sequence_api::LiveOutputState::Disabled
+                        | donder_sequence_api::LiveOutputState::Error
                 ) && state.claim_live_output_poll();
                 if !restarted {
                     break;

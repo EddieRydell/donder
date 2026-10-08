@@ -112,7 +112,7 @@ mod tests {
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceTiming, SequenceWindow, TargetScope,
     };
     use donder_runtime_types::{
-        OperatorDefinition, OperatorProgram, SampleDefinition, SampleProgram,
+        OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram,
     };
 
     /// Slot counts of floats, ints and colors.
@@ -183,8 +183,8 @@ mod tests {
             Box::new([]),
         )
         .unwrap();
-        let sample = SampleDefinition::new(sample).bind(vec![]).unwrap();
-        let operator = OperatorDefinition::new(operator).bind(vec![]).unwrap();
+        let sample = SampleInvocation::bind(sample, vec![]).unwrap();
+        let operator = OperatorInvocation::bind(operator, vec![]).unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(60).unwrap(),

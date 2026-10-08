@@ -7,7 +7,7 @@ use donder_model::{
 
 use super::GuiMutationError;
 use super::model::{composition_graph_node_mut, parse_graph_node_id};
-use crate::dto::{SequenceGraphEdge, SequenceGraphNodePosition};
+use donder_sequence_api::{SequenceGraphEdge, SequenceGraphNodePosition};
 
 pub(super) fn connect_nodes(
     sequence: &mut Sequence,

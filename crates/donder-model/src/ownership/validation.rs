@@ -1,6 +1,6 @@
 use super::{Identified, ValueSource};
 use crate::identity::{ObjectIdentity, OwnedObjectSlot};
-use crate::model::DonderProject;
+use crate::project::DonderProject;
 use crate::validation::ProjectValidationError;
 use indexmap::IndexMap;
 use std::collections::HashSet;

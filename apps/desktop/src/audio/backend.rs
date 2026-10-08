@@ -4,8 +4,8 @@ use kira::sound::streaming::{StreamingSoundData, StreamingSoundHandle};
 use kira::sound::{FromFileError, PlaybackState};
 use kira::{AudioManager, AudioManagerSettings, DefaultBackend, Tween};
 
-use crate::dto::SequenceAudio;
 use donder_runtime::PlaybackRate;
+use donder_sequence_api::SequenceAudio;
 
 type KiraManager = AudioManager<DefaultBackend>;
 type KiraStreamingHandle = StreamingSoundHandle<FromFileError>;

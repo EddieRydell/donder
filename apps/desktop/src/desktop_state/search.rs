@@ -4,7 +4,7 @@ use std::fs;
 use ignore::WalkBuilder;
 
 use super::DesktopState;
-use crate::dto::{
+use donder_sequence_api::{
     ProjectSearchMatch, ProjectSearchMatchKind, ProjectSearchRequest, ProjectSearchResponse,
 };
 

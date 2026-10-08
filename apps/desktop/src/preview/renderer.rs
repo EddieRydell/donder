@@ -1,13 +1,13 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use crate::{
+use super::scene::{
     PreviewCamera, PreviewColor, PreviewInstance, PreviewScene, PreviewSize, PreviewStyle,
 };
 
 const SHADER: &str = include_str!("preview.wgsl");
 
-pub struct PreviewRenderer {
+pub(crate) struct PreviewRenderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     max_surface_dimension: u32,
@@ -190,7 +190,7 @@ impl PreviewRenderer {
         })
     }
 
-    pub fn render(
+    pub(crate) fn render(
         &mut self,
         surface: &wgpu::Surface<'_>,
         size: PreviewSize,
@@ -359,13 +359,13 @@ struct PreviewUniforms {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PreviewRenderOutcome {
+pub(crate) enum PreviewRenderOutcome {
     Presented,
     Skipped,
 }
 
 #[derive(Debug)]
-pub enum PreviewRendererError {
+pub(crate) enum PreviewRendererError {
     Adapter(String),
     Device(String),
     NoSurfaceFormat,

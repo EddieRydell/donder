@@ -15,7 +15,7 @@ use indexmap::IndexMap;
 use std::num::NonZeroU32;
 
 #[derive(Debug, Default)]
-pub(in crate::model) struct ProjectInputs {
+pub(in crate::project) struct ProjectInputs {
     pub(super) sequences: IndexMap<SequenceId, SequenceInputs>,
     pub(super) layouts: IndexMap<crate::layout::LayoutId, super::geometry::LayoutGeometry>,
     pub(super) patches: IndexMap<crate::patch::PatchId, super::patch::PatchEncodings>,
@@ -29,7 +29,7 @@ pub(super) struct SequenceInputs {
 }
 
 impl ProjectInputs {
-    pub(in crate::model) fn admit(
+    pub(in crate::project) fn admit(
         project: &DonderProject,
         previous: Option<&DonderProject>,
     ) -> Result<Self, ProjectValidationError> {

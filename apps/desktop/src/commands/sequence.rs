@@ -5,7 +5,7 @@ use super::*;
 pub(crate) fn sequence_export_ports(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> Result<Vec<crate::dto::SequenceExportPort>, String> {
+) -> Result<Vec<donder_sequence_api::SequenceExportPort>, String> {
     state.sequence_export_ports(&request)
 }
 
@@ -45,7 +45,7 @@ pub(crate) async fn export_sequence_file(
 pub(crate) fn get_gui_document(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> crate::dto::GuiDocumentResult {
+) -> donder_sequence_api::GuiDocumentResult {
     state.get_gui_document(request)
 }
 
@@ -223,7 +223,7 @@ pub(crate) async fn set_device_standalone(
 #[specta::specta]
 pub(crate) async fn set_device_network(
     id: String,
-    network: Option<crate::dto::DonderDeviceNetworkRequest>,
+    network: Option<donder_sequence_api::DonderDeviceNetworkRequest>,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     let state = state.inner().clone();
@@ -234,7 +234,8 @@ pub(crate) async fn set_device_network(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) async fn device_serial_ports() -> Result<Vec<crate::dto::DeviceSerialPort>, String> {
+pub(crate) async fn device_serial_ports()
+-> Result<Vec<donder_sequence_api::DeviceSerialPort>, String> {
     tauri::async_runtime::spawn_blocking(crate::device::provisioning::ports)
         .await
         .map_err(|error| error.to_string())?
@@ -242,7 +243,7 @@ pub(crate) async fn device_serial_ports() -> Result<Vec<crate::dto::DeviceSerial
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn device_firmware_info() -> Result<crate::dto::DeviceFirmwareInfo, String> {
+pub(crate) fn device_firmware_info() -> Result<donder_sequence_api::DeviceFirmwareInfo, String> {
     crate::device::firmware::info()
 }
 
@@ -250,7 +251,7 @@ pub(crate) fn device_firmware_info() -> Result<crate::dto::DeviceFirmwareInfo, S
 #[specta::specta]
 pub(crate) async fn install_device_firmware(
     port: String,
-    progress: tauri::ipc::Channel<crate::dto::DeviceInstallProgress>,
+    progress: tauri::ipc::Channel<donder_sequence_api::DeviceInstallProgress>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::device::firmware::install(&port, |state| {

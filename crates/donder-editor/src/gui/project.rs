@@ -2,7 +2,7 @@ use super::patch::object_ref;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::{ResolvedGuiObject, blocked};
-use crate::dto::{GuiDocument, ProjectGuiDocument};
+use donder_sequence_api::{GuiDocument, ProjectGuiDocument};
 
 pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObject) -> GuiDocument {
     if session.project.root().id.0 != resolved.identity {
@@ -37,10 +37,12 @@ pub(super) fn project_root(session: &ProjectSession, resolved: &ResolvedGuiObjec
 pub fn create_sequence(
     session: &mut ProjectSession,
     owner: &super::ResolvedGuiObject,
-    request: crate::dto::NewSequenceRequest,
-) -> Result<crate::dto::GuiObjectRef, super::GuiMutationError> {
+    request: donder_sequence_api::NewSequenceRequest,
+) -> Result<donder_sequence_api::GuiObjectRef, super::GuiMutationError> {
     use super::GuiMutationError;
-    use crate::dto::{GuiOwnershipEdit, GuiOwnershipSlot, NewSequenceStorage, ReusableStorage};
+    use donder_sequence_api::{
+        GuiOwnershipEdit, GuiOwnershipSlot, NewSequenceStorage, ReusableStorage,
+    };
     super::ensure_owned_gui_document(session, owner)?;
     let duration =
         std::time::Duration::try_from_secs_f32(request.duration_seconds).map_err(|_| {

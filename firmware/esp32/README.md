@@ -98,8 +98,10 @@ and summarize durable results in [performance](../../docs/performance.md).
   restoration and upload persistence share it with filesystem and SDK calls.
 - The runtime `atomic` feature is enabled only for output builds, so the active
   sequence and its workspace can cross cores.
-- `rwtext_hook.x` places the interpreter and per-pixel helpers in instruction RAM
-  (see [performance](../../docs/performance.md#esp32-memory-placement)).
+- The runtime's `iram` feature places the interpreter and graph evaluation in
+  instruction RAM, and `pnpm firmware:build` fails if any of that code is left
+  in flash (see
+  [performance](../../docs/performance.md#esp32-memory-placement)).
 
 ## Validation
 

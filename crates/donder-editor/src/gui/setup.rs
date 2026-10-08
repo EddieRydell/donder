@@ -4,7 +4,7 @@ use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::model::object_identity_from_gui;
 use super::{GuiMutationError, ResolvedGuiObject, blocked};
-use crate::dto::{GuiDocument, SetupGuiDocument, SetupGuiEdit};
+use donder_sequence_api::{GuiDocument, SetupGuiDocument, SetupGuiEdit};
 
 use super::patch;
 

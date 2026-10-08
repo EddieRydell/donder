@@ -9,9 +9,9 @@ use crate::effect::{
 use crate::fixture::FixtureDefinitionId;
 use crate::identity::{DocumentId, ObjectIdentity, SourceIdentity};
 use crate::layout::{FixtureTarget, LayoutFixture, LayoutFixtureKind, LayoutId};
-use crate::model::{DonderProject, ProjectId};
 use crate::operator::{OperatorDefinitionId, OperatorRef};
 use crate::ownership::ValueSource;
+use crate::project::{DonderProject, ProjectId};
 use crate::sequence::CompositionGraphNodeKind;
 use crate::setup::SetupId;
 

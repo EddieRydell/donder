@@ -1,12 +1,11 @@
-use std::io::BufRead;
 use std::sync::Arc;
 use std::time::Instant;
 
-use donder_preview::{
-    PreviewClockSnapshot, PreviewClockUpdate, PreviewInstance, PreviewPlayback,
-    PreviewPlaybackState, PreviewRenderOutcome, PreviewRenderer, PreviewScene, PreviewSize,
-    PreviewStyle,
+use super::playback::{
+    PreviewClockSnapshot, PreviewClockUpdate, PreviewPlayback, PreviewPlaybackState,
 };
+use super::renderer::{PreviewRenderOutcome, PreviewRenderer};
+use super::scene::{PreviewInstance, PreviewScene, PreviewSize, PreviewStyle};
 use donder_runtime::PlaybackRate;
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
@@ -67,21 +66,20 @@ pub(crate) fn run(startup: PreviewStartup) -> Result<(), String> {
         .map_err(|error| format!("Cannot create Preview event loop: {error}"))?;
     let proxy = event_loop.create_proxy();
     std::thread::spawn(move || {
-        let stdin = std::io::stdin();
-        for line in stdin.lock().lines() {
-            let event = match line {
-                Ok(line) => match serde_json::from_str(&line) {
-                    Ok(command) => HostEvent::Command(command),
-                    Err(error) => {
-                        HostEvent::InputError(format!("Cannot decode Preview command: {error}"))
-                    }
-                },
-                Err(error) => {
-                    HostEvent::InputError(format!("Cannot read Preview command: {error}"))
-                }
+        let mut stdin = std::io::stdin().lock();
+        loop {
+            let event = match super::protocol::read_command(&mut stdin) {
+                Ok(Some(command)) => HostEvent::Command(command),
+                Ok(None) => break,
+                Err(message) => HostEvent::InputError(message),
             };
+            // A malformed frame leaves the stream unreadable: report it, then close.
+            let failed = matches!(event, HostEvent::InputError(_));
             if proxy.send_event(event).is_err() {
                 return;
+            }
+            if failed {
+                break;
             }
         }
         let _ = proxy.send_event(HostEvent::InputClosed);
@@ -251,7 +249,10 @@ impl PreviewHostApplication {
         Ok(())
     }
 
-    fn set_appearance(&mut self, appearance: crate::dto::PreviewAppearance) -> Result<(), String> {
+    fn set_appearance(
+        &mut self,
+        appearance: donder_sequence_api::PreviewAppearance,
+    ) -> Result<(), String> {
         self.style = style(appearance)?;
         self.startup.appearance = appearance;
         self.playback.set_unlit(self.style.unlit_color());
@@ -429,7 +430,7 @@ impl ApplicationHandler<HostEvent> for PreviewHostApplication {
     }
 }
 
-fn style(appearance: crate::dto::PreviewAppearance) -> Result<PreviewStyle, String> {
+fn style(appearance: donder_sequence_api::PreviewAppearance) -> Result<PreviewStyle, String> {
     PreviewStyle {
         background_rgb: appearance.background_rgb,
         unlit_rgb: appearance.unlit_rgb,
@@ -440,15 +441,14 @@ fn style(appearance: crate::dto::PreviewAppearance) -> Result<PreviewStyle, Stri
     .map_err(|error| format!("Preview appearance is invalid: {error:?}"))
 }
 
-fn playback_state(state: crate::dto::AudioTransportState) -> PreviewPlaybackState {
+fn playback_state(state: donder_sequence_api::AudioTransportState) -> PreviewPlaybackState {
     match state {
-        crate::dto::AudioTransportState::Playing => PreviewPlaybackState::Playing,
-        crate::dto::AudioTransportState::Paused => PreviewPlaybackState::Paused,
-        crate::dto::AudioTransportState::Stopped => PreviewPlaybackState::Stopped,
-        crate::dto::AudioTransportState::Ended => PreviewPlaybackState::Ended,
-        crate::dto::AudioTransportState::Unloaded | crate::dto::AudioTransportState::Error => {
-            PreviewPlaybackState::Unavailable
-        }
+        donder_sequence_api::AudioTransportState::Playing => PreviewPlaybackState::Playing,
+        donder_sequence_api::AudioTransportState::Paused => PreviewPlaybackState::Paused,
+        donder_sequence_api::AudioTransportState::Stopped => PreviewPlaybackState::Stopped,
+        donder_sequence_api::AudioTransportState::Ended => PreviewPlaybackState::Ended,
+        donder_sequence_api::AudioTransportState::Unloaded
+        | donder_sequence_api::AudioTransportState::Error => PreviewPlaybackState::Unavailable,
     }
 }
 
@@ -490,5 +490,5 @@ fn window_state_is_visible(event_loop: &ActiveEventLoop, state: PreviewWindowSta
 
 fn emit(event: &PreviewEvent) -> Result<(), String> {
     let stdout = std::io::stdout();
-    super::protocol::write_message(&mut stdout.lock(), event)
+    super::protocol::write_event(&mut stdout.lock(), event)
 }

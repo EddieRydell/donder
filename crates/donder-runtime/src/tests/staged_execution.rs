@@ -12,7 +12,7 @@ use crate::dsl::bytecode::{FloatBinary, Instruction};
 use crate::dsl::{BoundParams, DslBindCache, NoSignals, STRIP, Strip, StripWorkspace};
 use donder_runtime_types::SampleTime;
 use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
-use donder_runtime_types::{OperatorDefinition, OperatorInvocation, OperatorProgram};
+use donder_runtime_types::{OperatorInvocation, OperatorProgram};
 use donder_runtime_types::{SampleInvocation, Value};
 use donder_test_support::workload;
 
@@ -34,11 +34,13 @@ fn uncached(operator: &OperatorInvocation) -> OperatorInvocation {
     let (inputs, types) = (program.input_count(), program.parameter_types().into());
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
-    OperatorDefinition::new(OperatorProgram::admit(bytecode, inputs, types).unwrap())
-        .bind(operator.params().iter_values().collect())
-        .unwrap()
-        .with_automation(operator.automation().into())
-        .unwrap()
+    OperatorInvocation::bind(
+        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        operator.params().iter_values().collect(),
+    )
+    .unwrap()
+    .with_automation(operator.automation().into())
+    .unwrap()
 }
 
 fn has_frame_cache(operator: &OperatorInvocation) -> bool {

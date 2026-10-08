@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, BufWriter};
+use std::io::{BufReader, BufWriter};
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::{
     Arc, Condvar, Mutex,
@@ -8,15 +8,18 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::dto::{AudioTransportSnapshot, AudioTransportState, PreviewAppearance};
 use crate::persistence::{PersistedPreviewWindowState, PersistenceService};
+use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState, PreviewAppearance};
 
 mod geometry;
 mod host;
+mod playback;
 mod protocol;
+mod renderer;
+mod scene;
 
 pub(crate) use geometry::PreviewGeometry;
-use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, write_message};
+use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, read_event, write_command};
 
 type PreviewWriter = Arc<Mutex<BufWriter<ChildStdin>>>;
 
@@ -234,12 +237,15 @@ fn monitor_process(
 ) {
     let mut reported_closed = false;
     let mut reported_error = false;
-    for line in BufReader::new(stdout).lines() {
-        let event = match line {
-            Ok(line) => serde_json::from_str::<PreviewEvent>(&line)
-                .map_err(|error| format!("Cannot decode Preview event: {error}")),
-            Err(error) => Err(format!("Cannot read Preview event: {error}")),
+    let mut stdout = BufReader::new(stdout);
+    loop {
+        let event = match read_event(&mut stdout) {
+            Ok(Some(event)) => Ok(event),
+            Ok(None) => break,
+            Err(message) => Err(message),
         };
+        // A malformed frame leaves the stream unreadable.
+        let stream_failed = event.is_err();
         match event {
             Ok(PreviewEvent::Ready) => {
                 let state = monitor.app.state::<crate::desktop_state::DesktopState>();
@@ -289,6 +295,9 @@ fn monitor_process(
                     snapshot.preview_error = Some(format!("Preview failed: {message}"));
                 });
             }
+        }
+        if stream_failed {
+            break;
         }
     }
     let exit = child.wait();
@@ -426,7 +435,7 @@ fn validate_appearance(appearance: PreviewAppearance) -> Result<(), String> {
     {
         return Err("Preview window dimensions must be positive.".to_string());
     }
-    donder_preview::PreviewStyle {
+    scene::PreviewStyle {
         background_rgb: appearance.background_rgb,
         unlit_rgb: appearance.unlit_rgb,
         canvas_fill_ratio: appearance.canvas_fill_ratio,
@@ -439,7 +448,7 @@ fn validate_appearance(appearance: PreviewAppearance) -> Result<(), String> {
 
 fn send(writer: &PreviewWriter, command: &PreviewCommand) -> Result<(), String> {
     let mut writer = lock(writer);
-    write_message(&mut *writer, command)
+    write_command(&mut *writer, command)
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

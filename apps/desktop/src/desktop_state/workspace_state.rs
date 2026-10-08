@@ -1,6 +1,11 @@
 use super::LoadedProject;
-use crate::dto::*;
 use camino::Utf8PathBuf;
+use donder_sequence_api::{
+    AppSettings, AppSnapshot, AudioTransportSnapshot, DocumentDescriptor, DocumentSaveState,
+    DocumentSaveStatus, DocumentViewId, DonderDeviceStatus, EditorBuffer, GuiDocumentRequest,
+    GuiDocumentResult, LiveOutputSnapshot, ProjectDiagnostic, ProjectHealth, WorkspaceEntry,
+    WorkspaceExplorerState, WorkspaceLayoutState,
+};
 use std::collections::BTreeMap;
 
 pub(super) struct WorkspaceView {
@@ -177,7 +182,7 @@ impl WorkspaceState {
             LoadedProject::Ready(session) => Some((
                 self.view.project_epoch,
                 GuiDocumentResult {
-                    document: crate::gui::project_gui_document(Some(session), &request),
+                    document: donder_editor::project_gui_document(Some(session), &request),
                     project_revision: request.project_revision,
                     request,
                 },

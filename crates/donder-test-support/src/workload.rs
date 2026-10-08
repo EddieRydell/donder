@@ -5,8 +5,7 @@ use donder_language::compiler::{CompiledOperator, Invocation, ProgramConstants};
 use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
 use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, NO_FRAME_CACHE, Slot};
 use donder_runtime_types::{
-    BoundParams, OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition,
-    SampleProgram,
+    BoundParams, OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram, Shared,
 };
 use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SequenceWindow,
@@ -81,28 +80,26 @@ impl Workload {
             let target = builder.target([fixture], TargetScope::PerFixture);
             let windows: Vec<_> = builder.windows().collect();
             let mut windows = windows.into_iter();
-            let mut definitions: Vec<(SampleProgram, SampleDefinition)> = Vec::new();
+            let mut programs: Vec<Shared<SampleProgram>> = Vec::new();
             let mut layers = Vec::new();
             for layer in &self.layers {
                 let effects: Vec<_> = layer
                     .iter()
                     .map(|effect| {
-                        let definition = match definitions
-                            .iter()
-                            .find(|(program, _)| program == &effect.program)
-                        {
-                            Some((_, definition)) => definition.clone(),
-                            None => {
-                                let definition = SampleDefinition::new(effect.program.clone());
-                                definitions.push((effect.program.clone(), definition.clone()));
-                                definition
-                            }
-                        };
-                        let invocation = definition
-                            .bind(effect.params.iter_values().collect())
-                            .unwrap()
-                            .with_automation(effect.automation.clone().into())
-                            .unwrap();
+                        let program =
+                            match programs.iter().find(|program| ***program == effect.program) {
+                                Some(program) => Shared::clone(program),
+                                None => {
+                                    let program = Shared::new(effect.program.clone());
+                                    programs.push(Shared::clone(&program));
+                                    program
+                                }
+                            };
+                        let invocation =
+                            SampleInvocation::bind(program, effect.params.iter_values().collect())
+                                .unwrap()
+                                .with_automation(effect.automation.clone().into())
+                                .unwrap();
                         builder.sample(&invocation, windows.next().unwrap(), target)
                     })
                     .collect();
@@ -292,11 +289,13 @@ pub fn edit_operator(
     let (inputs, types) = (program.input_count(), program.parameter_types().into());
     let mut bytecode = program.into_bytecode();
     edit(&mut bytecode);
-    OperatorDefinition::new(OperatorProgram::admit(bytecode, inputs, types).unwrap())
-        .bind(invocation.params().iter_values().collect())
-        .unwrap()
-        .with_automation(invocation.automation().into())
-        .unwrap()
+    OperatorInvocation::bind(
+        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        invocation.params().iter_values().collect(),
+    )
+    .unwrap()
+    .with_automation(invocation.automation().into())
+    .unwrap()
 }
 
 /// Edit the first effect's lowered bytecode.

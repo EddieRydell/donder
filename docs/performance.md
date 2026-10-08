@@ -134,21 +134,34 @@ applies to apps that are hidden and silent, it woke 50 to 100 ms late and missed
 
 ## ESP32 memory placement
 
-The ESP32 runs code from flash through a small cache, so hot code lives in
-instruction RAM. `firmware/esp32/rwtext_hook.x` places these there, by mangled
-symbol prefix:
-- the strip interpreter, its kernels and graph evaluation;
-- target and section pixel lookup;
-- the language helpers the interpreter calls: gradient stops, curve crossings,
-  float operations, time and progress queries, color scaling and
-  multiplication, sample-time conversion, and float division.
+The ESP32 runs code from flash through a small cache, so the strip interpreter
+and graph evaluation live in instruction RAM. The runtime's `iram` feature,
+which the firmware enables, gives every function in `dsl/vm/strip.rs` and
+`evaluation.rs` `link_section = ".rwtext"`. Closures cannot carry the
+attribute, so a per-pixel body that the compiler leaves out of line is a named
+`#[inline(never)]` method, and a large instruction's loop runs in its own
+method rather than inside `Machine::step`, whose closures the inliner may
+outline. `pnpm firmware:build` fails if any code from those two modules is
+linked outside instruction RAM, naming the closure or function to move.
+
+On October 8, 2026 (classic ESP32 at 240 MHz, flash DIO at 40 MHz, Stanford
+`main` uploaded standalone, its effects active from 64 to 91 seconds), average
+evaluation over the active section was 2,925 µs with this placement, 2,913 µs
+with only the interpreter and graph evaluation in instruction RAM, and 5,741 µs
+with nothing placed, which missed 146 frames. Idle frames were 731, 716 and
+1,090 µs. The interpreter's placement halves active evaluation; the helper
+placements (sampling helpers, pixel lookups, float division) had no measurable
+effect on this show and were removed, freeing 3.2 KB. With attribute
+placement only, and no linker script, the same run measured 2,968 µs active and
+750 µs idle in 74,164 bytes of `.rwtext`.
 
 Drop glue and once-per-frame work such as automation stay in flash. Flash
 addresses in the `.rwtext` literal pools show which flash functions the
 instruction-RAM code still calls; large math such as `powf`, `expf`, `logf`
 and `tanf` stays behind out-of-line wrappers in flash. On October 6, 2026 the
 loader used 77,004 bytes of `.rwtext` beside 51,796 bytes of Wi-Fi code, about
-1.2 KB below the limit. Check the linker output after growing the interpreter: code size, not
+1.2 KB below the limit; on October 8, after removing the helper placements, it
+used 73,640 bytes. Check the linker output after growing the interpreter: code size, not
 speed, decides what the interpreter may specialize. Operand lookups stay out of
 line, one bounds check each rather than one per instruction arm, and only the
 cheapest operations have loops per operand kind. Graph evaluation borrows its

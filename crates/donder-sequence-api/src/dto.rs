@@ -1,31 +1,13 @@
-use donder_project_io::SourceObjectKind;
-use serde::{Deserialize, Serialize};
-use specta::Type;
-
-pub use crate::*;
-
-mod app;
-mod audio;
-mod browser;
-mod diagnostics;
-mod output;
-mod patch;
-mod preview;
-mod sequence;
-mod setup;
-mod synchronization;
-mod view_state;
-mod workspace;
-
-pub use app::*;
-pub use audio::*;
-pub use browser::*;
-pub use diagnostics::*;
-pub use output::*;
-pub use patch::*;
-pub use preview::*;
-pub use sequence::*;
-pub use setup::*;
-pub use synchronization::*;
-pub use view_state::*;
-pub use workspace::*;
+//! The serialized editor DTOs, one module per workflow; `lib.rs` lists each export.
+pub(crate) mod app;
+pub(crate) mod audio;
+pub(crate) mod browser;
+pub(crate) mod diagnostics;
+pub(crate) mod output;
+pub(crate) mod patch;
+pub(crate) mod preview;
+pub(crate) mod sequence;
+pub(crate) mod setup;
+pub(crate) mod synchronization;
+pub(crate) mod view_state;
+pub(crate) mod workspace;

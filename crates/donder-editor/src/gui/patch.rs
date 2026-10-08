@@ -1,4 +1,3 @@
-use crate::dto::*;
 use crate::gui::model::object_identity_from_gui;
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
 use donder_model::ObjectIdentity;
@@ -7,6 +6,10 @@ use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, Layo
 use donder_model::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_object};
 use donder_runtime_types::PixelEncoding;
+use donder_sequence_api::{
+    GuiDocument, GuiObjectRef, GuiPixelEncoding, GuiPixelRoute, GuiPixelSpan, ObjectKind,
+    PatchFixtureTarget, PatchGuiDocument, PatchLayout,
+};
 
 pub(super) fn project_document(
     session: &ProjectSession,

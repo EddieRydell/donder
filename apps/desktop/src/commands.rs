@@ -6,17 +6,17 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_specta::{Builder, collect_commands};
 
 use crate::desktop_state::DesktopState;
-use crate::dto::{
+use crate::persistence::{
+    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate, PersistedPreviewWindowState,
+    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
+};
+use donder_sequence_api::{
     AppSettings, AppSnapshot, AudioTransportState, DocumentViewId, EditorViewMode,
     GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, PlaybackRange,
     PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse, SequenceAutomationTarget,
     SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
     SequenceGuiEdit, SequenceSelectionEdit, SequenceSelectionEditResult, WorkspaceExplorerState,
     WorkspaceLayoutState, WorkspacePathChangePlan, WorkspacePathChangeRequest,
-};
-use crate::persistence::{
-    PersistedEditorViewStateUpdate, PersistedGraphViewStateUpdate, PersistedPreviewWindowState,
-    PersistedSequenceViewportStateUpdate, PersistedSpatialViewStateUpdate, ProjectRestoreState,
 };
 
 mod app;

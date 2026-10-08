@@ -1,5 +1,7 @@
-use crate::dto::{AudioTransportSnapshot, AudioTransportState, PlaybackRange, SequenceAudio};
 use donder_runtime::PlaybackRate;
+use donder_sequence_api::{
+    AudioTransportSnapshot, AudioTransportState, PlaybackRange, SequenceAudio,
+};
 use std::time::Instant;
 
 use super::backend::{

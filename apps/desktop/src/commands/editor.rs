@@ -3,7 +3,7 @@ use super::*;
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn update_document(
-    update: crate::dto::DocumentUpdate,
+    update: donder_sequence_api::DocumentUpdate,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.update_document(update)
@@ -25,7 +25,7 @@ pub(crate) fn language_server_send(
 #[specta::specta]
 pub(crate) fn apply_text_edits(
     project_epoch: u32,
-    edits: Vec<crate::dto::DocumentTextEdits>,
+    edits: Vec<donder_sequence_api::DocumentTextEdits>,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.apply_text_edits(project_epoch, edits)
@@ -36,7 +36,7 @@ pub(crate) fn apply_text_edits(
 #[specta::specta]
 pub(crate) fn include_document(
     project_epoch: u32,
-    inclusion: crate::dto::DocumentInclusion,
+    inclusion: donder_sequence_api::DocumentInclusion,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.include_document(project_epoch, inclusion)
@@ -51,9 +51,9 @@ pub(crate) fn save_all(state: State<'_, DesktopState>) -> Result<AppSnapshot, St
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn request_transition(
-    request: crate::dto::TransitionRequest,
+    request: donder_sequence_api::TransitionRequest,
     state: State<'_, DesktopState>,
-) -> Result<crate::dto::TransitionResult, String> {
+) -> Result<donder_sequence_api::TransitionResult, String> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || state.request_transition(request))
         .await
@@ -74,7 +74,7 @@ pub(crate) fn resolve_external_conflict(
     epoch: u32,
     path: String,
     revision: u32,
-    decision: crate::dto::ExternalConflictDecision,
+    decision: donder_sequence_api::ExternalConflictDecision,
     state: State<'_, DesktopState>,
 ) -> Result<AppSnapshot, String> {
     state.resolve_external_conflict(epoch, path, revision, decision)

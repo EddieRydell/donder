@@ -9,6 +9,8 @@ license = "MIT"
 [features]
 default = ["atomic"]
 atomic = ["donder-runtime-types/atomic"]
+# Link the interpreter and graph evaluation into ESP32 instruction RAM.
+iram = []
 
 [dependencies]
 donder-runtime-types.workspace = true

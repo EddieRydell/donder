@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::dto::{
+use donder_sequence_api::{
     AppSettings, AppSnapshot, PlaybackRange, WorkspaceExplorerState, WorkspaceLayoutState,
 };
 

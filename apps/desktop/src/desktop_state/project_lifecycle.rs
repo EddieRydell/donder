@@ -3,12 +3,12 @@ use super::{
     DesktopState, LoadedProject, descriptor_for_path, lock_unpoisoned, project_diagnostics,
     recovery_workspace_entries, workspace_entries,
 };
-use crate::dto::{
+use camino::{Utf8Path, Utf8PathBuf};
+use donder_project_io::{ProjectCheckReport, ProjectSession};
+use donder_sequence_api::{
     AppSnapshot, EditorViewMode, GuiDocument, GuiDocumentRequest, ProjectHealth, SequenceAudio,
     SidebarView,
 };
-use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{ProjectCheckReport, ProjectSession};
 use std::sync::Arc;
 
 impl DesktopState {
@@ -117,7 +117,9 @@ impl DesktopState {
         let conflicted = lock_unpoisoned(&self.workspace)
             .documents
             .values()
-            .any(|doc| doc.buffer.external_state != crate::dto::BufferExternalState::Current);
+            .any(|doc| {
+                doc.buffer.external_state != donder_sequence_api::BufferExternalState::Current
+            });
         let session = session.filter(|_| !conflicted);
         let active = self.snapshot().active_file;
         let descriptor = session.as_ref().and_then(|session| {
@@ -129,9 +131,7 @@ impl DesktopState {
             let mut workspace = lock_unpoisoned(&self.workspace);
             if let Some(session) = &session {
                 for (path, document) in &mut workspace.documents {
-                    if let Some(source) =
-                        crate::source_documents::document_for_editor_path(session, path)
-                    {
+                    if let Some(source) = donder_editor::document_for_editor_path(session, path) {
                         document.buffer.read_only = !session.source.is_project_owned(&source);
                     }
                 }
@@ -172,11 +172,12 @@ impl DesktopState {
 
     pub(super) fn focus_first_diagnostic(&self) {
         let snapshot = self.snapshot();
-        if let Some(diagnostic) = snapshot
-            .diagnostics
-            .iter()
-            .find(|item| matches!(item.severity, crate::dto::DiagnosticSeverity::Error))
-        {
+        if let Some(diagnostic) = snapshot.diagnostics.iter().find(|item| {
+            matches!(
+                item.severity,
+                donder_sequence_api::DiagnosticSeverity::Error
+            )
+        }) {
             let path = Utf8Path::new(&diagnostic.path);
             let relative = snapshot
                 .project_root
@@ -214,7 +215,7 @@ impl DesktopState {
         request: &GuiDocumentRequest,
     ) -> Option<SequenceAudio> {
         let project = self.project_session();
-        match crate::gui::project_gui_document(project.as_deref(), request) {
+        match donder_editor::project_gui_document(project.as_deref(), request) {
             GuiDocument::Sequence { document } => document.audio,
             _ => None,
         }
@@ -225,12 +226,12 @@ impl DesktopState {
         request: &GuiDocumentRequest,
     ) -> Option<donder_model::SequenceId> {
         if request.project_revision != self.snapshot().project_revision
-            || request.view != crate::dto::DocumentViewId::Sequence
+            || request.view != donder_sequence_api::DocumentViewId::Sequence
         {
             return None;
         }
         let project = self.project_session()?;
-        let resolved = crate::gui::resolve_request(&project, request).ok()?;
+        let resolved = donder_editor::resolve_request(&project, request).ok()?;
         let id = donder_model::SequenceId(resolved.object_identity());
         project.project.sequence(&id).is_some().then_some(id)
     }

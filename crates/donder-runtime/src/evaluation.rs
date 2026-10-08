@@ -1,6 +1,10 @@
 //! Signal graph evaluation. Every program runs over strips of up to [`STRIP`]
 //! pixels; a single pixel is a one-pixel strip. Operators sample their inputs
 //! over the same strip, so upstream programs run in strips too.
+//!
+//! With the `iram` feature, every function here is linked into instruction RAM
+//! (see `docs/performance.md`); `pnpm firmware:build` checks the placement.
+#![cfg_attr(feature = "iram", allow(unsafe_code))]
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{BoundParams, Pixels, RunContext, STRIP, Strip, StripSignals, StripWorkspace};
@@ -24,6 +28,7 @@ pub(crate) struct EffectSampler<'a> {
 
 impl PreparedEffect<AutomationPlan> {
     #[inline(always)]
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn with_sampler<R>(
         &self,
         graph: SignalGraph<'_>,
@@ -52,6 +57,7 @@ impl PreparedEffect<AutomationPlan> {
         run(&mut sampler)
     }
 
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn automation_workspace(&self) -> Option<EffectAutomationWorkspace> {
         let automation = self.automation.as_ref()?;
         Some(EffectAutomationWorkspace {
@@ -61,6 +67,7 @@ impl PreparedEffect<AutomationPlan> {
         })
     }
 
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn resolve_params<'a>(
         &'a self,
         sample_time: SampleTime,
@@ -101,6 +108,7 @@ struct StripLayout<'a> {
 /// Fill a strip from `pixel(pixels)`. A strip ends after [`STRIP`] pixels or,
 /// for a program that reads them, where the pixel count or target bounds
 /// change.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn fill_strip(
     strip: &mut Pixels,
     renderer: SignalGraph<'_>,
@@ -168,6 +176,7 @@ fn fill_strip(
 }
 
 impl EffectSampler<'_> {
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn strip<'s>(&'s self, workspace: &'s mut StripWorkspace) -> Strip<'s> {
         Strip::new(
             self.program.bytecode(),
@@ -178,12 +187,14 @@ impl EffectSampler<'_> {
         )
     }
 
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn uniform(&self) -> bool {
         !self.program.bytecode().uses_pixel_context()
     }
 
     /// Evaluate `count` pixels of this effect's target, `pixel(0..count)`, and
     /// hand each color with its position to `write`. A uniform effect runs once.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     pub(crate) fn sample_pixels(
         &self,
         renderer: SignalGraph<'_>,
@@ -233,6 +244,7 @@ impl EffectSampler<'_> {
 // Keep graph loops separate from patch/output loops; combining them worsens
 // Xtensa code generation even though it removes one call per frame.
 #[inline(never)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 pub(crate) fn sample_signal_graph<'a>(
     renderer: SignalGraph<'_>,
     sample_time: SampleTime,
@@ -285,6 +297,7 @@ pub(crate) fn sample_signal_graph<'a>(
 /// Graph admission orders dependencies before consumers and assigns automation
 /// slots in that same order. While this operator borrows its parameters, nested
 /// sampling may therefore borrow only the preceding automation states.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn operator_params<'a>(
     operator: &'a PreparedOperatorNode,
     automation: &AutomationPlan,
@@ -299,12 +312,14 @@ fn operator_params<'a>(
     }
 }
 
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 pub(crate) fn frame_range(renderer: SignalGraph<'_>, node_index: usize) -> core::ops::Range<usize> {
     let slot = renderer.plan.frame_slots[node_index];
     let start = slot * renderer.pixel_count;
     start..start + renderer.pixel_count
 }
 
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_layer_frame(
     renderer: SignalGraph<'_>,
     layer_index: usize,
@@ -437,6 +452,7 @@ struct Lent<'a> {
 }
 
 impl Lent<'_> {
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn reborrow(&mut self) -> Lent<'_> {
         Lent {
             sampling: self.sampling,
@@ -459,6 +475,7 @@ struct GraphSignals<'a> {
 
 impl GraphSignals<'_> {
     /// A frame-cached input frame at `time`, computed on first use.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn cached_frame(
         &mut self,
         slot: usize,
@@ -490,6 +507,7 @@ impl GraphSignals<'_> {
 }
 
 impl StripSignals for GraphSignals<'_> {
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample_strip(
         &mut self,
         input: usize,
@@ -519,6 +537,7 @@ impl StripSignals for GraphSignals<'_> {
         );
     }
 
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn sample_pixel(
         &mut self,
         input: usize,
@@ -550,6 +569,7 @@ impl StripSignals for GraphSignals<'_> {
     }
 }
 
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn signal_pixel(
     renderer: SignalGraph<'_>,
     flat_pixel_index: usize,
@@ -572,6 +592,7 @@ fn signal_pixel(
 
 /// Evaluate operator `node` over plan-target pixels `first..first + output.len()`.
 /// Frame scope (`frames`) lets the operator use its whole-frame input caches.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_operator(
     renderer: SignalGraph<'_>,
     node: usize,
@@ -660,6 +681,7 @@ fn sample_operator(
 }
 
 /// Evaluate `node` over plan-target pixels `first..first + output.len()`.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_signal_run(
     renderer: SignalGraph<'_>,
     node: usize,
@@ -700,6 +722,7 @@ fn sample_signal_run(
 
 /// A layer over plan-target pixels `first..first + output.len()`. Effects on
 /// other targets sample the matching fixture cells.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_layer_run(
     renderer: SignalGraph<'_>,
     layer_index: usize,
@@ -776,6 +799,7 @@ fn sample_layer_run(
 }
 
 /// A whole plan-target frame of `node`.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_signal_frame(
     renderer: SignalGraph<'_>,
     node_index: usize,
@@ -816,12 +840,14 @@ fn sample_signal_frame(
     }
 }
 
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn compose_max(target: &mut Color, source: Color) {
     target.red = target.red.max(source.red);
     target.green = target.green.max(source.green);
     target.blue = target.blue.max(source.blue);
 }
 
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 const fn black() -> Color {
     Color {
         red: 0,

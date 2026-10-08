@@ -1,5 +1,5 @@
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
-use crate::model::DonderProject;
+use crate::project::DonderProject;
 use crate::sequence::{MarkCollection, MarkCollectionKey, Sequence};
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{Identifier, Value};

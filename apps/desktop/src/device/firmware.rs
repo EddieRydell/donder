@@ -1,4 +1,4 @@
-use crate::dto::{DeviceFirmwareInfo, DeviceInstallProgress};
+use donder_sequence_api::{DeviceFirmwareInfo, DeviceInstallProgress};
 use espflash::{
     connection::{Connection, ResetAfterOperation, ResetBeforeOperation},
     flasher::{DeviceInfo, FlashSize, Flasher},

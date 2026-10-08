@@ -16,10 +16,7 @@ use donder_runtime_types::{Color, Curve, CurvePoint, Marks, SampleDuration, Samp
 use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, TargetScope,
 };
-use donder_runtime_types::{
-    Identifier, OperatorDefinition, OperatorInvocation, SampleDefinition, SampleInvocation, Type,
-    Value,
-};
+use donder_runtime_types::{Identifier, OperatorInvocation, SampleInvocation, Type, Value};
 use std::prelude::rust_2024::*;
 
 /// A test signal source. An error is reported as the operator's result.
@@ -410,17 +407,21 @@ fn rebind(
 /// keeps those values too.
 pub(super) fn lower_runtime_effect(instance: &Instance, slots: Vec<Value>) -> SampleInvocation {
     let lowered = instance.sample();
-    SampleDefinition::new(lowered.program().clone())
-        .bind(rebind(lowered.params(), lowered.automation(), slots))
-        .unwrap()
+    SampleInvocation::bind(
+        lowered.program().clone(),
+        rebind(lowered.params(), lowered.automation(), slots),
+    )
+    .unwrap()
 }
 
 /// The operator counterpart of [`lower_runtime_effect`].
 pub(super) fn lower_runtime_operator(instance: &Instance, slots: Vec<Value>) -> OperatorInvocation {
     let lowered = instance.operator();
-    OperatorDefinition::new(lowered.program().clone())
-        .bind(rebind(lowered.params(), lowered.automation(), slots))
-        .unwrap()
+    OperatorInvocation::bind(
+        lowered.program().clone(),
+        rebind(lowered.params(), lowered.automation(), slots),
+    )
+    .unwrap()
 }
 
 /// `effect` evaluated by the VM wherever it reads a `runtime` parameter.

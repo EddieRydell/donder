@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use crate::gui::GuiMutationError;
+use donder_editor::GuiMutationError;
 use donder_model::SequenceId;
 use donder_project_io::ProjectSession;
 
 use super::{DesktopState, generated_source_texts, lock_unpoisoned};
-use crate::dto::{
+use crate::state_tasks::GuiHistoryEntry;
+use donder_sequence_api::{
     AppSnapshot, GuiDocumentRequest, GuiEditCommand, GuiEditResult, SequenceSelectionEdit,
     SequenceSelectionEditResult,
 };
-use crate::state_tasks::GuiHistoryEntry;
 
 impl DesktopState {
     pub fn resolve_gui_source(
@@ -20,7 +20,7 @@ impl DesktopState {
     ) -> Result<GuiDocumentRequest, String> {
         let _authoring = self.settled_authoring();
         let session = self.project_session().ok_or("No project is loaded.")?;
-        let identity = crate::gui::model::source_identity_from_gui(module_id, path, object_key)
+        let identity = donder_editor::source_identity_from_gui(module_id, path, object_key)
             .map_err(|error| error.message().to_string())?;
         let object = session
             .source
@@ -33,7 +33,7 @@ impl DesktopState {
                     .find(|object| object.id() == object_key)
             })
             .ok_or("Source object was not found.")?;
-        let path = crate::source_documents::editor_path(&session, identity.document_id())
+        let path = donder_editor::editor_path(&session, identity.document_id())
             .ok_or("Source document has no file location.")?;
         let workspace = lock_unpoisoned(&self.workspace);
         // Camino compares equivalent Windows separators, while the frontend
@@ -47,29 +47,32 @@ impl DesktopState {
             project_revision: workspace.view.project_revision,
             path,
             object_key: Some(object_key.to_string()),
-            view: crate::dto::ObjectKind::from(object.kind())
+            view: donder_sequence_api::ObjectKind::from(object.kind())
                 .document_view()
-                .unwrap_or(crate::dto::DocumentViewId::Text),
+                .unwrap_or(donder_sequence_api::DocumentViewId::Text),
         })
     }
 
-    pub fn get_gui_document(&self, request: GuiDocumentRequest) -> crate::dto::GuiDocumentResult {
+    pub fn get_gui_document(
+        &self,
+        request: GuiDocumentRequest,
+    ) -> donder_sequence_api::GuiDocumentResult {
         let _authoring = lock_unpoisoned(&self.authoring);
         let revision = self.snapshot().project_revision;
         let document = if revision != request.project_revision {
-            crate::gui::blocked(
+            donder_editor::blocked(
                 "The project changed. Request the current GUI document.",
                 Vec::new(),
             )
         } else if let Some(project) = self.project_session() {
-            crate::gui::project_gui_document(Some(&project), &request)
+            donder_editor::project_gui_document(Some(&project), &request)
         } else {
-            crate::gui::blocked(
+            donder_editor::blocked(
                 "The current project source is not ready for GUI editing.",
                 self.snapshot().diagnostics,
             )
         };
-        crate::dto::GuiDocumentResult {
+        donder_sequence_api::GuiDocumentResult {
             request,
             project_revision: revision,
             document,
@@ -78,8 +81,8 @@ impl DesktopState {
 
     pub fn request_sequence_clip_rasters(
         &self,
-        request: crate::dto::SequenceClipRasterRequest,
-    ) -> crate::dto::SequenceClipRasterResponse {
+        request: donder_sequence_api::SequenceClipRasterRequest,
+    ) -> donder_sequence_api::SequenceClipRasterResponse {
         let _authoring = lock_unpoisoned(&self.authoring);
         let snapshot = self.snapshot();
         let project_revision = snapshot.project_revision;
@@ -105,7 +108,7 @@ impl DesktopState {
         &self,
         request: GuiDocumentRequest,
         request_id: u32,
-    ) -> crate::dto::SequenceClipRasterResultBatch {
+    ) -> donder_sequence_api::SequenceClipRasterResultBatch {
         let project_revision = self.snapshot().project_revision;
         lock_unpoisoned(&self.sequence_clip_raster).take_results(
             project_revision,
@@ -124,7 +127,7 @@ impl DesktopState {
         edit: GuiEditCommand,
     ) -> GuiEditResult {
         match self.mutate_gui_project(&request, |session| {
-            crate::gui::apply_edit(session, &request, edit)
+            donder_editor::apply_edit(session, &request, edit)
         }) {
             Ok((result, ())) => result,
             Err(error) => self.gui_edit_error(&request, error),
@@ -153,10 +156,10 @@ impl DesktopState {
         let before = self
             .project_session()
             .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
-        let mut affected_paths = crate::gui::affected_paths(&before, request)?;
+        let mut affected_paths = donder_editor::affected_paths(&before, request)?;
         let mut edited = (*before).clone();
         let value = mutate(&mut edited)?;
-        affected_paths.extend(crate::gui::affected_paths(&edited, request)?);
+        affected_paths.extend(donder_editor::affected_paths(&edited, request)?);
         let generated_text =
             generated_source_texts(&edited, &affected_paths).map_err(GuiMutationError::Invalid)?;
         let edited = Arc::new(edited);
@@ -172,7 +175,7 @@ impl DesktopState {
             {
                 projection.document.clone()
             }
-            _ => crate::gui::project_gui_document(Some(&edited), request),
+            _ => donder_editor::project_gui_document(Some(&edited), request),
         };
         lock_unpoisoned(&self.gui_history).push_undo(GuiHistoryEntry {
             before,
@@ -190,7 +193,7 @@ impl DesktopState {
     ) -> GuiEditResult {
         GuiEditResult {
             snapshot: self.snapshot(),
-            document: crate::gui::blocked(error.message(), Vec::new()),
+            document: donder_editor::blocked(error.message(), Vec::new()),
         }
     }
 
@@ -218,7 +221,7 @@ impl DesktopState {
             let mut clipboard = lock_unpoisoned(&self.sequence_clipboard);
             let mut candidate_clipboard = clipboard.clone();
             let result = self.mutate_gui_project_locked(&request, |session| {
-                crate::gui::apply_sequence_selection_edit(
+                donder_editor::apply_sequence_selection_edit(
                     session,
                     &request,
                     edit,
@@ -254,15 +257,15 @@ impl DesktopState {
     fn copy_gui_selection(
         &self,
         request: &GuiDocumentRequest,
-        selection: crate::dto::SequenceSelection,
-    ) -> Result<(GuiEditResult, crate::gui::SequenceSelectionMutation), GuiMutationError> {
+        selection: donder_sequence_api::SequenceSelection,
+    ) -> Result<(GuiEditResult, donder_editor::SequenceSelectionMutation), GuiMutationError> {
         let _authoring = lock_unpoisoned(&self.authoring);
         if self.snapshot().project_revision != request.project_revision {
             return Err(GuiMutationError::Blocked(
                 "The project changed before copying".into(),
             ));
         }
-        if !matches!(request.view, crate::dto::DocumentViewId::Sequence) {
+        if !matches!(request.view, donder_sequence_api::DocumentViewId::Sequence) {
             return Err(GuiMutationError::Invalid(
                 "Copy requires a sequence GUI document.".to_string(),
             ));
@@ -272,9 +275,9 @@ impl DesktopState {
             .project_session()
             .ok_or_else(|| GuiMutationError::Blocked("No project is loaded.".to_string()))?;
         let resolved =
-            crate::gui::resolve_request(&project, request).map_err(GuiMutationError::Invalid)?;
-        crate::gui::ensure_owned_gui_document(&project, &resolved)?;
-        let (clipboard, copied_count, skipped_count) = crate::gui::copy_sequence_selection(
+            donder_editor::resolve_request(&project, request).map_err(GuiMutationError::Invalid)?;
+        donder_editor::ensure_owned_gui_document(&project, &resolved)?;
+        let (clipboard, copied_count, skipped_count) = donder_editor::copy_sequence_selection(
             &project,
             &SequenceId(resolved.object_identity()),
             &selection,
@@ -283,9 +286,9 @@ impl DesktopState {
         Ok((
             GuiEditResult {
                 snapshot,
-                document: crate::gui::project_gui_document(Some(&project), request),
+                document: donder_editor::project_gui_document(Some(&project), request),
             },
-            crate::gui::SequenceSelectionMutation {
+            donder_editor::SequenceSelectionMutation {
                 selection: Some(selection),
                 copied_count,
                 skipped_count,

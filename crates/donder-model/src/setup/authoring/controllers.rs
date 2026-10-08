@@ -1,6 +1,6 @@
 use crate::controller::ControllerId;
-use crate::model::DonderProject;
 use crate::ownership::ValueSource;
+use crate::project::DonderProject;
 use crate::setup::SetupId;
 
 pub fn attach_controller(

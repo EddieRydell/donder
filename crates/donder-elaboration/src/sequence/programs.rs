@@ -2,10 +2,7 @@
 //! same program with different bound values; playback keeps one copy.
 use donder_language::compiler::Instance;
 use donder_runtime_types::Shared;
-use donder_runtime_types::{
-    OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition, SampleInvocation,
-    SampleProgram,
-};
+use donder_runtime_types::{OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram};
 
 #[derive(Default)]
 pub(super) struct Programs {
@@ -24,17 +21,21 @@ fn intern<T: PartialEq + Clone>(programs: &mut Vec<Shared<T>>, program: &Shared<
 impl Programs {
     pub(super) fn sample(&mut self, instance: &Instance) -> SampleInvocation {
         let lowered = instance.sample();
-        SampleDefinition::new(intern(&mut self.samples, lowered.program()))
-            .bind(lowered.params().iter_values().collect())
-            .and_then(|invocation| invocation.with_automation(lowered.automation().into()))
-            .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"))
+        SampleInvocation::bind(
+            intern(&mut self.samples, lowered.program()),
+            lowered.params().iter_values().collect(),
+        )
+        .and_then(|invocation| invocation.with_automation(lowered.automation().into()))
+        .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"))
     }
 
     pub(super) fn operator(&mut self, instance: &Instance) -> OperatorInvocation {
         let lowered = instance.operator();
-        OperatorDefinition::new(intern(&mut self.operators, lowered.program()))
-            .bind(lowered.params().iter_values().collect())
-            .and_then(|invocation| invocation.with_automation(lowered.automation().into()))
-            .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"))
+        OperatorInvocation::bind(
+            intern(&mut self.operators, lowered.program()),
+            lowered.params().iter_values().collect(),
+        )
+        .and_then(|invocation| invocation.with_automation(lowered.automation().into()))
+        .unwrap_or_else(|_| unreachable!("interning keeps the program's schema"))
     }
 }

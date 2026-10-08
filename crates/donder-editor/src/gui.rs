@@ -7,7 +7,7 @@ use donder_model::SequenceId;
 use donder_model::SourceIdentity;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
-use crate::dto::{
+use donder_sequence_api::{
     DiagnosticSeverity, DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand,
     GuiObjectRef, ObjectKind, ProjectDiagnostic, SequenceSelection, SequenceSelectionEdit,
 };
@@ -21,7 +21,7 @@ mod fixture;
 mod graph;
 mod layout;
 mod library;
-pub mod model;
+pub(crate) mod model;
 mod ownership;
 mod patch;
 mod project;
@@ -47,10 +47,9 @@ pub use dispatch::{
     ClipboardAutomation, ClipboardEffect, ClipboardMark, SequenceClipboard,
     SequenceSelectionMutation, apply_sequence_selection_edit,
 };
+pub(crate) use document::gui_diagnostic;
 pub use document::{GuiMutationError, blocked, project_gui_document};
-pub use document::{
-    ResolvedGuiObject, affected_paths, ensure_owned_gui_document, gui_diagnostic, resolve_request,
-};
+pub use document::{ResolvedGuiObject, affected_paths, ensure_owned_gui_document, resolve_request};
 
 fn checked_gui_time(seconds: f32) -> Result<DonderTime, GuiMutationError> {
     DonderTime::try_from_seconds_f32(seconds)

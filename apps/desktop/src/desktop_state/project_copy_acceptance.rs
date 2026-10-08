@@ -1,7 +1,10 @@
 use super::DesktopState;
-use crate::dto::*;
 use crate::project::{new_test_project_files, write_new_project_files};
 use camino::Utf8PathBuf;
+use donder_sequence_api::{
+    EditorViewMode, GuiDocument, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit,
+    TransitionDecision, TransitionRequest, TransitionResult, WorkspaceTransition,
+};
 
 #[test]
 fn editable_project_copy_honors_save_discard_cancel_and_failed_destinations() {

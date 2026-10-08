@@ -320,7 +320,7 @@ use donder_project_io::ProjectSession;
 
 mod spatial;
 use super::{ResolvedGuiObject, blocked, gui_diagnostic};
-use crate::dto::{
+use donder_sequence_api::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
     SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,

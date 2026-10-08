@@ -67,9 +67,9 @@ fn sequence(
     let operator = operator.then(|| {
         let operator =
             OperatorProgram::admit(sample.clone().into_bytecode(), 1, Box::new([])).unwrap();
-        OperatorDefinition::new(operator).bind(vec![]).unwrap()
+        OperatorInvocation::bind(operator, vec![]).unwrap()
     });
-    let invocation = SampleDefinition::new(sample).bind(vec![]).unwrap();
+    let invocation = SampleInvocation::bind(sample, vec![]).unwrap();
     let timing = SequenceTiming::admit(
         NonZeroU32::new(60).unwrap(),
         NonZeroU32::new(60).unwrap(),

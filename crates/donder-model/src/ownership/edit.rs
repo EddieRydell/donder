@@ -8,8 +8,8 @@ use crate::{
     fixture::{FixtureDefinitionId, FixtureSource},
     identity::{ObjectIdentity, OwnedObjectSlot, SourceIdentity},
     layout::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId},
-    model::DonderProject,
     patch::{Patch, PatchId},
+    project::DonderProject,
     sequence::{Sequence, SequenceId},
     setup::{Setup, SetupId},
 };

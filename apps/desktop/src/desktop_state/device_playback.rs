@@ -2,12 +2,12 @@ use super::{DesktopState, lock_unpoisoned};
 use crate::audio::DeviceBoundary;
 use crate::device::DeviceClient;
 use crate::device::playback::{DevicePorts, WantedDevice};
-use crate::dto::{
+use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_runtime::PlaybackRate;
+use donder_sequence_api::{
     AppSnapshot, AudioTransportState, DevicePlaybackMode, DonderDeviceClaim,
     DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
-use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
-use donder_runtime::PlaybackRate;
 
 impl DesktopState {
     pub(super) fn schedule_device_reconcile(&self) {

@@ -1,9 +1,9 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
-use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId, SequenceId};
 use donder_runtime::PlaybackRate;
+use donder_sequence_api::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{

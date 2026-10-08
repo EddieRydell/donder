@@ -18,3 +18,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[lints.rust]
+unnameable_types = "warn"
+unreachable_pub = "warn"

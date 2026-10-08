@@ -346,7 +346,7 @@ pub(super) fn edit_sequence(
             let description = super::description::normalized(description);
             let missing = || GuiMutationError::Invalid("The item was not found.".to_string());
             match item {
-                crate::dto::SequenceDescribedItem::Layer { id } => {
+                donder_sequence_api::SequenceDescribedItem::Layer { id } => {
                     draft
                         .layers
                         .iter_mut()
@@ -354,10 +354,10 @@ pub(super) fn edit_sequence(
                         .ok_or_else(missing)?
                         .description = description;
                 }
-                crate::dto::SequenceDescribedItem::MarkCollection { key } => {
+                donder_sequence_api::SequenceDescribedItem::MarkCollection { key } => {
                     mark_collection_mut(&mut draft, &key)?.description = description;
                 }
-                crate::dto::SequenceDescribedItem::Clip { id } => {
+                donder_sequence_api::SequenceDescribedItem::Clip { id } => {
                     draft
                         .effects
                         .iter_mut()
@@ -519,7 +519,7 @@ pub(super) fn edit_sequence(
             super::graph::connect_nodes(
                 &mut draft,
                 &definitions,
-                crate::dto::SequenceGraphEdge {
+                donder_sequence_api::SequenceGraphEdge {
                     from_node,
                     from_port,
                     to_node,
@@ -908,4 +908,4 @@ use super::model::{
 };
 use super::selection::{mark_param_names, required_operator_param_value};
 use super::{GuiMutationError, ResolvedGuiObject};
-use crate::dto::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};
+use donder_sequence_api::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};
