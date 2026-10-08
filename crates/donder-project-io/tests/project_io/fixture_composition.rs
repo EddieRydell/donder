@@ -1,8 +1,8 @@
 use crate::common;
 
 use camino::Utf8Path;
-use donder_language::fixture::FixtureElementId;
-use donder_language::layout::{FixtureInstanceId, LayoutFixtureKind};
+use donder_model::FixtureElementId;
+use donder_model::{FixtureInstanceId, LayoutFixtureKind};
 use donder_project_io::{export_project, load_project, save_project};
 
 const ASSEMBLY: &str = r#"
@@ -58,7 +58,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
     }
     loaded
         .project
-        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+        .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition {
             id,
             value: definition,
         }])
@@ -92,7 +92,7 @@ fn inline_definitions_keep_source_ownership_and_pixel_order() {
 
 #[test]
 fn all_shape_parameters_round_trip_in_authored_order() {
-    use donder_language::fixture::{FixtureShape, GridAxis, GridCorner};
+    use donder_model::{FixtureShape, GridAxis, GridCorner};
     let mut session = common::load_project(&common::starter_root());
     let (id, mut fixture) = session
         .project
@@ -114,8 +114,8 @@ fn all_shape_parameters_round_trip_in_authored_order() {
             points: vec![
                 Default::default(),
                 template.transform.position,
-                donder_language::values::Point3 {
-                    x: donder_language::values::Distance::from_meters(2.0),
+                donder_language::Point3 {
+                    x: donder_language::Distance::from_meters(2.0),
                     ..Default::default()
                 },
             ],
@@ -151,7 +151,7 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         .map(|(index, shape)| {
             let mut element = template.clone();
             element.id = FixtureElementId(index as u32 + 1);
-            element.name = donder_language::names::object_name(&format!("shape_{index}"));
+            element.name = donder_language::object_name(&format!("shape_{index}"));
             element.shape = shape;
             element.reverse = index % 2 == 0;
             element
@@ -159,10 +159,7 @@ fn all_shape_parameters_round_trip_in_authored_order() {
         .collect();
     session
         .project
-        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
-            id,
-            value: fixture,
-        }])
+        .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition { id, value: fixture }])
         .unwrap();
     let temporary = tempfile::tempdir().unwrap();
     let root = Utf8Path::from_path(temporary.path()).unwrap();

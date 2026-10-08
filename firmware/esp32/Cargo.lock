@@ -497,8 +497,8 @@ version = "0.1.0"
 dependencies = [
  "crc32fast",
  "donder-device-storage",
- "donder-language",
  "donder-runtime",
+ "donder-runtime-types",
  "edge-dhcp",
  "edge-mdns",
  "edge-nal",
@@ -524,21 +524,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "donder-language"
+name = "donder-runtime"
 version = "0.1.0"
 dependencies = [
- "fugit",
+ "crc32fast",
+ "donder-runtime-types",
  "libm",
  "micromath",
  "rkyv",
 ]
 
 [[package]]
-name = "donder-runtime"
+name = "donder-runtime-types"
 version = "0.1.0"
 dependencies = [
- "crc32fast",
- "donder-language",
+ "fugit",
  "libm",
  "micromath",
  "rkyv",

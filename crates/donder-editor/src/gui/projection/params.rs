@@ -1,7 +1,7 @@
 pub(in crate::gui) fn effect_params(
     session: &ProjectSession,
-    sequence: &donder_language::sequence::Sequence,
-    effect: &donder_language::effect::EffectInst,
+    sequence: &donder_model::Sequence,
+    effect: &donder_model::EffectInst,
 ) -> Vec<SequenceEffectParam> {
     let Some(definition) = session
         .project
@@ -53,7 +53,7 @@ pub(in crate::gui) fn effect_params(
 
 pub(in crate::gui) fn sequence_composition_graph_node(
     session: &ProjectSession,
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     node: &CompositionGraphNode,
 ) -> SequenceGraphNode {
     SequenceGraphNode {
@@ -92,7 +92,7 @@ pub(in crate::gui) fn graph_node_id(node_id: &CompositionGraphNodeId) -> String 
 
 fn graph_operator_params(
     session: &ProjectSession,
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
 ) -> Vec<SequenceEffectParam> {
@@ -124,7 +124,7 @@ fn graph_operator_params(
                     node_id: node_id.clone(),
                     param: declaration.name.clone(),
                 },
-                &donder_language::values::DonderTime::from_nanos(0),
+                &donder_language::DonderTime::from_nanos(0),
                 &sequence.duration,
                 &mut value,
             );
@@ -160,7 +160,7 @@ pub(in crate::gui) fn graph_operator_definition_to_gui(
 
 /// The parameters a definition declares, as the inspector lists them.
 pub(in crate::gui) fn definition_params_to_gui(
-    params: &[donder_language::dsl::ParamDecl],
+    params: &[donder_language::compiler::ParamDecl],
 ) -> Vec<crate::dto::SequenceEffectDefinitionParam> {
     params
         .iter()
@@ -243,10 +243,10 @@ fn graph_operator_to_gui(operator: &OperatorRef) -> SequenceGraphOperator {
 }
 
 fn param_automation(
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     target: &AutomationTarget,
-    start: &donder_language::values::DonderTime,
-    duration: &donder_language::values::DonderDuration,
+    start: &donder_language::DonderTime,
+    duration: &donder_language::DonderDuration,
     value: &mut SequenceEffectParamValue,
 ) -> Option<SequenceParamAutomation> {
     let envelope = sequence.automation_envelope(target)?;
@@ -263,7 +263,7 @@ fn param_automation(
 
 pub(in crate::gui) fn curve_library(
     session: &ProjectSession,
-    owner: &donder_language::identity::DocumentId,
+    owner: &donder_model::DocumentId,
 ) -> Vec<SequenceCurveLibraryItem> {
     let available = donder_project_io::available_reusable_sources(
         session,
@@ -289,7 +289,7 @@ pub(in crate::gui) fn curve_library(
 
 pub(in crate::gui) fn gradient_library(
     session: &ProjectSession,
-    owner: &donder_language::identity::DocumentId,
+    owner: &donder_model::DocumentId,
 ) -> Vec<SequenceGradientLibraryItem> {
     let available = donder_project_io::available_reusable_sources(
         session,
@@ -460,7 +460,7 @@ fn default_value_for_type(ty: &Type) -> Option<SequenceEffectParamValue> {
     default_param_value(&ty.default_value(), ty)
 }
 
-fn library_source(id: &donder_language::identity::SourceIdentity) -> SequenceLibrarySource {
+fn library_source(id: &donder_model::SourceIdentity) -> SequenceLibrarySource {
     SequenceLibrarySource::Library {
         module_id: id.module_id().to_string(),
         path: id.document().to_string(),
@@ -547,16 +547,17 @@ fn array_param_from_sequence_values(
         },
     }
 }
-use donder_language::dsl::{ParamDecl, ParamRange, Type, Value as EffectValue};
-use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
-use donder_language::operator::{
+use donder_language::compiler::{ParamDecl, ParamRange};
+use donder_model::{
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+};
+use donder_model::{CurveSource, EffectParamValue, GradientSource};
+use donder_model::{
     GraphOperatorNode, OperatorDefinition, OperatorPortCardinality, OperatorPortDefinition,
     OperatorRef,
 };
-use donder_language::sequence::{
-    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-};
 use donder_project_io::ProjectSession;
+use donder_runtime_types::{Type, Value as EffectValue};
 
 use crate::dto::{
     SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind,

@@ -3,9 +3,12 @@ use super::{
     model::{domain_point3_meters, rotation3_degrees, scale3, source_identity_from_gui},
 };
 use crate::dto::*;
-use donder_language::fixture::*;
-use donder_language::identity::SourceIdentity;
-use donder_language::values::DistanceSpan;
+use donder_language::DistanceSpan;
+use donder_model::SourceIdentity;
+use donder_model::{
+    FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
+    FixtureSource, FixtureTransform, GridAxis, GridCorner,
+};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 pub(super) fn edit_fixture(
@@ -38,7 +41,7 @@ pub(super) fn update_fixture_definition(
             update(&mut fixture)?;
             session
                 .project
-                .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+                .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition {
                     id,
                     value: fixture,
                 }])
@@ -46,7 +49,7 @@ pub(super) fn update_fixture_definition(
         }
         [parent @ .., crate::dto::GuiOwnedStep::Fixture { id }] => {
             let parent = parent.iter().fold(
-                donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
+                donder_model::ObjectIdentity::from(resolved.identity.clone()),
                 |address, step| {
                     address.owned(
                         step.try_into()
@@ -56,13 +59,13 @@ pub(super) fn update_fixture_definition(
             );
             let mut layout = session
                 .project
-                .layout(&donder_language::layout::LayoutId(parent))
+                .layout(&donder_model::LayoutId(parent))
                 .cloned()
                 .ok_or_else(|| GuiMutationError::Invalid("Layout was not found.".into()))?;
             let placement = layout
-                .fixture_mut(donder_language::layout::FixtureInstanceId(*id))
+                .fixture_mut(donder_model::FixtureInstanceId(*id))
                 .ok_or_else(|| GuiMutationError::Invalid("Fixture was not found.".into()))?;
-            let donder_language::layout::LayoutFixtureKind::Fixture {
+            let donder_model::LayoutFixtureKind::Fixture {
                 definition: FixtureSource::Inline(value),
                 ..
             } = &mut placement.kind
@@ -131,7 +134,7 @@ fn edit_geometry(
                 .map(|element| element.id.0)
                 .max()
                 .unwrap_or(0);
-            let pixels = donder_language::geometry::element_pixels(element)
+            let pixels = donder_model::element_pixels(element)
                 .map_err(|error| {
                     GuiMutationError::Invalid(format!("Cannot expand shape: {error:?}"))
                 })?
@@ -143,7 +146,7 @@ fn edit_geometry(
                         .ok_or_else(|| GuiMutationError::Invalid("No shape IDs remain.".into()))?;
                     Ok(FixtureElement {
                         id: FixtureElementId(next),
-                        name: donder_language::names::object_name(&format!(
+                        name: donder_language::object_name(&format!(
                             "{}_{}",
                             element.name.as_str(),
                             ordinal + 1
@@ -343,7 +346,7 @@ fn move_handle(
     position: Point3Meters,
 ) -> Result<(), GuiMutationError> {
     let position = checked_point(position)?;
-    let to_vec = |point: donder_language::values::Point3| {
+    let to_vec = |point: donder_language::Point3| {
         glam::Vec3::new(
             point.x.as_meters_f32(),
             point.y.as_meters_f32(),
@@ -356,7 +359,7 @@ fn move_handle(
                 "Control point was not found.".into(),
             ));
         }
-        let transform = donder_language::geometry::fixture_transform(&element.transform);
+        let transform = donder_model::fixture_transform(&element.transform);
         let start = if index == 0 {
             to_vec(position)
         } else {
@@ -395,7 +398,7 @@ fn move_handle(
         element.transform.position = position;
         return Ok(());
     }
-    let transform = donder_language::geometry::fixture_transform(&element.transform);
+    let transform = donder_model::fixture_transform(&element.transform);
     let local = transform.inverse().transform_point3(to_vec(position));
     match &mut element.shape {
         FixtureShape::Polyline { points, .. } => {
@@ -498,9 +501,7 @@ fn pixel_diameter(diameter: f32) -> Result<DistanceSpan, GuiMutationError> {
     Ok(DistanceSpan::from_meters(diameter))
 }
 
-pub fn checked_point(
-    point: Point3Meters,
-) -> Result<donder_language::values::Point3, GuiMutationError> {
+pub fn checked_point(point: Point3Meters) -> Result<donder_language::Point3, GuiMutationError> {
     if [point.x_meters, point.y_meters, point.z_meters]
         .iter()
         .any(|value| !value.is_finite() || value.abs() > 2_000.0)

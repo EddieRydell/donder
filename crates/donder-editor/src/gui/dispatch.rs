@@ -40,7 +40,7 @@ pub fn apply_edit(
         (DocumentViewId::Patch, GuiEditCommand::Patch { routes }) => {
             super::patch::replace(
                 session,
-                &donder_language::patch::PatchId(resolved.object_identity()),
+                &donder_model::PatchId(resolved.object_identity()),
                 routes,
             )?;
         }
@@ -73,7 +73,7 @@ pub struct ClipboardEffect {
 
 #[derive(Clone)]
 pub struct ClipboardAutomation {
-    pub clip: donder_language::sequence::AutomationClip,
+    pub clip: donder_model::AutomationClip,
     pub lane_index: usize,
 }
 

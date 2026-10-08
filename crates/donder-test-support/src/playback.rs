@@ -1,19 +1,21 @@
 //! Small prepared shows over one fixture.
-use donder_language::dsl::Invocation;
-use donder_language::dsl::OperatorInvocation;
-use donder_language::dsl::ProgramConstants;
-use donder_language::dsl::SampleInvocation;
-use donder_language::dsl::{CompiledEffect, CompiledOperator, compile_effects, compile_operators};
-use donder_language::execution::FixtureGeometry;
-use donder_language::execution::OutputEncoding;
-use donder_language::execution::RgbOrder;
-use donder_language::execution::SequenceTiming;
-use donder_language::execution::TargetScope;
-use donder_language::values::SampleTime;
+use donder_language::compiler::Invocation;
+use donder_language::compiler::ProgramConstants;
+use donder_language::compiler::{
+    CompiledEffect, CompiledOperator, compile_effects, compile_operators,
+};
 use donder_runtime::PreparedSequence;
 use donder_runtime::SequenceBuilder;
 use donder_runtime::SequenceRoot;
 use donder_runtime::TargetHandle;
+use donder_runtime_types::FixtureGeometry;
+use donder_runtime_types::OperatorInvocation;
+use donder_runtime_types::OutputEncoding;
+use donder_runtime_types::RgbOrder;
+use donder_runtime_types::SampleInvocation;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::SequenceTiming;
+use donder_runtime_types::TargetScope;
 use std::num::NonZeroU32;
 
 pub const IDENTITY_SOURCE: &str = "operator Identity { input source; sample { source } }";

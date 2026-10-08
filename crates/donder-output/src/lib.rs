@@ -15,7 +15,7 @@ mod e131;
 
 use std::collections::HashMap;
 
-use donder_language::controller::{Controller, ControllerId, ControllerPortId, ControllerProtocol};
+use donder_model::{Controller, ControllerId, ControllerPortId, ControllerProtocol};
 
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
@@ -39,7 +39,7 @@ pub enum OutputError {
     MissingController(ControllerId),
     MissingPort {
         controller: ControllerId,
-        port: donder_language::controller::ControllerPortId,
+        port: donder_model::ControllerPortId,
     },
     InvalidFrameLength {
         controller: ControllerId,

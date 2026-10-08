@@ -4,20 +4,19 @@ use super::evaluation::{
 use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
-const SPATIAL: donder_language::execution::SpatialContext =
-    donder_language::execution::SpatialContext {
-        position: [0.0; 2],
-        min: [0.0; 2],
-        max: [0.0; 2],
-    };
+const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 use crate::dsl::RuntimeError;
 use crate::dsl::StripWorkspace;
-use donder_language::dsl::Color;
-use donder_language::dsl::Value;
-use donder_language::dsl::bytecode::SignalPixel;
-use donder_language::dsl::{compile_effects, compile_operators};
-use donder_language::values::SampleTime;
+use donder_language::compiler::{compile_effects, compile_operators};
+use donder_runtime_types::Color;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::Value;
+use donder_runtime_types::bytecode::SignalPixel;
 
 fn color([red, green, blue]: [u8; 3]) -> Color {
     Color { red, green, blue }

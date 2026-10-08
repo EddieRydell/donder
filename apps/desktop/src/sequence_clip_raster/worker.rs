@@ -261,7 +261,7 @@ pub(super) fn newest_queued_job(receiver: &mpsc::Receiver<RasterJob>) -> Option<
 }
 
 pub(super) fn ordered_existing_effect_ids(
-    effects: &[donder_language::effect::EffectInst],
+    effects: &[donder_model::EffectInst],
     ordered_effect_ids: &[u32],
 ) -> Vec<u32> {
     let existing = effects

@@ -1,7 +1,6 @@
-use donder_language::dsl::{
-    CompiledOperator, Identifier, Instance, ProgramConstants, Value, compile_operators,
-};
-use donder_language::values::Color;
+use donder_language::compiler::{CompiledOperator, Instance, ProgramConstants, compile_operators};
+use donder_runtime_types::Color;
+use donder_runtime_types::{Identifier, Value};
 use donder_test_support::marks as mark_workload;
 use donder_test_support::playback;
 use donder_test_support::workload;

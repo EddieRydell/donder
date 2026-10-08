@@ -1,7 +1,7 @@
 use crate::common;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::values::DonderDuration;
+use donder_language::DonderDuration;
 use donder_project_io::{load_project, save_project};
 use std::fs;
 use std::time::Duration;
@@ -125,7 +125,7 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         .layers[0]
         .color;
     let index = session.project.root().sequences.len();
-    donder_language::ownership::edit::add_sequence(
+    donder_model::add_sequence(
         &mut session.project,
         DonderDuration(Duration::from_secs(30)),
         60,
@@ -143,9 +143,9 @@ fn typed_sequence_insertion_roundtrips_nested_paths() {
         )
         .unwrap()
         .remove(0);
-    donder_language::ownership::edit::make_reusable(
+    donder_model::make_reusable(
         &mut session.project,
-        &donder_language::ownership::edit::OwnershipSite::ProjectSequence(index),
+        &donder_model::OwnershipSite::ProjectSequence(index),
         destination,
     )
     .unwrap();

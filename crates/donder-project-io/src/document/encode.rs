@@ -3,26 +3,24 @@
 use super::types;
 use crate::ExportProjectError;
 use crate::source::{ProjectSession, SourceObjectKind};
-use donder_language::controller::{
-    ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode,
-};
-use donder_language::data::schema::{Meters, Name, NamedSource, Params, Path, Reference, Source};
-use donder_language::data::tree::{DataValue, Spanned};
-use donder_language::dsl::{Identifier, ParamDecl};
-use donder_language::effect::{CurveSource, EffectParamValue, GradientSource};
-use donder_language::execution::PixelEncoding;
-use donder_language::fixture::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
-use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_language::layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind,
-};
-use donder_language::ownership::ValueSource;
-use donder_language::patch::Patch;
-use donder_language::sequence::{
+use donder_language::Point3;
+use donder_language::compiler::ParamDecl;
+use donder_language::data::{DataValue, Spanned};
+use donder_language::data::{Meters, Name, NamedSource, Params, Path, Reference, Source};
+use donder_model::Patch;
+use donder_model::Setup;
+use donder_model::ValueSource;
+use donder_model::{ArtNetMode, Controller, ControllerPortAddress, ControllerProtocol, E131Mode};
+use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, Sequence, SequenceAudio,
 };
-use donder_language::setup::Setup;
-use donder_language::values::{Curve, Gradient, Point3};
+use donder_model::{CurveSource, EffectParamValue, GradientSource};
+use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
+use donder_model::{FixtureDefinition, FixtureShape, FixtureSource, FixtureTransform};
+use donder_model::{FixtureInstanceId, FixtureTarget, Layout, LayoutFixture, LayoutFixtureKind};
+use donder_runtime_types::Identifier;
+use donder_runtime_types::PixelEncoding;
+use donder_runtime_types::{Curve, Gradient};
 use indexmap::IndexMap;
 
 pub(crate) struct Encoder<'a> {
@@ -44,7 +42,7 @@ fn name(identifier: &Identifier) -> Name {
 }
 
 fn spanned(value: DataValue) -> Spanned<DataValue> {
-    donder_language::data::schema::spanned(value)
+    donder_language::data::spanned(value)
 }
 
 fn meters(micrometers: i32) -> Meters {
@@ -110,7 +108,7 @@ impl Encoder<'_> {
         let mut resolved = root_kind;
         let segment = |text: &str| {
             Identifier::new(text.to_string())
-                .map(|identifier| Spanned::new(identifier, donder_language::data::schema::NO_SPAN))
+                .map(|identifier| Spanned::new(identifier, donder_language::data::NO_SPAN))
                 .map_err(|_| self.error(text, "invalid reference segment"))
         };
         for slot in identity.owned_path() {
@@ -154,7 +152,7 @@ impl Encoder<'_> {
             .ok_or_else(|| self.error(&reference.text(), "the target fixture is missing"))?;
         reference.segments.push(Spanned::new(
             fixture.name.clone(),
-            donder_language::data::schema::NO_SPAN,
+            donder_language::data::NO_SPAN,
         ));
         Ok(reference)
     }
@@ -354,7 +352,7 @@ impl Encoder<'_> {
         &self,
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
-        let layer_name = |id: &donder_language::sequence::SequenceLayerId| {
+        let layer_name = |id: &donder_model::SequenceLayerId| {
             sequence
                 .layers
                 .iter()
@@ -362,7 +360,7 @@ impl Encoder<'_> {
                 .map(|layer| name(&layer.name))
                 .ok_or_else(|| self.error("", "a layer is missing"))
         };
-        let node_name = |id: &donder_language::sequence::CompositionGraphNodeId| {
+        let node_name = |id: &donder_model::CompositionGraphNodeId| {
             let node = sequence
                 .composition_graph
                 .nodes
@@ -373,7 +371,7 @@ impl Encoder<'_> {
                 CompositionGraphNodeKind::Layer { layer_id } => layer_name(layer_id),
                 CompositionGraphNodeKind::Operator(operator) => Ok(name(&operator.name)),
                 CompositionGraphNodeKind::Output => {
-                    Ok(name(&donder_language::names::object_name("output")))
+                    Ok(name(&donder_language::object_name("output")))
                 }
             }
         };
@@ -437,7 +435,7 @@ impl Encoder<'_> {
                 .effects
                 .iter()
                 .map(|effect| {
-                    let donder_language::effect::EffectRef::Custom(definition) = &effect.definition;
+                    let donder_model::EffectRef::Custom(definition) = &effect.definition;
                     let declarations = self
                         .session
                         .project
@@ -457,12 +455,8 @@ impl Encoder<'_> {
                         duration: effect.duration.0,
                         target: self.fixture_target(&effect.target)?,
                         scope: match effect.scope {
-                            donder_language::effect::EffectScope::PerFixture => {
-                                types::Scope::PerFixture
-                            }
-                            donder_language::effect::EffectScope::WholeTarget => {
-                                types::Scope::WholeTarget
-                            }
+                            donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
+                            donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
                         },
                         effect: self
                             .source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
@@ -485,7 +479,7 @@ impl Encoder<'_> {
                                 }
                             }
                             CompositionGraphNodeKind::Operator(operator) => {
-                                let donder_language::operator::OperatorRef::Custom(definition) =
+                                let donder_model::OperatorRef::Custom(definition) =
                                     &operator.operator;
                                 let declarations = self
                                     .session
@@ -600,10 +594,7 @@ impl Encoder<'_> {
                 })
                 .map(|(declaration, value)| {
                     Ok((
-                        Spanned::new(
-                            declaration.name.clone(),
-                            donder_language::data::schema::NO_SPAN,
-                        ),
+                        Spanned::new(declaration.name.clone(), donder_language::data::NO_SPAN),
                         spanned(self.param_value(value)?),
                     ))
                 })
@@ -612,15 +603,13 @@ impl Encoder<'_> {
     }
 
     fn param_value(&self, value: &EffectParamValue) -> Result<DataValue, ExportProjectError> {
-        use donder_language::data::schema::Data;
+        use donder_language::data::Data;
         Ok(match value {
             EffectParamValue::Int(value) => DataValue::Integer(i64::from(*value)),
             EffectParamValue::Float(value) => DataValue::Float(*value),
             EffectParamValue::Bool(value) => DataValue::Bool(*value),
             EffectParamValue::Color(value) => DataValue::Color(*value),
-            EffectParamValue::Enum(option) => {
-                donder_language::data::schema::variant(option.as_str())
-            }
+            EffectParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
             EffectParamValue::Marks(key) => Reference::new(vec![key.name.clone()]).encode(),
             EffectParamValue::Curve(CurveSource::Reference(id)) => self
                 .source_reference(SourceObjectKind::Curve, &id.0)?
@@ -741,22 +730,14 @@ pub(crate) fn fixture_definition_document(
                         width: *width,
                         height: *height,
                         axis: match axis {
-                            donder_language::fixture::GridAxis::Rows => types::GridAxis::Rows,
-                            donder_language::fixture::GridAxis::Columns => types::GridAxis::Columns,
+                            donder_model::GridAxis::Rows => types::GridAxis::Rows,
+                            donder_model::GridAxis::Columns => types::GridAxis::Columns,
                         },
                         corner: match corner {
-                            donder_language::fixture::GridCorner::BottomLeft => {
-                                types::GridCorner::BottomLeft
-                            }
-                            donder_language::fixture::GridCorner::BottomRight => {
-                                types::GridCorner::BottomRight
-                            }
-                            donder_language::fixture::GridCorner::TopLeft => {
-                                types::GridCorner::TopLeft
-                            }
-                            donder_language::fixture::GridCorner::TopRight => {
-                                types::GridCorner::TopRight
-                            }
+                            donder_model::GridCorner::BottomLeft => types::GridCorner::BottomLeft,
+                            donder_model::GridCorner::BottomRight => types::GridCorner::BottomRight,
+                            donder_model::GridCorner::TopLeft => types::GridCorner::TopLeft,
+                            donder_model::GridCorner::TopRight => types::GridCorner::TopRight,
                         },
                         serpentine: *serpentine,
                     },
@@ -786,7 +767,7 @@ pub(crate) fn curve_points(curve: &Curve) -> Vec<(f32, f32)> {
         .collect()
 }
 
-pub(crate) fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_language::values::Color)> {
+pub(crate) fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_runtime_types::Color)> {
     gradient
         .stops
         .iter()
@@ -794,18 +775,14 @@ pub(crate) fn gradient_stops(gradient: &Gradient) -> Vec<(f32, donder_language::
         .collect()
 }
 
-pub(crate) fn curve_document(
-    definition: &donder_language::effect::CurveDefinition,
-) -> types::Curve {
+pub(crate) fn curve_document(definition: &donder_model::CurveDefinition) -> types::Curve {
     types::Curve {
         description: definition.description.clone(),
         points: curve_points(&definition.curve),
     }
 }
 
-pub(crate) fn gradient_document(
-    definition: &donder_language::effect::GradientDefinition,
-) -> types::Gradient {
+pub(crate) fn gradient_document(definition: &donder_model::GradientDefinition) -> types::Gradient {
     types::Gradient {
         description: definition.description.clone(),
         stops: gradient_stops(&definition.gradient),

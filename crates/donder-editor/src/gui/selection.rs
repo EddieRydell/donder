@@ -1,7 +1,7 @@
 pub(super) fn required_operator_param_value(
     ty: Type,
-    sequence: &donder_language::sequence::Sequence,
-    color: donder_language::values::Color,
+    sequence: &donder_model::Sequence,
+    color: donder_runtime_types::Color,
 ) -> Result<EffectParamValue, GuiMutationError> {
     if ty == Type::Marks {
         return sequence
@@ -243,13 +243,12 @@ pub(super) fn paste_sequence_clipboard(
                     let mut effect = entry.effect.clone();
                     id_map.insert(effect.id.0, next_id);
                     effect.id = EffectInstId(next_id);
-                    effect.name =
-                        donder_language::names::unique_name(effect.name.as_str(), |name| {
-                            sequence
-                                .effects
-                                .iter()
-                                .any(|other| other.name.as_str() == name)
-                        });
+                    effect.name = donder_language::unique_name(effect.name.as_str(), |name| {
+                        sequence
+                            .effects
+                            .iter()
+                            .any(|other| other.name.as_str() == name)
+                    });
                     effect.start = super::checked_gui_time(
                         anchor.time_seconds + entry.start_seconds - min_start,
                     )?;
@@ -269,7 +268,7 @@ pub(super) fn paste_sequence_clipboard(
                         GuiMutationError::Invalid("Automation IDs exhausted.".into())
                     })?;
                     let mut clip = entry.clip.clone();
-                    clip.id = donder_language::sequence::AutomationClipId(next_id);
+                    clip.id = donder_model::AutomationClipId(next_id);
                     clip.row_target = target;
                     clip.start = super::checked_gui_time(
                         anchor.time_seconds + entry.clip.start.as_seconds_f32() - min_start,
@@ -360,7 +359,7 @@ pub(super) fn paste_sequence_clipboard(
 
 pub(super) fn edit_effect_selection(
     session: &mut ProjectSession,
-    owner: &donder_language::identity::SourceIdentity,
+    owner: &donder_model::SourceIdentity,
     sequence_id: &SequenceId,
     effect_ids: &[u32],
     edit: SequenceEffectCommonEdit,
@@ -441,7 +440,7 @@ pub(super) fn edit_effect_selection(
                 .ok_or_else(|| {
                     GuiMutationError::Invalid("Effect parameter was not found.".into())
                 })?;
-            if !donder_language::operator::effect_param_matches_type(&value, &declaration.ty) {
+            if !donder_model::effect_param_matches_type(&value, &declaration.ty) {
                 return Err(GuiMutationError::Invalid(format!(
                     "Effect {id} parameter `{}` cannot accept this value.",
                     name.as_str()
@@ -673,10 +672,7 @@ pub(super) fn move_mark_selection(
     Ok(moved)
 }
 
-fn mark_time_seconds(
-    sequence: &donder_language::sequence::Sequence,
-    mark: &SequenceMarkRef,
-) -> Option<f32> {
+fn mark_time_seconds(sequence: &donder_model::Sequence, mark: &SequenceMarkRef) -> Option<f32> {
     sequence
         .mark_collections
         .iter()
@@ -771,14 +767,12 @@ pub(super) fn mark_param_names(
 }
 use std::collections::BTreeMap;
 
-use donder_language::dsl::Type;
-use donder_language::effect::{EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef};
-use donder_language::layout::FixtureTarget;
-use donder_language::sequence::{
-    AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId,
-};
-use donder_language::values::{DonderDuration, DonderTime};
+use donder_language::{DonderDuration, DonderTime};
+use donder_model::FixtureTarget;
+use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId};
+use donder_model::{EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef};
 use donder_project_io::ProjectSession;
+use donder_runtime_types::Type;
 
 use super::model::{
     effect_mut, effect_param_value_from_gui, effect_scope, identifier, mark_collection_mut,

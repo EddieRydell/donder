@@ -5,10 +5,11 @@ use super::{
     Completion, CompletionKind, SemanticToken, Signature, SignatureHelp, Symbol, SymbolKind,
     TokenClass, contains,
 };
-use crate::dsl::builtins::{BUILTINS, Builtin, CONTEXT, ContextValue, builtin};
-use crate::dsl::syntax::ast::*;
-use crate::dsl::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_with_comments};
-use crate::dsl::{Diagnostic, Identifier, TextSpan, Type};
+use crate::compiler::builtins::{BUILTINS, Builtin, CONTEXT, ContextValue, builtin};
+use crate::compiler::syntax::ast::*;
+use crate::compiler::syntax::lexer::{Keyword, LexMode, Token, TokenKind, lex_with_comments};
+use crate::compiler::{Diagnostic, TextSpan};
+use donder_runtime_types::{Identifier, Type};
 
 /// What a name refers to.
 #[derive(Clone, Copy, Debug)]
@@ -108,7 +109,7 @@ fn builtin_documentation(builtin: &Builtin) -> String {
     text
 }
 
-fn signature_label(name: &str, signature: &crate::dsl::builtins::Signature) -> String {
+fn signature_label(name: &str, signature: &crate::compiler::builtins::Signature) -> String {
     format!(
         "{name}({}) -> {}",
         signature
@@ -195,13 +196,13 @@ const TYPES: [&str; 9] = [
 ];
 
 pub fn analyze_script(source: &str) -> ScriptAnalysis {
-    let diagnostics = match crate::dsl::compile_script(source) {
+    let diagnostics = match crate::compiler::compile_script(source) {
         Ok(_) => Vec::new(),
         Err(diagnostics) => diagnostics,
     };
-    let (module, _) = crate::dsl::syntax::parse_partial(source);
+    let (module, _) = crate::compiler::syntax::parse_partial(source);
     let mut bindings = Vec::new();
-    let _ = crate::dsl::check::check_recording(module.clone(), &mut bindings);
+    let _ = crate::compiler::check::check_recording(module.clone(), &mut bindings);
     let mut walker = Walker {
         source,
         symbols: Vec::new(),

@@ -1,10 +1,11 @@
 //! Documents the project never reaches: a warning on each, with the root
 //! import that brings it in.
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::analysis::{SymbolKind, analyze_script};
-use donder_language::data::tree::{DataImport, DataValue, Spanned};
-use donder_language::dsl::{Identifier, TextSpan};
-use donder_language::identity::DocumentId;
+use donder_language::compiler::TextSpan;
+use donder_language::compiler::{DeclarationKind, partial_declaration_spans};
+use donder_language::data::{DataImport, DataValue, Spanned};
+use donder_model::DocumentId;
+use donder_runtime_types::Identifier;
 use indexmap::IndexSet;
 
 use crate::diagnostics::byte_range;
@@ -78,21 +79,14 @@ struct Declared {
 fn declared(path: &Utf8Path, text: &str) -> Declared {
     match source_document_format(path) {
         SourceDocumentFormat::Script => {
-            let symbols = analyze_script(text).symbols;
-            let names = symbols
-                .iter()
-                .filter(|symbol| symbol.parent.is_none())
-                .filter_map(|symbol| {
-                    let kind = match symbol.kind {
-                        SymbolKind::Effect => SourceObjectKind::EffectDefinition,
-                        SymbolKind::Operator => SourceObjectKind::OperatorDefinition,
-                        _ => return None,
+            let names = partial_declaration_spans(text)
+                .into_iter()
+                .map(|declaration| {
+                    let kind = match declaration.kind {
+                        DeclarationKind::Effect => SourceObjectKind::EffectDefinition,
+                        DeclarationKind::Operator => SourceObjectKind::OperatorDefinition,
                     };
-                    Some((
-                        kind,
-                        Identifier::new(symbol.name.clone()).ok()?,
-                        symbol.span,
-                    ))
+                    (kind, declaration.name, declaration.name_span)
                 })
                 .collect::<Vec<_>>();
             Declared {

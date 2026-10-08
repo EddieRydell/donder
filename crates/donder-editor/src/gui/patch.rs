@@ -1,12 +1,12 @@
 use crate::dto::*;
 use crate::gui::model::object_identity_from_gui;
 use crate::gui::{GuiMutationError, ResolvedGuiObject, blocked};
-use donder_language::controller::{ControllerId, ControllerPortId};
-use donder_language::execution::PixelEncoding;
-use donder_language::identity::ObjectIdentity;
-use donder_language::layout::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
-use donder_language::patch::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
+use donder_model::ObjectIdentity;
+use donder_model::{ControllerId, ControllerPortId};
+use donder_model::{FixtureInstanceId, FixtureTarget as DomainFixtureTarget, LayoutId};
+use donder_model::{PatchId, PixelRoute, PixelRouteId, PixelSpan};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_object};
+use donder_runtime_types::PixelEncoding;
 
 pub(super) fn project_document(
     session: &ProjectSession,
@@ -35,7 +35,7 @@ pub(super) fn project_document(
                 .filter(|fixture| {
                     matches!(
                         fixture.kind,
-                        donder_language::layout::LayoutFixtureKind::Fixture { .. }
+                        donder_model::LayoutFixtureKind::Fixture { .. }
                     )
                 })
                 .map(|fixture| {
@@ -51,13 +51,13 @@ pub(super) fn project_document(
                         )?,
                     })
                 })
-                .collect::<Result<_, donder_language::layout::LayoutError>>()?;
+                .collect::<Result<_, donder_model::LayoutError>>()?;
             Ok(PatchLayout {
                 source_ref: object_ref(&id.0, SourceObjectKind::Layout),
                 fixtures,
             })
         })
-        .collect::<Result<_, donder_language::layout::LayoutError>>();
+        .collect::<Result<_, donder_model::LayoutError>>();
     let layouts = match layouts {
         Ok(layouts) => layouts,
         Err(error) => {
@@ -163,7 +163,7 @@ pub(super) fn replace(
         .project
         .replace_patch(
             id,
-            donder_language::patch::Patch {
+            donder_model::Patch {
                 id: id.clone(),
                 description: session
                     .project

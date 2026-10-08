@@ -5,12 +5,12 @@ mod retention;
 mod routing;
 
 use crate::selection::Selection;
-use donder_language::effect::EffectScope;
-use donder_language::execution::TargetScope;
-use donder_language::layout::FixtureInstanceId;
-use donder_language::operator::composition_graph_output_dependencies;
-use donder_language::sequence::CompositionGraphNodeKind;
+use donder_model::CompositionGraphNodeKind;
+use donder_model::EffectScope;
+use donder_model::FixtureInstanceId;
+use donder_model::composition_graph_output_dependencies;
 use donder_runtime::PreparedSequence;
+use donder_runtime_types::TargetScope;
 use indexmap::IndexMap;
 
 pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequence {
@@ -113,10 +113,10 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                     .filter(|first| counts.all(|count| count == *first)),
             };
             let invocation = programs.sample(&accepted.execution().instance(
-                donder_language::dsl::ProgramConstants {
+                donder_language::compiler::ProgramConstants {
                     pixel_count,
-                    duration_seconds: Some(donder_language::values::sample_duration_seconds_f32(
-                        donder_language::values::SampleDuration::from_ticks(timing.duration.get()),
+                    duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(
+                        donder_runtime_types::SampleDuration::from_ticks(timing.duration.get()),
                     )),
                 },
             ));

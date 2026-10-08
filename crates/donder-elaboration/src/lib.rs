@@ -18,9 +18,9 @@
 mod selection;
 mod sequence;
 
-use donder_language::controller::{ControllerId, ControllerPortId};
-use donder_language::model::DonderProject;
-use donder_language::sequence::SequenceId;
+use donder_model::DonderProject;
+use donder_model::SequenceId;
+use donder_model::{ControllerId, ControllerPortId};
 pub use donder_runtime::PreparedSequence;
 
 /// Which physical outputs to retain. Explicit lists preserve first-occurrence

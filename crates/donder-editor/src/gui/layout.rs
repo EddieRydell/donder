@@ -1,10 +1,8 @@
 use super::fixture::{checked_transform, reference_definition};
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{FixtureStorage, GuiLayoutFixture, GuiLayoutFixtureKind, LayoutGuiEdit};
-use donder_language::fixture::{FixtureDefinition, FixtureSource};
-use donder_language::layout::{
-    FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId,
-};
+use donder_model::{FixtureDefinition, FixtureSource};
+use donder_model::{FixtureInstanceId, Layout, LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::ProjectSession;
 
 pub(super) fn edit_layout(
@@ -47,7 +45,7 @@ pub(super) fn edit_layout(
             layout.remove_items(&ids.into_iter().map(FixtureInstanceId).collect::<Vec<_>>())
         })?,
         LayoutGuiEdit::DuplicateFixture { id: fixture_id } => {
-            donder_language::ownership::edit::duplicate_layout_fixture(
+            donder_model::duplicate_layout_fixture(
                 &mut session.project,
                 &id,
                 FixtureInstanceId(fixture_id),
@@ -91,7 +89,7 @@ pub(super) fn edit_layout(
             for offset in offsets.into_iter().rev() {
                 super::fixture::checked_point(offset.clone())?;
                 for fixture_id in &ids {
-                    let copy = donder_language::ownership::edit::duplicate_layout_fixture(
+                    let copy = donder_model::duplicate_layout_fixture(
                         &mut session.project,
                         &id,
                         FixtureInstanceId(*fixture_id),
@@ -135,7 +133,7 @@ pub(super) fn edit_layout(
                             .add_object(
                                 resolved.identity.document_id(),
                                 donder_project_io::SourceObjectKind::FixtureDefinition,
-                                donder_language::names::object_name(&name).as_str(),
+                                donder_language::object_name(&name).as_str(),
                             )
                             .map_err(GuiMutationError::Invalid)?
                     } else {
@@ -146,10 +144,10 @@ pub(super) fn edit_layout(
                             "fixtures",
                         )?
                     };
-                    let definition = donder_language::fixture::FixtureDefinitionId(identity);
+                    let definition = donder_model::FixtureDefinitionId(identity);
                     session
                         .project
-                        .apply_edits([donder_language::model::ProjectEdit::SetFixtureDefinition {
+                        .apply_edits([donder_model::ProjectEdit::SetFixtureDefinition {
                             id: definition.clone(),
                             value: FixtureDefinition {
                                 description: None,

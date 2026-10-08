@@ -2,10 +2,7 @@
 use super::DeviceClient;
 use crate::desktop_state::lock_unpoisoned;
 use crate::dto::{DeviceOutputCapabilities, DevicePlaybackMode, PlaybackSpeed};
-use donder_language::{
-    controller::{ControllerId, ControllerPortId, DonderDeviceId},
-    sequence::SequenceId,
-};
+use donder_model::{ControllerId, ControllerPortId, DonderDeviceId, SequenceId};
 use donder_runtime::PlaybackRate;
 use serde::Serialize;
 use sha2::{Digest, Sha256};

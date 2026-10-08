@@ -1,6 +1,6 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::dto::{AppSnapshot, ControllerOutputTest, DocumentViewId, GuiDocumentRequest};
-use donder_language::controller::ControllerId;
+use donder_model::ControllerId;
 use donder_output::ControllerPortFrame;
 
 impl DesktopState {

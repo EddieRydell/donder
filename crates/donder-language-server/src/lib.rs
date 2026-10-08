@@ -328,7 +328,7 @@ impl Server {
         Some((uri, text, lines, offset))
     }
 
-    fn location(&self, uri: &str, span: donder_language::dsl::TextSpan) -> Option<Location> {
+    fn location(&self, uri: &str, span: donder_language::compiler::TextSpan) -> Option<Location> {
         let text = self.workspace.text(uri)?;
         Some(Location::new(
             self::uri(uri)?,
@@ -653,8 +653,8 @@ impl Server {
                         String,
                         Option<String>,
                         Kind,
-                        donder_language::dsl::TextSpan,
-                        donder_language::dsl::TextSpan,
+                        donder_language::compiler::TextSpan,
+                        donder_language::compiler::TextSpan,
                         Vec<DocumentSymbol>,
                     ) -> DocumentSymbol,
                 ) -> Vec<DocumentSymbol> {
@@ -692,8 +692,8 @@ impl Server {
                         String,
                         Option<String>,
                         Kind,
-                        donder_language::dsl::TextSpan,
-                        donder_language::dsl::TextSpan,
+                        donder_language::compiler::TextSpan,
+                        donder_language::compiler::TextSpan,
                         Vec<DocumentSymbol>,
                     ) -> DocumentSymbol,
                 ) -> Vec<DocumentSymbol> {

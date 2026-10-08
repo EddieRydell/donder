@@ -50,7 +50,7 @@ pub fn save_project(session: &ProjectSession) -> Result<SaveReport, ExportProjec
 
 pub fn source_document_text(
     session: &ProjectSession,
-    document_id: &donder_language::identity::DocumentId,
+    document_id: &donder_model::DocumentId,
 ) -> Result<Option<String>, ExportProjectError> {
     serialization::validate_source_inventory(session)?;
     let Some(document) = session.source.documents.get(document_id) else {

@@ -1,7 +1,7 @@
 # Effect compiler
 
 How [effect language](effect_language.md) source becomes the programs that
-playback runs. Every stage below lives in `donder-language/src/dsl` except the
+playback runs. Every stage below lives in `donder-language/src/compiler` except the
 global signal graph, which preparation builds in `donder-elaboration`.
 
 ```text
@@ -158,7 +158,7 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
 ## Bytecode
 
 `lower::emit` targets the strip interpreter in `donder-runtime`
-(`dsl/bytecode.rs` defines the format):
+(`donder-runtime-types/src/bytecode.rs` defines the format):
 - A program runs over strips of up to 128 pixels. Its query block runs once per
   program and query, its target block again whenever the target's pixel count or
   bounds change, and its body once per strip.

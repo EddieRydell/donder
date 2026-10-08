@@ -283,7 +283,7 @@ pub(super) fn edit_sequence(
                     })?;
                 param_overrides.insert(param.name.clone(), value);
             }
-            let donder_language::effect::EffectRef::Custom(effect) = &definition;
+            let donder_model::EffectRef::Custom(effect) = &definition;
             let name = super::model::fresh_name(effect.0.object(), |candidate| {
                 sequence
                     .effects
@@ -478,7 +478,7 @@ pub(super) fn edit_sequence(
                 }
             }
             let next_id = next_composition_node_id(sequence);
-            let donder_language::operator::OperatorRef::Custom(definition) = &operator;
+            let donder_model::OperatorRef::Custom(definition) = &operator;
             let name = super::model::fresh_name(definition.0.object(), |candidate| {
                 super::model::sequence_name_taken(sequence, candidate)
             });
@@ -780,16 +780,9 @@ fn automation_target_from_gui(
 
 fn automation_target_timing(
     session: &ProjectSession,
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     target: &AutomationTarget,
-) -> Result<
-    (
-        DonderTime,
-        DonderDuration,
-        donder_language::layout::FixtureTarget,
-    ),
-    GuiMutationError,
-> {
+) -> Result<(DonderTime, DonderDuration, donder_model::FixtureTarget), GuiMutationError> {
     match target {
         AutomationTarget::EffectParam { effect_id, .. } => {
             let effect = sequence
@@ -843,7 +836,7 @@ fn automation_target_mapping(
         .project
         .sequence(sequence_id)
         .ok_or_else(|| GuiMutationError::Invalid("Sequence was not found.".to_string()))?;
-    donder_language::validation::automation_target_param(&session.project, sequence, target)
+    donder_model::automation_target_param(&session.project, sequence, target)
         .map_err(|error| GuiMutationError::Invalid(error.message))?
         .automation_mapping()
         .ok_or_else(|| GuiMutationError::Invalid("Param does not support automation.".to_string()))
@@ -851,7 +844,7 @@ fn automation_target_mapping(
 
 /// Clips may share a target when they do not overlap.
 fn require_available_automation_target(
-    sequence: &donder_language::sequence::Sequence,
+    sequence: &donder_model::Sequence,
     target: &AutomationTarget,
     clip: &AutomationClip,
 ) -> Result<(), GuiMutationError> {
@@ -893,19 +886,17 @@ fn effect_ref_from_gui(
     })
 }
 
-use donder_language::effect::{
-    EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
-};
-use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
-use donder_language::sequence::{
+use donder_language::{DonderDuration, DonderTime};
+use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
-    AutomationMapping, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
-    CompositionGraphNodeKind, GraphNodePosition, MarkCollection, MarkCollectionKey,
-    SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
-    automation_curve_is_normalized,
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+    GraphNodePosition, MarkCollection, MarkCollectionKey, SequenceAudio as DomainSequenceAudio,
+    SequenceId, SequenceLayerId, automation_curve_is_normalized,
 };
-use donder_language::values::{DonderDuration, DonderTime};
+use donder_model::{EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef};
+use donder_model::{GraphOperatorNode, OperatorRef, validate_composition_graph};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use donder_runtime_types::AutomationMapping;
 use indexmap::IndexMap;
 
 use super::model::{

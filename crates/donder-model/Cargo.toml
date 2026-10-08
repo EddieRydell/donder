@@ -1,0 +1,22 @@
+[package]
+name = "donder-model"
+edition.workspace = true
+version.workspace = true
+description = "Donder domain model: fixtures, layouts, setups, sequences and their validated edits"
+authors = ["Donder"]
+license = "MIT"
+
+[features]
+browser = ["uuid/js"]
+
+[dependencies]
+camino.workspace = true
+donder-language.workspace = true
+donder-runtime-types = { workspace = true, features = ["atomic"] }
+glam.workspace = true
+indexmap.workspace = true
+uuid.workspace = true
+
+[lints.rust]
+unnameable_types = "warn"
+unreachable_pub = "warn"

@@ -1,8 +1,8 @@
 use crate::common;
 
 use camino::Utf8PathBuf;
-use donder_language::identity::DocumentId;
-use donder_language::imports::ImportAlias;
+use donder_language::ImportAlias;
+use donder_model::DocumentId;
 use donder_project_io::{
     PROJECT_ROOT_FILE, SourceObjectKind, check_project, check_project_with_overrides,
     ensure_document_can_reference_source, project_source_texts,

@@ -62,7 +62,7 @@ pub fn run(cli: Cli) -> Result<(), String> {
         }
         Command::Lsp => lsp(),
         Command::Builtins { output } => {
-            let text = donder_language::dsl::builtins::builtin_reference();
+            let text = donder_language::compiler::builtin_reference();
             donder_project_io::atomic_write(&output, text.as_bytes())
                 .map_err(|error| error.to_string())?;
             println!("Wrote {output}");

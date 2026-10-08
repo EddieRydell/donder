@@ -48,9 +48,9 @@ pub fn create_sequence(
         })?;
     let color = super::model::parse_color(&request.initial_color)?;
     let index = session.project.root().sequences.len();
-    donder_language::ownership::edit::add_sequence(
+    donder_model::add_sequence(
         &mut session.project,
-        donder_language::values::DonderDuration(duration),
+        donder_language::DonderDuration(duration),
         request.frame_rate,
         color,
     )

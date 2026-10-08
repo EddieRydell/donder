@@ -1,7 +1,8 @@
 //! Mixed playback workload: four independently evaluated layers, followed by
 //! hue adjustment, a two-repeat temporal echo, and output dimming.
-use donder_language::dsl::{ProgramConstants, Value, compile_operators};
+use donder_language::compiler::{ProgramConstants, compile_operators};
 use donder_runtime::PreparedSequence;
+use donder_runtime_types::Value;
 
 pub fn layered_600() -> PreparedSequence {
     let constants = ProgramConstants {
@@ -38,7 +39,7 @@ pub fn layered_600() -> PreparedSequence {
             .into_iter()
             .map(|(key, value)| {
                 (
-                    donder_language::dsl::Identifier::new(key.into()).unwrap(),
+                    donder_runtime_types::Identifier::new(key.into()).unwrap(),
                     value,
                 )
             })
@@ -52,7 +53,7 @@ pub fn layered_600() -> PreparedSequence {
             })
     });
     // Each operator consumes only the previous one, so preparation fuses the chain.
-    let mut fused: Vec<donder_language::dsl::Instance> = Vec::new();
+    let mut fused: Vec<donder_language::compiler::Instance> = Vec::new();
     for operator in operators {
         if let Some(source) = fused.last()
             && let Some(operator) = operator.fuse_input(0, source)

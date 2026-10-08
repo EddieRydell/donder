@@ -5,16 +5,15 @@ use super::evaluation::{
 use super::playback;
 use super::std;
 use std::prelude::rust_2024::*;
-const SPATIAL: donder_language::execution::SpatialContext =
-    donder_language::execution::SpatialContext {
-        position: [0.0; 2],
-        min: [0.0; 2],
-        max: [0.0; 2],
-    };
+const SPATIAL: donder_runtime_types::SpatialContext = donder_runtime_types::SpatialContext {
+    position: [0.0; 2],
+    min: [0.0; 2],
+    max: [0.0; 2],
+};
 
 use crate::dsl::StripWorkspace;
-use donder_language::dsl::Color;
-use donder_language::dsl::Value;
+use donder_runtime_types::Color;
+use donder_runtime_types::Value;
 
 fn red(red: u8) -> Color {
     Color {
@@ -59,7 +58,7 @@ fn selecting_array_items_keeps_integer_to_float_conversion() {
 
 #[test]
 fn curve_items_sample_at_integer_and_float_positions() {
-    use donder_language::values::{Curve, CurvePoint};
+    use donder_runtime_types::{Curve, CurvePoint};
     let effect = compile_effect(
         "effect Indexed {
             param shapes: array<curve>;
@@ -105,7 +104,8 @@ fn curve_items_sample_at_integer_and_float_positions() {
             )
             .evaluate(&one_pixel(0.0), &SPATIAL, &mut workspace);
             let channel = |position| {
-                (donder_language::sampling::sample_curve(&curve, position) * 255.0).round() as u8
+                (donder_runtime_types::sampling::sample_curve(&curve, position) * 255.0).round()
+                    as u8
             };
             assert_eq!(
                 sampled,

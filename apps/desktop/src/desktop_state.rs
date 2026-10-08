@@ -53,8 +53,7 @@ pub(crate) struct DesktopServices {
     device_playback: crate::device::playback::DevicePlaybackService,
     discovery: crate::device::discovery::DeviceDiscovery,
     device_reconcile: LatestScheduler<()>,
-    device_failures:
-        Mutex<std::collections::BTreeMap<donder_language::controller::DonderDeviceId, String>>,
+    device_failures: Mutex<std::collections::BTreeMap<donder_model::DonderDeviceId, String>>,
     transport_operation: Mutex<()>,
     sequence_clip_raster: Mutex<crate::sequence_clip_raster::SequenceClipRasterService>,
     sequence_clipboard: Mutex<Option<crate::gui::SequenceClipboard>>,
@@ -323,7 +322,7 @@ impl DesktopState {
                             project.project.controller(id).is_some_and(|controller| {
                                 !matches!(
                                     controller.protocol,
-                                    donder_language::controller::ControllerProtocol::Donder(_)
+                                    donder_model::ControllerProtocol::Donder(_)
                                 )
                             })
                         })

@@ -241,7 +241,7 @@ pub(crate) fn missing_typed_object(
 use std::{fs, io};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::identity::DocumentId;
+use donder_model::DocumentId;
 
 use crate::ExportProjectError;
 use crate::source::{

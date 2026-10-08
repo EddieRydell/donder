@@ -1,5 +1,5 @@
 use super::*;
-use donder_language::sequence::{AutomationDetachmentReason, AutomationTarget};
+use donder_model::{AutomationDetachmentReason, AutomationTarget};
 use donder_sequence_api::BrowserPageNode;
 use std::collections::HashSet;
 
@@ -65,7 +65,7 @@ pub(super) fn page_layout(id: LayoutId, page: &[BrowserPageNode]) -> Layout {
             BrowserPageNode::Group { id, name, children } => LayoutFixture {
                 description: None,
                 id: FixtureInstanceId(*id),
-                name: donder_language::names::object_name(name),
+                name: donder_language::object_name(name),
                 kind: LayoutFixtureKind::Group {
                     members: children.iter().map(node_id).collect(),
                 },
@@ -73,7 +73,7 @@ pub(super) fn page_layout(id: LayoutId, page: &[BrowserPageNode]) -> Layout {
             BrowserPageNode::Fixture { id, name, pixels } => LayoutFixture {
                 description: None,
                 id: FixtureInstanceId(*id),
-                name: donder_language::names::object_name(name),
+                name: donder_language::object_name(name),
                 kind: LayoutFixtureKind::Fixture {
                     definition: ValueSource::Inline(fixture_definition(pixels)),
                     transform: FixtureTransform::default(),
@@ -115,7 +115,7 @@ fn fixture_definition(pixels: &[[f32; 2]]) -> FixtureDefinition {
             .enumerate()
             .map(|(index, [x, y])| FixtureElement {
                 id: FixtureElementId(index as u32 + 1),
-                name: donder_language::names::object_name(&format!("pixel_{}", index + 1)),
+                name: donder_language::object_name(&format!("pixel_{}", index + 1)),
                 transform: FixtureTransform {
                     position: Point3 {
                         x: Distance::from_meters(*x),

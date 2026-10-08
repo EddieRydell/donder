@@ -10,10 +10,11 @@ use std::prelude::rust_2024::*;
 
 use super::evaluation::SignalSampler;
 use crate::dsl::{RuntimeError, StripWorkspace};
-use donder_language::dsl::bytecode::{FloatUnary, Instruction, SignalPixel};
-use donder_language::dsl::{Color, ProgramConstants, Value};
-use donder_language::execution::SpatialContext;
-use donder_language::values::SampleTime;
+use donder_language::compiler::ProgramConstants;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::SpatialContext;
+use donder_runtime_types::bytecode::{FloatUnary, Instruction, SignalPixel};
+use donder_runtime_types::{Color, Value};
 
 const SPATIAL: SpatialContext = SpatialContext {
     position: [0.0; 2],
@@ -388,8 +389,8 @@ fn uniform_smoothstep_runs_in_the_query_block() {
         let mut workspace = StripWorkspace::default();
         for frame in [0, 1, 15, 30, 60, 0] {
             let context = context(8, 0, frame);
-            let t =
-                (crate::values::sample_duration_seconds_f32(context.time) / 0.75).clamp(0.0, 1.0);
+            let t = (donder_runtime_types::sample_duration_seconds_f32(context.time) / 0.75)
+                .clamp(0.0, 1.0);
             let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
             let actual = invocation.evaluate(&context, &SPATIAL, &mut workspace);
             assert!(

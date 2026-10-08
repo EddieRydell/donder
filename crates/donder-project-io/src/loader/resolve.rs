@@ -5,45 +5,44 @@
 use std::sync::Arc;
 
 use camino::Utf8PathBuf;
-use donder_language::controller::{
+use donder_language::compiler::{ParamDecl, TextSpan};
+use donder_language::data::{Data, Decoder, Meters, Name, NamedSource, Params, Reference, Source};
+use donder_language::data::{DataValue, Spanned};
+use donder_language::{
+    Distance, DistanceSpan, DonderDuration, DonderTime, Point3, Rotation3, Scale3,
+};
+use donder_model::ProjectData;
+use donder_model::ValueSource;
+use donder_model::{
     ArtNetConfig, ArtNetMode, Controller, ControllerId, ControllerPort, ControllerPortAddress,
     ControllerPortId, ControllerProtocol, DonderConfig, DonderDeviceId, E131Config, E131Mode,
 };
-use donder_language::data::schema::{
-    Data, Decoder, Meters, Name, NamedSource, Params, Reference, Source,
-};
-use donder_language::data::tree::{DataValue, Spanned};
-use donder_language::dsl::{Identifier, ParamDecl, TextSpan, Type};
-use donder_language::effect::{
-    CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
-    EffectScope, GradientSource,
-};
-use donder_language::execution::PixelEncoding;
-use donder_language::fixture::{
-    FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
-    FixtureSource, FixtureTransform, GridAxis, GridCorner,
-};
-use donder_language::identity::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
-use donder_language::layout::{
-    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
-    LayoutId,
-};
-use donder_language::model::ProjectData;
-use donder_language::operator::{GraphOperatorNode, OperatorRef, validate_composition_graph};
-use donder_language::ownership::ValueSource;
-use donder_language::patch::{Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan};
-use donder_language::sequence::{
+use donder_model::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
     DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
     MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
     SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
 };
-use donder_language::setup::{Setup, SetupId};
-use donder_language::values::{
-    Curve, CurvePoint, Distance, DistanceSpan, DonderDuration, DonderTime, Gradient, GradientStop,
-    Point3, Rotation3, Scale3,
+use donder_model::{
+    CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
+    EffectScope, GradientSource,
 };
+use donder_model::{DocumentId, ObjectIdentity, OwnedObjectSlot, SourceIdentity};
+use donder_model::{
+    FixtureDefinition, FixtureDefinitionId, FixtureElement, FixtureElementId, FixtureShape,
+    FixtureSource, FixtureTransform, GridAxis, GridCorner,
+};
+use donder_model::{
+    FixtureInstanceId, FixtureTarget, Layout, LayoutError, LayoutFixture, LayoutFixtureKind,
+    LayoutId,
+};
+use donder_model::{GraphOperatorNode, OperatorRef, validate_composition_graph};
+use donder_model::{Patch, PatchId, PixelRoute, PixelRouteId, PixelSpan};
+use donder_model::{Setup, SetupId};
+use donder_runtime_types::PixelEncoding;
+use donder_runtime_types::{Curve, CurvePoint, Gradient, GradientStop};
+use donder_runtime_types::{Identifier, Type};
 use indexmap::{IndexMap, IndexSet};
 
 use super::{DataDocument, Loader, ResolvedObject};
@@ -175,9 +174,7 @@ pub(super) fn curve(points: &[(f32, f32)]) -> Result<Curve, String> {
     Ok(curve)
 }
 
-pub(super) fn gradient(
-    stops: &[(f32, donder_language::values::Color)],
-) -> Result<Gradient, String> {
+pub(super) fn gradient(stops: &[(f32, donder_runtime_types::Color)]) -> Result<Gradient, String> {
     let gradient = Gradient {
         stops: stops
             .iter()
@@ -237,7 +234,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         owner: &ObjectIdentity,
         source: &Source<types::Setup>,
-    ) -> Result<donder_language::setup::SetupSource, LoadProjectError> {
+    ) -> Result<donder_model::SetupSource, LoadProjectError> {
         match source {
             Source::Reference(reference) => {
                 let ResolvedObject::Setup(id) =
@@ -263,7 +260,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         owner: &ObjectIdentity,
         source: &Source<types::Layout>,
-    ) -> Result<donder_language::layout::LayoutSource, LoadProjectError> {
+    ) -> Result<donder_model::LayoutSource, LoadProjectError> {
         match source {
             Source::Reference(reference) => {
                 let ResolvedObject::Layout(id) =
@@ -289,7 +286,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         owner: &ObjectIdentity,
         source: &Source<types::Patch>,
-    ) -> Result<donder_language::patch::PatchSource, LoadProjectError> {
+    ) -> Result<donder_model::PatchSource, LoadProjectError> {
         match source {
             Source::Reference(reference) => {
                 let ResolvedObject::Patch(id) =
@@ -315,7 +312,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         owner: &ObjectIdentity,
         source: &NamedSource<types::Controller>,
-    ) -> Result<donder_language::controller::ControllerSource, LoadProjectError> {
+    ) -> Result<donder_model::ControllerSource, LoadProjectError> {
         match source {
             NamedSource::Reference(reference) => {
                 let ResolvedObject::Controller(id) = self.loader.resolve_reference(
@@ -346,7 +343,7 @@ impl DomainResolver<'_> {
         document: &DocumentId,
         owner: &ObjectIdentity,
         source: &NamedSource<types::Sequence>,
-    ) -> Result<donder_language::sequence::SequenceSource, LoadProjectError> {
+    ) -> Result<donder_model::SequenceSource, LoadProjectError> {
         match source {
             NamedSource::Reference(reference) => {
                 let ResolvedObject::Sequence(id) = self.loader.resolve_reference(
@@ -1216,7 +1213,7 @@ impl DomainResolver<'_> {
                     )
                 }
                 types::Node::OutputNode { position } => (
-                    donder_language::names::object_name("output"),
+                    donder_language::object_name("output"),
                     span,
                     true,
                     position,
@@ -1612,9 +1609,7 @@ impl DomainResolver<'_> {
             (Type::Gradient, DataValue::List(_)) => {
                 EffectParamValue::Gradient(GradientSource::Inline(
                     gradient(
-                        &self.decode::<Vec<(f32, donder_language::values::Color)>>(
-                            document, value,
-                        )?,
+                        &self.decode::<Vec<(f32, donder_runtime_types::Color)>>(document, value)?,
                     )
                     .map_err(|message| self.invalid(document, value.span, message))?,
                 ))

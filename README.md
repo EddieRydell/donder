@@ -152,7 +152,9 @@ cargo run -p donder-cli -- --path examples/starter check
 ## Development
 
 ```text
-crates/donder-language/         Domain types, the effect language compiler and bytecode
+crates/donder-runtime-types/    Values, bytecode and prepared inputs that playback accepts (no_std)
+crates/donder-language/         The text language: data-document syntax, effect compiler, analysis
+crates/donder-model/            Domain model: fixtures, layouts, setups, sequences, validated edits
 crates/donder-project-io/       Project loading, imports, diagnostics and saving
 crates/donder-elaboration/      Preparing a sequence for selected outputs
 crates/donder-runtime/          Portable no_std playback runtime and archive format

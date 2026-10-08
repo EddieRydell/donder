@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::values::sample_time_from_frame;
+use donder_runtime_types::sample_time_from_frame;
 
 fn project() -> donder_project_io::ProjectSession {
     donder_project_io::load_project(
@@ -11,7 +11,8 @@ fn project() -> donder_project_io::ProjectSession {
 
 #[test]
 fn authored_led_routes_reject_overlap_bad_ranges_and_invalid_channel_order() {
-    use donder_language::patch::{PixelEncoding, PixelRouteId, PixelSpan};
+    use donder_model::{PixelRouteId, PixelSpan};
+    use donder_runtime_types::PixelEncoding;
     let mut project = project().project;
     let patch_id = project.reusable_setups()[project.root().setup.id()]
         .patch

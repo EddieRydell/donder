@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::identity::DocumentId;
+use donder_model::DocumentId;
 use tempfile::Builder;
 
 use crate::serialization::document_text;
@@ -35,16 +35,16 @@ pub struct PathChangePlan {
 impl PathChangePlan {
     pub fn remap_object_identity(
         &self,
-        identity: &donder_language::identity::ObjectIdentity,
-    ) -> donder_language::identity::ObjectIdentity {
-        donder_language::source_remap::remap_object_identity(identity, &self.document_remaps)
+        identity: &donder_model::ObjectIdentity,
+    ) -> donder_model::ObjectIdentity {
+        donder_model::remap_object_identity(identity, &self.document_remaps)
     }
 
     pub fn remap_identity(
         &self,
-        identity: &donder_language::identity::SourceIdentity,
-    ) -> donder_language::identity::SourceIdentity {
-        donder_language::source_remap::remap_identity(identity, &self.document_remaps)
+        identity: &donder_model::SourceIdentity,
+    ) -> donder_model::SourceIdentity {
+        donder_model::remap_identity(identity, &self.document_remaps)
     }
 }
 
@@ -212,10 +212,7 @@ pub fn apply_path_change(
 }
 
 fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Result<(), String> {
-    donder_language::source_remap::remap_document_paths(
-        &mut candidate.project,
-        &plan.document_remaps,
-    )?;
+    donder_model::remap_document_paths(&mut candidate.project, &plan.document_remaps)?;
     crate::source_copy::remap_documents(&mut candidate.source, &plan.document_remaps)?;
 
     let root = candidate.source.project_root().to_owned();

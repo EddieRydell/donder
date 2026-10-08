@@ -3,7 +3,7 @@ use std::net::UdpSocket;
 
 use crate::ControllerPortFrame;
 use artnet_protocol::{ArtCommand, Output, PaddedData, PortAddress};
-use donder_language::controller::{
+use donder_model::{
     ArtNetConfig, ArtNetMode, ControllerId, ControllerPort, ControllerPortAddress, ControllerPortId,
 };
 
@@ -123,8 +123,8 @@ mod tests {
     use std::time::Duration;
 
     use artnet_protocol::ArtCommand;
-    use donder_language::controller::{ArtNetMode, ControllerPort, ControllerPortAddress};
-    use donder_language::identity::{DocumentId, SourceIdentity};
+    use donder_model::{ArtNetMode, ControllerPort, ControllerPortAddress};
+    use donder_model::{DocumentId, SourceIdentity};
     use uuid::Uuid;
 
     use super::*;
@@ -149,7 +149,7 @@ mod tests {
             mode: ArtNetMode::Unicast,
         };
         let port = ControllerPort {
-            name: donder_language::names::object_name("port"),
+            name: donder_language::object_name("port"),
             id: ControllerPortId(1),
             address: ControllerPortAddress::ArtNetPort(0x1234),
             slot_count: 3,

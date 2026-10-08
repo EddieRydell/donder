@@ -1,6 +1,6 @@
 use super::*;
 use camino::Utf8PathBuf;
-use donder_language::sequence::{AssetId, SequenceAudio};
+use donder_model::{AssetId, SequenceAudio};
 use donder_project_io::ReferencedAsset;
 use std::collections::BTreeSet;
 

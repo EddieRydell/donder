@@ -1,4 +1,4 @@
-use donder_language::dsl::builtins::{BUILTINS, builtin_reference};
+use donder_language::compiler::{BUILTINS, builtin_reference};
 
 #[test]
 fn committed_builtin_reference_is_current() {

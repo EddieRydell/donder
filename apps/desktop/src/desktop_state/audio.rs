@@ -29,12 +29,7 @@ impl DesktopState {
                     .as_ref()
                     .and_then(|id| project.project.sequence(id))
             })
-            .filter(|sequence| {
-                matches!(
-                    sequence.audio,
-                    donder_language::sequence::SequenceAudio::None
-                )
-            })
+            .filter(|sequence| matches!(sequence.audio, donder_model::SequenceAudio::None))
             .map(|sequence| sequence.duration.as_seconds_f32());
         let audio_transport = match silent_duration {
             Some(duration) => lock_unpoisoned(&self.audio).load_silent_sequence(duration),
@@ -329,12 +324,12 @@ mod tests {
         let mut session = donder_project_io::load_project(&root).unwrap();
         for (site, kind, path) in [
             (
-                donder_language::ownership::edit::OwnershipSite::ProjectSetup,
+                donder_model::OwnershipSite::ProjectSetup,
                 donder_project_io::SourceObjectKind::Setup,
                 "setups/main.data.donder",
             ),
             (
-                donder_language::ownership::edit::OwnershipSite::ProjectSequence(0),
+                donder_model::OwnershipSite::ProjectSequence(0),
                 donder_project_io::SourceObjectKind::Sequence,
                 "sequences/main.data.donder",
             ),
@@ -344,8 +339,7 @@ mod tests {
                 .add_data_document(path.into(), vec![(kind, "main".into())])
                 .unwrap()
                 .remove(0);
-            donder_language::ownership::edit::make_reusable(&mut session.project, &site, source)
-                .unwrap();
+            donder_model::make_reusable(&mut session.project, &site, source).unwrap();
         }
         donder_project_io::maintain_ownership_sources(&mut session).unwrap();
         donder_project_io::save_project(&session).unwrap();

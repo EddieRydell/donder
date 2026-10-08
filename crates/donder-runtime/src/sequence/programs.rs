@@ -7,8 +7,8 @@ use crate::signal::{
     PreparedEffect, PreparedEffectAutomation, PreparedSignalGraph, PreparedSignalKind,
     PreparedSignalNode,
 };
-use crate::values::SampleTime;
 use alloc::{boxed::Box, vec, vec::Vec};
+use donder_runtime_types::SampleTime;
 
 #[derive(Clone, Debug)]
 pub(crate) struct AdmittedPrograms {

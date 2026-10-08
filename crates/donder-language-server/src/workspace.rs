@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::identity::DocumentId;
+use donder_model::DocumentId;
 use donder_project_io::{
     IoDiagnostic, PROJECT_ROOT_FILE, ProjectCheckReport, ProjectMetadata, SourceOverrides,
     check_project_with_overrides,

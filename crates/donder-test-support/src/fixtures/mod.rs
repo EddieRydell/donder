@@ -1,8 +1,9 @@
 //! The starter effect fixtures of the playback benchmarks.
 pub mod layered;
 
-use donder_language::dsl::{CompiledEffect, Identifier, Invocation, Value, compile_effects};
-use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use donder_language::compiler::{CompiledEffect, Invocation, compile_effects};
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use donder_runtime_types::{Identifier, Value};
 use indexmap::IndexMap;
 use std::sync::Arc;
 

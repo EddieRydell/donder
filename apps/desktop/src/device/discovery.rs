@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
-use donder_language::controller::DonderDeviceId;
+use donder_model::DonderDeviceId;
 use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
 
 use crate::desktop_state::lock_unpoisoned;

@@ -1,7 +1,7 @@
 //! Byte offsets to LSP positions, which count UTF-16 code units, and file
 //! URIs to paths.
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::dsl::TextSpan;
+use donder_language::compiler::TextSpan;
 use lsp_types::{Position, Range};
 
 /// The byte offset of each line's start.

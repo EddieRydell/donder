@@ -1,6 +1,6 @@
 use super::*;
 use core::num::NonZeroU32;
-use donder_language::execution::{PixelEncoding, RgbOrder};
+use donder_runtime_types::{PixelEncoding, RgbOrder};
 
 fn timing() -> SequenceTiming {
     SequenceTiming::admit(
@@ -15,12 +15,12 @@ fn timing() -> SequenceTiming {
 #[test]
 fn spatial_storage_is_shared_by_physical_fixture_and_only_kept_for_consumers() {
     let effect = |source| {
-        donder_language::dsl::compile_effects(source)
+        donder_language::compiler::compile_effects(source)
             .unwrap()
             .remove(0)
             .bind([])
             .unwrap()
-            .instance(donder_language::dsl::ProgramConstants::default())
+            .instance(donder_language::compiler::ProgramConstants::default())
             .sample()
     };
     let spatial = effect("effect Position { sample { rgb(pixel.x, 0.0, 0.0) } }");

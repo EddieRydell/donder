@@ -1,11 +1,11 @@
 use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::model::{DonderProject, ProjectEdit};
-use donder_language::values::{Color, sample_time_from_frame};
+use donder_model::{DonderProject, ProjectEdit};
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
 use donder_runtime::SequenceFrame;
+use donder_runtime_types::{Color, sample_time_from_frame};
 use donder_test_support::fixtures as effect_fixtures;
 use donder_test_support::marks as mark_workload;
 use donder_test_support::playback;
@@ -162,11 +162,12 @@ fn bench_render(c: &mut Criterion) {
 }
 
 fn bench_mark_playback(c: &mut Criterion) {
-    use donder_language::dsl::Identifier;
-    use donder_language::effect::{CurveSource, EffectParamValue, EffectRef};
-    use donder_language::sequence::{MarkCollection, MarkCollectionKey};
-    use donder_language::values::SampleTime;
-    use donder_language::values::{Curve, CurvePoint, DonderDuration, DonderTime};
+    use donder_language::{DonderDuration, DonderTime};
+    use donder_model::{CurveSource, EffectParamValue, EffectRef};
+    use donder_model::{MarkCollection, MarkCollectionKey};
+    use donder_runtime_types::Identifier;
+    use donder_runtime_types::SampleTime;
+    use donder_runtime_types::{Curve, CurvePoint};
     pin_benchmark_thread();
     let source_project = render_only_project(&load_project(&project_path()).unwrap().project);
     for (name, pulse) in [("pulse", true), ("chase", false)] {
@@ -183,7 +184,7 @@ fn bench_mark_playback(c: &mut Criterion) {
         let mut effect = source.effects[0].clone();
         let gradient = effect.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
-            name: donder_language::names::object_name("profile_beats"),
+            name: donder_language::object_name("profile_beats"),
         };
         source.mark_collections = vec![MarkCollection {
             key: mark_key.clone(),
@@ -388,7 +389,7 @@ fn bench_operators(c: &mut Criterion) {
         for count in workload::COUNTS {
             let mut expected = None;
             for (mode, source, reuse) in modes {
-                let operator = donder_language::dsl::compile_operators(source)
+                let operator = donder_language::compiler::compile_operators(source)
                     .unwrap()
                     .remove(0);
                 let mut show = workload::show(count, &invocation);
@@ -421,7 +422,7 @@ fn bench_operators(c: &mut Criterion) {
         }
     }
 
-    let standard = donder_language::dsl::compile_operators(include_str!(
+    let standard = donder_language::compiler::compile_operators(include_str!(
         "../../../examples/starter/operators/standard.donder"
     ))
     .unwrap();
@@ -525,7 +526,7 @@ fn bench_uniform_upstream(c: &mut Criterion) {
     pin_benchmark_thread();
     let (name, source, params) = effect_fixtures::layer_cases().into_iter().next().unwrap();
     let invocation = effect_fixtures::prepared_effect(name, source, params);
-    let operator = donder_language::dsl::compile_operators(playback::IDENTITY_SOURCE)
+    let operator = donder_language::compiler::compile_operators(playback::IDENTITY_SOURCE)
         .unwrap()
         .remove(0);
     for count in [200, 1600] {

@@ -1,9 +1,6 @@
 use super::{DesktopState, lock_unpoisoned};
 use crate::dto::{DocumentViewId, GuiDocumentRequest, SequenceExportPort};
-use donder_language::{
-    controller::{ControllerId, ControllerPortId},
-    sequence::SequenceId,
-};
+use donder_model::{ControllerId, ControllerPortId, SequenceId};
 use donder_project_io::ProjectSession;
 use std::sync::Arc;
 

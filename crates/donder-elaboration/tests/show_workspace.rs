@@ -1,8 +1,8 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare as prepare_sequence};
-use donder_language::values::SampleTime;
-use donder_language::values::sample_time_from_frame;
 use donder_project_io::load_project;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::sample_time_from_frame;
 
 #[test]
 fn reused_show_buffers_match_fresh_buffers_across_seeks_and_effect_ends() {

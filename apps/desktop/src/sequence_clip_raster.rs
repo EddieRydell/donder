@@ -14,17 +14,18 @@ use std::sync::{
 use std::thread;
 
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::dsl::hash_compiled_effect;
-use donder_language::effect::{
+use donder_language::DonderTime;
+use donder_language::compiler::hash_compiled_effect;
+use donder_model::DonderProject;
+use donder_model::SetupId;
+use donder_model::{AutomationBinding, MarkCollectionKey, Sequence, SequenceId};
+use donder_model::{
     CurveDefinition, CurveId, CurveSource, EffectDefinition, EffectInst, EffectInstId,
     EffectParamValue, EffectScope, GradientDefinition, GradientId, GradientSource,
 };
-use donder_language::model::DonderProject;
-use donder_language::sequence::{AutomationBinding, MarkCollectionKey, Sequence, SequenceId};
-use donder_language::setup::SetupId;
-use donder_language::values::{Curve, DonderTime, Gradient};
 use donder_project_io::ProjectSession;
 use donder_runtime::PreparedSequence;
+use donder_runtime_types::{Curve, Gradient};
 
 use crate::dto::{
     EffectRasterSettings, GuiDocumentRequest, SequenceClipRaster, SequenceClipRasterError,

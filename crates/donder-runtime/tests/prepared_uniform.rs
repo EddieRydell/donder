@@ -2,19 +2,19 @@
 //! and target blocks run once before the per-strip body, and a uniform result
 //! is sampled once for its whole target. Playback must match each pixel
 //! sampled alone and the same programs run unstaged.
-use donder_language::automation::AutomationMapping;
-use donder_language::dsl::bytecode::{
+use donder_runtime::{PreparedSequence, SequencePlayback};
+use donder_runtime_types::AutomationMapping;
+use donder_runtime_types::bytecode::{
     BytecodeProgram, ContextRead, FloatUnary, Instruction, STRIP,
 };
-use donder_language::dsl::{
+use donder_runtime_types::{
+    Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
+};
+use donder_runtime_types::{
     OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition, SampleInvocation,
     SampleProgram, Value,
 };
-use donder_language::execution::{PreparedAutomation, SequenceTiming, SequenceWindow, TargetScope};
-use donder_language::values::{
-    Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
-};
-use donder_runtime::{PreparedSequence, SequencePlayback};
+use donder_runtime_types::{PreparedAutomation, SequenceTiming, SequenceWindow, TargetScope};
 use donder_test_support::marks as mark_workload;
 use donder_test_support::playback::{compile_effect, compile_operator};
 use donder_test_support::{fixtures, playback, workload};
@@ -57,7 +57,7 @@ fn automation(
         curve: curve.into(),
         param_index,
         mapping,
-        quantity: donder_language::execution::AutomatedQuantity::Value,
+        quantity: donder_runtime_types::AutomatedQuantity::Value,
     }])
 }
 

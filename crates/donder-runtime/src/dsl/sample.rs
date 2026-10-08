@@ -1,6 +1,6 @@
 //! One-pixel evaluation of an admitted effect, for tests.
 use super::{BoundParams, NoSignals, RunContext, SampleProgram, SpatialContext, StripWorkspace};
-use crate::values::Color;
+use donder_runtime_types::Color;
 
 /// Sample one pixel, its index and fraction, as a one-pixel strip. Section
 /// queries use the pixel's index and count.

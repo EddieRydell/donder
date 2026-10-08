@@ -1,17 +1,18 @@
 //! Typed playback workloads: layers of effect fixtures and operator chains on
 //! one fixture, prepared by the runtime builder.
 use core::num::NonZeroU32;
-use donder_language::dsl::bytecode::{Bank, BytecodeProgram, Instruction, NO_FRAME_CACHE, Slot};
-use donder_language::dsl::{
-    BoundParams, CompiledOperator, Invocation, OperatorDefinition, OperatorInvocation,
-    OperatorProgram, ProgramConstants, SampleDefinition, SampleProgram,
+use donder_language::compiler::{CompiledOperator, Invocation, ProgramConstants};
+use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
+use donder_runtime_types::bytecode::{Bank, BytecodeProgram, Instruction, NO_FRAME_CACHE, Slot};
+use donder_runtime_types::{
+    BoundParams, OperatorDefinition, OperatorInvocation, OperatorProgram, SampleDefinition,
+    SampleProgram,
 };
-use donder_language::execution::{
+use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, PreparedAutomation, RgbOrder, SequenceTiming, SequenceWindow,
     TargetScope,
 };
-use donder_language::values::{SampleDuration, SampleTime};
-use donder_runtime::{PreparedSequence, SequenceBuilder, SequenceRoot, SignalHandle};
+use donder_runtime_types::{SampleDuration, SampleTime};
 
 #[derive(Clone)]
 pub struct SampleFixture {
@@ -135,8 +136,9 @@ pub const FRAMES: usize = 32;
 // Profiling fixture: varied, overlapping chases and pulses compiled from the
 // same editable effect document included in new projects.
 pub fn chase_pulse_show(count: usize, layers: usize) -> Workload {
-    use donder_language::dsl::{Identifier, Value, bind_params, compile_effects};
-    use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_language::compiler::{bind_params, compile_effects};
+    use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime_types::{Identifier, Value};
     let definitions = compile_effects(include_str!(
         "../../../examples/starter/effects/standard.donder"
     ))
@@ -405,9 +407,7 @@ pub fn sample_fixture(
     let lowered = invocation
         .instance(ProgramConstants {
             pixel_count: Some(count as i32),
-            duration_seconds: Some(donder_language::values::sample_duration_seconds_f32(
-                duration,
-            )),
+            duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(duration)),
         })
         .sample();
     SampleFixture {

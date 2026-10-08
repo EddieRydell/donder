@@ -1,11 +1,11 @@
 use donder_elaboration::{PrepareOutputs, PreparedSequence, prepare};
-use donder_language::model::DonderProject;
-use donder_language::operator::GraphOperatorNode;
-use donder_language::sequence::{
+use donder_model::DonderProject;
+use donder_model::GraphOperatorNode;
+use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
     GraphNodePosition, GraphPortId, Sequence, SequenceCompositionGraph, SequenceId,
 };
-use donder_language::values::SampleTime;
+use donder_runtime_types::SampleTime;
 
 /// The starter's `layer_test`: layer 0 lights the output directly and layer 1
 /// feeds an operator.
@@ -43,7 +43,7 @@ fn edge(from: u32, to: u32, port: &str) -> EffectGraphEdge {
 /// Node `id` for one of the project's operators, with default parameters.
 fn project_operator(project: &DonderProject, id: u32, name: &str) -> CompositionGraphNodeKind {
     CompositionGraphNodeKind::Operator(GraphOperatorNode {
-        name: donder_language::names::object_name(&format!("operator_{id}")),
+        name: donder_language::object_name(&format!("operator_{id}")),
         operator: project
             .definitions()
             .operators
@@ -59,12 +59,10 @@ fn project_operator(project: &DonderProject, id: u32, name: &str) -> Composition
 
 #[test]
 fn fusion_preserves_shared_sources_and_query_clocks() {
-    use donder_language::dsl::compile_operators;
-    use donder_language::identity::SourceIdentity;
-    use donder_language::model::ProjectEdit;
-    use donder_language::operator::{
-        OperatorDefinitionId, OperatorRef, custom_operator_definition,
-    };
+    use donder_language::compiler::compile_operators;
+    use donder_model::ProjectEdit;
+    use donder_model::SourceIdentity;
+    use donder_model::{OperatorDefinitionId, OperatorRef, custom_operator_definition};
 
     let (mut project, id) = layer_test();
     let definitions = compile_operators(
@@ -98,7 +96,7 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
     // Node `id` runs operator `index`.
     let operator = |id: u32, index: usize| {
         CompositionGraphNodeKind::Operator(GraphOperatorNode {
-            name: donder_language::names::object_name(&format!("operator_{id}")),
+            name: donder_language::object_name(&format!("operator_{id}")),
             operator: refs[index].clone(),
             params: Default::default(),
         })
@@ -245,7 +243,7 @@ fn operators_that_light_black_inputs_are_prepared() {
 
 #[test]
 fn disconnected_operator_branches_are_preserved_but_not_prepared() {
-    use donder_language::operator::validate_composition_graph;
+    use donder_model::validate_composition_graph;
     let (mut project, id) = layer_test();
     let baseline = prepare(&project, &id, PrepareOutputs::All).unwrap();
     let definitions = &project.definitions().operators;

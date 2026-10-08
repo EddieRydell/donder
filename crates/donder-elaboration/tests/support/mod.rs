@@ -1,12 +1,12 @@
-use donder_language::dsl::{CompiledOperator, compile_operators};
-use donder_language::identity::SourceIdentity;
-use donder_language::model::{DonderProject, ProjectEdit};
-use donder_language::operator::{
-    GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
-};
-use donder_language::sequence::{
+use donder_language::compiler::{CompiledOperator, compile_operators};
+use donder_model::SourceIdentity;
+use donder_model::{
     CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
     GraphNodePosition, GraphPortId, SequenceId,
+};
+use donder_model::{DonderProject, ProjectEdit};
+use donder_model::{
+    GraphOperatorNode, OperatorDefinitionId, OperatorRef, custom_operator_definition,
 };
 
 pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: CompiledOperator) {
@@ -49,7 +49,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
         if node.id == output {
             node.id = mix.clone();
             node.kind = CompositionGraphNodeKind::Operator(GraphOperatorNode {
-                name: donder_language::names::object_name("mix"),
+                name: donder_language::object_name("mix"),
                 operator: OperatorRef::Custom(mixer_id.clone()),
                 params: Default::default(),
             });
@@ -69,7 +69,7 @@ pub fn append_operator(project: &mut DonderProject, id: &SequenceId, compiled: C
             id: operator.clone(),
             position: GraphNodePosition { x: 0.0, y: 0.0 },
             kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
-                name: donder_language::names::object_name("operator"),
+                name: donder_language::object_name("operator"),
                 operator: OperatorRef::Custom(definition.clone()),
                 params: Default::default(),
             }),

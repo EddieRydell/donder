@@ -1,10 +1,10 @@
 //! The schema-free syntax tree of a data document. Spans locate every part for
 //! diagnostics; equality ignores them, so two trees are equal when they say
 //! the same thing.
-use crate::dsl::Identifier;
-use crate::dsl::TextSpan;
-use crate::values::Color;
+use crate::compiler::TextSpan;
 use core::time::Duration;
+use donder_runtime_types::Color;
+use donder_runtime_types::Identifier;
 
 #[derive(Clone, Debug)]
 pub struct Spanned<T> {
@@ -87,7 +87,7 @@ pub enum DataValue {
 }
 
 /// `snake_case`: names of objects, fields and parameters.
-pub fn is_snake_case(text: &str) -> bool {
+pub(crate) fn is_snake_case(text: &str) -> bool {
     let mut characters = text.chars();
     characters
         .next()

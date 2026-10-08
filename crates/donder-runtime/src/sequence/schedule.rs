@@ -105,14 +105,14 @@ mod tests {
     };
     use crate::sequence::PreparedSequence;
     use crate::sequence::tests::program;
-    use crate::values::SampleTime;
     use alloc::boxed::Box;
     use core::num::NonZeroU32;
-    use donder_language::dsl::{
-        OperatorDefinition, OperatorProgram, SampleDefinition, SampleProgram,
-    };
-    use donder_language::execution::{
+    use donder_runtime_types::SampleTime;
+    use donder_runtime_types::{
         FixtureGeometry, OutputEncoding, RgbOrder, SequenceTiming, SequenceWindow, TargetScope,
+    };
+    use donder_runtime_types::{
+        OperatorDefinition, OperatorProgram, SampleDefinition, SampleProgram,
     };
 
     /// Slot counts of floats, ints and colors.

@@ -1460,8 +1460,10 @@ dependencies = [
  "donder-elaboration",
  "donder-language",
  "donder-language-server",
+ "donder-model",
  "donder-project-io",
  "donder-runtime",
+ "donder-runtime-types",
  "donder-sequence-api",
  "indexmap 2.14.2",
  "serde",
@@ -1504,10 +1506,12 @@ dependencies = [
  "donder-elaboration",
  "donder-language",
  "donder-language-server",
+ "donder-model",
  "donder-output",
  "donder-preview",
  "donder-project-io",
  "donder-runtime",
+ "donder-runtime-types",
  "donder-sequence-api",
  "esp-idf-part",
  "espflash",
@@ -1541,7 +1545,9 @@ version = "0.1.0"
 dependencies = [
  "camino",
  "donder-language",
+ "donder-model",
  "donder-project-io",
+ "donder-runtime-types",
  "donder-sequence-api",
  "glam",
  "indexmap 2.14.2",
@@ -1557,8 +1563,10 @@ dependencies = [
  "crc32fast",
  "criterion",
  "donder-language",
+ "donder-model",
  "donder-project-io",
  "donder-runtime",
+ "donder-runtime-types",
  "donder-test-support",
  "indexmap 2.14.2",
 ]
@@ -1568,13 +1576,8 @@ name = "donder-language"
 version = "0.1.0"
 dependencies = [
  "camino",
- "fugit",
- "glam",
+ "donder-runtime-types",
  "indexmap 2.14.2",
- "libm",
- "micromath",
- "rkyv",
- "uuid",
 ]
 
 [[package]]
@@ -1583,11 +1586,25 @@ version = "0.1.0"
 dependencies = [
  "camino",
  "donder-language",
+ "donder-model",
  "donder-project-io",
+ "donder-runtime-types",
  "indexmap 2.14.2",
  "lsp-types",
  "serde",
  "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "donder-model"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "donder-language",
+ "donder-runtime-types",
+ "glam",
+ "indexmap 2.14.2",
  "uuid",
 ]
 
@@ -1597,6 +1614,7 @@ version = "0.1.0"
 dependencies = [
  "artnet_protocol",
  "donder-language",
+ "donder-model",
  "indexmap 2.14.2",
  "sacn",
  "uuid",
@@ -1607,8 +1625,8 @@ name = "donder-preview"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "donder-language",
  "donder-runtime",
+ "donder-runtime-types",
  "glam",
  "wgpu",
 ]
@@ -1621,6 +1639,8 @@ dependencies = [
  "donder-data-derive",
  "donder-elaboration",
  "donder-language",
+ "donder-model",
+ "donder-runtime-types",
  "indexmap 2.14.2",
  "tempfile",
  "uuid",
@@ -1633,7 +1653,18 @@ dependencies = [
  "crc32fast",
  "criterion",
  "donder-language",
+ "donder-runtime-types",
  "donder-test-support",
+ "libm",
+ "micromath",
+ "rkyv",
+]
+
+[[package]]
+name = "donder-runtime-types"
+version = "0.1.0"
+dependencies = [
+ "fugit",
  "libm",
  "micromath",
  "rkyv",
@@ -1643,9 +1674,10 @@ dependencies = [
 name = "donder-sequence-api"
 version = "0.1.0"
 dependencies = [
- "donder-language",
+ "donder-model",
  "donder-project-io",
  "donder-runtime",
+ "donder-runtime-types",
  "serde",
  "specta",
  "specta-serde",
@@ -1658,6 +1690,7 @@ version = "0.1.0"
 dependencies = [
  "donder-language",
  "donder-runtime",
+ "donder-runtime-types",
  "indexmap 2.14.2",
 ]
 

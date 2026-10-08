@@ -1,9 +1,9 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_language::dsl::Identifier;
-use donder_language::identity::DocumentId;
-pub use donder_language::imports::ImportSource;
-use donder_language::model::DonderProject;
-use donder_language::sequence::AssetId;
+pub use donder_language::ImportSource;
+use donder_model::AssetId;
+use donder_model::DocumentId;
+use donder_model::DonderProject;
+use donder_runtime_types::Identifier;
 use indexmap::{IndexMap, IndexSet};
 use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
@@ -51,7 +51,7 @@ impl SourceProject {
         &mut self,
         path: Utf8PathBuf,
         objects: Vec<(SourceObjectKind, String)>,
-    ) -> Result<Vec<donder_language::identity::SourceIdentity>, String> {
+    ) -> Result<Vec<donder_model::SourceIdentity>, String> {
         if path.as_str().is_empty()
             || path.is_absolute()
             || path.as_str().contains('\\')
@@ -75,9 +75,7 @@ impl SourceProject {
         let source = SourceDocument::new(Vec::new(), source_objects, SourceDocumentKind::Data)?;
         let identities = objects
             .into_iter()
-            .map(|(_, key)| {
-                donder_language::identity::SourceIdentity::from_document(document.clone(), key)
-            })
+            .map(|(_, key)| donder_model::SourceIdentity::from_document(document.clone(), key))
             .collect();
         self.documents.insert(document, source);
         Ok(identities)
@@ -90,7 +88,7 @@ impl SourceProject {
         document: &DocumentId,
         kind: SourceObjectKind,
         prefix: &str,
-    ) -> Result<donder_language::identity::SourceIdentity, String> {
+    ) -> Result<donder_model::SourceIdentity, String> {
         if !self.is_project_owned(document) {
             return Err("New objects require a project-owned document.".to_string());
         }
@@ -119,7 +117,7 @@ impl SourceProject {
             .find(|key| source.objects.iter().all(|object| object.id() != key))
             .ok_or_else(|| "No source object identifiers remain.".to_string())?;
         source.objects.push(SourceObjectId::new(kind, key.clone())?);
-        Ok(donder_language::identity::SourceIdentity::from_document(
+        Ok(donder_model::SourceIdentity::from_document(
             document.clone(),
             key,
         ))
@@ -285,12 +283,12 @@ pub enum SourceDocumentKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ImportEdge {
-    pub(crate) declaration: donder_language::imports::ImportDeclaration,
+    pub(crate) declaration: donder_language::ImportDeclaration,
     pub(crate) targets: Vec<DocumentId>,
 }
 
 impl ImportEdge {
-    pub fn declaration(&self) -> &donder_language::imports::ImportDeclaration {
+    pub fn declaration(&self) -> &donder_language::ImportDeclaration {
         &self.declaration
     }
 
@@ -347,11 +345,8 @@ pub fn source_file_list(session: &ProjectSession) -> BTreeMap<DocumentId, Vec<St
 
 impl SourceObjectKind {
     /// The kind of an owned child at this slot; source references do not add slots.
-    pub fn owned_child_kind(
-        &self,
-        slot: &donder_language::identity::OwnedObjectSlot,
-    ) -> Option<Self> {
-        use donder_language::identity::OwnedObjectSlot;
+    pub fn owned_child_kind(&self, slot: &donder_model::OwnedObjectSlot) -> Option<Self> {
+        use donder_model::OwnedObjectSlot;
         match (self, slot) {
             (Self::Project, OwnedObjectSlot::Setup) => Some(Self::Setup),
             (Self::Project, OwnedObjectSlot::Sequence(_)) => Some(Self::Sequence),
@@ -369,16 +364,11 @@ impl ProjectSession {
     pub fn owned_object_exists(
         &self,
         kind: &SourceObjectKind,
-        identity: &donder_language::identity::ObjectIdentity,
+        identity: &donder_model::ObjectIdentity,
     ) -> bool {
-        use donder_language::{
-            controller::ControllerId,
-            fixture::FixtureSource,
-            identity::OwnedObjectSlot,
-            layout::{FixtureInstanceId, LayoutFixtureKind, LayoutId},
-            patch::PatchId,
-            sequence::SequenceId,
-            setup::SetupId,
+        use donder_model::{
+            ControllerId, FixtureInstanceId, FixtureSource, LayoutFixtureKind, LayoutId,
+            OwnedObjectSlot, PatchId, SequenceId, SetupId,
         };
         if identity.source().is_some() {
             return false;

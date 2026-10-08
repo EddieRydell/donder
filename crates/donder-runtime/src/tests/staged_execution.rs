@@ -10,10 +10,10 @@ use std::prelude::rust_2024::*;
 
 use crate::dsl::bytecode::{FloatBinary, Instruction};
 use crate::dsl::{BoundParams, DslBindCache, NoSignals, STRIP, Strip, StripWorkspace};
-use donder_language::dsl::{OperatorDefinition, OperatorInvocation, OperatorProgram};
-use donder_language::dsl::{SampleInvocation, Value};
-use donder_language::execution::{FixtureGeometry, SpatialContext, TargetScope};
-use donder_language::values::SampleTime;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::{FixtureGeometry, SpatialContext, TargetScope};
+use donder_runtime_types::{OperatorDefinition, OperatorInvocation, OperatorProgram};
+use donder_runtime_types::{SampleInvocation, Value};
 use donder_test_support::workload;
 
 use super::playback;
@@ -152,7 +152,7 @@ fn frame_caches_preserve_choices_arrays_reductions_and_seeks() {
 
 #[test]
 fn strips_preserve_local_global_and_subset_target_addressing() {
-    use donder_language::execution::{OutputEncoding, RgbOrder};
+    use donder_runtime_types::{OutputEncoding, RgbOrder};
     let source = effect("effect Source { sample { rgb(pixel.fraction, time * 0.2, 0.5) } }");
     let operator = operator(
         "operator Address { input source; sample {
@@ -500,7 +500,7 @@ fn specialized_branches_keep_runtime_parameters() {
 
 #[test]
 fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
-    use donder_language::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+    use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
     let effect = compile_effect(
         "effect Samples {
             param shape: curve in -1.0..2.0;
@@ -612,7 +612,7 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
 
 #[test]
 fn target_blocks_rerun_when_the_target_shape_changes() {
-    use donder_language::values::{Color, Gradient, GradientStop};
+    use donder_runtime_types::{Color, Gradient, GradientStop};
     let effect = compile_effect(
         "effect Target { param colors: gradient; sample {
             guard pixel.index >= 0;

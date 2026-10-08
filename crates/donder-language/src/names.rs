@@ -1,7 +1,7 @@
 //! Object names. Every object other objects refer to has a `snake_case`
 //! name, unique where it is declared, and the GUI generates one for each
 //! object it creates.
-use crate::dsl::Identifier;
+use donder_runtime_types::Identifier;
 
 /// Whether `text` is a valid object name: `snake_case`, starting with a
 /// lowercase letter or `_`.
@@ -34,7 +34,7 @@ pub fn object_name(text: &str) -> Identifier {
 
 /// A `snake_case` name in `PascalCase`, as enum options are written:
 /// `type_1` becomes `Type1`, `per_fixture` becomes `PerFixture`.
-pub fn pascal_from_snake(text: &str) -> String {
+pub(crate) fn pascal_from_snake(text: &str) -> String {
     text.split('_')
         .filter(|part| !part.is_empty())
         .map(|part| {

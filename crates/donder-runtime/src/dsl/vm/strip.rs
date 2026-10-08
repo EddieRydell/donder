@@ -27,10 +27,10 @@ use crate::sampling::{
     scale_color, section_position,
 };
 use crate::sections::{PreparedSections, SectionContext, SectionPixel};
-use crate::values::{Color, Curve, Gradient, Marks, SampleTime};
 use alloc::vec::Vec;
 use core::cell::{Cell, RefCell};
-use donder_language::dsl::Value;
+use donder_runtime_types::Value;
+use donder_runtime_types::{Color, Curve, Gradient, Marks, SampleTime};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
@@ -966,7 +966,7 @@ impl<'m> Machine<'m> {
         {
             return time;
         }
-        let time = crate::values::sample_time_from_seconds_f32(seconds).ok();
+        let time = donder_runtime_types::sample_time_from_seconds_f32(seconds).ok();
         self.query.set(Some((bits, time)));
         time
     }
@@ -1071,7 +1071,7 @@ impl<'m> Machine<'m> {
     }
 
     /// An enum option's index in the program's names.
-    fn enum_index(&self, name: &donder_language::dsl::Identifier) -> i32 {
+    fn enum_index(&self, name: &donder_runtime_types::Identifier) -> i32 {
         self.program
             .enums
             .iter()

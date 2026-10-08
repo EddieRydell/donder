@@ -1,5 +1,5 @@
 use super::*;
-use donder_language::identity::{ObjectIdentity, OwnedObjectSlot};
+use donder_model::{ObjectIdentity, OwnedObjectSlot};
 
 impl Loader {
     /// A declared object, or an object it owns: the owner's reference

@@ -80,15 +80,15 @@ budgets; workspace estimation uses valid producer references. Impossible
 representation conversions return an archive error.
 
 Bytecode instructions, slots, validated programs and parameter bindings belong
-to `donder-language`. Runtime depends on the portable language definitions, never
-the reverse. The language's default `host` feature enables compilation and the
-authoring model; firmware uses its `no_std + alloc` definitions without that feature.
+to `donder-runtime-types`, which the compiler targets and the runtime and
+firmware consume. Neither the language nor the model depends on the runtime.
 Raw bytecode cannot execute directly. Parameter binding pairs values with their
 admitted program before execution; evaluation does not accept an independently
 replaceable parameter bank.
 
 Authored parameter declarations, defaults, names, compiled effect/operator
-declarations, and layout geometry units belong to `donder-language`. Runtime
+declarations, and layout geometry units belong to `donder-language` and
+`donder-model`. Runtime
 stores executable programs and positional parameter schemas, not source-level
 declarations. Each authored clip references one sample effect; mark-triggered
 effects query marks and curve crossings inside that same sample program.
@@ -98,7 +98,8 @@ read-only frames/metadata, prepared clip sampling, the owner-bound sequence
 constructor, and the prepared archive codec. It does not re-export language types
 or expose the VM, raw instruction execution, binding caches, registers, signal
 providers or caller-managed execution workspaces. Mathematical sampling primitives
-shared with authoring live in language; VM instruction execution stays in runtime.
+shared with authoring live in `donder-runtime-types`; VM instruction execution
+stays in runtime.
 The archive codec remains with the private prepared representation, separate from
 project IO, network transport and device storage. Loading a trusted producer
 archive is fallible for format, corruption, representation and resource-budget

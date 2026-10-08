@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use donder_language::sequence::{
+use donder_model::{
     AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, GraphNodePosition,
     Sequence, SequenceLayerId,
 };
@@ -11,13 +11,13 @@ use crate::dto::{SequenceGraphEdge, SequenceGraphNodePosition};
 
 pub(super) fn connect_nodes(
     sequence: &mut Sequence,
-    definitions: &donder_language::operator::OperatorDefinitionStore,
+    definitions: &donder_model::OperatorDefinitionStore,
     connection: SequenceGraphEdge,
     previous: Option<SequenceGraphEdge>,
 ) -> Result<(), GuiMutationError> {
     use super::model::{ensure_graph_node_exists, graph_input_cardinality};
-    use donder_language::operator::{OperatorPortCardinality, validate_composition_graph};
-    use donder_language::sequence::{EffectGraphEdge, GraphPortId};
+    use donder_model::{EffectGraphEdge, GraphPortId};
+    use donder_model::{OperatorPortCardinality, validate_composition_graph};
 
     let from = parse_graph_node_id(&connection.from_node)?;
     let to = parse_graph_node_id(&connection.to_node)?;

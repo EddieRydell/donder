@@ -1,9 +1,8 @@
 use super::{GuiMutationError, ResolvedGuiObject};
 use crate::dto::{GuiOwnershipEdit, GuiOwnershipSlot, ReusableStorage};
-use donder_language::{
-    layout::{FixtureInstanceId, LayoutId},
-    ownership::edit::{OwnershipSite, make_independent, make_reusable, use_existing},
-    setup::SetupId,
+use donder_model::{
+    FixtureInstanceId, LayoutId, OwnershipSite, SetupId, make_independent, make_reusable,
+    use_existing,
 };
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
@@ -98,7 +97,7 @@ pub(super) fn edit(
                     .add_object(
                         owner.identity.document_id(),
                         kind,
-                        donder_language::names::object_name(&name).as_str(),
+                        donder_language::object_name(&name).as_str(),
                     )
                     .map_err(GuiMutationError::Invalid)?,
                 ReusableStorage::NewFile => {
@@ -115,7 +114,7 @@ pub(super) fn edit(
 
 pub(super) fn available_sources(
     session: &ProjectSession,
-    owner: &donder_language::identity::DocumentId,
+    owner: &donder_model::DocumentId,
     kinds: &[SourceObjectKind],
 ) -> Vec<crate::dto::GuiObjectRef> {
     donder_project_io::available_reusable_sources(session, owner, kinds)

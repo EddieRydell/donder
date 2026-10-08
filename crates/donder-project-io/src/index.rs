@@ -2,8 +2,8 @@
 //! loading resolves them: the language server's definitions, references and
 //! renames. Script declarations are named, not located, and the server finds
 //! them in its script analysis.
-use donder_language::dsl::TextSpan;
-use donder_language::identity::DocumentId;
+use donder_language::compiler::TextSpan;
+use donder_model::DocumentId;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ProjectIndex {

@@ -1,8 +1,8 @@
 use crate::dto::*;
 use crate::gui::{ResolvedGuiObject, blocked};
-use donder_language::fixture::FixtureDefinitionId;
-use donder_language::geometry::PreparedFixtureDefinitions;
-use donder_language::layout::{LayoutFixture, LayoutFixtureKind, LayoutId};
+use donder_model::FixtureDefinitionId;
+use donder_model::PreparedFixtureDefinitions;
+use donder_model::{LayoutFixture, LayoutFixtureKind, LayoutId};
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 pub(in crate::gui) fn project_fixture(
@@ -24,7 +24,7 @@ pub(in crate::gui) fn project_fixture(
         }
         [parent @ .., GuiOwnedStep::Fixture { id }] => {
             let parent = parent.iter().fold(
-                donder_language::identity::ObjectIdentity::from(resolved.identity.clone()),
+                donder_model::ObjectIdentity::from(resolved.identity.clone()),
                 |address, step| {
                     address.owned(
                         step.try_into()
@@ -35,12 +35,12 @@ pub(in crate::gui) fn project_fixture(
             let Some(placement) = session
                 .project
                 .layout(&LayoutId(parent))
-                .and_then(|layout| layout.fixture(donder_language::layout::FixtureInstanceId(*id)))
+                .and_then(|layout| layout.fixture(donder_model::FixtureInstanceId(*id)))
             else {
                 return blocked("Fixture was not found.", Vec::new());
             };
             let LayoutFixtureKind::Fixture {
-                definition: donder_language::fixture::FixtureSource::Inline(value),
+                definition: donder_model::FixtureSource::Inline(value),
                 ..
             } = &placement.kind
             else {
@@ -50,7 +50,7 @@ pub(in crate::gui) fn project_fixture(
         }
         _ => return blocked("Unsupported owned fixture path.", Vec::new()),
     };
-    let pixels = donder_language::geometry::prepare_geometry(definition);
+    let pixels = donder_model::prepare_geometry(definition);
     let pixels = pixels
         .iter()
         .enumerate()
@@ -65,7 +65,7 @@ pub(in crate::gui) fn project_fixture(
         .elements
         .iter()
         .flat_map(|element| {
-            donder_language::geometry::element_handles(element)
+            donder_model::element_handles(element)
                 .into_iter()
                 .enumerate()
                 .map(|(index, position)| GuiFixtureHandle {
@@ -163,20 +163,16 @@ fn fixture(fixture: &LayoutFixture) -> GuiLayoutFixture {
                 transform: value,
             } => GuiLayoutFixtureKind::Fixture {
                 definition: match definition {
-                    donder_language::fixture::FixtureSource::Inline(value) => {
-                        GuiFixtureSource::Inline {
-                            elements: value
-                                .elements
-                                .iter()
-                                .map(crate::gui::fixture::gui_element)
-                                .collect(),
-                        }
-                    }
-                    donder_language::fixture::FixtureSource::Reference(id) => {
-                        GuiFixtureSource::Reference {
-                            source: definition_ref(id),
-                        }
-                    }
+                    donder_model::FixtureSource::Inline(value) => GuiFixtureSource::Inline {
+                        elements: value
+                            .elements
+                            .iter()
+                            .map(crate::gui::fixture::gui_element)
+                            .collect(),
+                    },
+                    donder_model::FixtureSource::Reference(id) => GuiFixtureSource::Reference {
+                        source: definition_ref(id),
+                    },
                 },
                 transform: crate::gui::fixture::gui_transform(value),
             },

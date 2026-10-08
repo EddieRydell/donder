@@ -1,6 +1,6 @@
 use super::*;
 use camino::Utf8PathBuf;
-use donder_language::operator::{OperatorDefinitionId, custom_operator_definition};
+use donder_model::{OperatorDefinitionId, custom_operator_definition};
 use donder_project_io::{
     ProjectMetadata, ProjectWorkspace, SourceDocument, SourceDocumentKind, SourceObjectId,
     SourceObjectKind, SourceProject,
@@ -296,7 +296,7 @@ impl BrowserSession {
 /// declarations (comments) is not part of any document.
 #[wasm_bindgen(js_name = declarationSources)]
 pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
-    let messages = |diagnostics: Vec<donder_language::dsl::Diagnostic>| {
+    let messages = |diagnostics: Vec<donder_language::compiler::Diagnostic>| {
         JsValue::from_str(
             &diagnostics
                 .into_iter()
@@ -305,8 +305,8 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
                 .join("\n"),
         )
     };
-    let declarations = donder_language::dsl::declaration_spans(source).map_err(messages)?;
-    let functions = donder_language::dsl::function_spans(source)
+    let declarations = donder_language::compiler::declaration_spans(source).map_err(messages)?;
+    let functions = donder_language::compiler::function_spans(source)
         .map_err(messages)?
         .into_iter()
         .map(|span| {
@@ -320,8 +320,8 @@ pub fn declaration_sources(source: &str) -> Result<JsValue, JsValue> {
         .into_iter()
         .map(|declaration| {
             let kind = match declaration.kind {
-                donder_language::dsl::DeclarationKind::Effect => BrowserSourceKind::Effect,
-                donder_language::dsl::DeclarationKind::Operator => BrowserSourceKind::Operator,
+                donder_language::compiler::DeclarationKind::Effect => BrowserSourceKind::Effect,
+                donder_language::compiler::DeclarationKind::Operator => BrowserSourceKind::Operator,
             };
             let text = source
                 .get(declaration.span.start..declaration.span.end)

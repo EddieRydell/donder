@@ -8,10 +8,10 @@ license = "MIT"
 
 [features]
 default = ["atomic"]
-atomic = ["donder-language/atomic"]
+atomic = ["donder-runtime-types/atomic"]
 
 [dependencies]
-donder-language = { path = "../donder-language", default-features = false }
+donder-runtime-types.workspace = true
 rkyv.workspace = true
 crc32fast.workspace = true
 libm.workspace = true
@@ -19,7 +19,7 @@ micromath.workspace = true
 
 [dev-dependencies]
 donder-test-support.workspace = true
-donder-language = { path = "../donder-language", features = ["host"] }
+donder-language.workspace = true
 criterion.workspace = true
 
 [[bench]]

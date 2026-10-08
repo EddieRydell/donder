@@ -1,14 +1,14 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::controller::{ControllerId, ControllerPortId};
-use donder_language::layout::FixtureInstanceId;
-use donder_language::model::{DonderProject, ProjectEdit};
-use donder_language::patch::PixelSpan;
-use donder_language::sequence::SequenceId;
-use donder_language::values::SampleTime;
-use donder_language::values::sample_time_from_frame;
+use donder_model::FixtureInstanceId;
+use donder_model::PixelSpan;
+use donder_model::SequenceId;
+use donder_model::{ControllerId, ControllerPortId};
+use donder_model::{DonderProject, ProjectEdit};
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::sample_time_from_frame;
 
 fn starter() -> DonderProject {
     let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/starter");
@@ -170,11 +170,11 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .cloned()
         .map(|mut sequence| {
             for effect in &mut sequence.effects {
-                effect.scope = donder_language::effect::EffectScope::WholeTarget;
+                effect.scope = donder_model::EffectScope::WholeTarget;
             }
             for collection in &mut sequence.mark_collections {
                 collection.marks = [58_000_000, 59_000_000, 60_000_000]
-                    .map(donder_language::values::DonderTime::from_micros)
+                    .map(donder_language::DonderTime::from_micros)
                     .to_vec();
             }
             ProjectEdit::ReplaceSequence {
@@ -206,7 +206,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             3390,
         ),
     ] {
-        let compiled = donder_language::dsl::compile_operators(&format!(
+        let compiled = donder_language::compiler::compile_operators(&format!(
             "operator TimeWarp {{ input source; param offset_seconds: float in -1.0..1.0 = 0.0; sample {{ {query} }} }}"
         )).unwrap().remove(0);
         let definition_id = project
@@ -218,15 +218,12 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             .unwrap()
             .0
             .clone();
-        let definition =
-            donder_language::operator::custom_operator_definition(definition_id.clone(), compiled);
+        let definition = donder_model::custom_operator_definition(definition_id.clone(), compiled);
         project
-            .apply_edits(
-                [donder_language::model::ProjectEdit::SetOperatorDefinition {
-                    id: definition_id,
-                    value: definition,
-                }],
-            )
+            .apply_edits([donder_model::ProjectEdit::SetOperatorDefinition {
+                id: definition_id,
+                value: definition,
+            }])
             .unwrap();
         let id = project
             .root()
@@ -273,7 +270,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
 
 #[test]
 fn shared_pixels_and_multiple_controllers_keep_output_order() {
-    use donder_language::identity::SourceIdentity;
+    use donder_model::SourceIdentity;
     let mut project = starter();
     let selected = ports(&project);
     let original_id = selected[0].0.clone();
@@ -289,9 +286,7 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
     let mut setup = project.setup(project.root().setup.id()).unwrap().clone();
     setup
         .controllers
-        .push(donder_language::ownership::ValueSource::Reference(
-            other_id.clone(),
-        ));
+        .push(donder_model::ValueSource::Reference(other_id.clone()));
     let mut patch = project.patch(setup.patch.id()).unwrap().clone();
     patch.routes[1].controller = other_id.clone();
     patch.routes[1].target = patch.routes[0].target.clone();
@@ -325,8 +320,8 @@ fn shared_pixels_and_multiple_controllers_keep_output_order() {
 
 #[test]
 fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
-    use donder_language::operator::GraphOperatorNode;
-    use donder_language::sequence::{
+    use donder_model::GraphOperatorNode;
+    use donder_model::{
         CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind, EffectGraphEdge,
         GraphNodePosition, GraphPortId,
     };
@@ -401,7 +396,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         id: CompositionGraphNodeId(10000),
         position: GraphNodePosition { x: 0.0, y: 0.0 },
         kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
-            name: donder_language::names::object_name("operator"),
+            name: donder_language::object_name("operator"),
             operator: invert,
             params: Default::default(),
         }),

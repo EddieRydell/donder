@@ -1,18 +1,15 @@
 use camino::Utf8PathBuf;
 use donder_elaboration::{PrepareOutputs, prepare};
-use donder_language::dsl::Identifier;
-use donder_language::effect::{
-    CurveSource, EffectParamValue, EffectRef, EffectScope, GradientSource,
-};
-use donder_language::model::DonderProject;
-use donder_language::sequence::SequenceId;
-use donder_language::values::SampleTime;
-use donder_language::values::{
-    Color, Curve, CurvePoint, DonderDuration, DonderTime, Gradient, GradientStop,
-};
+use donder_language::{DonderDuration, DonderTime};
+use donder_model::DonderProject;
+use donder_model::SequenceId;
+use donder_model::{CurveSource, EffectParamValue, EffectRef, EffectScope, GradientSource};
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
 use donder_runtime::SequencePlayback;
+use donder_runtime_types::Identifier;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::{Color, Curve, CurvePoint, Gradient, GradientStop};
 use std::time::Duration;
 
 #[derive(Clone, Copy, Debug)]
@@ -279,8 +276,9 @@ fn selected_sections(sequence: &PreparedSequence, scope: &EffectScope) -> Vec<bo
                 EffectScope::PerFixture => fixture.pixel_count.div_ceil(7),
             };
             let choices = [0.0, 1.0, 2.0].map(|choice| {
-                (donder_language::sampling::deterministic_random([1000.75, choice].into_iter())
-                    * count as f32)
+                (donder_runtime_types::sampling::deterministic_random(
+                    [1000.75, choice].into_iter(),
+                ) * count as f32)
                     .floor() as usize
             });
             let start = match scope {

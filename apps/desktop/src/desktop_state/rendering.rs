@@ -8,7 +8,7 @@ use crate::state_tasks::RenderRefreshPayload;
 impl DesktopState {
     pub(super) fn refresh_render_session(
         &self,
-        project: &donder_language::model::DonderProject,
+        project: &donder_model::DonderProject,
     ) -> Option<crate::rendering::RenderSessionPrepareError> {
         let mut rendering = lock_unpoisoned(&self.sequence_render);
         let result = rendering.refresh_project(project);
@@ -41,7 +41,7 @@ impl DesktopState {
     pub(super) fn schedule_sequence_render_prepare(
         &self,
         project: Arc<ProjectSession>,
-        sequence_id: donder_language::sequence::SequenceId,
+        sequence_id: donder_model::SequenceId,
     ) {
         lock_unpoisoned(&self.workspace).render_target = Some((
             project.project.root().setup.id().clone(),

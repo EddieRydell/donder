@@ -223,7 +223,7 @@ impl DesktopState {
     pub(super) fn resolve_sequence_id(
         &self,
         request: &GuiDocumentRequest,
-    ) -> Option<donder_language::sequence::SequenceId> {
+    ) -> Option<donder_model::SequenceId> {
         if request.project_revision != self.snapshot().project_revision
             || request.view != crate::dto::DocumentViewId::Sequence
         {
@@ -231,7 +231,7 @@ impl DesktopState {
         }
         let project = self.project_session()?;
         let resolved = crate::gui::resolve_request(&project, request).ok()?;
-        let id = donder_language::sequence::SequenceId(resolved.object_identity());
+        let id = donder_model::SequenceId(resolved.object_identity());
         project.project.sequence(&id).is_some().then_some(id)
     }
 }

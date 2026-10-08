@@ -1,8 +1,8 @@
 //! Data document tokens, classified from the tokens alone: a data document's
 //! grammar says what each name is without resolving it.
 use super::{SemanticToken, TokenClass};
+use crate::compiler::syntax::lexer::{Keyword, LexMode, TokenKind, lex_mode};
 use crate::data::tree::is_pascal_case;
-use crate::dsl::syntax::lexer::{Keyword, LexMode, TokenKind, lex_mode};
 
 pub fn data_tokens(source: &str) -> Vec<SemanticToken> {
     let tokens = lex_mode(source, LexMode::Data);
@@ -100,7 +100,7 @@ pub enum DataTokenKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DataToken {
     pub kind: DataTokenKind,
-    pub span: crate::dsl::TextSpan,
+    pub span: crate::compiler::TextSpan,
 }
 
 /// The tokens of a data document, without the end marker.

@@ -1,10 +1,10 @@
-use donder_language::Shared;
-use donder_language::dsl::{
-    BindingError, Invocation, ParamDecl, ProgramConstants, Type, Value, compile_effects,
-    compile_operators,
+use donder_language::compiler::{
+    Invocation, ParamDecl, ProgramConstants, compile_effects, compile_operators,
 };
-use donder_language::execution::PreparedAutomation;
-use donder_language::values::{
+use donder_runtime_types::PreparedAutomation;
+use donder_runtime_types::Shared;
+use donder_runtime_types::{BindingError, Type, Value};
+use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, Marks, SampleDuration, SampleTime,
 };
 
@@ -235,7 +235,7 @@ fn invocations(
                 duration: SampleDuration::from_ticks(2_000_000),
                 curve: Shared::new(ramp()),
                 mapping: param.automation_mapping()?,
-                quantity: donder_language::execution::AutomatedQuantity::Value,
+                quantity: donder_runtime_types::AutomatedQuantity::Value,
                 param_index: index as u16,
             })
         })

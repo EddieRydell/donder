@@ -1,5 +1,5 @@
-use donder_language::controller::ControllerId;
-use donder_language::setup::SetupId;
+use donder_model::ControllerId;
+use donder_model::SetupId;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use super::model::object_identity_from_gui;
@@ -89,7 +89,7 @@ pub(super) fn edit_setup(
     match edit {
         SetupGuiEdit::AttachController { controller } => {
             let identity = object_identity_from_gui(&controller)?;
-            donder_language::setup::authoring::attach_controller(
+            donder_model::attach_controller(
                 &mut session.project,
                 &setup.id,
                 ControllerId(identity.clone()),
@@ -114,7 +114,7 @@ pub(super) fn edit_setup(
             if remove_outputs {
                 ensure_owned_target(session, &setup.patch.id().0)?;
             }
-            donder_language::setup::authoring::detach_controller(
+            donder_model::detach_controller(
                 &mut session.project,
                 &setup.id,
                 &ControllerId(identity),
@@ -123,7 +123,7 @@ pub(super) fn edit_setup(
             .map_err(GuiMutationError::Invalid)?;
         }
         SetupGuiEdit::AddController { config, ports } => {
-            use donder_language::identity::OwnedObjectSlot;
+            use donder_model::OwnedObjectSlot;
             let taken = setup
                 .controllers
                 .iter()
@@ -139,9 +139,7 @@ pub(super) fn edit_setup(
             let controller = super::controller::domain_controller(id, None, config, ports)?;
             setup
                 .controllers
-                .push(donder_language::ownership::ValueSource::Inline(Box::new(
-                    controller,
-                )));
+                .push(donder_model::ValueSource::Inline(Box::new(controller)));
             session
                 .project
                 .replace_setup(&setup.id.clone(), setup)
@@ -153,7 +151,7 @@ pub(super) fn edit_setup(
 
 pub(super) fn ensure_owned_target(
     session: &ProjectSession,
-    identity: &donder_language::identity::ObjectIdentity,
+    identity: &donder_model::ObjectIdentity,
 ) -> Result<(), GuiMutationError> {
     if session.source.is_project_owned(identity.document_id()) {
         Ok(())

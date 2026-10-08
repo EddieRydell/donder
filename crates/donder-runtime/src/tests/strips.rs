@@ -12,13 +12,14 @@ use crate::dsl::{
     BoundParams, DslBindCache, NoSignals, RunContext, RuntimeError, STRIP, SampleProgram,
     SpatialContext, Strip, StripSignals, StripWorkspace,
 };
-use donder_language::dsl::{
-    CompiledEffect, ParamDecl, ParamRange, SampleInvocation, Type, Value, compile_effects,
-    compile_operators, listing,
+use donder_language::compiler::{
+    CompiledEffect, ParamDecl, ParamRange, compile_effects, compile_operators,
 };
-use donder_language::values::{
+use donder_runtime_types::bytecode::listing;
+use donder_runtime_types::{
     Color, Curve, CurvePoint, Gradient, GradientStop, SampleDuration, SampleTime,
 };
+use donder_runtime_types::{SampleInvocation, Type, Value};
 use std::prelude::rust_2024::*;
 
 const DURATION: u32 = 8_000_000;

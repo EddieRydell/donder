@@ -1,4 +1,4 @@
-use donder_language::effect::{CurveId, GradientId};
+use donder_model::{CurveId, GradientId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject, blocked, model};
@@ -67,7 +67,7 @@ pub(super) fn edit_curve(
     definition.curve = curve;
     session
         .project
-        .apply_edits([donder_language::model::ProjectEdit::SetCurveDefinition {
+        .apply_edits([donder_model::ProjectEdit::SetCurveDefinition {
             id: CurveId(resolved.identity.clone()),
             value: definition,
         }])
@@ -94,11 +94,9 @@ pub(super) fn edit_gradient(
     definition.gradient = gradient;
     session
         .project
-        .apply_edits(
-            [donder_language::model::ProjectEdit::SetGradientDefinition {
-                id: GradientId(resolved.identity.clone()),
-                value: definition,
-            }],
-        )
+        .apply_edits([donder_model::ProjectEdit::SetGradientDefinition {
+            id: GradientId(resolved.identity.clone()),
+            value: definition,
+        }])
         .map_err(GuiMutationError::Invalid)
 }

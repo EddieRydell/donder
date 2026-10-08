@@ -7,7 +7,8 @@ authors = ["Donder"]
 license = "MIT"
 
 [dependencies]
-donder-language.workspace = true
+donder-model.workspace = true
+donder-runtime-types.workspace = true
 donder-project-io.workspace = true
 donder-runtime.workspace = true
 serde.workspace = true

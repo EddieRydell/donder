@@ -1,0 +1,20 @@
+[package]
+name = "donder-runtime-types"
+edition.workspace = true
+version.workspace = true
+description = "Values, bytecode and prepared inputs that Donder playback accepts"
+authors = ["Donder"]
+license = "MIT"
+
+[features]
+atomic = []
+
+[dependencies]
+fugit.workspace = true
+rkyv.workspace = true
+libm.workspace = true
+micromath.workspace = true
+
+[lints.rust]
+unreachable_pub = "warn"
+unnameable_types = "warn"

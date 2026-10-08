@@ -8,8 +8,8 @@ use crate::signal::{
     CachedSignalFrame, EffectAutomationWorkspace, EvaluationWorkspace, PreparedEffect,
     PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace, SignalGraph,
 };
-use crate::values::{Color, SampleDuration, SampleTime};
 use alloc::boxed::Box;
+use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 /// One effect at one time, sampled over any selection of pixel coordinates.
 /// Both sequence playback and sparse editor rasters use this evaluator.

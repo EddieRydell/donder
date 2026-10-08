@@ -132,7 +132,7 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         CachedEffectSample, CachedSignalFrame, EffectAutomationWorkspace, PreparedOperatorNode,
         PreparedSignalKind,
     };
-    use crate::values::Color;
+    use donder_runtime_types::Color;
 
     let signal = &sequence.signals;
     let plan = &signal.plan;
@@ -258,8 +258,8 @@ mod tests {
     use super::*;
     use crate::dsl::BoundParams;
     use crate::dsl::bytecode::{Instruction, Slot};
-    use donder_language::dsl::{ProgramConstants, compile_effects, compile_operators};
-    use donder_language::execution::{FixtureGeometry, SequenceTiming, TargetScope};
+    use donder_language::compiler::{ProgramConstants, compile_effects, compile_operators};
+    use donder_runtime_types::{FixtureGeometry, SequenceTiming, TargetScope};
 
     /// `data` framed as an archive of the current format.
     fn framed(data: &SequenceData) -> Vec<u8> {

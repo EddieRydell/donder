@@ -7,9 +7,10 @@
 //! value has exactly the form of its type. That is what makes encoding then
 //! decoding, and decoding then encoding, both exact.
 use super::tree::{DataField, DataValue, Spanned};
-use crate::dsl::{Diagnostic, Identifier, TextSpan};
-use crate::values::Color;
+use crate::compiler::{Diagnostic, TextSpan};
 use core::time::Duration;
+use donder_runtime_types::Color;
+use donder_runtime_types::Identifier;
 use indexmap::IndexMap;
 
 /// Collects diagnostics while decoding; a value that fails to decode reports
@@ -162,7 +163,7 @@ pub fn field(name: &str, value: DataValue) -> DataField {
     }
 }
 
-pub fn identifier(name: &str) -> Identifier {
+pub(crate) fn identifier(name: &str) -> Identifier {
     Identifier::new(name.to_string()).unwrap_or_else(|_| unreachable!("schema names are valid"))
 }
 
@@ -187,7 +188,7 @@ pub fn variant(name: &str) -> DataValue {
 }
 
 /// What a value looks like, for diagnostics.
-pub fn describe(value: &DataValue) -> String {
+pub(crate) fn describe(value: &DataValue) -> String {
     match value {
         DataValue::Integer(_) => "an integer".into(),
         DataValue::Float(_) => "a float".into(),

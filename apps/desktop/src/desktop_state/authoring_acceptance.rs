@@ -572,7 +572,7 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
     let mut illuminated = false;
     for frame in 0..60 {
         let rendered =
-            playback.evaluate(donder_language::values::sample_time_from_frame(frame, 60).unwrap());
+            playback.evaluate(donder_runtime_types::sample_time_from_frame(frame, 60).unwrap());
         let slots = rendered.outputs().next().unwrap().bytes;
         illuminated |= slots[..12].iter().any(|&value| value != 0);
         assert!(slots[12..].iter().all(|&value| value == 0));
@@ -1055,7 +1055,7 @@ fn inline_fixture_copies_have_independent_ownership() {
         )
         .unwrap();
     assert!(
-        matches!(&copied_layout.fixtures[0].kind, donder_language::layout::LayoutFixtureKind::Fixture {definition: donder_language::fixture::FixtureSource::Inline(value),..} if value.elements.len() == 1)
+        matches!(&copied_layout.fixtures[0].kind, donder_model::LayoutFixtureKind::Fixture {definition: donder_model::FixtureSource::Inline(value),..} if value.elements.len() == 1)
     );
     state.open_file_path(original_layout.0.document().as_str());
     layout_document(
@@ -1435,7 +1435,7 @@ fn new_project_hue_shift_catalog_edits_and_imports_roundtrip() {
                 .iter()
                 .all(|candidate| !matches!(
                     candidate.kind,
-                    donder_language::sequence::CompositionGraphNodeKind::Operator(_)
+                    donder_model::CompositionGraphNodeKind::Operator(_)
                 ))
         );
         state.redo_active_edit();
@@ -1552,7 +1552,7 @@ fn sequence_creation_storage_choices_are_undoable_and_roundtrip() {
         );
         let source = after.project.root().sequences.last().unwrap();
         assert_eq!(
-            matches!(source, donder_language::ownership::ValueSource::Inline(_)),
+            matches!(source, donder_model::ValueSource::Inline(_)),
             inline
         );
         assert_eq!(result.source.owned_path.is_empty(), !inline);
@@ -1792,7 +1792,7 @@ fn layout_membership_edits_preserve_owned_identity_and_support_history() {
         .unwrap()
         .layout
         .id();
-    let fixture_id = donder_language::layout::FixtureInstanceId;
+    let fixture_id = donder_model::FixtureInstanceId;
     let original_first = initial
         .project
         .layout(layout_id)

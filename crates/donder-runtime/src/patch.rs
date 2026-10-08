@@ -1,11 +1,11 @@
-use crate::values::Color;
 use alloc::boxed::Box;
 use core::ops::Range;
+use donder_runtime_types::Color;
 
 #[cfg(test)]
 mod tests;
 
-pub(crate) use donder_language::execution::PixelEncoding;
+pub(crate) use donder_runtime_types::PixelEncoding;
 
 #[derive(Clone, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub(crate) struct PreparedPixelRoute {

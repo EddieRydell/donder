@@ -1,11 +1,10 @@
-use donder_language::dsl::{
-    OperatorInvocation, SignalAddressing, compile_effects, compile_operators,
-};
-use donder_language::execution::FixtureGeometry;
-use donder_language::execution::TargetScope;
-use donder_language::values::Color;
-use donder_language::values::SampleTime;
+use donder_language::compiler::{SignalAddressing, compile_effects, compile_operators};
 use donder_runtime::PreparedSequence;
+use donder_runtime_types::Color;
+use donder_runtime_types::FixtureGeometry;
+use donder_runtime_types::OperatorInvocation;
+use donder_runtime_types::SampleTime;
+use donder_runtime_types::TargetScope;
 use donder_test_support::{playback, workload};
 
 const LOCAL: SignalAddressing = SignalAddressing {

@@ -6,7 +6,7 @@ use crate::dto::{
     AppSnapshot, AudioTransportState, DevicePlaybackMode, DonderDeviceClaim,
     DonderDeviceConnection, DonderDeviceNetworkRequest, DonderDeviceStatus,
 };
-use donder_language::controller::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
+use donder_model::{ControllerPortAddress, ControllerProtocol, DonderDeviceId};
 use donder_runtime::PlaybackRate;
 
 impl DesktopState {
@@ -274,7 +274,7 @@ impl DesktopState {
             .render_target
             .clone()
             .ok_or("Open a sequence before starting devices")?;
-        let duration = donder_language::values::sample_duration_from_donder_duration(
+        let duration = donder_language::sample_duration_from_donder_duration(
             &session
                 .project
                 .sequence(&sequence)
@@ -468,7 +468,7 @@ impl DesktopState {
 }
 
 fn seconds_to_micros(seconds: f32) -> Result<u32, String> {
-    donder_language::values::sample_time_from_seconds_f32(seconds)
+    donder_runtime_types::sample_time_from_seconds_f32(seconds)
         .map(|time| time.as_ticks())
         .map_err(|error| format!("Invalid playback position: {error:?}"))
 }

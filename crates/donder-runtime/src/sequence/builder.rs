@@ -8,16 +8,16 @@ use crate::signal::{
     PreparedOperatorNode, PreparedPixel, PreparedSignalGraph, PreparedSignalKind,
     PreparedSignalNode, PreparedTarget,
 };
-use crate::values::{SampleDuration, SampleTime};
 #[cfg(test)]
 use alloc::vec;
 use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
 use core::marker::PhantomData;
-use donder_language::Shared;
-use donder_language::dsl::{OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram};
-use donder_language::execution::{
+use donder_runtime_types::Shared;
+use donder_runtime_types::{
     FixtureGeometry, OutputEncoding, SequenceTiming, SpatialContext, TargetGeometry, TargetScope,
 };
+use donder_runtime_types::{OperatorInvocation, OperatorProgram, SampleInvocation, SampleProgram};
+use donder_runtime_types::{SampleDuration, SampleTime};
 
 #[cfg(test)]
 mod tests;
