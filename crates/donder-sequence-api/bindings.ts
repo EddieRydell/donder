@@ -863,6 +863,12 @@ export type SequenceEffectReference = { type: "custom"; moduleId: string; path: 
 
 export type SequenceEffectScope = "perFixture" | "wholeTarget";
 
+export type SequenceExportOptions = {
+	ports: SequenceExportPort[],
+	/**  The whole-millisecond FSEQ step closest to the authored frame rate. */
+	fseqStepMillis: number,
+};
+
 export type SequenceExportPort = {
 	index: number,
 	label: string,

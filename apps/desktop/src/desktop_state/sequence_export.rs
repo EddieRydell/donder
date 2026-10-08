@@ -1,7 +1,10 @@
 use super::{DesktopState, lock_unpoisoned};
 use donder_model::{ControllerId, ControllerPortId, SequenceId};
 use donder_project_io::ProjectSession;
-use donder_sequence_api::{DocumentViewId, GuiDocumentRequest, SequenceExportPort};
+use donder_runtime::PreparedSequence;
+use donder_sequence_api::{
+    DocumentViewId, GuiDocumentRequest, SequenceExportOptions, SequenceExportPort,
+};
 use std::sync::Arc;
 
 pub(super) fn outputs(
@@ -52,12 +55,17 @@ impl DesktopState {
         Ok((session, id))
     }
 
-    pub(crate) fn sequence_export_ports(
+    pub(crate) fn sequence_export_options(
         &self,
         request: &GuiDocumentRequest,
-    ) -> Result<Vec<SequenceExportPort>, String> {
-        let (session, _) = self.sequence_export_session(request)?;
-        outputs(&session)?
+    ) -> Result<SequenceExportOptions, String> {
+        let (session, id) = self.sequence_export_session(request)?;
+        let frame_rate = session
+            .project
+            .sequence(&id)
+            .ok_or("Sequence is missing.")?
+            .frame_rate;
+        let ports = outputs(&session)?
             .into_iter()
             .enumerate()
             .map(|(index, (controller, port, channels))| {
@@ -72,14 +80,19 @@ impl DesktopState {
                     channels,
                 })
             })
-            .collect()
+            .collect::<Result<_, String>>()?;
+        Ok(SequenceExportOptions {
+            ports,
+            fseq_step_millis: donder_output::FseqStep::nearest(frame_rate).millis(),
+        })
     }
 
-    pub(crate) fn prepare_sequence_export(
+    /// Prepare the sequence for the selected outputs, in selection order.
+    fn prepare_selected_outputs(
         &self,
         request: &GuiDocumentRequest,
         selected: &[u32],
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<(Arc<ProjectSession>, SequenceId, PreparedSequence), String> {
         let (session, id) = self.sequence_export_session(request)?;
         if selected.is_empty() {
             return Err("Choose at least one output.".into());
@@ -102,7 +115,35 @@ impl DesktopState {
             donder_elaboration::PrepareOutputs::Ports(&ports),
         )
         .ok_or("The sequence or selected output is unavailable.")?;
+        Ok((session, id, prepared))
+    }
+
+    pub(crate) fn prepare_sequence_export(
+        &self,
+        request: &GuiDocumentRequest,
+        selected: &[u32],
+    ) -> Result<Vec<u8>, String> {
+        let (_, _, prepared) = self.prepare_selected_outputs(request, selected)?;
         donder_runtime::encode_sequence(&prepared)
             .map_err(|error| format!("Could not encode sequence: {error:?}"))
+    }
+
+    pub(crate) fn prepare_fseq_export(
+        &self,
+        request: &GuiDocumentRequest,
+        selected: &[u32],
+        step_millis: u8,
+    ) -> Result<Vec<u8>, String> {
+        let step = donder_output::FseqStep::from_millis(step_millis)
+            .ok_or("The FSEQ frame step must be at least 1 ms.")?;
+        let (session, id, prepared) = self.prepare_selected_outputs(request, selected)?;
+        let sequence = session
+            .project
+            .sequence(&id)
+            .ok_or("Sequence is missing.")?;
+        let media = session
+            .audio_asset(id.0.document_id(), &sequence.audio)
+            .and_then(|asset| asset.relative_path.file_name());
+        donder_output::encode_fseq(prepared, step, media).map_err(|error| error.to_string())
     }
 }

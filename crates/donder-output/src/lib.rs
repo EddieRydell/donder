@@ -12,6 +12,7 @@
 
 mod artnet;
 mod e131;
+mod fseq;
 
 use std::collections::HashMap;
 
@@ -19,6 +20,7 @@ use donder_model::{Controller, ControllerId, ControllerPortId, ControllerProtoco
 
 pub use artnet::ArtNetSender;
 pub use e131::E131Sender;
+pub use fseq::{FseqError, FseqStep, encode_fseq};
 
 /// Bytes for one authored controller port, ready for network transport.
 #[derive(Clone, Debug, Eq, PartialEq)]

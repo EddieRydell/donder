@@ -2,11 +2,11 @@ use super::*;
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn sequence_export_ports(
+pub(crate) fn sequence_export_options(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> Result<Vec<donder_sequence_api::SequenceExportPort>, String> {
-    state.sequence_export_ports(&request)
+) -> Result<donder_sequence_api::SequenceExportOptions, String> {
+    state.sequence_export_options(&request)
 }
 
 #[tauri::command]
@@ -19,25 +19,56 @@ pub(crate) async fn export_sequence_file(
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let bytes = state.prepare_sequence_export(&request, &outputs)?;
-        let Some(path) = rfd::FileDialog::new()
-            .set_title("Export compiled sequence")
-            .add_filter("Donder compiled sequence", &["donderseq"])
-            .set_file_name("sequence.donderseq")
-            .save_file()
-        else {
-            return Ok(None);
-        };
-        let path =
-            camino::Utf8PathBuf::from_path_buf(path).map_err(|_| "Choose a UTF-8 file path.")?;
-        if path.extension() != Some("donderseq") {
-            return Err("Export files must use the .donderseq extension.".into());
-        }
-        donder_project_io::atomic_write(&path, &bytes)
-            .map_err(|error| format!("Could not save exported sequence: {error}"))?;
-        Ok(Some(path.to_string()))
+        save_export_file(
+            "Export compiled sequence",
+            "Donder compiled sequence",
+            "donderseq",
+            &bytes,
+        )
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn export_fseq_file(
+    request: GuiDocumentRequest,
+    outputs: Vec<u32>,
+    step_millis: u8,
+    state: State<'_, DesktopState>,
+) -> Result<Option<String>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = state.prepare_fseq_export(&request, &outputs, step_millis)?;
+        save_export_file("Export FSEQ sequence", "FSEQ sequence", "fseq", &bytes)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Ask for a destination with `extension` and write `bytes` there.
+fn save_export_file(
+    title: &str,
+    filter: &str,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<Option<String>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title(title)
+        .add_filter(filter, &[extension])
+        .set_file_name(format!("sequence.{extension}"))
+        .save_file()
+    else {
+        return Ok(None);
+    };
+    let path = camino::Utf8PathBuf::from_path_buf(path).map_err(|_| "Choose a UTF-8 file path.")?;
+    if path.extension() != Some(extension) {
+        return Err(format!("Export files must use the .{extension} extension."));
+    }
+    donder_project_io::atomic_write(&path, bytes)
+        .map_err(|error| format!("Could not save exported sequence: {error}"))?;
+    Ok(Some(path.to_string()))
 }
 
 #[tauri::command]

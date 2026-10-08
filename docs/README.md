@@ -24,6 +24,7 @@ superseded measurements don't belong here.
   timings and memory placement.
 
 **Working on it**
+- [Development](development.md): repository layout and the checks to run.
 - [Testing and benchmarks](testing.md): the gate, where tests live, key contracts
   and Criterion workflows.
 - [Firmware](../firmware/esp32/README.md): toolchain, builds, flashing and device

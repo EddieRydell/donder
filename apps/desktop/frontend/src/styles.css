@@ -3868,6 +3868,22 @@ fieldset.sequence-layer-row {
   gap: var(--donder-space-3);
   font-size: var(--donder-font-size-md);
 }
+
+.sequence-export-step {
+  display: flex;
+  align-items: center;
+  gap: var(--donder-space-5);
+  margin-top: var(--donder-space-5);
+  border: var(--donder-border-width) solid var(--donder-border);
+  padding: var(--donder-space-5);
+  font-size: var(--donder-font-size-md);
+}
+
+.sequence-export-step label {
+  display: flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+}
 .setup-authoring-form h4,
 .setup-authoring-form p { flex-basis: 100%; margin: 0; }
 .setup-authoring-form > label,
