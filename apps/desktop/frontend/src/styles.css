@@ -487,6 +487,7 @@
   --donder-raster-warning-inset: 4px;
   --donder-automation-label-offset-y: 18px;
   --donder-sequence-drag-threshold: 4px;
+  --donder-unsaved-indicator-delay-ms: 400;
   --donder-sequence-wheel-zoom-scale: 0.002;
   /* During playback the timeline pages forward when the playhead passes this fraction of the view,
      placing it at the lead fraction. */
@@ -1001,12 +1002,25 @@ html.donder-app-shell body {
   white-space: nowrap;
 }
 
+/* The unsaved dot always keeps its space, so tab widths never change, and only appears once a file
+   stays unsaved: autosave's brief dirty state on each keystroke never flashes it. */
 .dirty-dot {
   width: 7px;
   height: 7px;
   flex: 0 0 7px;
   border-radius: var(--donder-radius-circle);
   background: var(--donder-warning);
+  opacity: 0;
+}
+
+.dirty-dot.unsaved {
+  animation: dirty-dot-show 0s linear calc(var(--donder-unsaved-indicator-delay-ms) * 1ms) forwards;
+}
+
+@keyframes dirty-dot-show {
+  to {
+    opacity: 1;
+  }
 }
 
 .conflict-dot {
