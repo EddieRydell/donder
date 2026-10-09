@@ -77,7 +77,6 @@
   --donder-sequence-lane-alternate: #15171a;
   --donder-sequence-lane-selected: rgb(174 180 188 / 12%);
   --donder-sequence-grid: #484e58;
-  --donder-sequence-grid-faint: #2c3036;
   --donder-spectrogram: var(--donder-graph-blue);
   --donder-timeline-major: #343941;
   --donder-timeline-minor: #1f2227;
@@ -391,6 +390,7 @@
   --donder-sequence-initial-pixels-per-second: 80px;
   --donder-sequence-initial-lane-height: 42px;
   --donder-sequence-lane-resize-indicator-height: 2px;
+  --donder-sequence-strip-border-width: 2px;
   --donder-sequence-lane-resize-hit-height: 8px;
   --donder-sequence-audio-resize-hit-height: 8px;
   --donder-sequence-min-pixels-per-second: 0.01;
@@ -1107,7 +1107,6 @@ html.donder-app-shell body {
   gap: var(--donder-space-8);
   border-bottom: var(--donder-border-width) solid var(--donder-border);
   background: var(--donder-bg-rail);
-  padding: var(--donder-space-0) var(--donder-space-6);
 }
 
 .segmented-control {
@@ -1514,16 +1513,14 @@ html.donder-app-shell body {
 .gui-inspector-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--donder-scrollbar-width);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
   background: var(--donder-bg-panel);
 }
 
-.gui-inspector-content-shell {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  min-width: 0;
-  min-height: 0;
+.gui-inspector-footer {
+  grid-column: 1 / -1;
 }
 
 .gui-inspector {
@@ -1665,7 +1662,8 @@ html.donder-app-shell body {
 
 .sequence-inspector-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   border-top: var(--donder-border-width) solid var(--donder-border);
   background: var(--donder-bg-rail);
 }

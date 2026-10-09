@@ -9,8 +9,9 @@ use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::SignalPixel;
 use crate::dsl::{BoundParams, Pixels, RunContext, STRIP, Strip, StripSignals, StripWorkspace};
 use crate::signal::{
-    CachedSignalFrame, EffectAutomationWorkspace, EvaluationWorkspace, PreparedEffect,
-    PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace, SignalGraph,
+    CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace, EvaluationWorkspace,
+    PreparedEffect, PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace,
+    SignalGraph, WINDOW, WINDOW_MARGIN,
 };
 use alloc::boxed::Box;
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
@@ -265,6 +266,9 @@ pub(crate) fn sample_signal_graph<'a>(
             frame.key = None;
         }
     }
+    for window in &mut workspace.operator_windows {
+        window.key = None;
+    }
     for node_index in graph.frame_nodes.iter().copied() {
         let destination = frame_range(renderer, node_index);
         match &graph.nodes[node_index].kind {
@@ -469,7 +473,10 @@ struct GraphSignals<'a> {
     inputs: &'a [usize],
     first: usize,
     count: usize,
-    frames: Option<usize>,
+    /// The operator's depth slot.
+    slot: usize,
+    /// Whether the operator may use its whole-frame input caches.
+    frame_scope: bool,
     lent: Lent<'a>,
 }
 
@@ -504,6 +511,55 @@ impl GraphSignals<'_> {
         }
         &self.lent.sampling.operator_frames[slot][cache].colors
     }
+
+    /// `node` at `time` and plan-target pixel `index`, read by strip pixel
+    /// `offset`. One run covers the strip and the strip shifted to `index`,
+    /// plus margins, so the strip's other reads at nearby offsets reuse it;
+    /// `None` when those are too far apart for one window.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn windowed(
+        &mut self,
+        node: usize,
+        time: SampleTime,
+        offset: usize,
+        index: usize,
+    ) -> Option<Color> {
+        let key = Some((node, time));
+        let window = &self.lent.sampling.operator_windows[self.slot];
+        if window.key == key && index.wrapping_sub(window.start) < window.len {
+            return Some(window.colors[index - window.start]);
+        }
+        let shifted = index.saturating_sub(offset);
+        let start = shifted.min(self.first).saturating_sub(WINDOW_MARGIN);
+        let end =
+            (shifted.max(self.first) + self.count + WINDOW_MARGIN).min(self.renderer.pixel_count);
+        if end - start > WINDOW {
+            return None;
+        }
+        let mut stored = core::mem::replace(
+            &mut self.lent.sampling.operator_windows[self.slot],
+            CachedSignalWindow {
+                key: None,
+                start: 0,
+                len: 0,
+                colors: Box::new([]),
+            },
+        );
+        sample_signal_run(
+            self.renderer,
+            node,
+            time,
+            start,
+            &mut stored.colors[..end - start],
+            self.lent.reborrow(),
+        );
+        let color = stored.colors[index - start];
+        stored.key = key;
+        stored.start = start;
+        stored.len = end - start;
+        self.lent.sampling.operator_windows[self.slot] = stored;
+        Some(color)
+    }
 }
 
 impl StripSignals for GraphSignals<'_> {
@@ -521,8 +577,8 @@ impl StripSignals for GraphSignals<'_> {
             return;
         }
         let node = self.inputs[input];
-        if let (Some(slot), Some(cache)) = (self.frames, frame_cache) {
-            let first = self.first;
+        if let (true, Some(cache)) = (self.frame_scope, frame_cache) {
+            let (slot, first) = (self.slot, self.first);
             let frame = self.cached_frame(slot, cache, node, time);
             output[..count].copy_from_slice(&frame[first..first + count]);
             return;
@@ -553,8 +609,11 @@ impl StripSignals for GraphSignals<'_> {
             return black();
         }
         let node = self.inputs[input];
-        if let (Some(slot), Some(cache)) = (self.frames, frame_cache) {
-            return self.cached_frame(slot, cache, node, time)[index];
+        if let (true, Some(cache)) = (self.frame_scope, frame_cache) {
+            return self.cached_frame(self.slot, cache, node, time)[index];
+        }
+        if let Some(color) = self.windowed(node, time, offset, index) {
+            return color;
         }
         let mut color = [black()];
         sample_signal_run(
@@ -644,7 +703,8 @@ fn sample_operator(
         inputs,
         first,
         count: 0,
-        frames: frame_scope.then_some(*vm_slot),
+        slot: *vm_slot,
+        frame_scope,
         lent: Lent {
             sampling,
             automation: upstream,
@@ -775,7 +835,7 @@ fn sample_layer_run(
                         if let Some(index) =
                             target.find(pixel.fixture_index, pixel.fixture_pixel_index)
                         {
-                            map.cells[map.count] = (offset, index);
+                            map.cells[map.count] = (offset - chunk, index);
                             map.count += 1;
                         }
                     }
@@ -791,7 +851,7 @@ fn sample_layer_run(
                         pixel: target.pixel(cells[offset].1),
                     },
                     &mut workspace.effect_strip,
-                    |offset, color| compose_max(&mut output[cells[offset].0], color),
+                    |offset, color| compose_max(&mut output[chunk + cells[offset].0], color),
                 );
             }
         });

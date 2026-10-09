@@ -21,37 +21,37 @@ const PLAYBACK_FRAME_COUNT: u32 = 60;
 const SCENARIOS: [RenderScenario; 7] = [
     RenderScenario {
         frame: 8398,
-        checksum: 0x8bb5_7d05_87a6_9ae8,
+        checksum: 0x4535_974c_51f5_d6c0,
         active_effect_count: 15,
     },
     RenderScenario {
         frame: 8450,
-        checksum: 0x5bee_7460_eba9_0468,
+        checksum: 0xa19d_993e_4cbe_d728,
         active_effect_count: 30,
     },
     RenderScenario {
         frame: 8494,
-        checksum: 0xadc5_9683_e46e_175f,
+        checksum: 0x1eb6_eec0_ec80_1ba7,
         active_effect_count: 32,
     },
     RenderScenario {
         frame: 8530,
-        checksum: 0x07ec_1fb5_19f7_8b83,
+        checksum: 0x3784_8c0f_dbbf_f8d3,
         active_effect_count: 3,
     },
     RenderScenario {
         frame: 9270,
-        checksum: 0xac57_56bd_f3ff_27f8,
+        checksum: 0x63b9_3b8a_48a9_04fc,
         active_effect_count: 2,
     },
     RenderScenario {
         frame: 9504,
-        checksum: 0x0ab2_eca9_b6ce_8207,
+        checksum: 0x6f0a_d10d_ae94_437f,
         active_effect_count: 1,
     },
     RenderScenario {
         frame: 9650,
-        checksum: 0xfaf7_582c_96c9_730f,
+        checksum: 0x4892_76da_8964_1b37,
         active_effect_count: 2,
     },
 ];

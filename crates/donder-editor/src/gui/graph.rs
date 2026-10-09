@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use donder_model::{
-    AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, GraphNodePosition,
+    AutomationTarget, CompositionGraphNodeKind, GraphNodePosition,
     Sequence, SequenceLayerId,
 };
 
@@ -184,7 +184,7 @@ pub(super) fn delete_items(
             ))
     });
     for clip in &mut sequence.automation_clips {
-        clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+        clip.remove_bindings(|target| {
             matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if ids.contains(node_id))
         });
     }

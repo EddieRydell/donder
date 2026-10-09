@@ -555,9 +555,6 @@ impl Encoder<'_> {
                                 Ok(types::Detached {
                                     binding: binding(&detached.target)?,
                                     reason: match detached.reason {
-                                        AutomationDetachmentReason::TargetDeleted => {
-                                            types::DetachReason::TargetDeleted
-                                        }
                                         AutomationDetachmentReason::DefinitionChanged => {
                                             types::DetachReason::DefinitionChanged
                                         }

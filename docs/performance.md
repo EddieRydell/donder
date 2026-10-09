@@ -82,7 +82,11 @@ pixels; a single sample is a one-pixel strip.
   reference-counted while a frame runs.
 - Operators evaluate their inputs over the same strip when the sample time is
   uniform, and per pixel otherwise. Query-uniform times use whole-frame input
-  caches. Nested layers reuse a gathered cell map for each strip.
+  caches. Any other uniform-time read of addressed pixels, such as a Blur
+  nested under an Echo, fills one window per operator depth in a single run:
+  the strip and the strip shifted to the read, with 16 pixels on each side,
+  so the strip's reads at nearby offsets reuse it. Nested layers reuse a
+  gathered cell map for each strip.
 - Each operator depth has a preallocated workspace, and graph depths order
   upstream slots first, so evaluation needs no allocation.
 
@@ -103,6 +107,12 @@ over every frame):
 
 Stanford's FreezeFrame samples an empty layer, so preparation removes it; the
 rest of the show is its mark effects, gradients and hue operators.
+
+Addressed-read windows (October 8, 2026, same machine) took
+`operators_do_not_allocate_from_the_first_frame` from 212 s to 0.8 s. Its
+chain of every library operator at default parameters runs Blur, Bloom and
+Mirror under Echo, FreezeFrame and Scatter. Both prepared playback benchmarks
+were unchanged within noise.
 
 ## Apple Silicon
 
