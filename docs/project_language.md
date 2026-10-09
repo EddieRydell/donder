@@ -464,8 +464,8 @@ Sequence layer_test {
 - `AutomationClip`: `row` (the fixture or group whose automation row holds it),
   `start`, `duration`, `curve`, `bindings` and `detached`. A binding is
   `ClipParam { clip, param }` or `NodeParam { node, param }`; a detached binding
-  is `Detached { binding, reason }` with `reason` either `TargetDeleted` or
-  `DefinitionChanged`.
+  is `Detached { binding, reason }` with `reason` `DefinitionChanged`. Deleting
+  a bound clip or node removes its bindings; a clip may be bound to nothing.
 
 Layers produce signals, operators combine and transform them, and the single
 output node is what plays. Nodes not connected to the output may remain while

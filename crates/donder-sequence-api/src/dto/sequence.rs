@@ -93,7 +93,6 @@ pub struct SequenceDetachedAutomationBinding {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum SequenceAutomationDetachmentReason {
-    TargetDeleted,
     DefinitionChanged,
 }
 

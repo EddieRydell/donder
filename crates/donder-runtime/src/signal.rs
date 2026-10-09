@@ -191,6 +191,8 @@ pub(crate) struct SamplingWorkspace {
     // Boxed: playback is held by value in firmware task futures.
     pub(crate) effect_strip: Box<StripWorkspace>,
     pub(crate) operator_frames: Vec<Vec<CachedSignalFrame>>,
+    /// One window of input colors per operator depth slot.
+    pub(crate) operator_windows: Vec<CachedSignalWindow>,
     /// The latest run-to-target cell mapping of a nested layer run.
     pub(crate) gather: Box<CellMap>,
     pub(crate) frame_scratch: Vec<Box<[Color]>>,
@@ -205,7 +207,22 @@ pub(crate) struct CachedSignalFrame {
     pub(crate) colors: Box<[Color]>,
 }
 
-/// Plan-target run `first..first + len` mapped onto `target`: run offsets and
+/// Pixels beyond the strip, on each side, that an addressed read's window
+/// also evaluates, so nearby offsets reuse it.
+pub(crate) const WINDOW_MARGIN: usize = 16;
+/// Room for a strip, the strip shifted by up to a strip, and both margins.
+pub(crate) const WINDOW: usize = 2 * crate::dsl::STRIP + 2 * WINDOW_MARGIN;
+
+/// One input's colors at one time over plan-target pixels `start..start + len`.
+#[derive(Debug)]
+pub(crate) struct CachedSignalWindow {
+    pub(crate) key: Option<(usize, SampleTime)>,
+    pub(crate) start: usize,
+    pub(crate) len: usize,
+    pub(crate) colors: Box<[Color]>,
+}
+
+/// Plan-target run `first..first + len` mapped onto `target`: offsets within the run and
 /// target indices of the cells the target covers.
 #[derive(Debug)]
 pub(crate) struct CellMap {
@@ -300,6 +317,14 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                     .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
                     .collect(),
                 frame_scratch_used: 0,
+                operator_windows: (0..self.plan.vm_workspace_count)
+                    .map(|_| CachedSignalWindow {
+                        key: None,
+                        start: 0,
+                        len: 0,
+                        colors: vec![Color::BLACK; WINDOW].into_boxed_slice(),
+                    })
+                    .collect(),
                 operator_frames: operator_frame_counts
                     .into_iter()
                     .map(|count| {

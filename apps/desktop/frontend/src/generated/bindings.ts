@@ -702,7 +702,7 @@ export type SequenceAutomationClip = {
 	detachedBindings: SequenceDetachedAutomationBinding[],
 };
 
-export type SequenceAutomationDetachmentReason = "targetDeleted" | "definitionChanged";
+export type SequenceAutomationDetachmentReason = "definitionChanged";
 
 /**  How a resize treats an automation clip's curve. */
 export type SequenceAutomationResize = 

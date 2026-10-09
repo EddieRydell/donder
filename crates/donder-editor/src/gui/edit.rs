@@ -96,7 +96,7 @@ pub(super) fn edit_sequence(
             let sequence = &mut draft;
             sequence.effects.retain(|effect| effect.id.0 != id);
             for clip in &mut sequence.automation_clips {
-                clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+                clip.remove_bindings(|target| {
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == id)
                 });
             }

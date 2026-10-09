@@ -1,6 +1,6 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { isMac } from "../../../platform";
-import { ChevronLeft, ChevronRight, GitBranch, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, SkipBack, Square } from "lucide-react";
+import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, SkipBack, Square, Workflow } from "lucide-react";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
@@ -121,7 +121,7 @@ export function SequenceTransportControls({
         <Monitor size={THEME_METRICS.iconSizeCompact} />
       </button>
       <button type="button" title="Open layer graph" onClick={requestOpenLayerGraph}>
-        <GitBranch size={THEME_METRICS.iconSizeCompact} />
+        <Workflow size={THEME_METRICS.iconSizeCompact} />
       </button>
       <button
         type="button"

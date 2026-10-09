@@ -695,7 +695,6 @@ function automationTargetLabel(target: import("../../../editor/types").SequenceA
 
 function detachmentReasonLabel(reason: import("../../../editor/types").SequenceAutomationDetachmentReason): string {
   switch (reason) {
-    case "targetDeleted": return "target deleted";
     case "definitionChanged": return "definition changed";
   }
 }

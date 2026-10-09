@@ -106,7 +106,7 @@ pub(super) fn delete_sequence_selection(
                 .automation_clips
                 .retain(|clip| !automation_ids.contains(&clip.id.0));
             for clip in &mut sequence.automation_clips {
-                clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+                clip.remove_bindings(|target| {
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if ids.contains(&effect_id.0))
                 });
             }
@@ -714,7 +714,7 @@ use std::collections::BTreeMap;
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::EffectInstId;
 use donder_model::FixtureTarget;
-use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId};
+use donder_model::{AutomationTarget, SequenceId, SequenceLayerId};
 use donder_project_io::ProjectSession;
 
 use super::model::{

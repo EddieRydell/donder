@@ -129,8 +129,8 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
     use crate::dsl::bytecode::Banks;
     use crate::dsl::{AutomationPlan, StripWorkspace};
     use crate::signal::{
-        CachedEffectSample, CachedSignalFrame, EffectAutomationWorkspace, PreparedOperatorNode,
-        PreparedSignalKind,
+        CachedEffectSample, CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace,
+        PreparedOperatorNode, PreparedSignalKind, WINDOW,
     };
     use donder_runtime_types::Color;
 
@@ -162,6 +162,10 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         depth = depth.max(program.depth);
     }
     reserve(plan.vm_workspace_count, size_of::<Vec<CachedSignalFrame>>())?;
+    reserve(
+        plan.vm_workspace_count,
+        size_of::<CachedSignalWindow>() + WINDOW * size_of::<Color>(),
+    )?;
     reserve(
         plan.vm_workspace_count
             .checked_add(1)

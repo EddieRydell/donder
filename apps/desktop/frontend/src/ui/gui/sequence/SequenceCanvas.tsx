@@ -17,7 +17,7 @@ import type { AppSettings, GuiDocumentRequest, GuiObjectRef, FixtureTarget, Pers
 
 import { clamp, formatSeconds, roundToNanosecond, type AudioTransportViewSnapshot, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 
-import { activeMarkCollection, defaultMarkColor, drawMarkRulerLabel, drawSequenceMarks, committedMarkDrafts, nextCollectionKey } from "./marks";
+import { activeMarkCollection, defaultMarkColor, drawSequenceMarks, committedMarkDrafts, nextCollectionKey } from "./marks";
 import { TAP_MARK_EVENT } from "../../uiEvents";
 
 import { graphOperatorDefinition } from "./graphOperator";
@@ -98,7 +98,6 @@ const SEQUENCE_COLORS = {
   laneSelected: THEME_COLORS.sequenceLaneSelected,
   grid: THEME_COLORS.sequenceGrid,
   border: THEME_COLORS.border,
-  gridFaint: THEME_COLORS.sequenceGridFaint,
   timelineMajor: THEME_COLORS.timelineMajor,
   timelineMinor: THEME_COLORS.timelineMinor,
   timelineLabel: THEME_COLORS.textMuted,
@@ -341,10 +340,21 @@ export function SequenceCanvas({
       if (zoom && event.shiftKey) {
         const scale = Math.exp(-zoomDelta * zoomScale);
         const rowHeights = Object.fromEntries(Object.entries(completeRowHeights(current.rowHeights, document, settings)).map(([id, heights]) => [id, { effects: clamp(heights.effects * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx), automation: clamp(heights.automation * scale, SEQUENCE_CANVAS.minLaneHeightPx, SEQUENCE_CANVAS.maxLaneHeightPx) }]));
+        // Keep the content under the cursor fixed: same row, same fraction of its height.
+        const previousRows = layoutRows(current.rowHeights, revealAutomation);
+        const nextRows = layoutRows(rowHeights, revealAutomation);
+        const anchorY = clamp(event.clientY - rect.top - top, 0, visibleHeight);
+        const anchorContentY = current.scrollY + anchorY;
+        const anchorIndex = previousRows.findIndex((row) => anchorContentY < row.bottom);
+        const previousRow = previousRows[anchorIndex];
+        const nextRow = nextRows[anchorIndex];
+        const nextAnchorContentY = previousRow === undefined || nextRow === undefined
+          ? expandedTimelineHeight(nextRows) + anchorContentY - expandedTimelineHeight(previousRows)
+          : nextRow.top + (anchorContentY - previousRow.top) / Math.max(1, previousRow.height) * nextRow.height;
         return {
           ...current,
           rowHeights,
-          scrollY: clamp(current.scrollY, 0, Math.max(0, expandedTimelineHeight(layoutRows(rowHeights, revealAutomation)) - visibleHeight))
+          scrollY: clamp(nextAnchorContentY - anchorY, 0, Math.max(0, expandedTimelineHeight(nextRows) - visibleHeight))
         };
       }
       if (zoom) {
@@ -614,13 +624,18 @@ export function SequenceCanvas({
     ctx.stroke();
     ctx.fillStyle = SEQUENCE_COLORS.page;
     ctx.fillRect(left, audioStripBottom, timelineWidth, markRulerHeight);
-    drawMarkRulerLabel(ctx, audioStripBottom, markRulerHeight, left);
-    ctx.strokeStyle = SEQUENCE_COLORS.gridFaint;
+    drawStripLabel(ctx, "Audio", audioStripTop, audioStripHeight, left);
+    drawStripLabel(ctx, "Marks", audioStripBottom, markRulerHeight, left);
+    const stripBorderWidth = THEME_METRICS.sequenceStripBorderWidth;
+    ctx.fillStyle = SEQUENCE_COLORS.grid;
+    ctx.strokeStyle = SEQUENCE_COLORS.grid;
     ctx.beginPath();
-    for (const y of [audioStripBottom, top]) {
-      ctx.moveTo(0, y + THEME_METRICS.visualHairlineOffset);
-      ctx.lineTo(rect.width, y + THEME_METRICS.visualHairlineOffset);
+    for (const y of [audioStripTop, audioStripBottom]) {
+      ctx.fillRect(0, y - stripBorderWidth / 2, rect.width, stripBorderWidth);
     }
+    ctx.fillRect(left, top - stripBorderWidth / 2, timelineWidth, stripBorderWidth);
+    ctx.moveTo(0, top + THEME_METRICS.visualHairlineOffset);
+    ctx.lineTo(left, top + THEME_METRICS.visualHairlineOffset);
     ctx.stroke();
 
     if (stripResizeHover !== null) {
@@ -2099,4 +2114,13 @@ function formatTimelineSeconds(value: number, intervalSeconds: number) {
 
 function isTextEntryElement(target: EventTarget | null) {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+}
+
+function drawStripLabel(ctx: CanvasRenderingContext2D, label: string, stripTop: number, stripHeight: number, left: number) {
+  const x = THEME_METRICS.sequenceLabelX;
+  ctx.save();
+  ctx.font = THEME_TYPOGRAPHY.sequenceHeading;
+  ctx.fillStyle = THEME_COLORS.textSoft;
+  ctx.fillText(fitCanvasLabel(ctx, label, left - x * 2), x, stripTop + stripHeight / 2 + THEME_METRICS.sequenceLabelYOffset);
+  ctx.restore();
 }

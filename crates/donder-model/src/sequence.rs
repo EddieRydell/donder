@@ -205,6 +205,13 @@ impl AutomationClip {
         Some(right)
     }
 
+    /// Forgets every binding, active or detached, whose target was deleted.
+    pub fn remove_bindings(&mut self, matches: impl Fn(&AutomationTarget) -> bool) {
+        self.bindings.retain(|binding| !matches(&binding.target));
+        self.detached_bindings
+            .retain(|binding| !matches(&binding.target));
+    }
+
     pub fn detach_bindings(
         &mut self,
         reason: AutomationDetachmentReason,
@@ -354,7 +361,6 @@ pub struct DetachedAutomationBinding {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AutomationDetachmentReason {
-    TargetDeleted,
     DefinitionChanged,
 }
 

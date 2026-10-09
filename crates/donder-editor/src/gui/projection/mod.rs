@@ -158,9 +158,6 @@ fn automation_clips(sequence: &donder_model::Sequence) -> Vec<SequenceAutomation
                 .map(|binding| SequenceDetachedAutomationBinding {
                     target: automation_target_to_gui(&binding.target),
                     reason: match binding.reason {
-                        AutomationDetachmentReason::TargetDeleted => {
-                            SequenceAutomationDetachmentReason::TargetDeleted
-                        }
                         AutomationDetachmentReason::DefinitionChanged => {
                             SequenceAutomationDetachmentReason::DefinitionChanged
                         }

@@ -1365,9 +1365,6 @@ impl DomainResolver<'_> {
                     Ok(DetachedAutomationBinding {
                         target: binding(&detached.binding)?,
                         reason: match detached.reason {
-                            types::DetachReason::TargetDeleted => {
-                                AutomationDetachmentReason::TargetDeleted
-                            }
                             types::DetachReason::DefinitionChanged => {
                                 AutomationDetachmentReason::DefinitionChanged
                             }

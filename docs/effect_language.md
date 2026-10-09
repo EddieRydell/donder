@@ -326,6 +326,8 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Delay | `input` | Samples `seconds = 0.1` earlier |
 | Echo | `input` | Maximum of the input and `repeats = 3` copies spaced `seconds = 0.1` apart, scaled by powers of `decay = 0.5` |
 | Blur | `input` | Tent-weighted average of `radius = 2` pixels on each side along each fixture's pixel order, renormalized at fixture ends |
+| Threshold | `input` | Passes pixels whose brightness (`measure` = Brightest, Luminance or Average) exceeds `threshold = 0.5`, fading across `softness = 0.1`; `invert` passes the darker pixels instead |
+| Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light `radius = 6` pixels along each fixture's pixel order with a Gaussian, Linear or Flat `falloff`, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The kernel is normalized over its full width, so glow fades off fixture ends |
 
 Samples before the sequence are black. The starter adds Gain and TimeWarp as
 separate operator documents. `examples/stanford_room` carries its own copy of the
