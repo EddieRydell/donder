@@ -53,6 +53,8 @@ export type SequenceEditorHost = {
   resolveAssetUrl: (path: string, protocol?: string) => string;
   navigateToGuiObject: (reference: Pick<Wire.GuiObjectRef, "moduleId" | "path" | "objectKey" | "ownedPath">) => Promise<void>;
   capabilities: { audioFile: boolean; liveOutput: boolean; previewWindow: boolean; playbackSpeed: boolean };
+  /** Present when the host can analyze a sequence's audio for beats. */
+  detectSequenceBeats?: (request: Wire.GuiDocumentRequest) => Promise<Wire.SequenceBeatDetection>;
   exportControls?: ReactNode;
 };
 

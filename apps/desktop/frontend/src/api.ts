@@ -28,6 +28,8 @@ export const commands = {
     unwrapResult(await generatedCommands.resolveGuiSource(moduleId, path, objectKey)),
   setLiveOutputActive: async (active: boolean) =>
     unwrapResult(await generatedCommands.setLiveOutputActive(active)),
+  detectSequenceBeats: async (request: GuiDocumentRequest) =>
+    unwrapResult(await generatedCommands.detectSequenceBeats(request)),
   startOutputTest: async (request: GuiDocumentRequest, test: import("./types").ControllerOutputTest) =>
     unwrapResult(await generatedCommands.startOutputTest(request, test)),
   claimDevice: async (id: string) => unwrapResult(await generatedCommands.claimDevice(id)),

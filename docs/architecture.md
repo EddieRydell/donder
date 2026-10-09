@@ -25,6 +25,7 @@ has one owner:
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
 | `donder-output` | E1.31 and Art-Net transports, and FSEQ v2 export for FPP. |
+| `donder-audio-analysis` | Beat and downbeat detection from song audio: decoding, the log-mel spectrogram and the embedded Beat This! model (small, MIT licensed) run with tract. Host-only. |
 | `donder-language-server` | The language server for data documents and scripts, independent of its transport. See [Text editing](#text-editing). |
 | `donder-cli` | `check`, `copy`, `export-fseq`, `lsp` (the language server over stdio) and the generated builtin reference. |
 | `donder-editor` | Typed GUI projection, edits, selection, clipboard and model conversion, shared by the desktop and browser hosts. Edit helpers mutate the candidate session they are given. |

@@ -66,7 +66,6 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         target: document.lanes[0].target.clone(),
         scope: SequenceEffectScope::PerFixture,
         start_seconds: 0.0,
-        mark_collection_key: None,
     });
     let effect_id = document.effects[0].id;
     edit(SequenceGuiEdit::UpdateEffectParam {

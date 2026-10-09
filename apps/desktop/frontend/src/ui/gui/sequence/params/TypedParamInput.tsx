@@ -13,6 +13,9 @@ import type { SequenceGradientStop, SequenceCurvePoint, SequenceAutomationClip, 
 import { ColorPicker } from "../../../ColorPicker";
 import { automationTargetsEqual, clamp, type AutomationClipChooser } from "../../shared";
 
+/** The select value for a marks parameter with no collection; collection keys are never empty. */
+const NO_MARK_COLLECTION = "";
+
 const CURVE_EDITOR = {
   width: THEME_METRICS.curveEditorWidth,
   height: THEME_METRICS.curveEditorHeight,
@@ -145,7 +148,14 @@ function TypedParamValue({
     case "marks":
       return (
         <ParamShell name={param.name} description={param.description}>
-          <select value={param.value.key} onChange={(event) => void commit({ type: "marks", key: event.currentTarget.value })}>
+          <select
+            value={param.value.key ?? NO_MARK_COLLECTION}
+            onChange={(event) => {
+              const key = event.currentTarget.value;
+              void commit({ type: "marks", key: key === NO_MARK_COLLECTION ? null : key });
+            }}
+          >
+            <option value={NO_MARK_COLLECTION}>None</option>
             {markCollections.map((collection) => (
               <option key={collection.key} value={collection.key}>{collection.key}</option>
             ))}

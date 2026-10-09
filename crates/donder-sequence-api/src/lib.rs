@@ -135,7 +135,6 @@ pub enum SequenceGuiEdit {
         target: FixtureTarget,
         scope: SequenceEffectScope,
         start_seconds: f32,
-        mark_collection_key: Option<String>,
     },
     CreateLayer {
         name: String,
@@ -278,10 +277,9 @@ pub enum SequenceGuiEdit {
         clip_id: u32,
         detached_index: u32,
     },
-    /// The name becomes a unique `snake_case` name.
-    CreateMarkCollection {
-        name: String,
-        color: String,
+    /// Each name becomes a unique `snake_case` name.
+    CreateMarkCollections {
+        collections: Vec<NewMarkCollection>,
     },
     RenameMarkCollection {
         key: String,
@@ -294,9 +292,9 @@ pub enum SequenceGuiEdit {
         key: String,
         color: String,
     },
-    AddMark {
+    AddMarks {
         collection_key: String,
-        time_seconds: f32,
+        times_seconds: Vec<f32>,
     },
     MoveMark {
         collection_key: String,
@@ -312,6 +310,14 @@ pub enum SequenceGuiEdit {
         collection_key: String,
         index: u32,
     },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct NewMarkCollection {
+    pub name: String,
+    pub color: String,
+    pub marks_seconds: Vec<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -422,20 +428,49 @@ pub enum SequenceSelectionEdit {
     rename_all_fields = "camelCase"
 )]
 pub enum SequenceEffectParamValue {
-    Int { value: f32 },
-    Float { value: f32 },
-    Bool { value: bool },
-    Color { value: String },
-    Enum { value: String },
-    Curve { value: SequenceCurveValue },
-    Gradient { value: SequenceGradientValue },
-    IntArray { values: Vec<f32> },
-    FloatArray { values: Vec<f32> },
-    BoolArray { values: Vec<bool> },
-    ColorArray { values: Vec<String> },
-    CurveArray { values: Vec<SequenceCurveValue> },
-    GradientArray { values: Vec<SequenceGradientValue> },
-    Marks { key: String },
+    Int {
+        value: f32,
+    },
+    Float {
+        value: f32,
+    },
+    Bool {
+        value: bool,
+    },
+    Color {
+        value: String,
+    },
+    Enum {
+        value: String,
+    },
+    Curve {
+        value: SequenceCurveValue,
+    },
+    Gradient {
+        value: SequenceGradientValue,
+    },
+    IntArray {
+        values: Vec<f32>,
+    },
+    FloatArray {
+        values: Vec<f32>,
+    },
+    BoolArray {
+        values: Vec<bool>,
+    },
+    ColorArray {
+        values: Vec<String>,
+    },
+    CurveArray {
+        values: Vec<SequenceCurveValue>,
+    },
+    GradientArray {
+        values: Vec<SequenceGradientValue>,
+    },
+    /// `None` is no collection: the parameter has no marks.
+    Marks {
+        key: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -574,4 +609,12 @@ pub struct FixtureTarget {
 pub struct SequenceGradientStop {
     pub time: f32,
     pub value: String,
+}
+
+/// Beats and downbeats detected in a sequence's audio, in ascending seconds.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceBeatDetection {
+    pub beats_seconds: Vec<f32>,
+    pub downbeats_seconds: Vec<f32>,
 }

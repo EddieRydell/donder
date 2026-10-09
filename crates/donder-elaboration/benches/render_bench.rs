@@ -221,7 +221,7 @@ fn bench_mark_playback(c: &mut Criterion) {
                 },
             ],
         }));
-        let mut values = vec![("beats", EffectParamValue::Marks(mark_key))];
+        let mut values = vec![("beats", EffectParamValue::Marks(Some(mark_key)))];
         let falloff = EffectParamValue::Curve(CurveSource::Inline(Curve {
             points: vec![
                 CurvePoint {

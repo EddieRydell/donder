@@ -658,7 +658,7 @@ fn validate_param_references(
     mark_keys: &HashSet<&MarkCollectionKey>,
 ) -> Result<(), SequenceValidationError> {
     match value {
-        EffectParamValue::Marks(key) if !mark_keys.contains(key) => Err(sequence_error(
+        EffectParamValue::Marks(Some(key)) if !mark_keys.contains(key) => Err(sequence_error(
             "effect parameter references a missing mark collection",
         )),
         EffectParamValue::Curve(CurveSource::Inline(curve)) => curve

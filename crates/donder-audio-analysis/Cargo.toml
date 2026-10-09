@@ -1,0 +1,13 @@
+[package]
+name = "donder-audio-analysis"
+edition.workspace = true
+version.workspace = true
+description = "Donder beat and downbeat detection from song audio"
+authors = ["Donder"]
+license = "MIT"
+
+[dependencies]
+realfft.workspace = true
+rubato.workspace = true
+symphonia.workspace = true
+tract-onnx.workspace = true

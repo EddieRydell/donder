@@ -1756,6 +1756,25 @@ html.donder-app-shell body {
   gap: var(--donder-space-4);
 }
 
+.mark-subdivision {
+  display: grid;
+  gap: var(--donder-space-4);
+  padding-top: var(--donder-space-6);
+  border-top: var(--donder-border-width) solid var(--donder-border);
+}
+
+.mark-subdivision h4 {
+  margin: var(--donder-space-0);
+  color: var(--donder-text-strong);
+  font-size: var(--donder-font-size-md);
+}
+
+.mark-subdivision label {
+  display: grid;
+  gap: var(--donder-space-3);
+  font-size: var(--donder-font-size-md);
+}
+
 .mark-collection-edit-list {
   display: grid;
   gap: var(--donder-space-4);
@@ -1763,7 +1782,7 @@ html.donder-app-shell body {
 
 .mark-collection-edit-row {
   display: grid;
-  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--donder-space-5);
   min-height: 32px;
@@ -1772,24 +1791,6 @@ html.donder-app-shell body {
 .mark-collection-edit-row input[type="text"],
 .mark-collection-edit-row input:not([type]) {
   min-width: 0;
-}
-
-.mark-collection-name-button {
-  min-width: 0;
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  padding: var(--donder-space-3) var(--donder-space-0);
-  color: var(--donder-text);
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gui-inspector .mark-collection-name-button {
-  border: 0;
-  background: transparent;
-  color: var(--donder-text);
 }
 
 .color-picker {
@@ -3863,6 +3864,31 @@ fieldset.sequence-layer-row {
 }
 
 .sequence-export-ports label {
+  display: flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+  font-size: var(--donder-font-size-md);
+}
+
+.beat-detection-dialog {
+  width: min(480px, calc(100vw - var(--donder-toolbar-height)));
+}
+
+.beat-detection-options {
+  display: grid;
+  gap: var(--donder-space-5);
+  border: var(--donder-border-width) solid var(--donder-border);
+  padding: var(--donder-space-5);
+}
+
+.beat-detection-option {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 12rem);
+  align-items: center;
+  gap: var(--donder-space-5);
+}
+
+.beat-detection-options label {
   display: flex;
   align-items: center;
   gap: var(--donder-space-3);

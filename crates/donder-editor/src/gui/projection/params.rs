@@ -379,7 +379,9 @@ pub(in crate::gui) fn effect_param_value(
             value: value.as_str().to_string(),
         },
         EffectParamValue::Marks(value) => SequenceEffectParamValue::Marks {
-            key: value.name.as_str().to_string(),
+            key: value
+                .as_ref()
+                .map(|collection| collection.name.as_str().to_string()),
         },
         EffectParamValue::Curve(source) => SequenceEffectParamValue::Curve {
             value: SequenceCurveValue {
@@ -429,7 +431,7 @@ pub(in crate::gui) fn default_param_value(
         EffectValue::Enum(value) => SequenceEffectParamValue::Enum {
             value: value.as_str().to_string(),
         },
-        EffectValue::Marks(_) => SequenceEffectParamValue::Marks { key: String::new() },
+        EffectValue::Marks(_) => SequenceEffectParamValue::Marks { key: None },
         EffectValue::Curve(curve) => SequenceEffectParamValue::Curve {
             value: SequenceCurveValue {
                 points: curve_points(curve),

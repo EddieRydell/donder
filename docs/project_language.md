@@ -449,7 +449,9 @@ Sequence layer_test {
   bools, colors, enum options (`Forward`), mark collections by name, curves and
   gradients by reference or as literals, and arrays as lists. A curve literal is
   a list of `(position, value)` float tuples; a gradient literal is a list of
-  `(position, color)` tuples.
+  `(position, color)` tuples. A marks value may be `none`: no collection, so the
+  effect sees no marks. New effects and operators start with `none`, and deleting
+  a collection sets the values that named it to `none`.
 - `Graph`: `nodes` and `edges`. A node is one of:
   - `LayerNode { layer, position }`, named by its layer, which appears in at
     most one node;

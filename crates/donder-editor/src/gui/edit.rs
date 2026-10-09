@@ -3,14 +3,6 @@ pub(super) fn edit_sequence(
     resolved: &ResolvedGuiObject,
     edit: SequenceGuiEdit,
 ) -> Result<(), GuiMutationError> {
-    let add_effect_mark_params = match &edit {
-        SequenceGuiEdit::AddEffect {
-            effect: effect_reference,
-            mark_collection_key: Some(_),
-            ..
-        } => mark_param_names(session, effect_reference)?,
-        _ => Vec::new(),
-    };
     let sequence_id = SequenceId(resolved.object_identity());
     let mut draft = session
         .project
@@ -141,14 +133,16 @@ pub(super) fn edit_sequence(
                 target_collection.marks.sort_by_key(|time| time.0);
             }
         }
-        SequenceGuiEdit::AddMark {
+        SequenceGuiEdit::AddMarks {
             collection_key,
-            time_seconds,
+            times_seconds,
         } => {
             let collection = mark_collection_mut(&mut draft, &collection_key)?;
-            collection
-                .marks
-                .push(super::checked_gui_time(time_seconds.max(0.0))?);
+            for seconds in times_seconds {
+                collection
+                    .marks
+                    .push(super::checked_gui_time(seconds.max(0.0))?);
+            }
             collection.marks.sort_by_key(|time| time.0);
         }
         SequenceGuiEdit::DeleteMark {
@@ -160,49 +154,54 @@ pub(super) fn edit_sequence(
                 collection.marks.remove(index as usize);
             }
         }
-        SequenceGuiEdit::CreateMarkCollection { name, color } => {
+        SequenceGuiEdit::CreateMarkCollections { collections } => {
             let sequence = &mut draft;
-            super::model::typed_name(&name)?;
-            let name = super::model::fresh_name(&name, |candidate| {
-                sequence
-                    .mark_collections
+            for collection in collections {
+                super::model::typed_name(&collection.name)?;
+                let name = super::model::fresh_name(&collection.name, |candidate| {
+                    sequence
+                        .mark_collections
+                        .iter()
+                        .any(|existing| existing.key.name.as_str() == candidate)
+                });
+                let mut marks = collection
+                    .marks_seconds
                     .iter()
-                    .any(|collection| collection.key.name.as_str() == candidate)
-            });
-            sequence.mark_collections.push(MarkCollection {
-                key: MarkCollectionKey { name },
-                description: None,
-                display_color: parse_color(&color)?,
-                marks: Vec::new(),
-            });
+                    .map(|&seconds| super::checked_gui_time(seconds.max(0.0)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                marks.sort_by_key(|time| time.0);
+                sequence.mark_collections.push(MarkCollection {
+                    key: MarkCollectionKey { name },
+                    description: None,
+                    display_color: parse_color(&collection.color)?,
+                    marks,
+                });
+            }
         }
         SequenceGuiEdit::RenameMarkCollection { key, name } => {
             // A rename moves every effect parameter that names the collection.
             let name = super::model::typed_name(&name)?;
             let from = mark_collection_mut(&mut draft, &key)?.key.name.clone();
             mark_collection_mut(&mut draft, &key)?.key.name = name.clone();
-            for effect in &mut draft.effects {
-                for value in effect.param_overrides.values_mut() {
-                    if let EffectParamValue::Marks(collection) = value
-                        && collection.name == from
-                    {
-                        collection.name = name.clone();
-                    }
+            mark_references_mut(&mut draft, |reference| {
+                if let Some(collection) = reference
+                    && collection.name == from
+                {
+                    collection.name = name.clone();
                 }
-            }
+            });
         }
         SequenceGuiEdit::DeleteMarkCollection { key } => {
+            // Parameters that named the collection keep working with no marks.
             let sequence = &mut draft;
-            let is_referenced = sequence.effects.iter().any(|effect| {
-                effect.param_overrides.values().any(|value| {
-                    matches!(value, EffectParamValue::Marks(collection) if collection.name.as_str() == key)
-                })
+            mark_references_mut(sequence, |reference| {
+                if reference
+                    .as_ref()
+                    .is_some_and(|collection| collection.name.as_str() == key)
+                {
+                    *reference = None;
+                }
             });
-            if is_referenced {
-                return Err(GuiMutationError::Invalid(
-                    "Mark collection is still referenced by an effect.".to_string(),
-                ));
-            }
             sequence
                 .mark_collections
                 .retain(|collection| collection.key.name.as_str() != key);
@@ -222,7 +221,6 @@ pub(super) fn edit_sequence(
             initial_color,
             scope,
             start_seconds,
-            mark_collection_key,
         } => {
             let initial_color = parse_color(&initial_color)?;
             let definition = effect_ref_from_gui(session, effect_reference)?;
@@ -260,20 +258,7 @@ pub(super) fn edit_sequence(
                 .unwrap_or(0)
                 + 1;
             let mut param_overrides = IndexMap::new();
-            if let Some(key) = mark_collection_key {
-                for name in add_effect_mark_params {
-                    param_overrides.insert(
-                        identifier(&name)?,
-                        EffectParamValue::Marks(MarkCollectionKey {
-                            name: super::model::identifier(&key)?,
-                        }),
-                    );
-                }
-            }
             for param in params.iter().filter(|param| param.default.is_none()) {
-                if param_overrides.contains_key(&param.name) {
-                    continue;
-                }
                 let value = EffectParamValue::initial_for_type(&param.ty, initial_color)
                     .ok_or_else(|| {
                         GuiMutationError::Invalid(format!(
@@ -469,11 +454,13 @@ pub(super) fn edit_sequence(
             let mut params = IndexMap::new();
             for declaration in definition.params() {
                 if declaration.default.is_none() {
-                    let value = required_operator_param_value(
-                        declaration.ty.clone(),
-                        sequence,
-                        initial_color,
-                    )?;
+                    let value = EffectParamValue::initial_for_type(&declaration.ty, initial_color)
+                        .ok_or_else(|| {
+                            GuiMutationError::Invalid(
+                                "A valid required operator parameter could not be created."
+                                    .to_string(),
+                            )
+                        })?;
                     params.insert(declaration.name.clone(), value);
                 }
             }
@@ -906,6 +893,43 @@ use super::model::{
     layout_target_to_effect_target, mark_collection_mut, next_composition_node_id, parse_color,
     parse_graph_node_id, register_sequence_audio_asset, source_identity_from_gui,
 };
-use super::selection::{mark_param_names, required_operator_param_value};
 use super::{GuiMutationError, ResolvedGuiObject};
 use donder_sequence_api::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};
+
+/// Visit every marks parameter value in a sequence's effects and operator
+/// nodes, including the elements of marks arrays.
+fn mark_references_mut(
+    sequence: &mut donder_model::Sequence,
+    mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
+) {
+    fn visit_value(
+        value: &mut EffectParamValue,
+        visit: &mut impl FnMut(&mut Option<MarkCollectionKey>),
+    ) {
+        match value {
+            EffectParamValue::Marks(reference) => visit(reference),
+            EffectParamValue::Array(values) => {
+                for value in values {
+                    visit_value(value, visit);
+                }
+            }
+            _ => {}
+        }
+    }
+    let effects = sequence
+        .effects
+        .iter_mut()
+        .flat_map(|effect| effect.param_overrides.values_mut());
+    let operators = sequence
+        .composition_graph
+        .nodes
+        .iter_mut()
+        .filter_map(|node| match &mut node.kind {
+            CompositionGraphNodeKind::Operator(operator) => Some(operator.params.values_mut()),
+            _ => None,
+        })
+        .flatten();
+    for value in effects.chain(operators) {
+        visit_value(value, &mut visit);
+    }
+}

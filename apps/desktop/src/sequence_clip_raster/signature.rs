@@ -129,7 +129,8 @@ pub(super) fn collect_param_references(
             gradient_references
                 .push((id.clone(), project.definitions().gradients.get(id).cloned()));
         }
-        EffectParamValue::Marks(key) => {
+        EffectParamValue::Marks(None) => {}
+        EffectParamValue::Marks(Some(key)) => {
             let marks = sequence
                 .mark_collections
                 .iter()

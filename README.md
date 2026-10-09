@@ -33,7 +33,8 @@ the library doesn't have, you can write it yourself.
   → [Operator inputs](docs/effect_language.md#operator-inputs)
 - **Automation like a DAW.** An automation clip is a curve on the timeline that
   can drive any number of effect and operator parameters at once. Beat marks
-  retrigger effects, and you can tap them in while the song plays.
+  retrigger effects. Donder detects a song's beats and bars for you, or you can
+  tap marks in while it plays.
   → [Sequences](docs/project_language.md#sequences)
 - **The whole show is text.** Fixtures, layouts, patching, controllers and
   sequences are plain documents in one language. They diff cleanly in git and
@@ -100,7 +101,6 @@ displays use live E1.31/Art-Net output or FSEQ export.
 Not yet supported:
 - Prebuilt installers and the browser editor
 - Importing xLights models and layouts
-- Automatic beat detection
 - Non-pixel DMX fixtures such as moving heads
 - Live input (MIDI, OSC, audio). Parameters are evaluated live every frame, so
   live input will drive them through the same path automation uses today.

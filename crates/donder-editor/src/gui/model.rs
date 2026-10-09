@@ -310,9 +310,10 @@ pub(crate) fn effect_param_value_from_gui(
         SequenceEffectParamValue::Bool { value } => EffectParamValue::Bool(value),
         SequenceEffectParamValue::Color { value } => EffectParamValue::Color(parse_color(&value)?),
         SequenceEffectParamValue::Enum { value } => EffectParamValue::Enum(identifier(&value)?),
-        SequenceEffectParamValue::Marks { key } => EffectParamValue::Marks(MarkCollectionKey {
-            name: identifier(&key)?,
-        }),
+        SequenceEffectParamValue::Marks { key } => EffectParamValue::Marks(
+            key.map(|key| identifier(&key).map(|name| MarkCollectionKey { name }))
+                .transpose()?,
+        ),
         SequenceEffectParamValue::Curve { value } => EffectParamValue::Curve(
             match library_identity(session, owner, SourceObjectKind::Curve, value.source)? {
                 Some(id) => CurveSource::Reference(CurveId(id)),

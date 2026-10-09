@@ -47,7 +47,8 @@ pub enum EffectParamValue {
     Bool(bool),
     Color(donder_runtime_types::Color),
     Enum(Identifier),
-    Marks(MarkCollectionKey),
+    /// `None` is no collection: an empty set of marks, which never triggers.
+    Marks(Option<MarkCollectionKey>),
     Curve(CurveSource),
     Gradient(GradientSource),
     Array(Vec<EffectParamValue>),
@@ -84,7 +85,8 @@ impl EffectParamValue {
                 Some(Self::Array(vec![Self::initial_for_type(element, color)?]))
             }
             Type::Enum(options) => options.first().cloned().map(Self::Enum),
-            Type::Void | Type::Signal | Type::Marks => None,
+            Type::Marks => Some(Self::Marks(None)),
+            Type::Void | Type::Signal => None,
         }
     }
 }

@@ -57,7 +57,8 @@ fn prepare_param_value(
         EffectParamValue::Bool(value) => Value::Bool(*value),
         EffectParamValue::Color(value) => Value::Color(*value),
         EffectParamValue::Enum(value) => Value::Enum(value.clone()),
-        EffectParamValue::Marks(key) => {
+        EffectParamValue::Marks(None) => Value::Marks(Arc::new(Marks::EMPTY)),
+        EffectParamValue::Marks(Some(key)) => {
             let collection = collections[key];
             let start = u64::from(timing.start.as_ticks());
             let end = start + u64::from(timing.duration.as_ticks());

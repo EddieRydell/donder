@@ -1,26 +1,3 @@
-pub(super) fn required_operator_param_value(
-    ty: Type,
-    sequence: &donder_model::Sequence,
-    color: donder_runtime_types::Color,
-) -> Result<EffectParamValue, GuiMutationError> {
-    if ty == Type::Marks {
-        return sequence
-            .mark_collections
-            .first()
-            .map(|collection| EffectParamValue::Marks(collection.key.clone()))
-            .ok_or_else(|| {
-                GuiMutationError::Invalid(
-                    "A required marks parameter needs a mark collection.".to_string(),
-                )
-            });
-    }
-    EffectParamValue::initial_for_type(&ty, color).ok_or_else(|| {
-        GuiMutationError::Invalid(
-            "A valid required operator parameter could not be created.".to_string(),
-        )
-    })
-}
-
 pub fn copy_sequence_selection(
     session: &ProjectSession,
     sequence_id: &SequenceId,
@@ -732,51 +709,16 @@ pub(super) fn target_for_lane(
 ) -> Option<FixtureTarget> {
     lane_targets(session)?.into_iter().nth(lane_index)
 }
-
-pub(super) fn mark_param_names(
-    session: &ProjectSession,
-    reference: &SequenceEffectReference,
-) -> Result<Vec<String>, GuiMutationError> {
-    let reference = match reference {
-        SequenceEffectReference::Custom {
-            module_id,
-            path,
-            effect_name,
-        } => {
-            let identity = source_identity_from_gui(module_id, path, effect_name)?;
-            if !session.source.is_project_owned(identity.document_id()) {
-                return Err(GuiMutationError::Invalid(
-                    "Effect source module was not found.".to_string(),
-                ));
-            }
-            EffectRef::Custom(EffectDefinitionId(identity))
-        }
-    };
-    let definition = session
-        .project
-        .definitions()
-        .effects
-        .resolve(&reference)
-        .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
-    Ok(definition
-        .params()
-        .iter()
-        .filter(|param| matches!(param.ty, Type::Marks))
-        .map(|param| param.name.as_str().to_string())
-        .collect())
-}
 use std::collections::BTreeMap;
 
 use donder_language::{DonderDuration, DonderTime};
+use donder_model::EffectInstId;
 use donder_model::FixtureTarget;
 use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId};
-use donder_model::{EffectDefinitionId, EffectInstId, EffectParamValue, EffectRef};
 use donder_project_io::ProjectSession;
-use donder_runtime_types::Type;
 
 use super::model::{
     effect_mut, effect_param_value_from_gui, effect_scope, identifier, mark_collection_mut,
-    source_identity_from_gui,
 };
 use super::projection::active_layout;
 use super::{
@@ -784,6 +726,6 @@ use super::{
     SequenceSelectionMutation,
 };
 use donder_sequence_api::{
-    SequenceAutomationResize, SequenceEffectCommonEdit, SequenceEffectReference, SequenceMarkRef,
-    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection,
+    SequenceAutomationResize, SequenceEffectCommonEdit, SequenceMarkRef, SequencePasteAnchor,
+    SequenceResizeEdge, SequenceSelection,
 };

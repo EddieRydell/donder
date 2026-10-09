@@ -471,6 +471,12 @@ export type LiveOutputSnapshot = {
 
 export type LiveOutputState = "disabled" | "preparing" | "holding" | "streaming" | "testing" | "stopping" | "error";
 
+export type NewMarkCollection = {
+	name: string,
+	color: string,
+	marksSeconds: number[],
+};
+
 export type NewSequenceRequest = {
 	storage: NewSequenceStorage,
 	initialColor: string,
@@ -722,6 +728,12 @@ export type SequenceAutomationResize =
 
 export type SequenceAutomationTarget = { type: "effectParam"; effectId: number; param: string } | { type: "compositionNodeParam"; nodeId: string; param: string };
 
+/**  Beats and downbeats detected in a sequence's audio, in ascending seconds. */
+export type SequenceBeatDetection = {
+	beatsSeconds: number[],
+	downbeatsSeconds: number[],
+};
+
 export type SequenceClipRaster = {
 	requestId: number,
 	effectId: number,
@@ -857,7 +869,9 @@ export type SequenceEffectParam = {
 
 export type SequenceEffectParamKind = "int" | "float" | "bool" | "color" | "enum" | "curve" | "gradient" | "intArray" | "floatArray" | "boolArray" | "colorArray" | "curveArray" | "gradientArray" | "marks";
 
-export type SequenceEffectParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | { type: "enum"; value: string } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | { type: "marks"; key: string };
+export type SequenceEffectParamValue = { type: "int"; value: number } | { type: "float"; value: number } | { type: "bool"; value: boolean } | { type: "color"; value: string } | { type: "enum"; value: string } | { type: "curve"; value: SequenceCurveValue } | { type: "gradient"; value: SequenceGradientValue } | { type: "intArray"; values: number[] } | { type: "floatArray"; values: number[] } | { type: "boolArray"; values: boolean[] } | { type: "colorArray"; values: string[] } | { type: "curveArray"; values: SequenceCurveValue[] } | { type: "gradientArray"; values: SequenceGradientValue[] } | 
+/**  `None` is no collection: the parameter has no marks. */
+{ type: "marks"; key: string | null };
 
 export type SequenceEffectReference = { type: "custom"; moduleId: string; path: string; effectName: string };
 
@@ -969,11 +983,11 @@ export type SequenceGuiDocument = {
 	automationClips: SequenceAutomationClip[],
 };
 
-export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number; markCollectionKey: string | null } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameClip"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | 
+export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameClip"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | 
 /**  Set an item's description; empty text removes it. */
 { type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
-/**  The name becomes a unique `snake_case` name. */
-{ type: "createMarkCollection"; name: string; color: string } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMark"; collectionKey: string; timeSeconds: number } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
+/**  Each name becomes a unique `snake_case` name. */
+{ type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number };
 
 export type SequenceInitialZoomMode = "fitToWidth" | "fixedPxPerSecond";
 
