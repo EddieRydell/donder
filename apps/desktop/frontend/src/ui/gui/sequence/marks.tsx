@@ -117,7 +117,7 @@ export function committedMarkDrafts(collections: SequenceMarkCollection[], draft
   return next;
 }
 
-export function nextCollectionKey(name: string, collections: SequenceMarkCollection[]) {
+export function nextCollectionKey(name: string, collections: Pick<SequenceMarkCollection, "key">[]) {
   const used = new Set(collections.map((collection) => collection.key));
   const base = snakeCaseKey(name);
   if (!used.has(base)) return base;
@@ -139,4 +139,22 @@ function snakeCaseKey(value: string) {
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
   return /^[a-z]/.test(key) ? key : key.length > 0 ? `marks_${key}` : "marks";
+}
+
+/**
+ * Times that divide each gap between consecutive selected times into `divisions` equal parts.
+ * The selected times themselves are not included.
+ */
+export function subdivisionTimes(selectedSeconds: number[], divisions: number) {
+  const times = [...new Set(selectedSeconds)].sort((left, right) => left - right);
+  const subdivided: number[] = [];
+  for (let index = 1; index < times.length; index += 1) {
+    const start = times[index - 1];
+    const end = times[index];
+    if (start === undefined || end === undefined) continue;
+    for (let step = 1; step < divisions; step += 1) {
+      subdivided.push(start + ((end - start) * step) / divisions);
+    }
+  }
+  return subdivided;
 }

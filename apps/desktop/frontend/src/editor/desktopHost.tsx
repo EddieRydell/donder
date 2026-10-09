@@ -31,5 +31,6 @@ export const desktopSequenceEditorHost: SequenceEditorHost = {
   resolveAssetUrl: convertFileSrc,
   navigateToGuiObject,
   capabilities: { audioFile: true, liveOutput: true, previewWindow: true, playbackSpeed: true },
+  detectSequenceBeats: commands.detectSequenceBeats,
   exportControls: <SequenceExportDialog />
 };

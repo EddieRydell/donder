@@ -122,7 +122,7 @@ fn configured_project(
     };
     set(
         "beats",
-        EffectParamValue::Marks(sequence.mark_collections[0].key.clone()),
+        EffectParamValue::Marks(Some(sequence.mark_collections[0].key.clone())),
     );
     set("offset_seconds", EffectParamValue::Float(0.125));
     set(effect.duration_param(), EffectParamValue::Float(1.0));

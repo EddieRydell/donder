@@ -456,7 +456,6 @@ fn empty_project_authors_shared_fixtures_routes_effect_and_reopens_without_text_
                 target: FixtureTarget { fixture: 1 },
                 scope: SequenceEffectScope::PerFixture,
                 start_seconds: 0.0,
-                mark_collection_key: None,
             },
         },
     );

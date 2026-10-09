@@ -1576,10 +1576,11 @@ impl DomainResolver<'_> {
                         span: *span,
                     },
                 );
-                EffectParamValue::Marks(MarkCollectionKey {
+                EffectParamValue::Marks(Some(MarkCollectionKey {
                     name: segment.value.clone(),
-                })
+                }))
             }
+            (Type::Marks, DataValue::None) => EffectParamValue::Marks(None),
             (Type::Curve, DataValue::Reference(segments)) => {
                 let ResolvedObject::Curve(curve) = self.loader.resolve_reference(
                     document,

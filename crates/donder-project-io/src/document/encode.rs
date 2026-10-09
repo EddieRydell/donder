@@ -610,7 +610,8 @@ impl Encoder<'_> {
             EffectParamValue::Bool(value) => DataValue::Bool(*value),
             EffectParamValue::Color(value) => DataValue::Color(*value),
             EffectParamValue::Enum(option) => donder_language::data::variant(option.as_str()),
-            EffectParamValue::Marks(key) => Reference::new(vec![key.name.clone()]).encode(),
+            EffectParamValue::Marks(Some(key)) => Reference::new(vec![key.name.clone()]).encode(),
+            EffectParamValue::Marks(None) => DataValue::None,
             EffectParamValue::Curve(CurveSource::Reference(id)) => self
                 .source_reference(SourceObjectKind::Curve, &id.0)?
                 .encode(),

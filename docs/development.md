@@ -10,6 +10,7 @@ crates/donder-project-io/       Project loading, imports, diagnostics and saving
 crates/donder-elaboration/      Preparing a sequence for selected outputs
 crates/donder-runtime/          Portable no_std playback runtime and archive format
 crates/donder-output/           E1.31 and Art-Net transports, FSEQ export
+crates/donder-audio-analysis/   Beat and downbeat detection from song audio
 crates/donder-language-server/  Language server for documents and scripts
 crates/donder-cli/              Command-line project tools
 crates/donder-editor/           Shared GUI projection and edits for desktop and browser

@@ -95,6 +95,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         toggle_project_tree,
         load_sequence_audio,
         unload_audio,
+        detect_sequence_beats,
         audio_play,
         audio_pause,
         audio_stop,

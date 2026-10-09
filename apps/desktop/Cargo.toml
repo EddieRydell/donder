@@ -20,6 +20,7 @@ donder-language.workspace = true
 donder-model.workspace = true
 donder-runtime-types.workspace = true
 donder-output.workspace = true
+donder-audio-analysis.workspace = true
 donder-elaboration.workspace = true
 donder-runtime.workspace = true
 glam.workspace = true

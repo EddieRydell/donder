@@ -770,9 +770,8 @@ export function SequenceCanvas({
       const newCollectionKey = nextCollectionKey("Marks", collections);
       await runGuiEditCommand((request) =>
         commands.applySequenceGuiEdit(request, {
-          type: "createMarkCollection",
-          name: newCollectionKey,
-          color: defaultMarkColor(collections.length)
+          type: "createMarkCollections",
+          collections: [{ name: newCollectionKey, color: defaultMarkColor(collections.length), marksSeconds: [] }]
         })
       );
       key = newCollectionKey;
@@ -782,8 +781,6 @@ export function SequenceCanvas({
     return key;
   };
   const addEffectFromContextMenu = async (definition: SequenceEffectDefinition, menu: LaneContextMenu) => {
-    const hasMarksParams = definition.params.some((param) => param.kind === "marks");
-    const markCollectionKey = hasMarksParams ? await markCollectionForEdit(null) : null;
     const target = document.lanes[menu.laneIndex]?.target ?? document.lanes[0]?.target;
     if (target === undefined) return;
     const scope: SequenceEffectScope = "wholeTarget";
@@ -794,8 +791,7 @@ export function SequenceCanvas({
         effect: definition.effect,
         target,
         scope,
-        startSeconds: menu.startSeconds,
-        markCollectionKey
+        startSeconds: menu.startSeconds
       })
     );
   };
@@ -803,9 +799,9 @@ export function SequenceCanvas({
     const key = await markCollectionForEdit(collectionKey);
     await runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
-        type: "addMark",
+        type: "addMarks",
         collectionKey: key,
-        timeSeconds
+        timesSeconds: [timeSeconds]
       })
     );
   };

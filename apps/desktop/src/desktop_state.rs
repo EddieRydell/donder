@@ -382,6 +382,7 @@ impl DesktopState {
 }
 
 mod audio;
+mod beat_detection;
 mod diagnostics;
 pub(super) use diagnostics::project_diagnostics;
 mod editor_projection;

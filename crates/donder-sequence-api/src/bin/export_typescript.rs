@@ -10,6 +10,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<SequenceAutomationTarget>()
         .register::<SequenceGuiEdit>()
         .register::<SequenceMarkRef>()
+        .register::<NewMarkCollection>()
+        .register::<SequenceBeatDetection>()
         .register::<SequencePasteAnchor>()
         .register::<SequenceSelection>()
         .register::<SequenceEffectCommonEdit>()

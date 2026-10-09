@@ -2,7 +2,7 @@ import { useSequenceEditorHost } from "../../../editor/host";
 import { useContext, useMemo, useState } from "react";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type {
@@ -25,6 +25,8 @@ import { TypedParamInput } from "./params/TypedParamInput";
 import { NameField } from "./NameField";
 import { DescriptionField } from "../DescriptionField";
 import { activeMarkCollection, defaultMarkColor, nextCollectionKey } from "./marks";
+import { BeatDetectionDialog } from "./BeatDetectionDialog";
+import { MarkSubdivision } from "./MarkSubdivision";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { targetsEqual } from "./sequenceTargets";
 import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
@@ -745,7 +747,6 @@ function MarkInspectorPanel({
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
 
-  const [editingCollectionKey, setEditingCollectionKey] = useState<string | null>(null);
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
   const selectedMarks = selectedMarkEntries(document, selected, sequenceSelection);
@@ -755,9 +756,8 @@ function MarkInspectorPanel({
     const key = nextCollectionKey(name, document.markCollections);
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
-        type: "createMarkCollection",
-        name: key,
-        color: defaultMarkColor(document.markCollections.length)
+        type: "createMarkCollections",
+        collections: [{ name: key, color: defaultMarkColor(document.markCollections.length), marksSeconds: [] }]
       })
     ).then(() => {
       setActiveMarkCollectionKey(key);
@@ -765,8 +765,30 @@ function MarkInspectorPanel({
     });
   };
 
+  /** Renames on commit, carrying the active and visible state to the new key; a rejected name reverts. */
+  const renameCollection = (key: string, input: HTMLInputElement) => {
+    const name = input.value.trim();
+    if (name === "" || name === key) {
+      input.value = key;
+      return;
+    }
+    void runGuiEditCommand((request) =>
+      commands.applySequenceGuiEdit(request, { type: "renameMarkCollection", key, name })
+    ).then(
+      () => {
+        if (activeMarkCollectionKey === key) setActiveMarkCollectionKey(name);
+        if (visibleMarkCollectionKeys.has(key)) {
+          setVisibleMarkCollectionKeys(new Set([...visibleMarkCollectionKeys].map((visible) => (visible === key ? name : visible))));
+        }
+      },
+      () => {
+        input.value = key;
+      }
+    );
+  };
+
   const deleteCollection = (collection: SequenceMarkCollection) => {
-    if (collection.marksSeconds.length > 0 && !window.confirm(`Delete ${collection.key} and ${collection.marksSeconds.length} marks?`)) return;
+    if (collection.marksSeconds.length > 0 && !window.confirm(`Delete ${collection.key} and ${collection.marksSeconds.length} marks? Effects using it will have no marks.`)) return;
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "deleteMarkCollection",
@@ -877,6 +899,12 @@ function MarkInspectorPanel({
           <Plus size={THEME_METRICS.iconSizeSmall} />
           Add collection
         </button>
+        <BeatDetectionDialog
+          document={document}
+          setActiveMarkCollectionKey={setActiveMarkCollectionKey}
+          visibleMarkCollectionKeys={visibleMarkCollectionKeys}
+          setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
+        />
         {document.markCollections.length > 0 && (
           <div className="mark-collection-edit-list">
             {document.markCollections.map((collection) => (
@@ -917,47 +945,26 @@ function MarkInspectorPanel({
                     ).then(() => undefined)
                   }
                 />
-                {editingCollectionKey === collection.key ? (
-                  <input
-                    key={`${collection.key}:edit-name`}
-                    autoFocus
-                    defaultValue={collection.key}
-                    aria-label="Collection name"
-                    onBlur={(event) => {
-                      const name = event.currentTarget.value.trim() || collection.key;
-                      setEditingCollectionKey(null);
-                      if (name === collection.key) return;
-                      void runGuiEditCommand((request) =>
-                        commands.applySequenceGuiEdit(request, {
-                          type: "renameMarkCollection",
-                          key: collection.key,
-                          name
-                        })
-                      );
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="mark-collection-name-button"
-                    onClick={() => {
-                      setActiveMarkCollectionKey(collection.key);
-                    }}
-                  >
-                    {collection.key}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="icon-button neutral-icon-button"
-                  title="Edit collection name"
-                  aria-label={`Edit ${collection.key}`}
-                  onClick={() => {
-                    setEditingCollectionKey(collection.key);
+                <input
+                  key={collection.key}
+                  type="text"
+                  defaultValue={collection.key}
+                  aria-label={`${collection.key} name`}
+                  onFocus={() => {
+                    setActiveMarkCollectionKey(collection.key);
                   }}
-                >
-                  <Pencil size={THEME_METRICS.iconSizeSmall} />
-                </button>
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                    if (event.key === "Escape") {
+                      event.stopPropagation();
+                      event.currentTarget.value = collection.key;
+                      event.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={(event) => {
+                    renameCollection(collection.key, event.currentTarget);
+                  }}
+                />
                 <button
                   type="button"
                   className="icon-button danger-icon-button"
@@ -1016,6 +1023,18 @@ function MarkInspectorPanel({
               </div>
             ))}
           </div>
+          {selectedMarks.length >= 2 && (
+            <MarkSubdivision
+              document={document}
+              selectedSeconds={selectedMarks.map((entry) => entry.timeSeconds)}
+              visibleMarkCollectionKeys={visibleMarkCollectionKeys}
+              setVisibleMarkCollectionKeys={setVisibleMarkCollectionKeys}
+              clearMarkSelection={() => {
+                setSelected(null);
+                setSequenceSelection(null);
+              }}
+            />
+          )}
         </div>
       ) : (
         <p>Select a mark on the timeline.</p>
