@@ -576,6 +576,7 @@ export type PersistedPreviewWindowState = {
 
 export type PersistedSequenceViewportState = {
 	pxPerSecond: number,
+	leftGutterWidthPx: number,
 	audioStripHeightPx?: number,
 	markRulerHeightPx?: number,
 	rowHeights: { [key in string]: number },

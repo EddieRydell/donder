@@ -40,6 +40,9 @@ effect Chase {
 effect Wipe {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
+  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
+  -- Off lights it before.
+  param mode: enum { Pass, On, Off } = Pass;
   param pulse_width: float in 0.01..1.0 = 0.15;
   param direction_angle: float in 0.0..360.0 = 0.0;
   param wipe_position: curve in 0.0..1.0;
@@ -62,11 +65,14 @@ effect Wipe {
     let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_width) };
     let hit = mix(travel_start, travel_end, value_or(curve_first_crossing(wipe_position, chase_value), chase_value));
     let pulse_progress = (progress - hit) / pulse_width;
-    let level = if pulse_progress >= 0.0 && pulse_progress <= 1.0 { pulse_shape[pulse_progress] } else { 0.0 };
+    let level =
+      if pulse_progress < 0.0 { if mode == Off { 1.0 } else { 0.0 } }
+      else if pulse_progress > 1.0 { if mode == On { 1.0 } else { 0.0 } }
+      else { pulse_shape[pulse_progress] };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
       else if gradient_mode == AcrossItems { position }
-      else { pulse_progress };
+      else { clamp(pulse_progress, 0.0, 1.0) };
     gradient_color_scaled(gradient, gradient_position, level)
   }
 }

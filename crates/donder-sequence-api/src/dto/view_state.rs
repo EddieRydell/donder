@@ -14,6 +14,7 @@ pub struct PersistedEditorViewState {
 #[serde(rename_all = "camelCase")]
 pub struct PersistedSequenceViewportState {
     pub px_per_second: f32,
+    pub left_gutter_width_px: f32,
     #[serde(default = "default_audio_strip_height_px")]
     pub audio_strip_height_px: f32,
     #[serde(default = "default_mark_ruler_height_px")]
