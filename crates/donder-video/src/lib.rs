@@ -24,7 +24,7 @@ use donder_runtime_types::sample_time_from_frame;
 use muxide::api::{AacProfile, AudioCodec, MuxerBuilder, VideoCodec};
 use openh264::OpenH264API;
 use openh264::encoder::{
-    BitRate, Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, RateControlMode,
+    Encoder, EncoderConfig, FrameRate, FrameType, IntraFramePeriod, QpRange, RateControlMode,
 };
 use openh264::formats::{RgbSliceU8, YUVBuffer};
 
@@ -40,6 +40,13 @@ pub struct VideoOptions {
     pub canvas_fill_ratio: f32,
     /// Smallest drawn pixel radius, as in the Preview.
     pub minimum_radius_pixels: f32,
+}
+
+/// Where an export is, reported while it runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VideoProgress {
+    PreparingAudio,
+    Rendering { completed: u32, total: u32 },
 }
 
 #[derive(Debug)]
@@ -73,15 +80,18 @@ impl fmt::Display for VideoError {
 
 impl std::error::Error for VideoError {}
 
-const VIDEO_BITS_PER_SECOND: u32 = 8_000_000;
+/// H.264 quantizer: low enough that small bright bulbs stay crisp on black.
+const VIDEO_QP: u8 = 20;
 const KEYFRAME_SECONDS: u32 = 2;
 
-/// Render `sequence` as an MP4, with `audio` (the sequence's song) when given.
+/// Render `sequence` as an MP4, with `audio` (the sequence's song) when given,
+/// reporting `progress` about once per second of video.
 pub fn export_video(
     project: &DonderProject,
     sequence: &SequenceId,
     audio: Option<&Utf8Path>,
     options: &VideoOptions,
+    mut progress: impl FnMut(VideoProgress),
 ) -> Result<Vec<u8>, VideoError> {
     validate(options)?;
     let scene = scene::Scene::new(project, options)?;
@@ -93,6 +103,11 @@ pub fn export_video(
     let mut playback = prepared.into_playback();
     let fps = options.frames_per_second;
     let video_frames = u64::from(frame_count) * u64::from(fps) / u64::from(rate);
+    let total = u32::try_from(video_frames)
+        .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?;
+    if audio.is_some() {
+        progress(VideoProgress::PreparingAudio);
+    }
     let song = audio.map(audio::encode_song).transpose()?;
 
     let mut bytes = Vec::new();
@@ -110,11 +125,13 @@ pub fn export_video(
     let mut muxer = builder
         .build()
         .map_err(|error| VideoError::Mux(error.to_string()))?;
+    // Fixed quality, no rate control: every frame of the show is kept.
     let config = EncoderConfig::new()
-        .bitrate(BitRate::from_bps(VIDEO_BITS_PER_SECOND))
         .max_frame_rate(FrameRate::from_hz(fps as f32))
-        .rate_control_mode(RateControlMode::Bitrate)
-        .intra_frame_period(IntraFramePeriod::from_num_frames(fps * KEYFRAME_SECONDS));
+        .rate_control_mode(RateControlMode::Off)
+        .qp(QpRange::new(VIDEO_QP, VIDEO_QP))
+        .intra_frame_period(IntraFramePeriod::from_num_frames(fps * KEYFRAME_SECONDS))
+        .skip_frames(false);
     let mut encoder = Encoder::with_api_config(OpenH264API::from_source(), config)
         .map_err(|error| VideoError::Encode(error.to_string()))?;
 
@@ -122,7 +139,14 @@ pub fn export_video(
     let mut rgb = vec![0u8; width * height * 3];
     let mut yuv = YUVBuffer::new(width, height);
     let mut audio_frames = song.as_ref().map(|song| song.frames.iter().peekable());
-    for index in 0..video_frames {
+    for index in 0..total {
+        if index % fps == 0 {
+            progress(VideoProgress::Rendering {
+                completed: index,
+                total,
+            });
+        }
+        let index = u64::from(index);
         let seconds = index as f64 / f64::from(fps);
         let frame = u32::try_from(index * u64::from(rate) / u64::from(fps))
             .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?;
@@ -133,7 +157,8 @@ pub fn export_video(
         let encoded = encoder
             .encode(&yuv)
             .map_err(|error| VideoError::Encode(error.to_string()))?;
-        let keyframe = matches!(encoded.frame_type(), FrameType::IDR | FrameType::I);
+        // Only IDR frames are safe random-access points for players.
+        let keyframe = encoded.frame_type() == FrameType::IDR;
         let data = encoded.to_vec();
         if !data.is_empty() {
             muxer
@@ -152,6 +177,10 @@ pub fn export_video(
             }
         }
     }
+    progress(VideoProgress::Rendering {
+        completed: total,
+        total,
+    });
     muxer
         .finish()
         .map_err(|error| VideoError::Mux(error.to_string()))?;

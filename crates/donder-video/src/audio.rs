@@ -32,9 +32,22 @@ pub(crate) fn encode_song(path: &Utf8Path) -> Result<EncodedSong, VideoError> {
         audio_object_type: AudioObjectType::Mpeg4LowComplexity,
     })
     .map_err(|error| VideoError::Audio(error.to_string()))?;
+    // fdk-aac delays its output by `nDelay` samples. Leading silence rounds the
+    // delay up to whole frames, which are dropped, so the first kept frame starts
+    // at the song's first sample. Trailing silence flushes the encoder's tail.
+    let delay = encoder
+        .info()
+        .map_err(|error| VideoError::Audio(error.to_string()))?
+        .nDelay as usize;
+    let lead = (AAC_FRAME - delay % AAC_FRAME) % AAC_FRAME;
+    let skipped = (delay + lead) / AAC_FRAME;
+    let mut padded = vec![0i16; lead * 2];
+    padded.extend_from_slice(&samples);
+    padded.resize(padded.len() + (delay + AAC_FRAME) * 2, 0);
+    let mut produced = 0usize;
     let mut frames = Vec::new();
     let mut output = vec![0u8; AAC_OUTPUT_BYTES];
-    let mut input = samples.as_slice();
+    let mut input = padded.as_slice();
     while !input.is_empty() {
         let chunk = &input[..input.len().min(AAC_FRAME * 2)];
         let info = encoder
@@ -47,8 +60,11 @@ pub(crate) fn encode_song(path: &Utf8Path) -> Result<EncodedSong, VideoError> {
         }
         input = &input[info.input_consumed..];
         if info.output_size > 0 {
-            let position = (frames.len() * AAC_FRAME) as u64;
-            frames.push((position, output[..info.output_size].to_vec()));
+            if produced >= skipped {
+                let position = ((produced - skipped) * AAC_FRAME) as u64;
+                frames.push((position, output[..info.output_size].to_vec()));
+            }
+            produced += 1;
         }
     }
     Ok(EncodedSong {
@@ -96,8 +112,12 @@ fn decode_stereo(path: &Utf8Path) -> Result<(Vec<i16>, u32), VideoError> {
         }
         let decoded = match decoder.decode(&packet) {
             Ok(decoded) => decoded,
-            // A corrupt packet loses only its own samples; the stream continues.
-            Err(Error::DecodeError(_)) => continue,
+            // A corrupt packet becomes silence of its length, so later audio keeps its time.
+            Err(Error::DecodeError(_)) => {
+                let silent = packet.dur.get() as usize;
+                stereo.resize(stereo.len() + silent * 2, 0);
+                continue;
+            }
             Err(error) => return Err(decode_error(error)),
         };
         let channels = decoded.spec().channels().count();

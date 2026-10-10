@@ -1,11 +1,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
+import { Channel } from "@tauri-apps/api/core";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { commands } from "../../../api";
 import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceExportOptions } from "../../../types";
+import type { GuiDocumentRequest, SequenceExportOptions, VideoExportProgress } from "../../../types";
 
 /** Common FPP frame steps, offered beside the step closest to the authored rate. */
 const FSEQ_PRESET_STEPS = [20, 25, 50];
@@ -24,6 +25,7 @@ export function SequenceExportDialog() {
   const [pending, setPending] = useState<"options" | "donderseq" | "fseq" | "mp4" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
   const stale = origin !== null && origin !== request;
   const ports = options?.ports ?? [];
   const steps = options === null ? [] : [...new Set([options.fseqStepMillis, ...FSEQ_PRESET_STEPS])];
@@ -51,12 +53,17 @@ export function SequenceExportDialog() {
       const result = format === "fseq"
         ? await commands.exportFseqFile(origin, selected, stepMillis)
         : format === "mp4"
-          ? await commands.exportVideoFile(origin, PREVIEW_APPEARANCE)
+          ? await exportVideo(origin)
           : await commands.exportSequenceFile(origin, selected);
       if (result.status === "error") throw new Error(result.error);
       setSaved(result.data);
     } catch (error: unknown) { setError(String(error)); }
-    finally { setPending(null); }
+    finally { setPending(null); setVideoProgress(null); }
+  };
+  const exportVideo = (target: GuiDocumentRequest) => {
+    const channel = new Channel<VideoExportProgress>();
+    channel.onmessage = setVideoProgress;
+    return commands.exportVideoFile(target, PREVIEW_APPEARANCE, channel);
   };
   const busy = pending !== null;
   return <>
@@ -70,6 +77,10 @@ export function SequenceExportDialog() {
           {stale && <p role="alert">The project changed. Close and reopen export to use the current sequence and outputs.</p>}
           {error !== null && <p role="alert">{error}</p>}
           {saved !== null && <p role="status">Saved {saved}</p>}
+          {videoProgress !== null && <div role="status" className="sequence-export-progress">
+            <span>{videoProgressLabel(videoProgress)}</span>
+            <progress value={videoProgress.stage === "rendering" ? videoProgress.completed : undefined} max={videoProgress.stage === "rendering" ? Math.max(1, videoProgress.total) : undefined} />
+          </div>}
           <fieldset className="sequence-export-ports" disabled={busy || stale}>
             <legend>Output ports</legend>
             {ports.map((port) => {
@@ -99,7 +110,7 @@ export function SequenceExportDialog() {
           </fieldset>}
           <div className="dialog-actions">
             <button type="button" disabled={busy} onClick={() => { setOrigin(null); }}>Close</button>
-            <button type="button" disabled={busy || stale} onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Rendering video…" : "Save .mp4 video"}</button>
+            <button type="button" disabled={busy || stale} onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Exporting video…" : "Save .mp4 video"}</button>
             <button type="button" disabled={busy || stale || selected.length === 0} onClick={() => { void save("donderseq"); }}>{pending === "donderseq" ? "Preparing…" : "Save .donderseq file"}</button>
             <button type="button" disabled={busy || stale || selected.length === 0 || !stepValid} onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Preparing…" : "Save .fseq file"}</button>
           </div>
@@ -107,4 +118,12 @@ export function SequenceExportDialog() {
       </Dialog.Portal>
     </Dialog.Root>
   </>;
+}
+
+function videoProgressLabel(progress: VideoExportProgress): string {
+  switch (progress.stage) {
+    case "preparingAudio": return "Preparing the song…";
+    case "rendering": return `Rendering video: ${Math.round(100 * progress.completed / Math.max(1, progress.total))}%`;
+    case "saving": return "Saving video…";
+  }
 }

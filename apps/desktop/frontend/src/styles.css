@@ -3908,6 +3908,18 @@ fieldset.sequence-layer-row {
   align-items: center;
   gap: var(--donder-space-3);
 }
+
+.sequence-export-progress {
+  display: grid;
+  gap: var(--donder-space-3);
+  margin-top: var(--donder-space-5);
+  font-size: var(--donder-font-size-md);
+}
+
+.sequence-export-progress progress {
+  width: 100%;
+  accent-color: var(--donder-accent);
+}
 .setup-authoring-form h4,
 .setup-authoring-form p { flex-basis: 100%; margin: 0; }
 .setup-authoring-form > label,

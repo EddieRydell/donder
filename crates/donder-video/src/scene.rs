@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use donder_model::{DonderProject, PreparedFixtureDefinitions};
 use donder_runtime::SequenceFrame;
 
@@ -20,8 +22,11 @@ struct Bulb {
 pub(crate) struct Scene {
     width: usize,
     height: usize,
-    /// Bulbs of each fixture instance, in output pixel order.
-    fixtures: Vec<(u32, Vec<Bulb>)>,
+    /// Bulbs of each fixture instance, in output pixel order, by fixture id.
+    fixtures: HashMap<u32, Vec<Bulb>>,
+    /// The Preview draws on an sRGB surface, which encodes every colour
+    /// channel as linear; the video applies the same encoding.
+    srgb: [u8; 256],
     /// The background with every bulb drawn unlit.
     unlit: Vec<u8>,
 }
@@ -84,13 +89,17 @@ impl Scene {
                     .collect();
                 (id, bulbs)
             })
-            .collect::<Vec<_>>();
+            .collect::<HashMap<_, _>>();
+        let srgb = std::array::from_fn(|value| linear_to_srgb(value as u8));
+        let background = options
+            .background_rgb
+            .map(|channel| srgb[usize::from(channel)]);
         let mut scene = Self {
             width: options.width as usize,
             height: options.height as usize,
-            fixtures: Vec::new(),
-            unlit: options
-                .background_rgb
+            fixtures: HashMap::new(),
+            srgb,
+            unlit: background
                 .iter()
                 .copied()
                 .cycle()
@@ -98,8 +107,9 @@ impl Scene {
                 .collect(),
         };
         let mut unlit = std::mem::take(&mut scene.unlit);
-        for bulb in fixtures.iter().flat_map(|(_, bulbs)| bulbs) {
-            scene.disc(&mut unlit, bulb, options.unlit_rgb);
+        let unlit_rgb = options.unlit_rgb.map(|channel| srgb[usize::from(channel)]);
+        for bulb in fixtures.values().flatten() {
+            scene.disc(&mut unlit, bulb, unlit_rgb);
         }
         scene.unlit = unlit;
         scene.fixtures = fixtures;
@@ -110,16 +120,14 @@ impl Scene {
     pub(crate) fn draw(&self, frame: &SequenceFrame<'_>, rgb: &mut [u8]) {
         rgb.copy_from_slice(&self.unlit);
         for fixture in frame.fixtures() {
-            let Some((_, bulbs)) = self
-                .fixtures
-                .iter()
-                .find(|(id, _)| *id == fixture.fixture_id)
-            else {
+            let Some(bulbs) = self.fixtures.get(&fixture.fixture_id) else {
                 continue;
             };
             for (color, bulb) in fixture.pixels.iter().zip(bulbs) {
                 if color.red != 0 || color.green != 0 || color.blue != 0 {
-                    self.disc(rgb, bulb, [color.red, color.green, color.blue]);
+                    let encoded = [color.red, color.green, color.blue]
+                        .map(|channel| self.srgb[usize::from(channel)]);
+                    self.disc(rgb, bulb, encoded);
                 }
             }
         }
@@ -150,4 +158,16 @@ impl Scene {
             }
         }
     }
+}
+
+/// The sRGB transfer function, as a GPU applies it when writing a linear value
+/// to an sRGB surface.
+fn linear_to_srgb(value: u8) -> u8 {
+    let linear = f32::from(value) / 255.0;
+    let encoded = if linear <= 0.003_130_8 {
+        linear * 12.92
+    } else {
+        1.055 * linear.powf(1.0 / 2.4) - 0.055
+    };
+    (encoded * 255.0).round() as u8
 }
