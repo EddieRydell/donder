@@ -128,11 +128,24 @@ impl TargetPixels {
     }
 
     pub(crate) fn iter(&self) -> TargetIter<'_> {
+        self.iter_from(0)
+    }
+
+    /// The pixels from target index `index` on.
+    #[inline]
+    pub(crate) fn iter_from(&self, index: usize) -> TargetIter<'_> {
+        let (run, start) = match self {
+            Self::Indexed(_) => (0, 0),
+            Self::Runs(runs) => {
+                let run = runs.partition_point(|run| run.end <= index);
+                (run, if run == 0 { 0 } else { runs[run - 1].end })
+            }
+        };
         TargetIter {
             pixels: self,
-            index: 0,
-            run: 0,
-            start: 0,
+            index,
+            run,
+            start,
         }
     }
 }

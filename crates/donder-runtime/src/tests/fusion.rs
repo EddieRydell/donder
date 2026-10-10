@@ -461,7 +461,7 @@ fn fusion_preserves_resource_parameters() {
                 "unused_colors",
                 Value::Gradient(Gradient { stops: vec![] }.into()),
             ),
-            ("unused_beats", Value::Marks(Marks::EMPTY.into())),
+            ("unused_beats", Value::Marks(Marks::empty().into())),
         ],
     );
     let fused = outer

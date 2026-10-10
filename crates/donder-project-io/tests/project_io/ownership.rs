@@ -502,7 +502,9 @@ fn reusable_sequences_cannot_mix_targets_from_different_layouts() {
         .find(|sequence| sequence.effects.len() > 1)
         .unwrap()
         .clone();
-    sequence.effects[0].target.layout = new_layout;
+    std::sync::Arc::make_mut(&mut sequence.effects[0])
+        .target
+        .layout = new_layout;
     let error = session
         .project
         .replace_sequence(&sequence.id.clone(), sequence)

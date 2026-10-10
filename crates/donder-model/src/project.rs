@@ -44,6 +44,13 @@ impl<T> std::ops::Deref for Shared<T> {
         &self.0
     }
 }
+impl<T> Shared<T> {
+    /// Whether both values are one allocation: neither side has been edited
+    /// since they were shared.
+    pub(crate) fn same_allocation(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
 impl<T: Clone> std::ops::DerefMut for Shared<T> {
     fn deref_mut(&mut self) -> &mut T {
         Arc::make_mut(&mut self.0)
@@ -133,6 +140,17 @@ impl DonderProject {
         &self.sequences
     }
 
+    /// Whether `other` shares every store with this project except sequences:
+    /// nothing besides sequences was edited between the two.
+    pub fn only_sequences_differ_from(&self, other: &Self) -> bool {
+        self.root.same_allocation(&other.root)
+            && self.setups.same_allocation(&other.setups)
+            && self.layouts.same_allocation(&other.layouts)
+            && self.patches.same_allocation(&other.patches)
+            && self.controllers.same_allocation(&other.controllers)
+            && self.definitions.same_allocation(&other.definitions)
+    }
+
     /// A private transaction boundary for domain operations. Only changed stores
     /// detach from the original; rejection drops the candidate without mutation.
     pub(crate) fn checked_edit<T>(
@@ -141,7 +159,8 @@ impl DonderProject {
     ) -> Result<T, String> {
         let mut candidate = self.clone();
         let result = edit(&mut candidate)?;
-        crate::validation::validate_project(&candidate).map_err(|error| error.to_string())?;
+        crate::validation::validate_project_edit(&candidate, self)
+            .map_err(|error| error.to_string())?;
         candidate.accepted_inputs = Arc::new(
             accepted::ProjectInputs::admit(&candidate, Some(self))
                 .map_err(|error| error.to_string())?,

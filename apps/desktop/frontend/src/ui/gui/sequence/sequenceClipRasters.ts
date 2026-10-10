@@ -1,320 +1,210 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { guiObjectKey } from "../../../workspace/guiIdentity";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-// Runtime evaluates effects, the desktop worker schedules/caches and exposes
-// RGBA payloads, and this hook decodes and draws them for the sequence UI.
+// Runtime evaluates effects, the desktop worker renders every clip's raster
+// once at its natural resolution, and this hook fetches each raster when its
+// revision changes and scales it into the clip's rectangle.
 
-import type { AppSettings, SequenceClipRaster, SequenceEditorDocument } from "../../../editor/types";
+import type { SequenceClipRaster, SequenceEditorDocument } from "../../../editor/types";
 import type { SequenceClipLayout } from "./sequenceSelection";
 
-type ClipRasterState = {
-  requestKey: string;
-  projectRevision: number | null;
-  rasters: Map<string, DecodedClipRaster>;
-  expectedRasterKeys: Map<number, string>;
-  errors: Set<number>;
-};
-
 type DecodedClipRaster = {
-  signature: string;
+  revision: number;
   image: CanvasImageSource;
-  columns: number;
-  rows: number;
-  requestRows: number;
   byteLength: number;
   lastUsed: number;
 };
 
-type QueuedClipRasterDecode = {
-  payload: SequenceClipRaster;
-  keyContext: ClipRasterKeyContext;
+export type ClipRasterState = {
+  // Changes whenever a raster is decoded, failed or dropped.
+  version: number;
+  raster: (effectId: number) => DecodedClipRaster | undefined;
+  failed: (effectId: number) => boolean;
 };
 
 const CLIP_RASTER_REQUEST_THROTTLE_MS = 50;
-const CLIP_RASTER_DECODE_CHUNK_SIZE = 2;
-const CLIP_RASTER_DECODED_BYTE_BUDGET = 64 * 1024 * 1024;
-type ClipRasterRequestItem = { effectId: number; displayColumnCount: number; requestedColumns: number; requestedRows: number };
-type ClipRasterKeyContext = { rasterSettingsKey: string; requestedColumns: number; requestedRows: number };
+const CLIP_RASTER_POLL_MS = 100;
+// Decoding stops for the frame once it has taken this long.
+const CLIP_RASTER_DECODE_FRAME_BUDGET_MS = 8;
+const CLIP_RASTER_DECODED_BYTE_BUDGET = 256 * 1024 * 1024;
 
-export function useSequenceClipRasters(
-  document: SequenceEditorDocument,
-  visibleClips: SequenceClipLayout[],
-  laneHeight: number,
-  settings: AppSettings | null
-): ClipRasterState {
+export function useSequenceClipRasters(document: SequenceEditorDocument, visibleClips: SequenceClipLayout[]): ClipRasterState {
   const host = useSequenceEditorHost();
   const { commands, store: useAppStore } = host;
-
   const projectRevision = useAppStore((store) => store.snapshot?.projectRevision ?? null);
-  const requestKey = guiObjectKey(document.sourceRef);
-  const rasterSettings = settings?.effectRaster ?? null;
-  const rasterSettingsKey = rasterSettings === null
-    ? "unavailable"
-    : `${rasterSettings.renderScale}:${rasterSettings.maxColumns}:${rasterSettings.maxRows}:${rasterSettings.minFrameStride}`;
-  const rasterRequestKey = `${requestKey}:${rasterSettingsKey}`;
-  const effectIds = useMemo(() => document.effects.map((effect) => effect.id), [document.effects]);
-  const effectIdsKey = effectIds.join(",");
-  const visibleRequestItems = useMemo(() => {
-    if (rasterSettings === null) return [];
-    const dpr = (window.devicePixelRatio || 1) * rasterSettings.renderScale;
-    const displayRowCount = Math.max(1, Math.ceil(laneHeight * dpr));
-    const items: ClipRasterRequestItem[] = [];
-    const requested = new Set<number>();
-    for (const clip of visibleClips) {
-      if (requested.has(clip.effect.id)) continue;
-      const displayColumnCount = Math.max(1, Math.ceil(clip.rect.width * dpr));
-      const durationFrames = Math.max(1, clip.effect.durationSeconds * document.frameRate);
-      items.push({
-        effectId: clip.effect.id,
-        displayColumnCount,
-        requestedColumns: Math.min(displayColumnCount, Math.ceil(durationFrames / rasterSettings.minFrameStride), rasterSettings.maxColumns),
-        requestedRows: displayRowCount
-      });
-      requested.add(clip.effect.id);
+  const documentKey = guiObjectKey(document.sourceRef);
+  const visibleKey = visibleClips.map((clip) => clip.effect.id).join(",");
+  const [version, setVersion] = useState(0);
+  // Rasters live outside React: worker callbacks fill the cache and `version`
+  // tells the canvas to redraw.
+  const { ownedPath } = document.sourceRef;
+  const { path, objectKey, effects } = document;
+
+  // Rasters of clips the sequence no longer has are dropped; the canvas
+  // never asks for them, so nothing needs to redraw.
+  useEffect(() => {
+    const cache = rasterCache(documentKey);
+    const ids = new Set(effects.map((effect) => effect.id));
+    for (const id of [...cache.known.keys()]) {
+      if (ids.has(id)) continue;
+      cache.known.delete(id);
+      cache.failed.delete(id);
+      forgetDecoded(cache, id);
     }
-    return items;
-  }, [document.frameRate, laneHeight, rasterSettings, visibleClips]);
-  const visibleRequestItemsKey = visibleRequestItems.map((item) => `${item.effectId}:${item.displayColumnCount}:${item.requestedColumns}:${item.requestedRows}`).join(",");
-  const visibleRequestItemsRef = useRef<ClipRasterRequestItem[]>(visibleRequestItems);
-  const rasters = useRef<Map<string, DecodedClipRaster>>(new Map());
-  const expectedRasterKeys = useRef<Map<number, string>>(new Map());
-  const rasterCacheAccess = useRef(1);
-  const errors = useRef<Set<number>>(new Set());
-  const cachedRequestKey = useRef(rasterRequestKey);
-  const projectRevisionRef = useRef(projectRevision);
-  const [state, setState] = useState<ClipRasterState>({
-    requestKey: rasterRequestKey,
-    projectRevision,
-    rasters: new Map(),
-    expectedRasterKeys: new Map(),
-    errors: new Set()
-  });
+  }, [documentKey, effects]);
 
+  // Tell the worker which clips are on screen, and fetch what it renders.
   useEffect(() => {
-    visibleRequestItemsRef.current = visibleRequestItems;
-  }, [visibleRequestItems]);
-
-  useEffect(() => {
-    projectRevisionRef.current = projectRevision;
-  }, [projectRevision]);
-
-  useEffect(() => {
-    if (projectRevision === null || rasterSettings === null) return;
-    const abortController = new AbortController();
+    if (projectRevision === null) return;
+    const cache = rasterCache(documentKey);
+    cache.visible = visibleKey === "" ? [] : visibleKey.split(",").map(Number);
+    const request = { ownedPath, projectRevision, path, view: "sequence" as const, objectKey };
+    let cancelled = false;
     let pollTimeout: number | null = null;
-    let requestTimeout: number | null = null;
-    let decodeFrame: number | null = null;
-    const decodeQueue: QueuedClipRasterDecode[] = [];
-    let decoding = false;
-    const displayRowCount = Math.max(1, Math.ceil(laneHeight * (window.devicePixelRatio || 1) * rasterSettings.renderScale));
-    if (cachedRequestKey.current !== rasterRequestKey) {
-      cachedRequestKey.current = rasterRequestKey;
-      rasters.current.clear();
-      expectedRasterKeys.current.clear();
-      errors.current.clear();
-    }
-    const effectIdSet = new Set(effectIds);
-    for (const [effectId, rasterKey] of [...expectedRasterKeys.current]) {
-      if (!effectIdSet.has(effectId)) {
-        expectedRasterKeys.current.delete(effectId);
-        rasters.current.delete(rasterKey);
-      }
-    }
-    for (const effectId of [...errors.current]) {
-      if (!effectIdSet.has(effectId)) errors.current.delete(effectId);
-    }
-
-    const publishState = (nextProjectRevision: number) => {
-      setState({
-        requestKey: rasterRequestKey,
-        projectRevision: nextProjectRevision,
-        rasters: new Map(rasters.current),
-        expectedRasterKeys: new Map(expectedRasterKeys.current),
-        errors: new Set(errors.current)
-      });
+    const publish = () => {
+      if (!cancelled) setVersion((value) => value + 1);
     };
-    if (cachedRequestKey.current === rasterRequestKey && rasters.current.size === 0 && expectedRasterKeys.current.size === 0 && errors.current.size === 0) {
-      publishState(projectRevision);
-    }
-
-    const scheduleDecode = (nextProjectRevision: number) => {
-      if (decoding) return;
-      decoding = true;
-      const decodeNextChunk = async () => {
-        if (clipRasterRequestCancelled(abortController.signal)) return;
-        for (let index = 0; index < CLIP_RASTER_DECODE_CHUNK_SIZE; index += 1) {
-          const queued = decodeQueue.shift();
-          if (queued === undefined) break;
-          const raster = queued.payload;
-          try {
-            const image = await decodeClipRaster(host, raster);
-            if (clipRasterRequestCancelled(abortController.signal)) return;
-            if (!Object.is(nextProjectRevision, projectRevisionRef.current)) return;
-            const rasterKey = clipRasterKey(requestKey, raster.effectId, raster.signature, queued.keyContext);
-            rasters.current.set(rasterKey, {
-              signature: raster.signature,
-              image,
-              columns: raster.columns,
-              rows: raster.rows,
-              requestRows: queued.keyContext.requestedRows,
-              byteLength: raster.columns * raster.rows * 4,
-              lastUsed: rasterCacheAccess.current++
-            });
-            expectedRasterKeys.current.set(raster.effectId, rasterKey);
-            evictDecodedClipRasters(rasters.current, new Set(expectedRasterKeys.current.values()));
-            errors.current.delete(raster.effectId);
-          } catch {
-            const rasterKey = expectedRasterKeys.current.get(raster.effectId);
-            if (rasterKey !== undefined) rasters.current.delete(rasterKey);
-            expectedRasterKeys.current.delete(raster.effectId);
-            errors.current.add(raster.effectId);
-          }
-        }
-        publishState(nextProjectRevision);
-        if (decodeQueue.length === 0) {
-          decoding = false;
-          decodeFrame = null;
-          return;
-        }
-        decodeFrame = window.requestAnimationFrame(() => void decodeNextChunk());
-      };
-      decodeFrame = window.requestAnimationFrame(() => void decodeNextChunk());
-    };
-
-    const visibleRequestRasterItems = () => {
-      const existingEffectIds = new Set(effectIds);
-      const requested = new Set<number>();
-      const items: ClipRasterRequestItem[] = [];
-      for (const item of visibleRequestItemsRef.current) {
-        if (!existingEffectIds.has(item.effectId) || requested.has(item.effectId)) continue;
-        const rasterKey = expectedRasterKeys.current.get(item.effectId);
-        const raster = rasterKey === undefined ? undefined : rasters.current.get(rasterKey);
-        if (raster !== undefined) raster.lastUsed = rasterCacheAccess.current++;
-        items.push(item);
-        requested.add(item.effectId);
-      }
-      return items;
-    };
-
-    if (effectIds.length === 0) {
-      publishState(projectRevision);
-      return;
-    }
-
-    const pollResults = async (requestId: number, requestComplete: boolean, requestContexts: Map<number, ClipRasterKeyContext>): Promise<boolean> => {
-      const batch = await commands.takeSequenceClipRasterResults({
-        ownedPath: document.sourceRef.ownedPath,
-        projectRevision,
-        path: document.path,
-        view: "sequence",
-        objectKey: document.objectKey
-      }, requestId);
-      if (clipRasterRequestCancelled(abortController.signal)) return false;
-      for (const raster of batch.ready) {
-        const keyContext = requestContexts.get(raster.effectId);
-        if (keyContext !== undefined) decodeQueue.push({ payload: raster, keyContext });
+    const poll = async () => {
+      pollTimeout = null;
+      const batch = await commands.takeSequenceClipRasterResults(request, cache.since);
+      if (cancelled) return;
+      cache.since = batch.revision;
+      let changed = false;
+      for (const raster of batch.rasters) {
+        cache.known.set(raster.effectId, raster);
+        changed = cache.failed.delete(raster.effectId) || changed;
       }
       for (const error of batch.errors) {
-        const rasterKey = expectedRasterKeys.current.get(error.effectId);
-        if (rasterKey !== undefined) rasters.current.delete(rasterKey);
-        expectedRasterKeys.current.delete(error.effectId);
-        errors.current.add(error.effectId);
+        cache.known.delete(error.effectId);
+        cache.failed.add(error.effectId);
+        changed = forgetDecoded(cache, error.effectId) || changed;
       }
-      for (const unavailable of batch.unavailable) {
-        const rasterKey = expectedRasterKeys.current.get(unavailable.effectId);
-        if (rasterKey !== undefined) rasters.current.delete(rasterKey);
-        expectedRasterKeys.current.delete(unavailable.effectId);
-        errors.current.delete(unavailable.effectId);
+      if (changed) publish();
+      scheduleDecode(host, cache, publish);
+      if (batch.pending > 0) {
+        pollTimeout = window.setTimeout(() => {
+          void poll();
+        }, CLIP_RASTER_POLL_MS);
       }
-      if (decodeQueue.length > 0) scheduleDecode(batch.projectRevision);
-      else publishState(batch.projectRevision);
-      const complete = requestComplete || batch.complete || batch.projectRevision !== projectRevision;
-      if (!complete) {
-        return await new Promise((resolve) => {
-          pollTimeout = window.setTimeout(() => {
-            void pollResults(requestId, false, requestContexts).then(resolve);
-          }, 100);
-        });
-      }
-      return batch.projectRevision === projectRevision;
     };
-
-    const requestRasters = async (requestItems: ClipRasterRequestItem[]): Promise<boolean> => {
-      if (requestItems.length === 0) return true;
-      const requestContexts = new Map<number, ClipRasterKeyContext>();
-      const response = await commands.requestSequenceClipRasters({
-        ownedPath: document.sourceRef.ownedPath,
-        projectRevision,
-        path: document.path,
-        view: "sequence",
-        objectKey: document.objectKey,
-        items: requestItems.map((item) => {
-          const rasterKeyContext = {
-            rasterSettingsKey,
-            requestedColumns: item.requestedColumns,
-            requestedRows: item.requestedRows
-          };
-          requestContexts.set(item.effectId, rasterKeyContext);
-          const expectedRasterKey = expectedRasterKeys.current.get(item.effectId) ?? null;
-          const cached = expectedRasterKey === null ? null : rasters.current.get(expectedRasterKey) ?? null;
-          const signature = cached !== null && decodedClipRasterSatisfies(cached, item) ? cached.signature : null;
-          return { effectId: item.effectId, signature, displayColumnCount: item.displayColumnCount };
-        }),
-        displayRowCount
+    const requestTimeout = window.setTimeout(() => {
+      void commands.requestSequenceClipRasters({ ...request, visibleEffectIds: cache.visible }).then(() => {
+        if (!cancelled) void poll();
       });
-      if (clipRasterRequestCancelled(abortController.signal)) return false;
-      return await pollResults(response.requestId, response.complete, requestContexts);
-    };
-
-    requestTimeout = window.setTimeout(() => void requestRasters(visibleRequestRasterItems()), CLIP_RASTER_REQUEST_THROTTLE_MS);
+    }, CLIP_RASTER_REQUEST_THROTTLE_MS);
     return () => {
-      abortController.abort();
-      if (pollTimeout !== null) window.clearTimeout(pollTimeout);
+      cancelled = true;
       window.clearTimeout(requestTimeout);
-      if (decodeFrame !== null) window.cancelAnimationFrame(decodeFrame);
+      if (pollTimeout !== null) window.clearTimeout(pollTimeout);
     };
-  }, [commands, host, requestKey, document.sourceRef.ownedPath, document.objectKey, document.path, effectIds, effectIdsKey, laneHeight, projectRevision, rasterRequestKey, rasterSettings, rasterSettingsKey, visibleRequestItemsKey]);
+  }, [commands, documentKey, host, objectKey, ownedPath, path, projectRevision, visibleKey]);
 
-  return state.requestKey === rasterRequestKey ? state : {
-    requestKey: rasterRequestKey,
-    projectRevision,
-    rasters: new Map(),
-    expectedRasterKeys: new Map(),
-    errors: new Set()
-  };
+  return useMemo(() => ({
+    version,
+    raster: (effectId: number) => usedRaster(documentKey, effectId),
+    failed: (effectId: number) => rasterCache(documentKey).failed.has(effectId)
+  }), [documentKey, version]);
 }
 
-function clipRasterKey(objectIdentity: string, effectId: number, signature: string, context: ClipRasterKeyContext): string {
-  return JSON.stringify([objectIdentity, context.rasterSettingsKey, effectId, context.requestedColumns, context.requestedRows, signature]);
+// The open sequence's rasters; opening another sequence starts empty.
+let openRasters: RasterCache | null = null;
+
+function rasterCache(documentKey: string): RasterCache {
+  if (openRasters?.documentKey !== documentKey) openRasters = newRasterCache(documentKey);
+  return openRasters;
 }
 
-function clipRasterRequestCancelled(signal: AbortSignal): boolean {
-  return signal.aborted;
+function usedRaster(documentKey: string, effectId: number): DecodedClipRaster | undefined {
+  const cache = rasterCache(documentKey);
+  const decoded = cache.decoded.get(effectId);
+  if (decoded !== undefined) decoded.lastUsed = cache.access++;
+  return decoded;
 }
 
-function decodedClipRasterSatisfies(raster: DecodedClipRaster, item: ClipRasterRequestItem): boolean {
-  return raster.columns >= item.requestedColumns && raster.requestRows >= item.requestedRows;
+type RasterCache = {
+  documentKey: string;
+  // The newest raster revision fetched.
+  since: number;
+  // The latest raster of each clip, decoded or not.
+  known: Map<number, SequenceClipRaster>;
+  decoded: Map<number, DecodedClipRaster>;
+  failed: Set<number>;
+  decodedBytes: number;
+  access: number;
+  decoding: boolean;
+  /** The clips on screen, which decode first. */
+  visible: number[];
+};
+
+function newRasterCache(documentKey: string): RasterCache {
+  return { documentKey, since: 0, known: new Map(), decoded: new Map(), failed: new Set(), decodedBytes: 0, access: 0, decoding: false, visible: [] };
 }
 
-function evictDecodedClipRasters(rasters: Map<string, DecodedClipRaster>, protectedRasterKeys: Set<string>) {
-  let byteLength = 0;
-  for (const raster of rasters.values()) byteLength += raster.byteLength;
-  while (byteLength > CLIP_RASTER_DECODED_BYTE_BUDGET) {
-    let evictRasterKey: string | null = null;
-    let oldest = Number.POSITIVE_INFINITY;
-    for (const [rasterKey, raster] of rasters) {
-      if (protectedRasterKeys.has(rasterKey)) continue;
-      if (raster.lastUsed < oldest) {
-        oldest = raster.lastUsed;
-        evictRasterKey = rasterKey;
+function forgetDecoded(cache: RasterCache, effectId: number): boolean {
+  const decoded = cache.decoded.get(effectId);
+  if (decoded === undefined) return false;
+  cache.decoded.delete(effectId);
+  cache.decodedBytes -= decoded.byteLength;
+  return true;
+}
+
+// The known rasters not yet decoded at their latest revision, visible clips first.
+function decodeQueue(cache: RasterCache, visible: number[]): SequenceClipRaster[] {
+  const stale = (raster: SequenceClipRaster | undefined) => raster !== undefined && cache.decoded.get(raster.effectId)?.revision !== raster.revision;
+  const queue = visible.map((id) => cache.known.get(id)).filter(stale) as SequenceClipRaster[];
+  const queued = new Set(queue.map((raster) => raster.effectId));
+  // Off-screen clips decode while the budget has room, so scrolling shows them at once.
+  if (cache.decodedBytes < CLIP_RASTER_DECODED_BYTE_BUDGET) {
+    for (const raster of cache.known.values()) {
+      if (!queued.has(raster.effectId) && stale(raster)) queue.push(raster);
+    }
+  }
+  return queue;
+}
+
+function scheduleDecode(host: SequenceEditorHost, cache: RasterCache, published: () => void) {
+  if (cache.decoding) return;
+  cache.decoding = true;
+  const decodeFrame = async () => {
+    const started = performance.now();
+    const queue = decodeQueue(cache, cache.visible);
+    let decodedAny = false;
+    for (const raster of queue) {
+      if (performance.now() - started > CLIP_RASTER_DECODE_FRAME_BUDGET_MS) break;
+      try {
+        const image = await decodeClipRaster(host, raster);
+        if (cache.known.get(raster.effectId)?.revision !== raster.revision) continue;
+        forgetDecoded(cache, raster.effectId);
+        const byteLength = raster.columns * raster.rows * 4;
+        cache.decoded.set(raster.effectId, { revision: raster.revision, image, byteLength, lastUsed: cache.access++ });
+        cache.decodedBytes += byteLength;
+        decodedAny = true;
+      } catch {
+        cache.known.delete(raster.effectId);
+        cache.failed.add(raster.effectId);
+        decodedAny = true;
       }
     }
-    if (evictRasterKey === null) return;
-    const raster = rasters.get(evictRasterKey);
-    if (raster === undefined) return;
-    byteLength -= raster.byteLength;
-    rasters.delete(evictRasterKey);
+    evictDecoded(cache, new Set(cache.visible));
+    if (decodedAny) published();
+    if (decodeQueue(cache, cache.visible).length === 0) {
+      cache.decoding = false;
+      return;
+    }
+    window.requestAnimationFrame(() => void decodeFrame());
+  };
+  window.requestAnimationFrame(() => void decodeFrame());
+}
+
+// Drop the decoded rasters used longest ago, keeping visible clips; they
+// decode again from the backend when they come back into view.
+function evictDecoded(cache: RasterCache, visible: Set<number>) {
+  if (cache.decodedBytes <= CLIP_RASTER_DECODED_BYTE_BUDGET) return;
+  const candidates = [...cache.decoded].filter(([id]) => !visible.has(id)).sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+  for (const [id] of candidates) {
+    if (cache.decodedBytes <= CLIP_RASTER_DECODED_BYTE_BUDGET) return;
+    forgetDecoded(cache, id);
   }
 }
 
@@ -325,17 +215,8 @@ export function drawClipRaster(ctx: CanvasRenderingContext2D, raster: DecodedCli
 }
 
 async function decodeClipRaster(host: SequenceEditorHost, payload: SequenceClipRaster): Promise<CanvasImageSource> {
-  const { resolveAssetUrl: convertFileSrc } = host;
-
-  const raster = window.document.createElement("canvas");
-  raster.width = payload.columns;
-  raster.height = payload.rows;
-  const rasterContext = raster.getContext("2d");
-  if (rasterContext === null) throw new Error("Raster canvas context is unavailable.");
-  const response = await fetch(convertFileSrc(payload.pixelsRgbaToken, "donder-raster"));
+  const response = await fetch(host.resolveAssetUrl(payload.pixelsRgbaToken, "donder-raster"));
   if (!response.ok) throw new Error(`Raster pixel fetch failed with ${response.status}.`);
   const pixels = new Uint8ClampedArray(await response.arrayBuffer());
-  const image = new ImageData(pixels, payload.columns, payload.rows);
-  rasterContext.putImageData(image, 0, 0);
-  return raster;
+  return await createImageBitmap(new ImageData(pixels, payload.columns, payload.rows));
 }

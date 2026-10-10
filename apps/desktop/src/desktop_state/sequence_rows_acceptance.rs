@@ -1,10 +1,10 @@
 use super::DesktopState;
 use donder_model::{AutomationTarget, Sequence, SequenceId};
 use donder_sequence_api::{
-    DocumentViewId, FixtureTarget, GuiDocument, GuiDocumentRequest, GuiEditCommand, LayoutGuiEdit,
-    SequenceAutomationResize, SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit,
-    SequencePasteAnchor, SequenceResizeEdge, SequenceSelection, SequenceSelectionEdit,
-    SequenceSelectionEditResult,
+    DocumentViewId, FixtureTarget, GuiDocument, GuiDocumentChange, GuiDocumentRequest,
+    GuiEditCommand, LayoutGuiEdit, SequenceAutomationResize, SequenceAutomationTarget,
+    SequenceEffectReference, SequenceGuiEdit, SequencePasteAnchor, SequenceResizeEdge,
+    SequenceSelection, SequenceSelectionEdit, SequenceSelectionEditResult,
 };
 use std::sync::Arc;
 
@@ -183,9 +183,15 @@ impl Timeline {
             .state
             .apply_sequence_selection_edit(self.request(), edit);
         assert!(
-            matches!(result.document, GuiDocument::Sequence { .. }),
+            matches!(
+                result.change,
+                GuiDocumentChange::SequenceClips { .. }
+                    | GuiDocumentChange::Document {
+                        document: GuiDocument::Sequence { .. }
+                    }
+            ),
             "{:?}",
-            result.document
+            result.change
         );
         result
     }
@@ -359,7 +365,12 @@ fn out_of_bounds_paste_is_atomic_and_does_not_consume_history() {
             },
         },
     );
-    assert!(matches!(rejected.document, GuiDocument::Blocked { .. }));
+    assert!(matches!(
+        rejected.change,
+        GuiDocumentChange::Document {
+            document: GuiDocument::Blocked { .. }
+        }
+    ));
     assert!(Arc::ptr_eq(
         &session,
         &timeline.state.project_session().unwrap()

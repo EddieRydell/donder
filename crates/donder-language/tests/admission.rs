@@ -5,8 +5,8 @@
 use donder_runtime_types::Shared;
 use donder_runtime_types::bytecode::{
     Bank, Banks, BytecodeProgram, CompareOp, ContextRead, FloatBinary, FloatUnary, Input,
-    Instruction, MAX_DEPTH, MAX_ROW_BYTES, NO_FRAME_CACHE, ParameterKind, ProgramContext, Reducer,
-    Resource, SignalPixel, Slot, Span,
+    Instruction, MAX_DEPTH, MAX_ROW_BYTES, NO_FRAME_CACHE, ProgramContext, Reducer, Resource,
+    SignalPixel, Slot, Span,
 };
 use donder_runtime_types::{Color, Curve, Gradient, Marks};
 use donder_runtime_types::{OperatorProgram, SampleProgram, Type};
@@ -39,6 +39,7 @@ fn program(
     rows: Banks,
 ) -> BytecodeProgram {
     BytecodeProgram {
+        params: Box::new([]),
         code: code.into(),
         query_end: prefix,
         target_end: prefix,
@@ -59,22 +60,26 @@ fn program(
 /// Whether `program` admits as an effect over parameters of `params`' types;
 /// `is_well_formed` agrees.
 fn effect(program: &BytecodeProgram, params: &[Type]) -> bool {
-    let kinds: Vec<_> = params.iter().map(ParameterKind::for_type).collect();
-    let admitted = SampleProgram::admit(program.clone(), params.into()).is_some();
-    assert_eq!(
-        admitted,
-        program.is_well_formed(ProgramContext::Effect, &kinds)
-    );
+    let program = with_params(program, params);
+    let admitted = SampleProgram::admit(program.clone()).is_some();
+    assert_eq!(admitted, program.is_well_formed(ProgramContext::Effect));
     admitted
+}
+
+fn with_params(program: &BytecodeProgram, params: &[Type]) -> BytecodeProgram {
+    BytecodeProgram {
+        params: params.into(),
+        ..program.clone()
+    }
 }
 
 /// Whether `program` admits as an operator over `inputs` signals.
 fn operator(program: &BytecodeProgram, inputs: usize, params: &[Type]) -> bool {
-    let kinds: Vec<_> = params.iter().map(ParameterKind::for_type).collect();
-    let admitted = OperatorProgram::admit(program.clone(), inputs, params.into()).is_some();
+    let program = with_params(program, params);
+    let admitted = OperatorProgram::admit(program.clone(), inputs).is_some();
     assert_eq!(
         admitted,
-        program.is_well_formed(ProgramContext::Operator { inputs }, &kinds)
+        program.is_well_formed(ProgramContext::Operator { inputs })
     );
     admitted
 }
@@ -547,7 +552,7 @@ fn reductions_keep_row_accumulators_and_matching_indices() {
         Slot::input(Input::PixelIndex),
     ));
     assert!(!effect(&varying, &[]));
-    // Per-pixel bounds need a row index, and only they do.
+    // Only per-pixel bounds take a row index; they may also share a scalar one.
     let row_bounds = |index| {
         rows(reduction(
             Slot::row(0),
@@ -557,7 +562,7 @@ fn reductions_keep_row_accumulators_and_matching_indices() {
         ))
     };
     assert!(effect(&row_bounds(Slot::row(1)), &[]));
-    assert!(!effect(&row_bounds(Slot::scalar(3)), &[]));
+    assert!(effect(&row_bounds(Slot::scalar(3)), &[]));
     assert!(!effect(
         &rows(reduction(Slot::row(0), Slot::row(1), scalar.2, scalar.1)),
         &[]
@@ -898,7 +903,7 @@ fn resource_constants_and_picks_stay_within_their_pools() {
             Resource::Gradient => {
                 pooled.gradients = Box::new([Shared::new(Gradient { stops: vec![] })])
             }
-            Resource::Marks => pooled.marks = Box::new([Shared::new(Marks::EMPTY)]),
+            Resource::Marks => pooled.marks = Box::new([Shared::new(Marks::empty())]),
             Resource::Array => pooled.arrays = Box::new([Shared::from(Vec::new())]),
         }
         assert!(effect(&pooled, &[]), "{kind:?}");
@@ -961,36 +966,42 @@ fn parameter_reads_stay_within_their_bound_banks() {
     ]);
     let array_type = Type::Array(Box::new(Type::Float));
     let dst = Slot::scalar(0);
-    // Each read, the type it reads, and a type of another bank.
-    for (read, ty, other, bank) in [
+    // Each read, the type it reads, a type of the same storage that it
+    // cannot read, and a type of the other storage.
+    for (read, ty, mismatch, other, bank) in [
         (
             Instruction::FloatParam { dst, bank: 0 },
             Type::Float,
             Type::Int,
+            Type::Curve,
             Bank::Float,
         ),
         (
             Instruction::IntParam { dst, bank: 0 },
             Type::Int,
             Type::Float,
+            Type::Curve,
             Bank::Int,
         ),
         (
             Instruction::BoolParam { dst, bank: 0 },
             Type::Bool,
             Type::Color,
+            Type::Curve,
             Bank::Bool,
         ),
         (
             Instruction::ColorParam { dst, bank: 0 },
             Type::Color,
             Type::Bool,
+            Type::Curve,
             Bank::Color,
         ),
         (
-            Instruction::EnumParam { dst, bank: 0 },
+            Instruction::IntParam { dst, bank: 0 },
             enum_type.clone(),
-            Type::Int,
+            Type::Float,
+            Type::Curve,
             Bank::Int,
         ),
         (
@@ -1001,6 +1012,7 @@ fn parameter_reads_stay_within_their_bound_banks() {
             },
             Type::Curve,
             Type::Gradient,
+            Type::Int,
             Bank::Resource,
         ),
         (
@@ -1011,6 +1023,7 @@ fn parameter_reads_stay_within_their_bound_banks() {
             },
             Type::Gradient,
             Type::Marks,
+            Type::Int,
             Bank::Resource,
         ),
         (
@@ -1021,6 +1034,7 @@ fn parameter_reads_stay_within_their_bound_banks() {
             },
             Type::Marks,
             array_type.clone(),
+            Type::Int,
             Bank::Resource,
         ),
         (
@@ -1031,6 +1045,7 @@ fn parameter_reads_stay_within_their_bound_banks() {
             },
             array_type.clone(),
             Type::Curve,
+            Type::Int,
             Bank::Resource,
         ),
     ] {
@@ -1054,7 +1069,11 @@ fn parameter_reads_stay_within_their_bound_banks() {
         );
         assert!(!effect(&program, &[]), "{read:?}");
         assert!(!effect(&program, std::slice::from_ref(&other)), "{read:?}");
-        // The second parameter of the kind.
+        assert!(
+            !effect(&program, std::slice::from_ref(&mismatch)),
+            "{read:?}"
+        );
+        // The second parameter of the storage.
         let second = edited(program, |code| {
             let mut read = read.clone();
             match &mut read {
@@ -1062,14 +1081,13 @@ fn parameter_reads_stay_within_their_bound_banks() {
                 | Instruction::IntParam { bank, .. }
                 | Instruction::BoolParam { bank, .. }
                 | Instruction::ColorParam { bank, .. }
-                | Instruction::EnumParam { bank, .. }
                 | Instruction::ResourceParam { bank, .. } => *bank = 1,
                 _ => unreachable!("parameter reads"),
             }
             code[1] = read;
         });
         assert!(!effect(&second, &[ty.clone(), other.clone()]), "{read:?}");
-        assert!(effect(&second, &[ty.clone(), other, ty]), "{read:?}");
+        assert!(effect(&second, &[mismatch, other, ty]), "{read:?}");
     }
 }
 

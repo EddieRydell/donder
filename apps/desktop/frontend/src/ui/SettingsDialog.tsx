@@ -133,16 +133,6 @@ export function SettingsDialog() {
             <section>
               <h3>Raster</h3>
               <NumberInput
-                label="Render scale"
-                min={0.25}
-                max={2}
-                step={0.25}
-                value={draft.effectRaster.renderScale}
-                onChange={(renderScale) =>
-                  void update({ ...draft, effectRaster: { ...draft.effectRaster, renderScale } })
-                }
-              />
-              <NumberInput
                 label="Max columns"
                 min={16}
                 max={1024}

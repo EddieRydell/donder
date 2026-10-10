@@ -1,21 +1,19 @@
-mod arrays;
 mod context;
 pub(crate) use context::NoSignals;
 mod automation;
 mod parameters;
 mod strip;
+mod workspace;
 pub(crate) use automation::AutomationPlan;
-pub(crate) use strip::{Pixels, STRIP, Strip, StripSignals, StripWorkspace};
+pub(crate) use parameters::{BoundParams, DslBindCache};
+pub(crate) use strip::{Pixels, STRIP, ScanQuery, SourceWeights, Strip, StripSignals};
+pub(crate) use workspace::{OUTSIDE, StripSlots, StripWorkspace};
 
-use parameters::{CurveParameter, ParameterAddress, ParameterValues};
-
-use alloc::boxed::Box;
 #[cfg(test)]
 use alloc::string::String;
 use alloc::vec::Vec;
 use donder_runtime_types::Shared as Arc;
-use donder_runtime_types::{Color, Curve, Gradient, Marks, SampleDuration};
-use donder_runtime_types::{Identifier, Type, Value};
+use donder_runtime_types::{Curve, SampleDuration};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RunContext {
@@ -37,173 +35,6 @@ impl RuntimeError {
         Self {
             message: message.into(),
         }
-    }
-}
-
-#[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(crate) struct BoundParams {
-    values: Box<ParameterValues>,
-}
-
-impl BoundParams {
-    /// Materialize compiler-checked inputs once; no VM-bank validation is repeated here.
-    pub(crate) fn from_validated(
-        params: &donder_runtime_types::BoundParams,
-        cache: &mut DslBindCache,
-    ) -> Self {
-        Self::from_values(params.types().iter().zip(params.iter_values()), cache)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn bind_values(
-        types: &[Type],
-        values: Vec<Value>,
-        cache: &mut DslBindCache,
-    ) -> Result<Self, RuntimeError> {
-        let accepted = donder_runtime_types::BoundParams::bind_values(types, values)
-            .map_err(|error| RuntimeError::new(error.message))?;
-        Ok(Self::from_validated(&accepted, cache))
-    }
-    /// Materialize already type-checked values in declaration order. Unlike
-    /// `bind_values`, this performs no parameter validation.
-    /// Admission of bytecode and externally supplied parameters remains checked.
-    pub(crate) fn from_values<'a>(
-        values: impl IntoIterator<Item = (&'a Type, Value)>,
-        cache: &mut DslBindCache,
-    ) -> Self {
-        Self {
-            values: values
-                .into_iter()
-                .map(|(ty, value)| (ty, BoundParamValue::from_value(ty, value, cache)))
-                .collect::<ParameterValues>()
-                .into(),
-        }
-    }
-
-    /// Materialize an owned value during host preparation or inspection.
-    #[cfg(test)]
-    fn value(&self, index: usize) -> Result<Value, RuntimeError> {
-        let value = self
-            .values
-            .get(index)
-            .ok_or_else(|| RuntimeError::new("invalid parameter slot"))?;
-        Ok(value.to_value())
-    }
-
-    pub(crate) fn types(&self) -> &[Type] {
-        &self.values.types
-    }
-
-    /// Conservative load-time budget for the detached automation copy, including
-    /// curve windows. This does not allocate or change frame evaluation.
-    pub(crate) fn automation_storage_estimate(
-        &self,
-        bindings: &[crate::signal::PreparedAutomation],
-    ) -> Option<usize> {
-        let mut bytes = self
-            .values
-            .len()
-            .checked_mul(size_of::<BoundParamValue>() + size_of::<ParameterAddress>())?
-            .checked_add(size_of::<ParameterValues>())?;
-        for (index, value) in self.values.iter().enumerate() {
-            let extra = match value {
-                BoundParamValue::Curve(curve) => {
-                    let points = bindings
-                        .iter()
-                        .filter(|binding| usize::from(binding.param_index) == index)
-                        .map(|binding| binding.curve.points.len())
-                        .max()
-                        .unwrap_or(0)
-                        .max(curve.raw.points.len())
-                        .max(1);
-                    // Three detached shared allocations; forward samples use the raw points.
-                    points
-                        .checked_mul(
-                            size_of::<donder_runtime_types::CurvePoint>()
-                                + size_of::<CrossingSegment>(),
-                        )?
-                        .checked_add(
-                            size_of::<PreparedCurve>()
-                                + size_of::<Curve>()
-                                + size_of::<PreparedCurveCrossings>()
-                                + 6 * size_of::<usize>(),
-                        )?
-                }
-                _ => 0,
-            };
-            bytes = bytes.checked_add(extra)?;
-        }
-        Some(bytes)
-    }
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct DslBindCache {
-    curves: Vec<(usize, Arc<PreparedCurve>)>,
-}
-
-#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-enum BoundParamValue {
-    Void,
-    Int(i32),
-    Float(f32),
-    Bool(bool),
-    Color(Color),
-    Marks(Arc<Marks>),
-    Curve(Arc<PreparedCurve>),
-    RawCurve(Arc<Curve>),
-    Gradient(Arc<Gradient>),
-    Array(Arc<[Value]>),
-    Enum(Identifier),
-}
-
-impl BoundParamValue {
-    fn from_value(ty: &Type, value: Value, cache: &mut DslBindCache) -> Self {
-        let value = match (ty, value) {
-            (Type::Float, Value::Int(value)) => Value::Float(value as f32),
-            (_, value) => value,
-        };
-        match value {
-            Value::Void => Self::Void,
-            Value::Int(value) => Self::Int(value),
-            Value::Float(value) => Self::Float(value),
-            Value::Bool(value) => Self::Bool(value),
-            Value::Color(value) => Self::Color(value),
-            Value::Marks(value) => Self::Marks(value),
-            Value::Curve(value) => Self::Curve(cache.prepared_curve(value)),
-            Value::Gradient(value) => Self::Gradient(value),
-            Value::Array(value) => Self::Array(value),
-            Value::Enum(value) => Self::Enum(value),
-        }
-    }
-
-    #[cfg(test)]
-    fn to_value(&self) -> Value {
-        match self {
-            Self::Void => Value::Void,
-            Self::Int(value) => Value::Int(*value),
-            Self::Float(value) => Value::Float(*value),
-            Self::Bool(value) => Value::Bool(*value),
-            Self::Color(value) => Value::Color(*value),
-            Self::Marks(value) => Value::Marks(Arc::clone(value)),
-            Self::Curve(value) => Value::Curve(value.raw()),
-            Self::RawCurve(value) => Value::Curve(Arc::clone(value)),
-            Self::Gradient(value) => Value::Gradient(Arc::clone(value)),
-            Self::Array(value) => Value::Array(Arc::clone(value)),
-            Self::Enum(value) => Value::Enum(value.clone()),
-        }
-    }
-}
-
-impl DslBindCache {
-    fn prepared_curve(&mut self, raw: Arc<Curve>) -> Arc<PreparedCurve> {
-        let key = Arc::as_ptr(&raw).cast::<()>() as usize;
-        if let Some((_, curve)) = self.curves.iter().find(|(candidate, _)| *candidate == key) {
-            return Arc::clone(curve);
-        }
-        let curve = Arc::new(PreparedCurve::new(raw));
-        self.curves.push((key, Arc::clone(&curve)));
-        curve
     }
 }
 
@@ -232,10 +63,6 @@ impl PreparedCurve {
     fn new(raw: Arc<Curve>) -> Self {
         let crossings = Arc::new(prepare_curve_crossings(&raw));
         Self { raw, crossings }
-    }
-
-    fn raw(&self) -> Arc<Curve> {
-        Arc::clone(&self.raw)
     }
 
     fn detached_clone(&self) -> Self {
@@ -460,7 +287,7 @@ mod binding_totality_tests {
         let mut cache = DslBindCache::default();
         let named =
             BoundParams::bind_values(&[Type::Float], vec![Value::Int(3)], &mut cache).unwrap();
-        assert!(matches!(named.value(0), Ok(Value::Float(3.0))));
+        assert_eq!(f32::from_bits(named.words[0]), 3.0);
         assert!(
             BoundParams::bind_values(&[Type::Float], vec![Value::Bool(true)], &mut cache).is_err()
         );

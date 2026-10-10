@@ -223,7 +223,9 @@ export function assignOverlapSlots<T extends TimedClip>(group: T[]) {
 }
 
 export function hitTimelineClip<T extends { rect: AutomationClipLayout["rect"] }>(clips: T[], x: number, y: number) {
-  for (const clip of [...clips].reverse()) {
+  for (let index = clips.length - 1; index >= 0; index -= 1) {
+    const clip = clips[index];
+    if (clip === undefined) continue;
     const { rect } = clip;
     if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
       const resize: "left" | "right" | "none" = x - rect.x < THEME_METRICS.sequenceEffectResizeHitWidth ? "left" : rect.x + rect.width - x < THEME_METRICS.sequenceEffectResizeHitWidth ? "right" : "none";

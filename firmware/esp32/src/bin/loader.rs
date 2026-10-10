@@ -136,10 +136,11 @@ impl Playback {
         }
         // Scaled timing holds each grid frame; constant timing samples every latch exactly.
         let rate = self.transport.rate(display_time);
+        let frame_rate = self.show.sequence().frame_rate();
         let time = match rate.frame_timing() {
             FrameTiming::Scaled => {
-                let frame = rate.frame_at(u64::from(position), OUTPUT_FRAME_RATE) as u32;
-                sample_time_from_frame(frame, OUTPUT_FRAME_RATE).unwrap()
+                let frame = rate.frame_at(u64::from(position), frame_rate) as u32;
+                sample_time_from_frame(frame, frame_rate).unwrap()
             }
             FrameTiming::Constant => SampleTime::from_ticks(position),
         };
@@ -163,8 +164,14 @@ const DATA_SAMPLES: usize = OUTPUT_PIXELS * 3 * 8 * 3;
 const RESET_SAMPLES: usize = I2S_SAMPLE_RATE as usize * 300 / 1_000_000;
 #[cfg(feature = "i2s-output")]
 const DMA_BYTES: usize = DATA_SAMPLES + RESET_SAMPLES;
+/// The fastest frame rate the outputs carry: a frame's data and latch must
+/// fit in its period.
 #[cfg(feature = "i2s-output")]
-const OUTPUT_FRAME_RATE: u32 = 120;
+const MAX_FRAME_RATE: u32 =
+    (I2S_SAMPLE_RATE as usize / (DATA_SAMPLES + RESET_SAMPLES)) as u32;
+/// Frame rate of the black frames sent while no show plays.
+#[cfg(feature = "i2s-output")]
+const IDLE_FRAME_RATE: u32 = 30;
 #[cfg(feature = "dig-quad")]
 const OUTPUT_DESCRIPTION: &str = dig_quad::OUTPUT_DESCRIPTION;
 #[cfg(all(feature = "i2s-output", not(feature = "dig-quad")))]
@@ -221,8 +228,7 @@ async fn uart_reply(
 
 /// Heap left for the network after a show loads. Wi-Fi allocates buffers on
 /// demand, and an allocation failure there freezes the controller. The
-/// workspace estimate exceeds the real allocation (by about 7 KiB for
-/// stanford_room), so more than this stays free in practice.
+/// workspace estimate covers the real allocation, so at least this stays free.
 const NETWORK_HEAP_RESERVE: usize = 10 * 1024;
 
 #[inline(never)]
@@ -249,6 +255,7 @@ fn load(bytes: &[u8]) -> Result<Playback, LoadError> {
     println!("LOAD decoded heap_free={}", esp_alloc::HEAP.free());
     #[cfg(feature = "i2s-output")]
     if sequence.outputs().is_empty()
+        || sequence.frame_rate() > MAX_FRAME_RATE
         || sequence.outputs().len() > OUTPUT_LANES
         || sequence
             .outputs()
@@ -522,7 +529,7 @@ enum OutputCapabilities {
         lanes: usize,
         channels_per_lane: usize,
         channel_multiple: usize,
-        frame_rate: u32,
+        max_frame_rate: u32,
         clock_udp_port: u16,
     },
     #[cfg(not(feature = "i2s-output"))]
@@ -567,7 +574,7 @@ impl RequestHandlerService<LoaderState> for DeviceCapabilities {
                 lanes: OUTPUT_LANES,
                 channels_per_lane: OUTPUT_PIXELS * 3,
                 channel_multiple: 3,
-                frame_rate: OUTPUT_FRAME_RATE,
+                max_frame_rate: MAX_FRAME_RATE,
                 clock_udp_port: HTTP_PORT,
             },
             #[cfg(not(feature = "i2s-output"))]
@@ -739,11 +746,19 @@ impl RequestHandlerService<LoaderState> for UploadSequence {
                     .await
             }
             Err(error) => {
+                let reason = match error {
+                    LoadError::Limit => {
+                        "the show needs more memory, outputs or frames per second than this controller has"
+                    }
+                    LoadError::Version => "the show's format does not match this firmware",
+                    LoadError::Header | LoadError::Checksum | LoadError::Archive => {
+                        "the show is damaged"
+                    }
+                };
                 (
                     StatusCode::UNPROCESSABLE_ENTITY,
                     format_args!(
-                        "REJECT {:?}; playback stopped and previous saved show retained\n",
-                        error
+                        "{reason}. Playback stopped; the previous saved show remains.\n"
                     ),
                 )
                     .write_to(connection, response_writer)
@@ -1101,6 +1116,7 @@ async fn render_outputs(
     let mut ready_frame = 0;
     let mut render_budget = 1_000;
     let mut previous_clock = 0;
+    let mut previous_rate = 0;
     let mut ready_signature = None;
     let mut ready_display_time = 0;
     loop {
@@ -1120,6 +1136,9 @@ async fn render_outputs(
         }
         let frame_start = Instant::now();
         let mut current = playback.lock().await;
+        let frame_rate = current
+            .as_ref()
+            .map_or(IDLE_FRAME_RATE, |p| p.show.sequence().frame_rate());
         let signature = current
             .as_ref()
             .map(|p| (p.archive_crc, p.archive_bytes, p.transport.generation));
@@ -1139,15 +1158,17 @@ async fn render_outputs(
 
         let model = *clock.lock().await;
         let master_now = model.master_at(local_micros());
-        if model.id != previous_clock {
-            ready_frame = master_now * u64::from(OUTPUT_FRAME_RATE) / 1_000_000;
+        // Frame numbers count periods of one clock and one rate.
+        if (model.id, frame_rate) != (previous_clock, previous_rate) {
+            ready_frame = master_now * u64::from(frame_rate) / 1_000_000;
             previous_clock = model.id;
+            previous_rate = frame_rate;
         }
         let next_frame = (ready_frame + 1).max(
-            ((master_now + data_micros + render_budget) * u64::from(OUTPUT_FRAME_RATE))
+            ((master_now + data_micros + render_budget) * u64::from(frame_rate))
                 .div_ceil(1_000_000),
         );
-        let next_latch = (next_frame * 1_000_000).div_ceil(u64::from(OUTPUT_FRAME_RATE));
+        let next_latch = (next_frame * 1_000_000).div_ceil(u64::from(frame_rate));
         next_transmit = model.local_at(next_latch.saturating_sub(data_micros));
         ready_frame = next_frame;
         let mut active = playback.lock().await;
@@ -1196,12 +1217,12 @@ async fn render_outputs(
         total_max = total_max.max(total_us);
         frames += 1;
 
-        let frame_period_us = 1_000_000 / OUTPUT_FRAME_RATE;
+        let frame_period_us = 1_000_000 / frame_rate;
         if total_us >= frame_period_us {
             missed += 1;
         }
 
-        if frames == OUTPUT_FRAME_RATE {
+        if frames >= frame_rate {
             println!(
                 "PLAYBACK core={} frames={} missed={} eval_avg_us={} eval_max_us={} encode_avg_us={} encode_max_us={} dma_wait_avg_us={} dma_wait_max_us={} total_avg_us={} total_max_us={} heap_free={}",
                 Cpu::current() as usize,

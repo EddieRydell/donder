@@ -143,7 +143,9 @@ pub(crate) mod tests {
                 project_epoch: snapshot.project_epoch,
                 path: buffer.path,
                 expected_document_revision: buffer.document_revision,
-                text: buffer.text.replace("frame_rate: 144", "frame_rate: 90"),
+                text: state
+                    .active_working_text()
+                    .replace("frame_rate: 144", "frame_rate: 90"),
             })
             .unwrap();
         let revision = state.snapshot().project_revision;

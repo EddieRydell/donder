@@ -18,6 +18,7 @@ pub use gui::{
     ClipboardAutomation, ClipboardEffect, ClipboardMark, GuiMutationError, ResolvedGuiObject,
     SequenceClipboard, SequenceSelectionMutation, affected_paths, apply_edit,
     apply_sequence_selection_edit, blocked, copy_sequence_selection, create_sequence,
-    ensure_owned_gui_document, project_gui_document, resolve_request,
+    ensure_owned_gui_document, project_gui_document, project_gui_document_change, resolve_request,
+    sequence_effect_details,
 };
 pub use source_documents::{document_for_editor_path, editor_path};

@@ -388,7 +388,10 @@ pub enum Reducer {
 }
 
 /// Coordinate domain of a signal query. Global indices use the prepared rig's
-/// full color-pixel order; local indices stay within the current fixture.
+/// full color-pixel order; local indices stay within the current fixture. A
+/// shifted query reads the current pixel's local index plus an offset, so a
+/// strip-wide offset reads one shifted run of pixels; its edges say what it
+/// reads past the fixture's ends.
 #[derive(
     Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
 )]
@@ -396,6 +399,49 @@ pub enum SignalPixel<T> {
     Current,
     Local(T),
     Global(T),
+    Shifted(T, Edges),
+}
+
+/// The order a scan runs along each fixture's pixels.
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+pub enum Direction {
+    Forward,
+    Backward,
+}
+
+/// What a shifted read reads past its fixture's ends.
+#[derive(
+    Clone, Copy, Debug, Eq, Hash, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize,
+)]
+pub enum Edges {
+    /// Black, so a neighborhood reduction skips the missing neighbors.
+    Skip,
+    /// The end pixel.
+    Extend,
+    /// The pixels reflected about the end pixel, which is not repeated.
+    Mirror,
+}
+
+impl Edges {
+    /// The local index read at local index `index` of a fixture of `count`
+    /// pixels, or `None` past its ends when skipping.
+    #[inline(always)]
+    pub fn local(self, index: i32, count: i32) -> Option<i32> {
+        let last = count - 1;
+        if (0..count).contains(&index) {
+            return Some(index);
+        }
+        match self {
+            Self::Skip => None,
+            Self::Extend => Some(index.clamp(0, last.max(0))),
+            Self::Mirror => {
+                let reflected = if index < 0 { -index } else { 2 * last - index };
+                Some(reflected.clamp(0, last.max(0)))
+            }
+        }
+    }
 }
 
 impl<T> SignalPixel<T> {
@@ -404,13 +450,21 @@ impl<T> SignalPixel<T> {
             Self::Current => SignalPixel::Current,
             Self::Local(index) => SignalPixel::Local(map(index)),
             Self::Global(index) => SignalPixel::Global(map(index)),
+            Self::Shifted(offset, edges) => SignalPixel::Shifted(map(offset), edges),
+        }
+    }
+
+    pub fn index_mut(&mut self) -> Option<&mut T> {
+        match self {
+            Self::Current => None,
+            Self::Local(index) | Self::Global(index) | Self::Shifted(index, _) => Some(index),
         }
     }
 
     pub fn index(&self) -> Option<&T> {
         match self {
             Self::Current => None,
-            Self::Local(index) | Self::Global(index) => Some(index),
+            Self::Local(index) | Self::Global(index) | Self::Shifted(index, _) => Some(index),
         }
     }
 }
@@ -457,8 +511,9 @@ pub enum Instruction {
         kind: Resource,
         index: u16,
     },
-    /// Parameter `bank` of the bound bank of `dst`'s kind: float, int, bool
-    /// and color parameters.
+    /// Bound word `bank` (see [`ParamStorage`]): a float, int, bool or color
+    /// parameter. An enum parameter is an int, its option's index in the
+    /// program's names.
     FloatParam {
         dst: Slot,
         bank: u16,
@@ -475,11 +530,7 @@ pub enum Instruction {
         dst: Slot,
         bank: u16,
     },
-    /// Int: the bound option's index in the program's names.
-    EnumParam {
-        dst: Slot,
-        bank: u16,
-    },
+    /// Bound resource `bank`.
     ResourceParam {
         dst: Slot,
         kind: Resource,
@@ -743,7 +794,9 @@ pub enum Instruction {
     /// A reduction into `acc` of `bank`, which holds its identity or default.
     /// Each iteration runs the next `loop_len` instructions with `index` set,
     /// then, where the bool `filter` holds (or always when it is absent), the
-    /// `contribute_len` after them, and combines `value` into `acc`.
+    /// `contribute_len` after them, and combines `value` into `acc`. A scalar
+    /// `index` with per-pixel bounds is shared: iterations run over the union
+    /// of the pixels' ranges, and each pixel takes part in its own.
     Reduce {
         reducer: Reducer,
         bank: Bank,
@@ -756,6 +809,49 @@ pub enum Instruction {
         loop_len: u16,
         contribute_len: u16,
     },
+    /// A neighborhood reduction into the color `acc`, which holds black: for
+    /// each pixel, the sum or max over shared offsets `o` in its `start..end`
+    /// of the input `o` pixels along its fixture, read past its ends as
+    /// `edges` say, scaled by the product of the float `weight` there,
+    /// `scale` and the pixel's `pixel`. Skipped neighbors, and neighbors of
+    /// zero weight, contribute nothing.
+    ///
+    /// The next `source_len` instructions are the source block: a `Sample` at
+    /// the current pixel names the input, then code computing `weight` from
+    /// that sample alone. The block runs over the strip's neighborhood, not
+    /// its pixels. The `tap_len` after it run once per offset with `index`
+    /// set and compute the scalar `scale`.
+    Stencil {
+        reducer: Reducer,
+        edges: Edges,
+        acc: Slot,
+        index: Slot,
+        start: Slot,
+        end: Slot,
+        weight: Slot,
+        scale: Slot,
+        pixel: Slot,
+        source_len: u16,
+        tap_len: u16,
+    },
+    /// Color: a trail along each fixture in `direction`. From black at the
+    /// fixture's first pixel in that order, each pixel's value is the
+    /// previous pixel's times the float `decay`, plus the input there times
+    /// `weight`, kept in floats and rounded only into `dst`. The scan
+    /// computes every pixel of the frame once per query into frame cache
+    /// `cache`.
+    ///
+    /// The next `source_len` instructions are its source block, as a
+    /// stencil's: a `Sample` at the current pixel names the input, then code
+    /// computing `weight` from that sample alone.
+    Scan {
+        direction: Direction,
+        dst: Slot,
+        decay: Slot,
+        weight: Slot,
+        cache: u16,
+        source_len: u16,
+    },
 }
 
 /// No frame cache.
@@ -763,6 +859,8 @@ pub const NO_FRAME_CACHE: u16 = u16::MAX;
 
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct BytecodeProgram {
+    /// The types of the parameters an invocation binds, in slot order.
+    pub params: Box<[Type]>,
     pub code: Box<[Instruction]>,
     /// The query block is `code[..query_end]`, the target block runs to
     /// `target_end`, and the body follows.
@@ -831,6 +929,38 @@ impl ParameterKind {
             Resource::Array => Self::Array,
         }
     }
+
+    pub fn storage(self) -> Option<ParamStorage> {
+        match self {
+            Self::Void => None,
+            Self::Int | Self::Float | Self::Bool | Self::Color | Self::Enum => {
+                Some(ParamStorage::Word)
+            }
+            Self::Marks | Self::Curve | Self::Gradient | Self::Array => {
+                Some(ParamStorage::Resource)
+            }
+        }
+    }
+}
+
+/// Where a bound parameter lives. Each storage numbers its parameters in
+/// declaration order; a void parameter has no storage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParamStorage {
+    /// One 32-bit word: float bits, an int, a bool, a packed color or an
+    /// enum option's index in the program's names.
+    Word,
+    /// A curve, gradient, marks or array.
+    Resource,
+}
+
+/// Parameter `index`'s bank within its storage.
+pub fn param_bank(params: &[Type], index: usize) -> u16 {
+    let storage = ParameterKind::for_type(&params[index]).storage();
+    params[..index]
+        .iter()
+        .filter(|ty| ParameterKind::for_type(ty).storage() == storage)
+        .count() as u16
 }
 
 /// How an instruction uses a slot.
@@ -863,9 +993,7 @@ impl Instruction {
         };
         match self {
             I::FloatConst { dst, .. } | I::FloatParam { dst, .. } => v(Float, dst, Write),
-            I::IntConst { dst, .. } | I::IntParam { dst, .. } | I::EnumParam { dst, .. } => {
-                v(Int, dst, Write)
-            }
+            I::IntConst { dst, .. } | I::IntParam { dst, .. } => v(Int, dst, Write),
             I::BoolConst { dst, .. } | I::BoolParam { dst, .. } => v(Bool, dst, Write),
             I::ColorConst { dst, .. } | I::ColorParam { dst, .. } => v(Color, dst, Write),
             I::ResourceConst { dst, .. } | I::ResourceParam { dst, .. } => v(Resource, dst, Write),
@@ -1129,7 +1257,7 @@ impl Instruction {
                 ..
             } => {
                 v(Float, seconds, Read);
-                if let SignalPixel::Local(index) | SignalPixel::Global(index) = pixel {
+                if let Some(index) = pixel.index_mut() {
                     v(Int, index, Read);
                 }
                 v(Color, dst, Write);
@@ -1152,6 +1280,31 @@ impl Instruction {
                 v(*bank, value, Read);
                 v(*bank, acc, Update);
             }
+            I::Scan {
+                dst, decay, weight, ..
+            } => {
+                v(Float, decay, Read);
+                v(Float, weight, Read);
+                v(Color, dst, Write);
+            }
+            I::Stencil {
+                acc,
+                index,
+                start,
+                end,
+                weight,
+                scale,
+                pixel,
+                ..
+            } => {
+                v(Int, start, Read);
+                v(Int, end, Read);
+                v(Int, index, Write);
+                v(Float, weight, Read);
+                v(Float, scale, Read);
+                v(Float, pixel, Read);
+                v(Color, acc, Update);
+            }
         }
     }
 
@@ -1163,7 +1316,7 @@ impl Instruction {
             reads: Vec::new(),
         };
         let mut copy = self.clone();
-        let reduction = matches!(self, Self::Reduce { .. });
+        let reduction = matches!(self, Self::Reduce { .. } | Self::Stencil { .. });
         copy.visit_slots(&mut |bank, slot, access| match access {
             Access::Read => operands.reads.push((bank, *slot)),
             Access::Write if !reduction => operands.dst = Some((bank, *slot)),
@@ -1194,6 +1347,12 @@ impl Instruction {
                 contribute_len,
                 ..
             } => u32::from(loop_len) + u32::from(contribute_len),
+            Self::Stencil {
+                source_len,
+                tap_len,
+                ..
+            } => u32::from(source_len) + u32::from(tap_len),
+            Self::Scan { source_len, .. } => u32::from(source_len),
             _ => 0,
         }
     }
@@ -1249,9 +1408,16 @@ impl BytecodeProgram {
     }
 
     /// Reads the target's pixel count or bounds, so strips must not mix them.
+    /// Neighbors read past a fixture's ends depend on its pixel count.
     pub fn reads_target(&self) -> bool {
-        self.reads(|instruction| {
-            matches!(instruction, Instruction::Context { read, .. } if read.reads_target())
+        self.reads(|instruction| match instruction {
+            Instruction::Context { read, .. } => read.reads_target(),
+            Instruction::Stencil { edges, .. }
+            | Instruction::Sample {
+                pixel: SignalPixel::Shifted(_, edges),
+                ..
+            } => *edges != Edges::Skip,
+            _ => false,
         })
     }
 
@@ -1285,9 +1451,9 @@ impl BytecodeProgram {
 
     /// Whether every slot, length, pool index and parameter read is in range,
     /// rows and selections fit their limits, and `context` allows its reads.
-    /// A well-formed program cannot index out of bounds when it runs; one
-    /// whose resource kinds disagree produces empty values instead.
-    pub fn is_well_formed(&self, context: ProgramContext, params: &[ParameterKind]) -> bool {
+    /// A well-formed program cannot index out of bounds when it runs, and
+    /// each parameter read names a parameter of its kind.
+    pub fn is_well_formed(&self, context: ProgramContext) -> bool {
         let code_fits = u16::try_from(self.code.len()).is_ok();
         let blocks =
             self.query_end <= self.target_end && usize::from(self.target_end) <= self.code.len();
@@ -1299,11 +1465,18 @@ impl BytecodeProgram {
         {
             return false;
         }
-        let bank_count = |kind: ParameterKind| params.iter().filter(|&&k| k == kind).count();
+        let kinds = |storage| -> Vec<ParameterKind> {
+            self.params
+                .iter()
+                .map(ParameterKind::for_type)
+                .filter(|kind| kind.storage() == Some(storage))
+                .collect()
+        };
         let checker = Checker {
             program: self,
             context,
-            bank_count: &bank_count,
+            words: kinds(ParamStorage::Word),
+            resources: kinds(ParamStorage::Resource),
         };
         let (query, target) = self.prefix();
         checker.prefix(query)
@@ -1325,7 +1498,9 @@ impl BytecodeProgram {
 struct Checker<'a> {
     program: &'a BytecodeProgram,
     context: ProgramContext,
-    bank_count: &'a dyn Fn(ParameterKind) -> usize,
+    /// The kinds of the program's word and resource parameters, by bank.
+    words: Vec<ParameterKind>,
+    resources: Vec<ParameterKind>,
 }
 
 impl Checker<'_> {
@@ -1381,11 +1556,68 @@ impl Checker<'_> {
                         .max(self.block(&inner[..split], opened)?)
                         .max(self.block(&inner[split..], opened)?);
                 }
+                Instruction::Stencil { source_len, .. } => {
+                    let (source, taps) = inner.split_at(usize::from(source_len));
+                    if !(self.source(source) && self.taps(taps)) {
+                        return None;
+                    }
+                    deepest = deepest.max(self.block(&source[1..], depth)?);
+                }
+                Instruction::Scan { .. } => {
+                    if !self.source(inner) {
+                        return None;
+                    }
+                    deepest = deepest.max(self.block(&inner[1..], depth)?);
+                }
                 _ => {}
             }
             at += nested;
         }
         Some(deepest)
+    }
+
+    /// A stencil's source block: a sample of the current pixel at a scalar
+    /// time into a row, then code that reads nothing else of the strip.
+    fn source(&self, code: &[Instruction]) -> bool {
+        let Some((
+            Instruction::Sample {
+                dst,
+                seconds,
+                pixel: SignalPixel::Current,
+                ..
+            },
+            rest,
+        )) = code.split_first()
+        else {
+            return false;
+        };
+        matches!(dst.kind(), SlotKind::Row(_))
+            && seconds.is_scalar()
+            && self.instruction(&code[0])
+            && rest.iter().all(|instruction| {
+                !matches!(
+                    instruction,
+                    Instruction::Sample { .. }
+                        | Instruction::SectionCount { .. }
+                        | Instruction::SectionIndex { .. }
+                        | Instruction::SectionPosition { .. }
+                        | Instruction::Reduce { .. }
+                        | Instruction::Stencil { .. }
+                        | Instruction::Scan { .. }
+                ) && !instruction
+                    .operands(&self.program.operands)
+                    .reads
+                    .iter()
+                    .any(|(_, slot)| matches!(slot.kind(), SlotKind::Input(_)))
+            })
+    }
+
+    /// A stencil's per-offset block: scalar code without signal queries.
+    fn taps(&self, code: &[Instruction]) -> bool {
+        self.prefix(code)
+            && code
+                .iter()
+                .all(|instruction| !matches!(instruction, Instruction::Stencil { .. }))
     }
 
     fn instruction(&self, instruction: &Instruction) -> bool {
@@ -1416,6 +1648,9 @@ impl Checker<'_> {
                     .any(|slot| !slot.is_none() && !slot.is_scalar());
                 !matches!(dst.kind(), SlotKind::Input(_)) && (!varies || !dst.is_scalar())
             }
+            (Some((_, dst)), Instruction::Stencil { .. } | Instruction::Scan { .. }) => {
+                matches!(dst.kind(), SlotKind::Row(_))
+            }
             (Some((_, dst)), Instruction::Move { src, .. }) => {
                 !matches!(dst.kind(), SlotKind::Input(_)) && (src.is_scalar() || !dst.is_scalar())
             }
@@ -1433,16 +1668,18 @@ impl Checker<'_> {
             }
             (None, _) => false,
         };
-        let bank = |kind: ParameterKind, bank: u16| usize::from(bank) < (self.bank_count)(kind);
+        let word = |bank: u16| self.words.get(usize::from(bank)).copied();
         let specific = match *instruction {
-            Instruction::FloatParam { bank: index, .. } => bank(ParameterKind::Float, index),
-            Instruction::IntParam { bank: index, .. } => bank(ParameterKind::Int, index),
-            Instruction::BoolParam { bank: index, .. } => bank(ParameterKind::Bool, index),
-            Instruction::ColorParam { bank: index, .. } => bank(ParameterKind::Color, index),
-            Instruction::EnumParam { bank: index, .. } => bank(ParameterKind::Enum, index),
-            Instruction::ResourceParam {
-                kind, bank: index, ..
-            } => bank(ParameterKind::for_resource(kind), index),
+            Instruction::FloatParam { bank, .. } => word(bank) == Some(ParameterKind::Float),
+            Instruction::IntParam { bank, .. } => {
+                matches!(word(bank), Some(ParameterKind::Int | ParameterKind::Enum))
+            }
+            Instruction::BoolParam { bank, .. } => word(bank) == Some(ParameterKind::Bool),
+            Instruction::ColorParam { bank, .. } => word(bank) == Some(ParameterKind::Color),
+            Instruction::ResourceParam { kind, bank, .. } => {
+                self.resources.get(usize::from(bank)).copied()
+                    == Some(ParameterKind::for_resource(kind))
+            }
             Instruction::ResourceConst { kind, index, .. } => {
                 usize::from(index)
                     < match kind {
@@ -1483,7 +1720,35 @@ impl Checker<'_> {
                 combines
                     && program.slot_fits(Bank::Int, index)
                     && !matches!(index.kind(), SlotKind::Input(_))
-                    && bounds_pixel == !index.is_scalar()
+                    // Per-pixel bounds take a per-pixel or a shared index.
+                    && (bounds_pixel || index.is_scalar())
+            }
+            Instruction::Scan {
+                decay,
+                weight,
+                cache,
+                ..
+            } => {
+                matches!(self.context, ProgramContext::Operator { .. })
+                    && decay.is_scalar()
+                    && !matches!(weight.kind(), SlotKind::Input(_))
+                    && !weight.is_none()
+                    && cache < program.frame_caches
+            }
+            Instruction::Stencil {
+                reducer,
+                index,
+                weight,
+                scale,
+                pixel,
+                ..
+            } => {
+                matches!(reducer, Reducer::Max | Reducer::Sum)
+                    && matches!(self.context, ProgramContext::Operator { .. })
+                    && index.is_scalar()
+                    && !matches!(weight.kind(), SlotKind::Input(_))
+                    && scale.is_scalar()
+                    && ![weight, scale, pixel].iter().any(|slot| slot.is_none())
             }
             _ => true,
         };

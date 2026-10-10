@@ -88,7 +88,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
       const result = await runGuiEditCommand((request) => commands.applyLayoutGuiEdit(request, {
         type: "addDefinition", name: name.trim(), storage, parent: action.parent, transform: identityTransform(action.position)
       }), action.origin);
-      const added = result.document.type === "layout" ? result.document.document.fixtures.find((item) => item.id === id) ?? null : null;
+      const layout = result.change.type === "document" && result.change.document.type === "layout" ? result.change.document.document : null;
+      const added = layout?.fixtures.find((item) => item.id === id) ?? null;
       if (added?.kind.type !== "fixture") throw new Error("The created fixture was not returned.");
       definitionToOpen = fixtureSource(added);
     } else if (action.type === "rename") {
@@ -123,8 +124,8 @@ function LayoutEditor({ gui }: { gui: Extract<Document, { type: "layout" }> }) {
     const originalIds = new Set(items.map((item) => item.id));
     void runGuiEditCommand((current) => commands.applyLayoutGuiEdit(current, { type: "repeatFixtures", ids: chosen.map((item) => item.id), offsets }), request)
       .then((result) => {
-        if (result.document.type === "layout") {
-          const copies = layoutItems(result.document.document.fixtures, result.document.document.renderPlan);
+        if (result.change.type === "document" && result.change.document.type === "layout") {
+          const copies = layoutItems(result.change.document.document.fixtures, result.change.document.document.renderPlan);
           setSelection(selectedItems(copies, copies.filter((item) => !originalIds.has(item.id)).map((item) => item.id)).map((item) => item.id));
         }
         setError(null);

@@ -1,3 +1,4 @@
+use super::lock_unpoisoned;
 use std::collections::BTreeMap;
 use std::fs;
 
@@ -19,12 +20,15 @@ impl DesktopState {
         let root = self
             .project_root_path()
             .ok_or_else(|| "No project is open.".to_string())?;
-        let open_buffers = self
-            .snapshot()
-            .tabs
-            .into_iter()
-            .map(|buffer| (buffer.path, buffer.text))
-            .collect::<BTreeMap<_, _>>();
+        let open_buffers = {
+            let workspace = lock_unpoisoned(&self.workspace);
+            workspace
+                .tabs
+                .iter()
+                .filter_map(|path| workspace.documents.get(path))
+                .map(|document| (document.buffer.path.clone(), document.buffer.text.clone()))
+                .collect::<BTreeMap<_, _>>()
+        };
         let query = if request.match_case {
             request.query.clone()
         } else {

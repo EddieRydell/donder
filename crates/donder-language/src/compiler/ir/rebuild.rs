@@ -38,6 +38,16 @@ pub(crate) trait Substitute {
     fn decide(&mut self, _target: &Graph, _node: Node) -> Option<Value> {
         None
     }
+    /// Whether every pixel may share the index of a reduction over
+    /// `start..end`: the union of the pixels' ranges is short.
+    fn share_index(&mut self, _target: &Graph, _start: Node, _end: Node) -> bool {
+        false
+    }
+    /// Whether `around` reductions become stencils, as they do in the last
+    /// rebuild before lowering.
+    fn stencils(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) struct Rebuild<'a> {
@@ -133,7 +143,11 @@ impl<'a> Rebuild<'a> {
                 };
                 let start = bound(self, target, data.start)?;
                 let end = bound(self, target, data.end)?;
-                let (id, index) = target.begin_loop(start, end)?;
+                let shared = data.shared || substitute.share_index(target, start, end);
+                let (id, index) = target.begin_loop(start, end, shared)?;
+                if let Some(edges) = data.around {
+                    target.set_around(id, edges);
+                }
                 self.memo.insert(data.index, index);
                 let body = self.node(target, data.body, substitute)?;
                 let filter = data
@@ -144,7 +158,15 @@ impl<'a> Rebuild<'a> {
                     .default
                     .map(|default| self.node(target, default, substitute))
                     .transpose()?;
-                target.finish_loop(id, data.reducer, body, filter, default)
+                // Checking proved an `around` contribution a stencil, and
+                // binding values keeps it one.
+                let tap = (data.around.is_some() && substitute.stencils())
+                    .then(|| target.tap(id, data.reducer, body, filter))
+                    .flatten();
+                match tap {
+                    Some(tap) => target.finish_loop(id, data.reducer, tap, None, None),
+                    None => target.finish_loop(id, data.reducer, body, filter, default),
+                }
             }
             Op::Items(items) => {
                 let items = items
@@ -161,6 +183,48 @@ impl<'a> Rebuild<'a> {
                     .collect::<Result<_, _>>()?;
                 target.add(Op::Pick { index, items })
             }
+            Op::Source | Op::Tap { .. } | Op::ScanTap { .. } => {
+                unreachable!("stencils form in the last rebuild")
+            }
+            Op::Previous => unreachable!("checking replaces a scan body's previous value"),
+            Op::Scan {
+                direction,
+                light,
+                decay,
+                weight,
+            } => {
+                let light = self.node(target, light, substitute)?;
+                let decay = self.node(target, decay, substitute)?;
+                let weight = weight
+                    .map(|weight| self.node(target, weight, substitute))
+                    .transpose()?;
+                match *target.op(light) {
+                    Op::Sample {
+                        input,
+                        time,
+                        pixel: SignalPixel::Current,
+                    } if substitute.stencils() => {
+                        let weight = weight.map(|weight| {
+                            super::source_of(target, weight, light, &mut HashMap::new())
+                        });
+                        target.add(Op::ScanTap {
+                            direction,
+                            input,
+                            time,
+                            decay,
+                            weight,
+                        })
+                    }
+                    Op::Sample { .. } => target.add(Op::Scan {
+                        direction,
+                        light,
+                        decay,
+                        weight,
+                    }),
+                    // A black input leaves the trail black.
+                    _ => target.color(donder_runtime_types::Color::BLACK),
+                }
+            }
             Op::Sample { input, time, pixel } => {
                 let time = self.node(target, time, substitute)?;
                 let pixel = match pixel {
@@ -170,6 +234,9 @@ impl<'a> Rebuild<'a> {
                     }
                     SignalPixel::Global(index) => {
                         SignalPixel::Global(self.node(target, index, substitute)?)
+                    }
+                    SignalPixel::Shifted(offset, edges) => {
+                        SignalPixel::Shifted(self.node(target, offset, substitute)?, edges)
                     }
                 };
                 substitute.sample(target, input, time, pixel)?

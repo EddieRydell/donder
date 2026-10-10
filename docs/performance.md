@@ -62,6 +62,27 @@ generation. The pipeline is described in [effect compiler](effect_compiler.md).
   a spatial consumer. Pixel mappings are run descriptors, or indexed records when
   those are smaller. They stay compact in playback memory and are never expanded
   into tables. Identical mappings share storage.
+- **Compact parameters.** A program declares its parameter types once. An
+  invocation binds one 32-bit word per scalar or enum parameter and one shared
+  resource per curve, gradient, marks or array parameter. Equal resources share
+  one allocation across the sequence, and a marks value is a window of its
+  collection's single track, converted to seconds by one multiply per lookup.
+- **Incremental preparation.** `PreparationCache` keeps each lowered
+  invocation keyed by its admitted invocation and program constants, so a
+  re-preparation after an edit lowers only the clips that changed. Clips are
+  shared copy-on-write from the model through admission, validation and
+  document printing, and each of those stages reuses its earlier result for a
+  clip that is still the same allocation.
+
+### Large shows
+
+Ding Dong in `examples/rydell_house` (25,856 clips imported from Vixen) is the
+editing-scale workload; `render_bench` runs it as `*_large_show*` and needs the
+uncommitted `audio/dingdong.mp3`. On 2026-10-10 (Windows x64 release build),
+the incremental pipeline took cold preparation from 10.4 s to 211 ms (73 ms
+with a warm cache), a full document print from 7.0 s to 1.9 s (17–60 ms
+reprint after an edit), and a model edit from about 950 ms to 10–55 ms. Clip
+rasters render once per changed clip at full resolution, visible clips first.
 
 ## Strip interpreter
 
@@ -108,6 +129,60 @@ over every frame):
 Stanford's FreezeFrame samples an empty layer, so preparation removes it; the
 rest of the show is its mark effects, gradients and hue operators.
 
+Compact parameters (October 9, 2026, same machine; sizes from a 32-bit host
+build, which matched the ESP32 within 1%): the Stanford device archive fell
+from 41,289 to 27,882 bytes, its decoded show from 52.3 to 30.7 KB, and its
+playback workspace from 41.0 to 33.3 KB. The load-time workspace estimate fell
+from 46.1 to 33.4 KB and now sizes each strip workspace by the programs it
+runs. Representative benchmarks (`render_*`, `controller_output_dense_60_frames`,
+`prepare_starter`) were 0.5 to 2.3% faster; `prepared_marks/chase` was 8%
+slower, from converting shared mark times at each lookup. Tick-to-seconds
+conversion became a multiply by `SECONDS_PER_TICK` rather than a division,
+which changed 0.0026% of Stanford output bytes (pixels at a timing threshold
+switching a frame early or late) and 0.0005% of starter bytes (by one).
+
+Neighborhood operators (October 9, 2026): sharing whole-frame caches per input
+and time, shared reduction indices and strip-wide shifted reads, all with
+byte-identical output, took the Stanford show from 73.3 to 52.9 µs per lit
+frame on the host, and its Bloom from about 47 to 27 µs. On the ESP32 the
+show's lit section (200 frames from 55 to 94 seconds, timed through `/frame`)
+went from 8.63 to 6.58 ms mean (p95 11.3 to 8.4 ms). Its Bloom's edge clamps,
+redundant once out-of-fixture reads are black, read the target pixel count and
+so split strips at every fixture; without them the same output took 45.7 µs
+on the host and 5.68 ms on the ESP32. Per-neighbor work hoisted out of the
+taps (the threshold math) was measured at about 3.5 µs of Bloom's cost.
+`prepared_effect_suite_4x512_pixels` was about 3.5% slower than the morning
+baseline and `prepared_marks/chase` 6 to 8%, from the compact-parameter
+change.
+
+Stencils (October 9, 2026, format 58): neighborhood reductions as stencils
+left every frame of the three Stanford sequences byte-identical, and the same
+show with Bloom replaced by Blur too. The Stanford lit frame went from 56.9 to
+43.4 µs on the host and from 6.65 to 5.23 ms mean on the ESP32 (p95 8.30 to
+6.80 ms); without Bloom the show takes 25.5 µs and 3.35 ms, so Bloom fell from
+about 31 to 17 µs and from 3.30 to 1.88 ms. Of Bloom's remaining host cost,
+its fixture-edge clamps and the strip splits they force take about 6.6 µs, its
+kernel-normalizing sum, rerun for each strip, about 3.2 µs, and `exp` in that
+sum and in the per-offset weights about 4.5 µs. The stencil code takes about
+3.2 KB of instruction RAM; moving workspace sizing out of the interpreter
+module and deleting the separate strip-wide shifted-read path made room.
+
+`around` neighborhoods (October 9, 2026, format 59): Bloom and Blur written
+with `around` instead of hand-clamped index loops produce the same bytes over
+every Stanford sequence. Bloom no longer reads the target's pixel count, so
+strips no longer split at fixtures: the Stanford lit section went from 5.23 to
+4.86 ms mean on the ESP32 (p95 6.80 to 6.37 ms), and its heap from 63.7 to
+62.4 KB. The hand-clamped loops, now ordinary reductions with per-pixel reads,
+take 8.09 ms. `.rwtext` is 77,712 bytes, about 0.95 KB below the limit.
+
+Scans (October 9, 2026, format 60): with Stanford's Bloom replaced by
+`Trail` (one forward scan, decay 0.5) the lit section took 3.94 ms mean on the
+ESP32, and by a 13-tap `around` sum of the same decaying weights 5.66 ms,
+against 3.35 ms without Bloom: about 0.6 ms for the scan, whatever its reach,
+and 2.3 ms for the stencil. The two agree within 3 levels per channel over every
+frame, the stencil rounding each term to 8 bits. The Stanford show itself
+stayed at 4.79 ms; `.rwtext` is 78,244 bytes, about 0.4 KB below the limit.
+
 Addressed-read windows (October 8, 2026, same machine) took
 `operators_do_not_allocate_from_the_first_frame` from 212 s to 0.8 s. Its
 chain of every library operator at default parameters runs Blur, Bloom and
@@ -153,6 +228,13 @@ attribute, so a per-pixel body that the compiler leaves out of line is a named
 method rather than inside `Machine::step`, whose closures the inliner may
 outline. `pnpm firmware:build` fails if any code from those two modules is
 linked outside instruction RAM, naming the closure or function to move.
+Workspace sizing and allocation run once, before playback, so they live in
+`dsl/vm/workspace.rs` and stay in flash. Whole-frame evaluation
+(`evaluation/frames.rs`: the frame's nodes and each scan's frame) runs once
+per frame and node and also stays in flash; the check excludes it. Moving it
+out of instruction RAM left the Stanford lit section unchanged on October 9,
+2026 (4.85 and 4.88 ms against 4.86 ms), while moving all of `evaluation.rs`
+cost 14% (5.54 ms), and also moving the layer loop `sample_layer_frame` 7%.
 
 On October 8, 2026 (classic ESP32 at 240 MHz, flash DIO at 40 MHz, Stanford
 `main` uploaded standalone, its effects active from 64 to 91 seconds), average
@@ -171,7 +253,7 @@ instruction-RAM code still calls; large math such as `powf`, `expf`, `logf`
 and `tanf` stays behind out-of-line wrappers in flash. On October 6, 2026 the
 loader used 77,004 bytes of `.rwtext` beside 51,796 bytes of Wi-Fi code, about
 1.2 KB below the limit; on October 8, after removing the helper placements, it
-used 73,640 bytes. Check the linker output after growing the interpreter: code size, not
+used 73,640 bytes, and on October 9, with compact parameters, 74,324 bytes. Check the linker output after growing the interpreter: code size, not
 speed, decides what the interpreter may specialize. Operand lookups stay out of
 line, one bounds check each rather than one per instruction arm, and only the
 cheapest operations have loops per operand kind. Graph evaluation borrows its

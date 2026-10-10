@@ -9,45 +9,39 @@ enum Selection {
 }
 
 fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> PreparedSequence {
-    let ramp = SampleProgram::admit(
-        program(
-            vec![
-                Instruction::FloatConst {
-                    dst: Slot::scalar(0),
-                    bits: 0.0f32.to_bits(),
-                },
-                Instruction::Rgb {
-                    dst: Slot::row(0),
-                    red: Slot::input(Input::PixelFraction),
-                    green: Slot::scalar(0),
-                    blue: Slot::scalar(0),
-                },
-            ],
-            1,
-            Slot::row(0),
-            banks(1, 0, 0),
-            banks(0, 0, 1),
-        ),
-        Box::new([]),
-    )
-    .unwrap();
-    let green = SampleProgram::admit(
-        program(
-            vec![Instruction::ColorConst {
+    let ramp = SampleProgram::admit(program(
+        vec![
+            Instruction::FloatConst {
                 dst: Slot::scalar(0),
-                value: Color {
-                    red: 0,
-                    green: 255,
-                    blue: 0,
-                },
-            }],
-            1,
-            Slot::scalar(0),
-            banks(0, 0, 1),
-            Banks::default(),
-        ),
-        Box::new([]),
-    )
+                bits: 0.0f32.to_bits(),
+            },
+            Instruction::Rgb {
+                dst: Slot::row(0),
+                red: Slot::input(Input::PixelFraction),
+                green: Slot::scalar(0),
+                blue: Slot::scalar(0),
+            },
+        ],
+        1,
+        Slot::row(0),
+        banks(1, 0, 0),
+        banks(0, 0, 1),
+    ))
+    .unwrap();
+    let green = SampleProgram::admit(program(
+        vec![Instruction::ColorConst {
+            dst: Slot::scalar(0),
+            value: Color {
+                red: 0,
+                green: 255,
+                blue: 0,
+            },
+        }],
+        1,
+        Slot::scalar(0),
+        banks(0, 0, 1),
+        Banks::default(),
+    ))
     .unwrap();
     let ramp = SampleInvocation::bind(ramp, vec![]).unwrap();
     let green = SampleInvocation::bind(green, vec![]).unwrap();
@@ -80,7 +74,6 @@ fn selected_sequence(selected: bool, selection: Selection, invert: bool) -> Prep
                 )
             },
             1,
-            Box::new([]),
         )
         .unwrap();
         OperatorInvocation::bind(operator, vec![]).unwrap()

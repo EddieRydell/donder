@@ -10,6 +10,6 @@ Setup main {
 
 Controller dig_quad {
   description: none,
-  protocol: E131 { source_name: "Donder", bind_address: "0.0.0.0", priority: 100, mode: Multicast },
-  ports: [Port { name: port_1, address: Universe { universe: 1 }, slots: 450 }],
+  protocol: Donder { device: "b0cbd8030790" },
+  ports: [Port { name: port_1, address: Output { output: 1 }, slots: 450 }],
 }

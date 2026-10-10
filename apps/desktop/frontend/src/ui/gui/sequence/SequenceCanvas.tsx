@@ -512,7 +512,7 @@ export function SequenceCanvas({
     () => buildAutomationClipLayout(automationClipsForLayout, rows, viewport, left, top, canvasSize),
     [automationClipsForLayout, rows, canvasSize, left, top, viewport]
   );
-  const clipRasters = useSequenceClipRasters(document, visibleRasterClips, Math.max(...Object.values(viewport.rowHeights).map((heights) => heights.effects), SEQUENCE_CANVAS.minLaneHeightPx), settings);
+  const clipRasters = useSequenceClipRasters(document, visibleRasterClips);
   const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? sequenceSelection.effectIds : []), [sequenceSelection]);
   const activeAutomationTargetEffectIds = useMemo(() => {
     const clipIds = new Set<number>();
@@ -673,10 +673,9 @@ export function SequenceCanvas({
       const hoverResize = hover?.kind === "effect" && hover.effectId === clip.effect.id ? hover.resize : null;
       ctx.fillStyle = SEQUENCE_COLORS.textFaint;
       ctx.fillRect(clip.rect.x, clip.rect.y, clip.rect.width, clip.rect.height);
-      const expectedRasterKey = clipRasters.expectedRasterKeys.get(clip.effect.id) ?? null;
-      const raster = expectedRasterKey === null ? null : clipRasters.rasters.get(expectedRasterKey) ?? null;
-      const rasterError = clipRasters.errors.has(clip.effect.id);
-      if (raster !== null) {
+      const raster = clipRasters.raster(clip.effect.id);
+      const rasterError = clipRasters.failed(clip.effect.id);
+      if (raster !== undefined) {
         drawClipRaster(ctx, raster, clip.rect);
       }
       if (rasterError) {

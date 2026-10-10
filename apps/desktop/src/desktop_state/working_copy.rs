@@ -226,6 +226,14 @@ impl DesktopState {
             .collect()
     }
 
+    /// The working text of the active document.
+    #[cfg(test)]
+    pub(crate) fn active_working_text(&self) -> String {
+        let path = self.snapshot().active_file.expect("a document is active");
+        self.working_text(Utf8Path::new(&path))
+            .expect("the active document is open")
+    }
+
     pub fn working_text(&self, path: &Utf8Path) -> Option<String> {
         lock_unpoisoned(&self.workspace)
             .documents
@@ -237,8 +245,6 @@ impl DesktopState {
         self.render_refresh.invalidate_pending();
         self.suspend_live_output();
         lock_unpoisoned(&self.sequence_render).unload();
-        *lock_unpoisoned(&self.sequence_clip_raster) =
-            crate::sequence_clip_raster::SequenceClipRasterService::new();
     }
 
     pub(super) fn schedule_working_copy(&self, save: bool) {
@@ -715,24 +721,11 @@ mod tests {
             },
         );
         assert!(!matches!(result.document, GuiDocument::Blocked { .. }));
-        let projection = result.snapshot.gui_projection.as_ref().unwrap();
-        assert_eq!(
-            projection.project_revision,
-            result.snapshot.project_revision
-        );
-        assert_eq!(
-            projection.request.project_revision,
-            result.snapshot.project_revision
-        );
-        let GuiDocument::Sequence { document } = &projection.document else {
-            panic!("Edit snapshot omitted the sequence projection");
+        let GuiDocument::Sequence { document } = &result.document else {
+            panic!("The edit omitted the sequence projection");
         };
         assert_eq!(document.duration_seconds, 300.0);
         state.working_copy.finish_pending();
-        assert_eq!(
-            state.snapshot().gui_projection.unwrap().project_revision,
-            result.snapshot.project_revision
-        );
         assert!(state.snapshot().active_buffer.unwrap().dirty);
         assert_eq!(
             std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
@@ -747,7 +740,7 @@ mod tests {
         assert_eq!(buffer.document_revision, buffer.saved_revision);
         assert_eq!(
             std::fs::read_to_string(root.join(SEQUENCE)).unwrap(),
-            buffer.text
+            state.active_working_text()
         );
     }
 
@@ -836,7 +829,9 @@ mod tests {
                 project_epoch: snapshot.project_epoch,
                 path: path.into(),
                 expected_document_revision: buffer.document_revision,
-                text: buffer.text.replace("frame_rate: 60", "frame_rate: 30"),
+                text: state
+                    .active_working_text()
+                    .replace("frame_rate: 60", "frame_rate: 30"),
             })
             .unwrap();
         state.working_copy.finish_pending();
@@ -855,6 +850,7 @@ mod tests {
     fn source_and_epoch_guards_reject_old_commands_and_completion_results() {
         let (_temporary, root, state) = project();
         let initial = state.snapshot();
+        let initial_text = state.active_working_text();
         let request = gui_request(&state);
         let old = WorkingCopyPayload {
             root: root.clone(),
@@ -866,13 +862,7 @@ mod tests {
             autosave_generation: 0,
         };
         let report = crate::state_tasks::analyze_working_copy(&old);
-        edit(
-            &state,
-            format!(
-                "{}\n# newest\n",
-                initial.active_buffer.as_ref().unwrap().text
-            ),
-        );
+        edit(&state, format!("{}\n# newest\n", initial_text));
         state.working_copy.finish_pending();
         state.complete_working_copy(old, report);
         assert!(state.snapshot().active_buffer.as_ref().unwrap().dirty);
@@ -920,12 +910,12 @@ mod tests {
         let (_temporary, root, state) = project();
         let text = format!(
             "{}\n# latest before navigation\n",
-            state.snapshot().active_buffer.unwrap().text
+            state.active_working_text()
         );
         edit(&state, text.clone());
         state.open_file_path(donder_project_io::PROJECT_ROOT_FILE);
         state.set_active_file_path(SEQUENCE);
-        assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
+        assert_eq!(state.active_working_text(), text);
         let snapshot = state.save_all().unwrap();
         assert_eq!(std::fs::read_to_string(root.join(SEQUENCE)).unwrap(), text);
         assert!(!snapshot.active_buffer.unwrap().dirty);
@@ -934,12 +924,12 @@ mod tests {
     #[test]
     fn clean_external_changes_reload_and_dirty_changes_and_deletions_conflict() {
         let (_temporary, root, state) = project();
-        let original = state.snapshot().active_buffer.unwrap().text;
+        let original = state.active_working_text();
         let external = format!("{original}\n# external\n");
         std::fs::write(root.join(SEQUENCE), &external).unwrap();
         state.reconcile_external_files().unwrap();
         state.working_copy.finish_pending();
-        assert_eq!(state.snapshot().active_buffer.unwrap().text, external);
+        assert_eq!(state.active_working_text(), external);
         let mine = format!("{original}\n# mine\n");
         edit(&state, mine.clone());
         state.working_copy.finish_pending();
@@ -951,7 +941,7 @@ mod tests {
             snapshot.active_buffer.as_ref().unwrap().external_state,
             BufferExternalState::ChangedOnDisk
         );
-        assert_eq!(snapshot.active_buffer.unwrap().text, mine);
+        assert_eq!(state.active_working_text(), mine);
         std::fs::remove_file(root.join(SEQUENCE)).unwrap();
         state.reconcile_external_files().unwrap();
         assert_eq!(
@@ -976,7 +966,7 @@ mod tests {
         let (_temporary, root, state) = project();
         let text = format!(
             "{}\n# must survive cancellation\n",
-            state.snapshot().active_buffer.unwrap().text
+            state.active_working_text()
         );
         edit(&state, text.clone());
         for action in [
@@ -1000,7 +990,7 @@ mod tests {
                 transition(&state, action, Some(TransitionDecision::Cancel)).unwrap(),
                 TransitionResult::Cancelled { .. }
             ));
-            assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
+            assert_eq!(state.active_working_text(), text);
         }
         assert!(matches!(
             transition(
@@ -1024,7 +1014,7 @@ mod tests {
             Some(TransitionDecision::Discard),
         )
         .unwrap();
-        assert_eq!(state.snapshot().active_buffer.unwrap().text, text);
+        assert_eq!(state.active_working_text(), text);
     }
 
     #[test]
@@ -1060,19 +1050,14 @@ mod tests {
     fn close_requires_the_exact_reviewed_revision_and_preserves_later_edits() {
         let (_temporary, _root, state) = project();
         let initial = state.snapshot();
+        let initial_text = state.active_working_text();
         assert!(
             state
                 .finish_close(initial.project_epoch, initial.project_revision, || Ok(()))
                 .is_err()
         );
         transition(&state, WorkspaceTransition::CloseApplication, None).unwrap();
-        edit(
-            &state,
-            format!(
-                "{}\n# after close request\n",
-                initial.active_buffer.unwrap().text
-            ),
-        );
+        edit(&state, format!("{}\n# after close request\n", initial_text));
         assert!(
             state
                 .finish_close(initial.project_epoch, initial.project_revision, || panic!(
@@ -1098,7 +1083,7 @@ mod tests {
     #[test]
     fn disabling_autosave_cancels_a_captured_save_and_failed_writes_stay_dirty() {
         let (_temporary, root, state) = project();
-        let original = state.snapshot().active_buffer.unwrap().text;
+        let original = state.active_working_text();
         let text = format!("{original}\n# unsaved\n");
         edit(&state, text.clone());
         state.working_copy.finish_pending();
@@ -1154,7 +1139,7 @@ mod tests {
         });
         state.open_project_path(root.as_str());
         state.open_file_path(SEQUENCE);
-        let original = state.snapshot().active_buffer.unwrap().text;
+        let original = state.active_working_text();
         let updated = original.replace("frame_rate: 144", "frame_rate: 90");
         assert_ne!(updated, original);
         std::fs::write(root.join(SEQUENCE), &updated).unwrap();
@@ -1164,12 +1149,10 @@ mod tests {
                 .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
                 .expect("watcher should publish a complete snapshot");
             if snapshot.project_health == ProjectHealth::Ready
-                && snapshot
-                    .active_buffer
-                    .as_ref()
-                    .is_some_and(|buffer| buffer.text == updated)
+                && let Some(buffer) = &snapshot.active_buffer
+                && state.active_working_text() == updated
             {
-                assert!(!snapshot.active_buffer.unwrap().dirty);
+                assert!(!buffer.dirty);
                 break;
             }
         }
@@ -1178,7 +1161,7 @@ mod tests {
     #[test]
     fn conflict_cancels_save_and_close_without_clearing_dirty_text() {
         let (_temporary, root, state) = project();
-        let original = state.snapshot().active_buffer.unwrap().text;
+        let original = state.active_working_text();
         edit(&state, format!("{original}\n# mine\n"));
         state.working_copy.finish_pending();
         std::fs::write(root.join(SEQUENCE), format!("{original}\n# theirs\n")).unwrap();

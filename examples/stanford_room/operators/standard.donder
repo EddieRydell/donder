@@ -106,13 +106,12 @@ operator Blur {
   -- Pixels averaged on each side, along each fixture's pixel order.
   param radius: int in 1..16 = 2;
 
-  -- Tent weights, renormalized where a fixture ends so its edges keep their level.
+  -- Tent weights, renormalized where a fixture ends so its edges keep their level:
+  -- an `around` that ignores its neighbors counts only the offsets that have one.
   sample {
-    let first = int(max(-radius, -pixel.index));
-    let last = int(min(radius, target.count - 1 - pixel.index));
-    let total = sum for offset in first..=last { radius + 1 - abs(offset) };
-    sum for offset in first..=last {
-      input.at(time, pixel.index + offset) * ((radius + 1 - abs(offset)) / total)
+    let total = sum for offset in -radius..=radius around input { radius + 1 - abs(offset) };
+    sum for offset in -radius..=radius around input as neighbor {
+      neighbor * ((radius + 1 - abs(offset)) / total)
     }
   }
 }
@@ -190,13 +189,10 @@ operator Bloom {
   -- to 8 bits, keeping faint tails.
   sample {
     let total = sum for offset in -radius..=radius { falloff_weight(offset, radius, falloff) };
-    let first = int(max(-radius, -pixel.index));
-    let last = int(min(radius, target.count - 1 - pixel.index));
-    let glow = sum for offset in first..=last {
-      let source = input.at(time, pixel.index + offset);
-      let weight = threshold_weight(brightness(source, measure), threshold, softness);
+    let glow = sum for offset in -radius..=radius around input as neighbor {
+      let weight = threshold_weight(brightness(neighbor, measure), threshold, softness);
       guard weight > 0.0;
-      source * (weight * falloff_weight(offset, radius, falloff) * strength / total)
+      neighbor * (weight * falloff_weight(offset, radius, falloff) * strength / total)
     };
     let glow = glow * tint;
     if blend == Add {
@@ -207,6 +203,27 @@ operator Bloom {
       max(input, glow)
     } else {
       glow
+    }
+  }
+}
+
+operator Trail {
+  input input;
+  -- How much of each pixel's light carries on to the next, along each fixture's pixel order.
+  param decay: float in 0.0..1.0 = 0.8;
+  -- Which way the trail runs; Both takes the brighter of the two.
+  param direction: enum { Forward, Backward, Both } = Forward;
+
+  -- Light builds up in floats and is rounded once, so faint tails keep fading.
+  sample {
+    let forward = scan forward input as light, previous { previous * decay + light };
+    let backward = scan backward input as light, previous { previous * decay + light };
+    if direction == Forward {
+      forward
+    } else if direction == Backward {
+      backward
+    } else {
+      max(forward, backward)
     }
   }
 }

@@ -275,7 +275,7 @@ pub(super) fn edit_sequence(
                     .iter()
                     .any(|effect| effect.name.as_str() == candidate)
             });
-            sequence.effects.push(EffectInst {
+            sequence.effects.push(std::sync::Arc::new(EffectInst {
                 id: EffectInstId(next_id),
                 name,
                 description: None,
@@ -286,7 +286,7 @@ pub(super) fn edit_sequence(
                 scope: effect_scope(scope),
                 definition,
                 param_overrides,
-            });
+            }));
         }
         SequenceGuiEdit::CreateLayer { name, color } => {
             create_sequence_layer(&mut draft, name, color, None, true)?;
@@ -307,6 +307,7 @@ pub(super) fn edit_sequence(
                 .effects
                 .iter_mut()
                 .find(|effect| effect.id.0 == id)
+                .map(std::sync::Arc::make_mut)
                 .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
             clip.name = super::model::typed_name(&name)?;
         }
@@ -347,6 +348,7 @@ pub(super) fn edit_sequence(
                         .effects
                         .iter_mut()
                         .find(|effect| effect.id.0 == id)
+                        .map(std::sync::Arc::make_mut)
                         .ok_or_else(missing)?
                         .description = description;
                 }
@@ -379,6 +381,7 @@ pub(super) fn edit_sequence(
                 .effects
                 .iter_mut()
                 .find(|effect| effect.id.0 == id)
+                .map(std::sync::Arc::make_mut)
                 .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))?;
             effect.layer_id = SequenceLayerId(layer_id);
         }
@@ -916,10 +919,11 @@ fn mark_references_mut(
             _ => {}
         }
     }
-    let effects = sequence
-        .effects
-        .iter_mut()
-        .flat_map(|effect| effect.param_overrides.values_mut());
+    let effects = sequence.effects.iter_mut().flat_map(|effect| {
+        std::sync::Arc::make_mut(effect)
+            .param_overrides
+            .values_mut()
+    });
     let operators = sequence
         .composition_graph
         .nodes

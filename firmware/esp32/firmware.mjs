@@ -17,7 +17,8 @@ function requiredPath(name, directoryOnly = false) {
 // The runtime's `iram` feature links these modules into instruction RAM; an
 // out-of-line copy left in flash (an unannotated function or closure, or one
 // inlined into flash code under a new name) roughly doubles evaluation time.
-const INSTRUCTION_RAM_MODULES = /^<?donder_runtime(\[[0-9a-f]+\])?::(dsl::vm::strip|evaluation)::/;
+// Whole-frame evaluation (`evaluation::frames`) runs once per frame and stays in flash.
+const INSTRUCTION_RAM_MODULES = /^<?donder_runtime(\[[0-9a-f]+\])?::(dsl::vm::strip|evaluation)::(?!frames::)/;
 const INSTRUCTION_RAM = [0x40080000, 0x400a0000];
 
 function checkInstructionRamPlacement(nm) {

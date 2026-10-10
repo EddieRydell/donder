@@ -22,6 +22,7 @@ use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::{ControllerId, ControllerPortId};
 pub use donder_runtime::PreparedSequence;
+pub use sequence::PreparationCache;
 
 /// Which physical outputs to retain. Explicit lists preserve first-occurrence
 /// order and treat repeated entries as a set. An empty list selects no outputs.
@@ -43,10 +44,23 @@ pub fn prepare(
     sequence: &SequenceId,
     outputs: PrepareOutputs<'_>,
 ) -> Option<PreparedSequence> {
+    prepare_cached(project, sequence, outputs, &mut PreparationCache::default())
+}
+
+/// [`prepare`], reusing the clip programs `cache` holds from earlier
+/// preparations. A caller that prepares repeatedly, as an editor does after
+/// each edit, keeps one cache so unchanged clips are not lowered again.
+pub fn prepare_cached(
+    project: &DonderProject,
+    sequence: &SequenceId,
+    outputs: PrepareOutputs<'_>,
+    cache: &mut PreparationCache,
+) -> Option<PreparedSequence> {
     let selected = selection::resolve(project, sequence, outputs)?;
     Some(sequence::prepare(
         selected,
         !matches!(outputs, PrepareOutputs::All),
+        cache,
     ))
 }
 

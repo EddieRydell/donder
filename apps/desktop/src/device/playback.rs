@@ -1,5 +1,5 @@
 //! Desktop clock master and prepared-show deployment; no pixel streaming.
-use super::DeviceClient;
+use super::{DeviceClient, UploadError};
 use crate::desktop_state::lock_unpoisoned;
 use donder_model::{ControllerId, ControllerPortId, DonderDeviceId, SequenceId};
 use donder_runtime::PlaybackRate;
@@ -155,16 +155,18 @@ struct Prepared {
     sequence: SequenceId,
     bytes: Vec<u8>,
     widths: Vec<u16>,
+    frame_rate: u32,
     hash: [u8; 32],
 }
 struct Binding {
     id: DonderDeviceId,
     client: DeviceClient,
-    frame_rate: u32,
     clock_socket: UdpSocket,
     ports: DevicePorts,
     prepared: Option<Prepared>,
     uploaded: Option<[u8; 32]>,
+    /// The show this controller refused, and why; it is not sent again.
+    rejected: Option<([u8; 32], String)>,
     sample: Option<ClockSample>,
     rate_ppb: i32,
     uncertainty: Option<u32>,
@@ -393,7 +395,7 @@ impl DevicePlaybackService {
         epoch: u32,
         revision: u32,
         sequence: &SequenceId,
-        mut compile: impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>), String>,
+        mut compile: impl FnMut(&DevicePorts) -> Result<(Vec<u8>, Vec<u16>, u32), String>,
     ) -> Result<(), String> {
         let mut core = lock_unpoisoned(&self.shared.core);
         if core.epoch != epoch {
@@ -405,13 +407,14 @@ impl DevicePlaybackService {
             if binding.prepared.as_ref().is_none_or(|prepared| {
                 prepared.revision != revision || prepared.sequence != *sequence
             }) {
-                let (bytes, widths) = compile(&binding.ports)?;
+                let (bytes, widths, frame_rate) = compile(&binding.ports)?;
                 let hash = Sha256::digest(&bytes).into();
                 binding.prepared = Some(Prepared {
                     revision,
                     sequence: sequence.clone(),
                     bytes,
                     widths,
+                    frame_rate,
                     hash,
                 });
             }
@@ -433,10 +436,23 @@ impl DevicePlaybackService {
                     && playback.archive_crc == checksum
             });
             if binding.uploaded != Some(prepared.hash) || !matches {
-                binding
-                    .client
-                    .upload(prepared.bytes.clone(), &prepared.widths)?;
-                binding.uploaded = Some(prepared.hash);
+                if let Some((hash, reason)) = &binding.rejected
+                    && *hash == prepared.hash
+                {
+                    return Err(reason.clone());
+                }
+                match binding.client.upload(
+                    prepared.bytes.clone(),
+                    &prepared.widths,
+                    prepared.frame_rate,
+                ) {
+                    Ok(_) => binding.uploaded = Some(prepared.hash),
+                    Err(UploadError::Rejected(reason)) => {
+                        binding.rejected = Some((prepared.hash, reason.clone()));
+                        return Err(reason);
+                    }
+                    Err(UploadError::Failed(error)) => return Err(error),
+                }
             }
         }
         Ok(())
@@ -494,10 +510,14 @@ impl DevicePlaybackService {
             .unwrap_or(0);
         let lead = Duration::from_millis((core.bindings.len() as u64 * 50).clamp(250, 1_000))
             + Duration::from_micros(u64::from(slowest) * 8 * core.bindings.len() as u64);
+        // Every controller plays the same sequence, so starts align to its frames.
         let frame_rate = u128::from(
             core.bindings
                 .first()
                 .ok_or("No connected devices")?
+                .prepared
+                .as_ref()
+                .ok_or("Prepare the current sequence before scheduling")?
                 .frame_rate,
         );
         let earliest = origin.elapsed().as_micros() + lead.as_micros();
@@ -583,21 +603,12 @@ fn cancel(core: &Core, commands: &[(SocketAddr, u32)]) -> String {
 }
 fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
     let client = DeviceClient::new(device.address, &device.token)?;
-    let (frame_rate, clock_udp_port) = match client.capabilities()?.output {
-        DeviceOutputCapabilities::Ws281x {
-            frame_rate,
-            clock_udp_port,
-            ..
-        } if frame_rate > 0 && clock_udp_port > 0 => (frame_rate, clock_udp_port),
-        _ => return Err("Device does not advertise a valid physical output frame rate".into()),
+    let clock_udp_port = match client.capabilities()?.output {
+        DeviceOutputCapabilities::Ws281x { clock_udp_port, .. } if clock_udp_port > 0 => {
+            clock_udp_port
+        }
+        _ => return Err("Device does not advertise a physical output clock".into()),
     };
-    if core
-        .bindings
-        .iter()
-        .any(|binding| binding.frame_rate != frame_rate)
-    {
-        return Err("Grouped devices must use the same output frame rate".into());
-    }
     let bind_address = if client.address.is_ipv4() {
         "0.0.0.0:0"
     } else {
@@ -620,10 +631,10 @@ fn bind(core: &Core, device: &WantedDevice) -> Result<Binding, String> {
         id: device.id.clone(),
         client,
         clock_socket,
-        frame_rate,
         ports: device.ports.clone(),
         prepared: None,
         uploaded: None,
+        rejected: None,
         sample: None,
         rate_ppb: 0,
         uncertainty: None,

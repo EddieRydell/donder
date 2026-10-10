@@ -268,6 +268,27 @@ pub enum AutomatedQuantity {
 }
 
 impl PreparedAutomation {
+    /// Bitwise equality: automation that drives its slot identically.
+    pub fn same(&self, other: &Self) -> bool {
+        self.start == other.start
+            && self.duration == other.duration
+            && self.curve.same(&other.curve)
+            && self.mapping == other.mapping
+            && self.quantity == other.quantity
+            && self.param_index == other.param_index
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        self.start.as_ticks().hash(state);
+        self.duration.as_ticks().hash(state);
+        self.curve.hash_same(state);
+        self.mapping.hash_same(state);
+        (self.quantity == AutomatedQuantity::Integral).hash(state);
+        self.param_index.hash(state);
+    }
+
     pub fn position(&self, sample_time: SampleTime) -> f32 {
         let elapsed = sample_time
             .checked_duration_since(self.start)

@@ -3,7 +3,7 @@ import type * as Wire from "./types";
 
 export type EditorSnapshot = Pick<Wire.AppSnapshot,
   "settings" | "projectRevision" | "audioTransport" | "liveOutput" | "activeBuffer">;
-export type EditorEditResult = { snapshot: EditorSnapshot; document: Wire.GuiDocument };
+export type EditorEditResult = { snapshot: EditorSnapshot; change: Wire.GuiDocumentChange };
 export type EditorSelectionResult = EditorEditResult & Pick<Wire.SequenceSelectionEditResult,
   "selection" | "copiedCount" | "skippedCount">;
 export type SequenceEditorState = {
@@ -29,8 +29,9 @@ export type SequenceEditorCommands = {
   discardDetachedAutomation: (request: Wire.GuiDocumentRequest, clipId: number, detachedIndex: number) => Promise<EditorEditResult>;
   saveGraphViewState: (state: Wire.PersistedGraphViewStateUpdate) => Promise<EditorSnapshot>;
   saveSequenceViewportState: (state: Wire.PersistedSequenceViewportStateUpdate) => Promise<EditorSnapshot>;
+  getSequenceEffectDetails: (request: Wire.GuiDocumentRequest, effectIds: number[]) => Promise<Wire.SequenceEffectDetailsResult>;
   requestSequenceClipRasters: (request: Wire.SequenceClipRasterRequest) => Promise<Wire.SequenceClipRasterResponse>;
-  takeSequenceClipRasterResults: (request: Wire.GuiDocumentRequest, requestId: number) => Promise<Wire.SequenceClipRasterResultBatch>;
+  takeSequenceClipRasterResults: (request: Wire.GuiDocumentRequest, sinceRevision: number) => Promise<Wire.SequenceClipRasterResultBatch>;
   finishCompositionGraphEditing: () => Promise<EditorSnapshot>;
   audioPlay: () => Promise<EditorSnapshot>;
   audioPause: () => Promise<EditorSnapshot>;

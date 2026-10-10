@@ -1,13 +1,12 @@
 //! Admitted operator programs, which also sample their input signals.
-use crate::bytecode::{BytecodeProgram, ParameterKind, ProgramContext};
+use crate::bytecode::{BytecodeProgram, ProgramContext};
 use crate::{BindingError, BoundParams, Type, Value};
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OperatorProgram {
     bytecode: BytecodeProgram,
     inputs: usize,
-    parameters: Box<[Type]>,
     uses_spatial_context: bool,
     uses_sections: bool,
     reads_target: bool,
@@ -15,15 +14,10 @@ pub struct OperatorProgram {
 }
 
 impl OperatorProgram {
-    /// A well-formed operator program over `inputs` signals and parameters of
-    /// `parameters`' types.
-    pub fn admit(
-        bytecode: BytecodeProgram,
-        inputs: usize,
-        parameters: Box<[Type]>,
-    ) -> Option<Self> {
-        let kinds: Vec<ParameterKind> = parameters.iter().map(ParameterKind::for_type).collect();
-        if !bytecode.is_well_formed(ProgramContext::Operator { inputs }, &kinds) {
+    /// A well-formed operator program over `inputs` signals and its declared
+    /// parameters.
+    pub fn admit(bytecode: BytecodeProgram, inputs: usize) -> Option<Self> {
+        if !bytecode.is_well_formed(ProgramContext::Operator { inputs }) {
             return None;
         }
         Some(Self {
@@ -33,7 +27,6 @@ impl OperatorProgram {
             uses_progress: bytecode.uses_progress(),
             bytecode,
             inputs,
-            parameters,
         })
     }
 
@@ -46,11 +39,11 @@ impl OperatorProgram {
     }
 
     pub fn parameter_types(&self) -> &[Type] {
-        &self.parameters
+        &self.bytecode.params
     }
 
     pub fn bind(&self, values: Vec<Value>) -> Result<BoundParams, BindingError> {
-        BoundParams::bind_values(&self.parameters, values)
+        BoundParams::bind_values(&self.bytecode.params, values)
     }
 
     pub fn uses_spatial_context(&self) -> bool {

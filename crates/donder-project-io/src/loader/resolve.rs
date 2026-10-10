@@ -1120,7 +1120,7 @@ impl DomainResolver<'_> {
             if let Some(entry) = clip_ids.get_mut(&clip.name.0.value) {
                 entry.2 = Some(definition.0.clone());
             }
-            effects.push(EffectInst {
+            effects.push(std::sync::Arc::new(EffectInst {
                 id,
                 name: name(&clip.name),
                 description: clip.description.clone(),
@@ -1140,7 +1140,7 @@ impl DomainResolver<'_> {
                     &marks,
                     &clip.params,
                 )?,
-            });
+            }));
         }
         // Each node's identity, whether it is the output, the name it is
         // declared by, and its operator.

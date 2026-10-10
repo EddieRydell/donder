@@ -168,6 +168,60 @@ A `guard` in the body skips an iteration. For colors, `first` and `last`
 default to black without an `else`. Only they take an `else`, so in
 `guard all for i in 0..n { c } else value;` the `else` belongs to the guard.
 
+### Neighborhoods
+
+An operator reads its input's neighbors along each fixture's pixel order with
+`around`: the index is the offset from the current pixel, and `as` names the
+input there, now.
+
+```text
+let glow = sum for offset in -radius..=radius around input as neighbor {
+  let weight = threshold_weight(brightness(neighbor, measure), threshold, softness);
+  guard weight > 0.0;
+  neighbor * (weight * falloff_weight(offset, radius, falloff))
+};
+```
+
+- A `sum` or `max` of the neighbor, optionally scaled by a number, runs as one
+  fast neighborhood pass. Each factor of the scale, and each guard, may depend
+  on the neighbor (with parameters and time), on the offset, or on neither, but
+  not on two of them: `neighbor * exp(offset * intensity(neighbor))` is an
+  error. Change the neighbor's color after the reduction, not inside it.
+- Past a fixture's ends a neighbor is missing and contributes nothing.
+  `around extended input` reads the end pixel there instead, and `around
+  mirrored input` the pixels reflected about it (the end pixel is not
+  repeated).
+- A body that does not use the neighbor runs only for the offsets that have
+  one, so `sum for offset in -r..=r around input { weight(offset) }` totals the
+  weights a pixel near a fixture end actually receives.
+- The range spans at most 128 offsets, and an extended or mirrored one reaches
+  at most 64 pixels each way, as literals and parameter ranges must prove.
+
+### Scans
+
+A scan carries light along each fixture's pixel order, however far it reaches:
+
+```text
+let tail = scan forward input as light, previous {
+  previous * decay + light * threshold_weight(brightness(light, measure), threshold, softness)
+};
+```
+
+- `scan forward` runs from each fixture's first pixel to its last, `scan
+  backward` the other way. `light` is the input at the pixel and `previous`
+  the scan's value at the pixel before; the first pixel's previous value is
+  black.
+- The body is `previous * decay + light`, optionally with `light` scaled by a
+  weight. The decay may depend on parameters and time; the weight on `light`,
+  parameters and time. Anything else is an error.
+- The running value is kept in floats and rounded to a color only when
+  written, so faint light keeps fading instead of stopping at the last 8-bit
+  step, and the result saturates at full brightness. This differs from color
+  `+`, which saturates at each step.
+- A scan's whole frame is computed once per frame, so its cost does not depend
+  on how far the light travels. `max` or `+` of a forward and a backward scan
+  spreads light both ways.
+
 Syntax nests at most 128 levels deep. Expressions, blocks and each operator
 of a chain such as `a + b + c` are levels.
 
@@ -220,7 +274,8 @@ An operator samples an immutable input signal by time and pixel:
 - `source` used as a color samples the current pixel now.
 - `source.at(t)` samples the current pixel at `t` seconds.
 - `source.at(t, pixel)` samples a zero-based pixel of the current fixture
-  instance. Local coordinates never wrap across fixtures.
+  instance. Local coordinates never wrap across fixtures. To read neighbors,
+  use an `around` reduction.
 - `source.at_global(t, pixel)` samples a zero-based pixel of the full layout,
   in instance order with each instance's pixels contiguous. This order does not
   depend on which controller ports are selected.
@@ -327,6 +382,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Echo | `input` | Maximum of the input and `repeats = 3` copies spaced `seconds = 0.1` apart, scaled by powers of `decay = 0.5` |
 | Blur | `input` | Tent-weighted average of `radius = 2` pixels on each side along each fixture's pixel order, renormalized at fixture ends |
 | Threshold | `input` | Passes pixels whose brightness (`measure` = Brightest, Luminance or Average) exceeds `threshold = 0.5`, fading across `softness = 0.1`; `invert` passes the darker pixels instead |
+| Trail | `input` | Carries each pixel's light along each fixture's pixel order, keeping `decay = 0.8` of it per pixel, `Forward`, `Backward` or `Both` (the brighter) |
 | Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light `radius = 6` pixels along each fixture's pixel order with a Gaussian, Linear or Flat `falloff`, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The kernel is normalized over its full width, so glow fades off fixture ends |
 
 Samples before the sequence are black. The starter adds Gain and TimeWarp as

@@ -8,6 +8,7 @@ use crate::dsl::{
     BoundParams, DslBindCache, RunContext, RuntimeError, STRIP, SpatialContext, Strip,
     StripSignals, StripWorkspace,
 };
+use crate::dsl::{ScanQuery, SourceWeights};
 use crate::{PreparedSequence, SequenceBuilder, SequenceRoot, TargetHandle};
 use donder_language::compiler::{
     CompiledEffect, CompiledOperator, Instance, Invocation, ParamDecl, ParamRange, ProgramConstants,
@@ -34,6 +35,10 @@ pub(super) trait SignalSampler {
 struct Adapter<'a> {
     sampler: &'a mut dyn SignalSampler,
     error: Option<RuntimeError>,
+    /// The evaluated pixel's local index, which shifted queries are relative to.
+    index: i32,
+    /// Pixels in its fixture, where shifted queries read past its ends.
+    count: i32,
 }
 
 impl Adapter<'_> {
@@ -73,8 +78,89 @@ impl StripSignals for Adapter<'_> {
         pixel: SignalPixel<i32>,
         frame_cache: Option<usize>,
     ) -> Color {
+        let pixel = match pixel {
+            SignalPixel::Shifted(shift, edges) => {
+                let read = edges.local(self.index + shift, self.count);
+                SignalPixel::Local(read.unwrap_or(-1))
+            }
+            pixel => pixel,
+        };
         self.sample(input, time, pixel, frame_cache)
     }
+
+    fn scan(
+        &mut self,
+        query: &ScanQuery,
+        weights: &mut dyn SourceWeights,
+        output: &mut [Color; STRIP],
+    ) {
+        let colors: Vec<Color> = (0..self.count)
+            .map(|index| {
+                self.sample(
+                    query.input,
+                    query.time,
+                    SignalPixel::Local(index),
+                    query.frame_cache,
+                )
+            })
+            .collect();
+        output[0] = scan_fixture(query, weights, &colors)[self.index as usize];
+    }
+
+    /// Positions past the fixture's ends sample black, so they may keep
+    /// their would-be indices.
+    fn sample_range(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        start: isize,
+        frame_cache: Option<usize>,
+        colors: &mut [Color],
+        locals: &mut [i32],
+    ) {
+        for (k, (color, local)) in colors.iter_mut().zip(locals).enumerate() {
+            *local = self.index + start as i32 + k as i32;
+            *color = self.sample(input, time, SignalPixel::Local(*local), frame_cache);
+        }
+    }
+}
+
+/// A scan of one fixture's `colors`, pixel by pixel as the language defines it.
+pub(super) fn scan_fixture(
+    query: &ScanQuery,
+    weights: &mut dyn SourceWeights,
+    colors: &[Color],
+) -> Vec<Color> {
+    let mut factors = vec![0.0; colors.len()];
+    weights.weights(colors, &mut factors);
+    let decay = if query.decay.is_nan() {
+        0.0
+    } else {
+        query.decay
+    };
+    let mut order: Vec<usize> = (0..colors.len()).collect();
+    if query.direction == crate::dsl::bytecode::Direction::Backward {
+        order.reverse();
+    }
+    let mut running = [0.0f32; 3];
+    let mut scanned = vec![Color::BLACK; colors.len()];
+    for index in order {
+        let weight = if factors[index].is_nan() {
+            0.0
+        } else {
+            factors[index]
+        };
+        let Color { red, green, blue } = colors[index];
+        for (value, channel) in running.iter_mut().zip([red, green, blue]) {
+            *value = *value * decay + f32::from(channel) * weight;
+        }
+        scanned[index] = Color {
+            red: donder_runtime_types::sampling::byte_channel(running[0]),
+            green: donder_runtime_types::sampling::byte_channel(running[1]),
+            blue: donder_runtime_types::sampling::byte_channel(running[2]),
+        };
+    }
+    scanned
 }
 
 /// A run context and the one pixel a test evaluates.
@@ -109,7 +195,11 @@ impl SampleEvaluation for SampleInvocation {
         spatial: &SpatialContext,
         workspace: &mut StripWorkspace,
     ) -> Color {
-        let params = BoundParams::from_validated(self.params(), &mut DslBindCache::default());
+        let params = BoundParams::from_validated(
+            self.program().bytecode(),
+            self.params(),
+            &mut DslBindCache::default(),
+        );
         let pixel = (context.index, context.fraction);
         crate::dsl::sample_once(
             self.program(),
@@ -140,7 +230,11 @@ impl OperatorEvaluation for OperatorInvocation {
         sampler: &mut dyn SignalSampler,
         workspace: &mut StripWorkspace,
     ) -> Result<Color, RuntimeError> {
-        let params = BoundParams::from_validated(self.params(), &mut DslBindCache::default());
+        let params = BoundParams::from_validated(
+            self.program().bytecode(),
+            self.params(),
+            &mut DslBindCache::default(),
+        );
         let program = self.program();
         workspace.reserve(program.bytecode());
         let mut strip = Strip::new(program.bytecode(), &params, &context.run, None, workspace);
@@ -152,6 +246,8 @@ impl OperatorEvaluation for OperatorInvocation {
         let mut signals = Adapter {
             sampler,
             error: None,
+            index: context.index,
+            count: context.run.pixel_count,
         };
         let mut color = [Color::BLACK];
         strip.run(

@@ -35,8 +35,9 @@ fn project_validation_admits_only_timing_representable_by_the_runtime_clock() {
     assert!(error.message.contains("runtime clock range"), "{error:?}");
 
     sequence.duration = DonderDuration(Duration::from_micros(u32::MAX as u64));
-    sequence.effects[0].start = DonderTime(Duration::from_nanos(500));
-    sequence.effects[0].duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
+    let effect = std::sync::Arc::make_mut(&mut sequence.effects[0]);
+    effect.start = DonderTime(Duration::from_nanos(500));
+    effect.duration = DonderDuration(sequence.duration.0 - Duration::from_nanos(500));
     let error = donder_model::validate_sequence(&session.project, &sequence).unwrap_err();
     assert!(error.message.contains("after rounding"), "{error:?}");
 }

@@ -16,57 +16,53 @@ fn sequence(
         a: dst,
         b: Slot::scalar(0),
     };
-    let sample = SampleProgram::admit(
-        program(
-            vec![
-                Instruction::IntConst {
-                    dst: Slot::scalar(0),
-                    value: 3,
-                },
-                Instruction::FloatConst {
-                    dst: Slot::scalar(0),
-                    bits: 10.0_f32.to_bits(),
-                },
-                Instruction::FloatConst {
-                    dst: Slot::scalar(1),
-                    bits: 0.0_f32.to_bits(),
-                },
-                Instruction::SectionIndex {
-                    dst: Slot::row(0),
-                    width: Slot::scalar(0),
-                },
-                Instruction::SectionCount {
-                    dst: Slot::row(1),
-                    width: Slot::scalar(0),
-                },
-                Instruction::IntToFloat {
-                    dst: Slot::row(0),
-                    a: Slot::row(0),
-                },
-                Instruction::IntToFloat {
-                    dst: Slot::row(1),
-                    a: Slot::row(1),
-                },
-                tenth(Slot::row(0)),
-                tenth(Slot::row(1)),
-                Instruction::Rgb {
-                    dst: Slot::row(0),
-                    red: Slot::row(0),
-                    green: Slot::row(1),
-                    blue: Slot::scalar(1),
-                },
-            ],
-            3,
-            Slot::row(0),
-            banks(2, 1, 0),
-            banks(2, 2, 1),
-        ),
-        Box::new([]),
-    )
+    let sample = SampleProgram::admit(program(
+        vec![
+            Instruction::IntConst {
+                dst: Slot::scalar(0),
+                value: 3,
+            },
+            Instruction::FloatConst {
+                dst: Slot::scalar(0),
+                bits: 10.0_f32.to_bits(),
+            },
+            Instruction::FloatConst {
+                dst: Slot::scalar(1),
+                bits: 0.0_f32.to_bits(),
+            },
+            Instruction::SectionIndex {
+                dst: Slot::row(0),
+                width: Slot::scalar(0),
+            },
+            Instruction::SectionCount {
+                dst: Slot::row(1),
+                width: Slot::scalar(0),
+            },
+            Instruction::IntToFloat {
+                dst: Slot::row(0),
+                a: Slot::row(0),
+            },
+            Instruction::IntToFloat {
+                dst: Slot::row(1),
+                a: Slot::row(1),
+            },
+            tenth(Slot::row(0)),
+            tenth(Slot::row(1)),
+            Instruction::Rgb {
+                dst: Slot::row(0),
+                red: Slot::row(0),
+                green: Slot::row(1),
+                blue: Slot::scalar(1),
+            },
+        ],
+        3,
+        Slot::row(0),
+        banks(2, 1, 0),
+        banks(2, 2, 1),
+    ))
     .unwrap();
     let operator = operator.then(|| {
-        let operator =
-            OperatorProgram::admit(sample.clone().into_bytecode(), 1, Box::new([])).unwrap();
+        let operator = OperatorProgram::admit(sample.clone().into_bytecode(), 1).unwrap();
         OperatorInvocation::bind(operator, vec![]).unwrap()
     });
     let invocation = SampleInvocation::bind(sample, vec![]).unwrap();

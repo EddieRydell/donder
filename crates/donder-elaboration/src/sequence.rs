@@ -1,6 +1,7 @@
 //! Resolve selected sampling domains before assembling owner-branded playback storage.
 mod composition;
 mod programs;
+pub use programs::PreparationCache;
 mod retention;
 mod routing;
 
@@ -13,7 +14,11 @@ use donder_runtime::PreparedSequence;
 use donder_runtime_types::TargetScope;
 use indexmap::IndexMap;
 
-pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequence {
+pub(crate) fn prepare(
+    selected: Selection<'_>,
+    compact: bool,
+    cache: &mut PreparationCache,
+) -> PreparedSequence {
     let geometry = selected
         .geometry
         .iter()
@@ -37,7 +42,7 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
     let routes = routing::targets(&selected, &geometry, &targets);
     let sequence = selected.sequence.sequence();
     let dependencies = composition_graph_output_dependencies(&sequence.composition_graph);
-    let mut programs = programs::Programs::default();
+    let mut programs = programs::Programs::new(cache);
     let cells = retention::cells(&selected, &geometry, &routes, &dependencies, compact);
     let has_pixels = cells.iter().any(|cells| !cells.is_empty());
     let required_layers = sequence
@@ -79,6 +84,8 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
             .filter(|layer| layer.enabled)
             .map(|layer| &layer.id)
             .collect::<std::collections::HashSet<_>>();
+        // Clips on one target share its prepared geometry.
+        let mut prepared_targets = std::collections::HashMap::new();
         let windows = builder.windows().collect::<Vec<_>>();
         for ((accepted, window), timing) in selected
             .sequence
@@ -102,7 +109,14 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
             if compact && members.iter().all(|&index| cells[index].is_empty()) {
                 continue;
             }
-            let target = builder.target(members.iter().map(|index| fixtures[index]), scope);
+            let target = *prepared_targets
+                .entry((
+                    effect.target.fixture,
+                    effect.scope == EffectScope::PerFixture,
+                ))
+                .or_insert_with(|| {
+                    builder.target(members.iter().map(|index| fixtures[index]), scope)
+                });
             let mut counts = members
                 .iter()
                 .map(|&index| geometry[index].positions().len() as i32);
@@ -112,14 +126,15 @@ pub(crate) fn prepare(selected: Selection<'_>, compact: bool) -> PreparedSequenc
                     .next()
                     .filter(|first| counts.all(|count| count == *first)),
             };
-            let invocation = programs.sample(&accepted.execution().instance(
+            let invocation = programs.sample(
+                accepted.execution(),
                 donder_language::compiler::ProgramConstants {
                     pixel_count,
                     duration_seconds: Some(donder_runtime_types::sample_duration_seconds_f32(
                         donder_runtime_types::SampleDuration::from_ticks(timing.duration.get()),
                     )),
                 },
-            ));
+            );
             let prepared = builder.sample(&invocation, window, target);
             builder.clip(effect.id.0, prepared);
             layer_effects[&effect.layer_id].push(prepared);

@@ -17,7 +17,11 @@ pub(crate) fn explain(prepared: &Prepared, plan: &Plan, listing: &str) -> String
             domain(param.domain)
         );
     }
-    for (title, nodes) in [("query", &plan.query), ("target", &plan.target)] {
+    for (title, nodes) in [
+        ("query", &plan.query),
+        ("source", &plan.source),
+        ("target", &plan.target),
+    ] {
         let _ = writeln!(text, "{title}:");
         for &node in nodes {
             let _ = writeln!(text, "  {}", line(graph, node));
@@ -72,6 +76,13 @@ fn line(graph: &Graph, node: Node) -> String {
         Op::Sample { input, pixel, .. } => format!("Sample input{input} {pixel:?}"),
         Op::Items(_) => "Items".into(),
         Op::Pick { .. } => "Pick".into(),
+        Op::Source => "Source".into(),
+        Op::Previous => "Previous".into(),
+        Op::Scan { direction, .. } => format!("Scan {direction:?}"),
+        Op::ScanTap {
+            direction, input, ..
+        } => format!("ScanTap {direction:?} input{input}"),
+        Op::Tap { id, input, .. } => format!("Tap L{} input{input}", id.index()),
     };
     format!(
         "n{:<4} = {op} {}   [{}{}]",
