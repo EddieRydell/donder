@@ -1017,7 +1017,7 @@ html.donder-app-shell body {
 }
 
 .dirty-dot.unsaved {
-  animation: dirty-dot-show 0s linear calc(var(--donder-unsaved-indicator-delay-ms) * 1ms) forwards;
+  animation: dirty-dot-show var(--donder-transition-fast) calc(var(--donder-unsaved-indicator-delay-ms) * 1ms) forwards;
 }
 
 @keyframes dirty-dot-show {
