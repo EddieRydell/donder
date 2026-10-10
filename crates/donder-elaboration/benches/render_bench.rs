@@ -161,8 +161,8 @@ fn bench_render(c: &mut Criterion) {
     });
 }
 
-// Ding Dong from `examples/rydell_house`: a 25,856-clip show imported from
-// Vixen. Its audio is not committed, so the benchmark needs the author's
+// Ding Dong from `examples/rydell_house`: a full show imported from Vixen.
+// Its audio is not committed, so the benchmark needs the author's
 // `audio/dingdong.mp3` in place.
 fn bench_large_show(c: &mut Criterion) {
     pin_benchmark_thread();
