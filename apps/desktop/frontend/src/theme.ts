@@ -173,6 +173,7 @@ export const THEME_METRICS = {
   interactionDragThreshold: cssNumber("--donder-interaction-drag-threshold"),
   workspaceLayoutSaveDelay: cssNumber("--donder-workspace-layout-save-delay"),
   tooltipDelayMs: cssNumber("--donder-tooltip-delay-ms"),
+  unsavedIndicatorDelayMs: cssNumber("--donder-unsaved-indicator-delay-ms"),
   searchDebounceMs: cssNumber("--donder-search-debounce-ms"),
   documentAnalysisDelayMs: cssNumber("--donder-document-analysis-delay-ms"),
   sequenceLeftGutter: cssNumber("--donder-sequence-left-gutter"),

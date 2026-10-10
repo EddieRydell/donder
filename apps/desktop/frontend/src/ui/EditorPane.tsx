@@ -21,6 +21,7 @@ import { scheduleViewStateSave } from "../viewStatePersistence";
 import { sameGuiDocument } from "../snapshotState";
 import { resolveDocumentSyncFailure } from "../store";
 import { NAVIGATE_TO_TEXT_EVENT, navigateToText, type TextNavigation } from "../workspace/navigation";
+import { displayedProjectHealth } from "../workspace/helpers";
 
 type PathSelection = { path: string | null; resetRevision: number; selection: SequenceSelection | null };
 
@@ -173,7 +174,7 @@ function EditorPaneContent({
               onClick={() => void runSnapshotCommand(() => commands.setActiveFile(tab.path))}
             >
               <span>{tab.name}</span>
-              {tab.dirty && <span className="dirty-dot" />}
+              <span className={tab.dirty ? "dirty-dot unsaved" : "dirty-dot"} aria-hidden="true" />
               {tab.externalState !== "current" && <span className="conflict-dot" />}
             </button>
             <button
@@ -190,7 +191,7 @@ function EditorPaneContent({
           </div>
         ))}
       </div>
-      {snapshot.projectHealth === "invalid" && (
+      {displayedProjectHealth(snapshot) === "invalid" && (
         <div className="project-invalid-banner">
           <span>The project has errors. Fix them in Text to use GUI editing.</span>
           <button

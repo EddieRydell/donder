@@ -1,10 +1,12 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleX, FolderOpen, Save } from "lucide-react";
 import { FOCUS_SIDEBAR_EVENT } from "../commandRegistry";
 import { effectiveEditorViewMode } from "../editorViewMode";
 import { THEME_METRICS } from "../theme";
 import { useAppStore, type AppStaticSnapshot } from "../store";
 import type { SidebarView } from "../types";
+import { displayedProjectHealth } from "../workspace/helpers";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const localText = useAppStore((store) => store.localText);
@@ -16,6 +18,8 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
     : localDirty ? "Unsaved"
     : pending.some((document) => document.state.type === "saving") ? "Saving"
     : pending.length > 0 ? "Unsaved" : "Saved";
+  // Conflicts and failures show at once; "Unsaved" and "Saving" only once they last.
+  const shownSaveLabel = useSteadyLabel(saveLabel, saveLabel === "Unsaved" || saveLabel === "Saving");
   const saveTooltip = pending.length > 0
     ? pending.map((document) => `${document.path}: ${document.state.type === "failed" ? document.state.message : document.state.type}`).join("\n")
     : localDirty ? "The active editor has unsaved changes." : "All project files are saved.";
@@ -23,21 +27,23 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const warnings = snapshot.diagnostics.filter((diagnostic) => diagnostic.severity === "warning").length;
   const projectParts = snapshot.projectRoot?.replace(/\\/g, "/").split("/") ?? [];
   const projectName = projectParts[projectParts.length - 1] ?? "No project";
+  const health = displayedProjectHealth(snapshot);
+  const status = useSteadyLabel(snapshot.status, snapshot.projectHealth === "checking");
   return (
     <Tooltip.Provider delayDuration={THEME_METRICS.tooltipDelayMs}>
       <footer className="status-bar">
         <StatusChip
-          label={snapshot.projectHealth === "invalid" ? `${projectName} · Invalid` : snapshot.projectHealth === "checking" ? `${projectName} · Checking` : projectName}
-          tooltip={projectHealthTooltip(snapshot)}
+          label={health === "invalid" ? `${projectName} · Invalid` : health === "checking" ? `${projectName} · Checking` : projectName}
+          tooltip={projectHealthTooltip(health, snapshot.projectRoot)}
           icon={<FolderOpen size={THEME_METRICS.iconSizeSmall} />}
-          tone={`project-health-${snapshot.projectHealth}`}
-          {...(snapshot.projectHealth === "invalid"
+          tone={`project-health-${health}`}
+          {...(health === "invalid"
             ? { onClick: () => { focusSidebar("problems"); } }
             : {})}
         />
-        <span className="status-spacer" title={snapshot.status}>{snapshot.status}</span>
+        <span className="status-spacer" title={status}>{status}</span>
         {snapshot.projectRoot !== null && (
-          <StatusChip label={saveLabel} tooltip={saveTooltip}
+          <StatusChip label={shownSaveLabel} tooltip={saveTooltip}
             icon={<Save size={THEME_METRICS.iconSizeSmall} />} />
         )}
         <StatusChip
@@ -61,11 +67,11 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   );
 }
 
-function projectHealthTooltip(snapshot: AppStaticSnapshot): string {
-  if (snapshot.projectHealth === "invalid") {
+function projectHealthTooltip(health: AppStaticSnapshot["projectHealth"], projectRoot: string | null): string {
+  if (health === "invalid") {
     return "The project has model-blocking errors. Text, Search, Explorer, and Problems remain available.";
   }
-  return snapshot.projectRoot ?? "No project is open";
+  return projectRoot ?? "No project is open";
 }
 
 function StatusChip({
@@ -90,6 +96,22 @@ function StatusChip({
       <Tooltip.Portal><Tooltip.Content className="tooltip-content" side="top">{tooltip}</Tooltip.Content></Tooltip.Portal>
     </Tooltip.Root>
   );
+}
+
+/**
+ * Shows a transient label only once it lasts; until then the label shown before stays. Each
+ * keystroke autosaves and re-checks the project within milliseconds, so without this the
+ * save and status labels would flash on every keystroke.
+ */
+function useSteadyLabel(label: string, transient: boolean): string {
+  const [shown, setShown] = useState(label);
+  if (!transient && shown !== label) setShown(label);
+  useEffect(() => {
+    if (!transient) return;
+    const timer = window.setTimeout(() => { setShown(label); }, THEME_METRICS.unsavedIndicatorDelayMs);
+    return () => { window.clearTimeout(timer); };
+  }, [label, transient]);
+  return transient ? shown : label;
 }
 
 function focusSidebar(view: SidebarView) {
