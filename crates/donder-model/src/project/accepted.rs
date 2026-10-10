@@ -85,7 +85,7 @@ impl<'a> AcceptedSequence<'a> {
             )
             .map(|(instance, execution)| AcceptedEffectInputs {
                 instance,
-                execution,
+                execution: execution.as_ref(),
             })
     }
 

@@ -599,22 +599,13 @@ pub fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> 
 
 /// Time of the mark at `index`, or NaN for a missing index.
 pub fn mark_at(marks: &crate::values::Marks, index: i32) -> f32 {
-    usize::try_from(index)
-        .ok()
-        .and_then(|index| marks.seconds().get(index))
-        .copied()
-        .unwrap_or(f32::NAN)
+    usize::try_from(index).map_or(f32::NAN, |index| marks.seconds(index))
 }
 
-/// Marks are chronological and seconds conversion is monotonic, so the marks
-/// at or before `seconds` form a prefix. A NaN query matches no mark.
-/// Returns the mark's index and its time in seconds.
+/// The last mark at or before `seconds`: its index and its time in seconds.
+/// A NaN query matches no mark.
 pub fn previous_mark(marks: &crate::values::Marks, seconds: f32) -> Option<(usize, f32)> {
-    let times = marks.seconds();
-    let index = times
-        .partition_point(|&mark| mark <= seconds)
-        .checked_sub(1)?;
-    Some((index, times[index]))
+    marks.previous(seconds)
 }
 
 pub fn previous_mark_index(marks: &crate::values::Marks, seconds: f32) -> i32 {

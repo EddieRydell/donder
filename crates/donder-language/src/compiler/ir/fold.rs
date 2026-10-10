@@ -2,8 +2,9 @@
 //! expression, except where the float policy allows: real-number algebra may
 //! change rounding and signed zero, but never hides a missing (NaN) value.
 use super::eval::{self, as_bool, as_color, as_float, as_int};
-use super::{Binary, Graph, LoopId, Node, Op, Reducer, Ternary, Unary};
+use super::{Binary, Context, Graph, LoopId, Node, Op, Reducer, Ternary, Unary};
 use donder_runtime_types::Color;
+use donder_runtime_types::bytecode::{Edges, SignalPixel};
 use donder_runtime_types::{Type, Value};
 
 /// Commutative operations put a constant operand last and otherwise order
@@ -19,6 +20,36 @@ pub(super) fn canonical(graph: &Graph, op: Op) -> Op {
                 Op::Binary(binary, a, b)
             }
         }
+        // A read at the current pixel's index plus an offset is shifted.
+        Op::Sample {
+            input,
+            time,
+            pixel: SignalPixel::Local(index),
+        } => match *graph.op(index) {
+            Op::Binary(Binary::IntAdd, a, b)
+                if matches!(graph.op(a), Op::Context(Context::PixelIndex)) =>
+            {
+                Op::Sample {
+                    input,
+                    time,
+                    pixel: SignalPixel::Shifted(b, Edges::Skip),
+                }
+            }
+            Op::Binary(Binary::IntAdd, a, b)
+                if matches!(graph.op(b), Op::Context(Context::PixelIndex)) =>
+            {
+                Op::Sample {
+                    input,
+                    time,
+                    pixel: SignalPixel::Shifted(a, Edges::Skip),
+                }
+            }
+            _ => Op::Sample {
+                input,
+                time,
+                pixel: SignalPixel::Local(index),
+            },
+        },
         op => op,
     }
 }
@@ -203,7 +234,7 @@ pub(super) fn reduction(graph: &mut Graph, id: LoopId) -> Option<Node> {
     }
     let body_identity = eval::reduce_identity(data.reducer, &ty)
         .zip(graph.constant_value(data.body).cloned())
-        .is_some_and(|(identity, body)| super::same_value(&identity, &body));
+        .is_some_and(|(identity, body)| identity.same(&body));
     if body_identity && matches!(data.reducer, Reducer::Max | Reducer::Min | Reducer::Sum) {
         return Some(identity(graph));
     }

@@ -170,7 +170,7 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
         .cloned()
         .map(|mut sequence| {
             for effect in &mut sequence.effects {
-                effect.scope = donder_model::EffectScope::WholeTarget;
+                std::sync::Arc::make_mut(effect).scope = donder_model::EffectScope::WholeTarget;
             }
             for collection in &mut sequence.mark_collections {
                 collection.marks = [58_000_000, 59_000_000, 60_000_000]
@@ -355,7 +355,7 @@ fn operators_keep_empty_inputs_when_upstream_effects_are_pruned() {
         .unwrap()
         .id;
     for effect in &mut sequence.effects {
-        effect.target.fixture = second;
+        std::sync::Arc::make_mut(effect).target.fixture = second;
     }
     let output = sequence
         .composition_graph

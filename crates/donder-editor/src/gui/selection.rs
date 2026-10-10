@@ -20,7 +20,7 @@ pub fn copy_sequence_selection(
                     continue;
                 };
                 copied.push(ClipboardEffect {
-                    effect: effect.clone(),
+                    effect: (**effect).clone(),
                     start_seconds: effect.start.as_seconds_f32(),
                     lane_index: target_lane_index(session, &effect.target).ok_or_else(|| {
                         GuiMutationError::Invalid("Effect row is missing.".into())
@@ -230,7 +230,7 @@ pub(super) fn paste_sequence_clipboard(
                         anchor.time_seconds + entry.start_seconds - min_start,
                     )?;
                     effect.target = target;
-                    sequence.effects.push(effect);
+                    sequence.effects.push(std::sync::Arc::new(effect));
                     effect_ids.push(next_id);
                 }
                 let mut next_id = sequence

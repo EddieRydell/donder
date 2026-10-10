@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{PreparationCache, PrepareOutputs, prepare, prepare_cached};
 use donder_model::{DonderProject, ProjectEdit};
 use donder_project_io::load_project;
 use donder_runtime::PreparedSequence;
@@ -161,6 +161,76 @@ fn bench_render(c: &mut Criterion) {
     });
 }
 
+// Ding Dong from `examples/rydell_house`: a 25,856-clip show imported from
+// Vixen. Its audio is not committed, so the benchmark needs the author's
+// `audio/dingdong.mp3` in place.
+fn bench_large_show(c: &mut Criterion) {
+    pin_benchmark_thread();
+    let root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("examples/rydell_house");
+    let session = load_project(&root)
+        .expect("rydell_house should load; it needs its uncommitted audio/dingdong.mp3");
+    let sequence_id = session
+        .project
+        .root()
+        .sequences
+        .iter()
+        .map(|source| source.id())
+        .find(|id| id.0.root_source().object() == "ding_dong")
+        .expect("rydell_house should include the ding_dong sequence");
+
+    c.bench_function("prepare_large_show_cold", |b| {
+        b.iter(|| {
+            black_box(
+                prepare(
+                    black_box(&session.project),
+                    black_box(sequence_id),
+                    PrepareOutputs::All,
+                )
+                .expect("large show should prepare"),
+            )
+        });
+    });
+
+    let mut cache = PreparationCache::default();
+    prepare_cached(
+        &session.project,
+        sequence_id,
+        PrepareOutputs::All,
+        &mut cache,
+    )
+    .expect("large show should prepare");
+    c.bench_function("prepare_large_show_warm", |b| {
+        b.iter(|| {
+            black_box(
+                prepare_cached(
+                    black_box(&session.project),
+                    black_box(sequence_id),
+                    PrepareOutputs::All,
+                    &mut cache,
+                )
+                .expect("large show should prepare"),
+            )
+        });
+    });
+
+    let output = prepare(&session.project, sequence_id, PrepareOutputs::All)
+        .expect("large show should prepare");
+    let frame_rate = output.frame_rate();
+    let start = output.frame_count() / 2;
+    let mut workspace = output.into_playback();
+    c.bench_function("controller_output_large_show_60_frames", |b| {
+        b.iter(|| {
+            for frame in start..start + PLAYBACK_FRAME_COUNT {
+                let sample_time = sample_time_from_frame(frame, frame_rate)
+                    .expect("benchmark frame should fit the controller clock");
+                black_box(workspace.evaluate(black_box(sample_time)));
+            }
+        });
+    });
+}
+
 fn bench_mark_playback(c: &mut Criterion) {
     use donder_language::{DonderDuration, DonderTime};
     use donder_model::{CurveSource, EffectParamValue, EffectRef};
@@ -181,7 +251,7 @@ fn bench_mark_playback(c: &mut Criterion) {
             .unwrap()
             .clone();
         let mut source = project.sequence(&id).unwrap().clone();
-        let mut effect = source.effects[0].clone();
+        let mut effect = (*source.effects[0]).clone();
         let gradient = effect.param_overrides.get("gradient").unwrap().clone();
         let mark_key = MarkCollectionKey {
             name: donder_language::object_name("profile_beats"),
@@ -253,7 +323,7 @@ fn bench_mark_playback(c: &mut Criterion) {
                 .into_iter()
                 .map(|(name, value)| (Identifier::new(name.into()).unwrap(), value)),
         );
-        source.effects = vec![effect];
+        source.effects = vec![std::sync::Arc::new(effect)];
         source.automation_clips.clear();
         project.replace_sequence(&id, source).unwrap();
         let prepared = prepare(&project, &id, PrepareOutputs::All).unwrap();
@@ -711,6 +781,6 @@ fn criterion_config() -> Criterion {
 criterion_group! {
     name = benches;
     config = criterion_config();
-    targets = bench_render, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream
+    targets = bench_render, bench_large_show, bench_layers, bench_gamma, bench_operators, bench_chase_pulse, bench_mark_playback, bench_uniform_resources, bench_uniform_upstream
 }
 criterion_main!(benches);

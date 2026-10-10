@@ -12,11 +12,12 @@ use crate::persistence::{
 };
 use donder_sequence_api::{
     AppSettings, AppSnapshot, AudioTransportState, DocumentViewId, EditorViewMode,
-    GuiDocumentRequest, GuiEditCommand, GuiEditResult, NewSequenceRequest, PlaybackRange,
-    PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse, SequenceAutomationTarget,
-    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
-    SequenceGuiEdit, SequenceSelectionEdit, SequenceSelectionEditResult, WorkspaceExplorerState,
-    WorkspaceLayoutState, WorkspacePathChangePlan, WorkspacePathChangeRequest,
+    GuiDocumentChange, GuiDocumentRequest, GuiEditCommand, GuiEditUpdate, NewSequenceRequest,
+    PlaybackRange, PlaybackSpeed, ProjectSearchRequest, ProjectSearchResponse,
+    SequenceAutomationTarget, SequenceClipRasterRequest, SequenceClipRasterResponse,
+    SequenceClipRasterResultBatch, SequenceGuiEdit, SequenceSelectionEdit,
+    SequenceSelectionEditResult, WorkspaceExplorerState, WorkspaceLayoutState,
+    WorkspacePathChangePlan, WorkspacePathChangeRequest,
 };
 
 mod app;
@@ -70,6 +71,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         undo_active_edit,
         redo_active_edit,
         get_gui_document,
+        get_sequence_effect_details,
         sequence_export_options,
         export_sequence_file,
         export_fseq_file,

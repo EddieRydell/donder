@@ -1,0 +1,102 @@
+Curve fade_on {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.0), (1.0, 100.0)],
+}
+
+Curve fade_off {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 100.0), (1.0, 0.0)],
+}
+
+Curve pulse {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.528), (0.1, 100.0), (1.0, 0.0)],
+}
+
+Curve equal_fade {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.528), (0.4989, 100.0), (1.0, 0.0)],
+}
+
+Curve reverse_pulse {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.528), (0.9, 100.0), (1.0, 0.0)],
+}
+
+Curve ease_in_out {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [
+    (0.0, 0.0), (0.15, 2.5), (0.3, 10.0), (0.4, 25.0), (0.475, 40.0), (0.525, 60.0), (0.6, 75.0),
+    (0.7, 90.0), (0.85, 97.5), (1.0, 100.0),
+  ],
+}
+
+Curve ease_out {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.0), (0.6, 75.0), (0.7, 90.0), (0.85, 97.5), (1.0, 100.0)],
+}
+
+Curve ease_in {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.0), (0.15, 2.5), (0.3, 10.0), (0.4, 25.0), (1.0, 100.0)],
+}
+
+Curve paraboic_curve_up {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [
+    (0.0, 0.0), (0.1, 1.0), (0.2, 4.0), (0.3, 9.0), (0.4, 16.0), (0.5, 25.0), (0.6, 36.0),
+    (0.7, 49.0), (0.8, 64.0), (0.9, 81.0), (1.0, 100.0),
+  ],
+}
+
+Curve exponential_in_out {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [
+    (0.0, 0.0), (0.05, 0.5), (0.1, 2.0), (0.15, 4.5), (0.2, 8.0), (0.25, 12.5), (0.3, 18.0),
+    (0.35, 24.5), (0.4, 32.0), (0.45, 40.5), (0.5, 50.0), (0.55, 59.5), (0.6, 68.0), (0.65, 75.5),
+    (0.7, 82.0), (0.75, 87.5), (0.8, 92.0), (0.85, 95.5), (0.9, 98.0), (0.95, 99.5), (1.0, 100.0),
+  ],
+}
+
+Curve crazy_thing {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [
+    (0.0, 0.0), (0.1, 70.0), (0.2, 30.0), (0.3, 70.0), (0.4, 30.0), (0.5, 70.0), (0.6, 30.0),
+    (0.7, 70.0), (0.8, 30.0), (0.9, 70.0), (1.0, 0.0),
+  ],
+}
+
+Curve small_fade_in_out {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.528), (0.5, 70.0), (1.0, 0.0)],
+}
+
+Curve fade_50 {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.528), (0.5, 50.0), (1.0, 0.0)],
+}
+
+Curve fade_up_50 {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 0.0), (1.0, 50.0)],
+}
+
+Curve fade_down_50 {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [(0.0, 50.0), (1.0, 0.0)],
+}
+
+Curve sine_top {
+  description: "Vixen curve library; values are Vixen percentages (0-100).",
+  points: [
+    (0.0, 0.0), (0.02, 6.279), (0.04, 12.533), (0.06, 18.738), (0.08, 24.869), (0.1, 30.902),
+    (0.12, 36.812), (0.14, 42.578), (0.16, 48.175), (0.18, 53.583), (0.2, 58.779), (0.22, 63.742),
+    (0.24, 68.455), (0.26, 72.897), (0.28, 77.051), (0.3, 80.902), (0.32, 84.433), (0.34, 87.631),
+    (0.36, 90.483), (0.38, 92.978), (0.4, 95.106), (0.42, 96.858), (0.44, 98.229), (0.46, 99.211),
+    (0.48, 99.803), (0.5, 100.0), (0.52, 99.803), (0.54, 99.211), (0.56, 98.229), (0.58, 96.858),
+    (0.6, 95.106), (0.62, 92.978), (0.64, 90.483), (0.66, 87.631), (0.68, 84.433), (0.7, 80.902),
+    (0.72, 77.051), (0.74, 72.897), (0.76, 68.455), (0.78, 63.742), (0.8, 58.779), (0.82, 53.583),
+    (0.84, 48.175), (0.86, 42.578), (0.88, 36.812), (0.9, 30.902), (0.92, 24.869), (0.94, 18.738),
+    (0.96, 12.533), (0.98, 6.279), (1.0, 0.0),
+  ],
+}

@@ -523,6 +523,22 @@ impl Walker<'_> {
                 );
                 self.expr(&reduction.start);
                 self.expr(&reduction.end);
+                let depth = self.scopes.len();
+                if let Some(around) = &reduction.around {
+                    self.name(&around.input.name, around.input.span);
+                    if let Some(neighbor) = &around.neighbor {
+                        let detail = format!("{}: color", neighbor.name.as_str());
+                        let symbol = self.define(
+                            neighbor,
+                            SymbolKind::Let,
+                            neighbor.span,
+                            detail,
+                            None,
+                            Some(Type::Color),
+                        );
+                        self.scopes.push((neighbor.name.clone(), symbol));
+                    }
+                }
                 let index = self.define(
                     &reduction.index,
                     SymbolKind::Index,
@@ -533,10 +549,28 @@ impl Walker<'_> {
                 );
                 self.scopes.push((reduction.index.name.clone(), index));
                 self.block(&reduction.body);
-                self.scopes.pop();
+                self.scopes.truncate(depth);
                 if let Some(otherwise) = &reduction.otherwise {
                     self.block(otherwise);
                 }
+            }
+            ExprKind::Scan(scan) => {
+                self.name(&scan.input.name, scan.input.span);
+                let depth = self.scopes.len();
+                for name in [&scan.light, &scan.previous] {
+                    let detail = format!("{}: color", name.name.as_str());
+                    let symbol = self.define(
+                        name,
+                        SymbolKind::Let,
+                        name.span,
+                        detail,
+                        None,
+                        Some(Type::Color),
+                    );
+                    self.scopes.push((name.name.clone(), symbol));
+                }
+                self.block(&scan.body);
+                self.scopes.truncate(depth);
             }
             ExprKind::Block(block) => self.block(block),
         }

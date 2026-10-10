@@ -44,6 +44,8 @@ pub(crate) struct DesktopServices {
     watcher: Mutex<Option<notify::RecommendedWatcher>>,
     weak: std::sync::Weak<DesktopServices>,
     gui_history: Mutex<GuiHistory>,
+    /// Printed clips reused between the texts of successive GUI edits.
+    document_texts: Mutex<donder_project_io::DocumentTextCache>,
     working_copy: LatestScheduler<WorkingCopyPayload>,
     external_reconcile: LatestScheduler<(u32, Result<(), String>)>,
     render_refresh: LatestScheduler<RenderRefreshPayload>,
@@ -89,6 +91,7 @@ impl DesktopState {
                     watcher: Mutex::new(None),
                     weak: weak.clone(),
                     gui_history: Mutex::new(GuiHistory::new(100)),
+                    document_texts: Mutex::new(donder_project_io::DocumentTextCache::default()),
                     working_copy: LatestScheduler::new(move |request| {
                         let result = crate::state_tasks::analyze_working_copy(&request);
                         if let Some(state) = analysis_state.upgrade() {
@@ -111,13 +114,19 @@ impl DesktopState {
                             }
                         },
                     ),
-                    render_refresh: LatestScheduler::new(move |request: RenderRefreshPayload| {
-                        let result = crate::rendering::prepare_render_session(
-                            &request.project.project,
-                            &request.sequence_id,
-                        );
-                        if let Some(state) = render_state.upgrade() {
-                            DesktopState(state).complete_render_refresh(request, result);
+                    render_refresh: LatestScheduler::new({
+                        // Owned by the refresh worker; it keeps unchanged clips lowered between edits.
+                        let preparation =
+                            Mutex::new(donder_elaboration::PreparationCache::default());
+                        move |request: RenderRefreshPayload| {
+                            let result = crate::rendering::prepare_render_session_cached(
+                                &request.project.project,
+                                &request.sequence_id,
+                                &mut lock_unpoisoned(&preparation),
+                            );
+                            if let Some(state) = render_state.upgrade() {
+                                DesktopState(state).complete_render_refresh(request, result);
+                            }
                         }
                     }),
                     audio,
@@ -232,7 +241,6 @@ impl DesktopState {
                 snapshot.status = format!("Desktop state was not saved: {error}");
             }
             workspace.apply_view(snapshot.clone());
-            workspace.refresh_gui_projection();
             workspace.snapshot()
         };
         self.preview_wake.notify();
@@ -406,7 +414,6 @@ pub(super) use workspace_projection::{FsEntryKind, recovery_workspace_entries, w
 
 fn empty_snapshot() -> AppSnapshot {
     AppSnapshot {
-        gui_projection: None,
         state_revision: 0,
         project_epoch: 0,
         settings: AppSettings::default(),
@@ -419,6 +426,7 @@ fn empty_snapshot() -> AppSnapshot {
         tabs: Vec::new(),
         active_file: None,
         active_buffer: None,
+        active_text: None,
         pending_saves: Vec::new(),
         active_document_descriptor: None,
         diagnostics: Vec::new(),

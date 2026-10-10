@@ -21,6 +21,21 @@ pub struct ProgramConstants {
     pub duration_seconds: Option<f32>,
 }
 
+impl ProgramConstants {
+    /// Bitwise equality.
+    pub fn same(&self, other: &Self) -> bool {
+        self.pixel_count == other.pixel_count
+            && self.duration_seconds.map(f32::to_bits) == other.duration_seconds.map(f32::to_bits)
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.pixel_count.hash(state);
+        self.duration_seconds.map(f32::to_bits).hash(state);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Instance {
     pub(crate) graph: Graph,
@@ -198,6 +213,14 @@ impl Instance {
         let [site] = sites.as_slice() else {
             return None;
         };
+        // A scan reads its input at every pixel of the fixture.
+        let scanned = self.graph.nodes().any(|node| {
+            matches!(self.graph.op(node), Op::Scan { light, .. } if light == site)
+                && self.reaches(node)
+        });
+        if scanned {
+            return None;
+        }
         let Op::Sample {
             time,
             pixel: SignalPixel::Current,

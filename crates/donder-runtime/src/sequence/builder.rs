@@ -267,9 +267,11 @@ impl<'id> SequenceBuilder<'id> {
                 index
             }
         };
-        let params = BoundParams::from_validated(invocation.params(), &mut self.bind_cache);
+        let bytecode = invocation.program().bytecode();
+        let params =
+            BoundParams::from_validated(bytecode, invocation.params(), &mut self.bind_cache);
         let automation_plan =
-            AutomationPlan::from_accepted(&params, invocation.automation(), window.start);
+            AutomationPlan::from_accepted(bytecode, invocation.automation(), window.start);
         let index = self.effects.len();
         let automation = if invocation.automation().is_empty() {
             None
@@ -320,9 +322,11 @@ impl<'id> SequenceBuilder<'id> {
                 index
             }
         };
-        let params = BoundParams::from_validated(invocation.params(), &mut self.bind_cache);
+        let bytecode = invocation.program().bytecode();
+        let params =
+            BoundParams::from_validated(bytecode, invocation.params(), &mut self.bind_cache);
         let automation_plan = AutomationPlan::from_accepted(
-            &params,
+            bytecode,
             invocation.automation(),
             SampleTime::from_ticks(0),
         );
@@ -543,7 +547,11 @@ impl<'id> SequenceBuilder<'id> {
                 fixture_pixel_offsets: self.offsets.into(),
                 pixel_count: self.pixel_count,
                 effects: self.effects.into(),
-                clips: self.clips.into(),
+                clips: {
+                    let mut clips = self.clips;
+                    clips.sort_unstable_by_key(|clip| clip.id);
+                    clips.into()
+                },
                 programs: AdmittedPrograms::new(
                     self.sample_programs
                         .into_iter()

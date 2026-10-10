@@ -160,6 +160,16 @@ impl BrowserSession {
         js_value(&self.editor_state_view())
     }
 
+    /// The inspector's view of `effect_ids`; the editor state carries clip
+    /// summaries without their parameters.
+    #[wasm_bindgen(js_name = effectDetails)]
+    pub fn effect_details(&self, effect_ids: Vec<u32>) -> Result<JsValue, JsValue> {
+        let details =
+            donder_editor::sequence_effect_details(&self.session, &self.request(), &effect_ids)
+                .map_err(|error| JsValue::from_str(&error))?;
+        js_value(&details)
+    }
+
     #[wasm_bindgen(js_name = applyEdit)]
     pub fn apply_edit(&mut self, edit: JsValue) -> Result<JsValue, JsValue> {
         let edit: SequenceGuiEdit = serde_wasm_bindgen::from_value(edit)

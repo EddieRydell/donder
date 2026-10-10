@@ -4,9 +4,41 @@ use params::{
     graph_operator_definition_to_gui, sequence_composition_graph_node,
 };
 
+/// The inspector's view of `effect_ids` in the requested sequence, in the
+/// requested order; ids the sequence does not have are skipped.
+pub(super) fn sequence_effect_details(
+    session: &ProjectSession,
+    resolved: &ResolvedGuiObject,
+    effect_ids: &[u32],
+) -> Result<Vec<SequenceEffectDetails>, String> {
+    let id = SequenceId(resolved.object_identity());
+    let sequence = session
+        .project
+        .sequence(&id)
+        .ok_or("Sequence is not available in the checked project model.")?;
+    Ok(effect_ids
+        .iter()
+        .filter_map(|id| sequence.effects.iter().find(|effect| effect.id.0 == *id))
+        .map(|effect| SequenceEffectDetails {
+            id: effect.id.0,
+            effect_reference: effect_ref_to_gui(&effect.definition),
+            params: effect_params(session, sequence, effect),
+        })
+        .collect())
+}
+
 pub(super) fn project_sequence(
     session: &ProjectSession,
     resolved: &ResolvedGuiObject,
+) -> GuiDocument {
+    project_sequence_clips(session, resolved, &|_| true)
+}
+
+/// The sequence document with only the clips `include` accepts.
+pub(super) fn project_sequence_clips(
+    session: &ProjectSession,
+    resolved: &ResolvedGuiObject,
+    include: &dyn Fn(&std::sync::Arc<donder_model::EffectInst>) -> bool,
 ) -> GuiDocument {
     let id = SequenceId(resolved.object_identity());
     let Some(sequence) = session.project.sequence(&id) else {
@@ -24,6 +56,7 @@ pub(super) fn project_sequence(
         .effects
         .iter()
         .enumerate()
+        .filter(|(_, effect)| include(effect))
         .map(|(index, effect)| SequenceEffect {
             index: index as u32,
             id: effect.id.0,
@@ -45,8 +78,6 @@ pub(super) fn project_sequence(
                 .resolve(&effect.definition)
                 .map(|definition| definition.display_name.clone())
                 .unwrap_or_else(|| "Missing effect".to_string()),
-            effect_reference: effect_ref_to_gui(&effect.definition),
-            params: effect_params(session, sequence, effect),
             kind: SequenceTimelineClipKind::Effect,
         })
         .collect();
@@ -315,8 +346,8 @@ use donder_sequence_api::{
     FixtureTarget, GuiDocument, SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationDetachmentReason, SequenceAutomationTarget, SequenceCompositionGraph,
     SequenceCurvePoint, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectReference, SequenceEffectScope, SequenceGraphEdge,
-    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
-    SequenceTimelineClipKind,
+    SequenceEffectDefinition, SequenceEffectDetails, SequenceEffectReference, SequenceEffectScope,
+    SequenceGraphEdge, SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer,
+    SequenceMarkCollection, SequenceTimelineClipKind,
 };
 pub(super) use spatial::{project_fixture, project_layout};

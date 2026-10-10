@@ -41,6 +41,7 @@ export const commands = {
 	undoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("undo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	redoActiveEdit: () => __TAURI_INVOKE<AppSnapshot>("redo_active_edit").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	getGuiDocument: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiDocumentResult>("get_gui_document", { request }),
+	getSequenceEffectDetails: (request: GuiDocumentRequest, effectIds: number[]) => typedError<SequenceEffectDetailsResult, string>(__TAURI_INVOKE("get_sequence_effect_details", { request, effectIds })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,details:v.data.details.map(i=>({...i,params:i.params.map(i=>({...i,range:i.range==null?i.range:i.range}))}))}) } : v) as typeof v)),
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
@@ -56,13 +57,13 @@ export const commands = {
 } | null) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_network", { id, network })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	setDeviceStandalone: (id: string, playing: boolean) => typedError<AppSnapshot, string>(__TAURI_INVOKE("set_device_standalone", { id, playing })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
 	requestSequenceClipRasters: (request: SequenceClipRasterRequest) => __TAURI_INVOKE<SequenceClipRasterResponse>("request_sequence_clip_rasters", { request }),
-	takeSequenceClipRasterResults: (request: GuiDocumentRequest, requestId: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, requestId }).then((v) => (({...v,ready:v.ready.map(i=>i)}) as typeof v)),
-	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditResult>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	takeSequenceClipRasterResults: (request: GuiDocumentRequest, sinceRevision: number) => __TAURI_INVOKE<SequenceClipRasterResultBatch>("take_sequence_clip_raster_results", { request, sinceRevision }),
+	applyGuiEdit: (request: GuiDocumentRequest, edit: GuiEditCommand) => __TAURI_INVOKE<GuiEditUpdate>("apply_gui_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	finishCompositionGraphEditing: () => __TAURI_INVOKE<AppSnapshot>("finish_composition_graph_editing").then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
-	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditResult>("rebind_detached_automation", { request, clipId, detachedIndex, target }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditResult>("discard_detached_automation", { request, clipId, detachedIndex }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	rebindDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number, target: SequenceAutomationTarget) => __TAURI_INVOKE<GuiEditUpdate>("rebind_detached_automation", { request, clipId, detachedIndex, target }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	discardDetachedAutomation: (request: GuiDocumentRequest, clipId: number, detachedIndex: number) => __TAURI_INVOKE<GuiEditUpdate>("discard_detached_automation", { request, clipId, detachedIndex }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	applySequenceSelectionEdit: (request: GuiDocumentRequest, edit: SequenceSelectionEdit) => __TAURI_INVOKE<SequenceSelectionEditResult>("apply_sequence_selection_edit", { request, edit }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
-	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditResult>("choose_sequence_audio", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
+	chooseSequenceAudio: (request: GuiDocumentRequest) => __TAURI_INVOKE<GuiEditUpdate>("choose_sequence_audio", { request }).then((v) => (({...v,snapshot:({...v.snapshot,audioTransport:({...v.snapshot.audioTransport,range:v.snapshot.audioTransport.range==null?v.snapshot.audioTransport.range:v.snapshot.audioTransport.range})})}) as typeof v)),
 	createFile: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_file", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	createDirectory: (parent: string, name: string) => __TAURI_INVOKE<AppSnapshot>("create_directory", { parent, name }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	deletePath: (path: string) => __TAURI_INVOKE<AppSnapshot>("delete_path", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
@@ -115,12 +116,13 @@ export type AppSnapshot = {
 	projectRoot: string | null,
 	projectHealth: ProjectHealth,
 	projectRevision: number,
-	guiProjection: GuiDocumentResult | null,
 	projectEntries: WorkspaceEntry[],
-	tabs: EditorBuffer[],
+	tabs: EditorTab[],
 	pendingSaves: DocumentSaveStatus[],
 	activeFile: string | null,
-	activeBuffer: EditorBuffer | null,
+	activeBuffer: EditorTab | null,
+	/**  The active document's text, present only while it is shown as text. */
+	activeText: string | null,
 	activeDocumentDescriptor: DocumentDescriptor | null,
 	diagnostics: ProjectDiagnostic[],
 	status: string,
@@ -273,11 +275,11 @@ export type DonderDeviceStatus = {
 	connection: DonderDeviceConnection,
 };
 
-export type EditorBuffer = {
+/**  An open document as the tab bar and editor see it, without its text. */
+export type EditorTab = {
 	path: string,
 	name: string,
 	syntax: TextDocumentSyntax,
-	text: string,
 	dirty: boolean,
 	readOnly: boolean,
 	documentRevision: number,
@@ -289,7 +291,6 @@ export type EditorBuffer = {
 export type EditorViewMode = "text" | "gui";
 
 export type EffectRasterSettings = {
-	renderScale: number,
 	maxColumns: number,
 	maxRows: number,
 	minFrameStride: number,
@@ -334,6 +335,20 @@ export type GradientGuiDocument = {
 
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
+/**
+ *  How an edit changed the open GUI document, relative to the document at the
+ *  request's project revision.
+ */
+export type GuiDocumentChange = 
+/**  The whole document. */
+{ type: "document"; document: GuiDocument } | 
+/**
+ *  A sequence whose clips mostly did not change. `document` holds every
+ *  field, but its `effects` only the changed and added clips; `effect_ids`
+ *  lists every clip in order.
+ */
+{ type: "sequenceClips"; document: SequenceGuiDocument; effectIds: number[] };
+
 export type GuiDocumentRequest = {
 	ownedPath: GuiOwnedStep[],
 	projectRevision: number,
@@ -352,9 +367,9 @@ export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: 
 /**  Set the open object's description; empty text removes it. */
 { type: "description"; description: string | null };
 
-export type GuiEditResult = {
+export type GuiEditUpdate = {
 	snapshot: AppSnapshot,
-	document: GuiDocument,
+	change: GuiDocumentChange,
 };
 
 export type GuiFixtureElement = {
@@ -719,54 +734,46 @@ export type SequenceBeatDetection = {
 	downbeatsSeconds: number[],
 };
 
+/**
+ *  A clip's raster: one column per sampled time across the clip, one row per
+ *  sampled pixel. A raster is rendered once at this resolution and scaled to
+ *  the clip's on-screen size.
+ */
 export type SequenceClipRaster = {
-	requestId: number,
 	effectId: number,
-	signature: string,
+	/**  Changes whenever the clip's raster is rendered again. */
+	revision: number,
 	columns: number,
 	rows: number,
-	startSeconds: number,
-	durationSeconds: number,
 	pixelsRgbaToken: string,
 };
 
 export type SequenceClipRasterError = {
-	requestId: number,
 	effectId: number,
-	signature: string,
+	revision: number,
 	message: string,
 };
 
+/**
+ *  The clips the editor shows, in the order their rasters should render.
+ *  Every clip of the sequence gets a raster; visible clips render first.
+ */
 export type SequenceClipRasterRequest = {
-	items: SequenceClipRasterRequestItem[],
-	displayRowCount: number,
+	visibleEffectIds: number[],
 } & GuiDocumentRequest;
 
-export type SequenceClipRasterRequestItem = {
-	effectId: number,
-	signature: string | null,
-	displayColumnCount: number,
-};
-
 export type SequenceClipRasterResponse = {
-	projectRevision: number,
-	requestId: number,
-	complete: boolean,
+	/**  Clips whose rasters are not rendered yet. */
+	pending: number,
 };
 
+/**  The rasters that changed after `since` in a results request. */
 export type SequenceClipRasterResultBatch = {
-	projectRevision: number,
-	requestId: number,
-	ready: SequenceClipRaster[],
-	unavailable: SequenceClipRasterUnavailable[],
+	/**  The newest raster revision; the next request asks for later ones. */
+	revision: number,
+	rasters: SequenceClipRaster[],
 	errors: SequenceClipRasterError[],
-	complete: boolean,
-};
-
-export type SequenceClipRasterUnavailable = {
-	requestId: number,
-	effectId: number,
-	signature: string,
+	pending: number,
 };
 
 export type SequenceCompositionGraph = {
@@ -815,8 +822,6 @@ export type SequenceEffect = {
 	targetLabel: string,
 	scope: SequenceEffectScope,
 	effect: string,
-	effectReference: SequenceEffectReference,
-	params: SequenceEffectParam[],
 	kind: SequenceTimelineClipKind,
 };
 
@@ -837,6 +842,21 @@ export type SequenceEffectDefinitionParam = {
 	/**  The script's description of the parameter. */
 	description: string | null,
 	kind: SequenceEffectParamKind,
+};
+
+/**
+ *  What the inspector edits on one clip, fetched for the selected clips only:
+ *  a sequence document carries every clip's summary but no parameters.
+ */
+export type SequenceEffectDetails = {
+	id: number,
+	effectReference: SequenceEffectReference,
+	params: SequenceEffectParam[],
+};
+
+export type SequenceEffectDetailsResult = {
+	projectRevision: number,
+	details: SequenceEffectDetails[],
 };
 
 export type SequenceEffectParam = {
@@ -1045,7 +1065,7 @@ anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: numb
 
 export type SequenceSelectionEditResult = {
 	snapshot: AppSnapshot,
-	document: GuiDocument,
+	change: GuiDocumentChange,
 	selection: SequenceSelection | null,
 	copiedCount: number,
 	skippedCount: number,

@@ -1,28 +1,37 @@
 use camino::Utf8Path;
-use donder_project_io::{ProjectSession, source_document_text};
+use donder_project_io::{DocumentTextCache, ProjectSession, source_document_texts};
 use donder_sequence_api::{
     DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor, DocumentViewId,
     ObjectKind,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+/// The canonical text of each project document at `paths`. `cache` keeps
+/// printed clips between edits, so unchanged clips are not printed again.
 pub(crate) fn generated_source_texts(
     session: &ProjectSession,
     paths: &BTreeSet<String>,
+    cache: &mut DocumentTextCache,
 ) -> Result<BTreeMap<String, String>, String> {
-    let mut texts = BTreeMap::new();
-    for path in paths {
-        let Some(id) = session
-            .source
-            .document_for_workspace_path(Utf8Path::new(path))
-        else {
-            continue;
-        };
-        if let Some(text) = source_document_text(session, &id).map_err(|error| error.to_string())? {
-            texts.insert(path.clone(), text);
-        }
-    }
-    Ok(texts)
+    let documents = paths
+        .iter()
+        .filter_map(|path| {
+            session
+                .source
+                .document_for_workspace_path(Utf8Path::new(path))
+                .map(|id| (path, id))
+        })
+        .collect::<Vec<_>>();
+    let ids = documents
+        .iter()
+        .map(|(_, id)| id.clone())
+        .collect::<Vec<_>>();
+    let texts = source_document_texts(session, &ids, cache).map_err(|error| error.to_string())?;
+    Ok(documents
+        .into_iter()
+        .zip(texts)
+        .filter_map(|((path, _), text)| text.map(|text| (path.clone(), text)))
+        .collect())
 }
 
 pub(crate) fn descriptor_for_path(

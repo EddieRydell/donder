@@ -96,70 +96,54 @@ pub enum SequenceAutomationDetachmentReason {
     DefinitionChanged,
 }
 
+/// The clips the editor shows, in the order their rasters should render.
+/// Every clip of the sequence gets a raster; visible clips render first.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRasterRequest {
     #[serde(flatten)]
     pub document: GuiDocumentRequest,
-    pub items: Vec<SequenceClipRasterRequestItem>,
-    pub display_row_count: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceClipRasterRequestItem {
-    pub effect_id: u32,
-    pub signature: Option<String>,
-    pub display_column_count: u32,
+    pub visible_effect_ids: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRasterResponse {
-    pub project_revision: u32,
-    pub request_id: u32,
-    pub complete: bool,
+    /// Clips whose rasters are not rendered yet.
+    pub pending: u32,
 }
 
+/// The rasters that changed after `since` in a results request.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRasterResultBatch {
-    pub project_revision: u32,
-    pub request_id: u32,
-    pub ready: Vec<SequenceClipRaster>,
-    pub unavailable: Vec<SequenceClipRasterUnavailable>,
+    /// The newest raster revision; the next request asks for later ones.
+    pub revision: u32,
+    pub rasters: Vec<SequenceClipRaster>,
     pub errors: Vec<SequenceClipRasterError>,
-    pub complete: bool,
+    pub pending: u32,
 }
 
+/// A clip's raster: one column per sampled time across the clip, one row per
+/// sampled pixel. A raster is rendered once at this resolution and scaled to
+/// the clip's on-screen size.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRaster {
-    pub request_id: u32,
     pub effect_id: u32,
-    pub signature: String,
+    /// Changes whenever the clip's raster is rendered again.
+    pub revision: u32,
     pub columns: u32,
     pub rows: u32,
-    pub start_seconds: f32,
-    pub duration_seconds: f32,
     pub pixels_rgba_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SequenceClipRasterError {
-    pub request_id: u32,
     pub effect_id: u32,
-    pub signature: String,
+    pub revision: u32,
     pub message: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceClipRasterUnavailable {
-    pub request_id: u32,
-    pub effect_id: u32,
-    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -177,9 +161,24 @@ pub struct SequenceEffect {
     pub target_label: String,
     pub scope: SequenceEffectScope,
     pub effect: String,
+    pub kind: SequenceTimelineClipKind,
+}
+
+/// What the inspector edits on one clip, fetched for the selected clips only:
+/// a sequence document carries every clip's summary but no parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceEffectDetails {
+    pub id: u32,
     pub effect_reference: SequenceEffectReference,
     pub params: Vec<SequenceEffectParam>,
-    pub kind: SequenceTimelineClipKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SequenceEffectDetailsResult {
+    pub project_revision: u32,
+    pub details: Vec<SequenceEffectDetails>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -344,7 +343,7 @@ pub struct SequenceMarkCollection {
 #[serde(rename_all = "camelCase")]
 pub struct SequenceSelectionEditResult {
     pub snapshot: AppSnapshot,
-    pub document: GuiDocument,
+    pub change: GuiDocumentChange,
     pub selection: Option<SequenceSelection>,
     pub copied_count: u32,
     pub skipped_count: u32,

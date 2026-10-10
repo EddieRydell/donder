@@ -62,6 +62,7 @@ pub(super) fn effect_mut(
         .effects
         .iter_mut()
         .find(|effect| effect.id.0 == id)
+        .map(std::sync::Arc::make_mut)
         .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".to_string()))
 }
 

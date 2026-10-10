@@ -1,13 +1,12 @@
 //! Admitted effect programs. Effects read parameters and pixel context but no
 //! signals.
-use crate::bytecode::{BytecodeProgram, ParameterKind, ProgramContext};
+use crate::bytecode::{BytecodeProgram, ProgramContext};
 use crate::{BindingError, BoundParams, Type, Value};
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampleProgram {
     bytecode: BytecodeProgram,
-    inputs: Box<[Type]>,
     uses_spatial_context: bool,
     uses_sections: bool,
     reads_target: bool,
@@ -15,10 +14,9 @@ pub struct SampleProgram {
 }
 
 impl SampleProgram {
-    /// A well-formed effect program over parameters of `inputs`' types.
-    pub fn admit(bytecode: BytecodeProgram, inputs: Box<[Type]>) -> Option<Self> {
-        let kinds: Vec<ParameterKind> = inputs.iter().map(ParameterKind::for_type).collect();
-        if !bytecode.is_well_formed(ProgramContext::Effect, &kinds) {
+    /// A well-formed effect program over its declared parameters.
+    pub fn admit(bytecode: BytecodeProgram) -> Option<Self> {
+        if !bytecode.is_well_formed(ProgramContext::Effect) {
             return None;
         }
         Some(Self {
@@ -27,7 +25,6 @@ impl SampleProgram {
             reads_target: bytecode.reads_target(),
             uses_progress: bytecode.uses_progress(),
             bytecode,
-            inputs,
         })
     }
 
@@ -36,7 +33,7 @@ impl SampleProgram {
     }
 
     pub fn input_types(&self) -> &[Type] {
-        &self.inputs
+        &self.bytecode.params
     }
 
     pub fn uses_spatial_context(&self) -> bool {
@@ -57,7 +54,7 @@ impl SampleProgram {
     }
 
     pub fn bind(&self, values: Vec<Value>) -> Result<BoundParams, BindingError> {
-        BoundParams::bind_values(&self.inputs, values)
+        BoundParams::bind_values(&self.bytecode.params, values)
     }
 
     pub fn into_bytecode(self) -> BytecodeProgram {

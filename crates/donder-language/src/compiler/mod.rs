@@ -39,10 +39,3 @@ pub fn partial_declaration_spans(source: &str) -> Vec<DeclarationSpan> {
 pub fn function_spans(source: &str) -> Result<Vec<TextSpan>, Vec<Diagnostic>> {
     syntax::function_spans(source)
 }
-
-/// Hash what a compiled effect renders: its name, parameters and behavior.
-pub fn hash_compiled_effect<H: core::hash::Hasher>(effect: &CompiledEffect, state: &mut H) {
-    use core::hash::Hash;
-    effect.name().hash(state);
-    effect.fingerprint().hash(state);
-}

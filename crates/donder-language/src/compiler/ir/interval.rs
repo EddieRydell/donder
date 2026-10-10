@@ -1,6 +1,6 @@
 //! Value ranges of numeric nodes, from literals, declared parameter ranges and
 //! array lengths. They prove reduction bounds and nonzero divisors.
-use super::{Binary, Graph, Node, Op, Ternary, Unary};
+use super::{Binary, Context, Graph, Node, Op, Ternary, Unary};
 use donder_runtime_types::Value;
 use std::collections::HashMap;
 
@@ -122,11 +122,17 @@ impl Analysis<'_> {
                 let (start, end) = (self.of(data.start), self.of(data.end));
                 Interval::new(start.min, end.max - 1.0, false)
             }
+            Op::Context(Context::PixelIndex) => Interval::new(0.0, f64::INFINITY, false),
             Op::ParamIntegral(_)
             | Op::Context(_)
             | Op::Sample { .. }
             | Op::Reduce(_)
-            | Op::Items(_) => Interval::ANY,
+            | Op::Items(_)
+            | Op::Source
+            | Op::Tap { .. }
+            | Op::Previous
+            | Op::Scan { .. }
+            | Op::ScanTap { .. } => Interval::ANY,
             Op::Pick { items, .. } => {
                 let items = items.clone();
                 items
@@ -245,7 +251,7 @@ impl Analysis<'_> {
             Op::Param(index) => self.bounds.lengths.get(*index as usize).copied().flatten(),
             Op::Constant(constant) => match &constant.value {
                 Value::Array(items) => Some(items.len()),
-                Value::Marks(marks) => Some(marks.as_slice().len()),
+                Value::Marks(marks) => Some(marks.len()),
                 _ => None,
             },
             _ => None,

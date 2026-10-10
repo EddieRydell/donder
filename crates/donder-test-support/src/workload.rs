@@ -286,11 +286,11 @@ pub fn edit_operator(
     edit: impl FnOnce(&mut BytecodeProgram),
 ) -> OperatorInvocation {
     let program = (**invocation.program()).clone();
-    let (inputs, types) = (program.input_count(), program.parameter_types().into());
+    let inputs = program.input_count();
     let mut bytecode = program.into_bytecode();
     edit(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        OperatorProgram::admit(bytecode, inputs).unwrap(),
         invocation.params().iter_values().collect(),
     )
     .unwrap()
@@ -301,10 +301,9 @@ pub fn edit_operator(
 /// Edit the first effect's lowered bytecode.
 pub fn edit_effect(show: &mut Workload, edit: impl FnOnce(&mut BytecodeProgram)) {
     let effect = &mut show.layers[0][0];
-    let types = effect.program.input_types().into();
     let mut program = effect.program.clone().into_bytecode();
     edit(&mut program);
-    effect.program = SampleProgram::admit(program, types).unwrap();
+    effect.program = SampleProgram::admit(program).unwrap();
 }
 
 /// Without `reuse`, make the first effect's uniform result a row, which

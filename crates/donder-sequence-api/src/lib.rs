@@ -47,21 +47,20 @@ pub use dto::preview::{
 pub use dto::sequence::{
     SequenceAudio, SequenceAutomationBinding, SequenceAutomationClip,
     SequenceAutomationDetachmentReason, SequenceClipRaster, SequenceClipRasterError,
-    SequenceClipRasterRequest, SequenceClipRasterRequestItem, SequenceClipRasterResponse,
-    SequenceClipRasterResultBatch, SequenceClipRasterUnavailable, SequenceCompositionGraph,
-    SequenceCurveLibraryItem, SequenceDetachedAutomationBinding, SequenceEffect,
-    SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectParam,
-    SequenceGradientLibraryItem, SequenceGraphNode, SequenceGraphNodeKind,
-    SequenceGraphOperatorDefinition, SequenceGraphPortCardinality, SequenceGraphPortDefinition,
-    SequenceGuiDocument, SequenceLane, SequenceLaneKind, SequenceLayer, SequenceMarkCollection,
-    SequenceParamAutomation, SequenceParamRange, SequenceSelectionEditResult,
-    SequenceTimelineClipKind,
+    SequenceClipRasterRequest, SequenceClipRasterResponse, SequenceClipRasterResultBatch,
+    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceDetachedAutomationBinding,
+    SequenceEffect, SequenceEffectDefinition, SequenceEffectDefinitionParam, SequenceEffectDetails,
+    SequenceEffectDetailsResult, SequenceEffectParam, SequenceGradientLibraryItem,
+    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperatorDefinition,
+    SequenceGraphPortCardinality, SequenceGraphPortDefinition, SequenceGuiDocument, SequenceLane,
+    SequenceLaneKind, SequenceLayer, SequenceMarkCollection, SequenceParamAutomation,
+    SequenceParamRange, SequenceSelectionEditResult, SequenceTimelineClipKind,
 };
 pub use dto::setup::{
     BufferExternalState, ControllerGuiDocument, CurveGuiDocument, DiagnosticSeverity,
-    DocumentViewId, GradientGuiDocument, GuiDocument, GuiDocumentRequest, GuiEditCommand,
-    GuiEditResult, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit, GuiOwnershipSlot,
-    ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
+    DocumentViewId, GradientGuiDocument, GuiDocument, GuiDocumentChange, GuiDocumentRequest,
+    GuiEditCommand, GuiEditResult, GuiEditUpdate, GuiObjectRef, GuiOwnedStep, GuiOwnershipEdit,
+    GuiOwnershipSlot, ProjectGuiDocument, ReusableStorage, SetupController, SetupControllerConfig,
     SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
 };
 pub use dto::synchronization::{
@@ -79,8 +78,8 @@ pub use dto::view_state::{
 };
 pub use dto::workspace::{
     AppSettings, DocumentDefaultObjectKey, DocumentDescriptor, DocumentObjectDescriptor,
-    EditorBuffer, EditorViewMode, EffectRasterSettings, NewSequenceRequest, NewSequenceResult,
-    NewSequenceStorage, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
+    EditorBuffer, EditorTab, EditorViewMode, EffectRasterSettings, NewSequenceRequest,
+    NewSequenceResult, NewSequenceStorage, ObjectKind, ProjectSearchMatch, ProjectSearchMatchKind,
     ProjectSearchRequest, ProjectSearchResponse, SequenceFollowMode, SequenceInitialZoomMode,
     SidebarView, SpatialSnapSettings, SpatialUnit, TextDocumentSyntax, TextPosition, TextRange,
     Transform, WorkspaceEntry, WorkspaceEntryKind, WorkspaceEntryRole, WorkspaceExplorerState,

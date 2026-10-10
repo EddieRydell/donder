@@ -19,7 +19,6 @@ const initialState = useAppStore.getState();
 const document = { type: "sequence", path: "main.donder", objectKey: "main" };
 const snapshot = (stateRevision, projectRevision, overrides = {}) => ({
   stateRevision, projectRevision, projectEpoch: 1, projectRoot: "/project",
-  guiProjection: null,
   projectHealth: "ready", activeFile: "main.donder", activeBuffer: null,
   settings: { editorViewMode: "gui" },
   activeDocumentDescriptor: {
@@ -42,7 +41,7 @@ test("event before edit response retains the editor and accepts the current proj
   assert.equal(useAppStore.getState().guiDocument, document);
   assert.equal(useAppStore.getState().guiDocumentRevision, 1);
   await assert.rejects(runGuiEditCommand(() => assert.fail("stale GUI must not edit")), /still loading/);
-  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), document: edited }), true);
+  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), change: { type: "document", document: edited } }), true);
   assert.equal(useAppStore.getState().snapshot.stateRevision, 3);
   assert.equal(useAppStore.getState().guiDocument, edited);
   assert.equal(useAppStore.getState().guiDocumentRevision, 2);
@@ -52,7 +51,7 @@ test("event before edit response retains the editor and accepts the current proj
 test("edit response before events keeps the projection and request stable", () => {
   const request = useAppStore.getState().guiRequest;
   const edited = { ...document, durationSeconds: 30 };
-  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), document: edited }), true);
+  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), change: { type: "document", document: edited } }), true);
   const acceptedRequest = useAppStore.getState().guiRequest;
   for (const revision of [1, 2, 3]) useAppStore.getState().setSnapshot(snapshot(revision, 2), "event");
   assert.equal(useAppStore.getState().guiRequest, acceptedRequest);
@@ -65,28 +64,9 @@ test("a late edit response cannot replace a newer source revision", () => {
   useAppStore.getState().setSnapshot(snapshot(4, 3), "event");
   const newer = { ...document, durationSeconds: 40 };
   useAppStore.getState().setGuiDocument(newer);
-  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), document }), false);
+  assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), change: { type: "document", document } }), false);
   assert.equal(useAppStore.getState().guiDocument, newer);
   assert.equal(useAppStore.getState().guiDocumentRevision, 3);
-});
-
-test("an event publishes the document and its revision in one store notification", () => {
-  const edited = { ...document, durationSeconds: 30 };
-  const request = { ...useAppStore.getState().guiRequest, projectRevision: 2 };
-  const observations = [];
-  const unsubscribe = useAppStore.subscribe((state) => observations.push([
-    state.snapshot.projectRevision, state.guiDocumentRevision, state.guiDocument
-  ]));
-  useAppStore.getState().setSnapshot(snapshot(2, 2, {
-    guiProjection: { request, projectRevision: 2, document: edited }
-  }), "event");
-  unsubscribe();
-  assert.deepEqual(observations, [[2, 2, edited]]);
-  // Later status events must not replace the already displayed object.
-  useAppStore.getState().setSnapshot(snapshot(3, 2, {
-    guiProjection: { request, projectRevision: 2, document: { ...edited } }
-  }), "event");
-  assert.equal(useAppStore.getState().guiDocument, edited);
 });
 
 test("a delayed edit keeps its displayed content and blocks a second mutation", async () => {
@@ -96,17 +76,15 @@ test("a delayed edit keeps its displayed content and blocks a second mutation", 
   assert.equal(useAppStore.getState().guiEditPending, true);
   assert.equal(useAppStore.getState().guiDocument, document);
   await assert.rejects(runGuiEditCommand(() => assert.fail("second mutation dispatched")), /already pending/);
-  finish({ snapshot: snapshot(2, 2), document: { ...document } });
+  finish({ snapshot: snapshot(2, 2), change: { type: "document", document: { ...document } } });
   await pending;
   assert.equal(useAppStore.getState().guiEditPending, false);
 });
 
 test("a gesture cannot be rebased onto a projection received after pointer-down", async () => {
   const origin = useAppStore.getState().guiRequest;
-  const request = { ...origin, projectRevision: 2 };
-  useAppStore.getState().setSnapshot(snapshot(2, 2, {
-    guiProjection: { request, projectRevision: 2, document: { ...document } }
-  }));
+  useAppStore.getState().setSnapshot(snapshot(2, 2));
+  useAppStore.getState().setGuiDocument({ ...document });
   await assert.rejects(runGuiEditCommand(() => assert.fail("rebased gesture dispatched"), origin), /changed during the gesture/);
 });
 
@@ -139,7 +117,7 @@ for (const [name, overrides] of [
     useAppStore.getState().setSnapshot(snapshot(3, 3, overrides));
     assert.equal(useAppStore.getState().guiDocument, null);
     assert.equal(useAppStore.getState().guiDocumentRevision, null);
-    assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), document }), false);
+    assert.equal(useAppStore.getState().applyGuiEditResult(request, { snapshot: snapshot(2, 2), change: { type: "document", document } }), false);
   });
 }
 
@@ -157,7 +135,7 @@ test("owned fixtures in one source object have distinct edit identities", () => 
   assert.equal(useAppStore.getState().guiRequest.view, "fixture");
   useAppStore.getState().setGuiDocument(firstDocument);
   selectGuiObject({ path: "main.donder", objectKey: "main", view: "fixture", ownedPath: [{ type: "fixture", id: 2 }] });
-  assert.equal(useAppStore.getState().applyGuiEditResult(first, { snapshot: snapshot(3, 2, { activeDocumentDescriptor: descriptor }), document: firstDocument }), false);
+  assert.equal(useAppStore.getState().applyGuiEditResult(first, { snapshot: snapshot(3, 2, { activeDocumentDescriptor: descriptor }), change: { type: "document", document: firstDocument } }), false);
   assert.deepEqual(useAppStore.getState().guiRequest.ownedPath, [{ type: "fixture", id: 2 }]);
 });
 

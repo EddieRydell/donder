@@ -141,6 +141,7 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
             remap_target(&mut clip.row_target, remaps);
         }
         for effect in &mut sequence.effects {
+            let effect = std::sync::Arc::make_mut(effect);
             remap_target(&mut effect.target, remaps);
             remap_effect_ref(&mut effect.definition, remaps);
             for value in effect.param_overrides.values_mut() {

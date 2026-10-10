@@ -94,6 +94,50 @@ pub enum Value {
     Enum(Identifier),
 }
 
+impl Value {
+    /// Bitwise equality: values that evaluate identically everywhere.
+    pub fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Void, Self::Void) => true,
+            (Self::Int(a), Self::Int(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => a.to_bits() == b.to_bits(),
+            (Self::Bool(a), Self::Bool(b)) => a == b,
+            (Self::Color(a), Self::Color(b)) => a == b,
+            (Self::Enum(a), Self::Enum(b)) => a == b,
+            (Self::Marks(a), Self::Marks(b)) => a == b,
+            (Self::Curve(a), Self::Curve(b)) => a.same(b),
+            (Self::Gradient(a), Self::Gradient(b)) => a.same(b),
+            (Self::Array(a), Self::Array(b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a.same(b))
+            }
+            _ => false,
+        }
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Void => {}
+            Self::Int(value) => value.hash(state),
+            Self::Float(value) => value.to_bits().hash(state),
+            Self::Bool(value) => value.hash(state),
+            Self::Color(value) => value.hash(state),
+            Self::Enum(value) => value.hash(state),
+            Self::Marks(value) => value.hash(state),
+            Self::Curve(value) => value.hash_same(state),
+            Self::Gradient(value) => value.hash_same(state),
+            Self::Array(values) => {
+                values.len().hash(state);
+                for value in values.iter() {
+                    value.hash_same(state);
+                }
+            }
+        }
+    }
+}
+
 impl Type {
     /// Context values belong to the current invocation, never to authored
     /// parameter declarations, including when nested inside arrays.
@@ -150,7 +194,7 @@ impl Type {
                 green: 0,
                 blue: 0,
             }),
-            Self::Marks => Value::Marks(Arc::new(Marks::EMPTY)),
+            Self::Marks => Value::Marks(Arc::new(Marks::empty())),
             Self::Curve => Value::Curve(Arc::new(Curve { points: Vec::new() })),
             Self::Gradient => Value::Gradient(Arc::new(Gradient { stops: Vec::new() })),
             Self::Array(_) => Value::Array(Arc::from([])),

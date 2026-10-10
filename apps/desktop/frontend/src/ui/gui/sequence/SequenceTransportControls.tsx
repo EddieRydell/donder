@@ -157,11 +157,15 @@ async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: S
   const { commands, runGuiEditCommand } = host;
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
-  if (result.document.type !== "sequence" || result.document.document.audio === null) return;
-  const durationSeconds = await loadAudioDurationSeconds(host, result.document.document.audio.resolvedPath);
+  const edited = result.change.type === "sequenceClips"
+    ? result.change.document
+    : result.change.document.type === "sequence" ? result.change.document.document : null;
+  const audio = edited?.audio ?? null;
+  if (audio === null) return;
+  const durationSeconds = await loadAudioDurationSeconds(host, audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
   const resize = window.confirm(
-    `Resize sequence to ${formatSeconds(durationSeconds)} to match ${result.document.document.audio.fileName}?`
+    `Resize sequence to ${formatSeconds(durationSeconds)} to match ${audio.fileName}?`
   );
   if (!resize) return;
   await runGuiEditCommand((request) =>

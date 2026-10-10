@@ -1,0 +1,28 @@
+effect ImpactBurst {
+  param gradient: gradient;
+  param intensity: curve in 0.0..1.0;
+  param direction: enum { Outward, Inward } = Outward;
+  param color_mode: enum { ThroughEffect, FromCenter, FromEdge } = ThroughEffect;
+  param center_position: float in 0.0..1.0 = 0.5;
+  param start_radius: float in 0.0..2.0 = 0.0;
+  param end_radius: float in 0.01..2.0 = 0.75;
+  param edge_width: float in 0.001..1.0 = 0.08;
+  param glow_width: float in 0.0..1.0 = 0.25;
+  param glow_level: float in 0.0..1.0 = 0.35;
+  param mirror: bool = false;
+
+  sample {
+    let distance = abs(pixel.fraction - center_position);
+    let distance = if mirror { distance * 2.0 } else { distance };
+    let travel = if direction == Inward { 1.0 - progress } else { progress };
+    let radius = mix(start_radius, end_radius, travel);
+    let ring = 1.0 - smoothstep(0.0, edge_width, abs(distance - radius));
+    let glow = 1.0 - smoothstep(0.0, max(edge_width, glow_width), abs(distance - radius));
+    let level = max(ring, glow * glow_level) * intensity[progress];
+    let color_position =
+      if color_mode == FromCenter { distance / end_radius }
+      else if color_mode == FromEdge { 1.0 - distance / end_radius }
+      else { progress };
+    gradient_color_scaled(gradient, color_position, level)
+  }
+}

@@ -1,216 +1,220 @@
-use super::arrays::ArrayParameter;
-use super::{Arc, BoundParamValue, Color, Curve, Gradient, Identifier, Marks, PreparedCurve, Type};
-use alloc::vec::Vec;
-
-/// Declaration order is metadata; dedicated value kinds live only in their typed bank.
-#[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) struct ParameterValues {
-    pub(super) slots: Vec<ParameterAddress>,
-    pub(super) types: Vec<Type>,
-    pub(super) ints: Vec<i32>,
-    pub(super) floats: Vec<f32>,
-    pub(super) bools: Vec<bool>,
-    pub(super) colors: Vec<Color>,
-    pub(super) array_values: Vec<ArrayParameter>,
-    pub(super) enums: Vec<Identifier>,
-    pub(super) marks: Vec<MarksParameter>,
-    pub(super) curves: Vec<CurveParameter>,
-    pub(super) gradients: Vec<GradientParameter>,
-}
-
-#[derive(Clone, Copy, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum ParameterAddress {
-    Void,
-    Int(usize),
-    Float(usize),
-    Bool(usize),
-    Color(usize),
-    Array(usize),
-    Enum(usize),
-    Marks(usize),
-    Curve(usize),
-    Gradient(usize),
-}
+//! Bound parameter values in the layout of the program's declared parameters:
+//! one 32-bit word per word parameter and one shared resource per resource
+//! parameter, each numbered in declaration order (see `ParamStorage`). Equal
+//! resources bound anywhere in one sequence share one allocation.
+use super::{Arc, PreparedCurve};
+use alloc::{boxed::Box, vec::Vec};
+use donder_runtime_types::bytecode::{BytecodeProgram, ParamStorage, ParameterKind};
+use donder_runtime_types::{Curve, Gradient, Identifier, Marks, Type, Value};
 
 #[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum CurveParameter {
-    #[default]
-    Empty,
-    Raw(Arc<Curve>),
-    Prepared(Arc<PreparedCurve>),
+pub(crate) struct BoundParams {
+    pub(super) words: Box<[u32]>,
+    pub(super) resources: Box<[ResourceParam]>,
 }
 
-impl CurveParameter {
-    pub(super) fn raw(&self) -> &Curve {
-        static EMPTY: Curve = Curve { points: Vec::new() };
-        match self {
-            Self::Empty => &EMPTY,
-            Self::Raw(value) => value,
-            Self::Prepared(value) => &value.raw,
-        }
-    }
-
-    pub(super) fn owned(&self) -> Arc<Curve> {
-        match self {
-            Self::Empty => Arc::new(self.raw().clone()),
-            Self::Raw(value) => Arc::clone(value),
-            Self::Prepared(value) => value.raw(),
-        }
-    }
-
-    pub(super) fn bound(&self) -> BoundParamValue {
-        match self {
-            Self::Prepared(value) => BoundParamValue::Curve(Arc::clone(value)),
-            _ => BoundParamValue::RawCurve(self.owned()),
-        }
-    }
-
-    pub(super) fn crossing(&self, value: f32, fallback: f32) -> f32 {
-        match self {
-            Self::Prepared(curve) => {
-                super::prepared_curve_crossing(&curve.crossings, &curve.raw, value, fallback)
-            }
-            _ => super::curve_crossing_raw(self.raw(), value, fallback),
-        }
-    }
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+pub(super) enum ResourceParam {
+    Curve(Arc<PreparedCurve>),
+    Gradient(Arc<Gradient>),
+    Marks(Arc<Marks>),
+    Array(Arc<[Value]>),
 }
 
-#[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum GradientParameter {
-    #[default]
-    Empty,
-    Shared(Arc<Gradient>),
-}
+impl BoundParams {
+    /// Materialize an invocation's checked values for `program`.
+    pub(crate) fn from_validated(
+        program: &BytecodeProgram,
+        params: &donder_runtime_types::BoundParams,
+        cache: &mut DslBindCache,
+    ) -> Self {
+        Self::from_values(
+            &program.enums,
+            program.params.iter().zip(params.values()),
+            cache,
+        )
+    }
 
-impl GradientParameter {
-    pub(super) fn get(&self) -> &Gradient {
-        static EMPTY: Gradient = Gradient { stops: Vec::new() };
-        match self {
-            Self::Empty => &EMPTY,
-            Self::Shared(value) => value,
+    /// Materialize type-checked values in declaration order; enum values
+    /// become their index in `enums`.
+    pub(crate) fn from_values<'a>(
+        enums: &[Identifier],
+        values: impl IntoIterator<Item = (&'a Type, &'a Value)>,
+        cache: &mut DslBindCache,
+    ) -> Self {
+        let mut words = Vec::new();
+        let mut resources = Vec::new();
+        for (ty, value) in values {
+            match ParameterKind::for_type(ty).storage() {
+                None => {}
+                Some(ParamStorage::Word) => words.push(word(ty, value, enums)),
+                Some(ParamStorage::Resource) => resources.push(cache.resource(value)),
+            }
+        }
+        Self {
+            words: words.into(),
+            resources: resources.into(),
         }
     }
 
-    pub(super) fn owned(&self) -> Arc<Gradient> {
-        match self {
-            Self::Empty => Arc::new(self.get().clone()),
-            Self::Shared(value) => Arc::clone(value),
-        }
-    }
-}
-
-/// An empty collection needs no shared allocation. A loaded collection retains
-/// its identity when copied between parameters and array elements.
-#[derive(Clone, Debug, Default, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
-pub(super) enum MarksParameter {
-    #[default]
-    Empty,
-    Shared(Arc<Marks>),
-}
-
-impl MarksParameter {
-    pub(super) fn get(&self) -> &Marks {
-        static EMPTY: Marks = Marks::EMPTY;
-        match self {
-            Self::Empty => &EMPTY,
-            Self::Shared(value) => value,
-        }
-    }
-
-    pub(super) fn owned(&self) -> Arc<Marks> {
-        match self {
-            Self::Empty => Arc::new(self.get().clone()),
-            Self::Shared(value) => Arc::clone(value),
-        }
-    }
-}
-
-impl<'a> FromIterator<(&'a Type, BoundParamValue)> for ParameterValues {
-    fn from_iter<T: IntoIterator<Item = (&'a Type, BoundParamValue)>>(iter: T) -> Self {
-        let mut values = Self::default();
-        for (ty, value) in iter {
-            values.push(ty, value);
-        }
-        values
-    }
-}
-
-impl ParameterValues {
-    pub(super) fn len(&self) -> usize {
-        self.slots.len()
-    }
-
-    pub(super) fn push(&mut self, ty: &Type, value: BoundParamValue) {
-        self.types.push(ty.clone());
-        let address = match value {
-            BoundParamValue::Array(values) => {
-                self.array_values.push(ArrayParameter::Shared(values));
-                ParameterAddress::Array(self.array_values.len() - 1)
-            }
-            BoundParamValue::Enum(value) => {
-                self.enums.push(value);
-                ParameterAddress::Enum(self.enums.len() - 1)
-            }
-            BoundParamValue::Curve(value) => {
-                self.curves.push(CurveParameter::Prepared(value));
-                ParameterAddress::Curve(self.curves.len() - 1)
-            }
-            BoundParamValue::RawCurve(value) => {
-                self.curves.push(CurveParameter::Raw(value));
-                ParameterAddress::Curve(self.curves.len() - 1)
-            }
-            BoundParamValue::Gradient(value) => {
-                self.gradients.push(GradientParameter::Shared(value));
-                ParameterAddress::Gradient(self.gradients.len() - 1)
-            }
-            BoundParamValue::Marks(value) => {
-                self.marks.push(MarksParameter::Shared(value));
-                ParameterAddress::Marks(self.marks.len() - 1)
-            }
-            BoundParamValue::Int(value) => {
-                self.ints.push(value);
-                ParameterAddress::Int(self.ints.len() - 1)
-            }
-            BoundParamValue::Float(value) => {
-                self.floats.push(value);
-                ParameterAddress::Float(self.floats.len() - 1)
-            }
-            BoundParamValue::Bool(value) => {
-                self.bools.push(value);
-                ParameterAddress::Bool(self.bools.len() - 1)
-            }
-            BoundParamValue::Color(value) => {
-                self.colors.push(value);
-                ParameterAddress::Color(self.colors.len() - 1)
-            }
-            BoundParamValue::Void => ParameterAddress::Void,
-        };
-        self.slots.push(address);
-    }
-
-    pub(super) fn iter(&self) -> impl Iterator<Item = BoundParamValue> + '_ {
-        self.slots.iter().map(|address| self.read(*address))
-    }
-
-    fn read(&self, address: ParameterAddress) -> BoundParamValue {
-        match address {
-            ParameterAddress::Void => BoundParamValue::Void,
-            ParameterAddress::Int(index) => BoundParamValue::Int(self.ints[index]),
-            ParameterAddress::Float(index) => BoundParamValue::Float(self.floats[index]),
-            ParameterAddress::Bool(index) => BoundParamValue::Bool(self.bools[index]),
-            ParameterAddress::Color(index) => BoundParamValue::Color(self.colors[index]),
-            ParameterAddress::Array(index) => self.array_values[index].bound(),
-            ParameterAddress::Enum(index) => BoundParamValue::Enum(self.enums[index].clone()),
-            ParameterAddress::Marks(index) => BoundParamValue::Marks(self.marks[index].owned()),
-            ParameterAddress::Curve(index) => self.curves[index].bound(),
-            ParameterAddress::Gradient(index) => {
-                BoundParamValue::Gradient(self.gradients[index].owned())
+    /// Whether these values have the layout of `program`'s parameters: a word
+    /// per word parameter and a resource of each resource parameter's kind.
+    pub(crate) fn fits(&self, program: &BytecodeProgram) -> bool {
+        let mut words = 0;
+        let mut resources = self.resources.iter();
+        for ty in &program.params {
+            let kind = ParameterKind::for_type(ty);
+            match kind.storage() {
+                None => {}
+                Some(ParamStorage::Word) => words += 1,
+                Some(ParamStorage::Resource) => {
+                    let fits = matches!(
+                        (kind, resources.next()),
+                        (ParameterKind::Curve, Some(ResourceParam::Curve(_)))
+                            | (ParameterKind::Gradient, Some(ResourceParam::Gradient(_)))
+                            | (ParameterKind::Marks, Some(ResourceParam::Marks(_)))
+                            | (ParameterKind::Array, Some(ResourceParam::Array(_)))
+                    );
+                    if !fits {
+                        return false;
+                    }
+                }
             }
         }
+        words == self.words.len() && resources.next().is_none()
     }
 
     #[cfg(test)]
-    pub(super) fn get(&self, index: usize) -> Option<BoundParamValue> {
-        self.slots.get(index).map(|address| self.read(*address))
+    pub(crate) fn bind_values(
+        types: &[Type],
+        values: Vec<Value>,
+        cache: &mut DslBindCache,
+    ) -> Result<Self, super::RuntimeError> {
+        let accepted = donder_runtime_types::BoundParams::bind_values(types, values)
+            .map_err(|error| super::RuntimeError::new(error.message))?;
+        Ok(Self::from_values(
+            &[],
+            accepted.types().iter().zip(accepted.values()),
+            cache,
+        ))
     }
+
+    /// Conservative load-time budget for an automated copy whose curve
+    /// windows are the resources in `windows`, each up to its point count.
+    pub(crate) fn automation_storage_estimate(
+        &self,
+        windows: impl IntoIterator<Item = (usize, usize)>,
+    ) -> Option<usize> {
+        let mut bytes = self
+            .words
+            .len()
+            .checked_mul(size_of::<u32>())?
+            .checked_add(
+                self.resources
+                    .len()
+                    .checked_mul(size_of::<ResourceParam>())?,
+            )?;
+        for (resource, points) in windows {
+            let ResourceParam::Curve(curve) = self.resources.get(resource)? else {
+                return None;
+            };
+            // Three detached shared allocations; forward samples use the raw points.
+            let points = points.max(curve.raw.points.len()).max(1);
+            bytes = bytes.checked_add(
+                points
+                    .checked_mul(
+                        size_of::<donder_runtime_types::CurvePoint>()
+                            + size_of::<super::CrossingSegment>(),
+                    )?
+                    .checked_add(
+                        size_of::<PreparedCurve>()
+                            + size_of::<Curve>()
+                            + size_of::<super::PreparedCurveCrossings>()
+                            + 6 * size_of::<usize>(),
+                    )?,
+            )?;
+        }
+        Some(bytes)
+    }
+}
+
+/// A word parameter's value.
+fn word(ty: &Type, value: &Value, enums: &[Identifier]) -> u32 {
+    match (ty, value) {
+        (Type::Float, Value::Int(value)) => (*value as f32).to_bits(),
+        (_, Value::Float(value)) => value.to_bits(),
+        (_, Value::Int(value)) => *value as u32,
+        (_, Value::Bool(value)) => u32::from(*value),
+        // `strip::word_color` reads it back.
+        (_, Value::Color(color)) => u32::from_le_bytes([color.red, color.green, color.blue, 0]),
+        (_, Value::Enum(name)) => enums
+            .iter()
+            .position(|option| option == name)
+            .map_or(-1, |index| index as i32) as u32,
+        _ => unreachable!("word parameters hold scalar values"),
+    }
+}
+
+/// Resources bound so far, so that equal values share one allocation.
+#[derive(Debug, Default)]
+pub(crate) struct DslBindCache {
+    curves: Vec<(Arc<Curve>, Arc<PreparedCurve>)>,
+    gradients: Vec<Arc<Gradient>>,
+    tracks: Vec<Arc<[u32]>>,
+    marks: Vec<Arc<Marks>>,
+    arrays: Vec<Arc<[Value]>>,
+}
+
+impl DslBindCache {
+    fn resource(&mut self, value: &Value) -> ResourceParam {
+        match value {
+            Value::Curve(curve) => ResourceParam::Curve(self.curve(curve)),
+            Value::Gradient(gradient) => {
+                ResourceParam::Gradient(intern(&mut self.gradients, gradient, Gradient::same))
+            }
+            Value::Marks(marks) => ResourceParam::Marks(self.marks(marks)),
+            Value::Array(items) => ResourceParam::Array(intern(&mut self.arrays, items, |a, b| {
+                a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.same(b))
+            })),
+            _ => unreachable!("resource parameters hold resources"),
+        }
+    }
+
+    fn curve(&mut self, raw: &Arc<Curve>) -> Arc<PreparedCurve> {
+        if let Some((_, prepared)) = self
+            .curves
+            .iter()
+            .find(|(existing, _)| Arc::ptr_eq(existing, raw) || existing.same(raw))
+        {
+            return Arc::clone(prepared);
+        }
+        let prepared = Arc::new(PreparedCurve::new(Arc::clone(raw)));
+        self.curves.push((Arc::clone(raw), Arc::clone(&prepared)));
+        prepared
+    }
+
+    fn marks(&mut self, marks: &Arc<Marks>) -> Arc<Marks> {
+        let track = intern(&mut self.tracks, marks.track(), |a, b| a == b);
+        let window = if Arc::ptr_eq(&track, marks.track()) {
+            Arc::clone(marks)
+        } else {
+            Arc::new(marks.with_track(track))
+        };
+        intern(&mut self.marks, &window, |a, b| a == b)
+    }
+}
+
+fn intern<T: ?Sized>(
+    pool: &mut Vec<Arc<T>>,
+    value: &Arc<T>,
+    same: impl Fn(&T, &T) -> bool,
+) -> Arc<T> {
+    if let Some(existing) = pool
+        .iter()
+        .find(|existing| Arc::ptr_eq(existing, value) || same(existing, value))
+    {
+        return Arc::clone(existing);
+    }
+    pool.push(Arc::clone(value));
+    Arc::clone(value)
 }

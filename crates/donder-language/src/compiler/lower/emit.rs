@@ -11,15 +11,19 @@ use donder_runtime_types::Shared as Arc;
 use donder_runtime_types::bytecode::{
     Bank, BytecodeProgram, ColorBinary, ColorComponent, CompareOp, ContextRead, FloatBinary,
     FloatUnary, Input, Instruction, IntBinary, MAX_DEPTH, MAX_ROW_BYTES, MarkOp, NO_FRAME_CACHE,
-    ParameterKind, Reducer, Resource, Slot, Span,
+    Reducer, Resource, SignalPixel, Slot, Span, param_bank,
 };
-use donder_runtime_types::{Identifier, Type, Value};
+use donder_runtime_types::{Color, Identifier, Type, Value};
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn emit(graph: &Graph, root: Node, plan: &Plan) -> Result<BytecodeProgram, LowerError> {
     let mut emitter = Emitter::new(graph, plan);
     let nodes = super::reachable(graph, root);
     emitter.absorb(&nodes);
+    // Every bound enum value, read or automated, has an option index.
+    for param in graph.params() {
+        emitter.enum_options(&param.ty);
+    }
     for &node in &nodes {
         emitter.enum_options(graph.ty(node));
     }
@@ -60,7 +64,11 @@ struct Emitter<'a> {
     arrays: Vec<Arc<[Value]>>,
     enums: Vec<Identifier>,
     operands: Vec<Slot>,
-    frame_caches: u16,
+    /// Whole-frame input caches, one per input and query-uniform time: samples
+    /// of one input at one time share its frame.
+    frame_caches: HashMap<(u32, Node), u16>,
+    /// Frame caches so far: the inputs', then each scan's own.
+    frame_cache_count: u16,
     /// Selections open at the current point, and the most at any point.
     depth: u16,
     deepest: u16,
@@ -85,7 +93,8 @@ impl<'a> Emitter<'a> {
             arrays: Vec::new(),
             enums: Vec::new(),
             operands: Vec::new(),
-            frame_caches: 0,
+            frame_caches: HashMap::new(),
+            frame_cache_count: 0,
             depth: 0,
             deepest: 0,
             error: None,
@@ -278,7 +287,7 @@ impl<'a> Emitter<'a> {
                     matches!(ty, Type::Enum(_)),
                     "primitive parameters are scheduled"
                 );
-                Instruction::EnumParam { dst, bank }
+                Instruction::IntParam { dst, bank }
             }
         };
         self.head.push(load);
@@ -286,14 +295,17 @@ impl<'a> Emitter<'a> {
         dst
     }
 
-    /// A parameter's address in the bound bank of its kind.
+    /// A parameter's bank within its storage.
     fn bank_index(&self, param: usize) -> u16 {
-        let params = self.graph.params();
-        let kind = ParameterKind::for_type(&params[param].ty);
-        params[..param]
+        param_bank(&self.param_types(), param)
+    }
+
+    fn param_types(&self) -> Vec<Type> {
+        self.graph
+            .params()
             .iter()
-            .filter(|other| ParameterKind::for_type(&other.ty) == kind)
-            .count() as u16
+            .map(|param| param.ty.clone())
+            .collect()
     }
 
     /// Emit the nodes of a region in order.
@@ -358,6 +370,14 @@ impl<'a> Emitter<'a> {
                 self.reduce(node, code);
                 return;
             }
+            // A stencil emits its tap and its source.
+            Op::Tap { .. } => return,
+            Op::Source => unreachable!("a stencil places its source"),
+            Op::ScanTap { .. } => {
+                self.scan(node, code);
+                return;
+            }
+            Op::Previous | Op::Scan { .. } => unreachable!("lowering turns scans into scan taps"),
             Op::Items(_) => unreachable!("array literals are folded into picks"),
             Op::Pick { index, items } => {
                 let index = self.operand(index);
@@ -380,14 +400,7 @@ impl<'a> Emitter<'a> {
             Op::Sample { input, time, pixel } => {
                 let seconds = self.operand(time);
                 let pixel = pixel.map(|index| self.operand(index));
-                let cached =
-                    graph.constant_value(time).is_some() || self.plan.stage(time) == Stage::Query;
-                let frame_cache = if cached {
-                    self.frame_caches += 1;
-                    self.frame_caches - 1
-                } else {
-                    NO_FRAME_CACHE
-                };
+                let frame_cache = self.frame_cache(input, time);
                 Instruction::Sample {
                     dst: self.destination(node),
                     input: input as u16,
@@ -398,6 +411,20 @@ impl<'a> Emitter<'a> {
             }
         };
         code.push(instruction);
+    }
+
+    /// The whole-frame cache of `input` at a query-uniform `time`.
+    fn frame_cache(&mut self, input: u32, time: Node) -> u16 {
+        let cached =
+            self.graph.constant_value(time).is_some() || self.plan.stage(time) == Stage::Query;
+        if !cached {
+            return NO_FRAME_CACHE;
+        }
+        let next = &mut self.frame_cache_count;
+        *self.frame_caches.entry((input, time)).or_insert_with(|| {
+            *next += 1;
+            *next - 1
+        })
     }
 
     fn unary(&mut self, node: Node, op: Unary, a: Node) -> Instruction {
@@ -737,6 +764,10 @@ impl<'a> Emitter<'a> {
             unreachable!("reductions are reduce nodes")
         };
         let data = self.graph.loop_(id).clone();
+        if matches!(self.graph.op(data.body), Op::Tap { .. }) {
+            self.stencil(node, code);
+            return;
+        }
         let children = self.plan.children[&node].clone();
         let bank = self.bank(node);
         let acc = self.destination(node);
@@ -799,6 +830,154 @@ impl<'a> Emitter<'a> {
         code.append(&mut contribute);
     }
 
+    /// A neighborhood reduction: its header, the source block sampling the
+    /// input and computing the source weight, and the offset block.
+    fn stencil(&mut self, node: Node, code: &mut Vec<Instruction>) {
+        let graph = self.graph;
+        let Op::Reduce(id) = *graph.op(node) else {
+            unreachable!("stencils are reduce nodes")
+        };
+        let data = graph.loop_(id).clone();
+        let Op::Tap {
+            input,
+            time,
+            edges,
+            weight,
+            scale,
+            pixel,
+            ..
+        } = *graph.op(data.body)
+        else {
+            unreachable!("a stencil's body is its tap")
+        };
+        let children = self.plan.children[&node].clone();
+        let acc = self.destination(node);
+        let black = self.constant(Constant {
+            value: Value::Color(Color::BLACK),
+            ty: Type::Color,
+        });
+        code.push(Instruction::Move {
+            bank: Bank::Color,
+            dst: acc,
+            src: black,
+        });
+        let (start, end) = (self.operand(data.start), self.operand(data.end));
+        let one = self.constant(Constant {
+            value: Value::Float(1.0),
+            ty: Type::Float,
+        });
+        let pixel = pixel.map_or(one, |pixel| self.operand(pixel));
+        let index = self.fresh(Bank::Int, false);
+        self.values.insert(data.index, index);
+        let (mut source, weight) = self.source_block(input, time, weight, one);
+        let mut taps = Vec::new();
+        self.region(children[0], &mut taps);
+        let scale = scale.map_or(one, |scale| self.operand(scale));
+        let (source_len, tap_len) = (self.length(&source), self.length(&taps));
+        code.push(Instruction::Stencil {
+            reducer: match data.reducer {
+                ir::Reducer::Max => Reducer::Max,
+                _ => Reducer::Sum,
+            },
+            edges,
+            acc,
+            index,
+            start,
+            end,
+            weight,
+            scale,
+            pixel,
+            source_len,
+            tap_len,
+        });
+        code.append(&mut source);
+        code.append(&mut taps);
+    }
+
+    /// A source block: a sample of `input` at the current pixel, then the
+    /// code computing `weight` (or `one`) from it.
+    fn source_block(
+        &mut self,
+        input: u32,
+        time: Node,
+        weight: Option<Node>,
+        one: Slot,
+    ) -> (Vec<Instruction>, Slot) {
+        let sample = self.fresh(Bank::Color, true);
+        let mut source = vec![Instruction::Sample {
+            dst: sample,
+            input: input as u16,
+            seconds: self.operand(time),
+            pixel: SignalPixel::Current,
+            frame_cache: self.frame_cache(input, time),
+        }];
+        let Some(weight) = weight else {
+            return (source, one);
+        };
+        // The source runs over other pixels than the strip's, so its values
+        // are this block's alone.
+        let cone = self.source_cone(weight);
+        for &node in &cone {
+            if matches!(self.graph.op(node), Op::Source) {
+                self.values.insert(node, sample);
+            } else if !self.absorbed.contains(&node) {
+                self.node(node, &mut source);
+            }
+        }
+        let slot = self.operand(weight);
+        for node in cone {
+            self.values.remove(&node);
+        }
+        (source, slot)
+    }
+
+    /// A scan: its instruction, then its source block.
+    fn scan(&mut self, node: Node, code: &mut Vec<Instruction>) {
+        let Op::ScanTap {
+            direction,
+            input,
+            time,
+            decay,
+            weight,
+        } = *self.graph.op(node)
+        else {
+            unreachable!("scans are scan taps")
+        };
+        let one = self.constant(Constant {
+            value: Value::Float(1.0),
+            ty: Type::Float,
+        });
+        let decay = self.operand(decay);
+        let (mut source, weight) = self.source_block(input, time, weight, one);
+        let cache = self.frame_cache_count;
+        self.frame_cache_count += 1;
+        let source_len = self.length(&source);
+        let dst = self.destination(node);
+        code.push(Instruction::Scan {
+            direction,
+            dst,
+            decay,
+            weight,
+            cache,
+            source_len,
+        });
+        code.append(&mut source);
+    }
+
+    /// The source-stage nodes `weight` is computed from, operands first.
+    fn source_cone(&self, weight: Node) -> Vec<Node> {
+        let mut cone = HashSet::new();
+        let mut pending = vec![weight];
+        while let Some(node) = pending.pop() {
+            if self.plan.stage(node) == Stage::Source && cone.insert(node) {
+                pending.extend(self.graph.op(node).operands());
+            }
+        }
+        let mut cone: Vec<Node> = cone.into_iter().collect();
+        cone.sort();
+        cone
+    }
+
     fn finish(
         mut self,
         query: Vec<Instruction>,
@@ -822,6 +1001,7 @@ impl<'a> Emitter<'a> {
         ) else {
             return Err(LowerError::Code);
         };
+        let params = self.param_types().into();
         let mut operands = self.operands;
         let (scalars, rows) = slots::allocate(
             &mut code,
@@ -836,6 +1016,7 @@ impl<'a> Emitter<'a> {
             return Err(LowerError::Depth(self.deepest));
         }
         Ok(BytecodeProgram {
+            params,
             code: code.into(),
             query_end,
             target_end,
@@ -849,7 +1030,7 @@ impl<'a> Emitter<'a> {
             arrays: self.arrays.into(),
             enums: self.enums.into(),
             operands: operands.into(),
-            frame_caches: self.frame_caches,
+            frame_caches: self.frame_cache_count,
         })
     }
 }

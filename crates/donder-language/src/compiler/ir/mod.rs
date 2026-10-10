@@ -9,12 +9,14 @@ mod eval;
 mod fold;
 pub(crate) mod interval;
 mod rebuild;
+mod stencil;
 
 pub(crate) use eval::{Evaluator, evaluate, reduce_identity};
 pub(crate) use rebuild::{Rebuild, Substitute};
+pub(crate) use stencil::{check as check_stencil, reads, source_of, source_only};
 
 use donder_runtime_types::Color;
-use donder_runtime_types::bytecode::SignalPixel;
+use donder_runtime_types::bytecode::{Direction, Edges, SignalPixel};
 use donder_runtime_types::{Type, Value};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -281,7 +283,7 @@ pub(crate) struct Constant {
 
 impl PartialEq for Constant {
     fn eq(&self, other: &Self) -> bool {
-        self.ty == other.ty && same_value(&self.value, &other.value)
+        self.ty == other.ty && self.value.same(&other.value)
     }
 }
 
@@ -321,6 +323,43 @@ pub(crate) enum Op {
         index: Node,
         items: Box<[Node]>,
     },
+    /// A stencil's or scan's input sample at the pixel its weight is
+    /// computed for.
+    Source,
+    /// A scan body's value at the previous pixel. Checking turns the body
+    /// into a [`Op::Scan`], so it is never lowered.
+    Previous,
+    /// A trail along each fixture: `decay` (fixed for the query) times the
+    /// previous pixel's value, plus `light` (a sample at the current pixel)
+    /// times `weight`, which depends on `light` alone.
+    Scan {
+        direction: Direction,
+        light: Node,
+        decay: Node,
+        weight: Option<Node>,
+    },
+    /// A scan as lowering emits it: its weight reads [`Op::Source`].
+    ScanTap {
+        direction: Direction,
+        input: u32,
+        time: Node,
+        decay: Node,
+        weight: Option<Node>,
+    },
+    /// The contribution of a neighborhood reduction: the input at the loop's
+    /// offset along the pixel's fixture, scaled by the product of the
+    /// present factors. `weight` depends on that sample, as [`Op::Source`],
+    /// alone; `scale` on the offset but not the pixel; `pixel` not on the
+    /// offset.
+    Tap {
+        id: LoopId,
+        input: u32,
+        time: Node,
+        edges: Edges,
+        weight: Option<Node>,
+        scale: Option<Node>,
+        pixel: Option<Node>,
+    },
 }
 
 impl Op {
@@ -332,7 +371,27 @@ impl Op {
             | Self::ParamIntegral(_)
             | Self::Context(_)
             | Self::LoopIndex(_)
-            | Self::Reduce(_) => Vec::new(),
+            | Self::Reduce(_)
+            | Self::Source
+            | Self::Previous => Vec::new(),
+            Self::Scan {
+                light,
+                decay,
+                weight,
+                ..
+            } => [Some(light), Some(decay), weight]
+                .into_iter()
+                .flatten()
+                .collect(),
+            Self::ScanTap {
+                time,
+                decay,
+                weight,
+                ..
+            } => [Some(time), Some(decay), weight]
+                .into_iter()
+                .flatten()
+                .collect(),
             Self::Unary(_, a) => vec![a],
             Self::Binary(_, a, b) => vec![a, b],
             Self::Ternary(_, a, b, c) | Self::Select(a, b, c) => vec![a, b, c],
@@ -346,6 +405,16 @@ impl Op {
                 operands.extend_from_slice(items);
                 operands
             }
+            Self::Tap {
+                time,
+                weight,
+                scale,
+                pixel,
+                ..
+            } => [Some(time), weight, scale, pixel]
+                .into_iter()
+                .flatten()
+                .collect(),
         }
     }
 }
@@ -363,6 +432,13 @@ pub(crate) struct Loop {
     pub(crate) filter: Option<Node>,
     /// Result of `first` and `last` when no iteration matches.
     pub(crate) default: Option<Node>,
+    /// Every pixel shares the index: the loop runs the union of the pixels'
+    /// ranges, each pixel taking part in its own, so work that depends only
+    /// on the index runs once per iteration rather than once per pixel.
+    pub(crate) shared: bool,
+    /// An `around` reduction over its input's neighbors, read past the
+    /// fixture's ends as these say: lowered as a stencil.
+    pub(crate) around: Option<Edges>,
 }
 
 impl Loop {
@@ -571,6 +647,15 @@ impl Graph {
                 Type::Color,
                 (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::default()),
             ),
+            Op::Source => (Type::Color, (Domain::SIGNAL, LoopSet::default())),
+            Op::Previous | Op::Scan { .. } | Op::ScanTap { .. } => (
+                Type::Color,
+                (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::default()),
+            ),
+            Op::Tap { id, .. } => (
+                Type::Color,
+                (Domain::SIGNAL.union(Domain::PIXEL), LoopSet::single(*id)),
+            ),
         };
         // Sections are counted per pixel: per-fixture sections differ by fixture.
         let domain = match op {
@@ -582,10 +667,12 @@ impl Graph {
     }
 
     /// Start a reduction over `start..end`; its index is in scope for the body.
+    /// A `shared` index varies only with the loop, wherever the bounds vary.
     pub(crate) fn begin_loop(
         &mut self,
         start: Node,
         end: Node,
+        shared: bool,
     ) -> Result<(LoopId, Node), TooManyLoops> {
         if self.loops.len() >= LoopSet::LIMIT {
             return Err(TooManyLoops);
@@ -600,16 +687,39 @@ impl Graph {
             body: start,
             filter: None,
             default: None,
+            shared,
+            around: None,
         });
         let index = self.intern(Op::LoopIndex(id));
-        // The index ranges over the bounds, so it varies wherever they do.
-        let bounds = self.domain(start).union(self.domain(end));
+        // The index ranges over the bounds, so it varies wherever they do,
+        // unless every pixel shares it.
+        let bounds = if shared {
+            Domain::CONSTANT
+        } else {
+            self.domain(start).union(self.domain(end))
+        };
         let bound_loops = self.loops_of(start).union(self.loops_of(end));
         let data = &mut self.nodes[index.index()];
         data.domain = data.domain.union(bounds);
         data.loops = data.loops.union(bound_loops);
         self.loops[id.index()].index = index;
         Ok((id, index))
+    }
+
+    pub(crate) fn set_around(&mut self, id: LoopId, edges: Edges) {
+        self.loops[id.index()].around = Some(edges);
+    }
+
+    /// The tap replacing the contribution of reduction `id`, when it is a
+    /// stencil.
+    pub(crate) fn tap(
+        &mut self,
+        id: LoopId,
+        reducer: Reducer,
+        body: Node,
+        filter: Option<Node>,
+    ) -> Option<Node> {
+        stencil::tap(self, id, reducer, body, filter)
     }
 
     pub(crate) fn finish_loop(
@@ -739,39 +849,6 @@ fn ternary_type(op: Ternary) -> Type {
     }
 }
 
-/// Bitwise equality of constants and resources.
-pub(crate) fn same_value(left: &Value, right: &Value) -> bool {
-    match (left, right) {
-        (Value::Void, Value::Void) => true,
-        (Value::Int(a), Value::Int(b)) => a == b,
-        (Value::Float(a), Value::Float(b)) => a.to_bits() == b.to_bits(),
-        (Value::Bool(a), Value::Bool(b)) => a == b,
-        (Value::Color(a), Value::Color(b)) => a == b,
-        (Value::Enum(a), Value::Enum(b)) => a == b,
-        (Value::Marks(a), Value::Marks(b)) => {
-            a.as_slice().len() == b.as_slice().len()
-                && a.as_slice().iter().zip(b.as_slice()).all(|(a, b)| a == b)
-        }
-        (Value::Curve(a), Value::Curve(b)) => {
-            a.points.len() == b.points.len()
-                && a.points.iter().zip(&b.points).all(|(a, b)| {
-                    a.position.to_bits() == b.position.to_bits()
-                        && a.value.to_bits() == b.value.to_bits()
-                })
-        }
-        (Value::Gradient(a), Value::Gradient(b)) => {
-            a.stops.len() == b.stops.len()
-                && a.stops.iter().zip(&b.stops).all(|(a, b)| {
-                    a.position.to_bits() == b.position.to_bits() && a.color == b.color
-                })
-        }
-        (Value::Array(a), Value::Array(b)) => {
-            a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| same_value(a, b))
-        }
-        _ => false,
-    }
-}
-
 pub(crate) fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
     core::mem::discriminant(value).hash(state);
     match value {
@@ -781,11 +858,7 @@ pub(crate) fn hash_value<H: Hasher>(value: &Value, state: &mut H) {
         Value::Bool(value) => value.hash(state),
         Value::Color(value) => value.hash(state),
         Value::Enum(value) => value.hash(state),
-        Value::Marks(value) => {
-            for mark in value.as_slice() {
-                mark.as_ticks().hash(state);
-            }
-        }
+        Value::Marks(value) => value.hash(state),
         Value::Curve(value) => {
             for point in &value.points {
                 point.position.to_bits().hash(state);

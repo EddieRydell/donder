@@ -14,6 +14,24 @@ pub enum AutomationMapping {
 }
 
 impl AutomationMapping {
+    /// A hash consistent with `==`; floats hash by their bits.
+    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        core::mem::discriminant(self).hash(state);
+        match self {
+            Self::Float { min, max } | Self::Curve { min, max } => {
+                min.to_bits().hash(state);
+                max.to_bits().hash(state);
+            }
+            Self::Int { min, max } => {
+                min.hash(state);
+                max.hash(state);
+            }
+            Self::Bool => {}
+            Self::Enum { values } => values.hash(state),
+        }
+    }
+
     pub fn is_well_formed(&self) -> bool {
         match self {
             Self::Float { min, max } | Self::Curve { min, max } => {

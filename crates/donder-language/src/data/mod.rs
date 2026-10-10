@@ -15,7 +15,7 @@ pub(crate) mod tree;
 
 pub use literal::{canonical_distance, canonical_duration, canonical_float};
 pub use parser::parse;
-pub use printer::print;
+pub use printer::{ListSplice, list_item, print, print_spliced};
 pub use schema::{
     Data, Decoder, Definition, FieldReader, Fields, Meters, NO_SPAN, Name, NamedSource, Params,
     Path, Record, Reference, Schema, Shape, Source, declaration, decode_record, field, record,

@@ -89,6 +89,12 @@ effect Glow "A soft pulse from the center." {
 Effects run for every pixel of every frame, so keep them cheap: loops and
 reductions over many items are the usual cost, and most effects can be written
 without them. Read the existing effects in `effects/` before writing a new one.
+An operator that blurs, glows or spreads light along a fixture reads its
+neighbors with `sum for offset in -radius..=radius around input as neighbor {
+neighbor * weight }`, as `Blur` and `Bloom` do, rather than computing pixel
+indices with `input.at(time, ...)`. Trails and long glows that fade with
+distance use `scan forward input as light, previous { previous * decay + light
+}`, as `Trail` does, whose cost does not grow with the distance.
 
 `effects/vixen.donder` contains supported-mode Vixen ports. Read its comments
 before using a definition: its curves use percentage values `0..100`, pixel
