@@ -237,8 +237,10 @@ fn remap_candidate(candidate: &mut ProjectSession, plan: &PathChangePlan) -> Res
 
 fn prepare_writes(candidate: &ProjectSession) -> Result<BTreeMap<Utf8PathBuf, Vec<u8>>, String> {
     let mut writes = BTreeMap::new();
+    let mut cache = crate::document::text_cache::DocumentTextCache::default();
     for (id, document) in &candidate.source.documents {
-        let text = document_text(candidate, id, document).map_err(|error| error.to_string())?;
+        let text = document_text(candidate, id, document, &mut cache)
+            .map_err(|error| error.to_string())?;
         writes.insert(
             candidate.source.project_root().join(id.path()),
             text.into_bytes(),

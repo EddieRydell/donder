@@ -1,4 +1,4 @@
-//! Lowering an instance to a portable program. Values fixed for the instance
+﻿//! Lowering an instance to a portable program. Values fixed for the instance
 //! are computed now and become parameter slots; scheduling places every other
 //! node in a stage and region; the backend emits strip bytecode.
 mod emit;
@@ -7,11 +7,13 @@ mod schedule;
 mod slots;
 
 use super::instance::Instance;
+use super::ir::interval::{Bounds, interval};
 use super::ir::{
     Binary, Domain, Evaluator, Graph, Node, Op, Param, Rebuild, Substitute, TooManyLoops,
 };
 use donder_runtime_types::PreparedAutomation;
 use donder_runtime_types::bytecode::BytecodeProgram;
+use donder_runtime_types::bytecode::STRIP;
 use donder_runtime_types::{Type, Value};
 use std::collections::{HashMap, HashSet};
 
@@ -19,7 +21,6 @@ use std::collections::{HashMap, HashSet};
 #[derive(Clone, Debug)]
 pub(crate) struct Lowered {
     pub(crate) bytecode: BytecodeProgram,
-    pub(crate) param_types: Vec<Type>,
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
 }
@@ -61,12 +62,6 @@ impl Instance {
         let bytecode = emit::emit(&prepared.graph, prepared.root, &plan)?;
         Ok(Lowered {
             bytecode,
-            param_types: prepared
-                .graph
-                .params()
-                .iter()
-                .map(|param| param.ty.clone())
-                .collect(),
             values: prepared.values,
             automation: prepared.automation,
         })
@@ -178,11 +173,34 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
             binding
         })
         .collect();
+    // Fixed slots hold known values; automated ones change during playback.
+    let ranges: Vec<Option<(f64, f64)>> = values
+        .iter()
+        .enumerate()
+        .map(|(slot, value)| match value {
+            _ if slot < remap.len() => None,
+            Value::Int(value) => Some((f64::from(*value), f64::from(*value))),
+            Value::Float(value) if value.is_finite() => {
+                Some((f64::from(*value), f64::from(*value)))
+            }
+            _ => None,
+        })
+        .collect();
+    let lengths: Vec<Option<usize>> = values
+        .iter()
+        .map(|value| match value {
+            Value::Array(items) => Some(items.len()),
+            Value::Marks(marks) => Some(marks.len()),
+            _ => None,
+        })
+        .collect();
     let mut target = Graph::new(slots, graph.inputs());
     let mut substitute = Frontier {
         slots: frontier_slots,
         reciprocals: reciprocal_slots,
         remap,
+        ranges,
+        lengths,
     };
     let root = Rebuild::new(graph).node(&mut target, instance.root, &mut substitute)?;
     Ok(Prepared {
@@ -197,6 +215,9 @@ struct Frontier {
     slots: HashMap<Node, u32>,
     reciprocals: HashMap<Node, u32>,
     remap: HashMap<u32, u32>,
+    /// What the instance knows about each slot, for reduction bounds.
+    ranges: Vec<Option<(f64, f64)>>,
+    lengths: Vec<Option<usize>>,
 }
 
 /// The reciprocal of a fixed float divisor, when multiplying by it is exact
@@ -223,6 +244,34 @@ impl Substitute for Frontier {
     fn reciprocal(&mut self, target: &mut Graph, divisor: Node) -> Option<Node> {
         let slot = *self.reciprocals.get(&divisor)?;
         Some(target.add(Op::Param(slot)))
+    }
+
+    /// Per-pixel bounds within at most a strip of indices share one index.
+    fn share_index(&mut self, target: &Graph, start: Node, end: Node) -> bool {
+        let per_pixel = target
+            .domain(start)
+            .union(target.domain(end))
+            .contains(Domain::PIXEL);
+        per_pixel && self.within_strip(target, start, end)
+    }
+
+    fn stencils(&self) -> bool {
+        true
+    }
+}
+
+impl Frontier {
+    /// Whether every range `start..end` lies within a strip's width of indices.
+    fn within_strip(&self, target: &Graph, start: Node, end: Node) -> bool {
+        let bounds = Bounds {
+            ranges: &self.ranges,
+            lengths: &self.lengths,
+        };
+        let (first, last) = (
+            interval(target, start, &bounds).min,
+            interval(target, end, &bounds).max,
+        );
+        first.is_finite() && last.is_finite() && last - first <= STRIP as f64
     }
 }
 

@@ -47,12 +47,9 @@ export function InspectorScrollArea({ children, footer }: { children: ReactNode;
   }, [metrics.height, metrics.scrollable]);
 
   return (
-    <aside className={`gui-inspector-shell ${footer === undefined ? "" : "with-footer"}`}>
-      <div className="gui-inspector-content-shell">
-        <div ref={contentRef} className="gui-inspector">
-          <div onKeyDownCapture={commitInspectorFieldOnEnter}>{children}</div>
-        </div>
-        {footer}
+    <aside className="gui-inspector-shell">
+      <div ref={contentRef} className="gui-inspector">
+        <div onKeyDownCapture={commitInspectorFieldOnEnter}>{children}</div>
       </div>
       <div className="editor-scrollbar" aria-hidden={!metrics.scrollable}>
         <div
@@ -99,6 +96,7 @@ export function InspectorScrollArea({ children, footer }: { children: ReactNode;
           />
         </div>
       </div>
+      {footer !== undefined && <div className="gui-inspector-footer">{footer}</div>}
     </aside>
   );
 }

@@ -1,6 +1,6 @@
 use crate::dsl::AutomationPlan;
 use crate::dsl::bytecode::BytecodeProgram;
-use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, StripWorkspace};
+use crate::dsl::{BoundParams, OperatorProgram, SampleProgram, StripSlots, StripWorkspace};
 use crate::sequence::programs::ExecutableGraph;
 pub(crate) use crate::targets::PreparedTarget;
 use alloc::boxed::Box;
@@ -22,7 +22,7 @@ pub(crate) struct PreparedSignalGraph<P = Box<[BytecodeProgram]>, A = Box<[Prepa
     pub fixture_pixel_offsets: Box<[usize]>,
     pub pixel_count: usize,
     pub effects: Box<[PreparedEffect<A>]>,
-    /// Authored clip identities and their playback effects.
+    /// Authored clip identities and their playback effects, sorted by id.
     pub clips: Box<[PreparedClip]>,
     pub programs: P,
     pub targets: Box<[PreparedTarget]>,
@@ -180,7 +180,7 @@ impl PreparedPixel {
 #[derive(Debug)]
 pub(crate) struct EvaluationWorkspace {
     pub(crate) signal_buffers: Box<[Color]>,
-    pub(crate) operator_automation: Vec<EffectAutomationWorkspace>,
+    pub(crate) operator_automation: Box<[EffectAutomationWorkspace]>,
     /// One strip workspace per operator depth slot.
     pub(crate) operator_vm: Vec<StripWorkspace>,
     pub(crate) sampling: SamplingWorkspace,
@@ -191,12 +191,14 @@ pub(crate) struct SamplingWorkspace {
     // Boxed: playback is held by value in firmware task futures.
     pub(crate) effect_strip: Box<StripWorkspace>,
     pub(crate) operator_frames: Vec<Vec<CachedSignalFrame>>,
+    /// One window of input colors per operator depth slot.
+    pub(crate) operator_windows: Vec<CachedSignalWindow>,
     /// The latest run-to-target cell mapping of a nested layer run.
     pub(crate) gather: Box<CellMap>,
     pub(crate) frame_scratch: Vec<Box<[Color]>>,
     pub(crate) frame_scratch_used: usize,
     pub(crate) effect_samples: Vec<CachedEffectSample>,
-    pub(crate) effect_automation: Vec<EffectAutomationWorkspace>,
+    pub(crate) effect_automation: Box<[EffectAutomationWorkspace]>,
 }
 
 #[derive(Debug)]
@@ -205,7 +207,22 @@ pub(crate) struct CachedSignalFrame {
     pub(crate) colors: Box<[Color]>,
 }
 
-/// Plan-target run `first..first + len` mapped onto `target`: run offsets and
+/// Pixels beyond the strip, on each side, that an addressed read's window
+/// also evaluates, so nearby offsets reuse it.
+pub(crate) const WINDOW_MARGIN: usize = 16;
+/// Room for a strip, the strip shifted by up to a strip, and both margins.
+pub(crate) const WINDOW: usize = 2 * crate::dsl::STRIP + 2 * WINDOW_MARGIN;
+
+/// One input's colors at one time over plan-target pixels `start..start + len`.
+#[derive(Debug)]
+pub(crate) struct CachedSignalWindow {
+    pub(crate) key: Option<(usize, SampleTime)>,
+    pub(crate) start: usize,
+    pub(crate) len: usize,
+    pub(crate) colors: Box<[Color]>,
+}
+
+/// Plan-target run `first..first + len` mapped onto `target`: offsets within the run and
 /// target indices of the cells the target covers.
 #[derive(Debug)]
 pub(crate) struct CellMap {
@@ -300,6 +317,14 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                     .map(|_| vec![Color::BLACK; self.pixel_count].into_boxed_slice())
                     .collect(),
                 frame_scratch_used: 0,
+                operator_windows: (0..self.plan.vm_workspace_count)
+                    .map(|_| CachedSignalWindow {
+                        key: None,
+                        start: 0,
+                        len: 0,
+                        colors: vec![Color::BLACK; WINDOW].into_boxed_slice(),
+                    })
+                    .collect(),
                 operator_frames: operator_frame_counts
                     .into_iter()
                     .map(|count| {
@@ -350,7 +375,7 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                         automation,
                         ..
                     } if !automation.is_empty() => Some(EffectAutomationWorkspace {
-                        params: operator.params.clone(),
+                        params: automation.detach(&operator.params),
                         plan: automation.clone(),
                         sample_time: None,
                     }),
@@ -358,27 +383,43 @@ impl PreparedSignalGraph<crate::sequence::programs::AdmittedPrograms, Automation
                 })
                 .collect(),
         };
-        for effect in self.effects.iter() {
-            let program = self.sample_program(effect.program);
-            workspace.sampling.effect_strip.reserve(program.bytecode());
-        }
-        for node in self.plan.nodes.iter() {
-            let PreparedSignalKind::Operator {
-                operator: PreparedOperatorNode { program, .. },
-                vm_slot,
-                ..
-            } = &node.kind
-            else {
-                continue;
-            };
-            let program = self.operator_program(*program);
-            workspace.operator_vm[*vm_slot].reserve(program.bytecode());
+        let slots = self.strip_slots(
+            |program| self.sample_program(program).bytecode(),
+            |program| self.operator_program(program).bytecode(),
+        );
+        workspace.sampling.effect_strip.reserve_slots(&slots[0]);
+        for (vm, slots) in workspace.operator_vm.iter_mut().zip(&slots[1..]) {
+            vm.reserve_slots(slots);
         }
         workspace
     }
 }
 
 impl<P, A> PreparedSignalGraph<P, A> {
+    /// The slots of each strip workspace: the effects' workspace, then one
+    /// per operator depth slot, each fitting exactly the programs it runs.
+    pub(crate) fn strip_slots<'p>(
+        &self,
+        effect_program: impl Fn(usize) -> &'p BytecodeProgram,
+        operator_program: impl Fn(usize) -> &'p BytecodeProgram,
+    ) -> Vec<StripSlots> {
+        let mut slots = vec![StripSlots::default(); 1 + self.plan.vm_workspace_count];
+        for effect in self.effects.iter() {
+            slots[0].include(effect_program(effect.program));
+        }
+        for node in self.plan.nodes.iter() {
+            if let PreparedSignalKind::Operator {
+                operator: PreparedOperatorNode { program, .. },
+                vm_slot,
+                ..
+            } = &node.kind
+            {
+                slots[1 + vm_slot].include(operator_program(*program));
+            }
+        }
+        slots
+    }
+
     /// Replace the program bank without cloning graph metadata.
     pub(crate) fn map_storage<Q>(self, map: impl FnOnce(P) -> Q) -> PreparedSignalGraph<Q, A> {
         let programs = map(self.programs);

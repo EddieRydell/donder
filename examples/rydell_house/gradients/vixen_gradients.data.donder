@@ -1,0 +1,306 @@
+Gradient light_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #50bbff)],
+}
+
+Gradient gold {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff7d00)],
+}
+
+Gradient purple_dark {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #6115ff)],
+}
+
+Gradient red_to_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (1.0, #0000ff)],
+}
+
+Gradient blue_to_green {
+  description: "Vixen gradient library.",
+  stops: [(0.0052, #0000ff), (1.0, #00ff00)],
+}
+
+Gradient green_to_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #00ff00), (1.0, #0000ff)],
+}
+
+Gradient blue_to_red {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #0000ff), (1.0, #ff0000)],
+}
+
+Gradient red_to_green {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (1.0, #00ff00)],
+}
+
+Gradient rgb {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (0.5066, #00ff00), (1.0, #0000ff)],
+}
+
+Gradient rbg {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (0.5022, #0000ff), (1.0, #00ff00)],
+}
+
+Gradient brg {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #0000ff), (0.5022, #ff0000), (1.0, #00ff00)],
+}
+
+Gradient gbr {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #00ff00), (0.5, #0000ff), (1.0, #ff0000)],
+}
+
+Gradient green_to_red {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #00ff00), (0.9956, #ff0000)],
+}
+
+Gradient bgr {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #0000ff), (0.5044, #00ff00), (1.0, #ff0000)],
+}
+
+Gradient orange_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffb100), (1.0, #0000ff)],
+}
+
+Gradient purple_red {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #7d00ff), (1.0, #ff0000)],
+}
+
+Gradient purple_orange {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #7d00ff), (1.0, #ffa700)],
+}
+
+Gradient white_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff), (0.849, #0000ff)],
+}
+
+Gradient white_orange {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff), (0.5274, #ff9b49)],
+}
+
+Gradient white_dark_orange {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff), (0.5274, #ff3e00)],
+}
+
+Gradient white_rbg {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff), (0.6783, #ff0000), (0.8556, #0000ff), (1.0, #00ff00)],
+}
+
+Gradient white_red {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff), (0.4092, #ff0000)],
+}
+
+Gradient purple {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0919, #fdc4ff), (0.1882, #fc88ff), (0.3063, #fa3dff), (0.4048, #fa00ff),
+  ],
+}
+
+Gradient here_comes_the_sun_yellow {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffe500)],
+}
+
+Gradient here_comes_the_sun_white_to_yellow {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1116, #fffad7), (0.2298, #fff5ad), (0.3567, #fff080), (0.4836, #ffec53),
+    (0.5996, #ffe82a), (0.7221, #ffe500),
+  ],
+}
+
+Gradient redwhite {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (1.0, #ffffff)],
+}
+
+Gradient redgreen {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff0000), (0.4705, #ff0000), (0.5142, #9b6300), (1.0, #00ff00)],
+}
+
+Gradient white_to_green {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1291, #d2ffd2), (0.2691, #a2ffa2), (0.3786, #7cff7c), (0.5098, #4fff4f),
+    (0.6477, #20ff20), (0.744, #00ff00),
+  ],
+}
+
+Gradient white_to_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1041, #d4d4ff), (0.1755, #b8b8ff), (0.3006, #8787ff), (0.4196, #5858ff),
+    (0.497, #3939ff), (0.6429, #0000ff),
+  ],
+}
+
+Gradient white_to_red {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.105, #ffdbdb), (0.2298, #ffb0b0), (0.3764, #ff7e7e), (0.5733, #ff3a3a),
+    (0.6389, #ff2323), (0.7418, #ff0000),
+  ],
+}
+
+Gradient white {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ffffff)],
+}
+
+Gradient weird_pink {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #ff6871)],
+}
+
+Gradient weird_green {
+  description: "Vixen gradient library.",
+  stops: [(0.0022, #76ffc0)],
+}
+
+Gradient weird_purple {
+  description: "Vixen gradient library.",
+  stops: [(0.0022, #b371ff)],
+}
+
+Gradient white_to_purple {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1269, #e5d8ff), (0.2385, #cfb7ff), (0.4026, #ae87ff), (0.5208, #9765ff),
+    (0.6433, #7f41ff), (0.7309, #6e28ff), (0.7965, #6115ff),
+  ],
+}
+
+Gradient white_to_orange {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1225, #ffeed4), (0.2407, #ffdeab), (0.3501, #ffcf86), (0.5077, #ffba50),
+    (0.6565, #ffa71d), (0.7418, #ff9c00),
+  ],
+}
+
+Gradient white_to_orange_to_red {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0788, #ffe8d5), (0.2144, #ffc08e), (0.3676, #ff943e), (0.488, #ff7200),
+    (0.6127, #ff5000), (0.7615, #ff2700), (0.9059, #ff0000),
+  ],
+}
+
+Gradient white_to_light_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1007, #dafffb), (0.1969, #b7fff9), (0.3085, #8ffff7), (0.4267, #65fff5),
+    (0.5646, #34fff2), (0.7112, #00ffef),
+  ],
+}
+
+Gradient white_to_purple_to_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0678, #e4d4ff), (0.1554, #c19dff), (0.2801, #8f4fff), (0.407, #5e00ff),
+    (0.5427, #471eff), (0.663, #3238ff), (0.7834, #1e53ff), (0.8731, #0f67ff), (0.9694, #007dff),
+  ],
+}
+
+Gradient dark_green_blue {
+  description: "Vixen gradient library.",
+  stops: [(0.0, #000000), (0.5449, #008c61), (0.9956, #0087ff)],
+}
+
+Gradient white_red_purple {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0941, #ffc3c3), (0.1926, #ff8686), (0.291, #ff4848), (0.407, #ff0000),
+    (0.5142, #d20042), (0.6214, #a50084), (0.7309, #7700c7), (0.8206, #5300ff),
+  ],
+}
+
+Gradient white_purple_red {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1007, #d8c2ff), (0.1926, #b58bff), (0.2998, #8c4aff), (0.4245, #5e00ff),
+    (0.5339, #8900ba), (0.6433, #b50075), (0.7396, #db0038), (0.8293, #ff0000),
+  ],
+}
+
+Gradient white_blue_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1138, #c3fff3), (0.2341, #85ffe8), (0.3807, #38ffda), (0.4902, #00ffd0),
+    (0.6171, #00bfdb), (0.7527, #007ce8), (0.895, #0034f5), (1.0, #0000ff),
+  ],
+}
+
+Gradient black_purple_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #000000), (0.0985, #15003a), (0.2013, #2c0078), (0.3217, #4600c0), (0.4245, #5e00ff),
+    (0.5252, #4630ff), (0.6236, #2f60ff), (0.7352, #1596ff), (0.8293, #00c5ff),
+  ],
+}
+
+Gradient black_orange_red {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #000000), (0.1182, #3d1b00), (0.2319, #793600), (0.3676, #c05500), (0.488, #ff7200),
+    (0.6127, #ff5000), (0.7615, #ff2700), (0.9059, #ff0000),
+  ],
+}
+
+Gradient white_yellow_green {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0919, #fff3c1), (0.1926, #ffe77e), (0.2954, #ffda39), (0.3807, #ffd000),
+    (0.4683, #bcdb00), (0.5514, #7ee700), (0.6455, #37f400), (0.7199, #00ff00),
+  ],
+}
+
+Gradient white_to_rainbow {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1247, #ffffff), (0.2123, #ff0000), (0.3107, #ff8600), (0.4004, #e4ff00),
+    (0.4967, #59ff00), (0.5711, #00ff7c), (0.6521, #00eeff), (0.7309, #0068ff), (0.8249, #3c00ff),
+    (0.9168, #c500ff), (1.0, #c500ff),
+  ],
+}
+
+Gradient white_light_green_blue {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.1007, #c2ffeb), (0.2057, #84ffd8), (0.326, #3dffc2), (0.4267, #00ffb0),
+    (0.5383, #00e9c5), (0.628, #00d8d6), (0.7505, #00c0ee), (0.8359, #00b0ff),
+  ],
+}
+
+Gradient white_blue_green {
+  description: "Vixen gradient library.",
+  stops: [
+    (0.0, #ffffff), (0.0963, #bbe2ff), (0.186, #7dc7ff), (0.2845, #38a9ff), (0.3654, #0091ff),
+    (0.4551, #00add8), (0.5405, #00c8b3), (0.6258, #00e38e), (0.7133, #00ff68),
+  ],
+}
+
+Gradient blackred {
+  description: "Vixen gradient library.",
+  stops: [(0.2757, #ff0000), (0.8775, #000000)],
+}

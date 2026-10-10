@@ -71,7 +71,7 @@ fn save_export_file(
     Ok(Some(path.to_string()))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn get_gui_document(
     request: GuiDocumentRequest,
@@ -80,7 +80,17 @@ pub(crate) fn get_gui_document(
     state.get_gui_document(request)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
+#[specta::specta]
+pub(crate) fn get_sequence_effect_details(
+    request: GuiDocumentRequest,
+    effect_ids: Vec<u32>,
+    state: State<'_, DesktopState>,
+) -> Result<donder_sequence_api::SequenceEffectDetailsResult, String> {
+    state.get_sequence_effect_details(request, effect_ids)
+}
+
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn request_sequence_clip_rasters(
     request: SequenceClipRasterRequest,
@@ -89,33 +99,33 @@ pub(crate) fn request_sequence_clip_rasters(
     state.request_sequence_clip_rasters(request)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn take_sequence_clip_raster_results(
     request: GuiDocumentRequest,
-    request_id: u32,
+    since_revision: u32,
     state: State<'_, DesktopState>,
 ) -> SequenceClipRasterResultBatch {
-    state.take_sequence_clip_raster_results(request, request_id)
+    state.take_sequence_clip_raster_results(request, since_revision)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn apply_gui_edit(
     request: GuiDocumentRequest,
     edit: GuiEditCommand,
     state: State<'_, DesktopState>,
-) -> GuiEditResult {
-    state.apply_gui_edit(request, edit)
+) -> GuiEditUpdate {
+    state.edit_gui_document(request, edit)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn finish_composition_graph_editing(state: State<'_, DesktopState>) -> AppSnapshot {
     state.finish_composition_graph_editing()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn rebind_detached_automation(
     request: GuiDocumentRequest,
@@ -123,8 +133,8 @@ pub(crate) fn rebind_detached_automation(
     detached_index: u32,
     target: SequenceAutomationTarget,
     state: State<'_, DesktopState>,
-) -> GuiEditResult {
-    state.apply_gui_edit(
+) -> GuiEditUpdate {
+    state.edit_gui_document(
         request,
         GuiEditCommand::Sequence {
             edit: SequenceGuiEdit::RebindDetachedAutomation {
@@ -136,15 +146,15 @@ pub(crate) fn rebind_detached_automation(
     )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn discard_detached_automation(
     request: GuiDocumentRequest,
     clip_id: u32,
     detached_index: u32,
     state: State<'_, DesktopState>,
-) -> GuiEditResult {
-    state.apply_gui_edit(
+) -> GuiEditUpdate {
+    state.edit_gui_document(
         request,
         GuiEditCommand::Sequence {
             edit: SequenceGuiEdit::DiscardDetachedAutomation {
@@ -155,7 +165,7 @@ pub(crate) fn discard_detached_automation(
     )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn apply_sequence_selection_edit(
     request: GuiDocumentRequest,
@@ -170,14 +180,16 @@ pub(crate) fn apply_sequence_selection_edit(
 pub(crate) fn choose_sequence_audio(
     request: GuiDocumentRequest,
     state: State<'_, DesktopState>,
-) -> GuiEditResult {
+) -> GuiEditUpdate {
     let Some(path) = rfd::FileDialog::new()
         .add_filter("Audio", &["mp3", "wav", "ogg", "flac"])
         .pick_file()
     else {
-        return GuiEditResult {
+        return GuiEditUpdate {
             snapshot: state.snapshot(),
-            document: state.get_gui_document(request).document,
+            change: GuiDocumentChange::Document {
+                document: state.get_gui_document(request).document,
+            },
         };
     };
     let snapshot = state.snapshot();
@@ -187,9 +199,11 @@ pub(crate) fn choose_sequence_audio(
             let snapshot = state.update_snapshot(|snapshot| {
                 snapshot.status = message;
             });
-            return GuiEditResult {
+            return GuiEditUpdate {
                 snapshot,
-                document: state.get_gui_document(request).document,
+                change: GuiDocumentChange::Document {
+                    document: state.get_gui_document(request).document,
+                },
             };
         }
     };
@@ -197,12 +211,14 @@ pub(crate) fn choose_sequence_audio(
         let snapshot = state.update_snapshot(|snapshot| {
             snapshot.status = "Audio can only be associated with a sequence.".to_string();
         });
-        return GuiEditResult {
+        return GuiEditUpdate {
             snapshot,
-            document: state.get_gui_document(request).document,
+            change: GuiDocumentChange::Document {
+                document: state.get_gui_document(request).document,
+            },
         };
     }
-    state.apply_gui_edit(
+    state.edit_gui_document(
         request,
         GuiEditCommand::Sequence {
             edit: SequenceGuiEdit::SetAudio {

@@ -8,98 +8,154 @@
 //!   indented two spaces, with a comma after every one, including the last.
 //! - A list of numbers, durations, colors or tuples that does not fit wraps
 //!   densely instead: as many items per line as fit.
+//!
+//! Printing appends to one buffer. A value's fit is decided by writing its
+//! one-line form and stopping once the line is full, so each value is measured
+//! against at most one line and printing stays linear in the document's size.
 use super::LINE_WIDTH;
 use super::literal::{canonical_distance, canonical_duration, canonical_float};
 use super::tree::*;
 
 pub fn print(document: &DataDocument) -> String {
-    let mut text = String::new();
+    print_spliced(document, &[])
+}
+
+/// A declaration field printed from items rendered earlier by [`list_item`].
+/// The field's value in the document is an empty list. A splice is for a list
+/// whose items are each wider than a line, so it never fits on one line.
+pub struct ListSplice<'a> {
+    /// The declaration's index in the document.
+    pub declaration: usize,
+    pub field: &'a str,
+    pub items: &'a [&'a str],
+}
+
+/// [`print`], with the spliced fields written from their rendered items.
+pub fn print_spliced(document: &DataDocument, splices: &[ListSplice<'_>]) -> String {
+    let spliced = splices
+        .iter()
+        .flat_map(|splice| splice.items.iter().map(|item| item.len()))
+        .sum::<usize>();
+    let mut text = String::with_capacity(spliced + 4096);
     for import in &document.imports {
-        let paths = import
-            .paths
-            .iter()
-            .map(|path| format!("<{}>", path.value))
-            .collect::<Vec<_>>()
-            .join(", ");
-        text.push_str(&format!(
-            "import {} from {paths};\n",
-            import.alias.value.as_str()
-        ));
+        text.push_str("import ");
+        text.push_str(import.alias.value.as_str());
+        text.push_str(" from ");
+        for (index, path) in import.paths.iter().enumerate() {
+            if index > 0 {
+                text.push_str(", ");
+            }
+            text.push('<');
+            text.push_str(&path.value);
+            text.push('>');
+        }
+        text.push_str(";\n");
     }
     for (index, declaration) in document.declarations.iter().enumerate() {
         if index > 0 || !document.imports.is_empty() {
             text.push('\n');
         }
-        text.push_str(&format!(
-            "{} {} {{\n",
-            declaration.ty.value.as_str(),
-            declaration.name.value.as_str()
-        ));
+        text.push_str(declaration.ty.value.as_str());
+        text.push(' ');
+        text.push_str(declaration.name.value.as_str());
+        text.push_str(" {\n");
         for field in &declaration.fields.value {
-            field_line(&mut text, field, 1);
+            match splices.iter().find(|splice| {
+                splice.declaration == index && splice.field == field.name.value.as_str()
+            }) {
+                Some(splice) if !splice.items.is_empty() => {
+                    indent(&mut text, 1);
+                    text.push_str(splice.field);
+                    text.push_str(": [\n");
+                    for item in splice.items {
+                        text.push_str(item);
+                    }
+                    indent(&mut text, 1);
+                    text.push_str("],\n");
+                }
+                _ => field_line(&mut text, field, 1),
+            }
         }
         text.push_str("}\n");
     }
     text
 }
 
-fn indent(level: usize) -> String {
-    "  ".repeat(level)
+/// `value` as an item of an expanded list at `level`, as [`print`] writes it:
+/// its indentation, the value and the trailing comma and newline.
+pub fn list_item(value: &DataValue, level: usize) -> String {
+    let mut text = String::new();
+    list_item_into(&mut text, value, level);
+    text
+}
+
+fn list_item_into(text: &mut String, value: &DataValue, level: usize) {
+    indent(text, level);
+    render(text, value, level, 2 * level, 1);
+    text.push_str(",\n");
+}
+
+fn indent(text: &mut String, level: usize) {
+    for _ in 0..level {
+        text.push_str("  ");
+    }
 }
 
 /// `name: value,` at `level`, expanding the value if it does not fit.
 fn field_line(text: &mut String, field: &DataField, level: usize) {
-    let prefix = format!("{}{}: ", indent(level), field.name.value.as_str());
-    let value = render(&field.value.value, level, prefix.len(), 1);
-    text.push_str(&prefix);
-    text.push_str(&value);
+    let line_start = text.len();
+    indent(text, level);
+    text.push_str(field.name.value.as_str());
+    text.push_str(": ");
+    let start = text.len() - line_start;
+    render(text, &field.value.value, level, start, 1);
     text.push_str(",\n");
 }
 
-/// `value` beginning at column `start` on a line at `level` and followed by
-/// `suffix` columns; multi-line results continue at `level`.
-fn render(value: &DataValue, level: usize, start: usize, suffix: usize) -> String {
-    let one_line = flat(value);
-    if start + one_line.len() + suffix <= LINE_WIDTH || !expandable(value) {
-        return one_line;
+/// Append `value` beginning at column `start` on a line at `level` and
+/// followed by `suffix` columns; multi-line results continue at `level`.
+fn render(text: &mut String, value: &DataValue, level: usize, start: usize, suffix: usize) {
+    let mark = text.len();
+    if !expandable(value) {
+        flat(text, value, usize::MAX);
+        return;
     }
-    let inner = indent(level + 1);
-    let close = indent(level);
+    if flat(
+        text,
+        value,
+        mark + LINE_WIDTH.saturating_sub(start + suffix),
+    ) {
+        return;
+    }
+    text.truncate(mark);
     match value {
         DataValue::Record(ty, fields) => {
-            let mut text = format!("{} {{\n", ty.value.as_str());
-            for field in &fields.value {
-                field_line(&mut text, field, level + 1);
-            }
-            text.push_str(&close);
-            text.push('}');
-            text
+            text.push_str(ty.value.as_str());
+            text.push_str(" {\n");
+            expanded_fields(text, &fields.value, level);
         }
         DataValue::Named(ty, name, fields) => {
-            let mut text = format!("{} {} {{\n", ty.value.as_str(), name.value.as_str());
-            for field in &fields.value {
-                field_line(&mut text, field, level + 1);
-            }
-            text.push_str(&close);
-            text.push('}');
-            text
+            text.push_str(ty.value.as_str());
+            text.push(' ');
+            text.push_str(name.value.as_str());
+            text.push_str(" {\n");
+            expanded_fields(text, &fields.value, level);
         }
         DataValue::Map(fields) => {
-            let mut text = "{\n".to_string();
-            for field in fields {
-                field_line(&mut text, field, level + 1);
-            }
-            text.push_str(&close);
-            text.push('}');
-            text
+            text.push_str("{\n");
+            expanded_fields(text, fields, level);
         }
         DataValue::List(items) if items.iter().all(|item| dense(&item.value)) => {
-            let mut text = "[\n".to_string();
+            let inner = 2 * (level + 1);
+            text.push_str("[\n");
             let mut line = String::new();
+            let mut item_text = String::new();
             for item in items {
-                let item = format!("{},", flat(&item.value));
-                if !line.is_empty() && inner.len() + line.len() + 1 + item.len() > LINE_WIDTH {
-                    text.push_str(&inner);
+                item_text.clear();
+                flat(&mut item_text, &item.value, usize::MAX);
+                item_text.push(',');
+                if !line.is_empty() && inner + line.len() + 1 + item_text.len() > LINE_WIDTH {
+                    indent(text, level + 1);
                     text.push_str(&line);
                     text.push('\n');
                     line.clear();
@@ -107,16 +163,15 @@ fn render(value: &DataValue, level: usize, start: usize, suffix: usize) -> Strin
                 if !line.is_empty() {
                     line.push(' ');
                 }
-                line.push_str(&item);
+                line.push_str(&item_text);
             }
             if !line.is_empty() {
-                text.push_str(&inner);
+                indent(text, level + 1);
                 text.push_str(&line);
                 text.push('\n');
             }
-            text.push_str(&close);
+            indent(text, level);
             text.push(']');
-            text
         }
         DataValue::List(items) | DataValue::Tuple(items) => {
             let (open, end) = if matches!(value, DataValue::List(_)) {
@@ -124,18 +179,24 @@ fn render(value: &DataValue, level: usize, start: usize, suffix: usize) -> Strin
             } else {
                 ('(', ')')
             };
-            let mut text = format!("{open}\n");
+            text.push(open);
+            text.push('\n');
             for item in items {
-                text.push_str(&inner);
-                text.push_str(&render(&item.value, level + 1, inner.len(), 1));
-                text.push_str(",\n");
+                list_item_into(text, &item.value, level + 1);
             }
-            text.push_str(&close);
+            indent(text, level);
             text.push(end);
-            text
         }
-        _ => one_line,
+        _ => unreachable!("only expandable values have an expanded form"),
     }
+}
+
+fn expanded_fields(text: &mut String, fields: &[DataField], level: usize) {
+    for field in fields {
+        field_line(text, field, level + 1);
+    }
+    indent(text, level);
+    text.push('}');
 }
 
 fn expandable(value: &DataValue) -> bool {
@@ -161,66 +222,109 @@ fn dense(value: &DataValue) -> bool {
     }
 }
 
-/// The one-line form.
-fn flat(value: &DataValue) -> String {
-    let join = |items: &[Spanned<DataValue>]| {
-        items
-            .iter()
-            .map(|item| flat(&item.value))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-    let fields = |fields: &[DataField]| {
-        fields
-            .iter()
-            .map(|field| {
-                format!(
-                    "{}: {}",
-                    field.name.value.as_str(),
-                    flat(&field.value.value)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
+/// Append the one-line form of `value`. Returns `false`, leaving a partial
+/// form behind, as soon as `text` grows past `limit` bytes.
+fn flat(text: &mut String, value: &DataValue, limit: usize) -> bool {
     match value {
-        DataValue::Integer(value) => value.to_string(),
-        DataValue::Float(value) => canonical_float(*value),
-        DataValue::Duration(value) => canonical_duration(*value),
-        DataValue::Distance(value) => canonical_distance(*value),
-        DataValue::Color(value) => value.to_hex(),
-        DataValue::String(value) => string(value),
-        DataValue::Path(value) => format!("<{value}>"),
-        DataValue::Bool(value) => value.to_string(),
-        DataValue::None => "none".into(),
-        DataValue::Reference(segments) => segments
-            .iter()
-            .map(|segment| segment.value.as_str())
-            .collect::<Vec<_>>()
-            .join("."),
-        DataValue::Variant(name) => name.value.as_str().to_string(),
+        DataValue::Integer(value) => text.push_str(&value.to_string()),
+        DataValue::Float(value) => text.push_str(&canonical_float(*value)),
+        DataValue::Duration(value) => text.push_str(&canonical_duration(*value)),
+        DataValue::Distance(value) => text.push_str(&canonical_distance(*value)),
+        DataValue::Color(value) => text.push_str(&value.to_hex()),
+        DataValue::String(value) => string(text, value),
+        DataValue::Path(value) => {
+            text.push('<');
+            text.push_str(value);
+            text.push('>');
+        }
+        DataValue::Bool(value) => text.push_str(if *value { "true" } else { "false" }),
+        DataValue::None => text.push_str("none"),
+        DataValue::Reference(segments) => {
+            for (index, segment) in segments.iter().enumerate() {
+                if index > 0 {
+                    text.push('.');
+                }
+                text.push_str(segment.value.as_str());
+            }
+        }
+        DataValue::Variant(name) => text.push_str(name.value.as_str()),
         DataValue::Record(ty, body) if body.value.is_empty() => {
-            format!("{} {{}}", ty.value.as_str())
+            text.push_str(ty.value.as_str());
+            text.push_str(" {}");
         }
         DataValue::Record(ty, body) => {
-            format!("{} {{ {} }}", ty.value.as_str(), fields(&body.value))
+            text.push_str(ty.value.as_str());
+            text.push_str(" { ");
+            if !flat_fields(text, &body.value, limit) {
+                return false;
+            }
+            text.push_str(" }");
         }
-        DataValue::Named(ty, name, body) => format!(
-            "{} {} {{ {} }}",
-            ty.value.as_str(),
-            name.value.as_str(),
-            fields(&body.value)
-        ),
-        DataValue::Map(body) if body.is_empty() => "{}".into(),
-        DataValue::Map(body) => format!("{{ {} }}", fields(body)),
-        DataValue::List(items) => format!("[{}]", join(items)),
-        DataValue::Tuple(items) => format!("({})", join(items)),
+        DataValue::Named(ty, name, body) => {
+            text.push_str(ty.value.as_str());
+            text.push(' ');
+            text.push_str(name.value.as_str());
+            text.push_str(" { ");
+            if !flat_fields(text, &body.value, limit) {
+                return false;
+            }
+            text.push_str(" }");
+        }
+        DataValue::Map(body) if body.is_empty() => text.push_str("{}"),
+        DataValue::Map(body) => {
+            text.push_str("{ ");
+            if !flat_fields(text, body, limit) {
+                return false;
+            }
+            text.push_str(" }");
+        }
+        DataValue::List(items) => {
+            text.push('[');
+            if !flat_items(text, items, limit) {
+                return false;
+            }
+            text.push(']');
+        }
+        DataValue::Tuple(items) => {
+            text.push('(');
+            if !flat_items(text, items, limit) {
+                return false;
+            }
+            text.push(')');
+        }
         DataValue::Error => unreachable!("documents with syntax errors are not printed"),
     }
+    text.len() <= limit
 }
 
-fn string(value: &str) -> String {
-    let mut text = String::from('"');
+fn flat_items(text: &mut String, items: &[Spanned<DataValue>], limit: usize) -> bool {
+    for (index, item) in items.iter().enumerate() {
+        if index > 0 {
+            text.push_str(", ");
+        }
+        if !flat(text, &item.value, limit) {
+            return false;
+        }
+    }
+    true
+}
+
+fn flat_fields(text: &mut String, fields: &[DataField], limit: usize) -> bool {
+    for (index, field) in fields.iter().enumerate() {
+        if index > 0 {
+            text.push_str(", ");
+        }
+        text.push_str(field.name.value.as_str());
+        text.push_str(": ");
+        if !flat(text, &field.value.value, limit) {
+            return false;
+        }
+    }
+    true
+}
+
+fn string(text: &mut String, value: &str) {
+    text.push('"');
     for character in value.chars() {
         match character {
             '"' => text.push_str("\\\""),
@@ -231,5 +335,4 @@ fn string(value: &str) -> String {
         }
     }
     text.push('"');
-    text
 }

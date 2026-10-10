@@ -5,8 +5,8 @@ import { commands } from "./api";
 import { effectiveEditorViewMode } from "./editorViewMode";
 import { DocumentSync } from "./documentSync";
 import { PREVIEW_APPEARANCE } from "./previewAppearance";
-import { isNewerSnapshot, reconcileGuiRequest, sameGuiDocument } from "./snapshotState";
-import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentRequest, GuiEditResult, LiveOutputSnapshot, ProjectRestoreState } from "./types";
+import { applyGuiDocumentChange, isNewerSnapshot, reconcileGuiRequest, sameGuiDocument } from "./snapshotState";
+import type { AppSnapshot, AudioTransportSnapshot, GuiDocument, GuiDocumentRequest, GuiEditUpdate, LiveOutputSnapshot, ProjectRestoreState } from "./types";
 
 type SnapshotApplySource = "event" | "command" | "hydrate";
 
@@ -35,7 +35,7 @@ type AppStore = {
   setGuiDocument: (document: GuiDocument | null) => void;
   resetGuiLocalState: () => void;
   setCompositionGraphEditing: (editing: boolean) => void;
-  applyGuiEditResult: (request: GuiDocumentRequest, result: GuiEditResult) => boolean;
+  applyGuiEditResult: (request: GuiDocumentRequest, result: GuiEditUpdate) => boolean;
   setError: (error: string | null) => void;
   setLocalText: (text: string) => void;
   hydrate: () => Promise<void>;
@@ -111,11 +111,12 @@ export const useAppStore = create<AppStore>((set) => ({
       const nextRequest = update.guiRequest === undefined ? current.guiRequest : update.guiRequest;
       if (!sameGuiDocument(nextRequest, request) || nextRequest?.projectRevision !== result.snapshot.projectRevision) return current;
       applied = true;
-      return {
-        ...update,
-        guiDocument: result.document,
-        guiDocumentRevision: result.snapshot.projectRevision
-      };
+      const base = current.guiDocumentRevision === request.projectRevision ? current.guiDocument : null;
+      const document = applyGuiDocumentChange(base, result.change);
+      // A change that does not apply leaves the document stale, so it is fetched whole.
+      return document === null
+        ? { ...update, guiDocument: current.guiDocument, guiDocumentRevision: current.guiDocumentRevision }
+        : { ...update, guiDocument: document, guiDocumentRevision: result.snapshot.projectRevision };
     });
     return applied;
   },
@@ -144,8 +145,8 @@ const documentSync = new DocumentSync(
   (snapshot) => {
     useAppStore.getState().setSnapshot(snapshot);
     const current = useAppStore.getState().snapshot;
-    if (current?.activeBuffer !== null && current?.activeBuffer !== undefined && documentSync.pendingText(current.projectEpoch, current.activeBuffer.path) === null) {
-      useAppStore.setState({ localText: current.activeBuffer.text });
+    if (current?.activeBuffer !== null && current?.activeBuffer !== undefined && current.activeText !== null && documentSync.pendingText(current.projectEpoch, current.activeBuffer.path) === null) {
+      useAppStore.setState({ localText: current.activeText });
     }
   },
   (error, epoch, path) => {
@@ -172,7 +173,7 @@ export async function resolveDocumentSyncFailure(keepText: boolean) {
     useAppStore.getState().setSnapshot(snapshot);
     useAppStore.setState({ failedDocumentSync: null, error: null });
     if (keepText) await flushDocumentSync();
-    else useAppStore.setState({ localText: snapshot.activeBuffer?.text ?? "" });
+    else useAppStore.setState({ localText: snapshot.activeText ?? "" });
   } catch (error) {
     useAppStore.getState().setError(String(error));
   }
@@ -225,7 +226,7 @@ export async function runSnapshotCommand(command: () => Promise<AppSnapshot>) {
   }
 }
 
-export async function runGuiEditCommand<T extends GuiEditResult>(command: (request: GuiDocumentRequest) => Promise<T>, origin?: GuiDocumentRequest | null): Promise<T> {
+export async function runGuiEditCommand<T extends GuiEditUpdate>(command: (request: GuiDocumentRequest) => Promise<T>, origin?: GuiDocumentRequest | null): Promise<T> {
   if (useAppStore.getState().snapshot?.activeBuffer?.readOnly === true) throw new Error("This source is not editable in the current project.");
   const { guiRequest: request, guiDocumentRevision, guiEditPending } = useAppStore.getState();
   if (request === null) throw new Error("GUI edit attempted without an active GUI document request.");
@@ -235,7 +236,7 @@ export async function runGuiEditCommand<T extends GuiEditResult>(command: (reque
   useAppStore.setState({ guiEditPending: true });
   try {
     const result = await command(request);
-    if (result.document.type === "blocked") throw new Error(result.document.reason);
+    if (result.change.type === "document" && result.change.document.type === "blocked") throw new Error(result.change.document.reason);
     if (!useAppStore.getState().applyGuiEditResult(request, result)) {
       throw new Error("The GUI document changed before the edit completed.");
     }
@@ -282,17 +283,8 @@ function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: Snapsh
     update.guiDocument = null;
     update.guiDocumentRevision = null;
   }
-  const projection = snapshot.guiProjection;
-  if (projection !== null && request !== null
-    && projection.projectRevision === request.projectRevision
-    && projection.request.projectRevision === request.projectRevision
-    && sameGuiDocument(projection.request, request)
-    && (!retainDocument || current.guiDocumentRevision !== request.projectRevision)) {
-    update.guiDocument = projection.document;
-    update.guiDocumentRevision = projection.projectRevision;
-  }
-  if (!preserveLocalText && snapshot.activeBuffer !== null && effectiveEditorViewMode(snapshot) === "text") {
-    update.localText = documentSync.pendingText(snapshot.projectEpoch, snapshot.activeBuffer.path) ?? snapshot.activeBuffer.text;
+  if (!preserveLocalText && snapshot.activeBuffer !== null && snapshot.activeText !== null && effectiveEditorViewMode(snapshot) === "text") {
+    update.localText = documentSync.pendingText(snapshot.projectEpoch, snapshot.activeBuffer.path) ?? snapshot.activeText;
   }
   return update;
 }

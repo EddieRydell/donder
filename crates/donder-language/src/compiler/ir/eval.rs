@@ -44,7 +44,7 @@ pub(super) fn unary(op: Unary, value: &Value) -> Option<Value> {
             _ => None,
         },
         MarkCount => match value {
-            Value::Marks(marks) => Some(Value::Int(sampling::length_int(marks.as_slice().len()))),
+            Value::Marks(marks) => Some(Value::Int(sampling::length_int(marks.len()))),
             _ => None,
         },
         Sin | Cos | Tan | Exp | Log | SectionCount | SectionIndex | QuerySeconds
@@ -269,7 +269,15 @@ impl<'a> Evaluator<'a> {
         match graph.op(node) {
             Op::Constant(constant) => Some(constant.value.clone()),
             Op::Param(index) => self.params.get(*index as usize)?.clone(),
-            Op::ParamIntegral(_) | Op::Context(_) | Op::Sample { .. } | Op::Items(_) => None,
+            Op::ParamIntegral(_)
+            | Op::Context(_)
+            | Op::Sample { .. }
+            | Op::Items(_)
+            | Op::Source
+            | Op::Tap { .. }
+            | Op::Previous
+            | Op::Scan { .. }
+            | Op::ScanTap { .. } => None,
             Op::Pick { index, items } => {
                 let index = as_int(&self.value(*index)?)?;
                 let item = items[sampling::clamp_array_index(index, items.len())];

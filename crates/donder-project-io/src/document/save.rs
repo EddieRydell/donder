@@ -2,6 +2,7 @@
 use super::encode::{
     Encoder, controller_document, curve_document, fixture_definition_document, gradient_document,
 };
+use super::text_cache::DocumentTextCache;
 use super::{Declaration, write};
 use crate::ExportProjectError;
 use crate::source::{
@@ -23,7 +24,9 @@ pub(crate) fn data_document_text(
     session: &ProjectSession,
     document_id: &DocumentId,
     document: &SourceDocument,
+    cache: &mut DocumentTextCache,
 ) -> Result<String, ExportProjectError> {
+    cache.begin(&session.project);
     let encoder = Encoder {
         session,
         document: document_id,
@@ -48,7 +51,7 @@ pub(crate) fn data_document_text(
                     .collect(),
             })
         })
-        .collect::<Result<_, ExportProjectError>>()?;
+        .collect::<Result<Vec<_>, ExportProjectError>>()?;
     let declarations = document
         .objects()
         .iter()
@@ -58,7 +61,39 @@ pub(crate) fn data_document_text(
             Ok((name, declaration(&encoder, document_id, object)?))
         })
         .collect::<Result<Vec<_>, ExportProjectError>>()?;
-    Ok(write(imports, &declarations))
+    // A sequence's clips are printed one by one and reused while unchanged.
+    let clips = document
+        .objects()
+        .iter()
+        .enumerate()
+        .filter(|(_, object)| *object.kind() == SourceObjectKind::Sequence)
+        .map(|(index, object)| {
+            let identity =
+                SourceIdentity::from_document(document_id.clone(), object.id().to_string());
+            let sequence = session
+                .project
+                .reusable_sequences()
+                .get(&SequenceId(identity.into()))
+                .ok_or_else(|| missing(document_id, object))?;
+            Ok((index, cache.clips(&encoder, &imports, sequence)?))
+        })
+        .collect::<Result<Vec<_>, ExportProjectError>>()?;
+    let items = clips
+        .iter()
+        .map(|(_, texts)| texts.iter().map(AsRef::as_ref).collect::<Vec<&str>>())
+        .collect::<Vec<_>>();
+    let splices = clips
+        .iter()
+        .zip(&items)
+        .map(
+            |((declaration, _), items)| donder_language::data::ListSplice {
+                declaration: *declaration,
+                field: "clips",
+                items,
+            },
+        )
+        .collect::<Vec<_>>();
+    Ok(write(imports, &declarations, &splices))
 }
 
 fn missing(document: &DocumentId, object: &SourceObjectId) -> ExportProjectError {

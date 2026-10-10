@@ -2,8 +2,8 @@ use super::LoadedProject;
 use camino::Utf8PathBuf;
 use donder_sequence_api::{
     AppSettings, AppSnapshot, AudioTransportSnapshot, DocumentDescriptor, DocumentSaveState,
-    DocumentSaveStatus, DocumentViewId, DonderDeviceStatus, EditorBuffer, GuiDocumentRequest,
-    GuiDocumentResult, LiveOutputSnapshot, ProjectDiagnostic, ProjectHealth, WorkspaceEntry,
+    DocumentSaveStatus, DocumentViewId, DonderDeviceStatus, EditorBuffer, EditorTab,
+    EditorViewMode, LiveOutputSnapshot, ProjectDiagnostic, ProjectHealth, WorkspaceEntry,
     WorkspaceExplorerState, WorkspaceLayoutState,
 };
 use std::collections::BTreeMap;
@@ -36,7 +36,6 @@ pub(super) struct WorkingDocument {
 }
 
 pub(super) struct WorkspaceState {
-    gui_projection: Option<(u32, GuiDocumentResult)>,
     pub view: WorkspaceView,
     pub project: LoadedProject,
     pub documents: BTreeMap<Utf8PathBuf, WorkingDocument>,
@@ -51,7 +50,6 @@ pub(super) struct WorkspaceState {
 impl WorkspaceState {
     pub fn new(snapshot: AppSnapshot) -> Self {
         Self {
-            gui_projection: None,
             view: WorkspaceView::from_snapshot(snapshot),
             project: LoadedProject::Closed,
             documents: BTreeMap::new(),
@@ -64,17 +62,12 @@ impl WorkspaceState {
     }
 
     pub fn snapshot(&self) -> AppSnapshot {
+        let active = self
+            .view
+            .active_file
+            .as_ref()
+            .and_then(|path| self.documents.get(&Utf8PathBuf::from(path)));
         AppSnapshot {
-            gui_projection: self
-                .gui_projection
-                .as_ref()
-                .filter(|(epoch, result)| {
-                    *epoch == self.view.project_epoch
-                        && self.typed_revision == Some(result.project_revision)
-                        && result.project_revision == self.view.project_revision
-                        && self.view.active_file.as_ref() == Some(&result.request.path)
-                })
-                .map(|(_, result)| result.clone()),
             state_revision: self.view.state_revision,
             project_epoch: self.view.project_epoch,
             settings: self.view.settings.clone(),
@@ -107,88 +100,45 @@ impl WorkspaceState {
             tabs: self
                 .tabs
                 .iter()
-                .filter_map(|path| self.documents.get(path).map(|doc| doc.buffer.clone()))
+                .filter_map(|path| {
+                    self.documents
+                        .get(path)
+                        .map(|doc| EditorTab::from(&doc.buffer))
+                })
                 .collect(),
-            active_buffer: self.view.active_file.as_ref().and_then(|path| {
-                self.documents
-                    .get(&Utf8PathBuf::from(path))
-                    .map(|doc| doc.buffer.clone())
-            }),
+            active_buffer: active.map(|doc| EditorTab::from(&doc.buffer)),
+            active_text: active
+                .filter(|_| self.shows_active_as_text())
+                .map(|doc| doc.buffer.text.clone()),
         }
     }
 
-    pub fn apply_view(&mut self, mut snapshot: AppSnapshot) {
+    /// Whether the editor shows the active document as text rather than in a
+    /// GUI view. Matches the frontend's `effectiveEditorViewMode`.
+    fn shows_active_as_text(&self) -> bool {
+        self.view.project_health != ProjectHealth::Ready
+            || matches!(self.view.settings.editor_view_mode, EditorViewMode::Text)
+            || !self
+                .view
+                .active_document_descriptor
+                .as_ref()
+                .is_some_and(|descriptor| {
+                    descriptor
+                        .available_views
+                        .iter()
+                        .any(|view| *view != DocumentViewId::Text)
+                })
+    }
+
+    /// Adopt `snapshot`'s view state. Buffers belong to `documents`; a snapshot
+    /// only names the open tabs.
+    pub fn apply_view(&mut self, snapshot: AppSnapshot) {
         self.tabs = snapshot
             .tabs
             .iter()
-            .map(|buffer| Utf8PathBuf::from(&buffer.path))
+            .map(|tab| Utf8PathBuf::from(&tab.path))
             .collect();
-        for buffer in std::mem::take(&mut snapshot.tabs) {
-            let path = Utf8PathBuf::from(&buffer.path);
-            self.documents
-                .entry(path)
-                .and_modify(|doc| doc.buffer = buffer.clone())
-                .or_insert_with(|| WorkingDocument {
-                    observed: Some(buffer.text.as_bytes().to_vec()),
-                    buffer,
-                });
-        }
         self.view = WorkspaceView::from_snapshot(snapshot);
-    }
-
-    /// Build once per displayed document/revision, before publishing any snapshot.
-    /// Save/render status updates reuse the same projection.
-    pub fn refresh_gui_projection(&mut self) {
-        let request = self
-            .view
-            .active_file
-            .as_ref()
-            .zip(self.view.active_document_descriptor.as_ref())
-            .and_then(|(path, descriptor)| {
-                [
-                    DocumentViewId::Project,
-                    DocumentViewId::Sequence,
-                    DocumentViewId::Setup,
-                    DocumentViewId::Layout,
-                    DocumentViewId::Fixture,
-                ]
-                .into_iter()
-                .find_map(|view| {
-                    descriptor
-                        .default_object_keys
-                        .iter()
-                        .find(|item| item.view == view)
-                })
-                .map(|item| GuiDocumentRequest {
-                    owned_path: Vec::new(),
-                    project_revision: self.view.project_revision,
-                    path: path.clone(),
-                    view: item.view.clone(),
-                    object_key: Some(item.object_key.clone()),
-                })
-            });
-        let Some(request) =
-            request.filter(|_| self.typed_revision == Some(self.view.project_revision))
-        else {
-            self.gui_projection = None;
-            return;
-        };
-        if self.gui_projection.as_ref().is_some_and(|(epoch, result)| {
-            *epoch == self.view.project_epoch && result.request == request
-        }) {
-            return;
-        }
-        self.gui_projection = match &self.project {
-            LoadedProject::Ready(session) => Some((
-                self.view.project_epoch,
-                GuiDocumentResult {
-                    document: donder_editor::project_gui_document(Some(session), &request),
-                    project_revision: request.project_revision,
-                    request,
-                },
-            )),
-            _ => None,
-        };
     }
 }
 

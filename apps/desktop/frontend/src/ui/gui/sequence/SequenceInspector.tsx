@@ -9,6 +9,7 @@ import type {
   SequenceEditorDocument,
   SequenceAutomationTarget,
   SequenceEffect,
+  SequenceEffectDetails,
   SequenceEffectParam,
   SequenceMarkCollection,
   SequenceMarkRef,
@@ -28,6 +29,7 @@ import { activeMarkCollection, defaultMarkColor, nextCollectionKey } from "./mar
 import { BeatDetectionDialog } from "./BeatDetectionDialog";
 import { MarkSubdivision } from "./MarkSubdivision";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
+import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
 
@@ -55,9 +57,9 @@ function effectReferenceKey(reference: SequenceEffectDefinition["effect"]) {
   return `${reference.moduleId}:${reference.path}:${reference.effectName}`;
 }
 
-function supportsAutomation(document: SequenceEditorDocument, target: SequenceAutomationTarget) {
+function supportsAutomation(document: SequenceEditorDocument, details: Map<number, SequenceEffectDetails> | null, target: SequenceAutomationTarget) {
   if (target.type === "effectParam") {
-    return document.effects.find((effect) => effect.id === target.effectId)?.params
+    return details?.get(target.effectId)?.params
       .find((param) => param.name === target.param)?.supportsAutomation === true;
   }
   const node = document.compositionGraph.nodes.find((node) => node.id === target.nodeId);
@@ -157,6 +159,7 @@ function SelectedEffectsInspector({
   const effects = effectIds
     .map((id) => document.effects.find((effect) => effect.id === id))
     .filter((effect): effect is SequenceEffect => effect !== undefined);
+  const details = useSequenceEffectDetails(document, effects.map((effect) => effect.id));
   if (effects.length === 0) {
     return <><h2>Effects</h2><p>Select an effect on the timeline.</p></>;
   }
@@ -166,7 +169,7 @@ function SelectedEffectsInspector({
   const scope = commonEffectValue(effects, (effect) => effect.scope);
   const startSeconds = commonEffectValue(effects, (effect) => effect.startSeconds);
   const durationSeconds = commonEffectValue(effects, (effect) => effect.durationSeconds);
-  const commonParams = commonEditableEffectParams(effects);
+  const commonParams = details === null ? [] : commonEditableEffectParams(effects.map((effect) => details.get(effect.id)).filter((effect) => effect !== undefined));
   const applyEdit = (edit: SequenceEffectCommonEdit) =>
     runGuiEditCommand((request) =>
       commands.applySequenceSelectionEdit(request, {
@@ -258,7 +261,7 @@ function SelectedEffectsInspector({
   );
 }
 
-function commonEditableEffectParams(effects: SequenceEffect[]): { param: SequenceEffectParam; mixed: boolean }[] {
+function commonEditableEffectParams(effects: SequenceEffectDetails[]): { param: SequenceEffectParam; mixed: boolean }[] {
   const first = effects[0];
   if (first === undefined) return [];
   return first.params.flatMap((param) => {
@@ -383,6 +386,13 @@ function EffectInspectorPanel({
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
   const overlayContainer = useContext(OverlayPortal);
+  const inspectedAutomationClip = selected?.type === "automationClip"
+    ? document.automationClips.find((clip) => clip.id === selected.id) ?? null
+    : null;
+  const inspectedEffectIds = inspectedAutomationClip !== null
+    ? inspectedAutomationClip.detachedBindings.flatMap((binding) => binding.target.type === "effectParam" ? [binding.target.effectId] : [])
+    : [selectedEffectId(selected)].filter((id) => id !== null);
+  const details = useSequenceEffectDetails(document, inspectedEffectIds);
   const effectTree = useMemo(
     () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
     [document.effectDefinitions]
@@ -452,7 +462,7 @@ function EffectInspectorPanel({
             <div className="effect-param-actions">
               <button
                 type="button"
-                disabled={!supportsAutomation(document, binding.target)}
+                disabled={!supportsAutomation(document, details, binding.target)}
                 onClick={() => void runGuiEditCommand((request) => commands.rebindDetachedAutomation(request,
                   automationClip.id,
                   index,
@@ -502,8 +512,9 @@ function EffectInspectorPanel({
     );
   }
 
-  const currentDefinition = document.effectDefinitions.find((definition) =>
-    effectReferencesEqual(definition.effect, effect.effectReference)
+  const effectDetails = details?.get(effect.id);
+  const currentDefinition = effectDetails === undefined ? undefined : document.effectDefinitions.find((definition) =>
+    effectReferencesEqual(definition.effect, effectDetails.effectReference)
   );
   const resizeEffect = (startSeconds: number, durationSeconds: number) =>
     runGuiEditCommand((request) =>
@@ -645,12 +656,12 @@ function EffectInspectorPanel({
           <option value="wholeTarget">Whole target</option>
         </select>
       </label>
-      {effect.params.length > 0 && (
+      {effectDetails !== undefined && effectDetails.params.length > 0 && (
         <>
           <div className="inspector-section-divider" />
           <div className="effect-param-section">
             <h3>Parameters</h3>
-            {effect.params.map((param, index) => (
+            {effectDetails.params.map((param, index) => (
               <div
                 key={`${effect.id}:${param.name}`}
                 className={`effect-param-row ${index % 2 === 0 ? "effect-param-row-even" : "effect-param-row-odd"}`}
@@ -693,11 +704,12 @@ function automationTargetLabel(target: import("../../../editor/types").SequenceA
     : `Node ${target.nodeId} · ${target.param}`;
 }
 
+const DETACHMENT_REASON_LABELS: Record<import("../../../editor/types").SequenceAutomationDetachmentReason, string> = {
+  definitionChanged: "definition changed"
+};
+
 function detachmentReasonLabel(reason: import("../../../editor/types").SequenceAutomationDetachmentReason): string {
-  switch (reason) {
-    case "targetDeleted": return "target deleted";
-    case "definitionChanged": return "definition changed";
-  }
+  return DETACHMENT_REASON_LABELS[reason];
 }
 
 function LayerInspectorPanel({ document }: { document: SequenceEditorDocument }) {

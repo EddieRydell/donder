@@ -4,8 +4,8 @@ use crate::archive::LoadError;
 use crate::dsl::AutomationPlan;
 use crate::dsl::{OperatorProgram, SampleProgram};
 use crate::signal::{
-    PreparedEffect, PreparedEffectAutomation, PreparedSignalGraph, PreparedSignalKind,
-    PreparedSignalNode,
+    PreparedEffect, PreparedEffectAutomation, PreparedOperatorNode, PreparedSignalGraph,
+    PreparedSignalKind, PreparedSignalNode,
 };
 use alloc::{boxed::Box, vec, vec::Vec};
 use donder_runtime_types::SampleTime;
@@ -34,7 +34,8 @@ impl AdmittedPrograms {
 pub(crate) type ExecutableGraph = PreparedSignalGraph<AdmittedPrograms, AutomationPlan>;
 
 /// Admit an archived graph's programs. A program that is not well formed for
-/// its role, parameters and inputs rejects the archive.
+/// its role and inputs, or bound values not in its parameters' layout, reject
+/// the archive.
 pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<ExecutableGraph, LoadError> {
     let mut samples = Vec::new();
     let mut operators = Vec::new();
@@ -42,12 +43,13 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
     let mut operator_indices: Vec<Vec<(usize, usize)>> = vec![Vec::new(); graph.programs.len()];
     for effect in &mut graph.effects {
         let index = effect.program;
-        let bytecode = &graph.programs[index];
+        if !effect.bound_params.fits(&graph.programs[index]) {
+            return Err(LoadError::Archive);
+        }
         let mapped = match sample_indices[index] {
             Some(index) => index,
             None => {
-                let bound_params = &effect.bound_params;
-                let sample = SampleProgram::admit(bytecode.clone(), bound_params.types().into())
+                let sample = SampleProgram::admit(graph.programs[index].clone())
                     .ok_or(LoadError::Archive)?;
                 let mapped = samples.len();
                 samples.push(sample);
@@ -65,19 +67,17 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
             continue;
         };
         let index = &mut operator.program;
-        let bytecode = &graph.programs[*index];
+        if !operator.params.fits(&graph.programs[*index]) {
+            return Err(LoadError::Archive);
+        }
         let mapped = match operator_indices[*index]
             .iter()
             .find(|(count, _)| *count == inputs.len())
         {
             Some((_, mapped)) => *mapped,
             None => {
-                let program = OperatorProgram::admit(
-                    bytecode.clone(),
-                    inputs.len(),
-                    operator.params.types().into(),
-                )
-                .ok_or(LoadError::Archive)?;
+                let program = OperatorProgram::admit(graph.programs[*index].clone(), inputs.len())
+                    .ok_or(LoadError::Archive)?;
                 let mapped = operators.len();
                 operators.push(program);
                 operator_indices[*index].push((inputs.len(), mapped));
@@ -86,37 +86,53 @@ pub(super) fn restore_graph(mut graph: PreparedSignalGraph) -> Result<Executable
         };
         *index = mapped;
     }
+    let programs = AdmittedPrograms::new(samples.into(), operators.into());
     let graph = graph.map_automation(
         |effect| {
             let origin = effect.start_time;
-            map_effect(effect, |params, bindings| {
-                AutomationPlan::from_accepted(params, &bindings, origin)
+            map_effect(effect, |program, bindings| {
+                AutomationPlan::from_accepted(
+                    programs.sample(program).bytecode(),
+                    &bindings,
+                    origin,
+                )
             })
         },
         |node| {
-            map_node(node, |params, bindings| {
-                AutomationPlan::from_accepted(params, &bindings, SampleTime::from_ticks(0))
+            map_node(node, |operator, bindings| {
+                AutomationPlan::from_accepted(
+                    programs.operator(operator.program).bytecode(),
+                    &bindings,
+                    SampleTime::from_ticks(0),
+                )
             })
         },
     );
-    Ok(graph.map_storage(|_| AdmittedPrograms::new(samples.into(), operators.into())))
+    Ok(graph.map_storage(|_| programs))
 }
 
 impl ExecutableGraph {
     /// Reconstruct archival addresses only while encoding or explicitly projecting raw data.
     pub(crate) fn to_raw(&self) -> PreparedSignalGraph {
-        let mut graph = self.clone();
-        let sample_count = graph.programs.samples.len();
+        let programs = &self.programs;
+        let mut graph = self.clone().map_automation(
+            |effect| {
+                map_effect(effect, |program, plan| {
+                    plan.to_raw(programs.sample(program).bytecode())
+                })
+            },
+            |node| {
+                map_node(node, |operator, plan| {
+                    plan.to_raw(programs.operator(operator.program).bytecode())
+                })
+            },
+        );
+        let sample_count = programs.samples.len();
         for node in &mut graph.plan.nodes {
             if let PreparedSignalKind::Operator { operator, .. } = &mut node.kind {
-                let index = &mut operator.program;
-                *index += sample_count;
+                operator.program += sample_count;
             }
         }
-        let graph = graph.map_automation(
-            |effect| map_effect(effect, |_, plan| plan.to_raw()),
-            |node| map_node(node, |_, plan| plan.to_raw()),
-        );
         graph.map_storage(|programs| {
             programs
                 .samples
@@ -135,14 +151,15 @@ impl ExecutableGraph {
     }
 }
 
+/// `map` receives the effect's program index.
 fn map_effect<A, B>(
     effect: PreparedEffect<A>,
-    map: impl FnOnce(&crate::dsl::BoundParams, A) -> B,
+    map: impl FnOnce(usize, A) -> B,
 ) -> PreparedEffect<B> {
     let automation = effect.automation.map(|automation| {
         Box::new(PreparedEffectAutomation {
             workspace_slot: automation.workspace_slot,
-            bindings: map(&effect.bound_params, automation.bindings),
+            bindings: map(effect.program, automation.bindings),
         })
     });
     PreparedEffect {
@@ -157,7 +174,7 @@ fn map_effect<A, B>(
 
 fn map_node<A, B>(
     node: PreparedSignalNode<A>,
-    map: impl FnOnce(&crate::dsl::BoundParams, A) -> B,
+    map: impl FnOnce(&PreparedOperatorNode, A) -> B,
 ) -> PreparedSignalNode<B> {
     let kind = match node.kind {
         PreparedSignalKind::Layer { layer_index } => PreparedSignalKind::Layer { layer_index },
@@ -167,15 +184,12 @@ fn map_node<A, B>(
             inputs,
             automation,
             vm_slot,
-        } => {
-            let automation = map(&operator.params, automation);
-            PreparedSignalKind::Operator {
-                operator,
-                inputs,
-                automation,
-                vm_slot,
-            }
-        }
+        } => PreparedSignalKind::Operator {
+            automation: map(&operator, automation),
+            operator,
+            inputs,
+            vm_slot,
+        },
     };
     PreparedSignalNode { kind }
 }

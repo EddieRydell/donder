@@ -1,5 +1,5 @@
 use super::*;
-use donder_model::{AutomationDetachmentReason, AutomationTarget};
+use donder_model::AutomationTarget;
 use donder_sequence_api::BrowserPageNode;
 use std::collections::HashSet;
 
@@ -162,7 +162,7 @@ pub(super) fn apply_page_layout(
         .automation_clips
         .retain(|clip| present.contains(&clip.row_target.fixture));
     for clip in &mut sequence.automation_clips {
-        clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+        clip.remove_bindings(|target| {
             matches!(target, AutomationTarget::EffectParam { effect_id, .. } if removed.contains(effect_id))
         });
     }

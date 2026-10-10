@@ -150,7 +150,6 @@ pub enum SequenceFollowMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EffectRasterSettings {
-    pub render_scale: f32,
     pub max_columns: u32,
     pub max_rows: u32,
     pub min_frame_stride: u32,
@@ -159,7 +158,6 @@ pub struct EffectRasterSettings {
 impl Default for EffectRasterSettings {
     fn default() -> Self {
         Self {
-            render_scale: 1.0,
             max_columns: 1024,
             max_rows: 50,
             min_frame_stride: 1,
@@ -365,6 +363,38 @@ pub struct DocumentObjectDescriptor {
     pub kind: ObjectKind,
 }
 
+/// An open document as the tab bar and editor see it, without its text.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorTab {
+    pub path: String,
+    pub name: String,
+    pub syntax: TextDocumentSyntax,
+    pub dirty: bool,
+    pub read_only: bool,
+    pub document_revision: u32,
+    pub saved_revision: u32,
+    pub save_state: DocumentSaveState,
+    pub external_state: BufferExternalState,
+}
+
+impl From<&EditorBuffer> for EditorTab {
+    fn from(buffer: &EditorBuffer) -> Self {
+        Self {
+            path: buffer.path.clone(),
+            name: buffer.name.clone(),
+            syntax: buffer.syntax,
+            dirty: buffer.dirty,
+            read_only: buffer.read_only,
+            document_revision: buffer.document_revision,
+            saved_revision: buffer.saved_revision,
+            save_state: buffer.save_state.clone(),
+            external_state: buffer.external_state.clone(),
+        }
+    }
+}
+
+/// An open document's working copy.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorBuffer {

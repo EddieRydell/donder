@@ -48,7 +48,9 @@ pub use index::{Link, LinkTarget, ProjectIndex, ScriptMember};
 pub use path_refactor::{
     PathChangeImpact, PathChangePlan, PathChangeSourceKind, apply_path_change, plan_path_change,
 };
-pub use project_edit::{export_project, save_project, source_document_text};
+pub use project_edit::{
+    DocumentTextCache, export_project, save_project, source_document_text, source_document_texts,
+};
 pub use project_loading::{
     ProjectLoadError, SourceOverrides, check_document_text, check_project,
     check_project_document_text, check_project_with_overrides, load_project, project_source_texts,

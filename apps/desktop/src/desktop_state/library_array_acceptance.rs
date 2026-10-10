@@ -68,6 +68,14 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         start_seconds: 0.0,
     });
     let effect_id = document.effects[0].id;
+    let params = |id: u32| {
+        state
+            .get_sequence_effect_details(request(), vec![id])
+            .unwrap()
+            .details
+            .remove(0)
+            .params
+    };
     edit(SequenceGuiEdit::UpdateEffectParam {
         id: effect_id,
         name: "shapes".into(),
@@ -79,11 +87,12 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
         value: SequenceEffectParamValue::GradientArray { values: vec![] },
     });
     let effect = &document.effects[0];
+    let effect_params = params(effect.id);
     assert!(
-        matches!(&effect.params[0].value, SequenceEffectParamValue::CurveArray { values } if values.is_empty())
+        matches!(&effect_params[0].value, SequenceEffectParamValue::CurveArray { values } if values.is_empty())
     );
     assert!(
-        matches!(&effect.params[1].value, SequenceEffectParamValue::GradientArray { values } if values.is_empty())
+        matches!(&effect_params[1].value, SequenceEffectParamValue::GradientArray { values } if values.is_empty())
     );
     let curve = &document.curve_library[0];
     let gradient = &document.gradient_library[0];
@@ -132,8 +141,7 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             name: name.into(),
             value,
         });
-        let mut value = document.effects[0]
-            .params
+        let mut value = params(document.effects[0].id)
             .iter()
             .find(|param| param.name == name)
             .unwrap()
@@ -155,8 +163,8 @@ fn library_parameter_arrays_preserve_links_when_editing_and_saving() {
             name: name.into(),
             value,
         });
-        let value = &document.effects[0]
-            .params
+        let edited = params(document.effects[0].id);
+        let value = &edited
             .iter()
             .find(|param| param.name == name)
             .unwrap()

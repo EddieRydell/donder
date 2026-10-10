@@ -74,7 +74,12 @@ It also admits every program as the compiler does: slot ranges and kinds per
 bank, nesting, row and selection limits, constants, parameter types, signal
 reads within an operator's inputs and frame caches. It checks prepared
 automation mappings too. The limits are conservative policy, not a proof that
-memory will never run out.
+memory will never run out. The workspace estimate sizes each strip workspace by
+the programs it runs, as playback allocates it.
+
+A show that fails admission is answered with HTTP 422 and the reason. The
+editor does not send that show to the controller again until the show changes
+or the controller reconnects.
 
 HTTP endpoints:
 - unauthenticated `POST /claim`, which answers only an unclaimed controller;
@@ -107,8 +112,11 @@ network. Edits apply on the next Play. Pause holds the position reached at its
 deadline, seek pauses at the new position, Stop returns home and blacks out, and
 playback ends at the sequence duration. Each schedule carries the editor's
 playback speed (show microseconds per wall second) and frame timing. Scaled
-timing holds each 120 Hz show-time frame for longer when slowed down; constant
-timing evaluates the exact show time at every 120 Hz output latch. Changing
+timing holds each show-time frame for longer when slowed down; constant
+timing evaluates the exact show time at every output latch. Controllers send
+frames at the sequence's frame rate; a show faster than the outputs can carry
+(158 fps for 200 pixels a lane) is rejected at upload. With no show loaded the
+controller sends black at 30 fps. Changing
 speed during playback reschedules every controller and the audio from the
 position reached at a new shared deadline. **Loop saved show** in the controller's
 editor, or the standalone HTTP Play endpoint, loops the last uploaded show
@@ -128,7 +136,7 @@ Clock synchronization:
   sync older than 15 s blocks new commands, but a running show continues
   through a network outage.
 - **Scheduling.** Starts use 250–1000 ms of lead time depending on the number of
-  devices, plus eight times the slowest clock uncertainty per device, and round up to the 120 Hz output frame grid. The desktop needs every
+  devices, plus eight times the slowest clock uncertainty per device, and round up to the sequence's frame grid. The desktop needs every
   acknowledgment with at least 40 ms to spare. A failed setup cancels every
   command that may have been armed.
 - **Command checks.** Boot identity, clock-master identity, command order and

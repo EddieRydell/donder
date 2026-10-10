@@ -12,7 +12,7 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   const localText = useAppStore((store) => store.localText);
   const buffer = snapshot.activeBuffer;
   const pending = snapshot.pendingSaves;
-  const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && localText !== buffer.text;
+  const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && snapshot.activeText !== null && localText !== snapshot.activeText;
   const saveLabel = pending.some((document) => document.state.type === "conflict") ? "File conflict"
     : pending.some((document) => document.state.type === "failed") ? "Save failed"
     : localDirty ? "Unsaved"

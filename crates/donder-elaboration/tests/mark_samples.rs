@@ -108,7 +108,7 @@ fn configured_project(
         .iter()
         .map(|&ms| DonderTime(Duration::from_millis(ms)))
         .collect();
-    let mut instance = sequence.effects[0].clone();
+    let mut instance = (*sequence.effects[0]).clone();
     instance.layer_id = sequence.layers[0].id.clone();
     instance.definition = EffectRef::Custom(definition);
     instance.scope = scope;
@@ -172,7 +172,7 @@ fn configured_project(
         }
         MarkEffect::Pulse => {}
     }
-    sequence.effects = vec![instance];
+    sequence.effects = vec![std::sync::Arc::new(instance)];
     let id = sequence.id.clone();
     project.replace_sequence(&id, sequence).unwrap();
     (project, id)
@@ -218,7 +218,7 @@ fn single_pass_reference(
         .0
         .clone();
     let mut sequence = project.sequence(&id).unwrap().clone();
-    let instance = &mut sequence.effects[0];
+    let instance = std::sync::Arc::make_mut(&mut sequence.effects[0]);
     instance.definition = EffectRef::Custom(definition);
     instance.start = DonderTime(Duration::from_millis(mark_ms + 125));
     instance.duration = DonderDuration(Duration::from_secs(1));

@@ -41,6 +41,7 @@ mod dsl;
 mod evaluation;
 mod patch;
 mod playback_rate;
+mod scan;
 mod sections;
 mod sequence;
 mod signal;

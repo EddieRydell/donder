@@ -87,7 +87,8 @@ pub enum DeviceOutputCapabilities {
         lanes: u32,
         channels_per_lane: u32,
         channel_multiple: u32,
-        frame_rate: u32,
+        /// The fastest show frame rate the outputs carry.
+        max_frame_rate: u32,
         clock_udp_port: u16,
     },
     EvaluationOnly,

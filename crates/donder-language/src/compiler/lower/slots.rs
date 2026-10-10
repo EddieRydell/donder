@@ -81,6 +81,48 @@ pub(super) fn allocate(
                 touch(bank, value, last);
                 touch(bank, acc, last);
             }
+            Instruction::Stencil {
+                acc,
+                index,
+                start,
+                end,
+                weight,
+                scale,
+                pixel,
+                source_len,
+                tap_len,
+                ..
+            } => {
+                // The source block runs once per strip of the neighborhood and
+                // the weight is read after it; the offset block runs once per
+                // offset, and the rest is read with every offset's term.
+                let source_end = at + usize::from(source_len);
+                let last = source_end + usize::from(tap_len);
+                loops.push((at, last));
+                touch(Bank::Int, start, last);
+                touch(Bank::Int, end, last);
+                touch(Bank::Int, index, at);
+                touch(Bank::Float, weight, source_end);
+                touch(Bank::Float, scale, last);
+                touch(Bank::Float, pixel, last);
+                touch(Bank::Color, acc, last);
+            }
+            Instruction::Scan {
+                dst,
+                decay,
+                weight,
+                source_len,
+                ..
+            } => {
+                // The source block runs once per strip of the frame; the scan
+                // reads the decay and the weight after each and writes its
+                // destination last.
+                let last = at + usize::from(source_len);
+                loops.push((at, last));
+                touch(Bank::Float, decay, last);
+                touch(Bank::Float, weight, last);
+                touch(Bank::Color, dst, last);
+            }
             Instruction::Pick { bank, items, .. } => {
                 copy.visit_slots(&mut |bank, slot, _| touch(bank, *slot, at));
                 for &item in &pool[items.range()] {

@@ -4,13 +4,15 @@ use super::Diagnostic;
 use super::builtins::{BuiltinFunction, builtin};
 use super::declarations::{OperatorInputDecl, ParamDecl, ParamRange};
 use super::ir::interval::{Bounds, interval};
-use super::ir::{Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, Ternary, Unary};
+use super::ir::{
+    Binary, Context, Graph, LoopSet, Node, Op, Param, Reducer, Ternary, Unary, check_stencil,
+    reads, source_only,
+};
 use super::syntax::ast::*;
 use super::syntax::lexer::TextSpan;
 use crate::names::{NameError, NameKind, name_from_text, pascal_from_snake};
 use donder_runtime_types::Color;
-use donder_runtime_types::bytecode::MAX_ITERATIONS;
-use donder_runtime_types::bytecode::SignalPixel;
+use donder_runtime_types::bytecode::{Edges, MAX_ITERATIONS, STRIP, SignalPixel};
 use donder_runtime_types::{Identifier, Type, Value};
 use std::rc::Rc;
 
@@ -557,6 +559,7 @@ impl Checker {
                 outcome.value?
             }
             ExprKind::Reduce(reduction) => self.reduction(reduction, expr.span)?,
+            ExprKind::Scan(scan) => self.scan(scan)?,
         };
         Some(Operand::Node(node))
     }
@@ -964,8 +967,9 @@ impl Checker {
             inclusive,
             body,
             otherwise,
+            around,
         } = reduction;
-        let (reducer, otherwise) = (*reducer, otherwise.as_ref());
+        let (reducer, otherwise, around) = (*reducer, otherwise.as_ref(), around.as_ref());
         let start = self.bound_value(start);
         let end = self.bound_value(end);
         let (start, end) = (start?, end?);
@@ -977,7 +981,11 @@ impl Checker {
         };
         let count = self.graph.binary(Binary::IntSubtract, end, start);
         self.bound(count, span, "reduction")?;
-        let Ok((id, index_node)) = self.graph.begin_loop(start, end) else {
+        if let Some(around) = around {
+            self.neighborhood(start, end, around.edges, span)?;
+        }
+        // Neighborhoods span at most a strip, so every pixel shares the offset.
+        let Ok((id, index_node)) = self.graph.begin_loop(start, end, around.is_some()) else {
             self.error(
                 span,
                 format!("a definition has at most {} reductions", LoopSet::LIMIT),
@@ -986,12 +994,37 @@ impl Checker {
         };
         self.diagnostics
             .extend(name_diagnostic(NameKind::Value, index));
+        let depth = self.scopes.len();
+        let neighbor = match around {
+            Some(around) => Some(self.neighbor(around, index_node)?),
+            None => None,
+        };
+        if let (Some(sample), Some(name)) = (neighbor, around.and_then(|a| a.neighbor.as_ref())) {
+            self.diagnostics
+                .extend(name_diagnostic(NameKind::Value, name));
+            self.scopes.push((name.name.clone(), sample));
+        }
         self.scopes.push((index.name.clone(), index_node));
+        let result_span = body.result.span;
         let outcome = self.tail_block(body, Mode::Tail);
-        self.scopes.pop();
+        self.scopes.truncate(depth);
         let outcome = outcome?;
         let value = outcome.value?;
         let ty = self.ty(value).clone();
+        let mut valid = outcome.valid;
+        let stencil = neighbor.filter(|&sample| {
+            reads(&self.graph, value, sample) || reads(&self.graph, valid, sample)
+        });
+        // A neighborhood that ignores its neighbors runs for the offsets that
+        // have one.
+        if let Some(around) = around
+            && stencil.is_none()
+            && around.edges == Edges::Skip
+        {
+            let present = self.present(index_node);
+            valid = self.graph.and(present, valid);
+        }
+        let outcome = Outcome { valid, ..outcome };
         let filter = (self.graph.constant_value(outcome.valid) != Some(&Value::Bool(true)))
             .then_some(outcome.valid);
         let reducer_name = format!("{reducer:?}").to_lowercase();
@@ -1051,7 +1084,180 @@ impl Checker {
                 (reducer, value, filter, Some(default))
             }
         };
+        if let (Some(around), Some(_)) = (around, stencil) {
+            if let Err(error) = check_stencil(&self.graph, id, reducer, body, filter) {
+                self.error(result_span, error.message());
+                return None;
+            }
+            self.graph.set_around(id, around.edges);
+        }
         Some(self.graph.finish_loop(id, reducer, body, filter, default))
+    }
+
+    /// Check that a neighborhood's offsets fit one stencil: at most a strip
+    /// of them, reaching at most half a strip past a fixture's ends.
+    fn neighborhood(
+        &mut self,
+        start: Node,
+        end: Node,
+        edges: Edges,
+        span: TextSpan,
+    ) -> Checked<()> {
+        if self.standalone {
+            return Some(());
+        }
+        let ranges = param_ranges(&self.params);
+        let lengths = vec![None; self.params.len()];
+        let bounds = Bounds {
+            ranges: &ranges,
+            lengths: &lengths,
+        };
+        let (first, past) = (
+            interval(&self.graph, start, &bounds).min,
+            interval(&self.graph, end, &bounds).max,
+        );
+        let reach = (STRIP / 2) as f64;
+        if !(first.is_finite() && past.is_finite() && past - first <= STRIP as f64) {
+            let message = format!(
+                "cannot prove this `around` range spans at most {STRIP} offsets; bound it with literals or parameter ranges"
+            );
+            self.error(span, message);
+            return None;
+        }
+        if edges != Edges::Skip && (first < -reach || past - 1.0 > reach) {
+            let message = format!(
+                "an extended or mirrored `around` reaches at most {} pixels each way",
+                STRIP / 2
+            );
+            self.error(span, message);
+            return None;
+        }
+        Some(())
+    }
+
+    /// A scan: `previous * decay + light * weight`, with the decay fixed for
+    /// the frame and the weight depending on the light alone.
+    fn scan(&mut self, scan: &Scan) -> Checked<Node> {
+        let Scan {
+            direction,
+            input,
+            light,
+            previous,
+            body,
+        } = scan;
+        let index = self
+            .inputs
+            .iter()
+            .position(|known| *known == input.name)
+            .filter(|_| self.frames.is_empty());
+        let Some(index) = index else {
+            let message = format!(
+                "`scan` reads an operator input; `{}` is not one",
+                input.name.as_str()
+            );
+            self.error(input.span, message);
+            return None;
+        };
+        let time = self.graph.add(Op::Context(Context::Time));
+        let sample = self.graph.add(Op::Sample {
+            input: index as u32,
+            time,
+            pixel: SignalPixel::Current,
+        });
+        let before = self.graph.add(Op::Previous);
+        let depth = self.scopes.len();
+        for (name, node) in [(light, sample), (previous, before)] {
+            self.diagnostics
+                .extend(name_diagnostic(NameKind::Value, name));
+            self.scopes.push((name.name.clone(), node));
+        }
+        let value = self.tail_block(body, Mode::Value);
+        self.scopes.truncate(depth);
+        let value = value?.value?;
+        let value = self.require(value, &Type::Color, body.result.span)?;
+        if !reads(&self.graph, value, before) {
+            return Some(value);
+        }
+        let Some((decay, weight)) = self.trail(value, sample, before) else {
+            self.error(
+                body.result.span,
+                "a scan produces `previous * decay + light * weight`, with the decay fixed for the frame and the weight depending on `light`, parameters and time alone",
+            );
+            return None;
+        };
+        Some(self.graph.add(Op::Scan {
+            direction: *direction,
+            light: sample,
+            decay,
+            weight,
+        }))
+    }
+
+    /// The decay and weight of `previous * decay + light * weight`.
+    fn trail(&mut self, value: Node, light: Node, previous: Node) -> Option<(Node, Option<Node>)> {
+        let Op::Binary(Binary::ColorAdd, a, b) = *self.graph.op(value) else {
+            return None;
+        };
+        let decay_of = |graph: &mut Graph, node: Node| match *graph.op(node) {
+            _ if node == previous => Some(graph.float(1.0)),
+            Op::Binary(Binary::ColorScale, color, decay) if color == previous => Some(decay),
+            _ => None,
+        };
+        let (decay, term) = match (decay_of(&mut self.graph, a), decay_of(&mut self.graph, b)) {
+            (Some(decay), None) => (decay, b),
+            (None, Some(decay)) => (decay, a),
+            _ => return None,
+        };
+        let fixed = self.graph.loops_of(decay).is_empty()
+            && !self.graph.domain(decay).intersects(
+                super::ir::Domain::PIXEL
+                    .union(super::ir::Domain::SIGNAL)
+                    .union(super::ir::Domain::TARGET),
+            );
+        let weight = match *self.graph.op(term) {
+            _ if term == light => None,
+            Op::Binary(Binary::ColorScale, color, weight) if color == light => Some(weight),
+            _ => return None,
+        };
+        let weighted = weight.is_none_or(|weight| {
+            !reads(&self.graph, weight, previous) && source_only(&self.graph, weight, light)
+        });
+        (fixed && weighted).then_some((decay, weight))
+    }
+
+    /// The input `around` names, read `offset` pixels along the fixture.
+    fn neighbor(&mut self, around: &Around, offset: Node) -> Checked<Node> {
+        let name = &around.input;
+        let input = self
+            .inputs
+            .iter()
+            .position(|input| *input == name.name)
+            .filter(|_| self.frames.is_empty());
+        let Some(input) = input else {
+            let message = format!(
+                "`around` reads an operator input; `{}` is not one",
+                name.name.as_str()
+            );
+            self.error(name.span, message);
+            return None;
+        };
+        let time = self.graph.add(Op::Context(Context::Time));
+        Some(self.graph.add(Op::Sample {
+            input: input as u32,
+            time,
+            pixel: SignalPixel::Shifted(offset, around.edges),
+        }))
+    }
+
+    /// Whether the pixel `offset` pixels along the fixture exists.
+    fn present(&mut self, offset: Node) -> Node {
+        let index = self.graph.add(Op::Context(Context::PixelIndex));
+        let at = self.graph.binary(Binary::IntAdd, index, offset);
+        let zero = self.graph.int(0);
+        let count = self.graph.add(Op::Context(Context::TargetCount));
+        let low = self.graph.binary(Binary::IntGreaterEqual, at, zero);
+        let high = self.graph.binary(Binary::IntLess, at, count);
+        self.graph.and(low, high)
     }
 
     /// A reduction bound, which counts whole iterations.

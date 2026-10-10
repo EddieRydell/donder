@@ -31,11 +31,11 @@ const COUNTS: [usize; 5] = [1, 7, STRIP, STRIP + 1, 2 * STRIP + 1];
 /// without frame caches: every query samples its run upstream.
 fn uncached(operator: &OperatorInvocation) -> OperatorInvocation {
     let program = (**operator.program()).clone();
-    let (inputs, types) = (program.input_count(), program.parameter_types().into());
+    let inputs = program.input_count();
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        OperatorProgram::admit(bytecode, inputs).unwrap(),
         operator.params().iter_values().collect(),
     )
     .unwrap()
@@ -651,7 +651,11 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             .any(|op| matches!(op, Instruction::GradientSample { .. }))
     );
     assert!(bytecode.uses_pixel_context());
-    let params = BoundParams::from_validated(invocation.params(), &mut DslBindCache::default());
+    let params = BoundParams::from_validated(
+        invocation.program().bytecode(),
+        invocation.params(),
+        &mut DslBindCache::default(),
+    );
     let mut workspace = StripWorkspace::default();
     workspace.reserve(bytecode);
     let run = context(9, 0, 0).run;

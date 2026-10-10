@@ -79,11 +79,11 @@ fn is_sin(instruction: &Instruction) -> bool {
 /// frame caches.
 fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
     let program = (**operator.program()).clone();
-    let (inputs, types) = (program.input_count(), program.parameter_types().into());
+    let inputs = program.input_count();
     let mut bytecode = program.into_bytecode();
     workload::unstaged(&mut bytecode);
     OperatorInvocation::bind(
-        OperatorProgram::admit(bytecode, inputs, types).unwrap(),
+        OperatorProgram::admit(bytecode, inputs).unwrap(),
         operator.params().iter_values().collect(),
     )
     .unwrap()
@@ -93,10 +93,9 @@ fn unstaged_operator(operator: &OperatorInvocation) -> OperatorInvocation {
 
 /// `program` with its query and target blocks rerun for every strip.
 fn unstaged_program(program: &SampleProgram) -> SampleProgram {
-    let types = program.input_types().into();
     let mut bytecode = program.clone().into_bytecode();
     workload::unstaged(&mut bytecode);
-    SampleProgram::admit(bytecode, types).unwrap()
+    SampleProgram::admit(bytecode).unwrap()
 }
 
 fn unstaged_sample(invocation: &SampleInvocation) -> SampleInvocation {

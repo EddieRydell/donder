@@ -7,6 +7,7 @@ use super::lexer::{Keyword, TextSpan, Token, TokenKind, lex};
 use crate::compiler::Diagnostic;
 use donder_runtime_types::Color;
 use donder_runtime_types::Identifier;
+use donder_runtime_types::bytecode::{Direction, Edges};
 
 const MAX_NESTING: usize = 128;
 
@@ -576,6 +577,7 @@ impl Parser<'_> {
             TokenKind::Identifier if self.peek_at(1).kind == TokenKind::Keyword(Keyword::For) => {
                 self.reduction()
             }
+            TokenKind::Identifier if self.at_scan() => self.scan(),
             TokenKind::Identifier => {
                 let name = self.name("a name")?;
                 if self.at(TokenKind::LeftParen) {
@@ -648,6 +650,11 @@ impl Parser<'_> {
         };
         self.advance();
         let end = self.binary(ADDITIVE)?;
+        let around = if self.at_word("around") {
+            Some(self.around()?)
+        } else {
+            None
+        };
         let body = self.block()?;
         // Only `first` and `last` take a default, so `guard all for .. {..}
         // else value;` keeps its `else` for the guard.
@@ -680,8 +687,83 @@ impl Parser<'_> {
                 inclusive,
                 body,
                 otherwise,
+                around,
             })),
             span,
+        })
+    }
+
+    /// `scan forward` or `scan backward` followed by an input name.
+    fn at_scan(&self) -> bool {
+        let (direction, input) = (self.peek_at(1), self.peek_at(2));
+        self.at_word("scan")
+            && direction.kind == TokenKind::Identifier
+            && matches!(self.text(direction.span), "forward" | "backward")
+            && input.kind == TokenKind::Identifier
+    }
+
+    /// `scan (forward | backward) input as light, previous { body }`.
+    fn scan(&mut self) -> Parsed<Expr> {
+        let start = self.advance().span;
+        let token = self.advance();
+        let direction = match self.text(token.span) {
+            "forward" => Direction::Forward,
+            _ => Direction::Backward,
+        };
+        let input = self.name("an input name")?;
+        if !self.at_word("as") {
+            return Err(self.unexpected("`as` and names for the light and the previous value"));
+        }
+        self.advance();
+        let light = self.name("a name for the input's light")?;
+        self.expect(TokenKind::Comma, "`,`")?;
+        let previous = self.name("a name for the previous pixel's value")?;
+        let body = self.block()?;
+        let span = start.to(self.previous_span());
+        Ok(Expr {
+            kind: ExprKind::Scan(Box::new(Scan {
+                direction,
+                input,
+                light,
+                previous,
+                body,
+            })),
+            span,
+        })
+    }
+
+    /// Whether the current token is the identifier `word`, which is only a
+    /// keyword where the grammar expects it.
+    fn at_word(&self, word: &str) -> bool {
+        let token = self.peek();
+        token.kind == TokenKind::Identifier && self.text(token.span) == word
+    }
+
+    /// `around [extended | mirrored] input [as neighbor]`. An edge word is the
+    /// input's name when no other name follows it.
+    fn around(&mut self) -> Parsed<Around> {
+        self.advance();
+        let next = self.peek_at(1);
+        let named = next.kind == TokenKind::Identifier && self.text(next.span) != "as";
+        let edges = match self.text(self.peek().span) {
+            "extended" if named => Edges::Extend,
+            "mirrored" if named => Edges::Mirror,
+            _ => Edges::Skip,
+        };
+        if edges != Edges::Skip {
+            self.advance();
+        }
+        let input = self.name("an input name")?;
+        let neighbor = if self.at_word("as") {
+            self.advance();
+            Some(self.name("a neighbor name")?)
+        } else {
+            None
+        };
+        Ok(Around {
+            edges,
+            input,
+            neighbor,
         })
     }
 }

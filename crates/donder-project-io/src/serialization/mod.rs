@@ -1,8 +1,10 @@
+use crate::document::text_cache::DocumentTextCache;
 pub(super) fn write_source_documents(
     session: &ProjectSession,
     output_root: &Utf8Path,
 ) -> Result<Vec<Utf8PathBuf>, ExportProjectError> {
     validate_source_inventory(session)?;
+    let mut cache = DocumentTextCache::default();
     let mut writes = std::collections::BTreeMap::new();
     for (id, document) in &session.source.documents {
         if !session.source.is_project_owned(id) {
@@ -13,7 +15,7 @@ pub(super) fn write_source_documents(
         writes.insert(
             id.path().to_path_buf(),
             SourceTextWrite {
-                text: document_text(session, id, document)?,
+                text: document_text(session, id, document, &mut cache)?,
                 expected,
             },
         );
@@ -115,10 +117,11 @@ pub(super) fn document_text(
     session: &ProjectSession,
     document_id: &DocumentId,
     document: &SourceDocument,
+    cache: &mut DocumentTextCache,
 ) -> Result<String, ExportProjectError> {
     match &document.kind {
         SourceDocumentKind::Data => {
-            crate::document::save::data_document_text(session, document_id, document)
+            crate::document::save::data_document_text(session, document_id, document, cache)
         }
         SourceDocumentKind::Script { source } => Ok(source.clone()),
     }

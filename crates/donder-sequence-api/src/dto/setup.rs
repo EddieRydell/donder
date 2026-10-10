@@ -112,6 +112,33 @@ pub struct GuiEditResult {
     pub document: GuiDocument,
 }
 
+/// How an edit changed the open GUI document, relative to the document at the
+/// request's project revision.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GuiDocumentChange {
+    /// The whole document.
+    Document { document: GuiDocument },
+    /// A sequence whose clips mostly did not change. `document` holds every
+    /// field, but its `effects` only the changed and added clips; `effect_ids`
+    /// lists every clip in order.
+    SequenceClips {
+        document: SequenceGuiDocument,
+        effect_ids: Vec<u32>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GuiEditUpdate {
+    pub snapshot: AppSnapshot,
+    pub change: GuiDocumentChange,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum BufferExternalState {

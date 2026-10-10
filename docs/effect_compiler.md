@@ -170,12 +170,42 @@ The plan (stages, regions, branches, uses) is independent of the bytecode;
   own pixels. A reduction is an instruction followed by its loop and
   contribution parts, with an accumulator; `first`, `last`, `any` and `all`
   stop for each pixel that decides, and `last` counts down.
+- A program declares its parameters' types. An invocation binds them to two
+  storages, each numbered in declaration order: one 32-bit word per float,
+  int, bool, color or enum parameter, and one shared resource per curve,
+  gradient, marks or array parameter. Equal resources bound anywhere in a
+  sequence share one allocation; a marks value is a window of its
+  collection's shared track.
 - Enum values are indices into the program's names, which list every option of
-  the enums it reads. Resources are references to parameters, constants or
+  its parameters' and values' enums; an enum parameter is bound as its index
+  and read as an int. Resources are references to parameters, constants or
   array items, never copies.
 - Single-use patterns become fused instructions: clamped curve samples, scaled
   gradient samples, and hue replacements, `hsv(h, saturation(c), intensity(c))`
   or the same with `hue(c) + t`, which compute the color's components once.
+- A reduction whose bounds vary by pixel but stay within a strip's width of
+  indices, as the instance's values prove, shares one index: it runs the
+  union of the pixels' ranges, each pixel taking part in its own, so work that
+  depends only on the index (a kernel weight) runs once per iteration.
+- `input.at(time, pixel.index + offset)` is a shifted read, and an `around`
+  neighbor is one with the reduction's edges.
+- An `around` reduction that reads its neighbor is a stencil. Checking proves
+  its offsets span at most a strip (reaching at most half a strip each way when
+  extended or mirrored) and splits its contribution: the neighbor, scaled by
+  factors and filtered by guards that each depend on one of the neighbor and
+  query values (a source weight), the offset and strip values (an offset
+  scale), or neither (a pixel factor); anything else is an error. Playback
+  reads the strip's neighborhood of the input once, computes the source weight
+  once per neighbor rather than once per offset that reads it, runs the offset
+  code once per offset, and accumulates every offset in one instruction. A
+  failed source guard is a zero weight and contributes nothing. Factor
+  products are reassociated, which may change rounding. An `around` that
+  ignores its neighbor is an ordinary reduction over the offsets that have one.
+- A scan is one instruction with a source block, as a stencil's, computing the
+  light's weight. Playback computes the scan for the whole frame on first use
+  in a query, a strip of input at a time, into a frame cache of its own keyed
+  by the operator node and time; each strip copies its pixels from there.
+- Samples of one input at one query-uniform time share a whole-frame cache.
 - Every value starts in its own slot; liveness over the structured code then
   shares slots per bank and kind. A value read inside a reduction but defined
   before it lives through the whole loop; slots of the query and target blocks

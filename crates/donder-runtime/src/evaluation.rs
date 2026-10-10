@@ -5,15 +5,22 @@
 //! With the `iram` feature, every function here is linked into instruction RAM
 //! (see `docs/performance.md`); `pnpm firmware:build` checks the placement.
 #![cfg_attr(feature = "iram", allow(unsafe_code))]
+mod frames;
+
 use crate::dsl::AutomationPlan;
-use crate::dsl::bytecode::SignalPixel;
-use crate::dsl::{BoundParams, Pixels, RunContext, STRIP, Strip, StripSignals, StripWorkspace};
+use crate::dsl::bytecode::{Edges, SignalPixel};
+use crate::dsl::{
+    BoundParams, OUTSIDE, Pixels, RunContext, STRIP, ScanQuery, SourceWeights, Strip, StripSignals,
+    StripWorkspace,
+};
 use crate::signal::{
-    CachedSignalFrame, EffectAutomationWorkspace, EvaluationWorkspace, PreparedEffect,
+    CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace, PreparedEffect,
     PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace, SignalGraph,
+    WINDOW, WINDOW_MARGIN,
 };
 use alloc::boxed::Box;
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
+pub(crate) use frames::sample_signal_graph;
 
 /// One effect at one time, sampled over any selection of pixel coordinates.
 /// Both sequence playback and sparse editor rasters use this evaluator.
@@ -62,7 +69,7 @@ impl PreparedEffect<AutomationPlan> {
         let automation = self.automation.as_ref()?;
         Some(EffectAutomationWorkspace {
             plan: automation.bindings.clone(),
-            params: self.bound_params.clone(),
+            params: automation.bindings.detach(&self.bound_params),
             sample_time: None,
         })
     }
@@ -241,59 +248,6 @@ impl EffectSampler<'_> {
     }
 }
 
-// Keep graph loops separate from patch/output loops; combining them worsens
-// Xtensa code generation even though it removes one call per frame.
-#[inline(never)]
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-pub(crate) fn sample_signal_graph<'a>(
-    renderer: SignalGraph<'_>,
-    sample_time: SampleTime,
-    workspace: &'a mut EvaluationWorkspace,
-) -> &'a [Color] {
-    let graph = &renderer.plan;
-    let EvaluationWorkspace {
-        signal_buffers: buffers,
-        operator_automation,
-        operator_vm: operator_vms,
-        sampling: workspace,
-    } = workspace;
-    for state in operator_automation.iter_mut() {
-        state.sample_time = None;
-    }
-    for frames in &mut workspace.operator_frames {
-        for frame in frames {
-            frame.key = None;
-        }
-    }
-    for node_index in graph.frame_nodes.iter().copied() {
-        let destination = frame_range(renderer, node_index);
-        match &graph.nodes[node_index].kind {
-            PreparedSignalKind::Output { inputs } => {
-                buffers[destination.clone()].fill(black());
-                for input in inputs {
-                    let source = frame_range(renderer, *input);
-                    for (target, source) in destination.clone().zip(source) {
-                        let color = buffers[source];
-                        compose_max(&mut buffers[target], color);
-                    }
-                }
-            }
-            _ => sample_signal_frame(
-                renderer,
-                node_index,
-                sample_time,
-                &mut buffers[destination],
-                Lent {
-                    sampling: &mut *workspace,
-                    automation: &mut *operator_automation,
-                    strips: &mut *operator_vms,
-                },
-            ),
-        }
-    }
-    &buffers[frame_range(renderer, graph.output_index)]
-}
-
 /// Graph admission orders dependencies before consumers and assigns automation
 /// slots in that same order. While this operator borrows its parameters, nested
 /// sampling may therefore borrow only the preceding automation states.
@@ -319,6 +273,9 @@ pub(crate) fn frame_range(renderer: SignalGraph<'_>, node_index: usize) -> core:
     start..start + renderer.pixel_count
 }
 
+// Called once per frame, from flash, but its loops over the layer's effects
+// stay here.
+#[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
 fn sample_layer_frame(
     renderer: SignalGraph<'_>,
@@ -469,7 +426,12 @@ struct GraphSignals<'a> {
     inputs: &'a [usize],
     first: usize,
     count: usize,
-    frames: Option<usize>,
+    /// The operator's node, which keys its scans' frames.
+    node: usize,
+    /// The operator's depth slot.
+    slot: usize,
+    /// Whether the operator may use its whole-frame input caches.
+    frame_scope: bool,
     lent: Lent<'a>,
 }
 
@@ -492,7 +454,7 @@ impl GraphSignals<'_> {
                     colors: Box::new([]),
                 },
             );
-            sample_signal_frame(
+            frames::sample_signal_frame(
                 self.renderer,
                 node,
                 time,
@@ -503,6 +465,55 @@ impl GraphSignals<'_> {
             self.lent.sampling.operator_frames[slot][cache] = stored;
         }
         &self.lent.sampling.operator_frames[slot][cache].colors
+    }
+
+    /// `node` at `time` and plan-target pixel `index`, read by strip pixel
+    /// `offset`. One run covers the strip and the strip shifted to `index`,
+    /// plus margins, so the strip's other reads at nearby offsets reuse it;
+    /// `None` when those are too far apart for one window.
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn windowed(
+        &mut self,
+        node: usize,
+        time: SampleTime,
+        offset: usize,
+        index: usize,
+    ) -> Option<Color> {
+        let key = Some((node, time));
+        let window = &self.lent.sampling.operator_windows[self.slot];
+        if window.key == key && index.wrapping_sub(window.start) < window.len {
+            return Some(window.colors[index - window.start]);
+        }
+        let shifted = index.saturating_sub(offset);
+        let start = shifted.min(self.first).saturating_sub(WINDOW_MARGIN);
+        let end =
+            (shifted.max(self.first) + self.count + WINDOW_MARGIN).min(self.renderer.pixel_count);
+        if end - start > WINDOW {
+            return None;
+        }
+        let mut stored = core::mem::replace(
+            &mut self.lent.sampling.operator_windows[self.slot],
+            CachedSignalWindow {
+                key: None,
+                start: 0,
+                len: 0,
+                colors: Box::new([]),
+            },
+        );
+        sample_signal_run(
+            self.renderer,
+            node,
+            time,
+            start,
+            &mut stored.colors[..end - start],
+            self.lent.reborrow(),
+        );
+        let color = stored.colors[index - start];
+        stored.key = key;
+        stored.start = start;
+        stored.len = end - start;
+        self.lent.sampling.operator_windows[self.slot] = stored;
+        Some(color)
     }
 }
 
@@ -521,8 +532,8 @@ impl StripSignals for GraphSignals<'_> {
             return;
         }
         let node = self.inputs[input];
-        if let (Some(slot), Some(cache)) = (self.frames, frame_cache) {
-            let first = self.first;
+        if let (true, Some(cache)) = (self.frame_scope, frame_cache) {
+            let (slot, first) = (self.slot, self.first);
             let frame = self.cached_frame(slot, cache, node, time);
             output[..count].copy_from_slice(&frame[first..first + count]);
             return;
@@ -553,8 +564,11 @@ impl StripSignals for GraphSignals<'_> {
             return black();
         }
         let node = self.inputs[input];
-        if let (Some(slot), Some(cache)) = (self.frames, frame_cache) {
-            return self.cached_frame(slot, cache, node, time)[index];
+        if let (true, Some(cache)) = (self.frame_scope, frame_cache) {
+            return self.cached_frame(self.slot, cache, node, time)[index];
+        }
+        if let Some(color) = self.windowed(node, time, offset, index) {
+            return color;
         }
         let mut color = [black()];
         sample_signal_run(
@@ -566,6 +580,76 @@ impl StripSignals for GraphSignals<'_> {
             self.lent.reborrow(),
         );
         color[0]
+    }
+
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn scan(
+        &mut self,
+        query: &ScanQuery,
+        weights: &mut dyn SourceWeights,
+        output: &mut [Color; STRIP],
+    ) {
+        let key = Some((self.node, query.time));
+        let (slot, cache) = (self.slot, query.cache);
+        if self.lent.sampling.operator_frames[slot][cache].key != key {
+            let mut stored = core::mem::replace(
+                &mut self.lent.sampling.operator_frames[slot][cache],
+                CachedSignalFrame {
+                    key: None,
+                    colors: Box::new([]),
+                },
+            );
+            frames::scan_frame(self, query, weights, &mut stored.colors);
+            stored.key = key;
+            self.lent.sampling.operator_frames[slot][cache] = stored;
+        }
+        let (first, count) = (self.first, self.count);
+        let frame = &self.lent.sampling.operator_frames[slot][cache].colors;
+        output[..count].copy_from_slice(&frame[first..first + count]);
+    }
+
+    #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+    fn sample_range(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        start: isize,
+        frame_cache: Option<usize>,
+        colors: &mut [Color],
+        locals: &mut [i32],
+    ) {
+        let renderer = self.renderer;
+        let begin = self.first as isize + start;
+        let pixels = renderer.target(renderer.plan.target).len() as isize;
+        let (low, high) = (
+            begin.clamp(0, pixels),
+            (begin + colors.len() as isize).clamp(0, pixels),
+        );
+        let inside = (low - begin) as usize..(high.max(low) - begin) as usize;
+        colors.fill(black());
+        locals.fill(OUTSIDE);
+        let (low, high) = (low as usize, high.max(low) as usize);
+        let target = renderer.target(renderer.plan.target);
+        for (local, pixel) in locals[inside.clone()].iter_mut().zip(target.iter_from(low)) {
+            *local = pixel.pixel_index as i32;
+        }
+        if inside.is_empty() || time.as_ticks() >= renderer.duration.as_ticks() {
+            return;
+        }
+        let node = self.inputs[input];
+        if let (true, Some(cache)) = (self.frame_scope, frame_cache) {
+            let frame = self.cached_frame(self.slot, cache, node, time);
+            colors[inside].copy_from_slice(&frame[low..high]);
+            return;
+        }
+        sample_signal_run(
+            renderer,
+            node,
+            time,
+            low,
+            &mut colors[inside],
+            self.lent.reborrow(),
+        );
     }
 }
 
@@ -587,7 +671,23 @@ fn signal_pixel(
                 .pixel(flat_pixel_index);
             (index < current.pixel_count).then(|| flat_pixel_index - current.pixel_index + index)
         }
+        SignalPixel::Shifted(shift, edges) => {
+            let current = renderer
+                .target(renderer.plan.target)
+                .pixel(flat_pixel_index);
+            shifted(flat_pixel_index, &current, shift, edges)
+        }
     }
+}
+
+/// Plan-target pixel `shift` pixels from `flat` along its fixture, read
+/// past the fixture's ends as `edges` say.
+#[inline(always)]
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn shifted(flat: usize, pixel: &PreparedPixel, shift: i32, edges: Edges) -> Option<usize> {
+    let local = pixel.pixel_index as i32;
+    let read = edges.local(local.wrapping_add(shift), pixel.pixel_count as i32)?;
+    Some(flat - pixel.pixel_index + read as usize)
 }
 
 /// Evaluate operator `node` over plan-target pixels `first..first + output.len()`.
@@ -644,7 +744,9 @@ fn sample_operator(
         inputs,
         first,
         count: 0,
-        frames: frame_scope.then_some(*vm_slot),
+        node,
+        slot: *vm_slot,
+        frame_scope,
         lent: Lent {
             sampling,
             automation: upstream,
@@ -775,7 +877,7 @@ fn sample_layer_run(
                         if let Some(index) =
                             target.find(pixel.fixture_index, pixel.fixture_pixel_index)
                         {
-                            map.cells[map.count] = (offset, index);
+                            map.cells[map.count] = (offset - chunk, index);
                             map.count += 1;
                         }
                     }
@@ -791,52 +893,10 @@ fn sample_layer_run(
                         pixel: target.pixel(cells[offset].1),
                     },
                     &mut workspace.effect_strip,
-                    |offset, color| compose_max(&mut output[cells[offset].0], color),
+                    |offset, color| compose_max(&mut output[chunk + cells[offset].0], color),
                 );
             }
         });
-    }
-}
-
-/// A whole plan-target frame of `node`.
-#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn sample_signal_frame(
-    renderer: SignalGraph<'_>,
-    node_index: usize,
-    sample_time: SampleTime,
-    output: &mut [Color],
-    mut lent: Lent<'_>,
-) {
-    match &renderer.plan.nodes[node_index].kind {
-        PreparedSignalKind::Layer { layer_index } => {
-            sample_layer_frame(renderer, *layer_index, sample_time, output, lent.sampling);
-        }
-        PreparedSignalKind::Operator { .. } => {
-            let pixels = renderer.target(renderer.plan.target).len();
-            let output = &mut output[..pixels];
-            sample_operator(renderer, node_index, sample_time, 0, output, true, lent);
-        }
-        PreparedSignalKind::Output { inputs } => {
-            output.fill(black());
-            let Some((&first, rest)) = inputs.split_first() else {
-                return;
-            };
-            sample_signal_frame(renderer, first, sample_time, output, lent.reborrow());
-            if rest.is_empty() {
-                return;
-            }
-            let slot = lent.sampling.frame_scratch_used;
-            lent.sampling.frame_scratch_used += 1;
-            let mut frame = core::mem::take(&mut lent.sampling.frame_scratch[slot]);
-            for &input in rest {
-                sample_signal_frame(renderer, input, sample_time, &mut frame, lent.reborrow());
-                for (a, b) in output.iter_mut().zip(frame.iter()) {
-                    compose_max(a, *b);
-                }
-            }
-            lent.sampling.frame_scratch[slot] = frame;
-            lent.sampling.frame_scratch_used -= 1;
-        }
     }
 }
 

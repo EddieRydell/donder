@@ -77,7 +77,9 @@ export class DocumentSync {
         expectedDocumentRevision: document.revision, text
       });
       const acknowledged = snapshot.tabs.find((buffer) => buffer.path === document.path);
-      if (snapshot.projectEpoch !== document.epoch || acknowledged === undefined || acknowledged.text !== text) {
+      // The snapshot carries the active document's text while it is shown as text.
+      const acknowledgedText = snapshot.activeBuffer?.path === document.path ? snapshot.activeText : null;
+      if (snapshot.projectEpoch !== document.epoch || acknowledged === undefined || (acknowledgedText !== null && acknowledgedText !== text)) {
         throw new Error("The text acknowledgement did not match the submitted document.");
       }
       document.revision = acknowledged.documentRevision;

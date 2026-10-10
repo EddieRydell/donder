@@ -71,6 +71,61 @@ pub fn project_gui_document(
     gui
 }
 
+/// The open document after an edit from `before` to `after`. A sequence edit
+/// that changed no store besides sequences sends only the clips that are new
+/// allocations in `after`.
+pub fn project_gui_document_change(
+    before: &ProjectSession,
+    after: &ProjectSession,
+    request: &GuiDocumentRequest,
+) -> GuiDocumentChange {
+    if request.view == DocumentViewId::Sequence
+        && after.project.only_sequences_differ_from(&before.project)
+        && let Ok(resolved) = resolve_request(after, request)
+    {
+        let id = SequenceId(resolved.object_identity());
+        if let (Some(previous), Some(sequence)) =
+            (before.project.sequence(&id), after.project.sequence(&id))
+        {
+            let previous = previous
+                .effects
+                .iter()
+                .map(|effect| (effect.id.0, effect))
+                .collect::<std::collections::HashMap<_, _>>();
+            let changed = |effect: &std::sync::Arc<EffectInst>| {
+                !previous
+                    .get(&effect.id.0)
+                    .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+            };
+            if let GuiDocument::Sequence { mut document } =
+                super::projection::project_sequence_clips(after, &resolved, &changed)
+            {
+                document.path.clone_from(&request.path);
+                return GuiDocumentChange::SequenceClips {
+                    document,
+                    effect_ids: sequence.effects.iter().map(|effect| effect.id.0).collect(),
+                };
+            }
+        }
+    }
+    GuiDocumentChange::Document {
+        document: project_gui_document(Some(after), request),
+    }
+}
+
+/// The inspector's view of `effect_ids` in a sequence request's document.
+pub fn sequence_effect_details(
+    session: &ProjectSession,
+    request: &GuiDocumentRequest,
+    effect_ids: &[u32],
+) -> Result<Vec<SequenceEffectDetails>, String> {
+    if request.view != DocumentViewId::Sequence {
+        return Err("Effect details belong to sequence documents.".into());
+    }
+    let resolved = resolve_request(session, request)?;
+    super::projection::sequence_effect_details(session, &resolved, effect_ids)
+}
+
 pub fn affected_paths(
     session: &ProjectSession,
     request: &GuiDocumentRequest,

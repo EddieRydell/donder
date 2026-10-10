@@ -60,9 +60,7 @@ impl Rebase for Sequence {
         for clip in &mut self.automation_clips {
             clip.row_target.layout.0.rebase(from, to);
         }
-        for effect in &mut self.effects {
-            effect.target.layout.0.rebase(from, to);
-        }
+        rebase_effect_layouts(&mut self.effects, from, to);
     }
 }
 impl Rebase for Setup {
@@ -123,9 +121,7 @@ fn retarget(project: &mut DonderProject, from: &ObjectIdentity, to: &ObjectIdent
         for clip in &mut sequence.automation_clips {
             clip.row_target.layout.0.rebase(from, to);
         }
-        for effect in &mut sequence.effects {
-            effect.target.layout.0.rebase(from, to);
-        }
+        rebase_effect_layouts(&mut sequence.effects, from, to);
     }
 }
 
@@ -482,7 +478,7 @@ fn retarget_active_sequences(
         }
         for effect in &mut value.effects {
             if &effect.target.layout == from {
-                effect.target.layout = to.clone();
+                std::sync::Arc::make_mut(effect).target.layout = to.clone();
             }
         }
     }
@@ -572,4 +568,19 @@ fn add_sequence_candidate(
         .sequences
         .push(ValueSource::Inline(Box::new(sequence)));
     Ok(id)
+}
+
+/// Rebase clip targets, detaching only the clips whose layout moves.
+fn rebase_effect_layouts(
+    effects: &mut [std::sync::Arc<crate::effect::EffectInst>],
+    from: &ObjectIdentity,
+    to: &ObjectIdentity,
+) {
+    for effect in effects {
+        let mut layout = effect.target.layout.0.clone();
+        layout.rebase(from, to);
+        if layout != effect.target.layout.0 {
+            std::sync::Arc::make_mut(effect).target.layout.0 = layout;
+        }
+    }
 }
