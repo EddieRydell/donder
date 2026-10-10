@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import { commands } from "../../../api";
+import { PREVIEW_APPEARANCE } from "../../../previewAppearance";
 import { useAppStore } from "../../../store";
 import { THEME_METRICS } from "../../../theme";
 import type { GuiDocumentRequest, SequenceExportOptions } from "../../../types";
@@ -20,7 +21,7 @@ export function SequenceExportDialog() {
   const [selected, setSelected] = useState<number[]>([]);
   const [stepMillis, setStepMillis] = useState(0);
   const [customStep, setCustomStep] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"options" | "donderseq" | "fseq" | "mp4" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const stale = origin !== null && origin !== request;
@@ -34,39 +35,42 @@ export function SequenceExportDialog() {
   }, 1);
   const begin = async () => {
     if (request === null || editing || request.projectRevision !== revision) return;
-    setOrigin(request); setOptions(null); setSelected([]); setCustomStep(false); setError(null); setSaved(null); setPending(true);
+    setOrigin(request); setOptions(null); setSelected([]); setCustomStep(false); setError(null); setSaved(null); setPending("options");
     try {
       const result = await commands.sequenceExportOptions(request);
       if (result.status === "error") throw new Error(result.error);
       setOptions(result.data);
       setStepMillis(result.data.fseqStepMillis);
     } catch (error: unknown) { setError(String(error)); }
-    finally { setPending(false); }
+    finally { setPending(null); }
   };
-  const save = async (format: "donderseq" | "fseq") => {
+  const save = async (format: "donderseq" | "fseq" | "mp4") => {
     if (origin === null || stale) return;
-    setPending(true); setError(null); setSaved(null);
+    setPending(format); setError(null); setSaved(null);
     try {
       const result = format === "fseq"
         ? await commands.exportFseqFile(origin, selected, stepMillis)
-        : await commands.exportSequenceFile(origin, selected);
+        : format === "mp4"
+          ? await commands.exportVideoFile(origin, PREVIEW_APPEARANCE)
+          : await commands.exportSequenceFile(origin, selected);
       if (result.status === "error") throw new Error(result.error);
       setSaved(result.data);
     } catch (error: unknown) { setError(String(error)); }
-    finally { setPending(false); }
+    finally { setPending(null); }
   };
+  const busy = pending !== null;
   return <>
-    <button type="button" title="Export sequence" disabled={pending || editing || request === null || request.projectRevision !== revision} onClick={() => { void begin(); }}><Download size={THEME_METRICS.iconSizeCompact} /></button>
-    <Dialog.Root open={origin !== null} onOpenChange={(open) => { if (!open && !pending) setOrigin(null); }}>
+    <button type="button" title="Export sequence" disabled={busy || editing || request === null || request.projectRevision !== revision} onClick={() => { void begin(); }}><Download size={THEME_METRICS.iconSizeCompact} /></button>
+    <Dialog.Root open={origin !== null} onOpenChange={(open) => { if (!open && !busy) setOrigin(null); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
         <Dialog.Content className="dialog-content sequence-export-dialog">
           <Dialog.Title>Export sequence</Dialog.Title>
-          <Dialog.Description>Choose the outputs to include, in order. An FSEQ file packs their channels back to back for FPP and other players. A .donderseq file is a compiled show whose payload outputs follow the same order. Donder controllers in the setup receive the current sequence automatically when you press Play.</Dialog.Description>
+          <Dialog.Description>Choose the outputs to include, in order. An FSEQ file packs their channels back to back for FPP and other players. A .donderseq file is a compiled show whose payload outputs follow the same order. Donder controllers in the setup receive the current sequence automatically when you press Play. An .mp4 video shows the Preview with the song, ready to share.</Dialog.Description>
           {stale && <p role="alert">The project changed. Close and reopen export to use the current sequence and outputs.</p>}
           {error !== null && <p role="alert">{error}</p>}
           {saved !== null && <p role="status">Saved {saved}</p>}
-          <fieldset className="sequence-export-ports" disabled={pending || stale}>
+          <fieldset className="sequence-export-ports" disabled={busy || stale}>
             <legend>Output ports</legend>
             {ports.map((port) => {
               const first = firstChannels.get(port.index);
@@ -75,9 +79,9 @@ export function SequenceExportDialog() {
                 {port.label} ({port.channels} channels){first !== undefined ? ` · output ${selected.indexOf(port.index) + 1}, channels ${first}–${first + port.channels - 1}` : ""}
               </label>;
             })}
-            {!pending && options !== null && ports.length === 0 && <p>Add controller outputs in Display Setup before exporting.</p>}
+            {!busy && options !== null && ports.length === 0 && <p>Add controller outputs in Display Setup before exporting.</p>}
           </fieldset>
-          {options !== null && <fieldset className="sequence-export-step" disabled={pending || stale}>
+          {options !== null && <fieldset className="sequence-export-step" disabled={busy || stale}>
             <legend>FSEQ frame step</legend>
             <select value={customStep ? "custom" : String(stepMillis)} onChange={(event) => {
               setSaved(null);
@@ -94,9 +98,10 @@ export function SequenceExportDialog() {
             </label>}
           </fieldset>}
           <div className="dialog-actions">
-            <button type="button" disabled={pending} onClick={() => { setOrigin(null); }}>Close</button>
-            <button type="button" disabled={pending || stale || selected.length === 0} onClick={() => { void save("donderseq"); }}>{pending ? "Preparing…" : "Save .donderseq file"}</button>
-            <button type="button" disabled={pending || stale || selected.length === 0 || !stepValid} onClick={() => { void save("fseq"); }}>{pending ? "Preparing…" : "Save .fseq file"}</button>
+            <button type="button" disabled={busy} onClick={() => { setOrigin(null); }}>Close</button>
+            <button type="button" disabled={busy || stale} onClick={() => { void save("mp4"); }}>{pending === "mp4" ? "Rendering video…" : "Save .mp4 video"}</button>
+            <button type="button" disabled={busy || stale || selected.length === 0} onClick={() => { void save("donderseq"); }}>{pending === "donderseq" ? "Preparing…" : "Save .donderseq file"}</button>
+            <button type="button" disabled={busy || stale || selected.length === 0 || !stepValid} onClick={() => { void save("fseq"); }}>{pending === "fseq" ? "Preparing…" : "Save .fseq file"}</button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

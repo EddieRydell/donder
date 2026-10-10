@@ -47,6 +47,22 @@ pub(crate) async fn export_fseq_file(
     .map_err(|error| error.to_string())?
 }
 
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn export_video_file(
+    request: GuiDocumentRequest,
+    appearance: donder_sequence_api::PreviewAppearance,
+    state: State<'_, DesktopState>,
+) -> Result<Option<String>, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = state.prepare_video_export(&request, appearance)?;
+        save_export_file("Export video", "MP4 video", "mp4", &bytes)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 /// Ask for a destination with `extension` and write `bytes` there.
 fn save_export_file(
     title: &str,

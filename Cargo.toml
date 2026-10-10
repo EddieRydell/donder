@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-video"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -30,19 +30,23 @@ donder-project-io = { path = "crates/donder-project-io" }
 donder-runtime = { path = "crates/donder-runtime" }
 donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
+donder-video = { path = "crates/donder-video" }
 glam = "0.33.7"
 fugit = "0.5.0"
 esp-idf-part = "0.6.0"
+fdk-aac = "0.8.0"
 espflash = { version = "4.5.0", default-features = false, features = ["serialport"] }
 ignore = "0.4.33"
 indexmap = "2.14.2"
 lsp-server = "0.10.0"
 lsp-types = "0.97.0"
+muxide = "0.2.5"
 kira = "0.12.4"
 libm = "0.2.16"
 mdns-sd = { version = "0.21.4", default-features = false }
 micromath = { version = "2.1.0", default-features = false }
 notify = "=8.2.0"
+openh264 = "0.9.8"
 proc-macro2 = "1.0.107"
 realfft = "3.5.0"
 rubato = "5.0.1"
