@@ -7,11 +7,26 @@ use super::scene::{
 
 const SHADER: &str = include_str!("preview.wgsl");
 
+/// The Preview window's renderer.
 pub(crate) struct PreviewRenderer {
+    drawing: PreviewDrawing,
+    config: wgpu::SurfaceConfiguration,
+}
+
+/// Renders Preview frames offscreen and reads their pixels back, so an export
+/// shows exactly what the Preview window shows.
+pub(crate) struct PreviewFrameRenderer {
+    drawing: PreviewDrawing,
+    size: PreviewSize,
+    texture: wgpu::Texture,
+    readback: wgpu::Buffer,
+    padded_row_bytes: u32,
+}
+
+/// The device, pipeline and buffers that draw a Preview scene into a target.
+struct PreviewDrawing {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    max_surface_dimension: u32,
-    config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
@@ -31,28 +46,8 @@ impl PreviewRenderer {
         surface: &wgpu::Surface<'_>,
         size: PreviewSize,
     ) -> Result<Self, PreviewRendererError> {
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(surface),
-                force_fallback_adapter: false,
-                apply_limit_buckets: false,
-            })
-            .await
-            .map_err(|error| PreviewRendererError::Adapter(error.to_string()))?;
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Donder Preview Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                memory_hints: wgpu::MemoryHints::Performance,
-                trace: wgpu::Trace::Off,
-            })
-            .await
-            .map_err(|error| PreviewRendererError::Device(error.to_string()))?;
-        let max_surface_dimension = device.limits().max_texture_dimension_2d;
-        let size = size.clamp_to(max_surface_dimension);
+        let (adapter, device, queue) = request_device(instance, Some(surface)).await?;
+        let size = size.clamp_to(device.limits().max_texture_dimension_2d);
         let capabilities = surface.get_capabilities(&adapter);
         let format = capabilities
             .formats
@@ -85,7 +80,183 @@ impl PreviewRenderer {
             view_formats: Vec::new(),
         };
         surface.configure(&device, &config);
+        Ok(Self {
+            drawing: PreviewDrawing::new(device, queue, format),
+            config,
+        })
+    }
 
+    pub(crate) fn render(
+        &mut self,
+        surface: &wgpu::Surface<'_>,
+        size: PreviewSize,
+        scene: &PreviewScene,
+        colors: &[PreviewColor],
+        style: PreviewStyle,
+    ) -> Result<PreviewRenderOutcome, PreviewRendererError> {
+        let size = size.clamp_to(self.drawing.device.limits().max_texture_dimension_2d);
+        if self.config.width != size.width || self.config.height != size.height {
+            self.config.width = size.width;
+            self.config.height = size.height;
+            surface.configure(&self.drawing.device, &self.config);
+        }
+        self.drawing.prepare(size, scene, colors, style)?;
+        let output = match surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(output)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                surface.configure(&self.drawing.device, &self.config);
+                return Ok(PreviewRenderOutcome::Skipped);
+            }
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                return Ok(PreviewRenderOutcome::Skipped);
+            }
+            wgpu::CurrentSurfaceTexture::Validation => {
+                return Err(PreviewRendererError::SurfaceValidation);
+            }
+        };
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let encoder = self.drawing.encode(&view, style);
+        self.drawing.queue.submit([encoder.finish()]);
+        self.drawing.queue.present(output);
+        Ok(PreviewRenderOutcome::Presented)
+    }
+}
+
+impl PreviewFrameRenderer {
+    /// Frames are sRGB encoded, as the Preview window's surface encodes them.
+    const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+    const BYTES_PER_PIXEL: u32 = 4;
+
+    pub(crate) fn new(size: PreviewSize) -> Result<Self, PreviewRendererError> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        let (_, device, queue) = tauri::async_runtime::block_on(request_device(&instance, None))?;
+        let max_dimension = device.limits().max_texture_dimension_2d;
+        if size.width > max_dimension || size.height > max_dimension {
+            return Err(PreviewRendererError::FrameSize { max_dimension });
+        }
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Donder Preview Frame"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let padded_row_bytes = (size.width * Self::BYTES_PER_PIXEL)
+            .next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Donder Preview Frame Readback"),
+            size: u64::from(padded_row_bytes) * u64::from(size.height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        Ok(Self {
+            drawing: PreviewDrawing::new(device, queue, Self::FORMAT),
+            size,
+            texture,
+            readback,
+            padded_row_bytes,
+        })
+    }
+
+    /// Render one frame and write its RGBA pixels to `rgba`, top row first.
+    pub(crate) fn render(
+        &mut self,
+        scene: &PreviewScene,
+        colors: &[PreviewColor],
+        style: PreviewStyle,
+        rgba: &mut [u8],
+    ) -> Result<(), PreviewRendererError> {
+        let row_bytes = (self.size.width * Self::BYTES_PER_PIXEL) as usize;
+        if rgba.len() != row_bytes * self.size.height as usize {
+            return Err(PreviewRendererError::FrameBuffer);
+        }
+        self.drawing.prepare(self.size, scene, colors, style)?;
+        let view = self
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.drawing.encode(&view, style);
+        encoder.copy_texture_to_buffer(
+            self.texture.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &self.readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(self.padded_row_bytes),
+                    rows_per_image: None,
+                },
+            },
+            self.texture.size(),
+        );
+        self.drawing.queue.submit([encoder.finish()]);
+        let slice = self.readback.slice(..);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |result| {
+            // The receiver waits below, so it is still listening.
+            let _ = sender.send(result);
+        });
+        self.drawing
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| PreviewRendererError::Readback(error.to_string()))?;
+        receiver
+            .recv()
+            .map_err(|error| PreviewRendererError::Readback(error.to_string()))?
+            .map_err(|error| PreviewRendererError::Readback(error.to_string()))?;
+        {
+            let mapped = slice
+                .get_mapped_range()
+                .map_err(|error| PreviewRendererError::Readback(error.to_string()))?;
+            for (row, padded) in rgba
+                .chunks_exact_mut(row_bytes)
+                .zip(mapped.chunks_exact(self.padded_row_bytes as usize))
+            {
+                row.copy_from_slice(&padded[..row_bytes]);
+            }
+        }
+        self.readback.unmap();
+        Ok(())
+    }
+}
+
+async fn request_device(
+    instance: &wgpu::Instance,
+    compatible_surface: Option<&wgpu::Surface<'_>>,
+) -> Result<(wgpu::Adapter, wgpu::Device, wgpu::Queue), PreviewRendererError> {
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface,
+            force_fallback_adapter: false,
+            apply_limit_buckets: false,
+        })
+        .await
+        .map_err(|error| PreviewRendererError::Adapter(error.to_string()))?;
+    let (device, queue) = adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("Donder Preview Device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            memory_hints: wgpu::MemoryHints::Performance,
+            trace: wgpu::Trace::Off,
+        })
+        .await
+        .map_err(|error| PreviewRendererError::Device(error.to_string()))?;
+    Ok((adapter, device, queue))
+}
+
+impl PreviewDrawing {
+    fn new(device: wgpu::Device, queue: wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Donder Preview Uniforms"),
             contents: bytemuck::bytes_of(&PreviewUniforms::zeroed()),
@@ -171,11 +342,9 @@ impl PreviewRenderer {
         let instance_buffer = empty_buffer(&device, "Donder Preview Instances");
         let color_buffer = empty_buffer(&device, "Donder Preview Colors");
 
-        Ok(Self {
+        Self {
             device,
             queue,
-            max_surface_dimension,
-            config,
             pipeline,
             bind_group,
             uniform_buffer,
@@ -187,29 +356,22 @@ impl PreviewRenderer {
             uniform_revision: None,
             uniform_size: None,
             uniform_style: None,
-        })
+        }
     }
 
-    pub(crate) fn render(
+    /// Upload what changed since the last frame: the scene, uniforms and colours.
+    fn prepare(
         &mut self,
-        surface: &wgpu::Surface<'_>,
         size: PreviewSize,
         scene: &PreviewScene,
         colors: &[PreviewColor],
         style: PreviewStyle,
-    ) -> Result<PreviewRenderOutcome, PreviewRendererError> {
+    ) -> Result<(), PreviewRendererError> {
         if colors.len() != scene.instances.len() {
             return Err(PreviewRendererError::ColorCount {
                 colors: colors.len(),
                 instances: scene.instances.len(),
             });
-        }
-        let size = size.clamp_to(self.max_surface_dimension);
-        if self.config.width != size.width || self.config.height != size.height {
-            self.config.width = size.width;
-            self.config.height = size.height;
-            surface.configure(&self.device, &self.config);
-            self.uniform_size = None;
         }
         if self.uploaded_revision != Some(scene.revision) {
             self.upload_scene(scene);
@@ -231,24 +393,11 @@ impl PreviewRenderer {
             self.queue
                 .write_buffer(&self.color_buffer, 0, bytemuck::cast_slice(colors));
         }
+        Ok(())
+    }
 
-        let output = match surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(output)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
-            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                surface.configure(&self.device, &self.config);
-                return Ok(PreviewRenderOutcome::Skipped);
-            }
-            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
-                return Ok(PreviewRenderOutcome::Skipped);
-            }
-            wgpu::CurrentSurfaceTexture::Validation => {
-                return Err(PreviewRendererError::SurfaceValidation);
-            }
-        };
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+    /// Record the pass that clears `view` to the background and draws every pixel.
+    fn encode(&self, view: &wgpu::TextureView, style: PreviewStyle) -> wgpu::CommandEncoder {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -258,7 +407,7 @@ impl PreviewRenderer {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Donder Preview Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(color(style.background_rgb)),
@@ -279,9 +428,7 @@ impl PreviewRenderer {
                 pass.draw(0..6, 0..self.instance_count as u32);
             }
         }
-        self.queue.submit([encoder.finish()]);
-        self.queue.present(output);
-        Ok(PreviewRenderOutcome::Presented)
+        encoder
     }
 
     fn upload_scene(&mut self, scene: &PreviewScene) {
@@ -372,6 +519,9 @@ pub(crate) enum PreviewRendererError {
     NoPresentMode,
     ColorCount { colors: usize, instances: usize },
     SurfaceValidation,
+    FrameSize { max_dimension: u32 },
+    FrameBuffer,
+    Readback(String),
 }
 
 impl std::fmt::Display for PreviewRendererError {
@@ -390,6 +540,12 @@ impl std::fmt::Display for PreviewRendererError {
                 "preview received {colors} colors for {instances} instances"
             ),
             Self::SurfaceValidation => formatter.write_str("preview surface validation failed"),
+            Self::FrameSize { max_dimension } => write!(
+                formatter,
+                "preview frames on this GPU are at most {max_dimension} pixels wide and high"
+            ),
+            Self::FrameBuffer => formatter.write_str("preview frame buffer has the wrong size"),
+            Self::Readback(error) => write!(formatter, "cannot read the preview frame: {error}"),
         }
     }
 }

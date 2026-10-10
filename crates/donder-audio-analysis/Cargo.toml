@@ -2,7 +2,7 @@
 name = "donder-audio-analysis"
 edition.workspace = true
 version.workspace = true
-description = "Donder beat and downbeat detection from song audio"
+description = "Donder song decoding and beat and downbeat detection"
 authors = ["Donder"]
 license = "MIT"
 

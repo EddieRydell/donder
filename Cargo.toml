@@ -1,5 +1,5 @@
 [workspace]
-members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis", "crates/donder-video"]
+members = ["apps/desktop", "crates/donder-runtime", "crates/donder-language", "crates/donder-runtime-types", "crates/donder-model", "crates/donder-data-derive", "crates/donder-elaboration", "crates/donder-browser", "crates/donder-sequence-api", "crates/donder-editor", "crates/donder-output", "crates/donder-project-io", "crates/donder-language-server", "crates/donder-cli", "crates/donder-test-support", "crates/donder-audio-analysis"]
 exclude = ["firmware/esp32"]
 resolver = "2"
 
@@ -30,7 +30,6 @@ donder-project-io = { path = "crates/donder-project-io" }
 donder-runtime = { path = "crates/donder-runtime" }
 donder-runtime-types = { path = "crates/donder-runtime-types" }
 donder-test-support = { path = "crates/donder-test-support" }
-donder-video = { path = "crates/donder-video" }
 glam = "0.33.7"
 fugit = "0.5.0"
 esp-idf-part = "0.6.0"
@@ -40,7 +39,6 @@ ignore = "0.4.33"
 indexmap = "2.14.2"
 lsp-server = "0.10.0"
 lsp-types = "0.97.0"
-muxide = "0.2.5"
 kira = "0.12.4"
 libm = "0.2.16"
 mdns-sd = { version = "0.21.4", default-features = false }
@@ -59,6 +57,7 @@ serde-wasm-bindgen = "0.6.5"
 serde_json = "1"
 serialport = { version = "4.10.0", default-features = false }
 sha2 = "0.11.0"
+shiguredo_mp4 = "2026.5.0"
 symphonia = { version = "0.6.1", default-features = false, features = ["flac", "mp3", "ogg", "pcm", "vorbis", "wav"] }
 specta = { version = "2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "0.0.12"
