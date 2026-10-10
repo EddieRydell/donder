@@ -802,6 +802,7 @@ impl Samples {
                 SignalPixel::Current => (0, 0),
                 SignalPixel::Local(index) => (1, index),
                 SignalPixel::Global(index) => (2, index),
+                SignalPixel::Shifted(shift, _) => (3, shift),
             };
             (input, time, address)
         });

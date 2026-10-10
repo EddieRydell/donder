@@ -1,3 +1,4 @@
+pub use crate::document::text_cache::DocumentTextCache;
 use crate::serialization::{document_text, write_source_documents};
 use crate::{ExportProjectError, ExportReport, ProjectSession, SaveReport, serialization};
 use camino::Utf8Path;
@@ -52,9 +53,32 @@ pub fn source_document_text(
     session: &ProjectSession,
     document_id: &donder_model::DocumentId,
 ) -> Result<Option<String>, ExportProjectError> {
+    Ok(source_document_texts(
+        session,
+        std::slice::from_ref(document_id),
+        &mut DocumentTextCache::default(),
+    )?
+    .remove(0))
+}
+
+/// The canonical text of each of `documents`, `None` for one the project
+/// does not have. `cache` keeps printed clips between calls, so a caller that
+/// prints after every edit reprints only the clips that changed.
+pub fn source_document_texts(
+    session: &ProjectSession,
+    documents: &[donder_model::DocumentId],
+    cache: &mut DocumentTextCache,
+) -> Result<Vec<Option<String>>, ExportProjectError> {
     serialization::validate_source_inventory(session)?;
-    let Some(document) = session.source.documents.get(document_id) else {
-        return Ok(None);
-    };
-    document_text(session, document_id, document).map(Some)
+    documents
+        .iter()
+        .map(|document_id| {
+            session
+                .source
+                .documents
+                .get(document_id)
+                .map(|document| document_text(session, document_id, document, cache))
+                .transpose()
+        })
+        .collect()
 }

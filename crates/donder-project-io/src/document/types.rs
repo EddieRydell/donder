@@ -306,7 +306,6 @@ pub struct Detached {
 
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum DetachReason {
-    TargetDeleted,
     DefinitionChanged,
 }
 

@@ -6,6 +6,7 @@ use donder_runtime_types::Identifier;
 use donder_runtime_types::sampling::sample_curve;
 use donder_runtime_types::{AutomationMapping, AutomationValue, automation_value_at_position};
 use donder_runtime_types::{Color, Curve, CurvePoint};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct SequenceId(pub ObjectIdentity);
@@ -19,7 +20,9 @@ pub struct Sequence {
     pub audio: SequenceAudio,
     pub mark_collections: Vec<MarkCollection>,
     pub layers: Vec<SequenceLayer>,
-    pub effects: Vec<EffectInst>,
+    /// Each clip is shared between project snapshots until an edit changes it,
+    /// so an unchanged clip is the same allocation in both.
+    pub effects: Vec<Arc<EffectInst>>,
     pub composition_graph: SequenceCompositionGraph,
     pub automation_clips: Vec<AutomationClip>,
 }
@@ -205,6 +208,13 @@ impl AutomationClip {
         Some(right)
     }
 
+    /// Forgets every binding, active or detached, whose target was deleted.
+    pub fn remove_bindings(&mut self, matches: impl Fn(&AutomationTarget) -> bool) {
+        self.bindings.retain(|binding| !matches(&binding.target));
+        self.detached_bindings
+            .retain(|binding| !matches(&binding.target));
+    }
+
     pub fn detach_bindings(
         &mut self,
         reason: AutomationDetachmentReason,
@@ -354,7 +364,6 @@ pub struct DetachedAutomationBinding {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AutomationDetachmentReason {
-    TargetDeleted,
     DefinitionChanged,
 }
 

@@ -13,6 +13,6 @@ pub(crate) use vm::AutomationPlan;
 #[cfg(test)]
 pub(crate) use vm::RuntimeError;
 pub(crate) use vm::{
-    BoundParams, DslBindCache, NoSignals, Pixels, RunContext, STRIP, Strip, StripSignals,
-    StripWorkspace,
+    BoundParams, DslBindCache, NoSignals, OUTSIDE, Pixels, RunContext, STRIP, ScanQuery,
+    SourceWeights, Strip, StripSignals, StripSlots, StripWorkspace,
 };

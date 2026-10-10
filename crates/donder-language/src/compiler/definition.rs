@@ -202,7 +202,7 @@ fn check_values(definition: &Definition, values: &[Value]) -> Result<(), Binding
         .iter()
         .map(|value| match value {
             Value::Array(items) => Some(items.len()),
-            Value::Marks(marks) => Some(marks.as_slice().len()),
+            Value::Marks(marks) => Some(marks.len()),
             _ => None,
         })
         .collect();
@@ -283,8 +283,11 @@ impl Invocation {
         let graph = &self.definition.graph;
         let mut addressing = SignalAddressing::default();
         for node in super::lower::reachable(graph, self.definition.root) {
+            // A scan reads its input along the whole fixture.
+            addressing.local |= matches!(graph.op(node), Op::Scan { .. });
             if let Op::Sample { pixel, .. } = graph.op(node) {
-                addressing.local |= matches!(pixel, SignalPixel::Local(_));
+                addressing.local |=
+                    matches!(pixel, SignalPixel::Local(_) | SignalPixel::Shifted(..));
                 addressing.global |= matches!(pixel, SignalPixel::Global(_));
             }
         }
@@ -297,6 +300,40 @@ impl Invocation {
             instance::Instance::new(&self.definition, &self.params, &self.automation, constants)
                 .unwrap_or_else(|_| unreachable!("a definition's reductions fit its instance")),
         )
+    }
+
+    /// Whether `other` prepares identically: the same definition, bitwise
+    /// equal values and the same automation.
+    pub fn same(&self, other: &Self) -> bool {
+        same_definition(&self.definition, &other.definition)
+            && self.params.types() == other.params.types()
+            && self
+                .params
+                .values()
+                .iter()
+                .zip(other.params.values())
+                .all(|(a, b)| a.same(b))
+            && self.automation.len() == other.automation.len()
+            && self
+                .automation
+                .iter()
+                .zip(other.automation.iter())
+                .all(|(a, b)| a.same(b))
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.definition.name.hash(state);
+        self.definition.fingerprint.hash(state);
+        self.params.types().hash(state);
+        for value in self.params.values() {
+            value.hash_same(state);
+        }
+        self.automation.len().hash(state);
+        for automation in self.automation.iter() {
+            automation.hash_same(state);
+        }
     }
 }
 
@@ -345,7 +382,7 @@ impl Instance {
             .0
             .lower()
             .unwrap_or_else(|error| unreachable!("checked definitions fit their banks: {error:?}"));
-        let program = SampleProgram::admit(lowered.bytecode, lowered.param_types.into())
+        let program = SampleProgram::admit(lowered.bytecode)
             .unwrap_or_else(|| unreachable!("lowering emits admissible effect programs"));
         SampleInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))
@@ -358,7 +395,7 @@ impl Instance {
             .0
             .lower()
             .unwrap_or_else(|error| unreachable!("fused operators fit their banks: {error:?}"));
-        let program = OperatorProgram::admit(lowered.bytecode, inputs, lowered.param_types.into())
+        let program = OperatorProgram::admit(lowered.bytecode, inputs)
             .unwrap_or_else(|| unreachable!("lowering emits admissible operator programs"));
         OperatorInvocation::bind(program, lowered.values)
             .and_then(|invocation| invocation.with_automation(lowered.automation.into()))

@@ -84,8 +84,19 @@ export function buildSequenceClipLayout(
   bounds: SequenceClipLayoutBounds,
   rows: SequenceRowLayout[]
 ): SequenceClipLayout[] {
+  // Lanes scrolled out of view vertically lay out no clips.
+  const visibleRows = new Map<number, SequenceRowLayout>();
+  for (const row of rows) {
+    const rowTop = top + row.top - viewport.scrollY;
+    if (row.kind === "effects" && rowTop + row.height >= top && rowTop <= bounds.height) visibleRows.set(row.laneIndex, row);
+  }
   const lanesByTarget = new Map<number, number[]>();
-  document.lanes.forEach((lane, index) => { lanesByTarget.set(lane.target.fixture, [...lanesByTarget.get(lane.target.fixture) ?? [], index]); });
+  document.lanes.forEach((lane, index) => {
+    if (!visibleRows.has(index)) return;
+    const lanes = lanesByTarget.get(lane.target.fixture);
+    if (lanes === undefined) lanesByTarget.set(lane.target.fixture, [index]);
+    else lanes.push(index);
+  });
   const draftById = new Map(drafts.map((draft) => [draft.id, draft]));
   const visibleStartSeconds = viewport.scrollXSeconds;
   const visibleEndSeconds = viewport.scrollXSeconds + Math.max(1, bounds.width - left) / viewport.pxPerSecond;
@@ -96,13 +107,15 @@ export function buildSequenceClipLayout(
     const effect = activeDraft === undefined ? original : effectFromDraft(document, original, activeDraft);
     if (!effectIntersectsTimeRange(effect, visibleStartSeconds, visibleEndSeconds)) continue;
     for (const laneIndex of lanesByTarget.get(effect.target.fixture) ?? []) {
-      byLane.set(laneIndex, [...byLane.get(laneIndex) ?? [], { effect, laneIndex }]);
+      const laneClips = byLane.get(laneIndex);
+      if (laneClips === undefined) byLane.set(laneIndex, [{ effect, laneIndex }]);
+      else laneClips.push({ effect, laneIndex });
     }
   }
 
   const layouts: SequenceClipLayout[] = [];
   for (const [laneIndex, laneClips] of byLane) {
-    const row = rows.find((row) => row.laneIndex === laneIndex && row.kind === "effects");
+    const row = visibleRows.get(laneIndex);
     if (row === undefined) throw new Error("Effect clip has no timeline row.");
     const groups = groupOverlappingClips(laneClips);
     for (const group of groups) {
@@ -195,7 +208,9 @@ function compareClipsByTime(left: { effect: SequenceEffect }, right: { effect: S
 }
 
 export function hitSequence(clips: SequenceClipLayout[], x: number, y: number): SequenceHit | null {
-  for (const clip of [...clips].reverse()) {
+  for (let index = clips.length - 1; index >= 0; index -= 1) {
+    const clip = clips[index];
+    if (clip === undefined) continue;
     const { rect } = clip;
     if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) {
       const resize: "left" | "right" | "none" =
@@ -252,8 +267,10 @@ export function selectedEffectId(selected: GuiFocus): number | null {
 export function reconcileSequenceSelection(document: SequenceEditorDocument | null, selection: SequenceSelection | null): SequenceSelection | null {
   if (document === null || selection === null) return null;
   if (selection.type === "clips") {
-    const effectIds = selection.effectIds.filter((id) => document.effects.some((clip) => clip.id === id));
-    const automationIds = selection.automationIds.filter((id) => document.automationClips.some((clip) => clip.id === id));
+    const effectIdSet = new Set(document.effects.map((clip) => clip.id));
+    const automationIdSet = new Set(document.automationClips.map((clip) => clip.id));
+    const effectIds = selection.effectIds.filter((id) => effectIdSet.has(id));
+    const automationIds = selection.automationIds.filter((id) => automationIdSet.has(id));
     if (effectIds.length + automationIds.length === 0) return null;
     if (effectIds.length === selection.effectIds.length && automationIds.length === selection.automationIds.length) return selection;
     return { type: "clips", effectIds, automationIds };
@@ -386,9 +403,11 @@ export function selectionFromMarqueeMarks(
 
 /** `anchorLane` is the lane the gesture started on; each clip moves from its target's lane nearest it. */
 export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, anchorLane: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
+  const effectIds = new Set(selection.effectIds);
+  const automationIds = new Set(selection.automationIds);
   const clips = [
-    ...document.effects.filter((clip) => selection.effectIds.includes(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "effects" as const })),
-    ...document.automationClips.filter((clip) => selection.automationIds.includes(clip.id)).map((clip) => ({ ...clip, kind: "automation" as const }))
+    ...document.effects.filter((clip) => effectIds.has(clip.id)).map((clip) => ({ ...clip, rowTarget: clip.target, kind: "effects" as const })),
+    ...document.automationClips.filter((clip) => automationIds.has(clip.id)).map((clip) => ({ ...clip, kind: "automation" as const }))
   ];
   let minTime = -Infinity;
   let maxTime = Infinity;

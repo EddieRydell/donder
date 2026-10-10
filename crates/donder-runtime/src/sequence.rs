@@ -182,15 +182,12 @@ impl PreparedSequence {
 
     /// Resolve an authored clip without loading or preparing its source again.
     pub fn clip(&self, id: u32) -> Option<crate::clip::SequenceClip<'_>> {
-        self.data
-            .signals
-            .clips
-            .iter()
-            .find(|clip| clip.id == id)
-            .map(|clip| crate::clip::SequenceClip {
-                graph: self.graph(),
-                clip,
-            })
+        let clips = &self.data.signals.clips;
+        let index = clips.binary_search_by_key(&id, |clip| clip.id).ok()?;
+        Some(crate::clip::SequenceClip {
+            graph: self.graph(),
+            clip: &clips[index],
+        })
     }
 
     pub fn into_playback(self) -> SequencePlayback {
@@ -263,6 +260,7 @@ mod tests {
         rows: Banks,
     ) -> BytecodeProgram {
         BytecodeProgram {
+            params: Box::new([]),
             code: code.into(),
             query_end: prefix,
             target_end: prefix,
@@ -300,16 +298,11 @@ mod tests {
             .archive_data()
             .signals
             .programs;
-        let sample = SampleInvocation::bind(
-            SampleProgram::admit(raw[0].clone(), Box::new([])).unwrap(),
-            vec![],
-        )
-        .unwrap();
-        let operator = OperatorInvocation::bind(
-            OperatorProgram::admit(raw[2].clone(), 1, Box::new([])).unwrap(),
-            vec![],
-        )
-        .unwrap();
+        let sample =
+            SampleInvocation::bind(SampleProgram::admit(raw[0].clone()).unwrap(), vec![]).unwrap();
+        let operator =
+            OperatorInvocation::bind(OperatorProgram::admit(raw[2].clone(), 1).unwrap(), vec![])
+                .unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(61).unwrap(),
@@ -378,11 +371,8 @@ mod tests {
     fn builder_derives_storage_routes_and_schedule_from_handles() {
         use core::num::NonZeroU32;
         let raw = timed_sequence().archive_data().signals.programs[0].clone();
-        let invocation = SampleInvocation::bind(
-            crate::dsl::SampleProgram::admit(raw, Box::new([])).unwrap(),
-            vec![],
-        )
-        .unwrap();
+        let invocation =
+            SampleInvocation::bind(crate::dsl::SampleProgram::admit(raw).unwrap(), vec![]).unwrap();
         let timing = SequenceTiming::admit(
             NonZeroU32::new(60).unwrap(),
             NonZeroU32::new(60).unwrap(),

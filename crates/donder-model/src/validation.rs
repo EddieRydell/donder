@@ -50,6 +50,25 @@ pub struct SequenceValidationError {
     pub message: String,
 }
 
+/// Validate `project` as an edit of `previous`, a project that already passed
+/// validation. When only sequences changed, only sequences are revalidated, and
+/// a clip that is still the allocation `previous` held skips the checks that
+/// depend on nothing else that could have changed.
+pub(crate) fn validate_project_edit(
+    project: &DonderProject,
+    previous: &DonderProject,
+) -> Result<(), ProjectValidationError> {
+    if !project.only_sequences_differ_from(previous) {
+        return validate_project(project);
+    }
+    crate::ownership::validate_ownership(project)?;
+    for sequence in project.sequences() {
+        validate_sequence_since(project, sequence, previous.sequence(&sequence.id))
+            .map_err(ProjectValidationError::Sequence)?;
+    }
+    Ok(())
+}
+
 pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidationError> {
     crate::ownership::validate_ownership(project)?;
     validate_definition_schemas(project)?;
@@ -280,6 +299,31 @@ pub fn validate_sequence(
     project: &DonderProject,
     sequence: &Sequence,
 ) -> Result<(), SequenceValidationError> {
+    validate_sequence_since(project, sequence, None)
+}
+
+/// [`validate_sequence`], where `previous` is this sequence in a validated
+/// project whose layouts and definitions are the same allocations as
+/// `project`'s. A clip still shared with `previous` keeps its target and
+/// parameter checks when the layers and mark collections are unchanged too.
+fn validate_sequence_since(
+    project: &DonderProject,
+    sequence: &Sequence,
+    previous: Option<&Sequence>,
+) -> Result<(), SequenceValidationError> {
+    let unchanged = previous
+        .filter(|previous| {
+            previous.layers == sequence.layers
+                && previous.mark_collections == sequence.mark_collections
+        })
+        .map(|previous| {
+            previous
+                .effects
+                .iter()
+                .map(|effect| (&effect.id, effect))
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
     let setup = project
         .setup(project.root.setup.id())
         .ok_or_else(|| sequence_error("active setup is missing"))?;
@@ -330,7 +374,7 @@ pub fn validate_sequence(
         sequence.automation_clips.iter().map(|clip| clip.id.0),
         "automation clip ids",
     )?;
-    validate_sequence_names(sequence)?;
+    validate_sequence_names(sequence, &unchanged)?;
 
     let layer_ids = sequence
         .layers
@@ -352,7 +396,25 @@ pub fn validate_sequence(
         }
     }
 
+    let is_unchanged = |effect: &std::sync::Arc<crate::effect::EffectInst>| {
+        unchanged
+            .get(&effect.id)
+            .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+    };
+    // An unchanged clip compared against an unchanged first clip in an unchanged
+    // context only needs the checks that involve the sequence's own duration.
+    let first_unchanged = sequence.effects.first().is_none_or(is_unchanged);
     for effect in &sequence.effects {
+        if first_unchanged && is_unchanged(effect) {
+            validate_timed_region(
+                effect.start.0,
+                effect.duration.0,
+                sequence.duration.0,
+                sampled_sequence_duration,
+                "effect",
+            )?;
+            continue;
+        }
         if !layer_ids.contains(&effect.layer_id) {
             return Err(sequence_error(format!(
                 "effect {} references a missing layer",
@@ -379,6 +441,9 @@ pub fn validate_sequence(
             return Err(sequence_error(
                 "All effect targets in a sequence must use the same layout.",
             ));
+        }
+        if is_unchanged(effect) {
+            continue;
         }
         let layout = project
             .layout(&effect.target.layout)
@@ -537,13 +602,22 @@ pub fn validate_sequence(
 /// so each name is valid and unique among its kind. A layer node is named by
 /// its layer and the output node is `output`, so operator nodes share that
 /// namespace with layers.
-fn validate_sequence_names(sequence: &Sequence) -> Result<(), SequenceValidationError> {
+fn validate_sequence_names(
+    sequence: &Sequence,
+    unchanged: &HashMap<&crate::effect::EffectInstId, &std::sync::Arc<crate::effect::EffectInst>>,
+) -> Result<(), SequenceValidationError> {
     use crate::sequence::CompositionGraphNodeKind;
+    // An unchanged clip's name was accepted when it was admitted.
+    let changed_effects = sequence.effects.iter().filter(|effect| {
+        !unchanged
+            .get(&effect.id)
+            .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
+    });
     let names = sequence
         .layers
         .iter()
         .map(|layer| &layer.name)
-        .chain(sequence.effects.iter().map(|effect| &effect.name))
+        .chain(changed_effects.map(|effect| &effect.name))
         .chain(
             sequence
                 .mark_collections

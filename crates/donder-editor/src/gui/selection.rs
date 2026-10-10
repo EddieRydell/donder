@@ -20,7 +20,7 @@ pub fn copy_sequence_selection(
                     continue;
                 };
                 copied.push(ClipboardEffect {
-                    effect: effect.clone(),
+                    effect: (**effect).clone(),
                     start_seconds: effect.start.as_seconds_f32(),
                     lane_index: target_lane_index(session, &effect.target).ok_or_else(|| {
                         GuiMutationError::Invalid("Effect row is missing.".into())
@@ -106,7 +106,7 @@ pub(super) fn delete_sequence_selection(
                 .automation_clips
                 .retain(|clip| !automation_ids.contains(&clip.id.0));
             for clip in &mut sequence.automation_clips {
-                clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+                clip.remove_bindings(|target| {
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if ids.contains(&effect_id.0))
                 });
             }
@@ -230,7 +230,7 @@ pub(super) fn paste_sequence_clipboard(
                         anchor.time_seconds + entry.start_seconds - min_start,
                     )?;
                     effect.target = target;
-                    sequence.effects.push(effect);
+                    sequence.effects.push(std::sync::Arc::new(effect));
                     effect_ids.push(next_id);
                 }
                 let mut next_id = sequence
@@ -714,7 +714,7 @@ use std::collections::BTreeMap;
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::EffectInstId;
 use donder_model::FixtureTarget;
-use donder_model::{AutomationDetachmentReason, AutomationTarget, SequenceId, SequenceLayerId};
+use donder_model::{AutomationTarget, SequenceId, SequenceLayerId};
 use donder_project_io::ProjectSession;
 
 use super::model::{

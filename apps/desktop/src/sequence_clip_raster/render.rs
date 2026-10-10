@@ -1,100 +1,11 @@
-use super::*;
+use donder_runtime::PreparedSequence;
+use donder_sequence_api::EffectRasterSettings;
+use std::sync::Arc;
 
-pub(super) struct RasterRenderRequest<'a> {
-    pub(super) renderer: Arc<PreparedSequence>,
-    pub(super) effect_id: u32,
-    pub(super) signature_key: &'a str,
-    pub(super) cache_key: &'a RasterCacheKey,
-    pub(super) display_column_count: u32,
-    pub(super) display_row_count: u32,
-    pub(super) settings: &'a EffectRasterSettings,
-    pub(super) should_continue: &'a dyn Fn() -> bool,
-}
-
-pub(super) fn render_effect_raster(
-    request: RasterRenderRequest<'_>,
-) -> Result<CachedRasterPayload, RasterRenderFailure> {
-    let RasterRenderRequest {
-        renderer,
-        effect_id,
-        signature_key,
-        cache_key,
-        display_column_count,
-        display_row_count,
-        settings,
-        should_continue,
-    } = request;
-    if display_column_count == 0 {
-        return Err(RasterRenderFailure::Error(
-            "raster display column count must be greater than zero".to_string(),
-        ));
-    }
-    if display_row_count == 0 {
-        return Err(RasterRenderFailure::Error(
-            "raster display row count must be greater than zero".to_string(),
-        ));
-    }
-    let renderer = renderer
-        .clip(effect_id)
-        .ok_or_else(|| RasterRenderFailure::Error("raster clip selection is unavailable".into()))?;
-    let start_seconds = donder_runtime_types::sample_time_seconds_f32(renderer.start_time());
-    let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(renderer.duration());
-    if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
-        return Err(RasterRenderFailure::Error(
-            "effect duration must be positive and finite".to_string(),
-        ));
-    }
-    let target_pixel_count = renderer.target_pixel_count();
-    if target_pixel_count == 0 {
-        return Err(RasterRenderFailure::Error(
-            "effect target has no pixels".to_string(),
-        ));
-    }
-    let duration_frames = duration_seconds * renderer.frame_rate() as f32;
-    if !duration_frames.is_finite() || duration_frames <= 0.0 {
-        return Err(RasterRenderFailure::Error(
-            "effect duration frames must be positive and finite".to_string(),
-        ));
-    }
-    let min_frame_stride = settings.min_frame_stride.max(1) as f32;
-    let stride_limited_columns = (duration_frames / min_frame_stride).ceil().max(1.0) as u32;
-    let columns = display_column_count
-        .min(stride_limited_columns)
-        .clamp(1, settings.max_columns.max(1)) as usize;
-    let rows = target_pixel_count
-        .min(display_row_count as usize)
-        .min(settings.max_rows.max(1) as usize);
-    let mut sampler = renderer.sampler(rows);
-    let mut pixels_rgba = vec![0u8; rows * columns * 4];
-    for column in 0..columns {
-        if !should_continue() {
-            return Err(RasterRenderFailure::Cancelled);
-        }
-        let time = raster_column_time(&renderer, column, columns)?;
-        let colors = sampler.evaluate(time);
-        for (row, color) in colors.iter().enumerate() {
-            let offset = (row * columns + column) * 4;
-            pixels_rgba[offset] = color.red;
-            pixels_rgba[offset + 1] = color.green;
-            pixels_rgba[offset + 2] = color.blue;
-            pixels_rgba[offset + 3] = 255;
-        }
-    }
-    let token = raster_token(cache_key, signature_key);
-    Ok(CachedRasterPayload {
-        raster: SequenceClipRaster {
-            request_id: 0,
-            effect_id,
-            signature: String::new(),
-            columns: columns as u32,
-            rows: rows as u32,
-            start_seconds,
-            duration_seconds,
-            pixels_rgba_token: token.clone(),
-        },
-        pixels_rgba: Arc::new(pixels_rgba),
-        token,
-    })
+pub(super) struct RenderedRaster {
+    pub(super) columns: u32,
+    pub(super) rows: u32,
+    pub(super) pixels_rgba: Arc<[u8]>,
 }
 
 pub(super) enum RasterRenderFailure {
@@ -102,11 +13,56 @@ pub(super) enum RasterRenderFailure {
     Error(String),
 }
 
-fn raster_column_time(
-    clip: &donder_runtime::SequenceClip<'_>,
-    column: usize,
-    columns: usize,
-) -> Result<donder_runtime_types::SampleTime, RasterRenderFailure> {
-    clip.raster_column_time(column, columns)
-        .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))
+/// One column per sampled frame, at most `max_columns` and at least
+/// `min_frame_stride` frames apart; one row per sampled pixel, at most
+/// `max_rows`. The resolution depends only on the clip, never on its size on
+/// screen.
+pub(super) fn render_effect_raster(
+    sequence: &PreparedSequence,
+    effect_id: u32,
+    settings: &EffectRasterSettings,
+    should_continue: &dyn Fn() -> bool,
+) -> Result<RenderedRaster, RasterRenderFailure> {
+    let clip = sequence
+        .clip(effect_id)
+        .ok_or_else(|| RasterRenderFailure::Error("the clip is not prepared".into()))?;
+    let duration_seconds = donder_runtime_types::sample_duration_seconds_f32(clip.duration());
+    let duration_frames = duration_seconds * clip.frame_rate() as f32;
+    if !duration_frames.is_finite() || duration_frames <= 0.0 {
+        return Err(RasterRenderFailure::Error(
+            "effect duration frames must be positive and finite".into(),
+        ));
+    }
+    let target_pixel_count = clip.target_pixel_count();
+    if target_pixel_count == 0 {
+        return Err(RasterRenderFailure::Error(
+            "effect target has no pixels".into(),
+        ));
+    }
+    let min_frame_stride = settings.min_frame_stride.max(1) as f32;
+    let columns = ((duration_frames / min_frame_stride).ceil().max(1.0) as u32)
+        .clamp(1, settings.max_columns.max(1)) as usize;
+    let rows = target_pixel_count.min(settings.max_rows.max(1) as usize);
+    let mut sampler = clip.sampler(rows);
+    let mut pixels_rgba = vec![0u8; rows * columns * 4];
+    for column in 0..columns {
+        if !should_continue() {
+            return Err(RasterRenderFailure::Cancelled);
+        }
+        let time = clip
+            .raster_column_time(column, columns)
+            .map_err(|error| RasterRenderFailure::Error(format!("{error:?}")))?;
+        for (row, color) in sampler.evaluate(time).iter().enumerate() {
+            let offset = (row * columns + column) * 4;
+            pixels_rgba[offset] = color.red;
+            pixels_rgba[offset + 1] = color.green;
+            pixels_rgba[offset + 2] = color.blue;
+            pixels_rgba[offset + 3] = 255;
+        }
+    }
+    Ok(RenderedRaster {
+        columns: columns as u32,
+        rows: rows as u32,
+        pixels_rgba: pixels_rgba.into(),
+    })
 }

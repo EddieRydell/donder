@@ -1,4 +1,4 @@
-use donder_elaboration::{PrepareOutputs, prepare};
+use donder_elaboration::{PreparationCache, PrepareOutputs, prepare_cached};
 use donder_model::DonderProject;
 use donder_model::SequenceId;
 use donder_model::SetupId;
@@ -13,6 +13,7 @@ use donder_sequence_api::{AudioTransportSnapshot, AudioTransportState};
 pub(crate) struct SequenceRenderService {
     session: Option<PreparedRenderSession>,
     session_generation: u64,
+    preparation: PreparationCache,
 }
 
 /// Desktop ownership around portable playback: document identities, network
@@ -92,6 +93,7 @@ impl SequenceRenderService {
         Self {
             session: None,
             session_generation: 0,
+            preparation: PreparationCache::default(),
         }
     }
 
@@ -100,7 +102,8 @@ impl SequenceRenderService {
         project: &DonderProject,
         sequence_id: &SequenceId,
     ) -> Result<(), RenderSessionPrepareError> {
-        self.apply_prepared(prepare_render_session(project, sequence_id)?);
+        let session = prepare_render_session_cached(project, sequence_id, &mut self.preparation)?;
+        self.apply_prepared(session);
         Ok(())
     }
 
@@ -241,13 +244,24 @@ impl SequenceRenderService {
     }
 }
 
-/// Preparation uses the active setup in this same project snapshot. Build its
-/// playback workspace on the background worker before installing the session.
+/// A render session prepared without reusing earlier clip programs.
+#[cfg(test)]
 pub(crate) fn prepare_render_session(
     project: &DonderProject,
     sequence_id: &SequenceId,
 ) -> Result<PreparedRenderSession, RenderSessionPrepareError> {
-    let sequence = prepare(project, sequence_id, PrepareOutputs::All)
+    prepare_render_session_cached(project, sequence_id, &mut PreparationCache::default())
+}
+
+/// Preparation uses the active setup in this same project snapshot. Build its
+/// playback workspace on the background worker before installing the session.
+/// `cache` keeps unchanged clips lowered between preparations.
+pub(crate) fn prepare_render_session_cached(
+    project: &DonderProject,
+    sequence_id: &SequenceId,
+    cache: &mut PreparationCache,
+) -> Result<PreparedRenderSession, RenderSessionPrepareError> {
+    let sequence = prepare_cached(project, sequence_id, PrepareOutputs::All, cache)
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
     let setup = project
         .setup(project.root().setup.id())

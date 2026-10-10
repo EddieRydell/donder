@@ -105,7 +105,7 @@ pub(crate) fn complete_close(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn open_file(path: String, state: State<'_, DesktopState>) -> AppSnapshot {
     state.set_active_file_path(&path)
@@ -122,7 +122,7 @@ pub(crate) fn resolve_gui_source(
     state.resolve_gui_source(&module_id, &path, &object_key)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn set_active_file(path: String, state: State<'_, DesktopState>) -> AppSnapshot {
     state.set_active_file_path(&path)
@@ -155,7 +155,7 @@ pub(crate) fn save_sequence_viewport_state(
     state.save_sequence_viewport_state(update)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn undo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
     state.undo_active_edit()
@@ -179,7 +179,7 @@ pub(crate) fn save_spatial_view_state(
     state.save_spatial_view_state(update)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub(crate) fn redo_active_edit(state: State<'_, DesktopState>) -> AppSnapshot {
     state.redo_active_edit()

@@ -1,9 +1,8 @@
 import type { SequenceMarkCollection } from "../../../editor/types";
-import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
+import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type { GuiFocus } from "../shared";
 
-import { fitCanvasLabel } from "./sequenceAutomationLayout";
 import { getMarkDraft, markDraftEntries, setMarkDraft, type MarkDraftLookup, type MarkRefLookup } from "./sequenceSelection";
 
 const DEFAULT_MARK_COLORS = [THEME_COLORS.markBlue, THEME_COLORS.markOrange, THEME_COLORS.markGreen, THEME_COLORS.markPink, THEME_COLORS.markYellow, THEME_COLORS.markRed];
@@ -90,15 +89,6 @@ export function drawSequenceMarks(
       }
     }
   }
-  ctx.restore();
-}
-
-export function drawMarkRulerLabel(ctx: CanvasRenderingContext2D, rulerTop: number, rulerHeight: number, left: number) {
-  const x = THEME_METRICS.sequenceLabelX;
-  ctx.save();
-  ctx.font = THEME_TYPOGRAPHY.sequenceHeading;
-  ctx.fillStyle = THEME_COLORS.textSoft;
-  ctx.fillText(fitCanvasLabel(ctx, "Marks", left - x * 2), x, rulerTop + rulerHeight / 2 + THEME_METRICS.sequenceLabelYOffset);
   ctx.restore();
 }
 

@@ -274,15 +274,14 @@ impl DesktopState {
             .render_target
             .clone()
             .ok_or("Open a sequence before starting devices")?;
-        let duration = donder_language::sample_duration_from_donder_duration(
-            &session
-                .project
-                .sequence(&sequence)
-                .ok_or("Sequence is missing")?
-                .duration,
-        )
-        .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
-        .as_ticks();
+        let model = session
+            .project
+            .sequence(&sequence)
+            .ok_or("Sequence is missing")?;
+        let frame_rate = model.frame_rate;
+        let duration = donder_language::sample_duration_from_donder_duration(&model.duration)
+            .map_err(|error| format!("Invalid sequence duration: {error:?}"))?
+            .as_ticks();
         self.device_playback.prepare(
             snapshot.project_epoch,
             snapshot.project_revision,
@@ -309,6 +308,7 @@ impl DesktopState {
                     donder_runtime::encode_sequence(&prepared)
                         .map_err(|error| format!("Could not encode device sequence: {error:?}"))?,
                     widths,
+                    frame_rate,
                 ))
             },
         )?;

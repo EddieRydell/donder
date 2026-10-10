@@ -8,8 +8,9 @@ use donder_model::SourceIdentity;
 use donder_project_io::{ProjectSession, SourceObjectKind};
 
 use donder_sequence_api::{
-    DiagnosticSeverity, DocumentViewId, GuiDocument, GuiDocumentRequest, GuiEditCommand,
-    GuiObjectRef, ObjectKind, ProjectDiagnostic, SequenceSelection, SequenceSelectionEdit,
+    DiagnosticSeverity, DocumentViewId, GuiDocument, GuiDocumentChange, GuiDocumentRequest,
+    GuiEditCommand, GuiObjectRef, ObjectKind, ProjectDiagnostic, SequenceEffectDetails,
+    SequenceSelection, SequenceSelectionEdit,
 };
 
 mod controller;
@@ -48,7 +49,10 @@ pub use dispatch::{
     SequenceSelectionMutation, apply_sequence_selection_edit,
 };
 pub(crate) use document::gui_diagnostic;
-pub use document::{GuiMutationError, blocked, project_gui_document};
+pub use document::{
+    GuiMutationError, blocked, project_gui_document, project_gui_document_change,
+    sequence_effect_details,
+};
 pub use document::{ResolvedGuiObject, affected_paths, ensure_owned_gui_document, resolve_request};
 
 fn checked_gui_time(seconds: f32) -> Result<DonderTime, GuiMutationError> {

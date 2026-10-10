@@ -178,12 +178,16 @@ mod clock_conversion_tests {
     }
 }
 
+/// Every tick count becomes seconds by one multiply: the ESP32's FPU
+/// multiplies in hardware but divides in software.
+pub const SECONDS_PER_TICK: f32 = 1.0 / MICROS_PER_SECOND as f32;
+
 pub fn sample_time_seconds_f32(time: SampleTime) -> f32 {
-    time.as_ticks() as f32 / MICROS_PER_SECOND as f32
+    time.as_ticks() as f32 * SECONDS_PER_TICK
 }
 
 pub fn sample_duration_seconds_f32(duration: SampleDuration) -> f32 {
-    duration.as_ticks() as f32 / MICROS_PER_SECOND as f32
+    duration.as_ticks() as f32 * SECONDS_PER_TICK
 }
 
 #[derive(
@@ -236,6 +240,25 @@ pub enum CurveValidationError {
 }
 
 impl Curve {
+    /// Bitwise equality of the points.
+    pub fn same(&self, other: &Self) -> bool {
+        self.points.len() == other.points.len()
+            && self.points.iter().zip(&other.points).all(|(a, b)| {
+                a.position.to_bits() == b.position.to_bits()
+                    && a.value.to_bits() == b.value.to_bits()
+            })
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        self.points.len().hash(state);
+        for point in &self.points {
+            point.position.to_bits().hash(state);
+            point.value.to_bits().hash(state);
+        }
+    }
+
     /// Drop points that cannot affect sampling: exact repeats of the previous
     /// point and the interior of three or more points at one position. A step
     /// needs only the first and last point at its position.
@@ -294,6 +317,26 @@ pub enum GradientValidationError {
 }
 
 impl Gradient {
+    /// Bitwise equality of the stops.
+    pub fn same(&self, other: &Self) -> bool {
+        self.stops.len() == other.stops.len()
+            && self
+                .stops
+                .iter()
+                .zip(&other.stops)
+                .all(|(a, b)| a.position.to_bits() == b.position.to_bits() && a.color == b.color)
+    }
+
+    /// A hash consistent with [`Self::same`].
+    pub fn hash_same<H: core::hash::Hasher>(&self, state: &mut H) {
+        use core::hash::Hash;
+        self.stops.len().hash(state);
+        for stop in &self.stops {
+            stop.position.to_bits().hash(state);
+            stop.color.hash(state);
+        }
+    }
+
     pub fn validate(&self) -> Result<(), GradientValidationError> {
         let mut previous = 0.0;
         for stop in &self.stops {
@@ -315,48 +358,126 @@ pub struct GradientStop {
     pub color: Color,
 }
 
-/// Mark times in chronological order. Indices therefore mean "nth mark in
-/// time", and lookups can binary-search instead of scanning the collection.
-/// Each mark's seconds value is converted once here; on ESP32 every conversion
-/// is a software division.
-#[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
+/// Mark times in chronological order: a window of a shared track, measured
+/// from the window's origin. Every value bound to one collection shares its
+/// track, so a window costs a few words however many marks it holds.
+/// Indices mean "nth mark in time", and lookups binary-search the track.
+#[derive(Clone, Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Marks {
-    #[rkyv(with = rkyv::with::Map<crate::Microseconds>)]
-    marks: Vec<SampleDuration>,
-    seconds: Vec<f32>,
+    /// Mark times in ticks, ascending.
+    track: crate::Shared<[u32]>,
+    /// The window, `track[first..end]`.
+    first: u32,
+    end: u32,
+    /// The tick the window's mark times are measured from.
+    origin: u32,
 }
 
 impl Marks {
-    pub const EMPTY: Self = Self {
-        marks: Vec::new(),
-        seconds: Vec::new(),
-    };
-
+    /// A collection's own times, measured from zero.
     pub fn new(marks: impl IntoIterator<Item = SampleDuration>) -> Self {
-        let mut marks: Vec<_> = marks.into_iter().collect();
-        marks.sort_unstable();
-        let seconds = marks
+        let mut ticks: Vec<u32> = marks.into_iter().map(|mark| mark.as_ticks()).collect();
+        ticks.sort_unstable();
+        Self {
+            end: ticks.len() as u32,
+            track: ticks.into(),
+            first: 0,
+            origin: 0,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self::new([])
+    }
+
+    /// The marks of `track` (ascending ticks) in `start..end`, measured from
+    /// `start`.
+    pub fn window(track: crate::Shared<[u32]>, start: u32, end: u32) -> Self {
+        let first = track.partition_point(|&mark| mark < start) as u32;
+        let last = track.partition_point(|&mark| mark < end) as u32;
+        Self {
+            track,
+            first,
+            end: last.max(first),
+            origin: start,
+        }
+    }
+
+    /// The shared track.
+    pub fn track(&self) -> &crate::Shared<[u32]> {
+        &self.track
+    }
+
+    /// The same window over `track`, which holds the same times.
+    pub fn with_track(&self, track: crate::Shared<[u32]>) -> Self {
+        Self {
+            track,
+            ..self.clone()
+        }
+    }
+
+    fn ticks(&self) -> &[u32] {
+        &self.track[self.first as usize..self.end as usize]
+    }
+
+    pub fn len(&self) -> usize {
+        (self.end - self.first) as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.first == self.end
+    }
+
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = SampleDuration> + '_ {
+        self.ticks()
             .iter()
-            .copied()
-            .map(sample_duration_seconds_f32)
-            .collect();
-        Self { marks, seconds }
+            .map(|&mark| SampleDuration::from_ticks(mark - self.origin))
     }
 
-    pub fn as_slice(&self) -> &[SampleDuration] {
-        &self.marks
+    /// `sample_duration_seconds_f32` of mark `index`, or NaN for a missing
+    /// index.
+    pub fn seconds(&self, index: usize) -> f32 {
+        self.ticks().get(index).map_or(f32::NAN, |&mark| {
+            sample_duration_seconds_f32(SampleDuration::from_ticks(mark - self.origin))
+        })
     }
 
-    /// `sample_duration_seconds_f32` of each mark, in the same order.
-    pub fn seconds(&self) -> &[f32] {
-        &self.seconds
+    /// The last mark at or before `seconds`, with its time in seconds.
+    /// Seconds rise with ticks, so those marks form a prefix: the search
+    /// narrows by ticks near `seconds`, then settles the boundary by seconds,
+    /// converting about twice. A NaN query matches no mark.
+    pub fn previous(&self, seconds: f32) -> Option<(usize, f32)> {
+        let ticks = self.ticks();
+        // Saturating: NaN and negative queries start from the origin.
+        let near = self
+            .origin
+            .saturating_add((seconds * MICROS_PER_SECOND as f32) as u32);
+        let mut count = ticks.partition_point(|&mark| mark <= near);
+        while count < ticks.len() && self.seconds(count) <= seconds {
+            count += 1;
+        }
+        while count > 0 {
+            let time = self.seconds(count - 1);
+            if time <= seconds {
+                return Some((count - 1, time));
+            }
+            count -= 1;
+        }
+        None
+    }
+}
+
+/// Windows are equal when they hold the same times.
+impl PartialEq for Marks {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len() && self.iter().eq(other.iter())
     }
 }
 
 impl core::hash::Hash for Marks {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.marks.len().hash(state);
-        for mark in &self.marks {
+        self.len().hash(state);
+        for mark in self.iter() {
             mark.as_ticks().hash(state);
         }
     }

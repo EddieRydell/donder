@@ -3,6 +3,7 @@
 //! knows which declarations a document may hold.
 pub(crate) mod encode;
 pub(crate) mod save;
+pub(crate) mod text_cache;
 pub(crate) mod types;
 
 use crate::source::SourceObjectKind;
@@ -163,15 +164,21 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
 }
 
 /// The canonical text of a data document.
+/// The document's text; each splice prints a declaration's list field from
+/// items rendered beforehand.
 pub(crate) fn write(
     imports: Vec<DataImport>,
     declarations: &[(Identifier, Declaration)],
+    splices: &[donder_language::data::ListSplice<'_>],
 ) -> String {
-    donder_language::data::print(&DataDocument {
-        imports,
-        declarations: declarations
-            .iter()
-            .map(|(name, declaration)| declaration.encode(name))
-            .collect(),
-    })
+    donder_language::data::print_spliced(
+        &DataDocument {
+            imports,
+            declarations: declarations
+                .iter()
+                .map(|(name, declaration)| declaration.encode(name))
+                .collect(),
+        },
+        splices,
+    )
 }

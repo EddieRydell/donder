@@ -12,6 +12,8 @@ use std::collections::{HashMap, HashSet};
 pub(crate) enum Stage {
     /// Once per query: time and parameters.
     Query,
+    /// Once per neighbor of a stencil: its source weight.
+    Source,
     /// Once per run with the same target shape.
     Target,
     /// Per pixel.
@@ -44,6 +46,8 @@ pub(crate) struct Region {
 #[derive(Clone, Debug)]
 pub(crate) struct Plan {
     pub(crate) query: Vec<Node>,
+    /// Source weights of every stencil, operands first.
+    pub(crate) source: Vec<Node>,
     pub(crate) target: Vec<Node>,
     pub(crate) regions: Vec<Region>,
     pub(crate) region_of: HashMap<Node, RegionId>,
@@ -117,6 +121,19 @@ fn stages(graph: &Graph, nodes: &[Node]) -> HashMap<Node, Stage> {
     let mut stage = HashMap::new();
     for &node in nodes {
         let domain = graph.domain(node);
+        let operands = structural_operands(graph, node)
+            .into_iter()
+            .map(|operand| stage.get(&operand).copied().unwrap_or(Stage::Query))
+            .max()
+            .unwrap_or(Stage::Query);
+        // A stencil's source and the weight computed from it run per neighbor.
+        if matches!(graph.op(node), Op::Source)
+            || (operands == Stage::Source
+                && !matches!(graph.op(node), Op::Tap { .. } | Op::ScanTap { .. }))
+        {
+            stage.insert(node, Stage::Source);
+            continue;
+        }
         let own = if is_leaf(graph, node) {
             Stage::Query
         } else if !graph.loops_of(node).is_empty()
@@ -129,11 +146,6 @@ fn stages(graph: &Graph, nodes: &[Node]) -> HashMap<Node, Stage> {
         } else {
             Stage::Query
         };
-        let operands = structural_operands(graph, node)
-            .into_iter()
-            .map(|operand| stage.get(&operand).copied().unwrap_or(Stage::Query))
-            .max()
-            .unwrap_or(Stage::Query);
         stage.insert(node, own.max(operands));
     }
     stage
@@ -205,6 +217,7 @@ fn place(
 ) -> Plan {
     let mut plan = Plan {
         query: Vec::new(),
+        source: Vec::new(),
         target: Vec::new(),
         regions: vec![Region {
             parent: None,
@@ -231,6 +244,7 @@ fn place(
     for &node in nodes.iter().rev() {
         match stage[&node] {
             Stage::Query if !is_leaf(graph, node) => plan.query.push(node),
+            Stage::Source => plan.source.push(node),
             Stage::Target => plan.target.push(node),
             Stage::Body => {
                 let region = if node == root {
@@ -290,6 +304,7 @@ fn place(
         }
     }
     plan.query.reverse();
+    plan.source.reverse();
     plan.target.reverse();
     for region in &mut plan.regions {
         region.nodes.reverse();

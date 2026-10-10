@@ -1,0 +1,441 @@
+import layouts from <layouts/main.data.donder>;
+import patches from <patches/main.data.donder>;
+
+Setup main {
+  description: none,
+  layout: layouts.main,
+  patch: patches.main,
+  controllers: [
+    nativity,
+    pauls_balls,
+    tiny_tree_loft,
+    front_door_1,
+    neighbor_trees,
+    fran_roof_roofs,
+    fran_roof_windows,
+    megatree,
+    peacock,
+    arch_tunnel,
+    right_pilaster_stairs,
+    garage,
+    left_meteors,
+    right_meteors,
+    right_pilaster_bush_arch,
+    right_magnolia,
+    front_door_2,
+    left_wall,
+    left_pilaster,
+    garage_door_matrix,
+    left_magnolia,
+  ],
+}
+
+Controller nativity {
+  description: "Vixen controller: Nativity",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.37" },
+  },
+  ports: [
+    Port { name: universe_64, address: Universe { universe: 64 }, slots: 510 },
+    Port { name: universe_65, address: Universe { universe: 65 }, slots: 510 },
+    Port { name: universe_66, address: Universe { universe: 66 }, slots: 510 },
+    Port { name: universe_67, address: Universe { universe: 67 }, slots: 510 },
+    Port { name: universe_68, address: Universe { universe: 68 }, slots: 510 },
+    Port { name: universe_69, address: Universe { universe: 69 }, slots: 510 },
+    Port { name: universe_70, address: Universe { universe: 70 }, slots: 510 },
+    Port { name: universe_71, address: Universe { universe: 71 }, slots: 510 },
+  ],
+}
+
+Controller pauls_balls {
+  description: "Vixen controller: PaulsBalls",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.64" },
+  },
+  ports: [
+    Port { name: universe_110, address: Universe { universe: 110 }, slots: 510 },
+    Port { name: universe_111, address: Universe { universe: 111 }, slots: 510 },
+    Port { name: universe_112, address: Universe { universe: 112 }, slots: 510 },
+    Port { name: universe_113, address: Universe { universe: 113 }, slots: 510 },
+    Port { name: universe_114, address: Universe { universe: 114 }, slots: 510 },
+    Port { name: universe_115, address: Universe { universe: 115 }, slots: 510 },
+    Port { name: universe_116, address: Universe { universe: 116 }, slots: 510 },
+    Port { name: universe_117, address: Universe { universe: 117 }, slots: 510 },
+    Port { name: universe_118, address: Universe { universe: 118 }, slots: 510 },
+    Port { name: universe_119, address: Universe { universe: 119 }, slots: 510 },
+    Port { name: universe_120, address: Universe { universe: 120 }, slots: 510 },
+    Port { name: universe_121, address: Universe { universe: 121 }, slots: 510 },
+    Port { name: universe_122, address: Universe { universe: 122 }, slots: 510 },
+    Port { name: universe_123, address: Universe { universe: 123 }, slots: 510 },
+    Port { name: universe_124, address: Universe { universe: 124 }, slots: 510 },
+    Port { name: universe_125, address: Universe { universe: 125 }, slots: 510 },
+    Port { name: universe_126, address: Universe { universe: 126 }, slots: 510 },
+    Port { name: universe_127, address: Universe { universe: 127 }, slots: 510 },
+    Port { name: universe_128, address: Universe { universe: 128 }, slots: 510 },
+    Port { name: universe_129, address: Universe { universe: 129 }, slots: 510 },
+    Port { name: universe_130, address: Universe { universe: 130 }, slots: 510 },
+    Port { name: universe_131, address: Universe { universe: 131 }, slots: 510 },
+    Port { name: universe_132, address: Universe { universe: 132 }, slots: 510 },
+    Port { name: universe_133, address: Universe { universe: 133 }, slots: 510 },
+    Port { name: universe_134, address: Universe { universe: 134 }, slots: 510 },
+    Port { name: universe_135, address: Universe { universe: 135 }, slots: 510 },
+    Port { name: universe_136, address: Universe { universe: 136 }, slots: 510 },
+    Port { name: universe_137, address: Universe { universe: 137 }, slots: 510 },
+    Port { name: universe_138, address: Universe { universe: 138 }, slots: 510 },
+    Port { name: universe_139, address: Universe { universe: 139 }, slots: 510 },
+    Port { name: universe_140, address: Universe { universe: 140 }, slots: 510 },
+    Port { name: universe_141, address: Universe { universe: 141 }, slots: 510 },
+    Port { name: universe_142, address: Universe { universe: 142 }, slots: 510 },
+    Port { name: universe_143, address: Universe { universe: 143 }, slots: 510 },
+    Port { name: universe_144, address: Universe { universe: 144 }, slots: 510 },
+    Port { name: universe_145, address: Universe { universe: 145 }, slots: 510 },
+    Port { name: universe_146, address: Universe { universe: 146 }, slots: 510 },
+    Port { name: universe_147, address: Universe { universe: 147 }, slots: 510 },
+    Port { name: universe_148, address: Universe { universe: 148 }, slots: 510 },
+    Port { name: universe_149, address: Universe { universe: 149 }, slots: 510 },
+    Port { name: universe_150, address: Universe { universe: 150 }, slots: 510 },
+    Port { name: universe_151, address: Universe { universe: 151 }, slots: 510 },
+    Port { name: universe_152, address: Universe { universe: 152 }, slots: 510 },
+    Port { name: universe_153, address: Universe { universe: 153 }, slots: 510 },
+    Port { name: universe_154, address: Universe { universe: 154 }, slots: 510 },
+    Port { name: universe_155, address: Universe { universe: 155 }, slots: 510 },
+    Port { name: universe_156, address: Universe { universe: 156 }, slots: 510 },
+    Port { name: universe_157, address: Universe { universe: 157 }, slots: 510 },
+    Port { name: universe_158, address: Universe { universe: 158 }, slots: 510 },
+    Port { name: universe_159, address: Universe { universe: 159 }, slots: 510 },
+    Port { name: universe_160, address: Universe { universe: 160 }, slots: 510 },
+    Port { name: universe_161, address: Universe { universe: 161 }, slots: 510 },
+    Port { name: universe_162, address: Universe { universe: 162 }, slots: 510 },
+    Port { name: universe_163, address: Universe { universe: 163 }, slots: 510 },
+    Port { name: universe_164, address: Universe { universe: 164 }, slots: 510 },
+    Port { name: universe_165, address: Universe { universe: 165 }, slots: 510 },
+    Port { name: universe_166, address: Universe { universe: 166 }, slots: 510 },
+    Port { name: universe_167, address: Universe { universe: 167 }, slots: 510 },
+    Port { name: universe_168, address: Universe { universe: 168 }, slots: 510 },
+  ],
+}
+
+Controller tiny_tree_loft {
+  description: "Vixen controller: Tiny Tree Loft",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.129" },
+  },
+  ports: [Port { name: universe_63, address: Universe { universe: 63 }, slots: 300 }],
+}
+
+Controller front_door_1 {
+  description: "Vixen controller: Front Door Advatek #1",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.130" },
+  },
+  ports: [
+    Port { name: universe_9, address: Universe { universe: 9 }, slots: 510 },
+    Port { name: universe_10, address: Universe { universe: 10 }, slots: 510 },
+    Port { name: universe_11, address: Universe { universe: 11 }, slots: 510 },
+    Port { name: universe_12, address: Universe { universe: 12 }, slots: 510 },
+    Port { name: universe_13, address: Universe { universe: 13 }, slots: 510 },
+    Port { name: universe_14, address: Universe { universe: 14 }, slots: 510 },
+  ],
+}
+
+Controller neighbor_trees {
+  description: "Vixen controllers: Neighbor Trees, penguin",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.139" },
+  },
+  ports: [
+    Port { name: universe_90, address: Universe { universe: 90 }, slots: 510 },
+    Port { name: universe_91, address: Universe { universe: 91 }, slots: 510 },
+    Port { name: universe_92, address: Universe { universe: 92 }, slots: 510 },
+    Port { name: universe_93, address: Universe { universe: 93 }, slots: 510 },
+    Port { name: universe_232, address: Universe { universe: 232 }, slots: 510 },
+    Port { name: universe_233, address: Universe { universe: 233 }, slots: 510 },
+  ],
+}
+
+Controller fran_roof_roofs {
+  description: "Vixen controller: Fran Roof - Roofs",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.152" },
+  },
+  ports: [
+    Port { name: universe_3, address: Universe { universe: 3 }, slots: 510 },
+    Port { name: universe_4, address: Universe { universe: 4 }, slots: 510 },
+  ],
+}
+
+Controller fran_roof_windows {
+  description: "Vixen controller: Fran Roof - Windows",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.153" },
+  },
+  ports: [
+    Port { name: universe_1, address: Universe { universe: 1 }, slots: 510 },
+    Port { name: universe_2, address: Universe { universe: 2 }, slots: 510 },
+  ],
+}
+
+Controller megatree {
+  description: "Vixen controllers: Megatree, Megatree Extra",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.159" },
+  },
+  ports: [
+    Port { name: universe_23, address: Universe { universe: 23 }, slots: 510 },
+    Port { name: universe_24, address: Universe { universe: 24 }, slots: 510 },
+    Port { name: universe_25, address: Universe { universe: 25 }, slots: 510 },
+    Port { name: universe_26, address: Universe { universe: 26 }, slots: 510 },
+    Port { name: universe_27, address: Universe { universe: 27 }, slots: 510 },
+    Port { name: universe_102, address: Universe { universe: 102 }, slots: 510 },
+    Port { name: universe_103, address: Universe { universe: 103 }, slots: 510 },
+    Port { name: universe_104, address: Universe { universe: 104 }, slots: 510 },
+    Port { name: universe_105, address: Universe { universe: 105 }, slots: 510 },
+    Port { name: universe_106, address: Universe { universe: 106 }, slots: 510 },
+  ],
+}
+
+Controller peacock {
+  description: "Vixen controllers: PeeCock Controller, Right Magnolia 5v",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.160" },
+  },
+  ports: [
+    Port { name: universe_33, address: Universe { universe: 33 }, slots: 498 },
+    Port { name: universe_34, address: Universe { universe: 34 }, slots: 219 },
+    Port { name: universe_73, address: Universe { universe: 73 }, slots: 510 },
+    Port { name: universe_74, address: Universe { universe: 74 }, slots: 510 },
+  ],
+}
+
+Controller arch_tunnel {
+  description: "Vixen controller: NewArchTunnel",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.161" },
+  },
+  ports: [
+    Port { name: universe_201, address: Universe { universe: 201 }, slots: 510 },
+    Port { name: universe_202, address: Universe { universe: 202 }, slots: 510 },
+    Port { name: universe_203, address: Universe { universe: 203 }, slots: 510 },
+    Port { name: universe_204, address: Universe { universe: 204 }, slots: 510 },
+    Port { name: universe_205, address: Universe { universe: 205 }, slots: 510 },
+    Port { name: universe_206, address: Universe { universe: 206 }, slots: 510 },
+    Port { name: universe_207, address: Universe { universe: 207 }, slots: 510 },
+    Port { name: universe_208, address: Universe { universe: 208 }, slots: 510 },
+    Port { name: universe_209, address: Universe { universe: 209 }, slots: 510 },
+    Port { name: universe_210, address: Universe { universe: 210 }, slots: 510 },
+    Port { name: universe_211, address: Universe { universe: 211 }, slots: 510 },
+    Port { name: universe_212, address: Universe { universe: 212 }, slots: 510 },
+    Port { name: universe_213, address: Universe { universe: 213 }, slots: 510 },
+    Port { name: universe_214, address: Universe { universe: 214 }, slots: 510 },
+    Port { name: universe_215, address: Universe { universe: 215 }, slots: 510 },
+    Port { name: universe_216, address: Universe { universe: 216 }, slots: 510 },
+    Port { name: universe_217, address: Universe { universe: 217 }, slots: 510 },
+    Port { name: universe_218, address: Universe { universe: 218 }, slots: 510 },
+    Port { name: universe_219, address: Universe { universe: 219 }, slots: 510 },
+    Port { name: universe_220, address: Universe { universe: 220 }, slots: 510 },
+    Port { name: universe_221, address: Universe { universe: 221 }, slots: 510 },
+    Port { name: universe_222, address: Universe { universe: 222 }, slots: 510 },
+    Port { name: universe_223, address: Universe { universe: 223 }, slots: 510 },
+    Port { name: universe_224, address: Universe { universe: 224 }, slots: 510 },
+  ],
+}
+
+Controller right_pilaster_stairs {
+  description: "Vixen controller: Right Pilaster Stairs",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.166" },
+  },
+  ports: [
+    Port { name: universe_60, address: Universe { universe: 60 }, slots: 510 },
+    Port { name: universe_61, address: Universe { universe: 61 }, slots: 510 },
+  ],
+}
+
+Controller garage {
+  description: "Vixen controller: Garage",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.167" },
+  },
+  ports: [
+    Port { name: universe_6, address: Universe { universe: 6 }, slots: 510 },
+    Port { name: universe_7, address: Universe { universe: 7 }, slots: 510 },
+    Port { name: universe_8, address: Universe { universe: 8 }, slots: 510 },
+  ],
+}
+
+Controller left_meteors {
+  description: "Vixen controllers: Left Magnolia Meteor, LeftMeteorsExtra",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.173" },
+  },
+  ports: [
+    Port { name: universe_31, address: Universe { universe: 31 }, slots: 510 },
+    Port { name: universe_32, address: Universe { universe: 32 }, slots: 510 },
+    Port { name: universe_101, address: Universe { universe: 101 }, slots: 510 },
+  ],
+}
+
+Controller right_meteors {
+  description: "Vixen controllers: Right Magnolia Meteor, RightMeteorsExtra",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.176" },
+  },
+  ports: [
+    Port { name: universe_28, address: Universe { universe: 28 }, slots: 510 },
+    Port { name: universe_29, address: Universe { universe: 29 }, slots: 510 },
+    Port { name: universe_30, address: Universe { universe: 30 }, slots: 510 },
+  ],
+}
+
+Controller right_pilaster_bush_arch {
+  description: "Vixen controller: Right Pilaster Bush Arch",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.183" },
+  },
+  ports: [
+    Port { name: universe_55, address: Universe { universe: 55 }, slots: 510 },
+    Port { name: universe_56, address: Universe { universe: 56 }, slots: 510 },
+    Port { name: universe_57, address: Universe { universe: 57 }, slots: 510 },
+    Port { name: universe_58, address: Universe { universe: 58 }, slots: 510 },
+    Port { name: universe_59, address: Universe { universe: 59 }, slots: 510 },
+  ],
+}
+
+Controller right_magnolia {
+  description: "Vixen controller: Right Magnolia Rugged",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.184" },
+  },
+  ports: [
+    Port { name: universe_49, address: Universe { universe: 49 }, slots: 510 },
+    Port { name: universe_50, address: Universe { universe: 50 }, slots: 510 },
+    Port { name: universe_51, address: Universe { universe: 51 }, slots: 510 },
+  ],
+}
+
+Controller front_door_2 {
+  description: "Vixen controllers: Front Door Advatek #2, Back Right Bushes Controller",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.186" },
+  },
+  ports: [
+    Port { name: universe_15, address: Universe { universe: 15 }, slots: 510 },
+    Port { name: universe_16, address: Universe { universe: 16 }, slots: 510 },
+    Port { name: universe_17, address: Universe { universe: 17 }, slots: 510 },
+    Port { name: universe_18, address: Universe { universe: 18 }, slots: 510 },
+    Port { name: universe_19, address: Universe { universe: 19 }, slots: 510 },
+    Port { name: universe_20, address: Universe { universe: 20 }, slots: 510 },
+    Port { name: universe_21, address: Universe { universe: 21 }, slots: 510 },
+    Port { name: universe_22, address: Universe { universe: 22 }, slots: 510 },
+    Port { name: universe_62, address: Universe { universe: 62 }, slots: 510 },
+  ],
+}
+
+Controller left_wall {
+  description: "Vixen controller: Left Wall",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.192" },
+  },
+  ports: [
+    Port { name: universe_42, address: Universe { universe: 42 }, slots: 510 },
+    Port { name: universe_43, address: Universe { universe: 43 }, slots: 510 },
+    Port { name: universe_44, address: Universe { universe: 44 }, slots: 510 },
+  ],
+}
+
+Controller left_pilaster {
+  description: "Vixen controller: Left Pilaster",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.198" },
+  },
+  ports: [
+    Port { name: universe_52, address: Universe { universe: 52 }, slots: 510 },
+    Port { name: universe_53, address: Universe { universe: 53 }, slots: 510 },
+    Port { name: universe_54, address: Universe { universe: 54 }, slots: 510 },
+  ],
+}
+
+Controller garage_door_matrix {
+  description: "Vixen controller: Garage Door Matrix",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.199" },
+  },
+  ports: [Port { name: universe_5, address: Universe { universe: 5 }, slots: 510 }],
+}
+
+Controller left_magnolia {
+  description: "Vixen controllers: Left Magnolia, Mailbox Controller (Left Magnolia)",
+  protocol: E131 {
+    source_name: "Donder",
+    bind_address: "0.0.0.0",
+    priority: 100,
+    mode: Unicast { destination: "192.168.168.237" },
+  },
+  ports: [
+    Port { name: universe_45, address: Universe { universe: 45 }, slots: 510 },
+    Port { name: universe_46, address: Universe { universe: 46 }, slots: 510 },
+    Port { name: universe_47, address: Universe { universe: 47 }, slots: 510 },
+    Port { name: universe_48, address: Universe { universe: 48 }, slots: 510 },
+    Port { name: universe_72, address: Universe { universe: 72 }, slots: 510 },
+  ],
+}

@@ -98,7 +98,11 @@ struct Bound {
 
 impl Bound {
     fn new(name: impl Into<String>, invocation: SampleInvocation) -> Self {
-        let params = BoundParams::from_validated(invocation.params(), &mut DslBindCache::default());
+        let params = BoundParams::from_validated(
+            invocation.program().bytecode(),
+            invocation.params(),
+            &mut DslBindCache::default(),
+        );
         Self {
             name: name.into(),
             invocation,
@@ -983,6 +987,12 @@ fn query(
         SignalPixel::Current => (input, Some(current)),
         SignalPixel::Local(index) => (input, usize::try_from(index).ok()),
         SignalPixel::Global(index) => (input + 7, usize::try_from(index).ok()),
+        SignalPixel::Shifted(shift, edges) => (
+            input,
+            edges
+                .local(current as i32 + shift, count as i32)
+                .and_then(|index| usize::try_from(index).ok()),
+        ),
     };
     index
         .filter(|&index| index < count)
@@ -1036,6 +1046,42 @@ impl StripSignals for Run {
     ) -> Color {
         query(input, time, self.first + offset, self.count, pixel)
     }
+
+    fn scan(
+        &mut self,
+        query: &crate::dsl::ScanQuery,
+        weights: &mut dyn crate::dsl::SourceWeights,
+        output: &mut [Color; STRIP],
+    ) {
+        let colors: Vec<Color> = (0..self.count)
+            .map(|index| signal(query.input, query.time, index))
+            .collect();
+        let scanned = super::evaluation::scan_fixture(query, weights, &colors);
+        for (offset, color) in output.iter_mut().enumerate() {
+            if let Some(&scanned) = scanned.get(self.first + offset) {
+                *color = scanned;
+            }
+        }
+    }
+
+    fn sample_range(
+        &mut self,
+        input: usize,
+        time: SampleTime,
+        start: isize,
+        _: Option<usize>,
+        colors: &mut [Color],
+        locals: &mut [i32],
+    ) {
+        for (k, (color, local)) in colors.iter_mut().zip(locals).enumerate() {
+            let index = (self.first as isize + start + k as isize) as usize;
+            (*color, *local) = if index < self.count {
+                (signal(input, time, index), index as i32)
+            } else {
+                (Color::BLACK, crate::dsl::OUTSIDE)
+            };
+        }
+    }
 }
 
 /// Starter operators, and samples at per-pixel times and addresses, inside
@@ -1070,7 +1116,11 @@ fn operator_samples_in_strips_match_lone_pixels() {
     let mut workspaces = Workspaces::default();
     for operator in &operators {
         let invocation = playback::operator(operator);
-        let params = BoundParams::from_validated(invocation.params(), &mut DslBindCache::default());
+        let params = BoundParams::from_validated(
+            invocation.program().bytecode(),
+            invocation.params(),
+            &mut DslBindCache::default(),
+        );
         let program = invocation.program().bytecode();
         for count in COUNTS {
             let target = Target::new(count);

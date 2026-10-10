@@ -24,7 +24,7 @@ pub(in crate::project) struct ProjectInputs {
 #[derive(Debug)]
 pub(super) struct SequenceInputs {
     pub(super) timing: SequenceTiming,
-    pub(super) effects: Box<[Invocation]>,
+    pub(super) effects: Box<[std::sync::Arc<Invocation>]>,
     pub(super) operators: IndexMap<CompositionGraphNodeId, Invocation>,
 }
 
@@ -35,8 +35,18 @@ impl ProjectInputs {
     ) -> Result<Self, ProjectValidationError> {
         let mut sequences = IndexMap::new();
         for sequence in project.sequences() {
+            let reusable = reusable_effect_inputs(project, previous, sequence);
             let mut effects = Vec::with_capacity(sequence.effects.len());
             for effect in &sequence.effects {
+                if let Some(invocation) =
+                    reusable.get(&effect.id).and_then(|(previous, invocation)| {
+                        std::sync::Arc::ptr_eq(previous, effect)
+                            .then(|| std::sync::Arc::clone(invocation))
+                    })
+                {
+                    effects.push(invocation);
+                    continue;
+                }
                 let EffectRef::Custom(id) = &effect.definition;
                 let definition = &project.definitions().effects.definitions[id];
                 let values = resolve(
@@ -60,7 +70,7 @@ impl ProjectInputs {
                 let invocation = compiled
                     .invoke(values.into_vec(), automation)
                     .map_err(|error| invalid(error.message))?;
-                effects.push(invocation);
+                effects.push(std::sync::Arc::new(invocation));
             }
             let mut operators = IndexMap::new();
             for node in &sequence.composition_graph.nodes {
@@ -150,6 +160,44 @@ fn resolve(
                 .cloned()
                 .ok_or_else(|| invalid(format!("Missing parameter `{}`", param.name.as_str())))
         })
+        .collect()
+}
+
+/// The previous admission's invocations of `sequence`'s clips, when every
+/// input of a clip's invocation other than the clip itself is unchanged: the
+/// definitions, the sequence's mark collections and its automation. A clip
+/// that is still the same allocation then admits to the same invocation.
+fn reusable_effect_inputs<'a>(
+    project: &DonderProject,
+    previous: Option<&'a DonderProject>,
+    sequence: &Sequence,
+) -> std::collections::HashMap<
+    &'a crate::effect::EffectInstId,
+    (
+        &'a std::sync::Arc<crate::effect::EffectInst>,
+        &'a std::sync::Arc<Invocation>,
+    ),
+> {
+    let Some(previous) = previous else {
+        return Default::default();
+    };
+    let (Some(before), Some(inputs)) = (
+        previous.sequence(&sequence.id),
+        previous.accepted_inputs.sequences.get(&sequence.id),
+    ) else {
+        return Default::default();
+    };
+    if !project.definitions.same_allocation(&previous.definitions)
+        || before.mark_collections != sequence.mark_collections
+        || before.automation_clips != sequence.automation_clips
+    {
+        return Default::default();
+    }
+    before
+        .effects
+        .iter()
+        .zip(inputs.effects.iter())
+        .map(|(effect, invocation)| (&effect.id, (effect, invocation)))
         .collect()
 }
 

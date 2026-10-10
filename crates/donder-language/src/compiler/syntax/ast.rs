@@ -186,6 +186,7 @@ pub(crate) enum ExprKind {
     Array(Vec<Expr>),
     /// Boxed to keep expressions, and the parser's frames, small.
     Reduce(Box<Reduction>),
+    Scan(Box<Scan>),
     Block(Block),
 }
 
@@ -198,4 +199,26 @@ pub(crate) struct Reduction {
     pub(crate) inclusive: bool,
     pub(crate) body: Block,
     pub(crate) otherwise: Option<Block>,
+    /// `around [extended | mirrored] input [as neighbor]`.
+    pub(crate) around: Option<Around>,
+}
+
+/// `scan forward input as light, previous { body }`: a trail along each
+/// fixture's pixels.
+#[derive(Clone, Debug)]
+pub(crate) struct Scan {
+    pub(crate) direction: donder_runtime_types::bytecode::Direction,
+    pub(crate) input: Name,
+    pub(crate) light: Name,
+    pub(crate) previous: Name,
+    pub(crate) body: Block,
+}
+
+/// A neighborhood reduction's input, read at each offset along the pixel's
+/// fixture.
+#[derive(Clone, Debug)]
+pub(crate) struct Around {
+    pub(crate) edges: donder_runtime_types::bytecode::Edges,
+    pub(crate) input: Name,
+    pub(crate) neighbor: Option<Name>,
 }

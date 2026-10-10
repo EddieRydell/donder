@@ -348,18 +348,60 @@ impl Encoder<'_> {
         })
     }
 
+    fn layer_name(
+        &self,
+        sequence: &Sequence,
+        id: &donder_model::SequenceLayerId,
+    ) -> Result<Name, ExportProjectError> {
+        sequence
+            .layers
+            .iter()
+            .find(|layer| &layer.id == id)
+            .map(|layer| name(&layer.name))
+            .ok_or_else(|| self.error("", "a layer is missing"))
+    }
+
+    /// One clip of `sequence`. Its text depends only on the clip, the
+    /// sequence's layers and mark collections, the layouts and definitions it
+    /// names, and the imports of the document being written.
+    pub(crate) fn clip(
+        &self,
+        sequence: &Sequence,
+        effect: &donder_model::EffectInst,
+    ) -> Result<types::Clip, ExportProjectError> {
+        let donder_model::EffectRef::Custom(definition) = &effect.definition;
+        let declarations = self
+            .session
+            .project
+            .definitions()
+            .effects
+            .definitions
+            .get(definition)
+            .map(|definition| definition.params().to_vec())
+            .ok_or_else(|| self.error(definition.0.object(), "the effect is missing"))?;
+        Ok(types::Clip {
+            name: name(&effect.name),
+            description: effect.description.clone(),
+            layer: self.layer_name(sequence, &effect.layer_id)?,
+            start: effect.start.0,
+            duration: effect.duration.0,
+            target: self.fixture_target(&effect.target)?,
+            scope: match effect.scope {
+                donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
+                donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
+            },
+            effect: self.source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
+            params: self.params(&declarations, &effect.param_overrides)?,
+        })
+    }
+
+    /// `sequence` without its clips, which are encoded one by one with
+    /// [`Self::clip`] and printed into the `clips` field separately.
     pub(crate) fn sequence(
         &self,
         sequence: &Sequence,
     ) -> Result<types::Sequence, ExportProjectError> {
-        let layer_name = |id: &donder_model::SequenceLayerId| {
-            sequence
-                .layers
-                .iter()
-                .find(|layer| &layer.id == id)
-                .map(|layer| name(&layer.name))
-                .ok_or_else(|| self.error("", "a layer is missing"))
-        };
+        let layer_name = |id: &donder_model::SequenceLayerId| self.layer_name(sequence, id);
         let node_name = |id: &donder_model::CompositionGraphNodeId| {
             let node = sequence
                 .composition_graph
@@ -431,39 +473,7 @@ impl Encoder<'_> {
                     enabled: layer.enabled,
                 })
                 .collect(),
-            clips: sequence
-                .effects
-                .iter()
-                .map(|effect| {
-                    let donder_model::EffectRef::Custom(definition) = &effect.definition;
-                    let declarations = self
-                        .session
-                        .project
-                        .definitions()
-                        .effects
-                        .definitions
-                        .get(definition)
-                        .map(|definition| definition.params().to_vec())
-                        .ok_or_else(|| {
-                            self.error(definition.0.object(), "the effect is missing")
-                        })?;
-                    Ok(types::Clip {
-                        name: name(&effect.name),
-                        description: effect.description.clone(),
-                        layer: layer_name(&effect.layer_id)?,
-                        start: effect.start.0,
-                        duration: effect.duration.0,
-                        target: self.fixture_target(&effect.target)?,
-                        scope: match effect.scope {
-                            donder_model::EffectScope::PerFixture => types::Scope::PerFixture,
-                            donder_model::EffectScope::WholeTarget => types::Scope::WholeTarget,
-                        },
-                        effect: self
-                            .source_reference(SourceObjectKind::EffectDefinition, &definition.0)?,
-                        params: self.params(&declarations, &effect.param_overrides)?,
-                    })
-                })
-                .collect::<Result<_, ExportProjectError>>()?,
+            clips: Vec::new(),
             graph: types::Graph {
                 nodes: sequence
                     .composition_graph
@@ -555,9 +565,6 @@ impl Encoder<'_> {
                                 Ok(types::Detached {
                                     binding: binding(&detached.target)?,
                                     reason: match detached.reason {
-                                        AutomationDetachmentReason::TargetDeleted => {
-                                            types::DetachReason::TargetDeleted
-                                        }
                                         AutomationDetachmentReason::DefinitionChanged => {
                                             types::DetachReason::DefinitionChanged
                                         }

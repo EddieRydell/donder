@@ -26,12 +26,13 @@ export type AppSnapshot = {
 	projectRoot: string | null,
 	projectHealth: ProjectHealth,
 	projectRevision: number,
-	guiProjection: GuiDocumentResult | null,
 	projectEntries: WorkspaceEntry[],
-	tabs: EditorBuffer[],
+	tabs: EditorTab[],
 	pendingSaves: DocumentSaveStatus[],
 	activeFile: string | null,
-	activeBuffer: EditorBuffer | null,
+	activeBuffer: EditorTab | null,
+	/**  The active document's text, present only while it is shown as text. */
+	activeText: string | null,
 	activeDocumentDescriptor: DocumentDescriptor | null,
 	diagnostics: ProjectDiagnostic[],
 	status: string,
@@ -179,7 +180,9 @@ export type DeviceFirmwareInfo = {
 
 export type DeviceInstallProgress = { stage: "connecting" } | { stage: "writing"; completed: number; total: number } | { stage: "verifying" } | { stage: "restarting" };
 
-export type DeviceOutputCapabilities = { type: "ws281x"; lanes: number; channelsPerLane: number; channelMultiple: number; frameRate: number; clockUdpPort: number } | { type: "evaluationOnly" };
+export type DeviceOutputCapabilities = { type: "ws281x"; lanes: number; channelsPerLane: number; channelMultiple: number; 
+/**  The fastest show frame rate the outputs carry. */
+maxFrameRate: number; clockUdpPort: number } | { type: "evaluationOnly" };
 
 export type DevicePlaybackMode = "playing" | "paused" | "stopped" | "ended";
 
@@ -275,11 +278,11 @@ export type DonderDeviceStatus = {
 	connection: DonderDeviceConnection,
 };
 
-export type EditorBuffer = {
+/**  An open document as the tab bar and editor see it, without its text. */
+export type EditorTab = {
 	path: string,
 	name: string,
 	syntax: TextDocumentSyntax,
-	text: string,
 	dirty: boolean,
 	readOnly: boolean,
 	documentRevision: number,
@@ -291,7 +294,6 @@ export type EditorBuffer = {
 export type EditorViewMode = "text" | "gui";
 
 export type EffectRasterSettings = {
-	renderScale: number,
 	maxColumns: number,
 	maxRows: number,
 	minFrameStride: number,
@@ -336,6 +338,20 @@ export type GradientGuiDocument = {
 
 export type GuiDocument = { type: "patch"; document: PatchGuiDocument } | { type: "project"; document: ProjectGuiDocument } | { type: "setup"; document: SetupGuiDocument } | { type: "sequence"; document: SequenceGuiDocument } | { type: "layout"; document: LayoutGuiDocument } | { type: "fixture"; document: FixtureGuiDocument } | { type: "curve"; document: CurveGuiDocument } | { type: "gradient"; document: GradientGuiDocument } | { type: "controller"; document: ControllerGuiDocument } | { type: "blocked"; reason: string; diagnostics: ProjectDiagnostic[] };
 
+/**
+ *  How an edit changed the open GUI document, relative to the document at the
+ *  request's project revision.
+ */
+export type GuiDocumentChange = 
+/**  The whole document. */
+{ type: "document"; document: GuiDocument } | 
+/**
+ *  A sequence whose clips mostly did not change. `document` holds every
+ *  field, but its `effects` only the changed and added clips; `effect_ids`
+ *  lists every clip in order.
+ */
+{ type: "sequenceClips"; document: SequenceGuiDocument; effectIds: number[] };
+
 export type GuiDocumentRequest = {
 	ownedPath: GuiOwnedStep[],
 	projectRevision: number,
@@ -357,6 +373,11 @@ export type GuiEditCommand = { type: "ownership"; slot: GuiOwnershipSlot; edit: 
 export type GuiEditResult = {
 	snapshot: AppSnapshot,
 	document: GuiDocument,
+};
+
+export type GuiEditUpdate = {
+	snapshot: AppSnapshot,
+	change: GuiDocumentChange,
 };
 
 export type GuiFixtureElement = {
@@ -717,7 +738,7 @@ export type SequenceAutomationClip = {
 	detachedBindings: SequenceDetachedAutomationBinding[],
 };
 
-export type SequenceAutomationDetachmentReason = "targetDeleted" | "definitionChanged";
+export type SequenceAutomationDetachmentReason = "definitionChanged";
 
 /**  How a resize treats an automation clip's curve. */
 export type SequenceAutomationResize = 
@@ -734,54 +755,46 @@ export type SequenceBeatDetection = {
 	downbeatsSeconds: number[],
 };
 
+/**
+ *  A clip's raster: one column per sampled time across the clip, one row per
+ *  sampled pixel. A raster is rendered once at this resolution and scaled to
+ *  the clip's on-screen size.
+ */
 export type SequenceClipRaster = {
-	requestId: number,
 	effectId: number,
-	signature: string,
+	/**  Changes whenever the clip's raster is rendered again. */
+	revision: number,
 	columns: number,
 	rows: number,
-	startSeconds: number,
-	durationSeconds: number,
 	pixelsRgbaToken: string,
 };
 
 export type SequenceClipRasterError = {
-	requestId: number,
 	effectId: number,
-	signature: string,
+	revision: number,
 	message: string,
 };
 
+/**
+ *  The clips the editor shows, in the order their rasters should render.
+ *  Every clip of the sequence gets a raster; visible clips render first.
+ */
 export type SequenceClipRasterRequest = {
-	items: SequenceClipRasterRequestItem[],
-	displayRowCount: number,
+	visibleEffectIds: number[],
 } & GuiDocumentRequest;
 
-export type SequenceClipRasterRequestItem = {
-	effectId: number,
-	signature: string | null,
-	displayColumnCount: number,
-};
-
 export type SequenceClipRasterResponse = {
-	projectRevision: number,
-	requestId: number,
-	complete: boolean,
+	/**  Clips whose rasters are not rendered yet. */
+	pending: number,
 };
 
+/**  The rasters that changed after `since` in a results request. */
 export type SequenceClipRasterResultBatch = {
-	projectRevision: number,
-	requestId: number,
-	ready: SequenceClipRaster[],
-	unavailable: SequenceClipRasterUnavailable[],
+	/**  The newest raster revision; the next request asks for later ones. */
+	revision: number,
+	rasters: SequenceClipRaster[],
 	errors: SequenceClipRasterError[],
-	complete: boolean,
-};
-
-export type SequenceClipRasterUnavailable = {
-	requestId: number,
-	effectId: number,
-	signature: string,
+	pending: number,
 };
 
 export type SequenceCompositionGraph = {
@@ -830,8 +843,6 @@ export type SequenceEffect = {
 	targetLabel: string,
 	scope: SequenceEffectScope,
 	effect: string,
-	effectReference: SequenceEffectReference,
-	params: SequenceEffectParam[],
 	kind: SequenceTimelineClipKind,
 };
 
@@ -852,6 +863,21 @@ export type SequenceEffectDefinitionParam = {
 	/**  The script's description of the parameter. */
 	description: string | null,
 	kind: SequenceEffectParamKind,
+};
+
+/**
+ *  What the inspector edits on one clip, fetched for the selected clips only:
+ *  a sequence document carries every clip's summary but no parameters.
+ */
+export type SequenceEffectDetails = {
+	id: number,
+	effectReference: SequenceEffectReference,
+	params: SequenceEffectParam[],
+};
+
+export type SequenceEffectDetailsResult = {
+	projectRevision: number,
+	details: SequenceEffectDetails[],
 };
 
 export type SequenceEffectParam = {
@@ -1060,7 +1086,7 @@ anchorLane: number; laneDelta: number } | { type: "resizeClips"; effectIds: numb
 
 export type SequenceSelectionEditResult = {
 	snapshot: AppSnapshot,
-	document: GuiDocument,
+	change: GuiDocumentChange,
 	selection: SequenceSelection | null,
 	copiedCount: number,
 	skippedCount: number,

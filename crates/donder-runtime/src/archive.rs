@@ -1,4 +1,4 @@
-//! Portable prepared-sequence archives. The format uses 32-bit little-endian
+﻿//! Portable prepared-sequence archives. The format uses 32-bit little-endian
 //! fields; rkyv owns pointer relocation, sharing, and structural archive
 //! validation, and program admission checks every program's slots and
 //! structure. The rest of the graph's meaning is trusted to the Donder producer.
@@ -10,7 +10,7 @@ use rkyv::Archived;
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
 /// Current prepared-sequence format accepted by this runtime.
-pub const FORMAT_VERSION: u32 = 55;
+pub const FORMAT_VERSION: u32 = 60;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoadError {
@@ -126,13 +126,13 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
 /// Estimate playback storage using references and layouts supplied by the trusted
 /// producer. This checks resource budgets, not graph or program validity.
 fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<(), LoadError> {
-    use crate::dsl::bytecode::Banks;
-    use crate::dsl::{AutomationPlan, StripWorkspace};
+    use crate::dsl::bytecode::BytecodeProgram;
+    use crate::dsl::{AutomationPlan, BoundParams};
     use crate::signal::{
-        CachedEffectSample, CachedSignalFrame, EffectAutomationWorkspace, PreparedOperatorNode,
-        PreparedSignalKind,
+        CachedEffectSample, CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace,
+        PreparedAutomation, PreparedOperatorNode, PreparedSignalKind, WINDOW,
     };
-    use donder_runtime_types::Color;
+    use donder_runtime_types::{Color, SampleTime};
 
     let signal = &sequence.signals;
     let plan = &signal.plan;
@@ -152,22 +152,17 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
             .checked_mul(size_of::<Color>())
             .ok_or(LoadError::Limit)?,
     )?;
-    // Every strip workspace (effects plus one per operator depth) reserves the
-    // bankwise largest slot counts it can execute. Budgeting that maximum for
-    // every workspace also covers a program reused by several operators.
-    let (mut scalars, mut rows, mut depth) = (Banks::default(), Banks::default(), 0);
-    for program in &signal.programs {
-        scalars = scalars.max(program.scalars);
-        rows = rows.max(program.rows);
-        depth = depth.max(program.depth);
-    }
     reserve(plan.vm_workspace_count, size_of::<Vec<CachedSignalFrame>>())?;
     reserve(
-        plan.vm_workspace_count
-            .checked_add(1)
-            .ok_or(LoadError::Limit)?,
-        StripWorkspace::storage_estimate(scalars, rows, depth).ok_or(LoadError::Limit)?,
+        plan.vm_workspace_count,
+        size_of::<CachedSignalWindow>() + WINDOW * size_of::<Color>(),
     )?;
+    // Each strip workspace (effects, then one per operator depth) holds the
+    // slots of the programs it runs, as `create_workspace` allocates them.
+    let program = |index: usize| &signal.programs[index];
+    for slots in signal.strip_slots(program, program) {
+        reserve(1, slots.storage_estimate().ok_or(LoadError::Limit)?)?;
+    }
     let mut operator_frame_counts = vec![0usize; plan.vm_workspace_count];
     for node in &plan.nodes {
         let PreparedSignalKind::Operator {
@@ -199,19 +194,30 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
             .unwrap_or(0),
         size_of::<CachedEffectSample>(),
     )?;
+    // An automated invocation holds a plan and a detached parameter copy.
+    let mut automated = |program: &BytecodeProgram,
+                         params: &BoundParams,
+                         bindings: &[PreparedAutomation]|
+     -> Result<(), LoadError> {
+        let plan = AutomationPlan::from_accepted(program, bindings, SampleTime::from_ticks(0));
+        reserve(1, size_of::<EffectAutomationWorkspace>())?;
+        reserve(
+            1,
+            AutomationPlan::storage_estimate(bindings).ok_or(LoadError::Limit)?,
+        )?;
+        reserve(
+            1,
+            params
+                .automation_storage_estimate(plan.windows())
+                .ok_or(LoadError::Limit)?,
+        )
+    };
     for effect in &signal.effects {
         if let Some(automation) = &effect.automation {
-            reserve(1, size_of::<EffectAutomationWorkspace>())?;
-            reserve(
-                1,
-                AutomationPlan::storage_estimate(&automation.bindings).ok_or(LoadError::Limit)?,
-            )?;
-            reserve(
-                1,
-                effect
-                    .bound_params
-                    .automation_storage_estimate(&automation.bindings)
-                    .ok_or(LoadError::Limit)?,
+            automated(
+                &signal.programs[effect.program],
+                &effect.bound_params,
+                &automation.bindings,
             )?;
         }
     }
@@ -223,17 +229,10 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
         } = &node.kind
             && !automation.is_empty()
         {
-            reserve(1, size_of::<EffectAutomationWorkspace>())?;
-            reserve(
-                1,
-                AutomationPlan::storage_estimate(automation).ok_or(LoadError::Limit)?,
-            )?;
-            reserve(
-                1,
-                operator
-                    .params
-                    .automation_storage_estimate(automation)
-                    .ok_or(LoadError::Limit)?,
+            automated(
+                &signal.programs[operator.program],
+                &operator.params,
+                automation,
             )?;
         }
     }
@@ -246,6 +245,7 @@ fn check_resource_limits(sequence: &SequenceData, limits: LoadLimits) -> Result<
             .ok_or(LoadError::Limit)?,
     )?;
     reserve(1, size_of::<crate::signal::EvaluationWorkspace>())?;
+    reserve(1, size_of::<crate::signal::CellMap>())?;
     reserve(sequence.outputs.len(), size_of::<Box<[u8]>>())?;
     for output in &sequence.outputs {
         reserve(output.width, 1)?;

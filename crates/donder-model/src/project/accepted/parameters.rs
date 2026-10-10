@@ -57,18 +57,18 @@ fn prepare_param_value(
         EffectParamValue::Bool(value) => Value::Bool(*value),
         EffectParamValue::Color(value) => Value::Color(*value),
         EffectParamValue::Enum(value) => Value::Enum(value.clone()),
-        EffectParamValue::Marks(None) => Value::Marks(Arc::new(Marks::EMPTY)),
+        EffectParamValue::Marks(None) => Value::Marks(Arc::new(Marks::empty())),
         EffectParamValue::Marks(Some(key)) => {
-            let collection = collections[key];
-            let start = u64::from(timing.start.as_ticks());
-            let end = start + u64::from(timing.duration.as_ticks());
-            Value::Marks(Arc::new(Marks::new(collection.marks.iter().filter_map(
-                |mark| {
-                    let mark = mark.as_micros_rounded();
-                    (mark >= u128::from(start) && mark < u128::from(end))
-                        .then(|| SampleDuration::from_ticks((mark - u128::from(start)) as u32))
-                },
-            ))))
+            // The collection's whole track; preparation shares equal tracks.
+            let mut track: Vec<u32> = collections[key]
+                .marks
+                .iter()
+                .filter_map(|mark| u32::try_from(mark.as_micros_rounded()).ok())
+                .collect();
+            track.sort_unstable();
+            let start = timing.start.as_ticks();
+            let end = start.saturating_add(timing.duration.as_ticks());
+            Value::Marks(Arc::new(Marks::window(track.into(), start, end)))
         }
         EffectParamValue::Curve(source) => Value::Curve(Arc::new(match source {
             CurveSource::Inline(curve) => curve.clone(),

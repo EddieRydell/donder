@@ -126,31 +126,30 @@ mod tests {
     }
 
     fn sequence(selected: bool, query: SignalPixel<i32>) -> PreparedSequence {
-        let sample = SampleProgram::admit(
-            program(
-                vec![
-                    Instruction::Context {
-                        dst: Slot::scalar(0),
-                        read: ContextRead::Seconds,
-                    },
-                    Instruction::Rgb {
-                        dst: Slot::row(0),
-                        red: Slot::input(Input::PixelFraction),
-                        green: Slot::input(Input::PixelX),
-                        blue: Slot::scalar(0),
-                    },
-                ],
-                1,
-                Slot::row(0),
-                banks(1, 0, 0),
-                banks(0, 0, 1),
-            ),
-            Box::new([]),
-        )
+        let sample = SampleProgram::admit(program(
+            vec![
+                Instruction::Context {
+                    dst: Slot::scalar(0),
+                    read: ContextRead::Seconds,
+                },
+                Instruction::Rgb {
+                    dst: Slot::row(0),
+                    red: Slot::input(Input::PixelFraction),
+                    green: Slot::input(Input::PixelX),
+                    blue: Slot::scalar(0),
+                },
+            ],
+            1,
+            Slot::row(0),
+            banks(1, 0, 0),
+            banks(0, 0, 1),
+        ))
         .unwrap();
         let query_index = match query {
             SignalPixel::Current => 0,
-            SignalPixel::Local(index) | SignalPixel::Global(index) => index,
+            SignalPixel::Local(index)
+            | SignalPixel::Global(index)
+            | SignalPixel::Shifted(index, _) => index,
         };
         let operator = OperatorProgram::admit(
             BytecodeProgram {
@@ -180,7 +179,6 @@ mod tests {
                 )
             },
             1,
-            Box::new([]),
         )
         .unwrap();
         let sample = SampleInvocation::bind(sample, vec![]).unwrap();

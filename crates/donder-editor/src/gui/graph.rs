@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use donder_model::{
-    AutomationDetachmentReason, AutomationTarget, CompositionGraphNodeKind, GraphNodePosition,
-    Sequence, SequenceLayerId,
+    AutomationTarget, CompositionGraphNodeKind, GraphNodePosition, Sequence, SequenceLayerId,
 };
 
 use super::GuiMutationError;
@@ -151,7 +150,7 @@ pub(super) fn delete_items(
             })?;
         for effect in &mut sequence.effects {
             if layer_ids.contains(&effect.layer_id.0) {
-                effect.layer_id = SequenceLayerId(destination);
+                std::sync::Arc::make_mut(effect).layer_id = SequenceLayerId(destination);
             }
         }
         sequence
@@ -184,7 +183,7 @@ pub(super) fn delete_items(
             ))
     });
     for clip in &mut sequence.automation_clips {
-        clip.detach_bindings(AutomationDetachmentReason::TargetDeleted, |target| {
+        clip.remove_bindings(|target| {
             matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if ids.contains(node_id))
         });
     }
