@@ -52,6 +52,7 @@ pub(crate) async fn export_fseq_file(
 pub(crate) async fn export_video_file(
     request: GuiDocumentRequest,
     appearance: donder_sequence_api::PreviewAppearance,
+    frames_per_second: u32,
     progress: tauri::ipc::Channel<donder_sequence_api::VideoExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
@@ -62,17 +63,47 @@ pub(crate) async fn export_video_file(
         let Some(path) = choose_export_path("Export video", "MP4 video", "mp4")? else {
             return Ok(None);
         };
-        let bytes = state.prepare_video_export(&request, appearance, |stage| {
-            // A closed dialog must not stop the export.
-            let _ = progress.send(match stage {
-                donder_video::VideoProgress::PreparingAudio => VideoExportProgress::PreparingAudio,
-                donder_video::VideoProgress::Rendering { completed, total } => {
-                    VideoExportProgress::Rendering { completed, total }
-                }
+        // The video streams into a sibling file that replaces the destination
+        // only once it is complete, and is removed if the export fails.
+        let partial = camino::Utf8PathBuf::from(format!("{path}.part"));
+        let file = std::fs::File::create(&partial)
+            .map_err(|error| format!("Could not save the video: {error}"))?;
+        let mut writer = std::io::BufWriter::new(file);
+        let exported = state
+            .prepare_video_export(
+                &request,
+                appearance,
+                frames_per_second,
+                &mut writer,
+                |stage| {
+                    // A closed dialog must not stop the export.
+                    let _ = progress.send(match stage {
+                        donder_video::VideoProgress::PreparingAudio => {
+                            VideoExportProgress::PreparingAudio
+                        }
+                        donder_video::VideoProgress::Rendering { completed, total }
+                            if completed == total =>
+                        {
+                            VideoExportProgress::Saving
+                        }
+                        donder_video::VideoProgress::Rendering { completed, total } => {
+                            VideoExportProgress::Rendering { completed, total }
+                        }
+                    });
+                },
+            )
+            .and_then(|()| {
+                std::io::Write::flush(&mut writer)
+                    .map_err(|error| format!("Could not save the video: {error}"))
+            })
+            .and_then(|()| {
+                std::fs::rename(&partial, &path)
+                    .map_err(|error| format!("Could not save the video: {error}"))
             });
-        })?;
-        let _ = progress.send(VideoExportProgress::Saving);
-        write_export_file(&path, &bytes)?;
+        if let Err(error) = exported {
+            let _ = std::fs::remove_file(&partial);
+            return Err(error);
+        }
         Ok(Some(path.to_string()))
     })
     .await
@@ -116,7 +147,7 @@ fn choose_export_path(
 
 fn write_export_file(path: &camino::Utf8Path, bytes: &[u8]) -> Result<(), String> {
     donder_project_io::atomic_write(path, bytes)
-        .map_err(|error| format!("Could not save exported sequence: {error}"))
+        .map_err(|error| format!("Could not save the export: {error}"))
 }
 
 #[tauri::command(async)]

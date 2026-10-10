@@ -12,6 +12,9 @@ import type { GuiDocumentRequest, SequenceExportOptions, VideoExportProgress } f
 const FSEQ_PRESET_STEPS = [20, 25, 50];
 const FSEQ_MAX_STEP = 255;
 const MILLIS_PER_SECOND = 1000;
+/** Video frame rates offered: 30 for small files, 60 for fast effects. */
+const DEFAULT_VIDEO_FRAME_RATE = 30;
+const VIDEO_FRAME_RATES = [DEFAULT_VIDEO_FRAME_RATE, 60];
 
 export function SequenceExportDialog() {
   const request = useAppStore((state) => state.guiRequest);
@@ -26,6 +29,7 @@ export function SequenceExportDialog() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [videoProgress, setVideoProgress] = useState<VideoExportProgress | null>(null);
+  const [videoFrameRate, setVideoFrameRate] = useState(DEFAULT_VIDEO_FRAME_RATE);
   const stale = origin !== null && origin !== request;
   const ports = options?.ports ?? [];
   const steps = options === null ? [] : [...new Set([options.fseqStepMillis, ...FSEQ_PRESET_STEPS])];
@@ -63,7 +67,7 @@ export function SequenceExportDialog() {
   const exportVideo = (target: GuiDocumentRequest) => {
     const channel = new Channel<VideoExportProgress>();
     channel.onmessage = setVideoProgress;
-    return commands.exportVideoFile(target, PREVIEW_APPEARANCE, channel);
+    return commands.exportVideoFile(target, PREVIEW_APPEARANCE, videoFrameRate, channel);
   };
   const busy = pending !== null;
   return <>
@@ -77,9 +81,10 @@ export function SequenceExportDialog() {
           {stale && <p role="alert">The project changed. Close and reopen export to use the current sequence and outputs.</p>}
           {error !== null && <p role="alert">{error}</p>}
           {saved !== null && <p role="status">Saved {saved}</p>}
-          {videoProgress !== null && <div role="status" className="sequence-export-progress">
-            <span>{videoProgressLabel(videoProgress)}</span>
-            <progress value={videoProgress.stage === "rendering" ? videoProgress.completed : undefined} max={videoProgress.stage === "rendering" ? Math.max(1, videoProgress.total) : undefined} />
+          {pending === "options" && <p role="status">Loading export options…</p>}
+          {videoProgress !== null && <div className="sequence-export-progress">
+            <span id="sequence-export-progress-label">{videoProgressLabel(videoProgress)}</span>
+            <progress aria-labelledby="sequence-export-progress-label" value={videoProgress.stage === "rendering" ? videoProgress.completed : undefined} max={videoProgress.stage === "rendering" ? Math.max(1, videoProgress.total) : undefined} />
           </div>}
           <fieldset className="sequence-export-ports" disabled={busy || stale}>
             <legend>Output ports</legend>
@@ -107,6 +112,12 @@ export function SequenceExportDialog() {
             {customStep && <label>
               <input type="number" min={1} max={FSEQ_MAX_STEP} step={1} value={stepMillis} onChange={(event) => { setSaved(null); setStepMillis(event.target.valueAsNumber); }} /> ms
             </label>}
+          </fieldset>}
+          {options !== null && <fieldset className="sequence-export-step" disabled={busy || stale}>
+            <legend>Video frame rate</legend>
+            <select value={String(videoFrameRate)} onChange={(event) => { setSaved(null); setVideoFrameRate(Number(event.target.value)); }}>
+              {VIDEO_FRAME_RATES.map((rate) => <option key={rate} value={String(rate)}>{rate} fps</option>)}
+            </select>
           </fieldset>}
           <div className="dialog-actions">
             <button type="button" disabled={busy} onClick={() => { setOrigin(null); }}>Close</button>
