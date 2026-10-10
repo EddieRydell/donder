@@ -109,7 +109,20 @@ pub(crate) struct PreviewStyle {
 }
 
 impl PreviewStyle {
-    pub(crate) fn validate(self) -> Result<Self, PreviewStyleError> {
+    pub(crate) fn from_appearance(
+        appearance: donder_sequence_api::PreviewAppearance,
+    ) -> Result<Self, String> {
+        Self {
+            background_rgb: appearance.background_rgb,
+            unlit_rgb: appearance.unlit_rgb,
+            canvas_fill_ratio: appearance.canvas_fill_ratio,
+            minimum_radius_pixels: appearance.minimum_radius_pixels,
+        }
+        .validate()
+        .map_err(|error| format!("Preview appearance is invalid: {error:?}"))
+    }
+
+    fn validate(self) -> Result<Self, PreviewStyleError> {
         if !self.canvas_fill_ratio.is_finite()
             || self.canvas_fill_ratio <= 0.0
             || self.canvas_fill_ratio > 1.0

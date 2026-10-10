@@ -56,7 +56,6 @@ pub(crate) async fn export_video_file(
     progress: tauri::ipc::Channel<donder_sequence_api::VideoExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
-    use donder_sequence_api::VideoExportProgress;
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         // Rendering takes a while, so the destination is chosen before it starts.
@@ -77,19 +76,7 @@ pub(crate) async fn export_video_file(
                 &mut writer,
                 |stage| {
                     // A closed dialog must not stop the export.
-                    let _ = progress.send(match stage {
-                        donder_video::VideoProgress::PreparingAudio => {
-                            VideoExportProgress::PreparingAudio
-                        }
-                        donder_video::VideoProgress::Rendering { completed, total }
-                            if completed == total =>
-                        {
-                            VideoExportProgress::Saving
-                        }
-                        donder_video::VideoProgress::Rendering { completed, total } => {
-                            VideoExportProgress::Rendering { completed, total }
-                        }
-                    });
+                    let _ = progress.send(stage);
                 },
             )
             .and_then(|()| {

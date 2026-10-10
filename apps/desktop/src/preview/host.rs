@@ -107,7 +107,7 @@ struct PreviewHostApplication {
 
 impl PreviewHostApplication {
     fn new(startup: PreviewStartup) -> Result<Self, String> {
-        let style = style(startup.appearance)?;
+        let style = PreviewStyle::from_appearance(startup.appearance)?;
         Ok(Self {
             startup,
             window: None,
@@ -253,7 +253,7 @@ impl PreviewHostApplication {
         &mut self,
         appearance: donder_sequence_api::PreviewAppearance,
     ) -> Result<(), String> {
-        self.style = style(appearance)?;
+        self.style = PreviewStyle::from_appearance(appearance)?;
         self.startup.appearance = appearance;
         self.playback.set_unlit(self.style.unlit_color());
         if let Some(window) = self.window.as_ref() {
@@ -428,17 +428,6 @@ impl ApplicationHandler<HostEvent> for PreviewHostApplication {
             self.closed_reported = true;
         }
     }
-}
-
-fn style(appearance: donder_sequence_api::PreviewAppearance) -> Result<PreviewStyle, String> {
-    PreviewStyle {
-        background_rgb: appearance.background_rgb,
-        unlit_rgb: appearance.unlit_rgb,
-        canvas_fill_ratio: appearance.canvas_fill_ratio,
-        minimum_radius_pixels: appearance.minimum_radius_pixels,
-    }
-    .validate()
-    .map_err(|error| format!("Preview appearance is invalid: {error:?}"))
 }
 
 fn playback_state(state: donder_sequence_api::AudioTransportState) -> PreviewPlaybackState {

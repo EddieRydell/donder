@@ -17,9 +17,11 @@ mod playback;
 mod protocol;
 mod renderer;
 mod scene;
+mod video;
 
 pub(crate) use geometry::PreviewGeometry;
 use protocol::{PreviewCommand, PreviewEvent, PreviewStartup, read_event, write_command};
+pub(crate) use video::export_video;
 
 type PreviewWriter = Arc<Mutex<BufWriter<ChildStdin>>>;
 
@@ -435,15 +437,7 @@ fn validate_appearance(appearance: PreviewAppearance) -> Result<(), String> {
     {
         return Err("Preview window dimensions must be positive.".to_string());
     }
-    scene::PreviewStyle {
-        background_rgb: appearance.background_rgb,
-        unlit_rgb: appearance.unlit_rgb,
-        canvas_fill_ratio: appearance.canvas_fill_ratio,
-        minimum_radius_pixels: appearance.minimum_radius_pixels,
-    }
-    .validate()
-    .map(|_| ())
-    .map_err(|error| format!("Preview appearance is invalid: {error:?}"))
+    scene::PreviewStyle::from_appearance(appearance).map(|_| ())
 }
 
 fn send(writer: &PreviewWriter, command: &PreviewCommand) -> Result<(), String> {

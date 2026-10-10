@@ -154,8 +154,8 @@ impl DesktopState {
         request: &GuiDocumentRequest,
         appearance: PreviewAppearance,
         frames_per_second: u32,
-        output: impl std::io::Write,
-        progress: impl FnMut(donder_video::VideoProgress),
+        output: &mut (impl std::io::Write + std::io::Seek),
+        progress: impl FnMut(donder_sequence_api::VideoExportProgress),
     ) -> Result<(), String> {
         let (session, id) = self.sequence_export_session(request)?;
         let sequence = session
@@ -165,27 +165,14 @@ impl DesktopState {
         let audio = session
             .audio_asset(id.0.document_id(), &sequence.audio)
             .map(|asset| asset.absolute_path.clone());
-        let options = donder_video::VideoOptions {
-            width: VIDEO_WIDTH,
-            height: VIDEO_HEIGHT,
-            frames_per_second,
-            background_rgb: appearance.background_rgb,
-            unlit_rgb: appearance.unlit_rgb,
-            canvas_fill_ratio: appearance.canvas_fill_ratio,
-            minimum_radius_pixels: appearance.minimum_radius_pixels,
-        };
-        donder_video::export_video(
+        crate::preview::export_video(
             &session.project,
             &id,
             audio.as_deref(),
-            &options,
+            appearance,
+            frames_per_second,
             output,
             progress,
         )
-        .map_err(|error| error.to_string())
     }
 }
-
-/// Exported videos are 1080p, the size phones and sharing sites expect.
-const VIDEO_WIDTH: u32 = 1920;
-const VIDEO_HEIGHT: u32 = 1080;
