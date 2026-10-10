@@ -116,3 +116,13 @@ function isAbsolutePath(path: string): boolean {
   const normalized = normalizePath(path);
   return /^[a-z]:\//.test(normalized) || normalized.startsWith("/");
 }
+
+/**
+ * The project health to display. Each edit re-checks the project; while a project that had errors
+ * is re-checked, its errors stay current until the check replaces them, so it keeps showing as
+ * invalid instead of flickering between checking and invalid on every keystroke.
+ */
+export function displayedProjectHealth(snapshot: Pick<AppSnapshot, "projectHealth" | "diagnostics">): AppSnapshot["projectHealth"] {
+  if (snapshot.projectHealth === "checking" && snapshot.diagnostics.some((diagnostic) => diagnostic.severity === "error")) return "invalid";
+  return snapshot.projectHealth;
+}

@@ -38,6 +38,8 @@ const SEQUENCE_HIT_RADII = {
 
 export type SequenceViewport = {
   pxPerSecond: number;
+  /** Width of the row-name column left of the timeline. */
+  leftGutterWidth: number;
   audioStripHeight: number;
   markRulerHeight: number;
   rowHeights: SequenceRowHeightMap;

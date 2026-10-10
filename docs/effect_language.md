@@ -355,7 +355,9 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 - **Spin** wraps a chase position extended by `revolutions` onto the strand.
 - **Wipe** projects pixel positions onto `direction_angle` (degrees; 0 is +X,
   90 is +Y) across the target's bounding rectangle, independent of pixel order.
-  `pulse_width` is the fraction of the effect each pixel's pulse lasts.
+  `pulse_width` is the fraction of the effect each pixel's pulse lasts. `mode`
+  `Pass` lights a pixel only while its pulse crosses it, `On` keeps it lit
+  after, and `Off` lights it before.
 - **MarkPulse, MarkWipe and MarkImpactBurst** restart from the latest mark.
   MarkPulse lights fixture-aware sections. MarkWipe cycles its gradients and
   positions by mark index; its `direction_angle` curve is in turns, sampled

@@ -76,13 +76,19 @@ generation. The pipeline is described in [effect compiler](effect_compiler.md).
 
 ### Large shows
 
-Ding Dong in `examples/rydell_house` (25,856 clips imported from Vixen) is the
-editing-scale workload; `render_bench` runs it as `*_large_show*` and needs the
-uncommitted `audio/dingdong.mp3`. On 2026-10-10 (Windows x64 release build),
-the incremental pipeline took cold preparation from 10.4 s to 211 ms (73 ms
-with a warm cache), a full document print from 7.0 s to 1.9 s (17–60 ms
-reprint after an edit), and a model edit from about 950 ms to 10–55 ms. Clip
-rasters render once per changed clip at full resolution, visible clips first.
+Ding Dong in `examples/rydell_house` is the full-show workload; `render_bench`
+runs it as `*_large_show*` and needs the uncommitted `audio/dingdong.mp3`. On
+2026-10-10 (Windows x64 release build), measured on its raw Vixen import of
+25,856 clips, the incremental pipeline took cold preparation from 10.4 s to
+211 ms (73 ms with a warm cache), a full document print from 7.0 s to 1.9 s
+(17–60 ms reprint after an edit), and a model edit from about 950 ms to
+10–55 ms. Clip rasters render once per changed clip at full resolution, visible
+clips first.
+
+The show was then consolidated to 3,761 clips: copies on several fixtures
+became one `PerFixture` clip on a group. In interleaved runs that day, 60
+frames of controller output went from 88 ms to 58 ms and warm preparation from
+78 ms to 29 ms, while cold preparation rose from 205 ms to 236 ms.
 
 ## Strip interpreter
 

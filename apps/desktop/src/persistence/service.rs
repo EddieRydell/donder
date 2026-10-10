@@ -176,6 +176,8 @@ impl PersistenceService {
     ) -> Result<(), String> {
         if !update.state.px_per_second.is_finite()
             || update.state.px_per_second <= 0.0
+            || !update.state.left_gutter_width_px.is_finite()
+            || update.state.left_gutter_width_px <= 0.0
             || !update.state.audio_strip_height_px.is_finite()
             || update.state.audio_strip_height_px <= 0.0
             || !update.state.mark_ruler_height_px.is_finite()
@@ -486,6 +488,7 @@ mod tests {
         let height = settings.sequence_initial_lane_height_px;
         let mut state = PersistedSequenceViewportState {
             px_per_second: settings.sequence_initial_px_per_second,
+            left_gutter_width_px: height * 3.0,
             audio_strip_height_px: height,
             mark_ruler_height_px: height,
             row_heights: BTreeMap::from([
