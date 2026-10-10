@@ -104,7 +104,8 @@ function StatusChip({
  * save and status labels would flash on every keystroke.
  */
 function useSteadyLabel(label: string, transient: boolean): string {
-  const [shown, setShown] = useState(label);
+  // A label that starts transient has nothing before it to keep showing, so it waits blank.
+  const [shown, setShown] = useState(transient ? "" : label);
   if (!transient && shown !== label) setShown(label);
   useEffect(() => {
     if (!transient) return;
