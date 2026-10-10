@@ -15,7 +15,11 @@ use donder_sequence_api::{
 
 const INITIAL_TICK_INTERVAL: Duration = Duration::from_millis(20);
 const HOLDING_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
+#[cfg(not(test))]
 const OUTPUT_TEST_DURATION: Duration = Duration::from_secs(10);
+/// Tests wait for an output test to expire, so it expires sooner there.
+#[cfg(test)]
+const OUTPUT_TEST_DURATION: Duration = Duration::from_millis(500);
 
 enum OutputSource {
     Sequence,

@@ -230,7 +230,7 @@ mod tests {
             );
         }
         state.start_output_test(&request(), test).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(12);
+        let deadline = Instant::now() + Duration::from_secs(2);
         let mut lit_frames = 0;
         loop {
             assert!(Instant::now() < deadline, "test did not expire");

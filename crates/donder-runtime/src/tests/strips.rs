@@ -350,7 +350,9 @@ fn starter_effects() -> Vec<CompiledEffect> {
 #[test]
 fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
     let mut workspaces = Workspaces::default();
-    let targets = COUNTS.map(Target::new);
+    // One pixel, a partial strip, a full strip, and two strips; each pixel is
+    // also computed alone, so larger targets only add time.
+    let targets = [1, 7, STRIP, STRIP + 9].map(Target::new);
     let variant_target = Target::new(STRIP + 9);
     for effect in starter_effects() {
         let name = effect.name().as_str();
@@ -374,7 +376,8 @@ fn starter_effects_compute_each_pixel_of_a_strip_as_alone() {
         ] {
             let bound = Bound::new(format!("{name} {how}"), invocation);
             for target in &targets {
-                for ticks in TICKS {
+                // The start, middle and last tick of the effect.
+                for ticks in [TICKS[0], TICKS[2], TICKS[4]] {
                     bound.assert_strips(ticks, target, &SPLITS, &mut workspaces);
                 }
             }

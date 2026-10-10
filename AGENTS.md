@@ -104,6 +104,7 @@ Source object kind conversion to desktop `ObjectKind` belongs in the DTO boundar
 GUI edits must mutate typed domain state only. Do not construct, inspect, or mutate document text directly from GUI edit code.
 GUI edits must not run project checks or reload from text after mutation. Persistence belongs to the IO save path.
 Do not use git or commands associated with it unless the user specifically requests it.
+Work directly in the user's checkout. Do not create new git worktrees unless the user requests one.
 Do not use .env files to store information.
 Do not jump to editing if the conversation is about diagnosing an issue or discussing architecture/design decisions.
 Do not start or leave a frontend dev server running when finishing work. The user needs `pnpm tauri dev` to own the frontend port.

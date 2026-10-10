@@ -12,7 +12,7 @@
     "dev": "vite --host 127.0.0.1 --port 1420",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint --cache --cache-strategy content .",
     "test": "node --test src/**/*.test.js",
     "knip": "knip"
   },
