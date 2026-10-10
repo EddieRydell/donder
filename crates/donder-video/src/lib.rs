@@ -17,6 +17,7 @@ mod audio;
 mod scene;
 
 use std::fmt;
+use std::io::Write;
 
 use camino::Utf8Path;
 use donder_model::{DonderProject, SequenceId};
@@ -83,26 +84,32 @@ impl std::error::Error for VideoError {}
 /// H.264 quantizer: low enough that small bright bulbs stay crisp on black.
 const VIDEO_QP: u8 = 20;
 const KEYFRAME_SECONDS: u32 = 2;
+/// Largest supported width or height, so frame buffers stay bounded (4K DCI).
+const MAX_DIMENSION: u32 = 4096;
+const MICROS_PER_SECOND: u64 = 1_000_000;
 
-/// Render `sequence` as an MP4, with `audio` (the sequence's song) when given,
-/// reporting `progress` about once per second of video.
+/// Render `sequence` as an MP4 into `output`, with `audio` (the sequence's
+/// song) when given, reporting `progress` about once per second of video.
 pub fn export_video(
     project: &DonderProject,
     sequence: &SequenceId,
     audio: Option<&Utf8Path>,
     options: &VideoOptions,
+    output: impl Write,
     mut progress: impl FnMut(VideoProgress),
-) -> Result<Vec<u8>, VideoError> {
+) -> Result<(), VideoError> {
     validate(options)?;
     let scene = scene::Scene::new(project, options)?;
     let prepared =
         donder_elaboration::prepare(project, sequence, donder_elaboration::PrepareOutputs::All)
             .ok_or(VideoError::Prepare)?;
     let rate = prepared.frame_rate();
-    let frame_count = prepared.frame_count();
+    let last_frame = prepared.frame_count().saturating_sub(1);
+    let duration_micros = u64::from(prepared.duration().as_ticks());
     let mut playback = prepared.into_playback();
     let fps = options.frames_per_second;
-    let video_frames = u64::from(frame_count) * u64::from(fps) / u64::from(rate);
+    // Enough video frames to cover the whole sequence duration.
+    let video_frames = (duration_micros * u64::from(fps)).div_ceil(MICROS_PER_SECOND);
     let total = u32::try_from(video_frames)
         .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?;
     if audio.is_some() {
@@ -110,8 +117,7 @@ pub fn export_video(
     }
     let song = audio.map(audio::encode_song).transpose()?;
 
-    let mut bytes = Vec::new();
-    let mut builder = MuxerBuilder::new(&mut bytes)
+    let mut builder = MuxerBuilder::new(output)
         .video(
             VideoCodec::H264,
             options.width,
@@ -149,7 +155,8 @@ pub fn export_video(
         let index = u64::from(index);
         let seconds = index as f64 / f64::from(fps);
         let frame = u32::try_from(index * u64::from(rate) / u64::from(fps))
-            .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?;
+            .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?
+            .min(last_frame);
         let time = sample_time_from_frame(frame, rate)
             .map_err(|_| VideoError::InvalidOptions("The sequence is too long to export."))?;
         scene.draw(&playback.evaluate(time), &mut rgb);
@@ -183,18 +190,19 @@ pub fn export_video(
     });
     muxer
         .finish()
-        .map_err(|error| VideoError::Mux(error.to_string()))?;
-    Ok(bytes)
+        .map_err(|error| VideoError::Mux(error.to_string()))
 }
 
 fn validate(options: &VideoOptions) -> Result<(), VideoError> {
     if options.width < 16
         || options.height < 16
+        || options.width > MAX_DIMENSION
+        || options.height > MAX_DIMENSION
         || !options.width.is_multiple_of(2)
         || !options.height.is_multiple_of(2)
     {
         return Err(VideoError::InvalidOptions(
-            "Video width and height must be even and at least 16.",
+            "Video width and height must be even, from 16 to 4096.",
         ));
     }
     if options.frames_per_second == 0 || options.frames_per_second > 120 {
