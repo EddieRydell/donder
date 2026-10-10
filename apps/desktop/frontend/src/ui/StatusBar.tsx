@@ -34,7 +34,7 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
       <footer className="status-bar">
         <StatusChip
           label={health === "invalid" ? `${projectName} · Invalid` : health === "checking" ? `${projectName} · Checking` : projectName}
-          tooltip={projectHealthTooltip(snapshot)}
+          tooltip={projectHealthTooltip(health, snapshot.projectRoot)}
           icon={<FolderOpen size={THEME_METRICS.iconSizeSmall} />}
           tone={`project-health-${health}`}
           {...(health === "invalid"
@@ -67,11 +67,11 @@ export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
   );
 }
 
-function projectHealthTooltip(snapshot: AppStaticSnapshot): string {
-  if (snapshot.projectHealth === "invalid") {
+function projectHealthTooltip(health: AppStaticSnapshot["projectHealth"], projectRoot: string | null): string {
+  if (health === "invalid") {
     return "The project has model-blocking errors. Text, Search, Explorer, and Problems remain available.";
   }
-  return snapshot.projectRoot ?? "No project is open";
+  return projectRoot ?? "No project is open";
 }
 
 function StatusChip({
@@ -99,25 +99,19 @@ function StatusChip({
 }
 
 /**
- * Shows a transient label only once it lasts; until then the last steady label stays. Each
+ * Shows a transient label only once it lasts; until then the label shown before stays. Each
  * keystroke autosaves and re-checks the project within milliseconds, so without this the
  * save and status labels would flash on every keystroke.
  */
 function useSteadyLabel(label: string, transient: boolean): string {
-  const [previous, setPrevious] = useState(label);
-  const [steady, setSteady] = useState(label);
-  const [lasting, setLasting] = useState(false);
-  if (label !== previous) {
-    setPrevious(label);
-    setLasting(false);
-    if (!transient) setSteady(label);
-  }
+  const [shown, setShown] = useState(label);
+  if (!transient && shown !== label) setShown(label);
   useEffect(() => {
     if (!transient) return;
-    const timer = window.setTimeout(() => { setLasting(true); }, THEME_METRICS.unsavedIndicatorDelayMs);
+    const timer = window.setTimeout(() => { setShown(label); }, THEME_METRICS.unsavedIndicatorDelayMs);
     return () => { window.clearTimeout(timer); };
   }, [label, transient]);
-  return !transient || lasting ? label : steady;
+  return transient ? shown : label;
 }
 
 function focusSidebar(view: SidebarView) {
