@@ -380,6 +380,9 @@
   --donder-interaction-drag-threshold: 2px;
   --donder-workspace-layout-save-delay: 250ms;
   --donder-sequence-left-gutter: 128px;
+  --donder-sequence-min-left-gutter: 80px;
+  --donder-sequence-max-left-gutter: 480px;
+  --donder-sequence-left-gutter-resize-hit-width: 8px;
   --donder-sequence-audio-strip-top: 28px;
   --donder-sequence-initial-audio-strip-height: 38px;
   --donder-sequence-min-audio-strip-height: 24px;
@@ -1370,6 +1373,16 @@ html.donder-app-shell body {
   background: var(--donder-bg-rail);
   cursor: default;
   touch-action: none;
+}
+
+/* Positions the "×N" badge tooltip over the canvas-drawn badge; the canvas keeps the pointer. */
+.sequence-shared-badge-anchor {
+  position: absolute;
+  pointer-events: none;
+}
+
+.sequence-shared-badge-tooltip {
+  max-width: var(--donder-editor-tooltip-max-width);
 }
 
 .sequence-gutter-scrollbar-divider {

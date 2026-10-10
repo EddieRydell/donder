@@ -4,6 +4,7 @@ import { OverlayPortal } from "../../OverlayPortal";
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import { objectViewKey } from "../../../workspace/guiIdentity";
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, useContext } from "react";
 
 import { ArrowRight, ChevronRight, Scissors, Trash2 } from "lucide-react";
@@ -72,7 +73,10 @@ const SEQUENCE_FOLLOW = {
 };
 
 const SEQUENCE_CANVAS = {
-  leftGutterPx: THEME_METRICS.sequenceLeftGutter,
+  initialLeftGutterPx: THEME_METRICS.sequenceLeftGutter,
+  minLeftGutterPx: THEME_METRICS.sequenceMinLeftGutter,
+  maxLeftGutterPx: THEME_METRICS.sequenceMaxLeftGutter,
+  leftGutterResizeHitWidthPx: THEME_METRICS.sequenceLeftGutterResizeHitWidth,
   audioStripTopPx: THEME_METRICS.sequenceAudioStripTop,
   initialAudioStripHeightPx: THEME_METRICS.sequenceInitialAudioStripHeight,
   initialMarkRulerHeightPx: THEME_METRICS.sequenceInitialMarkRulerHeight,
@@ -127,6 +131,7 @@ const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
 type SequenceDragState =
   | null
   | { kind: "stripResize"; strip: TimelineStrip; startY: number; initialHeight: number; active: boolean }
+  | { kind: "gutterResize"; startX: number; initialWidth: number; active: boolean }
   | { kind: "rowResize"; laneIndex: number; rowKind: SequenceRowKind; startY: number; initialHeight: number; active: boolean }
   | { kind: "sequence"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
   | { kind: "automation"; id: number; startX: number; startY: number; active: boolean; originalStartSeconds: number; laneIndex: number; resize: "none" | "left" | "right" }
@@ -176,6 +181,14 @@ function stripResizeHit(y: number, audioStripBottom: number, markRulerBottom: nu
   return null;
 }
 
+/** A shared lane's "×N" badge, in canvas coordinates. */
+type SharedBadgeHover = { laneIndex: number; y: number; height: number; scrollY: number; left: number };
+
+/** The row-name column resizes from its right edge, the timeline's left border. */
+function gutterResizeHit(x: number, left: number): boolean {
+  return Math.abs(x - left) <= SEQUENCE_CANVAS.leftGutterResizeHitWidthPx / 2;
+}
+
 
 export function SequenceCanvas({
   document,
@@ -219,6 +232,15 @@ export function SequenceCanvas({
   const [hover, setHover] = useState<SequenceHover>(null);
   const [rowResizeHover, setRowResizeHover] = useState<{ laneIndex: number; rowKind: SequenceRowKind } | null>(null);
   const [stripResizeHover, setStripResizeHover] = useState<TimelineStrip | null>(null);
+  const [gutterResizeHover, setGutterResizeHover] = useState(false);
+  // The "×N" badge of the lane under the pointer, and the tooltip shown after the hover delay.
+  const [badgeHover, setBadgeHover] = useState<SharedBadgeHover | null>(null);
+  const [badgeDelayed, setBadgeDelayed] = useState<SharedBadgeHover | null>(null);
+  useEffect(() => {
+    if (badgeHover === null) return;
+    const timer = window.setTimeout(() => { setBadgeDelayed(badgeHover); }, THEME_METRICS.tooltipDelayMs);
+    return () => { window.clearTimeout(timer); };
+  }, [badgeHover]);
   const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
   const [seekHover, setSeekHover] = useState<SeekHover | null>(null);
   const [rangeDraft, setRangeDraft] = useState<PlaybackRange | null>(null);
@@ -244,7 +266,7 @@ export function SequenceCanvas({
   const [viewport, setViewport] = useState<SequenceViewport>(() => sequenceViewportFromPersisted(restoredViewport, document, settings));
   const viewportInitialized = useRef(false);
   const restoredViewportKey = useRef<string | null>(restoredViewport === undefined ? null : restoreKey);
-  const left = SEQUENCE_CANVAS.leftGutterPx;
+  const left = viewport.leftGutterWidth;
   const scrollbarHeight = THEME_METRICS.scrollbarWidth;
   const timelineWidth = Math.max(1, canvasSize.width - left);
   const maxScrollXSeconds = Math.max(0, document.durationSeconds - timelineWidth / viewport.pxPerSecond);
@@ -283,10 +305,20 @@ export function SequenceCanvas({
   );
   const markTimes = useMemo(() => markSnapTimes(visibleMarkCollections), [visibleMarkCollections]);
   const [automationHover, setAutomationHover] = useState<AutomationHover | null>(null);
+  const sharedBadgeAt = (x: number, y: number): SharedBadgeHover | null => {
+    if (x < sharedBadgeX(left) || x >= left || y < top) return null;
+    const row = rowFromCanvasY(y, top, viewport.scrollY, rows);
+    if (row?.kind !== "effects" || (document.lanes[row.laneIndex]?.occurrences ?? 0) <= 1) return null;
+    return { laneIndex: row.laneIndex, y: top + row.top - viewport.scrollY, height: row.height, scrollY: viewport.scrollY, left };
+  };
+  // The tooltip shows once the hover delay passes, until scrolling or resizing moves the badge.
+  const badgeTooltip = badgeHover !== null && badgeDelayed === badgeHover && badgeHover.scrollY === viewport.scrollY && badgeHover.left === left ? badgeHover : null;
+  const badgeLane = badgeTooltip === null ? undefined : document.lanes[badgeTooltip.laneIndex];
   const canvasCursor =
     dragCursor ??
     (seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
     stripResizeHover !== null || rowResizeHover !== null ? "ns-resize" :
+    gutterResizeHover ? "ew-resize" :
     (automationClipChooser !== null && automationHover !== null
       ? "pointer"
       : automationHover !== null
@@ -435,6 +467,7 @@ export function SequenceCanvas({
         if (restoredViewport === undefined) {
           setViewport({
             pxPerSecond: initialSequencePxPerSecond(settings, timelineWidth, document.durationSeconds),
+            leftGutterWidth: SEQUENCE_CANVAS.initialLeftGutterPx,
             audioStripHeight: SEQUENCE_CANVAS.initialAudioStripHeightPx,
             markRulerHeight: SEQUENCE_CANVAS.initialMarkRulerHeightPx,
             rowHeights: completeRowHeights({}, document, settings),
@@ -481,6 +514,7 @@ export function SequenceCanvas({
     if (followingContinuously) return;
     const state: PersistedSequenceViewportState = {
       pxPerSecond: viewport.pxPerSecond,
+      leftGutterWidthPx: viewport.leftGutterWidth,
       audioStripHeightPx: viewport.audioStripHeight,
       markRulerHeightPx: viewport.markRulerHeight,
       rowHeights: persistRowHeights(viewport.rowHeights),
@@ -738,8 +772,13 @@ export function SequenceCanvas({
       ctx.fillRect(box.x, box.y, box.width, box.height);
       ctx.strokeRect(box.x + THEME_METRICS.visualHairlineOffset, box.y + THEME_METRICS.visualHairlineOffset, Math.max(0, box.width - THEME_METRICS.visualLineWidth), Math.max(0, box.height - THEME_METRICS.visualLineWidth));
     }
+    if (gutterResizeHover) {
+      const indicatorWidth = THEME_METRICS.sequenceLaneResizeIndicatorHeight;
+      ctx.fillStyle = SEQUENCE_COLORS.accent;
+      ctx.fillRect(left - indicatorWidth / 2, 0, indicatorWidth, rect.height);
+    }
 
-  }, [activeAutomationTargetEffectIds, stripResizeHover, automationCurveDraft, collapsedGroups, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
+  }, [activeAutomationTargetEffectIds, stripResizeHover, gutterResizeHover, automationCurveDraft, collapsedGroups, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
 
   const seekTimeFromCanvasX = (x: number) =>
     clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
@@ -1133,6 +1172,7 @@ export function SequenceCanvas({
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
         setMarkDrafts(new Map());
+        setBadgeHover(null);
         const resizedStrip = stripResizeHit(y, audioStripBottom, top);
         if (resizedStrip !== null) {
           event.preventDefault();
@@ -1144,6 +1184,12 @@ export function SequenceCanvas({
             active: false
           };
           setStripResizeHover(resizedStrip);
+          return;
+        }
+        if (gutterResizeHit(x, left)) {
+          event.preventDefault();
+          drag.current = { kind: "gutterResize", startX: x, initialWidth: viewport.leftGutterWidth, active: false };
+          setGutterResizeHover(true);
           return;
         }
         if (automationClipChooser !== null) {
@@ -1345,6 +1391,18 @@ export function SequenceCanvas({
           });
           return;
         }
+        if (current?.kind === "gutterResize") {
+          if (!current.active) {
+            if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
+            current.active = true;
+            setDragCursor("grabbing");
+          }
+          // The timeline keeps at least its minimum gutter's worth of width.
+          const maxWidth = Math.max(SEQUENCE_CANVAS.minLeftGutterPx, Math.min(SEQUENCE_CANVAS.maxLeftGutterPx, canvasSize.width - SEQUENCE_CANVAS.minLeftGutterPx));
+          const leftGutterWidth = clamp(current.initialWidth + event.nativeEvent.offsetX - current.startX, SEQUENCE_CANVAS.minLeftGutterPx, maxWidth);
+          setViewport((previous) => ({ ...previous, leftGutterWidth }));
+          return;
+        }
         if (current?.kind === "rowResize") {
           if (!current.active) {
             if (Math.abs(event.nativeEvent.offsetY - current.startY) < SEQUENCE_DRAG_THRESHOLD_PX) return;
@@ -1434,16 +1492,21 @@ export function SequenceCanvas({
           const y = event.nativeEvent.offsetY;
           const stripResize = stripResizeHit(y, audioStripBottom, top);
           setStripResizeHover(stripResize);
-          const nextSeekHover = stripResize === null && x >= left && y < audioStripBottom ? seekHoverAt(x, y) : null;
+          const gutterResize = stripResize === null && gutterResizeHit(x, left);
+          setGutterResizeHover(gutterResize);
+          const nextSeekHover = stripResize === null && !gutterResize && x >= left && y < audioStripBottom ? seekHoverAt(x, y) : null;
           setSeekHover((previous) =>
             previous?.target === nextSeekHover?.target && previous?.seconds === nextSeekHover?.seconds ? previous : nextSeekHover
           );
-          if (stripResize !== null || nextSeekHover !== null) {
+          if (stripResize !== null || gutterResize || nextSeekHover !== null) {
             setRowResizeHover(null);
             setHover(null);
             setAutomationHover(null);
+            setBadgeHover(null);
             return;
           }
+          const nextBadgeHover = sharedBadgeAt(x, y);
+          setBadgeHover((previous) => previous?.laneIndex === nextBadgeHover?.laneIndex && previous?.y === nextBadgeHover?.y && previous?.scrollY === nextBadgeHover?.scrollY && previous?.left === nextBadgeHover?.left ? previous : nextBadgeHover);
           const resizeHit = x < left && y >= top
             ? rowResizeHit(y, top, viewport.scrollY, rows)
             : null;
@@ -1499,6 +1562,10 @@ export function SequenceCanvas({
         setMarquee(null);
         if (current?.kind === "stripResize") {
           setStripResizeHover(null);
+          return;
+        }
+        if (current?.kind === "gutterResize") {
+          setGutterResizeHover(false);
           return;
         }
         if (current?.kind === "rowResize") {
@@ -1617,6 +1684,8 @@ export function SequenceCanvas({
           setAutomationHover(null);
           setRowResizeHover(null);
           setStripResizeHover(null);
+          setGutterResizeHover(false);
+          setBadgeHover(null);
         }
       }}
           />
@@ -1730,6 +1799,22 @@ export function SequenceCanvas({
         )}
       </ContextMenu.Root>
       <div className="sequence-gutter-scrollbar-divider" style={{ left }} aria-hidden="true" />
+      <Tooltip.Provider>
+        <Tooltip.Root open={badgeTooltip !== null && badgeLane !== undefined}>
+          <Tooltip.Trigger asChild>
+            <span
+              className="sequence-shared-badge-anchor"
+              style={badgeTooltip === null ? undefined : { left: sharedBadgeX(left), top: badgeTooltip.y, width: left - sharedBadgeX(left), height: badgeTooltip.height }}
+              aria-hidden="true"
+            />
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content className="tooltip-content sequence-shared-badge-tooltip" side="right">
+              {badgeLane === undefined ? null : `${badgeLane.label} is in ${badgeLane.occurrences} places in this list because it belongs to more than one group. Every copy shows the same clips. Click to jump to the next one.`}
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+      </Tooltip.Provider>
       <div className="sequence-horizontal-scrollbar" style={{ left, width: timelineWidth }} onPointerDown={handleScrollbarPointerDown} onPointerMove={handleScrollbarPointerMove} onPointerUp={() => { sequenceScrollbar.current = null; }} onPointerCancel={() => { sequenceScrollbar.current = null; }} aria-label="Sequence horizontal scrollbar" role="scrollbar" aria-orientation="horizontal" aria-valuemin={0} aria-valuemax={Math.round(maxScrollXSeconds * 1000)} aria-valuenow={Math.round(viewport.scrollXSeconds * 1000)}>
         <div className={`sequence-horizontal-scrollbar-thumb ${maxScrollXSeconds === 0 ? "disabled" : ""}`} style={{ left: scrollbarThumbLeft, width: scrollbarThumbWidth }} />
       </div>
@@ -2000,6 +2085,7 @@ function completeRowHeights(heights: SequenceRowHeightMap, document: SequenceEdi
 function sequenceViewportFromPersisted(state: PersistedSequenceViewportState | undefined, document: SequenceEditorDocument, settings: AppSettings | null): SequenceViewport {
   return {
     pxPerSecond: state === undefined ? settings?.sequenceInitialPxPerSecond ?? SEQUENCE_CANVAS.initialPxPerSecond : clamp(state.pxPerSecond, SEQUENCE_CANVAS.minPxPerSecond, SEQUENCE_CANVAS.maxZoomPxPerSecond),
+    leftGutterWidth: clamp(state?.leftGutterWidthPx ?? SEQUENCE_CANVAS.initialLeftGutterPx, SEQUENCE_CANVAS.minLeftGutterPx, SEQUENCE_CANVAS.maxLeftGutterPx),
     audioStripHeight: clamp(state?.audioStripHeightPx ?? SEQUENCE_CANVAS.initialAudioStripHeightPx, TIMELINE_STRIPS.audio.minPx, TIMELINE_STRIPS.audio.maxPx),
     markRulerHeight: clamp(state?.markRulerHeightPx ?? SEQUENCE_CANVAS.initialMarkRulerHeightPx, TIMELINE_STRIPS.marks.minPx, TIMELINE_STRIPS.marks.maxPx),
     rowHeights: restoreRowHeights(document.lanes, state?.rowHeights, initialSequenceLaneHeight(settings)),
