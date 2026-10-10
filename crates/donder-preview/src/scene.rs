@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use donder_model::{DonderProject, PreparedFixtureDefinitions};
 use donder_runtime::SequenceFrame;
 use donder_runtime_types::Color;
 
-use crate::{VideoError, VideoOptions};
+use crate::VideoOptions;
+use crate::view::{FrontView, ViewBounds, ViewCamera};
 
 /// Antialiasing width of a bulb's edge, in pixels.
 const EDGE_PIXELS: f32 = 1.0;
@@ -18,7 +18,7 @@ struct Bulb {
     radius: f32,
 }
 
-/// The layout seen from the front, fitted and drawn as the Preview draws it:
+/// The front view rasterized as the Preview draws it, fitted by `ViewCamera`:
 /// every pixel in layout order, unlit pixels in the unlit colour, colours
 /// treated as linear and written through the sRGB transfer function.
 pub(crate) struct Scene {
@@ -38,40 +38,32 @@ pub(crate) struct Scene {
 }
 
 impl Scene {
-    pub(crate) fn new(project: &DonderProject, options: &VideoOptions) -> Result<Self, VideoError> {
-        let setup = project
-            .setup(project.root().setup.id())
-            .ok_or(VideoError::MissingSetup)?;
-        let layout = project
-            .layout(setup.layout.id())
-            .ok_or(VideoError::MissingSetup)?;
-        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions().fixtures);
-        let layout = definitions.prepare_layout(layout);
-        let world: Vec<(u32, Vec<WorldPixel>)> = layout
-            .instances
+    pub(crate) fn new(view: &FrontView, options: &VideoOptions) -> Self {
+        let (width, height) = (options.width, options.height);
+        let camera = ViewCamera::fit(
+            ViewBounds::from_points(view.pixels().map(|pixel| pixel.position)),
+            width,
+            height,
+            options.style.canvas_fill_ratio,
+        );
+        let fixtures = view
+            .fixtures
             .iter()
             .map(|fixture| {
-                let pixels = fixture
+                let bulbs = fixture
                     .pixels
                     .iter()
                     .map(|pixel| {
-                        let point = fixture.transform.transform_point3(pixel.position);
-                        WorldPixel {
-                            x: point.x,
-                            y: point.y,
-                            radius: pixel.diameter_meters / 2.0,
+                        let center = camera.to_screen(pixel.position, width, height);
+                        Bulb {
+                            x: center.x,
+                            y: center.y,
+                            radius: camera
+                                .radius(pixel.radius, options.style.minimum_radius_pixels),
                         }
                     })
                     .collect();
-                (fixture.id.0, pixels)
-            })
-            .collect();
-        let camera = Camera::fit(&world, options)?;
-        let fixtures = world
-            .into_iter()
-            .map(|(id, pixels)| {
-                let bulbs = pixels.iter().map(|pixel| camera.bulb(pixel)).collect();
-                (id, bulbs)
+                (fixture.id, bulbs)
             })
             .collect();
         let encode8 = std::array::from_fn(|value| encode_srgb(value as f32 / 255.0));
@@ -83,7 +75,7 @@ impl Scene {
             .background_rgb
             .map(|channel| encode8[usize::from(channel)]);
         let [red, green, blue] = options.unlit_rgb;
-        Ok(Self {
+        Self {
             width: options.width as usize,
             height: options.height as usize,
             fixtures,
@@ -97,7 +89,7 @@ impl Scene {
             encode8,
             decode8,
             encode,
-        })
+        }
     }
 
     /// Draw one evaluated frame into `rgb`.
@@ -151,54 +143,6 @@ impl Scene {
                     rgb[at + channel] = self.encode[step.min(ENCODE_STEPS - 1)];
                 }
             }
-        }
-    }
-}
-
-/// A pixel's front-view position and radius, in meters.
-struct WorldPixel {
-    x: f32,
-    y: f32,
-    radius: f32,
-}
-
-/// The Preview's camera (`PreviewCamera::fit`): pixel centres bound the
-/// layout, the span is at least a meter, and the zoom at least one pixel
-/// per meter, centred in the frame.
-struct Camera {
-    pan: [f32; 2],
-    zoom: f32,
-    screen: [f32; 2],
-    minimum_radius: f32,
-}
-
-impl Camera {
-    fn fit(world: &[(u32, Vec<WorldPixel>)], options: &VideoOptions) -> Result<Self, VideoError> {
-        let mut pixels = world.iter().flat_map(|(_, pixels)| pixels);
-        let first = pixels.next().ok_or(VideoError::EmptyLayout)?;
-        let (mut min, mut max) = ([first.x, first.y], [first.x, first.y]);
-        for pixel in pixels {
-            min = [min[0].min(pixel.x), min[1].min(pixel.y)];
-            max = [max[0].max(pixel.x), max[1].max(pixel.y)];
-        }
-        let span = [(max[0] - min[0]).max(1.0), (max[1] - min[1]).max(1.0)];
-        let screen = [options.width as f32, options.height as f32];
-        let zoom = (screen[0] * options.canvas_fill_ratio / span[0])
-            .min(screen[1] * options.canvas_fill_ratio / span[1])
-            .max(1.0);
-        Ok(Self {
-            pan: [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5],
-            zoom,
-            screen,
-            minimum_radius: options.minimum_radius_pixels,
-        })
-    }
-
-    fn bulb(&self, pixel: &WorldPixel) -> Bulb {
-        Bulb {
-            x: self.screen[0] * 0.5 + (pixel.x - self.pan[0]) * self.zoom,
-            y: self.screen[1] * 0.5 - (pixel.y - self.pan[1]) * self.zoom,
-            radius: (pixel.radius * self.zoom).max(self.minimum_radius),
         }
     }
 }

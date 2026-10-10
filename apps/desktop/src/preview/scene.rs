@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use donder_preview::{ViewBounds, ViewStyle, ViewStyleError};
 use glam::Vec2;
 
 #[repr(C)]
@@ -25,12 +26,16 @@ impl PreviewColor {
 pub(crate) struct PreviewScene {
     pub(crate) revision: u64,
     pub(crate) instances: Vec<PreviewInstance>,
-    bounds: PreviewBounds,
+    bounds: ViewBounds,
 }
 
 impl PreviewScene {
     pub(crate) fn new(revision: u64, instances: Vec<PreviewInstance>) -> Self {
-        let bounds = PreviewBounds::from_instances(&instances);
+        let bounds = ViewBounds::from_points(
+            instances
+                .iter()
+                .map(|instance| Vec2::new(instance.center_radius[0], instance.center_radius[1])),
+        );
         Self {
             revision,
             instances,
@@ -38,44 +43,9 @@ impl PreviewScene {
         }
     }
 
-    pub(crate) fn bounds(&self) -> PreviewBounds {
+    pub(crate) fn bounds(&self) -> ViewBounds {
         self.bounds
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct PreviewBounds {
-    min: Vec2,
-    max: Vec2,
-}
-
-impl PreviewBounds {
-    fn from_instances(instances: &[PreviewInstance]) -> Self {
-        let Some(first) = instances.first() else {
-            return Self::default();
-        };
-        let mut min = instance_position(first);
-        let mut max = min;
-        for instance in instances.iter().skip(1) {
-            let position = instance_position(instance);
-            min = min.min(position);
-            max = max.max(position);
-        }
-        Self { min, max }
-    }
-}
-
-impl Default for PreviewBounds {
-    fn default() -> Self {
-        Self {
-            min: Vec2::ZERO,
-            max: Vec2::ONE,
-        }
-    }
-}
-
-fn instance_position(instance: &PreviewInstance) -> Vec2 {
-    Vec2::new(instance.center_radius[0], instance.center_radius[1])
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,44 +79,19 @@ pub(crate) struct PreviewStyle {
 }
 
 impl PreviewStyle {
-    pub(crate) fn validate(self) -> Result<Self, PreviewStyleError> {
-        if !self.canvas_fill_ratio.is_finite()
-            || self.canvas_fill_ratio <= 0.0
-            || self.canvas_fill_ratio > 1.0
-        {
-            return Err(PreviewStyleError::CanvasFillRatio);
-        }
-        if !self.minimum_radius_pixels.is_finite() || self.minimum_radius_pixels < 0.0 {
-            return Err(PreviewStyleError::MinimumRadius);
-        }
+    pub(crate) fn validate(self) -> Result<Self, ViewStyleError> {
+        self.view().validate()?;
         Ok(self)
+    }
+
+    pub(crate) fn view(self) -> ViewStyle {
+        ViewStyle {
+            canvas_fill_ratio: self.canvas_fill_ratio,
+            minimum_radius_pixels: self.minimum_radius_pixels,
+        }
     }
 
     pub(crate) fn unlit_color(self) -> PreviewColor {
         PreviewColor::opaque(self.unlit_rgb)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PreviewStyleError {
-    CanvasFillRatio,
-    MinimumRadius,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct PreviewCamera {
-    pub(crate) pan: Vec2,
-    pub(crate) zoom: f32,
-}
-
-impl PreviewCamera {
-    pub(crate) fn fit(bounds: PreviewBounds, size: PreviewSize, fill_ratio: f32) -> Self {
-        let span = (bounds.max - bounds.min).max(Vec2::ONE);
-        let available = Vec2::new(size.width as f32, size.height as f32) * fill_ratio;
-        let zoom = (available.x / span.x).min(available.y / span.y).max(1.0);
-        Self {
-            pan: (bounds.min + bounds.max) * 0.5,
-            zoom,
-        }
     }
 }

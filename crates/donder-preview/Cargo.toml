@@ -1,8 +1,8 @@
 [package]
-name = "donder-video"
+name = "donder-preview"
 edition.workspace = true
 version.workspace = true
-description = "Donder sequence video export: the preview's front view with the song, as an MP4"
+description = "Donder Preview view: layout front view, camera fit and style, and MP4 export of a sequence"
 authors = ["Donder"]
 license = "MIT"
 
@@ -13,6 +13,7 @@ donder-model.workspace = true
 donder-runtime.workspace = true
 donder-runtime-types.workspace = true
 fdk-aac.workspace = true
+glam.workspace = true
 muxide.workspace = true
 openh264.workspace = true
 symphonia.workspace = true

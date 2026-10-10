@@ -1,9 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-use super::scene::{
-    PreviewCamera, PreviewColor, PreviewInstance, PreviewScene, PreviewSize, PreviewStyle,
-};
+use super::scene::{PreviewColor, PreviewInstance, PreviewScene, PreviewSize, PreviewStyle};
 
 const SHADER: &str = include_str!("preview.wgsl");
 
@@ -298,7 +296,12 @@ impl PreviewRenderer {
     }
 
     fn update_uniforms(&self, scene: &PreviewScene, size: PreviewSize, style: PreviewStyle) {
-        let camera = PreviewCamera::fit(scene.bounds(), size, style.canvas_fill_ratio);
+        let camera = donder_preview::ViewCamera::fit(
+            scene.bounds(),
+            size.width,
+            size.height,
+            style.canvas_fill_ratio,
+        );
         let uniforms = PreviewUniforms {
             screen_zoom_min_radius: [
                 size.width as f32,

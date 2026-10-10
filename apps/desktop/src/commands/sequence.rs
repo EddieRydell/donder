@@ -78,15 +78,15 @@ pub(crate) async fn export_video_file(
                 |stage| {
                     // A closed dialog must not stop the export.
                     let _ = progress.send(match stage {
-                        donder_video::VideoProgress::PreparingAudio => {
+                        donder_preview::VideoProgress::PreparingAudio => {
                             VideoExportProgress::PreparingAudio
                         }
-                        donder_video::VideoProgress::Rendering { completed, total }
+                        donder_preview::VideoProgress::Rendering { completed, total }
                             if completed == total =>
                         {
                             VideoExportProgress::Saving
                         }
-                        donder_video::VideoProgress::Rendering { completed, total } => {
+                        donder_preview::VideoProgress::Rendering { completed, total } => {
                             VideoExportProgress::Rendering { completed, total }
                         }
                     });

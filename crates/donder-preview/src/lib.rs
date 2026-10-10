@@ -1,6 +1,7 @@
-//! Sequence video export: the Preview's front view of every pixel, rendered
-//! frame by frame from prepared playback, encoded as H.264 with the
-//! sequence's song as AAC, in an MP4 that phones and players open directly.
+//! The Preview's view of a layout (`view`), shared by the desktop Preview
+//! window and video export, and that export: the front view rendered frame by
+//! frame from prepared playback, encoded as H.264 with the sequence's song as
+//! AAC, in an MP4 that phones and players open directly.
 #![deny(unsafe_code)]
 #![cfg_attr(
     not(test),
@@ -15,6 +16,12 @@
 
 mod audio;
 mod scene;
+mod view;
+
+pub use view::{
+    FrontFixture, FrontPixel, FrontView, FrontViewError, ViewBounds, ViewCamera, ViewStyle,
+    ViewStyleError,
+};
 
 use std::fmt;
 use std::io::Write;
@@ -37,10 +44,7 @@ pub struct VideoOptions {
     pub frames_per_second: u32,
     pub background_rgb: [u8; 3],
     pub unlit_rgb: [u8; 3],
-    /// Share of the frame the layout fills, as in the Preview.
-    pub canvas_fill_ratio: f32,
-    /// Smallest drawn pixel radius, as in the Preview.
-    pub minimum_radius_pixels: f32,
+    pub style: ViewStyle,
 }
 
 /// Where an export is, reported while it runs.
@@ -53,8 +57,8 @@ pub enum VideoProgress {
 #[derive(Debug)]
 pub enum VideoError {
     InvalidOptions(&'static str),
-    MissingSetup,
-    EmptyLayout,
+    Style(ViewStyleError),
+    View(FrontViewError),
     Prepare,
     Audio(String),
     Encode(String),
@@ -65,8 +69,8 @@ impl fmt::Display for VideoError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidOptions(message) => formatter.write_str(message),
-            Self::MissingSetup => formatter.write_str("The project's setup or layout is missing."),
-            Self::EmptyLayout => formatter.write_str("The layout has no pixels to draw."),
+            Self::Style(error) => error.fmt(formatter),
+            Self::View(error) => error.fmt(formatter),
             Self::Prepare => {
                 formatter.write_str("The sequence cannot be played on the active setup.")
             }
@@ -99,7 +103,8 @@ pub fn export_video(
     mut progress: impl FnMut(VideoProgress),
 ) -> Result<(), VideoError> {
     validate(options)?;
-    let scene = scene::Scene::new(project, options)?;
+    let view = FrontView::from_project(project).map_err(VideoError::View)?;
+    let scene = scene::Scene::new(&view, options);
     let prepared =
         donder_elaboration::prepare(project, sequence, donder_elaboration::PrepareOutputs::All)
             .ok_or(VideoError::Prepare)?;
@@ -210,18 +215,6 @@ fn validate(options: &VideoOptions) -> Result<(), VideoError> {
             "Video frame rate must be between 1 and 120.",
         ));
     }
-    if !options.canvas_fill_ratio.is_finite()
-        || options.canvas_fill_ratio <= 0.0
-        || options.canvas_fill_ratio > 1.0
-    {
-        return Err(VideoError::InvalidOptions(
-            "The canvas fill ratio must be in (0, 1].",
-        ));
-    }
-    if !options.minimum_radius_pixels.is_finite() || options.minimum_radius_pixels < 0.0 {
-        return Err(VideoError::InvalidOptions(
-            "The minimum pixel radius must not be negative.",
-        ));
-    }
+    options.style.validate().map_err(VideoError::Style)?;
     Ok(())
 }

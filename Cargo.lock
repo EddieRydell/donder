@@ -1627,11 +1627,11 @@ dependencies = [
  "donder-language-server",
  "donder-model",
  "donder-output",
+ "donder-preview",
  "donder-project-io",
  "donder-runtime",
  "donder-runtime-types",
  "donder-sequence-api",
- "donder-video",
  "esp-idf-part",
  "espflash",
  "glam",
@@ -1743,6 +1743,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "donder-preview"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "donder-elaboration",
+ "donder-model",
+ "donder-runtime",
+ "donder-runtime-types",
+ "fdk-aac",
+ "glam",
+ "muxide",
+ "openh264",
+ "symphonia",
+]
+
+[[package]]
 name = "donder-project-io"
 version = "0.1.0"
 dependencies = [
@@ -1803,21 +1819,6 @@ dependencies = [
  "donder-runtime",
  "donder-runtime-types",
  "indexmap 2.14.2",
-]
-
-[[package]]
-name = "donder-video"
-version = "0.1.0"
-dependencies = [
- "camino",
- "donder-elaboration",
- "donder-model",
- "donder-runtime",
- "donder-runtime-types",
- "fdk-aac",
- "muxide",
- "openh264",
- "symphonia",
 ]
 
 [[package]]

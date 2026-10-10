@@ -1,5 +1,5 @@
 use donder_model::DonderProject;
-use donder_model::PreparedFixtureDefinitions;
+use donder_preview::FrontView;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PreviewGeometry {
@@ -9,24 +9,16 @@ pub(crate) struct PreviewGeometry {
 
 impl PreviewGeometry {
     pub(crate) fn from_project(project: &DonderProject) -> Result<Self, String> {
-        let setup = project
-            .setup(project.root().setup.id())
-            .ok_or_else(|| "Preview setup was not found.".to_string())?;
-        let layout = project
-            .layout(setup.layout.id())
-            .ok_or_else(|| "Preview layout was not found.".to_string())?;
-        let definitions = PreparedFixtureDefinitions::prepare(&project.definitions().fixtures);
-        let layout = definitions.prepare_layout(layout);
-        let mut instances = Vec::new();
-        let mut fixtures = Vec::new();
-        for fixture in &layout.instances {
-            let pixels = fixture.pixels.as_ref();
-            for pixel in pixels {
-                let point = fixture.transform.transform_point3(pixel.position);
-                instances.push([point.x, point.y, pixel.diameter_meters / 2.0, 0.0]);
-            }
-            fixtures.push((fixture.id.0, pixels.len()));
-        }
+        let view = FrontView::from_project(project).map_err(|error| error.to_string())?;
+        let instances = view
+            .pixels()
+            .map(|pixel| [pixel.position.x, pixel.position.y, pixel.radius, 0.0])
+            .collect();
+        let fixtures = view
+            .fixtures
+            .iter()
+            .map(|fixture| (fixture.id, fixture.pixels.len()))
+            .collect();
         Ok(Self {
             instances,
             fixtures,

@@ -33,6 +33,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     let zoom = uniforms.screen_zoom_min_radius.z;
     let min_radius = uniforms.screen_zoom_min_radius.w;
     let center = input.center_radius.xy;
+    // Mirrors donder_preview::ViewCamera::radius and ::to_screen, which video export uses.
     let radius = max(input.center_radius.z * zoom, min_radius);
     let pixel = vec2<f32>(
         screen.x * 0.5 + (center.x - uniforms.pan.x) * zoom,
