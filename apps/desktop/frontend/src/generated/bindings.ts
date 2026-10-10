@@ -45,7 +45,7 @@ export const commands = {
 	sequenceExportOptions: (request: GuiDocumentRequest) => typedError<SequenceExportOptions, string>(__TAURI_INVOKE("sequence_export_options", { request })),
 	exportSequenceFile: (request: GuiDocumentRequest, outputs: number[]) => typedError<string | null, string>(__TAURI_INVOKE("export_sequence_file", { request, outputs })),
 	exportFseqFile: (request: GuiDocumentRequest, outputs: number[], stepMillis: number) => typedError<string | null, string>(__TAURI_INVOKE("export_fseq_file", { request, outputs, stepMillis })),
-	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance })),
+	exportVideoFile: (request: GuiDocumentRequest, appearance: PreviewAppearance, progress: Channel<VideoExportProgress>) => typedError<string | null, string>(__TAURI_INVOKE("export_video_file", { request, appearance, progress })),
 	deviceSerialPorts: () => typedError<DeviceSerialPort[], string>(__TAURI_INVOKE("device_serial_ports")),
 	deviceFirmwareInfo: () => typedError<DeviceFirmwareInfo, string>(__TAURI_INVOKE("device_firmware_info")),
 	installDeviceFirmware: (port: string, progress: Channel<DeviceInstallProgress>) => typedError<null, string>(__TAURI_INVOKE("install_device_firmware", { port, progress })),
@@ -1171,6 +1171,9 @@ export type TransitionRequest = {
 };
 
 export type TransitionResult = { type: "applied"; snapshot: AppSnapshot; closeApplication: boolean } | { type: "needsDecision"; snapshot: AppSnapshot; dirtyPaths: string[] } | { type: "cancelled"; snapshot: AppSnapshot };
+
+/**  Progress of a sequence video export, sent while it runs. */
+export type VideoExportProgress = { stage: "preparingAudio" } | { stage: "rendering"; completed: number; total: number } | { stage: "saving" };
 
 export type WorkspaceEntry = {
 	path: string,

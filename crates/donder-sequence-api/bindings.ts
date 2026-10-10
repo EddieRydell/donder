@@ -1192,6 +1192,9 @@ export type TransitionRequest = {
 
 export type TransitionResult = { type: "applied"; snapshot: AppSnapshot; closeApplication: boolean } | { type: "needsDecision"; snapshot: AppSnapshot; dirtyPaths: string[] } | { type: "cancelled"; snapshot: AppSnapshot };
 
+/**  Progress of a sequence video export, sent while it runs. */
+export type VideoExportProgress = { stage: "preparingAudio" } | { stage: "rendering"; completed: number; total: number } | { stage: "saving" };
+
 export type WorkspaceEntry = {
 	path: string,
 	kind: WorkspaceEntryKind,

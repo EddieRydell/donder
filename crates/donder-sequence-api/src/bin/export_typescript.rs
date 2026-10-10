@@ -72,6 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .register::<ControllerOutputTest>()
         .register::<DeviceFirmwareInfo>()
         .register::<DeviceInstallProgress>()
+        .register::<VideoExportProgress>()
         .register::<PatchGuiDocument>()
         .register::<PatchLayout>()
         .register::<PatchFixtureTarget>()

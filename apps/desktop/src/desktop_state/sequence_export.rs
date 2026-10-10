@@ -153,6 +153,7 @@ impl DesktopState {
         &self,
         request: &GuiDocumentRequest,
         appearance: PreviewAppearance,
+        progress: impl FnMut(donder_video::VideoProgress),
     ) -> Result<Vec<u8>, String> {
         let (session, id) = self.sequence_export_session(request)?;
         let sequence = session
@@ -171,7 +172,7 @@ impl DesktopState {
             canvas_fill_ratio: appearance.canvas_fill_ratio,
             minimum_radius_pixels: appearance.minimum_radius_pixels,
         };
-        donder_video::export_video(&session.project, &id, audio.as_deref(), &options)
+        donder_video::export_video(&session.project, &id, audio.as_deref(), &options, progress)
             .map_err(|error| error.to_string())
     }
 }

@@ -52,12 +52,28 @@ pub(crate) async fn export_fseq_file(
 pub(crate) async fn export_video_file(
     request: GuiDocumentRequest,
     appearance: donder_sequence_api::PreviewAppearance,
+    progress: tauri::ipc::Channel<donder_sequence_api::VideoExportProgress>,
     state: State<'_, DesktopState>,
 ) -> Result<Option<String>, String> {
+    use donder_sequence_api::VideoExportProgress;
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let bytes = state.prepare_video_export(&request, appearance)?;
-        save_export_file("Export video", "MP4 video", "mp4", &bytes)
+        // Rendering takes a while, so the destination is chosen before it starts.
+        let Some(path) = choose_export_path("Export video", "MP4 video", "mp4")? else {
+            return Ok(None);
+        };
+        let bytes = state.prepare_video_export(&request, appearance, |stage| {
+            // A closed dialog must not stop the export.
+            let _ = progress.send(match stage {
+                donder_video::VideoProgress::PreparingAudio => VideoExportProgress::PreparingAudio,
+                donder_video::VideoProgress::Rendering { completed, total } => {
+                    VideoExportProgress::Rendering { completed, total }
+                }
+            });
+        })?;
+        let _ = progress.send(VideoExportProgress::Saving);
+        write_export_file(&path, &bytes)?;
+        Ok(Some(path.to_string()))
     })
     .await
     .map_err(|error| error.to_string())?
@@ -70,6 +86,19 @@ fn save_export_file(
     extension: &str,
     bytes: &[u8],
 ) -> Result<Option<String>, String> {
+    let Some(path) = choose_export_path(title, filter, extension)? else {
+        return Ok(None);
+    };
+    write_export_file(&path, bytes)?;
+    Ok(Some(path.to_string()))
+}
+
+/// Ask for a destination with `extension`; `None` when the user cancels.
+fn choose_export_path(
+    title: &str,
+    filter: &str,
+    extension: &str,
+) -> Result<Option<camino::Utf8PathBuf>, String> {
     let Some(path) = rfd::FileDialog::new()
         .set_title(title)
         .add_filter(filter, &[extension])
@@ -82,9 +111,12 @@ fn save_export_file(
     if path.extension() != Some(extension) {
         return Err(format!("Export files must use the .{extension} extension."));
     }
-    donder_project_io::atomic_write(&path, bytes)
-        .map_err(|error| format!("Could not save exported sequence: {error}"))?;
-    Ok(Some(path.to_string()))
+    Ok(Some(path))
+}
+
+fn write_export_file(path: &camino::Utf8Path, bytes: &[u8]) -> Result<(), String> {
+    donder_project_io::atomic_write(path, bytes)
+        .map_err(|error| format!("Could not save exported sequence: {error}"))
 }
 
 #[tauri::command(async)]

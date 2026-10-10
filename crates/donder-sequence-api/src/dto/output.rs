@@ -196,6 +196,15 @@ pub struct ControllerOutputTest {
     pub value: u8,
 }
 
+/// Progress of a sequence video export, sent while it runs.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "stage", rename_all = "camelCase")]
+pub enum VideoExportProgress {
+    PreparingAudio,
+    Rendering { completed: u32, total: u32 },
+    Saving,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceFirmwareInfo {
