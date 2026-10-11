@@ -395,11 +395,13 @@ fn validate_sequence_since(
             return Err(sequence_error("a mark lies outside the sequence duration"));
         }
         if collection.marks.iter().any(|mark| {
-            mark.label
-                .as_deref()
-                .is_some_and(|label| label.trim().is_empty() || label.contains(['\n', '\r']))
+            mark.label.as_deref().is_some_and(|label| {
+                label.is_empty() || label.trim() != label || label.contains(['\n', '\r'])
+            })
         }) {
-            return Err(sequence_error("a mark label must be one non-empty line"));
+            return Err(sequence_error(
+                "a mark label must be one non-empty line without surrounding whitespace",
+            ));
         }
     }
 

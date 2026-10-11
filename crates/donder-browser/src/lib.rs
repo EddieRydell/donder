@@ -267,6 +267,14 @@ fn set_mark_collections(
     sequence.mark_collections = collections
         .iter()
         .map(|collection| {
+            if collection.marks_seconds.len() != collection.mark_labels.len() {
+                return Err(JsValue::from_str(&format!(
+                    "Mark collection {} has {} mark times but {} mark labels.",
+                    collection.key,
+                    collection.marks_seconds.len(),
+                    collection.mark_labels.len()
+                )));
+            }
             Ok(donder_model::MarkCollection {
                 key: donder_model::MarkCollectionKey {
                     name: donder_language::object_name(&collection.key),
