@@ -261,7 +261,7 @@ fn bench_mark_playback(c: &mut Criterion) {
             description: None,
             display_color: source.layers[0].color,
             marks: (0..32)
-                .map(|i| DonderTime(Duration::from_millis(2000 + i * 50)))
+                .map(|i| donder_model::Mark::at(DonderTime(Duration::from_millis(2000 + i * 50))))
                 .collect(),
         }];
         let effect_name = if pulse { "MarkPulse" } else { "MarkChase" };

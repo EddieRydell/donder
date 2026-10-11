@@ -1,5 +1,5 @@
 import type { SequenceMarkCollection } from "../../../editor/types";
-import { THEME_COLORS, THEME_METRICS } from "../../../theme";
+import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 
 import type { GuiFocus } from "../shared";
 
@@ -76,6 +76,13 @@ export function drawSequenceMarks(
       ctx.moveTo(lineX, rulerTop);
       ctx.lineTo(lineX, rulerTop + rulerHeight);
       ctx.stroke();
+      const label = collection.markLabels[index];
+      if (label !== undefined && label !== null && (active || isSelected)) {
+        ctx.globalAlpha = THEME_METRICS.opacityFull;
+        ctx.font = THEME_TYPOGRAPHY.sequence;
+        ctx.fillStyle = collection.color;
+        ctx.fillText(label, x + THEME_METRICS.timelineLabelX, rulerTop + rulerHeight / 2 + THEME_METRICS.sequenceLabelYOffset);
+      }
       if (isSelected) {
         ctx.globalAlpha = THEME_METRICS.opacityFull;
         ctx.strokeStyle = MARK_DRAWING.selectedStroke;

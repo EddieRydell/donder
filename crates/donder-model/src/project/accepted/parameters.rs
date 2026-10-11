@@ -63,7 +63,7 @@ fn prepare_param_value(
             let mut track: Vec<u32> = collections[key]
                 .marks
                 .iter()
-                .filter_map(|mark| u32::try_from(mark.as_micros_rounded()).ok())
+                .filter_map(|mark| u32::try_from(mark.time.as_micros_rounded()).ok())
                 .collect();
             track.sort_unstable();
             let start = timing.start.as_ticks();

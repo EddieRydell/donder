@@ -232,6 +232,8 @@ pub enum Shape {
     Option(Box<Shape>),
     List(Box<Shape>),
     Tuple(Vec<Shape>),
+    /// Any one of these shapes; the first that fits is the simplest spelling.
+    OneOf(Vec<Shape>),
     /// A record or variant type registered in the [`Schema`].
     Named(&'static str),
     /// A reference to an object of a type, or that object written inline.

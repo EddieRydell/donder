@@ -131,7 +131,12 @@ pub(super) fn project_sequence_clips(
                     marks_seconds: collection
                         .marks
                         .iter()
-                        .map(|mark| mark.as_seconds_f32())
+                        .map(|mark| mark.time.as_seconds_f32())
+                        .collect(),
+                    mark_labels: collection
+                        .marks
+                        .iter()
+                        .map(|mark| mark.label.clone())
                         .collect(),
                 })
                 .collect(),
