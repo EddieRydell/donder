@@ -72,7 +72,7 @@ pub use sequence::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationEnvelope, AutomationTarget, CompositionGraphNode, CompositionGraphNodeId,
     CompositionGraphNodeKind, DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition,
-    GraphPortId, MarkCollection, MarkCollectionKey, Sequence, SequenceAudio,
+    GraphPortId, Mark, MarkCollection, MarkCollectionKey, Sequence, SequenceAudio,
     SequenceCompositionGraph, SequenceId, SequenceLayer, SequenceLayerId, SequenceSource,
     automation_curve_is_normalized, automation_value_at,
 };

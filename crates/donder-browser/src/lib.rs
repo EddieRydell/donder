@@ -281,12 +281,18 @@ fn set_mark_collections(
                 marks: collection
                     .marks_seconds
                     .iter()
-                    .map(|&seconds| {
-                        donder_language::DonderTime::try_from_seconds_f32(seconds).map_err(|_| {
-                            JsValue::from_str("Mark times must be non-negative seconds.")
+                    .zip(&collection.mark_labels)
+                    .map(|(&seconds, label)| {
+                        let time = donder_language::DonderTime::try_from_seconds_f32(seconds)
+                            .map_err(|_| {
+                                JsValue::from_str("Mark times must be non-negative seconds.")
+                            })?;
+                        Ok(donder_model::Mark {
+                            time,
+                            label: label.clone(),
                         })
                     })
-                    .collect::<Result<_, _>>()?,
+                    .collect::<Result<_, JsValue>>()?,
             })
         })
         .collect::<Result<_, JsValue>>()?;

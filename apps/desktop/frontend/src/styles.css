@@ -1776,6 +1776,10 @@ html.donder-app-shell body {
   gap: var(--donder-space-6);
 }
 
+.mark-selected-row .mark-label-input {
+  grid-column: 1 / -1;
+}
+
 .mark-selected-list {
   display: grid;
   gap: var(--donder-space-4);

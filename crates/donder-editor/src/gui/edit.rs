@@ -111,8 +111,8 @@ pub(super) fn edit_sequence(
                 .marks
                 .get_mut(index as usize)
                 .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
-            *mark = super::checked_gui_time(time_seconds.max(0.0))?;
-            collection.marks.sort_by_key(|time| time.0);
+            mark.time = super::checked_gui_time(time_seconds.max(0.0))?;
+            collection.marks.sort_by_key(|mark| mark.time.0);
         }
         SequenceGuiEdit::ReassignMarkCollection {
             collection_key,
@@ -130,7 +130,7 @@ pub(super) fn edit_sequence(
                 };
                 let target_collection = mark_collection_mut(sequence, &target_collection_key)?;
                 target_collection.marks.push(mark);
-                target_collection.marks.sort_by_key(|time| time.0);
+                target_collection.marks.sort_by_key(|mark| mark.time.0);
             }
         }
         SequenceGuiEdit::AddMarks {
@@ -141,9 +141,23 @@ pub(super) fn edit_sequence(
             for seconds in times_seconds {
                 collection
                     .marks
-                    .push(super::checked_gui_time(seconds.max(0.0))?);
+                    .push(Mark::at(super::checked_gui_time(seconds.max(0.0))?));
             }
-            collection.marks.sort_by_key(|time| time.0);
+            collection.marks.sort_by_key(|mark| mark.time.0);
+        }
+        SequenceGuiEdit::SetMarkLabel {
+            collection_key,
+            index,
+            label,
+        } => {
+            let collection = mark_collection_mut(&mut draft, &collection_key)?;
+            let mark = collection
+                .marks
+                .get_mut(index as usize)
+                .ok_or_else(|| GuiMutationError::Invalid("Mark was not found.".to_string()))?;
+            mark.label = label
+                .map(|label| label.trim().to_string())
+                .filter(|label| !label.is_empty());
         }
         SequenceGuiEdit::DeleteMark {
             collection_key,
@@ -167,9 +181,9 @@ pub(super) fn edit_sequence(
                 let mut marks = collection
                     .marks_seconds
                     .iter()
-                    .map(|&seconds| super::checked_gui_time(seconds.max(0.0)))
+                    .map(|&seconds| super::checked_gui_time(seconds.max(0.0)).map(Mark::at))
                     .collect::<Result<Vec<_>, _>>()?;
-                marks.sort_by_key(|time| time.0);
+                marks.sort_by_key(|mark| mark.time.0);
                 sequence.mark_collections.push(MarkCollection {
                     key: MarkCollectionKey { name },
                     description: None,
@@ -880,8 +894,9 @@ use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    GraphNodePosition, MarkCollection, MarkCollectionKey, SequenceAudio as DomainSequenceAudio,
-    SequenceId, SequenceLayerId, automation_curve_is_normalized,
+    GraphNodePosition, Mark, MarkCollection, MarkCollectionKey,
+    SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
+    automation_curve_is_normalized,
 };
 use donder_model::{EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef};
 use donder_model::{GraphOperatorNode, OperatorRef, validate_composition_graph};

@@ -186,7 +186,7 @@ fn rejected_sequence_edits_preserve_the_accepted_project() {
     let mut sequence = project.sequence(&id).unwrap().clone();
     sequence.mark_collections[0]
         .marks
-        .push(DonderTime(Duration::from_secs(2)));
+        .push(donder_model::Mark::at(DonderTime(Duration::from_secs(2))));
     project.replace_sequence(&id, sequence).unwrap();
     let before = project.clone();
     let mut shortened = project.sequence(&id).unwrap().clone();

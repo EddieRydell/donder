@@ -20,9 +20,9 @@ use donder_model::{
 use donder_model::{
     AssetId, AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, MarkCollection,
-    MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph, SequenceId,
-    SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
+    DetachedAutomationBinding, EffectGraphEdge, GraphNodePosition, GraphPortId, Mark,
+    MarkCollection, MarkCollectionKey, Sequence, SequenceAudio, SequenceCompositionGraph,
+    SequenceId, SequenceLayer, SequenceLayerId, automation_curve_is_normalized,
 };
 use donder_model::{
     CurveSource, EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef,
@@ -1038,7 +1038,14 @@ impl DomainResolver<'_> {
                 },
                 description: collection.description.clone(),
                 display_color: collection.color,
-                marks: collection.times.iter().copied().map(DonderTime).collect(),
+                marks: collection
+                    .times
+                    .iter()
+                    .map(|mark| Mark {
+                        time: DonderTime(mark.time),
+                        label: mark.label.clone(),
+                    })
+                    .collect(),
             })
             .collect::<Vec<_>>();
         let marks = sequence

@@ -3,7 +3,10 @@
 //! definitions are the schema: `#[derive(Data)]` generates parsing, printing
 //! and the shapes the generated reference and the language server read.
 use donder_data_derive::Data;
-use donder_language::data::{Meters, Name, NamedSource, Params, Path, Reference, Source};
+use donder_language::data::{
+    Data, DataValue, Decoder, Meters, Name, NamedSource, Params, Path, Reference, Schema, Source,
+    Spanned, spanned,
+};
 use donder_runtime_types::Color;
 use std::time::Duration;
 
@@ -217,7 +220,44 @@ pub struct MarkCollection {
     pub name: Name,
     pub description: Option<String>,
     pub color: Color,
-    pub times: Vec<Duration>,
+    pub times: Vec<MarkTime>,
+}
+
+/// A mark: its time alone, `12.5s`, or with a label, `(12.5s, "chorus")`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MarkTime {
+    pub time: Duration,
+    pub label: Option<String>,
+}
+
+impl Data for MarkTime {
+    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+        match &value.value {
+            DataValue::Tuple(_) => {
+                let (time, label) = <(Duration, String)>::decode(value, decoder)?;
+                Some(Self {
+                    time,
+                    label: Some(label),
+                })
+            }
+            _ => Duration::decode(value, decoder).map(|time| Self { time, label: None }),
+        }
+    }
+    fn encode(&self) -> DataValue {
+        match &self.label {
+            None => self.time.encode(),
+            Some(label) => DataValue::Tuple(vec![
+                spanned(self.time.encode()),
+                spanned(label.clone().encode()),
+            ]),
+        }
+    }
+    fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+        donder_language::data::Shape::OneOf(vec![
+            Duration::shape(schema),
+            <(Duration, String)>::shape(schema),
+        ])
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

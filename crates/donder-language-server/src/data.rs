@@ -150,6 +150,11 @@ pub fn shape_text(shape: &Shape) -> String {
             "({})",
             items.iter().map(shape_text).collect::<Vec<_>>().join(", ")
         ),
+        Shape::OneOf(shapes) => shapes
+            .iter()
+            .map(shape_text)
+            .collect::<Vec<_>>()
+            .join(", or "),
         Shape::Named(name) => format!("`{name}`"),
         Shape::Source(name) => format!("a `{name}` reference, or `{name} {{ ... }}` owned here"),
         Shape::NamedSource(name) => {
@@ -562,6 +567,10 @@ fn shape_completions(schema: &Schema, shape: &Shape, references: &[String]) -> V
             .chain(shape_completions(schema, inner, references))
             .collect(),
         Shape::List(item) => shape_completions(schema, item, references),
+        Shape::OneOf(shapes) => shapes
+            .iter()
+            .flat_map(|shape| shape_completions(schema, shape, references))
+            .collect(),
         Shape::Named(ty) => match schema.types.get(ty) {
             Some(Some(Definition::Variants(variants))) => variants
                 .iter()

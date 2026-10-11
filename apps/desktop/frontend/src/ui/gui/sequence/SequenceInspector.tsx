@@ -39,6 +39,7 @@ type SelectedMarkEntry = {
   ref: SequenceMarkRef;
   collection: SequenceMarkCollection;
   timeSeconds: number;
+  label: string | null;
 };
 
 const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
@@ -861,6 +862,19 @@ function MarkInspectorPanel({
     });
   };
 
+  const labelSelectedMark = (entry: SelectedMarkEntry, label: string) => {
+    const next = label.trim() === "" ? null : label.trim();
+    if (next === entry.label) return;
+    void runGuiEditCommand((request) =>
+      commands.applySequenceGuiEdit(request, {
+        type: "setMarkLabel",
+        collectionKey: entry.ref.collectionKey,
+        index: entry.ref.index,
+        label: next
+      })
+    );
+  };
+
   const deleteSelectedMark = (entry: SelectedMarkEntry) => {
     const nextRefs = selectedRefsAfterDelete(selectedMarks.map((mark) => mark.ref), entry.ref);
     void runGuiEditCommand((request) =>
@@ -1021,6 +1035,17 @@ function MarkInspectorPanel({
                     moveSelectedMark(entry, Number(event.currentTarget.value));
                   }}
                 />
+                <input
+                  key={`${entry.ref.collectionKey}:${entry.ref.index}:label:${entry.label ?? ""}`}
+                  type="text"
+                  className="mark-label-input"
+                  placeholder="Label"
+                  defaultValue={entry.label ?? ""}
+                  aria-label="Selected mark label"
+                  onBlur={(event) => {
+                    labelSelectedMark(entry, event.currentTarget.value);
+                  }}
+                />
                 <button
                   type="button"
                   className="icon-button danger-icon-button"
@@ -1086,7 +1111,7 @@ function markEntry(document: SequenceEditorDocument, ref: SequenceMarkRef): Sele
   const collection = document.markCollections.find((candidate) => candidate.key === ref.collectionKey);
   const timeSeconds = collection?.marksSeconds[ref.index];
   if (collection === undefined || timeSeconds === undefined) return null;
-  return { ref, collection, timeSeconds };
+  return { ref, collection, timeSeconds, label: collection.markLabels[ref.index] ?? null };
 }
 
 function selectedRefsAfterMove(

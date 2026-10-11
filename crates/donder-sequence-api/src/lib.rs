@@ -309,6 +309,12 @@ pub enum SequenceGuiEdit {
         collection_key: String,
         index: u32,
     },
+    /// Label a mark, or clear its label with `None` or a blank label.
+    SetMarkLabel {
+        collection_key: String,
+        index: u32,
+        label: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

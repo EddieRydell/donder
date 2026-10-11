@@ -390,9 +390,16 @@ fn validate_sequence_since(
         if collection
             .marks
             .iter()
-            .any(|mark| mark.0 > sequence.duration.0)
+            .any(|mark| mark.time.0 > sequence.duration.0)
         {
             return Err(sequence_error("a mark lies outside the sequence duration"));
+        }
+        if collection.marks.iter().any(|mark| {
+            mark.label
+                .as_deref()
+                .is_some_and(|label| label.trim().is_empty() || label.contains(['\n', '\r']))
+        }) {
+            return Err(sequence_error("a mark label must be one non-empty line"));
         }
     }
 

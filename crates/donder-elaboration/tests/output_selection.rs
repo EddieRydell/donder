@@ -174,7 +174,9 @@ fn split_fixture_keeps_original_context_and_compacts_disjoint_pixels() {
             }
             for collection in &mut sequence.mark_collections {
                 collection.marks = [58_000_000, 59_000_000, 60_000_000]
-                    .map(donder_language::DonderTime::from_micros)
+                    .map(|micros| {
+                        donder_model::Mark::at(donder_language::DonderTime::from_micros(micros))
+                    })
                     .to_vec();
             }
             ProjectEdit::ReplaceSequence {
