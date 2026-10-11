@@ -337,6 +337,8 @@ pub struct SequenceMarkCollection {
     pub description: Option<String>,
     pub color: String,
     pub marks_seconds: Vec<f32>,
+    /// Each mark's label, in the same order as `marks_seconds`.
+    pub mark_labels: Vec<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

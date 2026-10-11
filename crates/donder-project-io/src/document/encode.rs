@@ -460,7 +460,14 @@ impl Encoder<'_> {
                     name: name(&collection.key.name),
                     description: collection.description.clone(),
                     color: collection.display_color,
-                    times: collection.marks.iter().map(|mark| mark.0).collect(),
+                    times: collection
+                        .marks
+                        .iter()
+                        .map(|mark| types::MarkTime {
+                            time: mark.time.0,
+                            label: mark.label.clone(),
+                        })
+                        .collect(),
                 })
                 .collect(),
             layers: sequence

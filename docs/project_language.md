@@ -437,7 +437,9 @@ Sequence layer_test {
 
 - `Sequence`: `description`, `duration`, `frame_rate`, `audio` (a path or
   `none`), `marks`, `layers`, `clips`, `graph`, `automation`.
-- `MarkCollection`: `name`, `description`, `color`, `times`, in time order.
+- `MarkCollection`: `name`, `description`, `color`, `times`, in time order. A mark is its time, `4s`, or its
+  time and a one-line label, `(4s, "chorus")`, for lyric lines, singers or section names; the editor shows and
+  edits labels on the timeline.
 - `Layer`: `name`, `description`, `color`, `enabled`. The first layer is the
   default layer, which new clips use and which cannot be deleted.
 - `Clip`: `name`, `description`, `layer`, `start`, `duration`, `target` (a

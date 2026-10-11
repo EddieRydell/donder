@@ -64,13 +64,14 @@ pub fn copy_sequence_selection(
             let mut copied = Vec::new();
             let mut skipped = 0u32;
             for mark in marks {
-                let Some(time_seconds) = mark_time_seconds(sequence, mark) else {
+                let Some(source) = sequence_mark(sequence, mark) else {
                     skipped = skipped.saturating_add(1);
                     continue;
                 };
                 copied.push(ClipboardMark {
                     collection_key: mark.collection_key.clone(),
-                    time_seconds,
+                    time_seconds: source.time.as_seconds_f32(),
+                    label: source.label.clone(),
                 });
             }
             let copied_count = copied.len() as u32;
@@ -300,15 +301,16 @@ pub(super) fn paste_sequence_clipboard(
                     };
                     let time_seconds =
                         (anchor.time_seconds + mark.time_seconds - min_time).max(0.0);
-                    collection
-                        .marks
-                        .push(super::checked_gui_time(time_seconds)?);
-                    collection.marks.sort_by_key(|time| time.0);
+                    collection.marks.push(donder_model::Mark {
+                        time: super::checked_gui_time(time_seconds)?,
+                        label: mark.label.clone(),
+                    });
+                    collection.marks.sort_by_key(|mark| mark.time.0);
                     let index = collection
                         .marks
                         .iter()
                         .position(|value| {
-                            (value.as_seconds_f32() - time_seconds).abs() < f32::EPSILON
+                            (value.time.as_seconds_f32() - time_seconds).abs() < f32::EPSILON
                         })
                         .unwrap_or_else(|| collection.marks.len().saturating_sub(1));
                     pasted.push(SequenceMarkRef {
@@ -622,18 +624,18 @@ pub(super) fn move_mark_selection(
         for index in indexes {
             let collection = mark_collection_mut(sequence, &collection_key)?;
             if let Some(value) = collection.marks.get_mut(index) {
-                let time_seconds = (value.as_seconds_f32() + time_delta_seconds).max(0.0);
-                *value = super::checked_gui_time(time_seconds)?;
+                let time_seconds = (value.time.as_seconds_f32() + time_delta_seconds).max(0.0);
+                value.time = super::checked_gui_time(time_seconds)?;
                 moved_times.push(time_seconds);
             }
         }
         let collection = mark_collection_mut(sequence, &collection_key)?;
-        collection.marks.sort_by_key(|time| time.0);
+        collection.marks.sort_by_key(|mark| mark.time.0);
         for time_seconds in moved_times {
             if let Some(index) = collection
                 .marks
                 .iter()
-                .position(|value| (value.as_seconds_f32() - time_seconds).abs() < f32::EPSILON)
+                .position(|value| (value.time.as_seconds_f32() - time_seconds).abs() < f32::EPSILON)
             {
                 moved.push(SequenceMarkRef {
                     collection_key: collection_key.clone(),
@@ -649,14 +651,16 @@ pub(super) fn move_mark_selection(
     Ok(moved)
 }
 
-fn mark_time_seconds(sequence: &donder_model::Sequence, mark: &SequenceMarkRef) -> Option<f32> {
+fn sequence_mark<'a>(
+    sequence: &'a donder_model::Sequence,
+    mark: &SequenceMarkRef,
+) -> Option<&'a donder_model::Mark> {
     sequence
         .mark_collections
         .iter()
         .find(|collection| collection.key.name.as_str() == mark.collection_key)?
         .marks
         .get(mark.index as usize)
-        .map(DonderTime::as_seconds_f32)
 }
 
 fn mark_indexes_by_collection(marks: &[SequenceMarkRef]) -> BTreeMap<String, Vec<usize>> {

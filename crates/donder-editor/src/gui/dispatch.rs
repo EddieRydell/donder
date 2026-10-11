@@ -81,6 +81,7 @@ pub struct ClipboardAutomation {
 pub struct ClipboardMark {
     pub collection_key: String,
     pub time_seconds: f32,
+    pub label: Option<String>,
 }
 
 pub struct SequenceSelectionMutation {

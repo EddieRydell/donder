@@ -106,7 +106,7 @@ fn configured_project(
     sequence.automation_clips.clear();
     sequence.mark_collections[0].marks = marks_ms
         .iter()
-        .map(|&ms| DonderTime(Duration::from_millis(ms)))
+        .map(|&ms| donder_model::Mark::at(DonderTime(Duration::from_millis(ms))))
         .collect();
     let mut instance = (*sequence.effects[0]).clone();
     instance.layer_id = sequence.layers[0].id.clone();

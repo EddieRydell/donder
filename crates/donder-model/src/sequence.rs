@@ -92,7 +92,20 @@ pub struct MarkCollection {
     pub key: MarkCollectionKey,
     pub description: Option<String>,
     pub display_color: Color,
-    pub marks: Vec<DonderTime>,
+    pub marks: Vec<Mark>,
+}
+
+/// A point in time, optionally labeled: a lyric line, a singer, a section name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Mark {
+    pub time: DonderTime,
+    pub label: Option<String>,
+}
+
+impl Mark {
+    pub fn at(time: DonderTime) -> Self {
+        Self { time, label: None }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
