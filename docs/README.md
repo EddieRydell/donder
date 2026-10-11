@@ -33,5 +33,5 @@ superseded measurements don't belong here.
 **Authoring references**
 - [Create your first LED show](first_show.md): a two-pixel project from scratch.
 - [Fixture authoring](fixture_authoring.md): shapes, layouts, groups and routing.
-- [Vixen effects](vixen_effects.md): what the Vixen ports cover and where they
-  differ.
+- [Vixen effects](vixen_effects.md): the approximate Vixen ports and how they
+  take a Vixen effect's settings.

@@ -1,4 +1,4 @@
-use crate::values::{Color, Curve, CurvePoint, Gradient, GradientStop};
+use crate::values::{Curve, CurvePoint, FloatColor, Gradient, GradientStop};
 
 #[cfg(test)]
 mod tests;
@@ -74,17 +74,8 @@ pub fn byte_channel(value: f32) -> u8 {
 }
 
 #[inline(always)]
-pub fn rgb(red: f32, green: f32, blue: f32) -> Color {
-    if red.is_nan() || green.is_nan() || blue.is_nan() {
-        Color::BLACK
-    } else {
-        let channel = |value: f32| byte_channel(value * 255.0);
-        Color {
-            red: channel(red),
-            green: channel(green),
-            blue: channel(blue),
-        }
-    }
+pub fn rgb(red: f32, green: f32, blue: f32) -> FloatColor {
+    FloatColor { red, green, blue }
 }
 
 #[inline(always)]
@@ -232,36 +223,30 @@ pub fn curve_last_crossing(curve: &Curve, value: f32, before: f32) -> f32 {
 }
 
 #[inline]
-pub fn sample_gradient(gradient: &Gradient, position: f32) -> Color {
+pub fn sample_gradient(gradient: &Gradient, position: f32) -> FloatColor {
     sample_gradient_stops(&gradient.stops, position)
 }
 
 /// Equal-position stops form a step: the last stop wins at the exact position.
 #[inline]
-pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> Color {
-    if position.is_nan() {
-        return Color::BLACK;
-    }
+pub fn sample_gradient_stops(stops: &[GradientStop], position: f32) -> FloatColor {
     let Some(first) = stops.first() else {
-        return Color::BLACK;
+        return FloatColor::BLACK;
     };
-    if stops.len() == 1 {
-        return first.color;
-    }
-    if position < first.position {
-        return first.color;
-    }
     let last = &stops[stops.len() - 1];
+    if stops.len() == 1 || position < first.position {
+        return first.color.into();
+    }
     if position >= last.position {
-        return last.color;
+        return last.color.into();
     }
     let index = 1 + stops[1..stops.len() - 1].partition_point(|stop| stop.position <= position);
     let previous = &stops[index - 1];
     let stop = &stops[index];
     let span = (stop.position - previous.position).max(1e-9);
     mix_colors(
-        previous.color,
-        stop.color,
+        previous.color.into(),
+        stop.color.into(),
         unit_span_fraction(position - previous.position, span).clamp(0.0, 1.0),
     )
 }
@@ -278,13 +263,9 @@ fn unit_span_fraction(numerator: f32, span: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
-    if t.is_nan() {
-        return Color::BLACK;
-    }
-    let channel =
-        |left: u8, right: u8| byte_channel(left as f32 + (right as f32 - left as f32) * t);
-    Color {
+pub fn mix_colors(left: FloatColor, right: FloatColor, t: f32) -> FloatColor {
+    let channel = |left: f32, right: f32| left + (right - left) * t;
+    FloatColor {
         red: channel(left.red, right.red),
         green: channel(left.green, right.green),
         blue: channel(left.blue, right.blue),
@@ -292,40 +273,35 @@ pub fn mix_colors(left: Color, right: Color, t: f32) -> Color {
 }
 
 #[inline(always)]
-pub fn scale_color(color: Color, scale: f32) -> Color {
-    if scale.is_nan() {
-        return Color::BLACK;
-    }
-    let channel = |value: u8| byte_channel(value as f32 * scale);
-    Color {
-        red: channel(color.red),
-        green: channel(color.green),
-        blue: channel(color.blue),
+pub fn scale_color(color: FloatColor, scale: f32) -> FloatColor {
+    FloatColor {
+        red: color.red * scale,
+        green: color.green * scale,
+        blue: color.blue * scale,
     }
 }
 
 #[inline(always)]
-pub fn add_colors(left: Color, right: Color) -> Color {
-    Color {
-        red: left.red.saturating_add(right.red),
-        green: left.green.saturating_add(right.green),
-        blue: left.blue.saturating_add(right.blue),
+pub fn add_colors(left: FloatColor, right: FloatColor) -> FloatColor {
+    FloatColor {
+        red: left.red + right.red,
+        green: left.green + right.green,
+        blue: left.blue + right.blue,
     }
 }
 
 #[inline(always)]
-pub fn multiply_colors(left: Color, right: Color) -> Color {
-    let channel = |a: u8, b: u8| ((u16::from(a) * u16::from(b) + 127) / 255) as u8;
-    Color {
-        red: channel(left.red, right.red),
-        green: channel(left.green, right.green),
-        blue: channel(left.blue, right.blue),
+pub fn multiply_colors(left: FloatColor, right: FloatColor) -> FloatColor {
+    FloatColor {
+        red: left.red * right.red,
+        green: left.green * right.green,
+        blue: left.blue * right.blue,
     }
 }
 
 #[inline(always)]
-pub fn max_colors(left: Color, right: Color) -> Color {
-    Color {
+pub fn max_colors(left: FloatColor, right: FloatColor) -> FloatColor {
+    FloatColor {
         red: left.red.max(right.red),
         green: left.green.max(right.green),
         blue: left.blue.max(right.blue),
@@ -333,53 +309,39 @@ pub fn max_colors(left: Color, right: Color) -> Color {
 }
 
 #[inline(always)]
-pub fn invert_color(color: Color) -> Color {
-    Color {
-        red: 255 - color.red,
-        green: 255 - color.green,
-        blue: 255 - color.blue,
+pub fn invert_color(color: FloatColor) -> FloatColor {
+    FloatColor {
+        red: 1.0 - color.red,
+        green: 1.0 - color.green,
+        blue: 1.0 - color.blue,
     }
 }
 
 #[inline(always)]
-pub fn color_intensity(color: Color) -> f32 {
-    f32::from(color.red.max(color.green).max(color.blue)) * (1.0 / 255.0)
+pub fn color_intensity(color: FloatColor) -> f32 {
+    color.red.max(color.green).max(color.blue)
 }
-
-// RGB components bound both HSV divisors to 1..=255. Store these constants in
-// read-only program data, rather than performing software division per pixel.
-// This has no initialization, heap allocation, or retained frame state.
-const CHANNEL_RECIPROCALS: [f32; 256] = {
-    let mut values = [0.0; 256];
-    let mut channel = 1;
-    while channel < values.len() {
-        values[channel] = 1.0 / channel as f32;
-        channel += 1;
-    }
-    values
-};
 
 /// HSV hue in turns, in [0, 1). Achromatic colors have hue zero.
 #[inline]
-pub fn color_hue(color: Color) -> f32 {
-    let max = color.red.max(color.green).max(color.blue);
+pub fn color_hue(color: FloatColor) -> f32 {
+    let max = color_intensity(color);
     let min = color.red.min(color.green).min(color.blue);
     hue_between(color, max, min)
 }
 
-fn hue_between(color: Color, max: u8, min: u8) -> f32 {
+fn hue_between(color: FloatColor, max: f32, min: f32) -> f32 {
     let chroma = max - min;
-    if chroma == 0 {
+    if chroma <= 0.0 {
         return 0.0;
     }
-    let inverse = CHANNEL_RECIPROCALS[usize::from(chroma)];
-    let difference = |left: u8, right: u8| f32::from(i16::from(left) - i16::from(right));
+    let inverse = 1.0 / chroma;
     let sector = if max == color.red {
-        difference(color.green, color.blue) * inverse
+        (color.green - color.blue) * inverse
     } else if max == color.green {
-        difference(color.blue, color.red) * inverse + 2.0
+        (color.blue - color.red) * inverse + 2.0
     } else {
-        difference(color.red, color.green) * inverse + 4.0
+        (color.red - color.green) * inverse + 4.0
     };
     let hue = sector * (1.0 / 6.0);
     if hue < 0.0 { hue + 1.0 } else { hue }
@@ -387,43 +349,32 @@ fn hue_between(color: Color, max: u8, min: u8) -> f32 {
 
 /// HSV saturation in [0, 1]. Black and grayscale have saturation zero.
 #[inline]
-pub fn color_saturation(color: Color) -> f32 {
-    let max = color.red.max(color.green).max(color.blue);
+pub fn color_saturation(color: FloatColor) -> f32 {
+    let max = color_intensity(color);
     let min = color.red.min(color.green).min(color.blue);
     saturation_between(max, min)
 }
 
-fn saturation_between(max: u8, min: u8) -> f32 {
-    if max == 0 {
-        0.0
-    } else {
-        f32::from(max - min) * CHANNEL_RECIPROCALS[usize::from(max)]
-    }
+fn saturation_between(max: f32, min: f32) -> f32 {
+    if max <= 0.0 { 0.0 } else { (max - min) / max }
 }
 
 /// `color` with its hue replaced by `hue`, or shifted by it when `shift`:
 /// `hsv(hue, saturation(color), intensity(color))`, or the same with
 /// `hue(color) + hue`, computing the color's components once.
-pub fn recolor(color: Color, hue: f32, shift: bool) -> Color {
-    let max = color.red.max(color.green).max(color.blue);
+pub fn recolor(color: FloatColor, hue: f32, shift: bool) -> FloatColor {
+    let max = color_intensity(color);
     let min = color.red.min(color.green).min(color.blue);
     let hue = if shift {
         hue_between(color, max, min) + hue
     } else {
         hue
     };
-    hsv(
-        hue,
-        saturation_between(max, min),
-        f32::from(max) * (1.0 / 255.0),
-    )
+    hsv(hue, saturation_between(max, min), max)
 }
 
 #[inline]
-pub fn hsv(h: f32, s: f32, v: f32) -> Color {
-    if h.is_nan() || s.is_nan() || v.is_nan() {
-        return Color::BLACK;
-    }
+pub fn hsv(h: f32, s: f32, v: f32) -> FloatColor {
     let h = h - libm::floorf(h);
     let sector = h * 6.0;
     let c = v * s;
@@ -442,11 +393,10 @@ pub fn hsv(h: f32, s: f32, v: f32) -> Color {
     } else {
         (c, 0.0, x)
     };
-    let channel = |value: f32| byte_channel(value * 255.0);
-    Color {
-        red: channel(r + m),
-        green: channel(g + m),
-        blue: channel(b + m),
+    FloatColor {
+        red: r + m,
+        green: g + m,
+        blue: b + m,
     }
 }
 
@@ -499,7 +449,6 @@ pub fn float_unary(op: crate::bytecode::FloatUnary, value: f32) -> f32 {
         FloatUnary::Floor => math(libm::floorf),
         FloatUnary::Ceil => math(libm::ceilf),
         FloatUnary::Trunc => math(libm::truncf),
-        FloatUnary::RoundEven => math(libm::roundevenf),
         FloatUnary::Sqrt => math(libm::sqrtf),
     }
 }
@@ -549,12 +498,6 @@ fn power(base: f32, exponent: f32) -> f32 {
     libm::powf(base, exponent)
 }
 
-/// One 8-bit channel as a fraction of full brightness.
-#[inline(always)]
-pub fn color_channel(channel: u8) -> f32 {
-    f32::from(channel) * (1.0 / 255.0)
-}
-
 /// Clamped cubic interpolation of an already normalized position.
 #[inline(always)]
 pub fn smoothstep(value: f32) -> f32 {
@@ -588,10 +531,10 @@ pub fn section_position(pixel_index: i32, width: f32, inverse: f32) -> f32 {
 }
 
 #[inline(always)]
-pub fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> Color {
+pub fn gradient_color_scaled(gradient: &Gradient, position: f32, scale: f32) -> FloatColor {
     let scale = scale.clamp(0.0, 1.0);
     if scale <= 0.0 {
-        Color::BLACK
+        FloatColor::BLACK
     } else {
         scale_color(sample_gradient(gradient, position), scale)
     }

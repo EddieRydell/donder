@@ -5,11 +5,45 @@ import setups from <setups/main.data.donder>;
 import sequences from <sequences/empty.data.donder>;
 import ding_dong from <sequences/ding_dong.data.donder>;
 import most_wonderful_time from <sequences/most_wonderful_time.data.donder>;
+import carol_of_the_bells from <sequences/carol_of_the_bells.data.donder>;
+import jing_jing_jing from <sequences/jing_jing_jing.data.donder>;
+import hometown_christmas from <sequences/hometown_christmas.data.donder>;
+import frosty_the_snowman from <sequences/frosty_the_snowman.data.donder>;
+import all_we_are from <sequences/all_we_are.data.donder>;
+import children_go from <sequences/children_go.data.donder>;
+import here_comes_the_sun from <sequences/here_comes_the_sun.data.donder>;
+import holy from <sequences/holy.data.donder>;
+import inner_demons from <sequences/inner_demons.data.donder>;
+import ira from <sequences/ira.data.donder>;
+import mr_grinch from <sequences/mr_grinch.data.donder>;
+import rainbow from <sequences/rainbow.data.donder>;
+import joy_to_the_world from <sequences/joy_to_the_world.data.donder>;
+import tiny_tree from <sequences/tiny_tree.data.donder>;
+import trans_siberian_mix from <sequences/trans_siberian_mix.data.donder>;
 
 Project rydell_house {
   format: 1,
   id: "9ef79b9b-78ce-4cc3-b2dc-ac76193daa05",
   description: none,
   setup: setups.main,
-  sequences: [sequences.empty, ding_dong.ding_dong, most_wonderful_time.most_wonderful_time],
+  sequences: [
+    sequences.empty,
+    ding_dong.ding_dong,
+    most_wonderful_time.most_wonderful_time,
+    carol_of_the_bells.carol_of_the_bells,
+    jing_jing_jing.jing_jing_jing,
+    hometown_christmas.hometown_christmas,
+    frosty_the_snowman.frosty_the_snowman,
+    all_we_are.all_we_are,
+    children_go.children_go,
+    here_comes_the_sun.here_comes_the_sun,
+    holy.holy,
+    inner_demons.inner_demons,
+    ira.ira,
+    mr_grinch.mr_grinch,
+    rainbow.rainbow,
+    joy_to_the_world.joy_to_the_world,
+    tiny_tree.tiny_tree,
+    trans_siberian_mix.trans_siberian_mix,
+  ],
 }

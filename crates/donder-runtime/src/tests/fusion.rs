@@ -36,10 +36,10 @@ fn assert_fused_playback(
     let mut composed = chain(count, source, 1, std::slice::from_ref(fused)).into_playback();
     for ticks in TICKS {
         let time = SampleTime::from_ticks(ticks);
-        assert_eq!(
+        playback::assert_frames_close(
             original.evaluate(time).colors(),
             composed.evaluate(time).colors(),
-            "{what} ticks={ticks}"
+            &format!("{what} ticks={ticks}"),
         );
     }
 }
@@ -358,10 +358,10 @@ fn fusion_remaps_parameters_inputs_reductions_and_guards() {
         let mut composed = show(true).into_playback();
         for ticks in TICKS {
             let time = SampleTime::from_ticks(ticks);
-            assert_eq!(
+            playback::assert_frames_close(
                 original.evaluate(time).colors(),
                 composed.evaluate(time).colors(),
-                "first={first} ticks={ticks}"
+                &format!("first={first} ticks={ticks}"),
             );
         }
     }

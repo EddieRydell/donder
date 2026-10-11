@@ -1343,8 +1343,6 @@ impl Checker {
             F::Log => graph_unary(self, Unary::Log)?,
             F::Floor => graph_unary(self, Unary::Floor)?,
             F::Ceil => graph_unary(self, Unary::Ceil)?,
-            F::Trunc => graph_unary(self, Unary::Trunc)?,
-            F::RoundEven => graph_unary(self, Unary::RoundEven)?,
             F::Sqrt => graph_unary(self, Unary::Sqrt)?,
             F::Rand => graph_unary(self, Unary::Rand)?,
             F::Int => graph_unary(self, Unary::FloatToInt)?,

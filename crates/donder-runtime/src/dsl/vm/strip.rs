@@ -25,17 +25,17 @@ use crate::dsl::bytecode::{
     Resource, SignalPixel, Slot, SlotKind,
 };
 use crate::sampling::{
-    add_colors, clamp_array_index, clamp_float, color_channel, color_hue, color_intensity,
-    color_saturation, float_binary, float_unary, gradient_color_scaled, hsv, int_binary,
-    invert_color, length_int, mark_at, max_colors, mix_colors, multiply_colors, previous_mark,
-    previous_mark_index, query_progress, query_seconds, rgb, sample_curve, sample_gradient,
-    scale_color, section_position,
+    add_colors, clamp_array_index, clamp_float, color_hue, color_intensity, color_saturation,
+    float_binary, float_unary, gradient_color_scaled, hsv, int_binary, invert_color, length_int,
+    mark_at, max_colors, mix_colors, multiply_colors, previous_mark, previous_mark_index,
+    query_progress, query_seconds, rgb, sample_curve, sample_gradient, scale_color,
+    section_position,
 };
 use crate::sections::{PreparedSections, SectionContext, SectionPixel};
 use alloc::vec::Vec;
 use core::cell::Cell;
 use donder_runtime_types::Value;
-use donder_runtime_types::{Color, Curve, Gradient, Marks, SampleTime};
+use donder_runtime_types::{Color, Curve, FloatColor, Gradient, Marks, SampleTime};
 
 pub(crate) use crate::dsl::bytecode::STRIP;
 const MASK: usize = STRIP - 1;
@@ -187,7 +187,7 @@ pub(super) enum Handle {
     ConstantItem(u16, u16),
 }
 
-pub(super) const NO_COLOR: Color = Color::BLACK;
+pub(super) const NO_COLOR: FloatColor = FloatColor::BLACK;
 
 /// One bank's slots: its scalars, then its rows, in one array. A bank with
 /// scalars but no rows keeps a row of padding, so every scalar has a
@@ -450,12 +450,12 @@ fn int(op: IntBinary, a: i32, b: i32) -> i32 {
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn component(op: ColorComponent, color: Color) -> f32 {
+fn component(op: ColorComponent, color: FloatColor) -> f32 {
     match op {
         ColorComponent::Hue => color_hue(color),
-        ColorComponent::Red => color_channel(color.red),
-        ColorComponent::Green => color_channel(color.green),
-        ColorComponent::Blue => color_channel(color.blue),
+        ColorComponent::Red => color.red,
+        ColorComponent::Green => color.green,
+        ColorComponent::Blue => color.blue,
         ColorComponent::Saturation => color_saturation(color),
         ColorComponent::Intensity => color_intensity(color),
     }
@@ -463,25 +463,25 @@ fn component(op: ColorComponent, color: Color) -> f32 {
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn mix_color(a: Color, b: Color, amount: f32) -> Color {
+fn mix_color(a: FloatColor, b: FloatColor, amount: f32) -> FloatColor {
     mix_colors(a, b, amount)
 }
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn rgb_color(red: f32, green: f32, blue: f32) -> Color {
+fn rgb_color(red: f32, green: f32, blue: f32) -> FloatColor {
     rgb(red, green, blue)
 }
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn hsv_color(hue: f32, saturation: f32, value: f32) -> Color {
+fn hsv_color(hue: f32, saturation: f32, value: f32) -> FloatColor {
     hsv(hue, saturation, value)
 }
 
 #[inline(never)]
 #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-fn recolor(color: Color, hue: f32, shift: bool) -> Color {
+fn recolor(color: FloatColor, hue: f32, shift: bool) -> FloatColor {
     crate::sampling::recolor(color, hue, shift)
 }
 
@@ -568,7 +568,7 @@ impl SourceWeights for Weights<'_, '_> {
         };
         for (colors, weights) in colors.chunks(STRIP).zip(weights.chunks_mut(STRIP)) {
             for (cell, color) in row.iter().zip(colors) {
-                cell.set(*color);
+                cell.set((*color).into());
             }
             let all = [Cell::new((0, colors.len() as u8))];
             self.machine
@@ -682,7 +682,7 @@ impl<'a> Strip<'a> {
         machine.block(self.program.body(), Sel(&strip), levels, signals);
         let result = machine.color(self.program.result);
         for (index, output) in output.iter_mut().enumerate() {
-            *output = result.at(index);
+            *output = result.at(index).to_color();
         }
     }
 }
@@ -738,7 +738,7 @@ impl<'m> Machine<'m> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn color(&self, slot: Slot) -> Src<'m, Color> {
+    fn color(&self, slot: Slot) -> Src<'m, FloatColor> {
         operand(&self.ws.colors, slot)
     }
 
@@ -768,7 +768,7 @@ impl<'m> Machine<'m> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn color_dst(&self, slot: Slot) -> Dst<'m, Color> {
+    fn color_dst(&self, slot: Slot) -> Dst<'m, FloatColor> {
         destination(&self.ws.colors, slot)
     }
 
@@ -1135,7 +1135,7 @@ impl<'m> Machine<'m> {
         for chunk in (0..len).step_by(STRIP) {
             let size = (len - chunk).min(STRIP);
             for k in 0..size {
-                row[k].set(colors[chunk + k]);
+                row[k].set(colors[chunk + k].into());
             }
             self.block(
                 &source[1..],
@@ -1183,7 +1183,7 @@ impl<'m> Machine<'m> {
         start: Src<'_, i32>,
         end: Src<'_, i32>,
         sel: Sel<'_>,
-        acc: &Row<Color>,
+        acc: &Row<FloatColor>,
     ) {
         let local = &self.ws.pixels.index;
         for range in sel.0 {
@@ -1211,7 +1211,7 @@ impl<'m> Machine<'m> {
                 if weight == 0.0 {
                     continue;
                 }
-                let color = scale_color(term.colors[at], weight * scale * term.pixel.at(i));
+                let color = scale_color(term.colors[at].into(), weight * scale * term.pixel.at(i));
                 acc[i].set(match reducer {
                     Reducer::Max => max_colors(acc[i].get(), color),
                     _ => add_colors(acc[i].get(), color),
@@ -1276,7 +1276,7 @@ impl<'m> Machine<'m> {
         };
         let mut samples = self.ws.samples.borrow_mut();
         signals.scan(&query, &mut weights, &mut samples);
-        each(sel, |i| dst[i].set(samples[i]));
+        each(sel, |i| dst[i].set(samples[i].into()));
     }
 
     /// Whether `value` at pixel `i` ends an early-exit reduction there.
@@ -1467,13 +1467,13 @@ impl<'m> Machine<'m> {
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient_sample(&self, gradient: Handle, position: f32) -> Color {
+    fn gradient_sample(&self, gradient: Handle, position: f32) -> FloatColor {
         sample_gradient(self.gradient(gradient), position)
     }
 
     #[inline(never)]
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
-    fn gradient_scaled(&self, gradient: Handle, position: f32, scale: f32) -> Color {
+    fn gradient_scaled(&self, gradient: Handle, position: f32, scale: f32) -> FloatColor {
         gradient_color_scaled(self.gradient(gradient), position, scale)
     }
 
@@ -1610,7 +1610,7 @@ impl<'m> Machine<'m> {
             }
             I::IntConst { dst, value } => Self::set_scalar(self.int_dst(dst), value),
             I::BoolConst { dst, value } => Self::set_scalar(self.bool_dst(dst), value),
-            I::ColorConst { dst, value } => Self::set_scalar(self.color_dst(dst), value),
+            I::ColorConst { dst, value } => Self::set_scalar(self.color_dst(dst), value.into()),
             I::ResourceConst { dst, kind, index } => {
                 Self::set_scalar(self.handle_dst(dst), Handle::Constant(kind, index));
             }
@@ -1626,7 +1626,7 @@ impl<'m> Machine<'m> {
             }
             I::ColorParam { dst, bank } => {
                 let word = params.words[usize::from(bank)];
-                Self::set_scalar(self.color_dst(dst), word_color(word));
+                Self::set_scalar(self.color_dst(dst), word_color(word).into());
             }
             I::ResourceParam { dst, kind, bank } => {
                 Self::set_scalar(self.handle_dst(dst), Handle::Param(kind, bank));
@@ -1767,8 +1767,9 @@ impl<'m> Machine<'m> {
                         (a == b) != negate
                     }),
                     Bank::Color => {
+                        // Colors compare as the 8-bit colors they are written as.
                         map2(sel, dst, self.color(a), self.color(b), |a, b| {
-                            (a == b) != negate
+                            (a.to_color() == b.to_color()) != negate
                         });
                     }
                     Bank::Resource => unreachable!("admission rejects resource equality"),
@@ -2107,7 +2108,7 @@ impl<'m> Machine<'m> {
             Bank::Color => {
                 let default = self.color(default);
                 pick_each(sel, self.color_dst(dst), |i| match item(i) {
-                    Some((_, _, Value::Color(value))) => *value,
+                    Some((_, _, Value::Color(value))) => (*value).into(),
                     _ => default.at(i),
                 });
             }
@@ -2151,19 +2152,21 @@ impl<'m> Machine<'m> {
             };
             let mut samples = self.ws.samples.borrow_mut();
             signals.sample_strip(input, time, frame_cache, &mut samples);
-            each(sel, |i| dst[i].set(samples[i]));
+            each(sel, |i| dst[i].set(samples[i].into()));
             return;
         }
         let address = pixel.map(|index| self.int(index));
         each(sel, |i| {
             let color = match self.query_time(seconds.at(i)) {
-                Some(time) => signals.sample_pixel(
-                    input,
-                    time,
-                    i,
-                    address.map(|index| index.at(i)),
-                    frame_cache,
-                ),
+                Some(time) => signals
+                    .sample_pixel(
+                        input,
+                        time,
+                        i,
+                        address.map(|index| index.at(i)),
+                        frame_cache,
+                    )
+                    .into(),
                 None => NO_COLOR,
             };
             dst[i].set(color);

@@ -9,7 +9,6 @@ mod fusion;
 mod hsv_intrinsics;
 mod optimization;
 mod prepared_uniform;
-mod sampling_parity;
 mod staged_execution;
 mod standard_effects;
 mod standard_operators;

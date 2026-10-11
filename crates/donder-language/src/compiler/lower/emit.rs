@@ -441,7 +441,6 @@ impl<'a> Emitter<'a> {
             Unary::Floor => Some(float(FloatUnary::Floor)),
             Unary::Ceil => Some(float(FloatUnary::Ceil)),
             Unary::Trunc => Some(float(FloatUnary::Trunc)),
-            Unary::RoundEven => Some(float(FloatUnary::RoundEven)),
             Unary::Sqrt => Some(float(FloatUnary::Sqrt)),
             Unary::Smoothstep => Some(float(FloatUnary::Smoothstep)),
             Unary::Rand => Some(float(FloatUnary::Rand)),

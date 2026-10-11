@@ -209,7 +209,7 @@ mix(a: color, b: color, t: float) -> color
 ```
 
 Linear interpolation from `a` at `t = 0` to `b` at `t = 1`.
-`t` outside 0..1 extrapolates; color channels stay within 0..255. A NaN `t` gives NaN, or black for colors.
+`t` outside 0..1 extrapolates. A NaN `t` gives NaN.
 
 ```text
 let color = mix(#ff0000, #0000ff, pixel.fraction);
@@ -282,19 +282,6 @@ NaN gives NaN.
 let bars = ceil(height / 3.0);
 ```
 
-### `trunc`
-
-```text
-trunc(x: float) -> float
-```
-
-`x` without its fractional part, rounding toward zero, as a float.
-NaN gives NaN.
-
-```text
-let whole = trunc(value);
-```
-
 ### `round`
 
 ```text
@@ -306,19 +293,6 @@ The nearest whole number, halves away from zero, as a float.
 
 ```text
 let frame = round(time * 40.0);
-```
-
-### `round_even`
-
-```text
-round_even(x: float) -> float
-```
-
-The nearest whole number, halves to the even neighbor, as a float.
-`round_even(2.5)` is 2 and `round_even(3.5)` is 4.
-
-```text
-let frame = round_even(time * 40.0);
 ```
 
 ### `fract`
@@ -384,7 +358,7 @@ rgb(red: float, green: float, blue: float) -> color
 ```
 
 A color from channels in 0..1.
-Channels clamp to 0..1 and round to 8 bits. NaN in any channel gives black.
+Channels may lie outside 0..1 until the color is written, which clamps them; a NaN channel is written as zero.
 
 ```text
 let warm = rgb(1.0, 0.6, 0.2);
@@ -397,7 +371,7 @@ hsv(hue: float, saturation: float, value: float) -> color
 ```
 
 A color from hue in turns, saturation and value in 0..1.
-Hue wraps in both directions, so 1.25 is 0.25. NaN in any argument gives black.
+Hue wraps in both directions, so 1.25 is 0.25.
 
 ```text
 let rainbow = hsv(pixel.fraction + time * 0.1, 1.0, 1.0);
@@ -527,7 +501,7 @@ gradient_color_scaled(gradient: gradient, position: float, scale: float) -> colo
 ```
 
 `gradient[position] * clamp(scale, 0, 1)` as one operation.
-Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient or a NaN position gives black.
+Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient gives black.
 
 ```text
 gradient_color_scaled(colors, pixel.fraction, level)

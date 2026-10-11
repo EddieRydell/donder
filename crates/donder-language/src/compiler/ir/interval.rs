@@ -182,7 +182,6 @@ impl Analysis<'_> {
             Unary::Floor => value.monotonic(f64::floor),
             Unary::Ceil => value.monotonic(f64::ceil),
             Unary::Trunc => value.monotonic(f64::trunc),
-            Unary::RoundEven => value.monotonic(|value| value.round_ties_even()),
             Unary::Sqrt => Interval::new(
                 value.min.max(0.0).sqrt(),
                 value.max.max(0.0).sqrt(),

@@ -96,10 +96,21 @@ indices with `input.at(time, ...)`. Trails and long glows that fade with
 distance use `scan forward input as light, previous { previous * decay + light
 }`, as `Trail` does, whose cost does not grow with the distance.
 
-`effects/vixen.donder` contains supported-mode Vixen ports. Read its comments
-before using a definition: its curves use percentage values `0..100`, pixel
-effects have explicit frame and coordinate settings, and it does not implement
-every Vixen effect or mode. Random modes use Donder's seeded random values.
+Do not write defensively. Every operation is defined for every value of its
+types, so no input can fail at playback: float division by zero gives infinity
+or NaN, integer `//` and `%` by zero give zero, NaN flows through arithmetic and
+a NaN color channel is written as zero, array indexes clamp, curves hold their
+end values (an empty curve reads NaN), empty gradients are black, and samples
+outside the sequence or a fixture are black. Write the plain expression; guards
+such as `max(x, 0.000001)` divisors, near-zero checks or `if d > 0.0` branches
+only add work to every pixel. Branch only when a case should look different, and
+say why.
+
+`effects/vixen.donder` holds approximate ports of Vixen 3 effects for shows
+converted from Vixen. They keep Vixen's parameter names and scales, so curves
+use percentage values `0..100`, and pixel effects work on a grid of one cell per
+`pixel_size` layout units. They look close to Vixen's effects, not identical.
+Read a definition's comment before using it.
 
 ## Checking the show
 

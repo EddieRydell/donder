@@ -121,8 +121,8 @@ index rounds down. An empty array yields the element type's default, and
 - `min`, `max`, `clamp`, `abs` and `sign` keep ints as ints when every argument
   is an int, and work on floats otherwise.
 - `int(x)` is the only conversion from float to int: it truncates toward zero,
-  saturates at the int range and turns NaN into zero. `floor`, `ceil`, `trunc`,
-  `round` and `round_even` round but keep a float.
+  saturates at the int range and turns NaN into zero. `floor`, `ceil` and
+  `round` round but keep a float.
 
 ## Functions
 
@@ -158,7 +158,7 @@ Repeated work is a reduction over an integer range: `a..b` excludes `b` and
 | --- | --- |
 | `max for i in a..b { x }` | Largest `x` (componentwise for colors), from black or negative infinity |
 | `min for i in a..b { x }` | Smallest number, from positive infinity |
-| `sum for i in a..b { x }` | Sum, from zero; color addition saturates |
+| `sum for i in a..b { x }` | Sum, from zero |
 | `any for i in a..b { c }` | Whether some iteration holds |
 | `all for i in a..b { c }` | Whether every iteration holds |
 | `first for i in a..b { x } else { y }` | `x` of the first iteration that is not skipped, or `y` |
@@ -216,8 +216,7 @@ let tail = scan forward input as light, previous {
   parameters and time. Anything else is an error.
 - The running value is kept in floats and rounded to a color only when
   written, so faint light keeps fading instead of stopping at the last 8-bit
-  step, and the result saturates at full brightness. This differs from color
-  `+`, which saturates at each step.
+  step, and the result saturates at full brightness.
 - A scan's whole frame is computed once per frame, so its cost does not depend
   on how far the light travels. `max` or `+` of a forward and a backward scan
   spreads light both ways.
@@ -242,7 +241,7 @@ operator Echo {
 
 The compiler bounds each range's length from literals, parameter ranges, `len()`
 of array and marks parameters, and enclosing indices, through arithmetic, `min`,
-`max`, `clamp`, `abs`, `floor`, `ceil`, `trunc`, `round_even` and `int`. A range
+`max`, `clamp`, `abs`, `floor`, `ceil` and `int`. A range
 with no such bound, or a bound above 10,000, is rejected. A bound that depends
 on a length is checked when an instance supplies its values. Write bounds as
 ints; `int(...)` or `//` converts a float. `pow(x, n)` with an int `n` bounded
@@ -262,10 +261,14 @@ time is measured over the clip; in an
 operator, over the sequence. Spatial values use layout-space meters, after
 fixture transforms.
 
-**Colors** have 8-bit RGB channels. Color `+` saturates, `*` of two colors
-  multiplies channels, and `*` with a number scales. Hue is measured in turns and
-  `hsv` wraps it in both directions. `intensity` is HSV value (the maximum
-  channel divided by 255); grayscale colors have hue and saturation zero.
+**Colors** are RGB channels from 0 to 1, computed in floating point and rounded
+  to 8 bits only when written: to a layer, to an input an operator samples, or to
+  the output. In between, a channel may go below 0 or above 1 (`#ffffff + #ffffff`
+  halved is white); writing clamps it. Color `+` adds, `*` of two colors
+  multiplies channels, and `*` with a number scales. `==` compares the 8-bit
+  colors. Hue is measured in turns and `hsv` wraps it in both directions.
+  `intensity` is HSV value (the maximum channel); grayscale colors have hue and
+  saturation zero.
 
 ## Operator inputs
 
@@ -292,9 +295,7 @@ fragment is prepared, even if they are patched elsewhere; see
   first event. It propagates through float arithmetic, `min`, `max`, `clamp` and
   `rand`, and every NaN comparison is false. `clamp` with `min > max` also
   returns NaN.
-- A NaN reaching a color becomes black: `rgb` or `hsv` with any NaN input, color
-  `mix` or scaling by NaN, and sampling a gradient at NaN. That black is an
-  ordinary color afterwards (inverting it gives white).
+- A NaN color channel is written as zero; the other channels keep their values.
 - `value_or` computes both arguments; write `if is_nan(x) { y } else { x }` when
   the replacement is expensive, so it is computed only when needed.
 - Integer `//` and `%` by zero return zero, and `i32::MIN // -1` wraps; float
@@ -304,7 +305,7 @@ fragment is prepared, even if they are patched elsewhere; see
 - Curves are piecewise linear with strictly increasing positions in `[0, 1]`.
   Sampling outside the authored range holds the end values, so a pulse shape must
   end at zero to stay dark. Sequence automation uses the same curve sampling.
-- Gradients with no stops, or sampled at NaN, return black.
+- Gradients with no stops return black.
 - Literal errors are compile errors; a bad literal is never replaced by zero.
 
 ## Events and sections
@@ -355,9 +356,10 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 - **Spin** wraps a chase position extended by `revolutions` onto the strand.
 - **Wipe** projects pixel positions onto `direction_angle` (degrees; 0 is +X,
   90 is +Y) across the target's bounding rectangle, independent of pixel order.
-  `pulse_width` is the fraction of the effect each pixel's pulse lasts. `mode`
+  `pulse_width` is the fraction of the effect each pixel's pulse lasts, and
+  `passes` sweeps the pulse across that many times, one after another. `mode`
   `Pass` lights a pixel only while its pulse crosses it, `On` keeps it lit
-  after, and `Off` lights it before.
+  after the last pass, and `Off` lights it before the first.
 - **MarkPulse, MarkWipe and MarkImpactBurst** restart from the latest mark.
   MarkPulse lights fixture-aware sections. MarkWipe cycles its gradients and
   positions by mark index; its `direction_angle` curve is in turns, sampled
@@ -373,7 +375,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Operator | Inputs | Behavior |
 | --- | --- | --- |
 | Max | `a`, `b` | Component-wise maximum |
-| Add | `a`, `b` | Saturating RGB addition |
+| Add | `a`, `b` | RGB addition |
 | Multiply | `a`, `b` | Component-wise multiplication |
 | IntensityModulate | `source`, `mask` | Scales `source` by the mask's brightest channel |
 | Dim | `input` | Scales by `amount = 0.5` |
@@ -385,7 +387,7 @@ ShimmerField, SparkleComet and [the Vixen ports](vixen_effects.md).
 | Blur | `input` | Tent-weighted average of `radius = 2` pixels on each side along each fixture's pixel order, renormalized at fixture ends |
 | Threshold | `input` | Passes pixels whose brightness (`measure` = Brightest, Luminance or Average) exceeds `threshold = 0.5`, fading across `softness = 0.1`; `invert` passes the darker pixels instead |
 | Trail | `input` | Carries each pixel's light along each fixture's pixel order, keeping `decay = 0.8` of it per pixel, `Forward`, `Backward` or `Both` (the brighter) |
-| Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light `radius = 6` pixels along each fixture's pixel order with a Gaussian, Linear or Flat `falloff`, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The kernel is normalized over its full width, so glow fades off fixture ends |
+| Bloom | `input` | Thresholds like Threshold (`threshold = 0.6`, `softness = 0.2`), spreads the passing light both ways along each fixture's pixel order with forward and backward scans, fading to a tenth over `radius = 6` pixels, scales it by `strength = 2.0` and `tint`, and combines it with the input by `blend` (Add, Screen, Lighten or GlowOnly). The glow fades off fixture ends, and its cost does not depend on the radius |
 
 Samples before the sequence are black. The starter adds Gain and TimeWarp as
 separate operator documents. `examples/stanford_room` carries its own copy of the

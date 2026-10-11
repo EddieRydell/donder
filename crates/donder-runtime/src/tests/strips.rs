@@ -450,7 +450,7 @@ fn assert_program(
 }
 
 fn rgb(red: f32, green: f32, blue: f32) -> Color {
-    crate::sampling::rgb(red, green, blue)
+    crate::sampling::rgb(red, green, blue).to_color()
 }
 
 #[test]

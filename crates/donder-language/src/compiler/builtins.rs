@@ -23,9 +23,7 @@ pub enum BuiltinFunction {
     Integral,
     Floor,
     Ceil,
-    Trunc,
     Round,
-    RoundEven,
     Fract,
     Int,
     IsNan,
@@ -273,7 +271,7 @@ pub const BUILTINS: &[Builtin] = &[
             sig(&[("a", "color"), ("b", "color"), ("t", "float")], "color"),
         ],
         summary: "Linear interpolation from `a` at `t = 0` to `b` at `t = 1`.",
-        details: "`t` outside 0..1 extrapolates; color channels stay within 0..255. A NaN `t` gives NaN, or black for colors.",
+        details: "`t` outside 0..1 extrapolates. A NaN `t` gives NaN.",
         example: "let color = mix(#ff0000, #0000ff, pixel.fraction);",
     },
     Builtin {
@@ -325,15 +323,6 @@ pub const BUILTINS: &[Builtin] = &[
         example: "let bars = ceil(height / 3.0);",
     },
     Builtin {
-        function: F::Trunc,
-        name: "trunc",
-        group: G::Rounding,
-        signatures: &[sig(X, "float")],
-        summary: "`x` without its fractional part, rounding toward zero, as a float.",
-        details: "NaN gives NaN.",
-        example: "let whole = trunc(value);",
-    },
-    Builtin {
         function: F::Round,
         name: "round",
         group: G::Rounding,
@@ -341,15 +330,6 @@ pub const BUILTINS: &[Builtin] = &[
         summary: "The nearest whole number, halves away from zero, as a float.",
         details: "`round(2.5)` is 3 and `round(-2.5)` is -3. NaN gives NaN.",
         example: "let frame = round(time * 40.0);",
-    },
-    Builtin {
-        function: F::RoundEven,
-        name: "round_even",
-        group: G::Rounding,
-        signatures: &[sig(X, "float")],
-        summary: "The nearest whole number, halves to the even neighbor, as a float.",
-        details: "`round_even(2.5)` is 2 and `round_even(3.5)` is 4.",
-        example: "let frame = round_even(time * 40.0);",
     },
     Builtin {
         function: F::Fract,
@@ -396,7 +376,7 @@ pub const BUILTINS: &[Builtin] = &[
             "color",
         )],
         summary: "A color from channels in 0..1.",
-        details: "Channels clamp to 0..1 and round to 8 bits. NaN in any channel gives black.",
+        details: "Channels may lie outside 0..1 until the color is written, which clamps them; a NaN channel is written as zero.",
         example: "let warm = rgb(1.0, 0.6, 0.2);",
     },
     Builtin {
@@ -412,7 +392,7 @@ pub const BUILTINS: &[Builtin] = &[
             "color",
         )],
         summary: "A color from hue in turns, saturation and value in 0..1.",
-        details: "Hue wraps in both directions, so 1.25 is 0.25. NaN in any argument gives black.",
+        details: "Hue wraps in both directions, so 1.25 is 0.25.",
         example: "let rainbow = hsv(pixel.fraction + time * 0.1, 1.0, 1.0);",
     },
     Builtin {
@@ -517,7 +497,7 @@ pub const BUILTINS: &[Builtin] = &[
             "color",
         )],
         summary: "`gradient[position] * clamp(scale, 0, 1)` as one operation.",
-        details: "Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient or a NaN position gives black.",
+        details: "Indexing a gradient, `gradient[position]`, samples its color at a position in 0..1; an empty gradient gives black.",
         example: "gradient_color_scaled(colors, pixel.fraction, level)",
     },
     Builtin {

@@ -14,6 +14,8 @@ effect RadialWipe {
   param center_x: float in -100.0..100.0 = 0.0;
   param center_y: float in -100.0..100.0 = 0.0;
   param reverse: bool = false;
+  -- How many times the pulse crosses within the effect.
+  param passes: int in 1..100 = 1;
   param pulse_shape: curve in 0.0..1.0;
 
   sample {
@@ -43,11 +45,14 @@ effect RadialWipe {
       if shape == Circle { diagonal / 2.0 }
       else if shape == Diamond { diagonal / 1.5 }
       else { max(width, height) / 2.0 };
-    let outward = if reach > 0.000000001 { clamp(distance / reach, 0.0, 1.0) } else { 0.0 };
+    let outward = clamp(distance / reach, 0.0, 1.0);
     let position = if reverse { 1.0 - outward } else { outward };
-    let pulse_width = clamp(pulse_percent / 100.0 * (if reach > 0.000000001 { nominal / reach } else { 1.0 }), 0.01, 1.0);
+    let pulse_width = clamp(pulse_percent / 100.0 * nominal / reach, 0.01, 1.0);
     let hit = position * (1.0 - pulse_width);
-    let pulse_progress = (progress - hit) / pulse_width;
+    -- Progress through the current pass; the last pass ends with the effect.
+    let passed = progress * passes;
+    let pass_progress = passed - min(floor(passed), passes - 1);
+    let pulse_progress = (pass_progress - hit) / pulse_width;
     let level =
       if pulse_progress < 0.0 { if mode == Off { pulse_shape[0.0] } else { 0.0 } }
       else if pulse_progress > 1.0 { if mode == On { pulse_shape[1.0] } else { 0.0 } }

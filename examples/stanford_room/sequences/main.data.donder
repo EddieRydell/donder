@@ -1056,7 +1056,6 @@ Sequence main {
           threshold: 0.6,
           softness: 0.1,
           radius: 3,
-          falloff: Gaussian,
           strength: 7.0,
           tint: #ffffff,
           blend: Lighten,

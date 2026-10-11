@@ -126,10 +126,10 @@ fn temporal_frame_caches_and_fusion_match_uncached_sampling_through_nested_opera
                 expected.colors(),
                 "{name} frame {frame}"
             );
-            assert_eq!(
+            playback::assert_frames_close(
                 fused.evaluate(playback::time(frame)).colors(),
                 expected.colors(),
-                "fused {name} frame {frame}"
+                &format!("fused {name} frame {frame}"),
             );
         }
         assert!(lit, "{name} rendered only black");

@@ -14,10 +14,11 @@ use crate::dsl::{
     StripWorkspace,
 };
 use crate::signal::{
-    CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace, PreparedEffect,
-    PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace, SignalGraph,
-    WINDOW, WINDOW_MARGIN,
+    CachedEffectSample, CachedSignalFrame, CachedSignalWindow, EffectAutomationWorkspace,
+    PreparedEffect, PreparedOperatorNode, PreparedPixel, PreparedSignalKind, SamplingWorkspace,
+    SignalGraph, WINDOW, WINDOW_MARGIN,
 };
+use crate::targets::TargetPixels;
 use alloc::boxed::Box;
 use donder_runtime_types::{Color, SampleDuration, SampleTime};
 pub(crate) use frames::sample_signal_graph;
@@ -331,72 +332,103 @@ fn sample_layer_frame(
             // One strip workspace serves every run of this effect at this time.
             // Duplicate fixture layouts share samples by pixel index and count.
             let cacheable = sample_count != 0 && !sampler.spatial && !sampler.uses_sections;
-            let (spatial, sections) = (
-                sampler.spatial,
-                sampler.uses_sections.then_some(sampler.sections),
-            );
+            let layout = StripLayout {
+                target: effect.target,
+                spatial: sampler.spatial,
+                sections: sampler.uses_sections.then_some(sampler.sections),
+                split: sampler.program.reads_target(),
+            };
             let mut strip = sampler.strip(&mut workspace.effect_strip);
-            let mut colors = [black(); STRIP];
+            // Strips gather pixels across fixtures: each pending pixel's target
+            // index and destination.
+            let pending = &mut workspace.gather;
+            pending.key = None;
+            let mut count = 0;
             for segment in target.segments() {
                 let base =
                     renderer.fixture_pixel_offsets[segment.fixture] + segment.first_cell as usize;
-                let length = segment.fractions.len();
-                let destinations = &mut rendered[base..base + length];
-                let pixel = |offset: usize| RunPixel {
-                    target_index: segment.start + offset,
-                    pixel: segment.pixel(offset),
-                };
-                let mut offset = 0;
-                while offset < length {
-                    let samples = &mut workspace.effect_samples;
-                    let first = segment.first_index + offset;
-                    let cached_len = (length - offset).min(STRIP);
-                    if cacheable
-                        && samples[first..first + cached_len]
-                            .iter()
-                            .all(|sample| sample.pixel_count == segment.count)
-                    {
-                        for (destination, sample) in destinations[offset..offset + cached_len]
-                            .iter_mut()
-                            .zip(&samples[first..first + cached_len])
-                        {
-                            compose_max(destination, sample.color);
-                        }
-                        offset += cached_len;
-                        continue;
-                    }
-                    let layout = StripLayout {
-                        target: effect.target,
-                        spatial,
-                        sections,
-                        split: true,
-                    };
-                    let shape =
-                        fill_strip(strip.pixels(), renderer, layout, offset..length, &pixel);
-                    let count = shape.len;
-                    strip.run(
-                        shape.pixel_count,
-                        shape.min,
-                        shape.max,
-                        &mut crate::dsl::NoSignals,
-                        &mut colors[..count],
-                    );
-                    for (destination, color) in
-                        destinations[offset..offset + count].iter_mut().zip(&colors)
-                    {
-                        compose_max(destination, *color);
-                    }
+                for offset in 0..segment.fractions.len() {
                     if cacheable {
-                        for (sample, color) in samples[first..first + count].iter_mut().zip(&colors)
-                        {
-                            sample.pixel_count = segment.count;
-                            sample.color = *color;
+                        let sample = &workspace.effect_samples[segment.first_index + offset];
+                        if sample.pixel_count == segment.count {
+                            compose_max(&mut rendered[base + offset], sample.color);
+                            continue;
                         }
                     }
-                    offset += count;
+                    pending.cells[count] = (segment.start + offset, base + offset);
+                    count += 1;
+                    if count == STRIP {
+                        run_gathered(
+                            renderer,
+                            layout,
+                            &mut strip,
+                            &pending.cells,
+                            target,
+                            rendered,
+                            cacheable.then_some(&mut workspace.effect_samples[..]),
+                        );
+                        count = 0;
+                    }
                 }
             }
+            run_gathered(
+                renderer,
+                layout,
+                &mut strip,
+                &pending.cells[..count],
+                target,
+                rendered,
+                cacheable.then_some(&mut workspace.effect_samples[..]),
+            );
         });
+    }
+}
+
+/// Run gathered pixels, each a target index and its destination in `rendered`,
+/// in as few strips as the program's layout allows. With `samples`, each
+/// result is kept for duplicate fixture layouts.
+#[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
+fn run_gathered(
+    renderer: SignalGraph<'_>,
+    layout: StripLayout<'_>,
+    strip: &mut Strip<'_>,
+    cells: &[(usize, usize)],
+    pixels: &TargetPixels,
+    rendered: &mut [Color],
+    mut samples: Option<&mut [CachedEffectSample]>,
+) {
+    // Gathered indices ascend, so both lookups follow the target's runs.
+    let (target, cached) = (pixels.cursor(), pixels.cursor());
+    let pixel = |k: usize| {
+        let index = cells[k].0;
+        RunPixel {
+            target_index: index,
+            pixel: target.pixel(index),
+        }
+    };
+    let mut colors = [black(); STRIP];
+    let mut start = 0;
+    while start < cells.len() {
+        let shape = fill_strip(strip.pixels(), renderer, layout, start..cells.len(), &pixel);
+        let count = shape.len;
+        strip.run(
+            shape.pixel_count,
+            shape.min,
+            shape.max,
+            &mut crate::dsl::NoSignals,
+            &mut colors[..count],
+        );
+        for (k, color) in colors[..count].iter().enumerate() {
+            compose_max(&mut rendered[cells[start + k].1], *color);
+            if let Some(samples) = samples.as_deref_mut() {
+                let pixel = cached.pixel(cells[start + k].0);
+                samples[pixel.pixel_index] = CachedEffectSample {
+                    pixel_count: pixel.pixel_count,
+                    color: *color,
+                };
+            }
+        }
+        start += count;
     }
 }
 
@@ -753,7 +785,7 @@ fn sample_operator(
             strips: upstream_strips,
         },
     };
-    let pixels = renderer.target(target);
+    let pixels = renderer.target(target).cursor();
     let pixel = |index: usize| RunPixel {
         target_index: index,
         pixel: pixels.pixel(index),
@@ -837,7 +869,7 @@ fn sample_layer_run(
     if !renderer.layers[layer_index].enabled {
         return;
     }
-    let plan_target = renderer.target(renderer.plan.target);
+    let plan_target = renderer.target(renderer.plan.target).cursor();
     for &effect_index in &renderer.effects_by_layer[layer_index] {
         let effect = &renderer.effects[effect_index];
         if effect.start_time > time {
@@ -850,6 +882,7 @@ fn sample_layer_run(
         let target = renderer.target(effect.target);
         effect.with_sampler(renderer, time, params, |sampler| {
             if effect.target == renderer.plan.target {
+                let target = target.cursor();
                 // Prepared contexts are interned, so the run is the same pixels.
                 sampler.sample_pixels(
                     renderer,

@@ -1,6 +1,6 @@
 Layout main {
   description: none,
-  root: [house_and_trees, yard, mega_tree, star_rings, garage_matrix, arch_tunnel],
+  root: [house_and_trees, yard, mega_tree, star_rings, garage_matrix, arch_tunnel, everything],
   items: [
     Group {
       name: star_point_5,
@@ -5016,6 +5016,11 @@ Layout main {
         trunk_rings_1,
         trunk_rings_2,
       ],
+    },
+    Group {
+      name: everything,
+      description: "The whole house, for effects that span every prop.",
+      members: [house_and_trees, yard, mega_tree, star_rings, garage_matrix, arch_tunnel],
     },
     Group {
       name: house_and_trees,

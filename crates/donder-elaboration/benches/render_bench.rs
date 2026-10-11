@@ -21,12 +21,12 @@ const PLAYBACK_FRAME_COUNT: u32 = 60;
 const SCENARIOS: [RenderScenario; 7] = [
     RenderScenario {
         frame: 8398,
-        checksum: 0x4535_974c_51f5_d6c0,
+        checksum: 0xa86e_2634_3f3b_69f3,
         active_effect_count: 15,
     },
     RenderScenario {
         frame: 8450,
-        checksum: 0xa19d_993e_4cbe_d728,
+        checksum: 0xbc0c_32fc_34f1_6b8a,
         active_effect_count: 30,
     },
     RenderScenario {
@@ -36,7 +36,7 @@ const SCENARIOS: [RenderScenario; 7] = [
     },
     RenderScenario {
         frame: 8530,
-        checksum: 0x3784_8c0f_dbbf_f8d3,
+        checksum: 0x21eb_73d7_acc4_328f,
         active_effect_count: 3,
     },
     RenderScenario {

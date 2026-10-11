@@ -221,6 +221,46 @@ impl Color {
     }
 }
 
+/// A color inside a running program: each channel a fraction of full
+/// brightness, unclamped until it is written as a [`Color`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FloatColor {
+    pub red: f32,
+    pub green: f32,
+    pub blue: f32,
+}
+
+impl FloatColor {
+    pub const BLACK: Self = Self {
+        red: 0.0,
+        green: 0.0,
+        blue: 0.0,
+    };
+
+    /// The nearest 8-bit color, saturating each channel; NaN is zero.
+    #[inline(always)]
+    pub fn to_color(self) -> Color {
+        let channel = |value: f32| crate::sampling::byte_channel(value * 255.0);
+        Color {
+            red: channel(self.red),
+            green: channel(self.green),
+            blue: channel(self.blue),
+        }
+    }
+}
+
+impl From<Color> for FloatColor {
+    #[inline(always)]
+    fn from(color: Color) -> Self {
+        let channel = |value: u8| f32::from(value) * (1.0 / 255.0);
+        Self {
+            red: channel(color.red),
+            green: channel(color.green),
+            blue: channel(color.blue),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct Curve {
     pub points: Vec<CurvePoint>,
