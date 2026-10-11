@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { installEditorShortcuts } from "../shortcuts";
 import { OverlayPortal } from "../ui/OverlayPortal";
 import { SequenceEditor } from "../ui/gui/sequence/SequenceEditor";
 import { SequenceInspector } from "../ui/gui/sequence/SequenceInspector";
@@ -13,8 +14,14 @@ export function SequenceWorkbench({ document }: { document: SequenceEditorDocume
   const [compositionGraphOpen, setCompositionGraphOpen] = useState(false);
   const [automationClipChooser, setAutomationClipChooser] = useState<AutomationClipChooser>(null);
   const [overlays, setOverlays] = useState<HTMLDivElement | null>(null);
+  const root = useRef<HTMLDivElement | null>(null);
   const [activeMarkCollectionKey, setActiveMarkCollectionKey] = useState<string | null>(document.markCollections[0]?.key ?? null);
   const [visibleMarkCollectionKeys, setVisibleMarkCollectionKeys] = useState(() => new Set(document.markCollections.map(collection => collection.key)));
+  // The host page keeps its keys; the editor answers only keys pressed inside it.
+  useEffect(() => {
+    if (root.current === null) throw new Error("The sequence workbench is not mounted.");
+    return installEditorShortcuts(root.current);
+  }, []);
   useEffect(() => {
     const open = () => { setCompositionGraphOpen(true); };
     window.addEventListener(OPEN_LAYER_GRAPH_EVENT, open);
@@ -27,7 +34,8 @@ export function SequenceWorkbench({ document }: { document: SequenceEditorDocume
   };
   // An embedded editor is one isolated surface: menus and dialogs portal into
   // its own overlay layer instead of the host page's body.
-  return <div className="shared-sequence-workbench donder-editor">
+  // Focusable, so clicks anywhere in the editor keep focus, and so its keys, inside it.
+  return <div ref={root} className="shared-sequence-workbench donder-editor" tabIndex={-1}>
     <OverlayPortal value={overlays}>
       <SequenceTransportControls document={document} previewOpen={false} />
       <div className="shared-sequence-workspace">

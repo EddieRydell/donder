@@ -1,10 +1,11 @@
 import { useSpatialGuides } from "./spatialViewState";
-import { editShortcutTarget, hasPrimaryModifier, isMac, isSecondaryClick } from "../../../platform";
+import { isMac, isSecondaryClick } from "../../../platform";
+import { useEditorCommands } from "../../../shortcuts";
 import { boxSelection, selectedItems, selectionClick, unionBounds, type Box, type SpatialItem } from "./spatialSelection";
 import { useAppStore } from "../../../store";
 import { SpatialSnapControls } from "./SpatialSnapControls";
 import { snapPoint, formatDistance, type Modifiers } from "./spatialSnapping";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import type { GuiObjectRef, Point3Meters, SpatialRenderPixel, SpatialRenderPlan } from "../../../types";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
@@ -123,30 +124,39 @@ export function SpatialCanvas({ plan, reference, documentKey, selection, items, 
     }
   };
   const cancel = () => { setMarquee(null); setDragging(false); pointerActive.current = false; gesture.current = null; setOffset(null); fixture.cancel(); };
-  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas" {...editShortcutTarget(["selectAll"])}
-      onKeyDown={(event) => {
-        const enabled = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
-        if (gesture.current === null && !fixture.active && (fixtureTools?.tool === null || fixtureTools?.tool === undefined)) {
-          if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") { event.preventDefault(); onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); return; }
-          if (enabled && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); onDelete(); return; }
-          if (enabled && hasPrimaryModifier(event) && event.key.toLowerCase() === "d") { event.preventDefault(); onDuplicate(); return; }
-          if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
-            event.preventDefault();
-            const anchor = selection[0];
-            const move = anchor === undefined ? null : onMoveStart(selection, anchor);
-            if (move !== null) {
-              const step = snapping.spacingMeters * (event.shiftKey ? 10 : 1);
-              void move.commit({ xMeters: event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, yMeters: event.key === "ArrowDown" ? -step : event.key === "ArrowUp" ? step : 0, zMeters: 0 });
-            }
-            return;
-          }
-        }
-        if (event.key === "Escape") { event.preventDefault(); cancel(); fixture.key("Escape"); }
-        else if (event.key === "Home") { event.preventDefault(); if (!pointerActive.current) spatial.reset(); }
-        else if (fixtureTools !== undefined && fixture.key(event.key)) event.preventDefault();
-        if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event);
-      }}
-      onKeyUp={(event) => { if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event); }}
+  // Snapping previews follow the modifier keys wherever focus is.
+  const onModifierKey = useEffectEvent((event: KeyboardEvent) => { if (["Shift", "Control", "Meta"].includes(event.key)) refreshModifiers(event); });
+  useEffect(() => {
+    window.addEventListener("keydown", onModifierKey);
+    window.addEventListener("keyup", onModifierKey);
+    return () => {
+      window.removeEventListener("keydown", onModifierKey);
+      window.removeEventListener("keyup", onModifierKey);
+    };
+  }, []);
+  const editable = fixtureTools?.enabled ?? layoutMenu?.enabled ?? false;
+  // Selection commands wait while a gesture, a fixture drawing or a drawing tool is active.
+  const idle = () => gesture.current === null && !fixture.active && (fixtureTools?.tool === null || fixtureTools?.tool === undefined);
+  const nudge = (x: number, y: number, shift: boolean) => {
+    const anchor = selection[0];
+    const move = anchor === undefined ? null : onMoveStart(selection, anchor);
+    const step = snapping.spacingMeters * (shift ? 10 : 1);
+    if (move !== null) void move.commit({ xMeters: x * step, yMeters: y * step, zMeters: 0 });
+  };
+  useEditorCommands(canvas, {
+    "edit.selectAll": { enabled: idle, run: () => { onSelect(items.filter((item) => item.owners.length === 1 && item.owners[0] === item.id).map((item) => item.id)); } },
+    // While a polyline is drawn, deleting removes its last point.
+    "edit.delete": { run: () => { if (!fixture.key("Backspace") && idle() && editable) onDelete(); } },
+    "edit.duplicate": { enabled: () => idle() && editable, run: onDuplicate },
+    "edit.confirm": { enabled: () => fixture.active, run: () => { fixture.key("Enter"); } },
+    "edit.cancel": { run: () => { cancel(); fixture.key("Escape"); } },
+    "edit.moveLeft": { enabled: idle, run: ({ shift }) => { nudge(-1, 0, shift); } },
+    "edit.moveRight": { enabled: idle, run: ({ shift }) => { nudge(1, 0, shift); } },
+    "edit.moveUp": { enabled: idle, run: ({ shift }) => { nudge(0, 1, shift); } },
+    "edit.moveDown": { enabled: idle, run: ({ shift }) => { nudge(0, -1, shift); } },
+    "view.reset": { run: () => { if (!pointerActive.current) spatial.reset(); } }
+  });
+  const canvasElement = <canvas ref={canvas} className="gui-canvas" tabIndex={0} aria-label="Spatial editor canvas"
       onPointerDown={(event) => {
         if (pending || (event.button !== 0 && event.button !== 1) || isSecondaryClick(event)) return;
         event.preventDefault();

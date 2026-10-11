@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { commands } from "../api";
-import { installGlobalShortcuts } from "../commandRegistry";
+import { installKeyboardShortcuts } from "../commandRegistry";
 import { installNativeMenu } from "../nativeMenu";
 import { isMac } from "../platform";
 import { runSnapshotCommand, subscribeToSnapshots, useAppStore, useStaticAppSnapshot, type AppStaticSnapshot } from "../store";
@@ -32,14 +32,13 @@ export function App() {
   useEffect(() => {
     void hydrate();
     let disposed = false;
-    let disposeShortcuts: (() => void) | undefined;
+    const disposeShortcuts = installKeyboardShortcuts();
+    let disposeMenu: (() => void) | undefined;
     if (isMac) {
       void installNativeMenu().then((dispose) => {
         if (disposed) dispose();
-        else disposeShortcuts = dispose;
+        else disposeMenu = dispose;
       });
-    } else {
-      disposeShortcuts = installGlobalShortcuts();
     }
     let disposeEvents: (() => void) | undefined;
     void subscribeToSnapshots().then((dispose) => {
@@ -47,10 +46,18 @@ export function App() {
     });
     return () => {
       disposed = true;
-      disposeShortcuts?.();
+      disposeShortcuts();
+      disposeMenu?.();
       disposeEvents?.();
     };
   }, [hydrate]);
+
+  // Donder draws its own context menus; the webview's native menu never shows.
+  useEffect(() => {
+    const suppressNativeMenu = (event: MouseEvent) => { event.preventDefault(); };
+    window.addEventListener("contextmenu", suppressNativeMenu);
+    return () => { window.removeEventListener("contextmenu", suppressNativeMenu); };
+  }, []);
 
   useEffect(() => {
     const close = listen("close_requested", () => { void runWorkspaceTransition({ type: "closeApplication" }); });

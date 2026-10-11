@@ -568,6 +568,8 @@ export type PersistedSequenceViewportState = {
 	audioStripHeightPx?: number,
 	markRulerHeightPx?: number,
 	rowHeights: { [key in string]: number },
+	/**  Group lanes whose members are hidden, by group fixture. */
+	collapsedGroups?: number[],
 	scrollXSeconds: number,
 	scrollY: number,
 	activeMarkCollectionKey: string | null,

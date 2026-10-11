@@ -1,4 +1,3 @@
-import { desktopSequenceEditorHost } from "../../editor/desktopHost";
 import { guiObjectKey, objectViewKey } from "../../workspace/guiIdentity";
 import { CompositionEditor } from "./composition/CompositionEditor";
 import { ReadOnlySourceNotice } from "../ReadOnlySourceNotice";
@@ -21,9 +20,7 @@ import { commands } from "../../api";
 import { DescriptionField } from "./DescriptionField";
 import { THEME_METRICS } from "../../theme";
 
-import { handleSequencePlaybackShortcut, isSequenceTransportUnsupported } from "./sequence/SequenceTransportControls";
 
-import { markSelectionConsumesKey } from "./sequence/sequenceSelection";
 import { WorkspaceResizeHandle } from "../WorkspaceResizeHandle";
 import { OPEN_LAYER_GRAPH_EVENT } from "../uiEvents";
 import { SetupEditor } from "./setup/SetupEditor";
@@ -171,18 +168,6 @@ function GuiEditorInner({
         gridTemplateColumns: workspaceLayout.inspectorCollapsed
           ? "var(--donder-gui-grid-template-collapsed)"
           : `minmax(0, 1fr) ${workspaceLayout.inspectorWidthPx}px`
-      }}
-      onKeyDownCapture={(event) => {
-        if (gui.type === "sequence" && !compositionGraphOpen && !markSelectionConsumesKey(selected, event.key)) {
-          const audioTransport = useAppStore.getState().snapshot?.audioTransport;
-          if (audioTransport === undefined) return;
-          handleSequencePlaybackShortcut(
-            desktopSequenceEditorHost, event,
-            gui.document,
-            audioTransport,
-            isSequenceTransportUnsupported(gui.document, audioTransport)
-          );
-        }
       }}
     >
       {gui.type === "sequence" && (

@@ -1,8 +1,8 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
-import { isMac } from "../../../platform";
+import type { EditorCommands } from "../../../shortcuts";
 import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, SkipBack, Square, Workflow } from "lucide-react";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 
 import type { AppSnapshot, AudioTransportState, SequenceEditorDocument, SequenceFollowMode } from "../../../editor/types";
@@ -11,6 +11,7 @@ import type { AppSnapshot, AudioTransportState, SequenceEditorDocument, Sequence
 import { clamp, formatSeconds, type AudioTransportViewSnapshot } from "../shared";
 import { requestOpenLayerGraph, requestTapMark } from "../../uiEvents";
 import { THEME_METRICS } from "../../../theme";
+import { useConfirmDialog, type Confirm } from "../../ConfirmDialog";
 import { SequencePlaybackSpeedControls, playbackSpeedRatio } from "./SequencePlaybackSpeedControls";
 
 export function SequenceTransportControls({
@@ -22,6 +23,7 @@ export function SequenceTransportControls({
 }) {
   const host = useSequenceEditorHost();
   const { commands, store: useAppStore, runSnapshotCommand } = host;
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
@@ -35,13 +37,7 @@ export function SequenceTransportControls({
     stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, direction);
   };
   return (
-    <div
-      className="sequence-toolbar"
-      aria-label="Sequence transport"
-      onKeyDownCapture={(event) => {
-        handleSequencePlaybackShortcut(host, event, document, transport, unsupported);
-      }}
-    >
+    <div className="sequence-toolbar" aria-label="Sequence transport">
       <button
         type="button"
         title="Play"
@@ -127,7 +123,7 @@ export function SequenceTransportControls({
         type="button"
         title="Choose audio"
         hidden={!host.capabilities.audioFile}
-        onClick={() => void chooseAudioWithResizePrompt(host, document)}
+        onClick={() => void chooseAudioWithResizePrompt(host, document, confirm)}
       >
         <Music size={THEME_METRICS.iconSizeCompact} />
       </button>
@@ -137,6 +133,7 @@ export function SequenceTransportControls({
         {liveOutput.state !== "disabled" ? ` | Live ${liveOutput.state} (${liveOutput.activeUniverseCount})` : ""}
       </span>
       {host.exportControls}
+      {confirmDialog}
     </div>
   );
 }
@@ -153,7 +150,7 @@ function cycleSequenceFollowMode(host: SequenceEditorHost) {
   void host.runSnapshotCommand(() => host.commands.updateAppSettings({ ...settings, sequenceFollowMode: FOLLOW_MODES[settings.sequenceFollowMode].next }));
 }
 
-async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument) {
+async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: SequenceEditorDocument, confirm: Confirm) {
   const { commands, runGuiEditCommand } = host;
 
   const result = await runGuiEditCommand(commands.chooseSequenceAudio);
@@ -164,9 +161,12 @@ async function chooseAudioWithResizePrompt(host: SequenceEditorHost, document: S
   if (audio === null) return;
   const durationSeconds = await loadAudioDurationSeconds(host, audio.resolvedPath);
   if (durationSeconds === null || Math.abs(durationSeconds - document.durationSeconds) < 0.01) return;
-  const resize = window.confirm(
-    `Resize sequence to ${formatSeconds(durationSeconds)} to match ${audio.fileName}?`
-  );
+  const resize = await confirm({
+    title: "Resize sequence?",
+    description: `Resize the sequence to ${formatSeconds(durationSeconds)} to match ${audio.fileName}.`,
+    confirmLabel: "Resize",
+    danger: false
+  });
   if (!resize) return;
   await runGuiEditCommand((request) =>
     commands.applySequenceGuiEdit(request, {
@@ -256,64 +256,35 @@ export function useSequenceTransport(transport: AppSnapshot["audioTransport"], p
     : transport;
 }
 
-function isEditableShortcutTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  return target.closest("input, textarea, select") !== null;
-}
-
-export function handleSequencePlaybackShortcut(host: SequenceEditorHost,
-  event: KeyboardEvent<HTMLElement>,
-  document: SequenceEditorDocument,
-  transport: AppSnapshot["audioTransport"],
-  unsupported: boolean
-) {
+/** The transport's keyboard commands, which act while the sequence's audio is loaded. */
+export function sequenceTransportCommands(host: SequenceEditorHost, document: SequenceEditorDocument) {
   const { commands, runSnapshotCommand } = host;
-
-  if (unsupported || isEditableShortcutTarget(event.target)) return;
-  // Mac keyboards have no Home key; Command-Left Arrow is the platform's line-start gesture.
-  const rewind = event.key === "Home" || (isMac && event.metaKey && event.key === "ArrowLeft");
-  // Modified keys belong to app commands such as Save, not to transport keys.
-  if (!rewind && (event.metaKey || event.ctrlKey || event.altKey)) return;
-  if (event.key === " ") {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.repeat) return;
-    void runSnapshotCommand(isActiveAudioPlayback(transport.state) ? commands.audioStop : commands.audioPlay);
-  } else if (event.key.toLowerCase() === "s") {
-    event.preventDefault();
-    event.stopPropagation();
-    void runSnapshotCommand(commands.audioStop);
-  } else if (event.key.toLowerCase() === "l") {
-    event.preventDefault();
-    event.stopPropagation();
-    void runSnapshotCommand(() => commands.audioSetLooping(!transport.looping));
-  } else if (event.key.toLowerCase() === "f") {
-    event.preventDefault();
-    event.stopPropagation();
-    cycleSequenceFollowMode(host);
-  } else if (event.key.toLowerCase() === "m") {
+  const transport = () => host.store.getState().snapshot?.audioTransport;
+  const enabled = () => {
+    const current = transport();
+    return current !== undefined && !isSequenceTransportUnsupported(document, current);
+  };
+  const step = (direction: -1 | 1) => () => {
+    const current = transport();
+    if (current !== undefined) stepSequenceFrame(host, document, current.positionSeconds, current.durationSeconds, direction);
+  };
+  return {
+    "transport.togglePlayback": { enabled, run: ({ repeat }) => {
+      if (repeat) return;
+      void runSnapshotCommand(isActiveAudioPlayback(transport()?.state ?? "unloaded") ? commands.audioStop : commands.audioPlay);
+    } },
+    "transport.stop": { enabled, run: () => { void runSnapshotCommand(commands.audioStop); } },
+    "transport.toggleLooping": { enabled, run: () => { void runSnapshotCommand(() => commands.audioSetLooping(!(transport()?.looping ?? false))); } },
+    "transport.cycleFollowMode": { enabled, run: () => { cycleSequenceFollowMode(host); } },
     // M drops a mark at the playhead, so marks can be tapped along with the music.
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.repeat) return;
-    requestTapMark();
-  } else if (rewind) {
-    event.preventDefault();
-    event.stopPropagation();
-    void runSnapshotCommand(commands.audioRewindToZero);
-  } else if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    event.stopPropagation();
-    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, -1);
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    event.stopPropagation();
-    stepSequenceFrame(host, document, transport.positionSeconds, transport.durationSeconds, 1);
-  }
+    "transport.tapMark": { enabled, run: ({ repeat }) => { if (!repeat) requestTapMark(); } },
+    "transport.rewind": { enabled, run: () => { void runSnapshotCommand(commands.audioRewindToZero); } },
+    "edit.moveLeft": { enabled, run: step(-1) },
+    "edit.moveRight": { enabled, run: step(1) }
+  } satisfies EditorCommands;
 }
 
-export function isSequenceTransportUnsupported(
+function isSequenceTransportUnsupported(
   document: SequenceEditorDocument,
   transport: AppSnapshot["audioTransport"]
 ) {

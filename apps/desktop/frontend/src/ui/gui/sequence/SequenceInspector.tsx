@@ -31,6 +31,7 @@ import { MarkSubdivision } from "./MarkSubdivision";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 import { targetsEqual } from "./sequenceTargets";
+import { useConfirmDialog } from "../../ConfirmDialog";
 import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
 
 type SequenceInspectorTab = "effect" | "layers" | "marks";
@@ -758,6 +759,7 @@ function MarkInspectorPanel({
 }) {
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const selectedMark = selected?.type === "mark" ? { collectionKey: selected.collectionKey, index: selected.index } : null;
   const activeCollection = activeMarkCollection(document.markCollections, activeMarkCollectionKey);
@@ -799,8 +801,13 @@ function MarkInspectorPanel({
     );
   };
 
-  const deleteCollection = (collection: SequenceMarkCollection) => {
-    if (collection.marksSeconds.length > 0 && !window.confirm(`Delete ${collection.key} and ${collection.marksSeconds.length} marks? Effects using it will have no marks.`)) return;
+  const deleteCollection = async (collection: SequenceMarkCollection) => {
+    if (collection.marksSeconds.length > 0 && !await confirm({
+      title: `Delete ${collection.key}?`,
+      description: `Its ${collection.marksSeconds.length} marks are deleted too. Effects using it will have no marks.`,
+      confirmLabel: "Delete",
+      danger: true
+    })) return;
     void runGuiEditCommand((request) =>
       commands.applySequenceGuiEdit(request, {
         type: "deleteMarkCollection",
@@ -983,7 +990,7 @@ function MarkInspectorPanel({
                   title="Delete collection"
                   aria-label={`Delete ${collection.key}`}
                   onClick={() => {
-                    deleteCollection(collection);
+                    void deleteCollection(collection);
                   }}
                 >
                   <Trash2 size={THEME_METRICS.iconSizeSmall} />
@@ -1051,6 +1058,7 @@ function MarkInspectorPanel({
       ) : (
         <p>Select a mark on the timeline.</p>
       )}
+      {confirmDialog}
     </>
   );
 }

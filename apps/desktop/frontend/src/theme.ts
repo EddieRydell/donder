@@ -238,7 +238,6 @@ export const THEME_METRICS = {
   sequenceDisclosureGap: cssNumber("--donder-sequence-disclosure-gap"),
   sequenceSharedBadgeWidth: cssNumber("--donder-sequence-shared-badge-width"),
   sequenceClipMinWidth: cssNumber("--donder-sequence-clip-min-width"),
-  sequenceClipMinHeight: cssNumber("--donder-sequence-clip-min-height"),
   sequenceClipSlotOffset: cssNumber("--donder-sequence-clip-slot-offset"),
   sequenceClipHandleHalfWidth: cssNumber("--donder-sequence-clip-handle-half-width"),
   sequenceClipHandleHeight: cssNumber("--donder-sequence-clip-handle-height"),

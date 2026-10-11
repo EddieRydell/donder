@@ -1,5 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { useCallback, type KeyboardEvent } from "react";
+import { useCallback } from "react";
 
 import type { SequenceEditorDocument } from "../../../editor/types";
 
@@ -7,7 +7,6 @@ import type { AutomationClipChooser, GuiFocus, SequenceSelection } from "../shar
 
 import { SequenceCanvas } from "./SequenceCanvas";
 import { GraphEditorModal } from "./GraphEditorModal";
-import { handleSequencePlaybackShortcut, isSequenceTransportUnsupported } from "./SequenceTransportControls";
 
 export function SequenceEditor({
   document,
@@ -39,7 +38,7 @@ export function SequenceEditor({
   setVisibleMarkCollectionKeys: (keys: Set<string>) => void;
 }) {
   const host = useSequenceEditorHost();
-  const { commands, store: useAppStore, runSnapshotCommand } = host;
+  const { commands, runSnapshotCommand } = host;
 
   const setSelectedGraphItem = useCallback(
     (item: { type: "node"; id: string } | { type: "edge"; id: string } | null) => {
@@ -60,19 +59,8 @@ export function SequenceEditor({
     setSelected(null);
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
   }, [commands.finishCompositionGraphEditing, runSnapshotCommand, setCompositionGraphOpen, setSelected]);
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (compositionGraphOpen) return;
-    if (event.key === "Escape" && automationClipChooser !== null) {
-      event.preventDefault();
-      setAutomationClipChooser(null);
-      return;
-    }
-    const transport = useAppStore.getState().snapshot?.audioTransport;
-    if (transport === undefined) return;
-    handleSequencePlaybackShortcut(host, event, document, transport, isSequenceTransportUnsupported(document, transport));
-  };
   return (
-    <div className="sequence-editor" tabIndex={-1} onKeyDown={handleKeyDown}>
+    <div className="sequence-editor">
       <SequenceCanvas
         document={document}
         selected={selected}

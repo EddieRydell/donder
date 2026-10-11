@@ -1,5 +1,6 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { editShortcutTarget, hasPrimaryModifier, isMac } from "../../../platform";
+import { isMac } from "../../../platform";
+import { useEditorCommands } from "../../../shortcuts";
 import { OverlayPortal } from "../../OverlayPortal";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { ChevronRight, Layers, SlidersHorizontal, Monitor } from "lucide-react";
@@ -59,6 +60,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
   );
   const { initial, view, save, saveSize } = useGraphViewState(document.sourceRef);
   const flow = useRef<ReactFlowInstance<GraphFlowNode> | null>(null);
+  const pane = useRef<HTMLDivElement | null>(null);
   const connectionOrigin = useRef<GuiDocumentRequest | null>(null);
   const gesture = useRef<{ origin: GuiDocumentRequest | null; ids: Set<string>; committing: boolean } | null>(null);
   const [selection, setSelection] = useState<Selection>({ nodes: [], edges: [] });
@@ -173,36 +175,29 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
     setSelection({ nodes: nodes.map((node) => node.id), edges: edges.map((edge) => edge.id) });
     setSelectedItem(nodes.length + edges.length !== 1 ? null : nodes[0] !== undefined ? { type: "node", id: nodes[0].id } : edges[0] !== undefined ? { type: "edge", id: edges[0].id } : null);
   }, [setSelectedItem]);
+  const moveSelection = (x: number, y: number, shift: boolean) => {
+    if (flow.current === null) return;
+    const moving = flow.current.getNodes().filter((node) => selection.nodes.includes(node.id));
+    const distance = THEME_METRICS.graphGridGap * (shift ? THEME_METRICS.graphKeyboardLargeStep : 1);
+    beginMove(moving);
+    void finishMove(moving.map((node) => ({ ...node, position: { x: node.position.x + x * distance, y: node.position.y + y * distance } })));
+  };
+  const movable = () => editable && selection.nodes.length > 0;
+  useEditorCommands(pane, {
+    "edit.selectAll": { run: () => {
+      setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
+      setFlowEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
+    } },
+    "edit.delete": { enabled: () => editable && removable(selection), run: () => { deleteSelection(selection); } },
+    "edit.moveLeft": { enabled: movable, run: ({ shift }) => { moveSelection(-1, 0, shift); } },
+    "edit.moveRight": { enabled: movable, run: ({ shift }) => { moveSelection(1, 0, shift); } },
+    "edit.moveUp": { enabled: movable, run: ({ shift }) => { moveSelection(0, -1, shift); } },
+    "edit.moveDown": { enabled: movable, run: ({ shift }) => { moveSelection(0, 1, shift); } }
+  });
   return <div className="graph-canvas-workspace">
     <ContextMenu.Root onOpenChange={(open) => { if (!open) setContext(null); }}>
       <ContextMenu.Trigger asChild>
-        <div className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas" {...editShortcutTarget(["selectAll"])}
-          onKeyDown={(event) => {
-            if (event.target instanceof Element && event.target.closest(".graph-flow-node-controls, input, textarea, select, button, [contenteditable=true]") !== null) return;
-            if (hasPrimaryModifier(event) && event.key.toLowerCase() === "a") {
-              event.preventDefault(); event.stopPropagation();
-              setFlowNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })));
-              setFlowEdges((edges) => edges.map((edge) => ({ ...edge, selected: true })));
-            }
-            if (event.key === "Delete" || event.key === "Backspace") {
-              event.preventDefault(); event.stopPropagation();
-              deleteSelection(selection);
-            }
-          }}
-          onKeyDownCapture={(event) => {
-            if (!(event.target instanceof Element) || event.target.closest(".graph-flow-node-controls, input, textarea, select, button, [contenteditable=true]")) return;
-            const delta = event.key === "ArrowLeft" ? { x: -1, y: 0 } : event.key === "ArrowRight" ? { x: 1, y: 0 }
-              : event.key === "ArrowUp" ? { x: 0, y: -1 } : event.key === "ArrowDown" ? { x: 0, y: 1 } : null;
-            if (delta === null || flow.current === null) return;
-            const focusedId = event.target.closest(".react-flow__node")?.getAttribute("data-id");
-            const moving = flow.current.getNodes().filter((node) => selection.nodes.includes(node.id) || (selection.nodes.length === 0 && node.id === focusedId));
-            if (moving.length === 0) return;
-            event.preventDefault(); event.stopPropagation();
-            if (!editable) return;
-            const distance = THEME_METRICS.graphGridGap * (event.shiftKey ? THEME_METRICS.graphKeyboardLargeStep : 1);
-            beginMove(moving);
-            void finishMove(moving.map((node) => ({ ...node, position: { x: node.position.x + delta.x * distance, y: node.position.y + delta.y * distance } })));
-          }}
+        <div ref={pane} className="graph-flow-pane" tabIndex={0} aria-label="Composition graph canvas"
           onContextMenuCapture={(event) => {
             if (!(event.target instanceof Element) || flow.current === null) return;
             if (event.target.closest("input, textarea, select, button, [contenteditable=true]") !== null) return;
@@ -221,7 +216,7 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
           <ReactFlow nodes={flowNodes} edges={flowEdges} nodeTypes={NODE_TYPES} edgeTypes={EDGE_TYPES}
             fitView={initial.viewport === null} {...(initial.viewport === null ? {} : { defaultViewport: initial.viewport })}
             minZoom={THEME_METRICS.graphMinZoom} maxZoom={THEME_METRICS.graphMaxZoom} panOnScroll={isMac}
-            deleteKeyCode={null} nodesDraggable={editable} nodesConnectable={editable} edgesReconnectable={editable}
+            deleteKeyCode={null} disableKeyboardA11y nodesDraggable={editable} nodesConnectable={editable} edgesReconnectable={editable}
             defaultEdgeOptions={{ type: "donder", interactionWidth: THEME_METRICS.graphEdgeInteractionWidth, className: "graph-flow-edge" }}
             onInit={(instance) => { flow.current = instance; }}
             onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onSelectionChange={selectionChanged}

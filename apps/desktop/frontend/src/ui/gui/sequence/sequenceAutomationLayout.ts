@@ -136,7 +136,7 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
   for (const [target, laneClips] of byAutomationLane) {
     const targetRows = rows.filter((row) => row.target.fixture === target && row.kind === "automation");
     if (targetRows.length === 0) throw new Error("Automation clip has no timeline row.");
-    for (const row of targetRows) for (const group of groupOverlappingClips(laneClips)) {
+    for (const row of targetRows.filter((candidate) => candidate.height > 0)) for (const group of groupOverlappingClips(laneClips)) {
       const assigned = assignOverlapSlots(group);
       const slotCount = Math.max(1, Math.max(...assigned.map((clip) => clip.slot)) + 1);
       for (const clip of assigned) {
@@ -146,7 +146,7 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
           x,
           y: top + row.top - viewport.scrollY + clip.slot * slotHeight + THEME_METRICS.sequenceClipSlotOffset,
           width: Math.max(THEME_METRICS.sequenceClipMinWidth, clip.durationSeconds * viewport.pxPerSecond),
-          height: Math.max(THEME_METRICS.sequenceClipMinHeight, slotHeight - THEME_METRICS.sequenceClipHandleInset)
+          height: Math.max(0, slotHeight - THEME_METRICS.sequenceClipHandleInset)
         };
         layouts.push({
           clip,

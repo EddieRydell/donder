@@ -27,7 +27,14 @@ export type SequenceHover =
   | { kind: "effect"; effectId: number; resize: "left" | "right" | "none" }
   | { kind: "mark"; collectionKey: string; index: number };
 
-export type SequenceMarquee = { mode: "clips" | "marks"; startX: number; startY: number; x: number; y: number; active: boolean; shift: boolean; ctrl: boolean };
+/**
+ * A box selection whose start stays on the timeline while the view scrolls: `anchorSeconds`, and
+ * `anchorY`, a content offset below the ruler for clips or a canvas offset in the fixed mark ruler.
+ * `x` and `y` are the pointer on the canvas.
+ */
+export type SequenceMarquee = { mode: "clips" | "marks"; anchorSeconds: number; anchorY: number; x: number; y: number; active: boolean; shift: boolean; ctrl: boolean };
+/** A box between two corners in one coordinate space. */
+export type MarqueeBox = { startX: number; startY: number; x: number; y: number };
 
 export const MIN_EFFECT_DURATION_SECONDS = 0.000000001;
 
@@ -43,6 +50,8 @@ export type SequenceViewport = {
   audioStripHeight: number;
   markRulerHeight: number;
   rowHeights: SequenceRowHeightMap;
+  /** Group lanes whose members are hidden, by group fixture. */
+  collapsedGroups: ReadonlySet<number>;
   scrollXSeconds: number;
   scrollY: number;
 };
@@ -90,7 +99,7 @@ export function buildSequenceClipLayout(
   const visibleRows = new Map<number, SequenceRowLayout>();
   for (const row of rows) {
     const rowTop = top + row.top - viewport.scrollY;
-    if (row.kind === "effects" && rowTop + row.height >= top && rowTop <= bounds.height) visibleRows.set(row.laneIndex, row);
+    if (row.kind === "effects" && row.height > 0 && rowTop + row.height >= top && rowTop <= bounds.height) visibleRows.set(row.laneIndex, row);
   }
   const lanesByTarget = new Map<number, number[]>();
   document.lanes.forEach((lane, index) => {
@@ -137,7 +146,7 @@ export function buildSequenceClipLayout(
             x,
             y: top + row.top - viewport.scrollY + clip.slot * slotHeight + THEME_METRICS.sequenceClipSlotOffset,
             width,
-            height: Math.max(THEME_METRICS.sequenceClipMinHeight, slotHeight - THEME_METRICS.sequenceClipHandleInset)
+            height: Math.max(0, slotHeight - THEME_METRICS.sequenceClipHandleInset)
           }
         });
       }
@@ -376,7 +385,7 @@ function rectsIntersect(left: { x: number; y: number; width: number; height: num
   return left.x <= right.x + right.width && left.x + left.width >= right.x && left.y <= right.y + right.height && left.y + left.height >= right.y;
 }
 
-export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automation: AutomationClipLayout[], marquee: SequenceMarquee): SequenceSelection {
+export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automation: AutomationClipLayout[], marquee: MarqueeBox): SequenceSelection {
   const box = normalizedRect(marquee.startX, marquee.startY, marquee.x, marquee.y);
   // A clip drawn on several lanes is selected once.
   return { type: "clips", automationIds: [...new Set(automation.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.clip.id))], effectIds: [...new Set(clips.filter((clip) => rectsIntersect(box, clip.rect)).map((clip) => clip.effect.id))] };
@@ -385,7 +394,7 @@ export function selectionFromMarqueeEffects(clips: SequenceClipLayout[], automat
 /** A mark-ruler marquee selects the marks its time span covers. */
 export function selectionFromMarqueeMarks(
   collections: SequenceMarkCollection[],
-  marquee: SequenceMarquee,
+  marquee: MarqueeBox,
   left: number,
   viewport: SequenceViewport
 ): SequenceSelection {
@@ -404,6 +413,21 @@ export function selectionFromMarqueeMarks(
 }
 
 /** `anchorLane` is the lane the gesture started on; each clip moves from its target's lane nearest it. */
+/** The earliest start among clips, where the selection line sits for a clip selection. */
+export function earliestStartSeconds(clips: Array<{ startSeconds: number }>): number | null {
+  return clips.length === 0 ? null : Math.min(...clips.map((clip) => clip.startSeconds));
+}
+
+export function selectionStartSeconds(document: SequenceEditorDocument, selection: SequenceSelection | null): number | null {
+  if (selection?.type !== "clips") return null;
+  const effectIds = new Set(selection.effectIds);
+  const automationIds = new Set(selection.automationIds);
+  return earliestStartSeconds([
+    ...document.effects.filter((clip) => effectIds.has(clip.id)),
+    ...document.automationClips.filter((clip) => automationIds.has(clip.id))
+  ]);
+}
+
 export function clipSelectionGesture(document: SequenceEditorDocument, selection: Extract<SequenceSelection, { type: "clips" }>, edge: "none" | "left" | "right", requestedTimeDelta: number, anchorLane: number, requestedLaneDelta: number, automationResize: SequenceAutomationResize) {
   const effectIds = new Set(selection.effectIds);
   const automationIds = new Set(selection.automationIds);
@@ -470,10 +494,6 @@ export function markMoveDrafts(document: SequenceEditorDocument, marks: Sequence
     });
   }
   return drafts;
-}
-
-export function markSelectionConsumesKey(selected: GuiFocus, key: string) {
-  return selected?.type === "mark" && (key === "ArrowLeft" || key === "ArrowRight");
 }
 
 export function markRefLookup(marks: SequenceMarkRef[]): MarkRefLookup {
