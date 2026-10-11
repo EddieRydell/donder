@@ -156,7 +156,6 @@ pub(crate) enum Unary {
     Floor,
     Ceil,
     Trunc,
-    RoundEven,
     Sqrt,
     IntToFloat,
     FloatToInt,
@@ -777,7 +776,6 @@ fn unary_type(op: Unary) -> Type {
         | Unary::Floor
         | Unary::Ceil
         | Unary::Trunc
-        | Unary::RoundEven
         | Unary::Sqrt
         | Unary::IntToFloat
         | Unary::Smoothstep

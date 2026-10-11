@@ -100,8 +100,8 @@ fn starter_frame_checksums_survive_fixture_lowering_and_direct_led_packing() {
     assert_eq!(
         hashes,
         [
-            0x4535_974c_51f5_d6c0,
-            0xa19d_993e_4cbe_d728,
+            0xa86e_2634_3f3b_69f3,
+            0xbc0c_32fc_34f1_6b8a,
             0x1eb6_eec0_ec80_1ba7
         ]
     );

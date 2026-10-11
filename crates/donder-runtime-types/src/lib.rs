@@ -51,7 +51,7 @@ pub use prepared::{
 pub use sample::SampleProgram;
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{
-    Color, Curve, CurvePoint, CurveValidationError, Gradient, GradientStop,
+    Color, Curve, CurvePoint, CurveValidationError, FloatColor, Gradient, GradientStop,
     GradientValidationError, MICROS_PER_SECOND, Marks, Microseconds, SECONDS_PER_TICK,
     SampleDuration, SampleTime, SampleTimeError, sample_duration_from_seconds_f32,
     sample_duration_seconds_f32, sample_time_from_frame, sample_time_from_seconds_f32,

@@ -109,14 +109,15 @@ fn curve_items_sample_at_integer_and_float_positions() {
             };
             assert_eq!(
                 sampled,
-                if fraction.is_nan() {
-                    Color::BLACK
-                } else {
-                    Color {
-                        red: channel(integer as f32),
-                        green: channel(fraction),
-                        blue: 0,
-                    }
+                // A NaN channel is written as zero.
+                Color {
+                    red: channel(integer as f32),
+                    green: if fraction.is_nan() {
+                        0
+                    } else {
+                        channel(fraction)
+                    },
+                    blue: 0,
                 },
                 "integer={integer} fraction={fraction}"
             );
@@ -138,7 +139,7 @@ fn lets_keep_the_items_they_bound() {
     for progress in [0.25, 0.0, 0.25] {
         assert_eq!(
             fixed.evaluate(&one_pixel(progress), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(progress, progress + 0.25, 0.5)
+            crate::sampling::rgb(progress, progress + 0.25, 0.5).to_color()
         );
     }
     for (body, expected) in [

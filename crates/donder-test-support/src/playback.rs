@@ -8,6 +8,7 @@ use donder_runtime::PreparedSequence;
 use donder_runtime::SequenceBuilder;
 use donder_runtime::SequenceRoot;
 use donder_runtime::TargetHandle;
+use donder_runtime_types::Color;
 use donder_runtime_types::FixtureGeometry;
 use donder_runtime_types::OperatorInvocation;
 use donder_runtime_types::OutputEncoding;
@@ -109,4 +110,18 @@ pub fn chain(
 
 pub fn time(frame: usize) -> SampleTime {
     SampleTime::from_ticks(3_000_000 + frame as u32 * 8_333)
+}
+
+/// Whether two frames agree within one level per channel. Programs keep colors
+/// in floats, so a fused operator, which reads its source unrounded, may round
+/// a channel differently from one reading an 8-bit frame.
+pub fn assert_frames_close(left: &[Color], right: &[Color], what: &str) {
+    assert_eq!(left.len(), right.len(), "{what}");
+    for (index, (a, b)) in left.iter().zip(right).enumerate() {
+        let close = |x: u8, y: u8| x.abs_diff(y) <= 1;
+        assert!(
+            close(a.red, b.red) && close(a.green, b.green) && close(a.blue, b.blue),
+            "{what}: pixel {index}: {a:?} != {b:?}"
+        );
+    }
 }

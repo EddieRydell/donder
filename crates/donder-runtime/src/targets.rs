@@ -1,6 +1,7 @@
 //! Compact physical selections with their original logical sampling coordinates.
 //! These structures are both the archive and the executable representation.
 use alloc::{boxed::Box, vec::Vec};
+use core::cell::Cell;
 use donder_runtime_types::Shared;
 
 use crate::dsl::SpatialContext;
@@ -127,6 +128,16 @@ impl TargetPixels {
         indexed.chain(runs)
     }
 
+    /// Pixel lookups that remember the last pixel's run, for callers that
+    /// visit target indices in ascending order.
+    pub(crate) fn cursor(&self) -> TargetCursor<'_> {
+        TargetCursor {
+            pixels: self,
+            run: Cell::new(0),
+            start: Cell::new(0),
+        }
+    }
+
     pub(crate) fn iter(&self) -> TargetIter<'_> {
         self.iter_from(0)
     }
@@ -160,15 +171,30 @@ pub(crate) struct Segment<'a> {
     pub fractions: &'a [f32],
 }
 
-impl Segment<'_> {
-    pub(crate) fn pixel(&self, offset: usize) -> PreparedPixel {
-        PreparedPixel {
-            fixture_index: self.fixture,
-            fixture_pixel_index: self.first_cell + offset as u32,
-            pixel_index: self.first_index + offset,
-            pixel_count: self.count,
-            pixel_fraction: self.fractions[offset],
+pub(crate) struct TargetCursor<'a> {
+    pixels: &'a TargetPixels,
+    run: Cell<usize>,
+    start: Cell<usize>,
+}
+
+impl TargetCursor<'_> {
+    #[inline]
+    pub(crate) fn pixel(&self, index: usize) -> PreparedPixel {
+        let TargetPixels::Runs(runs) = self.pixels else {
+            return self.pixels.pixel(index);
+        };
+        let (mut run, mut start) = (self.run.get(), self.start.get());
+        if index < start || index >= runs[run].end {
+            if index == runs[run].end {
+                (run, start) = (run + 1, index);
+            } else {
+                run = runs.partition_point(|run| run.end <= index);
+                start = if run == 0 { 0 } else { runs[run - 1].end };
+            }
+            self.run.set(run);
+            self.start.set(start);
         }
+        runs[run].pixel(index - start)
     }
 }
 

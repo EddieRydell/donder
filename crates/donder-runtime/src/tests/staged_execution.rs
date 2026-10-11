@@ -195,7 +195,7 @@ fn strips_preserve_local_global_and_subset_target_addressing() {
 }
 
 #[test]
-fn constant_colors_use_the_same_quantization_as_runtime_expressions() {
+fn literal_colors_render_as_runtime_expressions() {
     let expression = "mix(invert(rgb(0.25, -0.2, 1.5)), hsv(0.4, 0.7, 0.8), amount) * amount";
     let dynamic = compile_effect(&format!(
         "effect Color {{ param amount: float in -1.0..2.0 = 0.0; sample {{ {expression} }} }}"
@@ -210,18 +210,15 @@ fn constant_colors_use_the_same_quantization_as_runtime_expressions() {
             "effect Color {{ sample {{ let amount = {literal}; {expression} }} }}"
         ));
         let instance = bind(&folded, &[]).instance(Default::default());
-        let constant = instance.constant_color().expect("literals fold");
+        let constant =
+            instance
+                .sample()
+                .evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default());
         let runtime = runtime_effect(&dynamic, &[], &[("amount", Value::Float(amount))]);
         assert_eq!(
             runtime.evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default()),
             constant,
             "{literal}"
-        );
-        assert_eq!(
-            instance
-                .sample()
-                .evaluate(&context(8, 3, 0), &SPATIAL, &mut StripWorkspace::default()),
-            constant
         );
         if !amount.is_nan() {
             let prepared =
@@ -364,7 +361,8 @@ fn divisors_left_to_playback_or_varying_per_pixel_keep_division() {
                 };
                 let quotient = fraction / current;
                 let expected =
-                    crate::sampling::rgb(if quotient.is_nan() { 0.7 } else { quotient }, 0.0, 0.0);
+                    crate::sampling::rgb(if quotient.is_nan() { 0.7 } else { quotient }, 0.0, 0.0)
+                        .to_color();
                 assert_eq!(
                     runtime.evaluate(&ctx, &SPATIAL, &mut StripWorkspace::default()),
                     expected,
@@ -594,12 +592,14 @@ fn uniform_samples_stay_in_the_query_block_beside_varying_clamps_and_scales() {
                         );
                         let expected = if pixel % 2 == 0 {
                             crate::sampling::gradient_color_scaled(colors, progress, value * 3.0)
+                                .to_color()
                         } else {
                             crate::sampling::rgb(
                                 if value.is_nan() { 0.25 } else { value },
                                 0.0,
                                 0.0,
                             )
+                            .to_color()
                         };
                         assert_eq!(
                             actual, expected,
@@ -684,7 +684,7 @@ fn target_blocks_rerun_when_the_target_shape_changes() {
             colors,
             [
                 Color::BLACK,
-                crate::sampling::sample_gradient(&gradient, position)
+                crate::sampling::sample_gradient(&gradient, position).to_color()
             ],
             "count={pixel_count} max_x={max_x}"
         );

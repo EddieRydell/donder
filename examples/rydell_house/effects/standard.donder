@@ -10,7 +10,7 @@ effect Pulse {
 effect Chase {
   param gradient: gradient;
   param gradient_mode: enum { ThroughEffect, AcrossItems, PerPulse } = PerPulse;
-  param pulse_overlap: float in 1.0..100.0 = 8.0;
+  param pulse_overlap: float in 1.0..1000.0 = 8.0;
   param section_width_pixels: int in 1..1000 = 1;
   param chase_position: curve in 0.0..1.0;
   param reverse: bool = false;
@@ -45,6 +45,8 @@ effect Wipe {
   param mode: enum { Pass, On, Off } = Pass;
   param pulse_width: float in 0.01..1.0 = 0.15;
   param direction_angle: float in 0.0..360.0 = 0.0;
+  -- How many times the pulse sweeps across, one pass after another.
+  param passes: int in 1..100 = 1;
   param wipe_position: curve in 0.0..1.0;
   param reverse: bool = false;
   param extend_to_start: bool = false;
@@ -53,21 +55,27 @@ effect Wipe {
 
   sample {
     let radians = direction_angle * 0.017453292519943295;
-    let dx = if abs(cos(radians)) < 0.000001 { 0.0 } else { cos(radians) };
-    let dy = if abs(sin(radians)) < 0.000001 { 0.0 } else { sin(radians) };
+    let dx = cos(radians);
+    let dy = sin(radians);
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
+    -- Pixels all at one position (a wipe across a line) take position zero.
     -- Rounding can step just outside the projected span.
-    let position = if span > 0.000000001 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
+    let position = if span > 0.0 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     let chase_value = if reverse { 1.0 - position } else { position };
     let travel_start = if extend_to_start { -pulse_width } else { 0.0 };
     let travel_end = if extend_to_end { 1.0 } else { max(0.0, 1.0 - pulse_width) };
-    let hit = mix(travel_start, travel_end, value_or(curve_first_crossing(wipe_position, chase_value), chase_value));
+    -- Each pass sweeps an equal share of the travel; the latest pass to reach
+    -- the pixel lights it.
+    let sweep = (travel_end - travel_start) / passes;
+    let first_hit = travel_start + sweep * value_or(curve_first_crossing(wipe_position, chase_value), chase_value);
+    let pass = clamp(floor((progress - first_hit) / sweep), 0.0, passes - 1.0);
+    let hit = first_hit + pass * sweep;
     let pulse_progress = (progress - hit) / pulse_width;
     let level =
       if pulse_progress < 0.0 { if mode == Off { 1.0 } else { 0.0 } }
-      else if pulse_progress > 1.0 { if mode == On { 1.0 } else { 0.0 } }
+      else if pulse_progress > 1.0 { if mode == On && pass == passes - 1 { 1.0 } else { 0.0 } }
       else { pulse_shape[pulse_progress] };
     let gradient_position =
       if gradient_mode == ThroughEffect { progress }
@@ -202,13 +210,14 @@ effect MarkWipe {
     let wipe_position = wipe_positions[mark % len(wipe_positions)];
     let angle = 360.0 * direction_angle[hit_time / duration];
     let radians = angle * 0.017453292519943295;
-    let dx = if abs(cos(radians)) < 0.000001 { 0.0 } else { cos(radians) };
-    let dy = if abs(sin(radians)) < 0.000001 { 0.0 } else { sin(radians) };
+    let dx = cos(radians);
+    let dy = sin(radians);
     let projection = pixel.x * dx + pixel.y * dy;
     let projection_min = min(target.min_x * dx, target.max_x * dx) + min(target.min_y * dy, target.max_y * dy);
     let span = (target.max_x - target.min_x) * abs(dx) + (target.max_y - target.min_y) * abs(dy);
+    -- Pixels all at one position (a wipe across a line) take position zero.
     -- Rounding can step just outside the projected span.
-    let position = if span > 0.000000001 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
+    let position = if span > 0.0 { clamp((projection - projection_min) / span, 0.0, 1.0) } else { 0.0 };
     let travel_end = max(0.0, 1.0 - pulse_width);
     let query_position = if travel_end > 0.0 { child_progress / travel_end } else { 1.0 };
     let hit = travel_end * curve_last_crossing(wipe_position, position, query_position);

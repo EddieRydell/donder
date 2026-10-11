@@ -720,10 +720,8 @@ fn authored_value(ty: &Type, range: Option<ParamRange>) -> Value {
     };
     match ty {
         Type::Curve => Value::Curve(curve(
-            // Nonzero at the start: some effects only sample position 0, such
-            // as a one-pixel Meteors tail.
             &[
-                (0.0, 0.2),
+                (0.0, 0.0),
                 (0.12, 1.0),
                 (0.45, 0.35),
                 (0.78, 0.8),

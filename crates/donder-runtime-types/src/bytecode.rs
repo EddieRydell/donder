@@ -145,7 +145,7 @@ impl Bank {
         match self {
             Self::Float | Self::Int => 4,
             Self::Bool => 1,
-            Self::Color => 3,
+            Self::Color => 12,
             Self::Resource => 6,
         }
     }
@@ -266,8 +266,6 @@ pub enum FloatUnary {
     Floor,
     Ceil,
     Trunc,
-    /// Rounds to the nearest integer, ties to even.
-    RoundEven,
     Sqrt,
     Smoothstep,
     Rand,

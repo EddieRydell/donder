@@ -33,10 +33,10 @@ fn else_if_chains_choose_per_pixel() {
     );
     let mut workspace = StripWorkspace::default();
     for (pixel, expected) in [
-        (0, crate::sampling::rgb(1.0, 0.0, 0.0)),
-        (1, crate::sampling::rgb(0.0, 1.0, 0.0)),
-        (2, crate::sampling::rgb(0.0, 0.0, 1.0)),
-        (0, crate::sampling::rgb(1.0, 0.0, 0.0)),
+        (0, crate::sampling::rgb(1.0, 0.0, 0.0).to_color()),
+        (1, crate::sampling::rgb(0.0, 1.0, 0.0).to_color()),
+        (2, crate::sampling::rgb(0.0, 0.0, 1.0).to_color()),
+        (0, crate::sampling::rgb(1.0, 0.0, 0.0).to_color()),
     ] {
         assert_eq!(
             effect.evaluate(&context(3, pixel, 0), &SPATIAL, &mut workspace),
@@ -204,9 +204,9 @@ fn reductions_of_index_free_bodies_fold() {
             );
             let context = context(3, 1, 0);
             let expected = if n == 0 {
-                crate::sampling::rgb(f32::NEG_INFINITY, 0.0, f32::INFINITY)
+                crate::sampling::rgb(f32::NEG_INFINITY, 0.0, f32::INFINITY).to_color()
             } else {
-                crate::sampling::rgb(context.progress, 0.375, context.fraction)
+                crate::sampling::rgb(context.progress, 0.375, context.fraction).to_color()
             };
             assert_eq!(
                 invocation.evaluate(&context, &SPATIAL, &mut StripWorkspace::default()),
@@ -221,8 +221,12 @@ fn reductions_of_index_free_bodies_fold() {
 fn fixed_definitions_fold_to_constant_colors() {
     for (source, expected) in [
         (
-            "effect Constant { sample { rgb(0.5, 0.25, 1.0) } }",
-            Some(crate::sampling::rgb(0.5, 0.25, 1.0)),
+            "effect Constant { sample { rgb(0.0, 0.2, 1.0) } }",
+            Some(Color {
+                red: 0,
+                green: 51,
+                blue: 255,
+            }),
         ),
         (
             "effect Empty { param n: int in 0..4 = 0; sample { sum for i in 0..n { #ffffff } } }",
@@ -267,9 +271,11 @@ fn preparation_computes_fixed_values_into_parameter_slots() {
             red: 0x20,
             green: 0x40,
             blue: 0x60,
-        },
+        }
+        .into(),
         0.5,
-    );
+    )
+    .to_color();
     let lowered = playback::lower_sample(&bind(&effect, &[]));
     assert_eq!(lowered.params().values(), [Value::Color(expected)]);
     // The program only reads the computed parameter.
@@ -331,7 +337,7 @@ fn smoothstep_with_bounded_edges_preserves_boundaries() {
                 (0.75, 0.0)
             };
             let t = ((context.fraction - left) / (right - left)).clamp(0.0, 1.0);
-            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
+            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0).to_color();
             for invocation in [&fixed, &runtime] {
                 let actual = invocation.evaluate(&context, &SPATIAL, &mut workspace);
                 assert!(
@@ -358,7 +364,7 @@ fn smoothstep_keeps_varying_and_degenerate_edge_semantics() {
         let context = context(65, pixel, 0);
         let edge = context.fraction;
         let t = ((0.25 - edge) / (0.5 - edge)).clamp(0.0, 1.0);
-        let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.25, 0.5);
+        let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.25, 0.5).to_color();
         assert_eq!(
             effect.evaluate(&context, &SPATIAL, &mut workspace),
             expected
@@ -391,7 +397,7 @@ fn uniform_smoothstep_runs_in_the_query_block() {
             let context = context(8, 0, frame);
             let t = (donder_runtime_types::sample_duration_seconds_f32(context.time) / 0.75)
                 .clamp(0.0, 1.0);
-            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0);
+            let expected = crate::sampling::rgb(t * t * (3.0 - 2.0 * t), 0.0, 0.0).to_color();
             let actual = invocation.evaluate(&context, &SPATIAL, &mut workspace);
             assert!(
                 actual.red.abs_diff(expected.red) <= 1,

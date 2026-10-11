@@ -111,18 +111,6 @@ fn threshold_weight(level: float, threshold: float, softness: float) -> float {
   }
 }
 
--- A glow kernel's weight `offset` pixels from its center, 1 at the center.
-fn falloff_weight(offset: int, radius: int, falloff: enum { Gaussian, Linear, Flat }) -> float {
-  let distance = abs(offset) / (radius + 1);
-  if falloff == Gaussian {
-    exp(-4.5 * distance * distance)
-  } else if falloff == Linear {
-    1.0 - distance
-  } else {
-    1.0
-  }
-}
-
 operator Threshold {
   input input;
   -- Brightness where pixels start to pass.
@@ -148,10 +136,8 @@ operator Bloom {
   param softness: float in 0.0..1.0 = 0.2;
   -- How a pixel's brightness is measured against the threshold.
   param measure: enum { Brightest, Luminance, Average } = Brightest;
-  -- Pixels the glow spreads on each side, along each fixture's pixel order.
+  -- Pixels along each fixture's pixel order over which the glow fades to a tenth.
   param radius: int in 1..32 = 6;
-  -- How the glow fades with distance.
-  param falloff: enum { Gaussian, Linear, Flat } = Gaussian;
   -- Glow brightness; the glow's total light at 1 matches its sources'.
   param strength: float in 0.0..8.0 = 2.0;
   -- Multiplies the glow's color; white keeps each source's color.
@@ -159,17 +145,18 @@ operator Bloom {
   -- How the glow combines with the input.
   param blend: enum { Add, Screen, Lighten, GlowOnly } = Add;
 
-  -- The kernel is normalized over its full width, so glow fades off fixture ends
-  -- instead of piling up there. Strength scales each sample before it is rounded
-  -- to 8 bits, keeping faint tails.
+  -- The glow spreads both ways with an exponential falloff, carried by scans,
+  -- so its cost does not grow with the radius. It fades off fixture ends.
   sample {
-    let total = sum for offset in -radius..=radius { falloff_weight(offset, radius, falloff) };
-    let glow = sum for offset in -radius..=radius around input as neighbor {
-      let weight = threshold_weight(brightness(neighbor, measure), threshold, softness);
-      guard weight > 0.0;
-      neighbor * (weight * falloff_weight(offset, radius, falloff) * strength / total)
+    let decay = exp(-2.302585 / radius);
+    let scale = strength * (1.0 - decay) / 2.0;
+    let forward = scan forward input as light, previous {
+      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
     };
-    let glow = glow * tint;
+    let backward = scan backward input as light, previous {
+      previous * decay + light * (threshold_weight(brightness(light, measure), threshold, softness) * scale)
+    };
+    let glow = (forward + backward) * tint;
     if blend == Add {
       input + glow
     } else if blend == Screen {

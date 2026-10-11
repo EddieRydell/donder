@@ -90,6 +90,29 @@ became one `PerFixture` clip on a group. In interleaved runs that day, 60
 frames of controller output went from 88 ms to 58 ms and warm preparation from
 78 ms to 29 ms, while cold preparation rose from 205 ms to 236 ms.
 
+Most Wonderful Time in the same project is a denser import: 25,314 pixels,
+6,478 clips at 144 fps, about 64 clips active on average. On 2026-10-10
+(Windows x64 release build on an i9-13980HX, the timing thread pinned to logical
+CPU 2 as `render_bench` does) it averages 3.7 ms per frame over all 22,034
+frames, worst 10 ms. Unpinned timings on this hybrid CPU drift 3-4x slower as
+the thread moves to efficiency cores, so long runs must be pinned.
+
+The same day's changes, measured unpinned and so only as ratios: rewriting the
+exact-parity Vixen ports of Meteors, Snowflakes, Dissolve and Twinkle as
+approximate ports took the show from 29 to 20 units, Bloom as a forward and a
+backward scan instead of a 13-tap stencil to 15, a run cursor replacing the
+per-pixel binary search over target runs in operators to 12.7, and layer strips
+gathered across fixture segments to 11.8. Gathering left every frame of Most
+Wonderful Time, Ding Dong and the Stanford show byte-identical. Program colors
+then became floats, rounded to 8 bits only where written, which raised the
+Stanford show's load-time workspace estimate (32-bit host build) from 29.9 to
+39.2 KB; the limit is 128 KB.
+
+Per frame the interpreter runs about 18,300 instructions over 1.82 million
+pixel operations, 99 pixels per instruction. Float arithmetic is 55% of those
+operations and float functions 12%; color components, signal samples and
+compares are about 5% each, and curve and gradient samples under 1% each.
+
 ## Strip interpreter
 
 There is one interpreter, and it runs every program over strips of up to 128

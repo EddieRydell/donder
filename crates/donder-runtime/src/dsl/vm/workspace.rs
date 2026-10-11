@@ -7,7 +7,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::{Cell, RefCell};
-use donder_runtime_types::Color;
+use donder_runtime_types::{Color, FloatColor};
 
 /// The fixture index of a position beyond the target, which no pixel's
 /// neighbor has.
@@ -65,7 +65,7 @@ pub(crate) struct StripWorkspace {
     pub(super) floats: Store<f32>,
     pub(super) ints: Store<i32>,
     pub(super) bools: Store<bool>,
-    pub(super) colors: Store<Color>,
+    pub(super) colors: Store<FloatColor>,
     pub(super) handles: Store<Handle>,
     pub(super) levels: Vec<Level>,
     /// Signal samples land here before they are written to the selection.
@@ -84,7 +84,7 @@ impl Default for StripWorkspace {
             colors: Store::new(),
             handles: Store::new(),
             levels: Vec::new(),
-            samples: RefCell::new([NO_COLOR; STRIP]),
+            samples: RefCell::new([Color::BLACK; STRIP]),
             neighborhood: None,
         }
     }
@@ -119,7 +119,7 @@ impl StripWorkspace {
         } = *slots;
         if stencils && self.neighborhood.is_none() {
             self.neighborhood = Some(Box::new(RefCell::new(Neighborhood {
-                colors: vec![NO_COLOR; NEIGHBORHOOD].into(),
+                colors: vec![Color::BLACK; NEIGHBORHOOD].into(),
                 locals: vec![OUTSIDE; NEIGHBORHOOD].into(),
                 weights: vec![0.0; NEIGHBORHOOD].into(),
             })));
@@ -185,7 +185,7 @@ impl StripSlots {
             Store::<f32>::bytes(scalars.floats, rows.floats)?,
             Store::<i32>::bytes(scalars.ints, rows.ints)?,
             Store::<bool>::bytes(scalars.bools, rows.bools)?,
-            Store::<Color>::bytes(scalars.colors, rows.colors)?,
+            Store::<FloatColor>::bytes(scalars.colors, rows.colors)?,
             Store::<Handle>::bytes(scalars.resources, rows.resources)?,
         ] {
             bytes = bytes.checked_add(bytes_of_bank)?;

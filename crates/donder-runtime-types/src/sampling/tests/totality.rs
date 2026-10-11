@@ -28,15 +28,15 @@ fn single_point_resources_are_total_even_when_their_position_is_invalid() {
         }],
     };
     assert!(gradient.validate().is_err());
-    assert_eq!(sample_gradient(&gradient, 0.25), color);
-    assert_eq!(sample_gradient(&gradient, f32::NAN), Color::BLACK);
+    assert_eq!(sample_gradient(&gradient, 0.25).to_color(), color);
+    assert_eq!(sample_gradient(&gradient, f32::NAN).to_color(), color);
 }
 
 #[test]
 fn empty_gradient_is_valid_and_samples_black() {
     let gradient = Gradient { stops: vec![] };
     assert!(gradient.validate().is_ok());
-    assert_eq!(sample_gradient(&gradient, 0.5), Color::BLACK);
+    assert_eq!(sample_gradient(&gradient, 0.5).to_color(), Color::BLACK);
 }
 
 #[test]

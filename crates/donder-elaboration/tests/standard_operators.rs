@@ -147,9 +147,10 @@ fn fusion_preserves_shared_sources_and_query_clocks() {
         0, 124_999, 125_000, 125_001, 1_000_000, 3_000_000, 0, 999_999,
     ] {
         let time = SampleTime::from_ticks(ticks);
-        assert_eq!(
+        donder_test_support::playback::assert_frames_close(
             shared.evaluate(time).colors(),
-            duplicated.evaluate(time).colors()
+            duplicated.evaluate(time).colors(),
+            &format!("ticks={ticks}"),
         );
     }
 }

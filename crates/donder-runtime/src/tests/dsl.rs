@@ -115,7 +115,7 @@ fn let_refinements_and_choices_do_not_leak_between_evaluations() {
     for (progress, red) in [(0.0, 0.4375), (1.0, 0.6875), (0.0, 0.4375)] {
         assert_eq!(
             effect.evaluate(&at(progress), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(red, 0.0, 0.0)
+            crate::sampling::rgb(red, 0.0, 0.0).to_color()
         );
     }
 }
@@ -140,7 +140,7 @@ fn length_bounded_reductions_iterate_marks_and_reject_long_collections() {
     };
     assert_eq!(
         sample(marks(&[1_000_000, 2_000_000])),
-        crate::sampling::rgb(0.3, 0.0, 0.0)
+        crate::sampling::rgb(0.3, 0.0, 0.0).to_color()
     );
     assert_eq!(sample(marks(&[])), Color::BLACK);
 
@@ -225,7 +225,7 @@ fn reduction_bounds_are_proven_from_literals_ranges_lengths_and_enclosing_indice
         } }",
     );
     for (count, red, green) in [(-3, 0, 5), (0, 0, 2), (3, 3, 0), (4, 6, 0)] {
-        let expected = crate::sampling::rgb(red as f32 / 10.0, green as f32 / 10.0, 0.0);
+        let expected = crate::sampling::rgb(red as f32 / 10.0, green as f32 / 10.0, 0.0).to_color();
         let runtime = runtime_effect(&effect, &[], &[("count", Value::Int(count))]);
         let fixed = playback::lower_sample(&bind(&effect, &[("count", Value::Int(count))]));
         for invocation in [runtime, fixed] {
@@ -272,7 +272,7 @@ fn array_literals_are_indexed_and_measured_through_lets() {
     for _ in 0..3 {
         assert_eq!(
             effect.evaluate(&at(0.25), &SPATIAL, &mut workspace),
-            crate::sampling::rgb(0.25, 0.5, 0.75)
+            crate::sampling::rgb(0.25, 0.5, 0.75).to_color()
         );
     }
     for (body, message) in [
@@ -316,10 +316,10 @@ fn guards_skip_to_black_or_produce_their_else_value() {
                 blue: 0,
             },
         ),
-        (2, crate::sampling::rgb(0.0, 0.5, 0.0)),
-        (3, crate::sampling::rgb(0.0, 0.0, 1.0)),
+        (2, crate::sampling::rgb(0.0, 0.5, 0.0).to_color()),
+        (3, crate::sampling::rgb(0.0, 0.0, 1.0).to_color()),
         (4, Color::BLACK),
-        (5, crate::sampling::rgb(0.0, 1.0, 0.0)),
+        (5, crate::sampling::rgb(0.0, 1.0, 0.0).to_color()),
         (0, Color::BLACK),
     ] {
         assert_eq!(
@@ -682,7 +682,7 @@ fn required_parameters_have_no_default_and_ranges_reject_values() {
     let bound = playback::lower_sample(&bind(&effect, &[("amount", Value::Float(1.0))]));
     assert_eq!(
         bound.evaluate(&at(0.0), &SPATIAL, &mut StripWorkspace::default()),
-        crate::sampling::rgb(1.0, 0.0, 0.0)
+        crate::sampling::rgb(1.0, 0.0, 0.0).to_color()
     );
     for (declaration, message) in [
         ("param amount: float;", "`amount` must declare its range"),
@@ -749,7 +749,6 @@ fn integer_arithmetic_wraps_and_remainders_are_floored_and_total() {
         ("int(x / y) == 2147483647", 100.0, 0.0),
         ("int(x / y) == -2147483647 - 1", -100.0, 0.0),
         ("int(x / y) == 0", 0.0, 0.0),
-        ("round_even(x) == 2.0 && round_even(y) == -4.0", 2.5, -3.5),
     ] {
         assert_holds(
             params,

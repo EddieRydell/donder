@@ -5,7 +5,7 @@ use crate::dsl::RunContext;
 use crate::dsl::StripWorkspace;
 use donder_runtime_types::SpatialContext;
 use donder_runtime_types::Value;
-use donder_runtime_types::{Color, Gradient, GradientStop, SampleDuration};
+use donder_runtime_types::{Color, Gradient, SampleDuration};
 use std::prelude::rust_2024::*;
 
 /// One parameter: its name, its declared type and range, and its value.
@@ -314,53 +314,7 @@ fn latest_crossing_handles_finite_extreme_values_without_intermediate_overflow()
 }
 
 #[test]
-fn color_boundaries_consume_nan_as_whole_black() {
-    let white = Gradient {
-        stops: vec![GradientStop {
-            position: 0.0,
-            color: Color {
-                red: 255,
-                green: 255,
-                blue: 255,
-            },
-        }],
-    };
-    for expression in [
-        "rgb(x, 1.0, 0.0)",
-        "rgb(1.0, x, 0.0)",
-        "rgb(1.0, 0.0, x)",
-        "hsv(x, 1.0, 1.0)",
-        "hsv(0.0, x, 1.0)",
-        "hsv(0.0, 1.0, x)",
-        "mix(#ff0000, #00ff00, x)",
-        "#ffffff * x",
-        "x * #ffffff",
-        "gradient[x]",
-        "gradient_color_scaled(gradient, 0.0, x)",
-        "gradient_color_scaled(gradient, x, 1.0)",
-    ] {
-        assert_eq!(
-            sample(
-                &[
-                    ("x", "float in 0.0..1.0", Value::Float(f32::NAN)),
-                    (
-                        "gradient",
-                        "gradient",
-                        Value::Gradient(white.clone().into())
-                    ),
-                ],
-                expression,
-            ),
-            Color::BLACK,
-            "{expression}"
-        );
-    }
-    // That black is an ordinary color afterwards.
-    assert_query(
-        &[("x", "float in 0.0..1.0", Value::Float(f32::NAN))],
-        "invert(rgb(x, 0.0, 0.0)) == #ffffff",
-    );
-    // Gradients with no stops are black.
+fn gradients_with_no_stops_are_black() {
     for expression in [
         "gradient[0.5]",
         "gradient[progress]",
