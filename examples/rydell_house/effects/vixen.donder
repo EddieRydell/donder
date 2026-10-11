@@ -173,13 +173,18 @@ effect VixenPinwheel {
   }
 }
 
--- PIXEL: Butterfly, five formulas and iteration motion. Default gradient red/green.
+-- PIXEL: Butterfly, five formulas, iteration or speed motion. Default gradient red/green.
+-- Speed mode takes Vixen's speed-curve value (default flat 60), mapped to -80..80 and
+-- accumulated once per frame; a negative total runs backward and Direction is unused.
+-- Varying speed curves are not exposed; automating speed does not accumulate.
 effect VixenButterfly {
   param color_gradient: gradient;
   param butterfly_type: enum { Type1, Type2, Type3, Type4, Type5 } = Type1;
   param color_scheme: enum { Gradient, Rainbow } = Gradient;
+  param motion: enum { Iterations, Speed } = Iterations;
   param direction: enum { Forward, Backward } = Forward;
   param iterations: int in 1..100 = 2;
+  param speed: float in 0.0..100.0 = 60.0;
   param repeat: int in 1..100 = 1;
   param background_chunks: int in 1..100 = 1;
   param background_skips: int in 1..100 = 2;
@@ -199,11 +204,16 @@ effect VixenButterfly {
       if butterfly_type == Type4 { repeat * 6.0 }
       else if butterfly_type == Type1 || butterfly_type == Type5 { repeat * 3.0 }
       else { repeat };
-    let state = floor(duration * 1000.0 * ((t * iterations) % 1.0) * repetitions);
+    -- Speed maps 0..100 to -80..80 per 50 ms; Vixen adds 1/200 of it every frame,
+    -- including the first, and runs backward while the total is negative.
+    let travel = (floor(time * 1000.0 / frame_interval_ms) + 1.0) * (speed * 1.6 - 80.0) * frame_interval_ms / 10000.0;
+    let position = if motion == Speed { abs(travel) % 1.0 } else { (t * iterations) % 1.0 };
+    let state = floor(duration * 1000.0 * position * repetitions);
     -- Effects shorter than a millisecond hold the first frame.
     let frame = floor(h * state / max(1.0, floor(duration * 1000.0))) % h;
     let offset = state / (duration * 1000.0);
-    let offset = if direction == Forward { -offset } else { offset };
+    let backward = if motion == Speed { travel < 0.0 } else { direction == Backward };
+    let offset = if backward { offset } else { -offset };
     let value =
       if butterfly_type == Type2 || butterfly_type == Type3 {
         let f = if frame < floor(h / 2.0) { frame + 1.0 } else { h - frame };
@@ -898,5 +908,1045 @@ effect VixenSpirograph {
         colors[int(selected)][t] * level
       }
     }
+  }
+}
+
+-- Value noise in -1..1 with unit-variance normalization, on a lattice of
+-- cell_x by cell_y virtual pixels offset by (offset_x, offset_y) cells.
+fn vixen_fire_noise(x: float, y: float, cell_x: float, cell_y: float, offset_x: float, offset_y: float, seed: float) -> float {
+  let u = x / cell_x + offset_x;
+  let v = y / cell_y + offset_y;
+  let i = floor(u);
+  let j = floor(v);
+  let fx = u - i;
+  let fy = v - j;
+  let a = mix(rand(seed + i + j * 127.0), rand(seed + i + 1.0 + j * 127.0), fx);
+  let b = mix(rand(seed + i + (j + 1.0) * 127.0), rand(seed + i + 1.0 + (j + 1.0) * 127.0), fx);
+  (mix(a, b, fy) * 2.0 - 1.0) / sqrt(((1.0 - fx) * (1.0 - fx) + fx * fx) * ((1.0 - fy) * (1.0 - fy) + fy * fy))
+}
+
+-- PIXEL: Fire, all four locations, height, hue shift and the 200-entry palette.
+-- Vixen rebuilds its heat buffer from a random base row every frame (no state
+-- carries between frames): each row averages the three cells below (center
+-- doubled), then moves by +step (20%) or -step (80%), clamped to 0..199, with
+-- step = 25500 / rows / height. Row 0 is reproduced exactly; rows above use
+-- the propagation's mean (-0.6 * step - 0.35 per row, the 0.35 from integer
+-- division) plus vertically stretched value noise whose variance and
+-- correlations were fitted to that propagation. A pixel's heat is therefore
+-- statistically, not cell-for-cell, Vixen's. Vixen defaults: height flat 50,
+-- hue shift flat 0. Uses a layout-derived grid, row 0 at the chosen edge.
+effect VixenFire {
+  param location: enum { Bottom, Top, Left, Right } = Bottom;
+  param height: curve in 0.0..100.0;
+  param hue_shift: curve in 0.0..100.0;
+  param intensity: float in 0.0..100.0 = 100.0;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param frame_interval_ms: float in 1.0..1000.0 = 50.0;
+
+  sample {
+    let frame = floor(time * 1000.0 / frame_interval_ms);
+    let t = frame * frame_interval_ms / (duration * 1000.0);
+    let w = floor((target.max_x - target.min_x) / pixel_size) + 1.0;
+    let h = floor((target.max_y - target.min_y) / pixel_size) + 1.0;
+    let x = floor((pixel.x - target.min_x) / pixel_size);
+    let y = floor((pixel.y - target.min_y) / pixel_size);
+    -- Simulation coordinates: sx along the base row, sy rows away from it.
+    let vertical = location == Bottom || location == Top;
+    let rows = if vertical { h } else { w };
+    let sx = if vertical { x } else { y };
+    let sy =
+      if location == Bottom { y }
+      else if location == Top { h - 1.0 - y }
+      else if location == Left { x }
+      else { w - 1.0 - x };
+    -- C# integer division; a height below 1 counts as 1.
+    let effective_height = max(1, int(value_or(height[t], 100.0)));
+    let step = 25500 // int(rows) // effective_height;
+    let base = rand(random_seed * 31.0 + frame) * 4096.0;
+    let heat =
+      if sy == 0.0 {
+        if sx % 2.0 == 0.0 { 190.0 + floor(rand(base + 16384.0 + sx) * 10.0) }
+        else { 100.0 + floor(rand(base + 16384.0 + sx) * 50.0) }
+      } else {
+        let spread = 0.64 * step * step;
+        let fine = spread + 20.0;
+        let v1 = fine * 0.4 + spread * 0.91 + 29.0 / sy;
+        let v2 = if sy > 3.5 { spread * 0.8 * (sqrt(min(sy, 15.5)) - 1.8708287) } else { 0.0 };
+        let v3 = if sy > 15.5 { spread * 0.8 * (sqrt(sy) - 3.9370039) } else { 0.0 };
+        let noise = (rand(base + 32768.0 + sx + sy * 256.0) * 2.0 - 1.0) * sqrt(1.8 * fine);
+        let noise = noise + vixen_fire_noise(sx, sy, 2.0, 8.0, rand(base + 1.0), rand(base + 2.0), base + 49152.0) * sqrt(3.0 * v1);
+        let noise = noise + vixen_fire_noise(sx, sy, 4.0, 24.0, rand(base + 3.0), rand(base + 4.0), base + 65536.0) * sqrt(3.0 * v2);
+        let noise = noise + vixen_fire_noise(sx, sy, 8.0, 64.0, rand(base + 5.0), rand(base + 6.0), base + 81920.0) * sqrt(3.0 * v3);
+        clamp(floor(159.5 - (0.6 * step + 0.35) * sy + noise), 0.0, 199.0)
+      };
+    -- Palette entry 0 is not drawn.
+    guard heat >= 1.0;
+    let hue = if heat < 100.0 { 0.0 } else { (heat - 100.0) * 0.00166666 };
+    let shift = value_or(hue_shift[t], 100.0);
+    -- Vixen clamps the shifted hue at 1 (red) instead of wrapping it.
+    let hue = if shift > 0.0 { min(1.0, hue + shift / 100.0) } else { hue };
+    hsv(hue, 1.0, min(1.0, heat / 100.0) * intensity / 100.0)
+  }
+}
+
+-- PIXEL: Fireworks, random and mark-collection explosions, all five color types,
+-- fixed/random velocity and particle counts. Audio-triggered explosions are not
+-- exposed. Default gradients red/lime/blue. Particles are evaluated in closed form:
+-- after `age` frames a particle sits at start + (age + 1) * velocity, falling by
+-- Vixen's sum of (20 * cycle)^2 / 10^7, and lives while 20 * (age + 1) is below
+-- both particle_fade * 10 (its fade) and explosions * particles (Vixen's cycle
+-- limit). Random explosions start at jittered, evenly stratified frames instead
+-- of independent uniform frames, so only those near the current frame are
+-- examined. Mark explosions start at the mark's millisecond offset / 50, as in
+-- Vixen, whatever the frame interval. Particle directions are stratified by
+-- index so a pixel examines only the particles whose direction can reach it.
+-- Vixen's random particle counts overwrite earlier explosions' particle slots;
+-- each particle survives with that overwrite's modeled probability. Faded
+-- (black) particles do not hide others. A one-row or one-column grid stays dark.
+effect VixenFireworks {
+  param colors: array<gradient>;
+  param color_type: enum { Standard, Rainbow, Range, Palette, Random } = Standard;
+  param source: enum { RandomExplosions, MarkCollection } = RandomExplosions;
+  param explosion_marks: marks;
+  param explosions: int in 0..100 = 10;
+  param random_velocity: bool = false;
+  param velocity: int in 0..10 = 5;
+  param min_velocity: int in 0..10 = 1;
+  param max_velocity: int in 0..10 = 10;
+  param random_particles: bool = true;
+  param particles: int in 0..100 = 40;
+  param min_particles: int in 0..100 = 10;
+  param max_particles: int in 0..100 = 50;
+  param particle_fade: int in 0..100 = 50;
+  param intensity: float in 0.0..100.0 = 100.0;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param frame_interval_ms: float in 1.0..1000.0 = 50.0;
+
+  sample {
+    let frame = floor(time * 1000.0 / frame_interval_ms);
+    let frames = floor(duration * 1000.0 / frame_interval_ms);
+    let t = frame * frame_interval_ms / (duration * 1000.0);
+    let w = floor((target.max_x - target.min_x) / pixel_size) + 1.0;
+    let h = floor((target.max_y - target.min_y) / pixel_size) + 1.0;
+    let x = floor((pixel.x - target.min_x) / pixel_size);
+    let y = floor((pixel.y - target.min_y) / pixel_size);
+    -- Vixen renders nothing for a single string.
+    guard w > 1.0 && h > 1.0 && frames >= 1.0;
+    let count = if source == MarkCollection { len(explosion_marks) } else { explosions };
+    let slots = if random_particles { max_particles } else { particles };
+    let fade = particle_fade * 10.0;
+    -- Ages 0..life-1 are lit: 20 * (age + 1) stays below the fade and the cycle limit.
+    let life = ceil(min(fade, count * slots * 1.0) / 20.0) - 1.0;
+    guard count > 0 && life >= 1.0;
+    let lo =
+      if source == MarkCollection { max(0, mark_last_index(explosion_marks, (frame - life) * 0.05)) }
+      else { max(0, int(floor((frame - life + 1.0) * count / frames)) - 1) };
+    let hi =
+      if source == MarkCollection { mark_last_index(explosion_marks, (frame + 1.0) * 0.05) }
+      else { min(count - 1, int(floor((frame + 1.0) * count / frames))) };
+    let x25 = floor(w * 0.25);
+    let y25 = floor(h * 0.25);
+    let x_span = floor(w * 0.75) - x25;
+    let y_span = floor(h * 0.75) - y25;
+    let top_speed = if random_velocity { max(min_velocity, max_velocity - 1) } else { velocity };
+    let level = intensity / 100.0;
+    -- Later explosions draw over earlier ones, later particles over earlier ones.
+    last for slot in 0..min(hi - lo + 1, 100) {
+      let explosion = lo + slot;
+      let seed = random_seed * 31.0 + explosion * 8.0;
+      let start =
+        if source == MarkCollection { floor(mark_at(explosion_marks, explosion) * 20.0) }
+        else { floor((explosion + rand(seed + 1.0)) * frames / count) };
+      let age = frame - start;
+      guard age >= 0.0 && age < life;
+      let x0 = if x_span > 0.0 { x25 + floor(rand(seed + 2.0) * x_span) } else { 0.0 };
+      let y0 = if y_span > 0.0 { y25 + floor(rand(seed + 3.0) * y_span) } else { 0.0 };
+      let n = if random_particles { max(0, min_particles + int(rand(seed + 4.0) * (max_particles - min_particles))) } else { particles };
+      let steps = age + 1.0;
+      let fall = 0.00004 * age * steps * (2.0 * age + 1.0) / 6.0;
+      let dx = x + 0.5 - x0;
+      let dy = y + 0.5 - y0 + fall;
+      let distance = sqrt(dx * dx + dy * dy);
+      -- The cell's half diagonal is sqrt(0.5).
+      guard n > 0 && distance - 0.70710678 < steps * top_speed;
+      let angle = atan2(dy, dx);
+      let spread = if distance <= 0.70710678 { PI } else { atan2(0.70710678, sqrt(distance * distance - 0.5)) };
+      let first = int(floor((angle - spread) / TAU * n));
+      let candidates = min(n, int(floor((angle + spread) / TAU * n)) - first + 1);
+      -- Vixen's slot index for the overwrite model; random explosions get an index
+      -- independent of their start time, as in Vixen.
+      let order = if source == MarkCollection { explosion * 1.0 } else { floor(rand(seed + 6.0) * count) };
+      let particle_seed = rand(seed + 7.0) * 8192.0;
+      let hit = last for candidate in 0..min(candidates, 100) {
+        let index = (first + candidate) % n;
+        let ps = particle_seed + index * 4.0;
+        let direction = TAU * (index + rand(ps)) / n;
+        let speed_limit =
+          if random_velocity { min_velocity + floor(rand(ps + 1.0) * (max_velocity - min_velocity)) }
+          else { velocity * 1.0 };
+        let distance_moved = steps * speed_limit * rand(ps + 2.0);
+        let px = x0 + distance_moved * cos(direction);
+        let py = y0 - fall + distance_moved * sin(direction);
+        guard px >= 0.0 && py >= 0.0 && floor(px) == x && floor(py) == y;
+        let slot_index = order * n + index;
+        let after = order + 1.0;
+        let reach = if min_particles > 0 { min(count * 1.0, slot_index / min_particles + 1.0) } else { count * 1.0 };
+        let overwritten =
+          if random_particles && max_particles > min_particles && reach > after {
+            max(0.0, slot_index / (max_particles - min_particles) * (1.0 / after - 1.0 / reach))
+          } else { 0.0 };
+        guard rand(ps + 3.0) < exp(-overwritten);
+        index * 1.0
+      } else { -1.0 };
+      guard hit >= 0.0;
+      let value = (fade - 20.0 * steps) / fade * level;
+      let frame_seed = rand(particle_seed + hit * 4.0 + 0.5) * 4096.0 + frame;
+      if color_type == Standard {
+        let c = colors[int(rand(seed + 5.0) * len(colors))][t];
+        hsv(hue(c), saturation(c), value)
+      } else if color_type == Random {
+        hsv(floor(rand(seed + 5.0) * 1000.0) / 1000.0, 1.0, value)
+      } else if color_type == Rainbow {
+        hsv(floor(rand(frame_seed) * 1000.0) / 1000.0, 1.0, value)
+      } else if color_type == Palette {
+        let c = colors[int(rand(frame_seed) * len(colors))][t];
+        hsv(hue(c), saturation(c), value)
+      } else {
+        let a = colors[int(rand(frame_seed) * len(colors))][t];
+        let b = colors[int(rand(frame_seed + 0.25) * len(colors))][t];
+        hsv(mix(hue(a), hue(b), rand(frame_seed + 0.5)), mix(saturation(a), saturation(b), rand(frame_seed + 0.75)), value)
+      }
+    }
+  }
+}
+
+-- Number of points a bin of half the mean twinkle gap holds: Poisson(0.5) by
+-- inverse CDF, truncated at 7 points (tail probability 6e-8).
+fn vixen_poisson_half(u: float) -> int {
+  let n = if u >= 0.60653066 { 1 } else { 0 };
+  let n = if u >= 0.90979599 { n + 1 } else { n };
+  let n = if u >= 0.98561232 { n + 1 } else { n };
+  let n = if u >= 0.99824838 { n + 1 } else { n };
+  let n = if u >= 0.99982788 { n + 1 } else { n };
+  let n = if u >= 0.99998583 { n + 1 } else { n };
+  if u >= 0.99999900 { n + 1 } else { n }
+}
+
+-- Random key of one element's twinkle bin.
+fn vixen_twinkle_key(base: float, bin: int, element: int) -> float {
+  rand(rand(base + bin) + element)
+}
+
+-- Whether no Poisson twinkle start of bins low..low+bins lies strictly
+-- between `after` and `before`.
+fn vixen_twinkle_clear(base: float, element: int, low: int, bins: int, width: float, after: float, before: float) -> bool {
+  !(any for k in 0..bins {
+    let key = vixen_twinkle_key(base, low + k, element);
+    any for j in 0..vixen_poisson_half(rand(key)) {
+      let start = (low + k + rand(key + 1.0 + j)) * width;
+      start > after && start < before
+    }
+  })
+}
+
+-- One twinkle's light in `frame`, or black when it does not cover the frame.
+-- Vixen truncates a twinkle at the effect end when at least the shortest pulse
+-- fits there; otherwise that twinkle and every later one are dropped.
+fn vixen_twinkle_light(
+  start: float, length: float, total: float, shortest: float, frame: float, frame_ms: float,
+  minimum_level: float, maximum_level: float,
+  handling: enum { SingleColor, GradientThroughEffect, GradientPerPulse, GradientAcrossItems },
+  static_color: color, colors: gradient, across: color,
+) -> color {
+  let length = min(length, total - start);
+  let x = (frame - floor(trunc(start) / frame_ms)) * frame_ms / length;
+  if start >= 0.0 && total - start >= shortest && x >= 0.0 && x <= 1.0 {
+    let level = (minimum_level + (maximum_level - minimum_level) * (1.0 - abs(2.0 * x - 1.0))) / 100.0;
+    let c =
+      if handling == SingleColor { static_color }
+      else if handling == GradientPerPulse { colors[x] }
+      else if handling == GradientThroughEffect { colors[(start + x * length) / total] }
+      else { across };
+    c * level
+  } else { rgb(0.0, 0.0, 0.0) }
+}
+
+-- BASIC: Twinkle over ordered leaf pixels, all four color modes and minimum level.
+-- Vixen draws each element's start gaps as Exp(mean = pulse/coverage/2) capped at
+-- pulse/coverage. That renewal process is reproduced in distribution: its starts
+-- are the points of a Poisson process (sampled in bins of half the mean gap, at
+-- most 7 per bin) plus forced starts every cap after a start that the Poisson
+-- process follows by more than a cap. Twinkles are 0/50/100 min/max/min triangles
+-- sampled on the Vixen frame clock; overlapping twinkles combine by channel
+-- maximum. Exact while (pulse + variation + frame) * 4 * coverage / pulse < 22,
+-- that is for pulses longer than 1.75 frames; the seeded starts do not reproduce
+-- Vixen's random stream. Vixen's LevelVariation is omitted: 3.13u2 truncates its
+-- reduction to an integer level, so it never changes a twinkle. Depth of effect
+-- is not represented. Default gradient: white.
+effect VixenTwinkle {
+  param color_handling: enum { SingleColor, GradientThroughEffect, GradientPerPulse, GradientAcrossItems } = GradientPerPulse;
+  param static_color: color = #ffffff;
+  param color_gradient: gradient;
+  param minimum_level: float in 0.0..100.0 = 0.0;
+  param maximum_level: float in 0.0..100.0 = 100.0;
+  param average_pulse_time_ms: int in 1..60000 = 400;
+  param pulse_time_variation: int in 0..100 = 30;
+  param average_coverage: int in 0..100 = 50;
+  param individual_elements: bool = true;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param frame_interval_ms: float in 1.0..1000.0 = 50.0;
+
+  sample {
+    let total = duration * 1000.0;
+    let count: float = target.count;
+    let cover = if average_coverage <= 0 { 0.01 } else { average_coverage / 100.0 };
+    let gap_cap = average_pulse_time_ms / cover;
+    let width = gap_cap / 4.0;
+    -- C# truncates the variation to whole milliseconds.
+    let variation: float = int(pulse_time_variation / 100.0 * average_pulse_time_ms);
+    let shortest = average_pulse_time_ms - variation;
+    let choices = 2.0 * variation + 1.0;
+    let frame = floor(time * 1000.0 / frame_interval_ms);
+    -- Only starts in [lo, hi) can cover this frame.
+    let lo = frame * frame_interval_ms - average_pulse_time_ms - variation;
+    let hi = (frame + 1.0) * frame_interval_ms;
+    let element = if individual_elements { pixel.index } else { 0 };
+    let base = rand(random_seed);
+    let low_bin = int(floor(lo / width));
+    let first_bin = max(0, low_bin);
+    let bins = min(int(floor(min(hi, total) / width)) - first_bin + 1, 24);
+    let across = color_gradient[pixel.index / count];
+    let poisson = max for k in 0..bins {
+      let b = first_bin + k;
+      let key = vixen_twinkle_key(base, b, element);
+      max for j in 0..vixen_poisson_half(rand(key)) {
+        let start = (b + rand(key + 1.0 + j)) * width;
+        let length = shortest + floor(rand(key + 9.0 + j) * choices);
+        vixen_twinkle_light(start, length, total, shortest, frame, frame_interval_ms,
+          minimum_level, maximum_level, color_handling, static_color, color_gradient, across)
+      }
+    };
+    -- Forced starts from the latest Poisson start before the window (or the
+    -- effect start) and from every start within the window. None precede a cap.
+    let forced = if hi <= gap_cap { rgb(0.0, 0.0, 0.0) } else {
+      let previous = first for k in 0..min(low_bin + 1, 64) {
+        let b = low_bin - k;
+        guard b >= 0;
+        let key = vixen_twinkle_key(base, b, element);
+        let latest = max for j in 0..vixen_poisson_half(rand(key)) {
+          let start = (b + rand(key + 1.0 + j)) * width;
+          guard start < lo;
+          start
+        };
+        guard latest >= 0.0;
+        latest
+      } else { 0.0 };
+      max for k in 0..=bins {
+        let b = first_bin + k - 1;
+        let key = vixen_twinkle_key(base, b, element);
+        let points = if k == 0 { 1 } else { vixen_poisson_half(rand(key)) };
+        max for j in 0..points {
+          let from = if k == 0 { previous } else { (b + rand(key + 1.0 + j)) * width };
+          let skipped = max(1.0, ceil((lo - from) / gap_cap));
+          max for m in 0..4 {
+            let start = from + (skipped + m) * gap_cap;
+            guard start >= lo && start < hi;
+            guard vixen_twinkle_clear(base, element, first_bin, bins, width, from, start);
+            let length = shortest + floor(rand(vixen_twinkle_key(base, int(floor(start / width)), element) + 17.0) * choices);
+            vixen_twinkle_light(start, length, total, shortest, frame, frame_interval_ms,
+              minimum_level, maximum_level, color_handling, static_color, color_gradient, across)
+          }
+        }
+      }
+    };
+    let base_color =
+      if color_handling == SingleColor { static_color }
+      else if color_handling == GradientPerPulse { color_gradient[0.0] }
+      else if color_handling == GradientThroughEffect { color_gradient[progress] }
+      else { across };
+    max(max(poisson, forced), base_color * (minimum_level / 100.0))
+  }
+}
+
+-- One swap-or-not round: a bijection of 0..groups keyed by `key`.
+fn vixen_swap_or_not(x: int, groups: int, key: float) -> int {
+  let partner = (int(rand(key) * groups) - x) % groups;
+  if rand(key + 1.0 + max(x, partner)) < 0.5 { partner } else { x }
+}
+
+-- BASIC: Dissolve, Effect Duration timing over ordered leaf pixels in groups of
+-- group_level. Every 25 ms step Vixen keeps ceil(groups * density / 100) groups
+-- lit, lighting and clearing them in a sequential or random order; each lit
+-- group shows its gradient/level pair across the time it stays lit.
+-- Random order is a seeded eight-round swap-or-not permutation, not Vixen's
+-- stream. Lit times come from the density curve's crossings of each group's
+-- level, which is exact when the curve crosses that level at most once after
+-- the current time. For a density curve that rises again after falling, random
+-- order relights groups in sequential (last-lit, first-cleared) order rather
+-- than Vixen's first-lit, first-cleared queue. Mark Collection timing and depth
+-- of effect are not represented. Defaults: one white gradient with a flat-100
+-- level, density curve falling linearly from 100 to 0.
+effect VixenDissolve {
+  param colors: array<gradient>;
+  param levels: array<curve>;
+  param dissolve_curve: curve in 0.0..100.0;
+  param group_level: int in 1..50000 = 1;
+  param starting_element: int in 1..50000 = 1;
+  param random_dissolve: bool = true;
+  param dissolve_flip: bool = true;
+  param both_directions: bool = false;
+  param directions_together: bool = false;
+  param color_per_step: bool = true;
+  param random_color: bool = true;
+  param group_colors: bool = false;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+
+  sample {
+    let total = duration * 1000.0;
+    let now = time * 1000.0;
+    let steps = ceil(total / 25.0);
+    let step = min(floor(now / 25.0), steps - 1.0);
+    let position = step / steps;
+    let groups = (target.count + group_level - 1) // group_level;
+    let g: float = groups;
+    let group = pixel.index // group_level;
+    let base = rand(random_seed);
+    let random_rank = vixen_swap_or_not(group, groups, rand(base + 0.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 1.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 2.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 3.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 4.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 5.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 6.5));
+    let random_rank = vixen_swap_or_not(random_rank, groups, rand(base + 7.5));
+    let first = starting_element - 1;
+    let forward = (group - first) % groups;
+    -- Both directions alternate: the element before the start, then the start,
+    -- then one further out on each side.
+    let order =
+      if !both_directions { forward }
+      else if forward < groups // 2 { 2 * forward + 1 }
+      else { 2 * ((first - 1 - group) % groups) };
+    let order = if dissolve_flip { order } else { groups - 1 - order };
+    let rank: float = if random_dissolve { random_rank } else { order };
+    -- Vixen moves groups two at a time in these modes, rounding toward the
+    -- count it held, so a pair lights above its upper level and clears below
+    -- its lower one.
+    let pairs = if color_per_step { both_directions && directions_together } else { !(both_directions && !directions_together) };
+    let top = if pairs { 2.0 * floor(rank / 2.0) + 1.0 } else { rank };
+    let on_level = 100.0 * top / g;
+    let off_level = if pairs { 100.0 * (top - 1.0) / g } else { on_level };
+    let density = value_or(dissolve_curve[position], 100.0);
+    let last_on = curve_last_crossing(dissolve_curve, on_level, position);
+    let last_off = curve_last_crossing(dissolve_curve, off_level, position);
+    let came_down = last_on > last_off || (!is_nan(last_on) && is_nan(last_off));
+    let above = density * g > 100.0 * top;
+    let lit =
+      if pairs { top < g && (above || (density * g > 100.0 * (top - 1.0) && came_down)) }
+      else { above };
+    guard lit;
+    let lit_crossing = if above { last_on } else { curve_last_crossing(dissolve_curve, on_level, last_on - 0.000001) };
+    let start = if is_nan(lit_crossing) { 0.0 } else { (floor(lit_crossing * steps) + 1.0) * 25.0 };
+    let clear_crossing = curve_last_crossing(dissolve_curve, off_level, 1.0);
+    let clear_step = if clear_crossing > position { ceil(clear_crossing * steps) } else { steps };
+    let end = if clear_step < steps { clear_step * 25.0 - 1.0 } else { total };
+    let local = (now - start) / (end - start);
+    guard local < 1.0;
+    let index = if random_color { int(rand(rand(base + 0.25) + group) * len(colors)) } else { group % len(colors) };
+    if group_colors {
+      max for i in 0..len(colors) {
+        colors[i][local] * (value_or(levels[i][local], 100.0) / 100.0)
+      }
+    } else {
+      colors[index][local] * (value_or(levels[index][local], 100.0) / 100.0)
+    }
+  }
+}
+
+
+-- Shared by the Meteors and Snowflakes ports. Vixen keeps a list of moving objects and
+-- replaces each one the frame after it leaves the grid. Here each of the `count` slots
+-- keeps one speed and direction and launches an object every period, its expected
+-- lifetime, each at the start Vixen would choose; objects of one slot may overlap. The
+-- first object of a slot is replaced exactly when it leaves, so objects that always live
+-- one period (falling straight, exploding) repeat Vixen's timing exactly.
+
+-- A seeded sample in [0, 1) for item `index` of the stream `key` (itself a sample).
+fn vixen_hash(key: float, index: float) -> float {
+  rand(key * 8388608.0 + index)
+}
+
+-- Vixen's random integer in [low, high): Random.Next(low, high), which returns low when
+-- the range is empty.
+fn vixen_rand_range(sample: float, low: float, high: float) -> float {
+  if high <= low { low } else { low + floor(sample * (high - low)) }
+}
+
+-- The tail unit vector Vixen derives from a 1..360 degree direction (L1 length one).
+fn vixen_tail_x(direction: float) -> float {
+  if direction <= 90.0 { direction / 90.0 }
+  else if direction <= 270.0 { (180.0 - direction) / 90.0 }
+  else { (direction - 360.0) / 90.0 }
+}
+
+fn vixen_tail_y(direction: float) -> float {
+  if direction <= 180.0 { (90.0 - direction) / 90.0 }
+  else { (direction - 270.0) / 90.0 }
+}
+
+-- Vixen's direction for one object: `direction` when `fixed`, Rand(1, 360) when exploding,
+-- else Rand(low, high), or when high <= low one of Rand(1, high) and Rand(low, 360).
+fn vixen_direction(key: float, fixed: bool, explode: bool, direction: float, low: float, high: float) -> float {
+  if fixed { direction }
+  else if explode { vixen_rand_range(vixen_hash(key, 2), 1.0, 360.0) }
+  else if high <= low {
+    if vixen_hash(key, 3) < 0.5 { vixen_rand_range(vixen_hash(key, 2), 1.0, high) }
+    else { vixen_rand_range(vixen_hash(key, 2), low, 360.0) }
+  }
+  else { vixen_rand_range(vixen_hash(key, 2), low, high) }
+}
+
+-- Vixen's edge start for a direction, at a random coordinate `along` the edge; x when
+-- `want_x`, else y. Each quadrant enters from one of two edges, chosen with `edge`.
+fn vixen_edge_start(direction: float, edge: float, along: float, w: float, h: float, want_x: bool) -> float {
+  let quadrant = max(1.0, ceil(direction / 90.0));
+  let first = edge >= (quadrant * 90.0 - direction) / 100.0;
+  -- Quadrants 1 and 3 enter from a vertical edge first, 2 and 4 from a horizontal one.
+  let vertical = (quadrant == 1.0 || quadrant == 3.0) == first;
+  let edge_x = if quadrant <= 2.0 { 0.0 } else { w };
+  let edge_y = if quadrant == 1.0 || quadrant == 4.0 { 0.0 } else { h };
+  if want_x { if vertical { edge_x } else { floor(along * w) } }
+  else if vertical { floor(along * h) } else { edge_y }
+}
+
+-- An object starting at s and drawn at s + offset + trunc(k * speed) on its k-th frame
+-- leaves (is below `low` or at or past `high`) after intercept + slope * s frames,
+-- rounded up.
+fn vixen_exit_intercept(speed: float, offset: float, low: float, high: float) -> float {
+  if speed > 0.0 { (high - offset) / speed } else if speed < 0.0 { (offset - low + 1.0) / -speed } else { 1000000000.0 }
+}
+
+fn vixen_exit_slope(speed: float) -> float {
+  if speed == 0.0 { 0.0 } else { -1.0 / speed }
+}
+
+-- Unrounded exit frames at unit speed along tail vector (tx, ty) from (x, y).
+fn vixen_unit_exit(x: float, y: float, tx: float, ty: float, x_offset: float, y_offset: float, x_low: float, x_high: float, y_low: float, y_high: float) -> float {
+  min(vixen_exit_intercept(tx, x_offset, x_low, x_high) + vixen_exit_slope(tx) * x, vixen_exit_intercept(ty, y_offset, y_low, y_high) + vixen_exit_slope(ty) * y)
+}
+
+-- The frame (counted from one) on which Vixen removes an object with that unit exit at
+-- speed p.
+fn vixen_lifetime(unit_exit: float, p: float) -> float {
+  max(1.0, ceil(unit_exit / p))
+}
+
+-- The mean of min(a + b * s, c) for s spread evenly over 0..count - 1.
+fn vixen_mean_min(a: float, b: float, c: float, count: float) -> float {
+  let span = count - 1.0;
+  let crossing = clamp((c - a) / b, 0.0, span);
+  if span <= 0.0 || b == 0.0 { min(a, c) }
+  else if b > 0.0 { (a * crossing + b * crossing * crossing / 2.0 + c * (span - crossing)) / span }
+  else { (c * crossing + a * (span - crossing) + b * (span * span - crossing * crossing) / 2.0) / span }
+}
+
+-- The mean lifetime, at unit speed along tail vector (tx, ty), of objects entering from
+-- Vixen's edges for that direction.
+fn vixen_edge_lifetime(direction: float, tx: float, ty: float, w: float, h: float, x_offset: float, y_offset: float, x_low: float, x_high: float, y_low: float, y_high: float) -> float {
+  let quadrant = max(1.0, ceil(direction / 90.0));
+  let first = clamp(1.0 - (quadrant * 90.0 - direction) / 100.0, 0.0, 1.0);
+  let ax = vixen_exit_intercept(tx, x_offset, x_low, x_high);
+  let bx = vixen_exit_slope(tx);
+  let ay = vixen_exit_intercept(ty, y_offset, y_low, y_high);
+  let by = vixen_exit_slope(ty);
+  let edge_x = if quadrant <= 2.0 { 0.0 } else { w };
+  let edge_y = if quadrant == 1.0 || quadrant == 4.0 { 0.0 } else { h };
+  -- A vertical edge spreads starts over y, a horizontal one over x.
+  let vertical = vixen_mean_min(ay, by, ax + bx * edge_x, h);
+  let horizontal = vixen_mean_min(ax, bx, ay + by * edge_y, w);
+  if quadrant == 1.0 || quadrant == 3.0 { first * vertical + (1.0 - first) * horizontal }
+  else { first * horizontal + (1.0 - first) * vertical }
+}
+
+-- A slot speed: Vixen draws speeds uniformly per object, and an object at speed s stays on
+-- the grid for a time proportional to 1/s, so a slot that keeps one speed draws it with
+-- density 1/s to show the same speeds on screen.
+fn vixen_slot_speed(sample: float, a: float, b: float) -> float {
+  let high = max(a, b);
+  let low = max(min(a, b), high * 0.01);
+  if high <= 0.0 { 0.0 } else { low * exp(sample * log(high / low)) }
+}
+
+-- First tail index from one at which Vixen's Explode stops a tail: round(|tail| * index)
+-- reaches the head's distance from the center line, or never.
+fn vixen_explode_cut(tail: float, distance: float) -> float {
+  let first = max(1.0, ceil((distance - 0.5) / max(tail, 0.000001)));
+  if tail == 0.0 { if distance == 0.0 { 1.0 } else { 1000000000.0 } }
+  else if round_even(tail * first) == distance { first }
+  else if round_even(tail * (first + 1.0)) == distance { first + 1.0 }
+  else { 1000000000.0 }
+}
+
+-- The index of the last tail pixel of a meteor at offset (dx, dy) from its head, or -1.
+-- Tail pixel i is at head - round(tail * i); this solves along the dominant axis, where
+-- at most two indices round to the offset. Vixen skips pixels whose x fraction is in
+-- (0.40, 0.60).
+fn vixen_tail_index(dx: float, dy: float, tx: float, ty: float, limit: float) -> float {
+  let dominant_x = abs(tx) >= abs(ty);
+  let a = if dominant_x { tx } else { ty };
+  let b = if dominant_x { ty } else { tx };
+  let o = if dominant_x { -dx } else { -dy };
+  let m = if dominant_x { -dy } else { -dx };
+  -- A tail pixel's minor offset is within one of the line through the head.
+  let along = o / a;
+  let high = floor(along + 0.5 / abs(a));
+  let low = high - 1.0;
+  let high_fraction = trunc((tx * high - trunc(tx * high)) * 100.0);
+  let low_fraction = trunc((tx * low - trunc(tx * low)) * 100.0);
+  let high_ok = high >= 0.0 && high < limit && round_even(a * high) == o && round_even(b * high) == m
+    && (high_fraction <= 40.0 || high_fraction >= 60.0);
+  let low_ok = low >= 0.0 && low < limit && round_even(a * low) == o && round_even(b * low) == m
+    && (low_fraction <= 40.0 || low_fraction >= 60.0);
+  if abs(m - b * along) > 1.0 { -1.0 } else if high_ok { high } else if low_ok { low } else { -1.0 }
+}
+
+-- A meteor's start: the buffer center when exploding, a random cell (x one left of
+-- Rand() % width, y = Rand(0, height - 1)) when `random`, else its entry edge.
+fn vixen_meteor_start(key: float, direction: float, w: float, h: float, explode: bool, random: bool, want_x: bool) -> float {
+  if explode { if want_x { trunc((w - 1.0) / 2.0) } else { trunc((h - 1.0) / 2.0) } }
+  else if random {
+    if want_x { floor(vixen_hash(key, 4) * w) - 1.0 } else if h <= 1.0 { 0.0 } else { floor(vixen_hash(key, 7) * (h - 1.0)) }
+  }
+  else { vixen_edge_start(direction, vixen_hash(key, 5), vixen_hash(key, 6), w, h, want_x) }
+}
+
+-- A meteor slot's launch period in frames: its mean lifetime at speed `p`. Meteors live
+-- until they are a tail length outside the grid.
+fn vixen_meteor_period(d: float, p: float, w: float, h: float, tail: float, x_offset: float, y_offset: float, explode: bool, random: bool) -> float {
+  let tx = vixen_tail_x(d);
+  let ty = vixen_tail_y(d);
+  let mean =
+    if explode { vixen_unit_exit(trunc((w - 1.0) / 2.0), trunc((h - 1.0) / 2.0), tx, ty, x_offset, y_offset, -tail, w + tail, -tail, h + tail) }
+    else if random {
+      (sum for cell in 0..16 {
+        let cx = floor((floor(cell / 4.0) + 0.5) * w / 4.0) - 1.0;
+        let cy = floor((cell % 4.0 + 0.5) * (h - 1.0) / 4.0);
+        vixen_unit_exit(cx, cy, tx, ty, x_offset, y_offset, -tail, w + tail, -tail, h + tail)
+      }) / 16.0
+    }
+    else { vixen_edge_lifetime(d, tx, ty, w, h, x_offset, y_offset, -tail, w + tail, -tail, h + tail) };
+  max(1.0, ceil(mean / p - 0.001))
+}
+
+-- The frame the second meteor of a slot enters: the frame after its first one leaves.
+fn vixen_meteor_second(key: float, first_start: float, d: float, p: float, w: float, h: float, tail: float, x_offset: float, y_offset: float, explode: bool, random: bool) -> float {
+  let first_key = vixen_hash(key, 0);
+  let first_x = vixen_meteor_start(first_key, d, w, h, explode, random, true);
+  let first_y = vixen_meteor_start(first_key, d, w, h, explode, random, false);
+  first_start + vixen_lifetime(vixen_unit_exit(first_x, first_y, vixen_tail_x(d), vixen_tail_y(d), x_offset, y_offset, -tail, w + tail, -tail, h + tail), p)
+}
+
+-- PIXEL: Meteors, Movement None: Falling, Random and Explode effects, every direction,
+-- all three start positions, four color types, random brightness and tail taper.
+-- Vixen renders it on its string buffer only: Strings positioning reproduces that buffer
+-- for equal-length strings that are consecutive target fixtures (string_count of
+-- string_length pixels, Vertical: x is the string and y = 0 is each string's first pixel).
+-- Locations instead uses the layout grid like the other pixel ports, y = 0 at the bottom.
+-- Default resources: red/lime/blue gradients; tail taper curve 100 -> 0.
+-- Slot speeds have density 1/speed; slot directions are uniform, Vixen's per-meteor mix
+-- rather than its long-run on-screen mix, which favors longer-lived directions. The
+-- highest slot, then its newest meteor, wins overlaps. Speed, count and tail length are
+-- read as constants: automating them changes the whole realization, not the next meteor.
+-- Tails longer than 8191 pixels are cut there. Ground level, per-string meteors and
+-- Bounce/Wrap/Speed/Wobble movement are not exposed.
+effect VixenMeteors {
+  param colors: array<gradient>;
+  param tail_taper: curve in 0.0..100.0;
+  param color_type: enum { Rainbow, Range, Palette, Gradient } = Palette;
+  param meteor_effect: enum { Falling, RandomDirection, Explode } = Falling;
+  param direction: int in 1..360 = 180;
+  param min_direction: int in 0..360 = 0;
+  param max_direction: int in 0..360 = 360;
+  param speed: float in 0.0..100.0 = 14.0;
+  param speed_variation: float in 0.0..100.0 = 12.0;
+  param count: float in 0.0..100.0 = 10.0;
+  param tail_length: float in 0.0..100.0 = 5.0;
+  param start_position: enum { Random, InitiallyRandom, ZeroPosition } = InitiallyRandom;
+  param random_brightness: bool = false;
+  param intensity: float in 0.0..100.0 = 100.0;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param positioning: enum { Locations, Strings } = Locations;
+  param orientation: enum { Vertical, Horizontal } = Vertical;
+  param string_count: int in 1..10000 = 1;
+  param string_length: int in 1..10000 = 1;
+  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param frame_interval_ms: float in 1.0..1000.0 = 50.0;
+
+  sample {
+    let frame = floor(time * 1000.0 / frame_interval_ms);
+    let strings = positioning == Strings;
+    let across = orientation == Horizontal;
+    let string: float = pixel.index // string_length;
+    let along: float = pixel.index % string_length;
+    let w: float =
+      if !strings { floor((target.max_x - target.min_x) / pixel_size) + 1.0 }
+      else if across { string_length } else { string_count };
+    let h: float =
+      if !strings { floor((target.max_y - target.min_y) / pixel_size) + 1.0 }
+      else if across { string_count } else { string_length };
+    let x = if !strings { floor((pixel.x - target.min_x) / pixel_size) } else if across { along } else { string };
+    let y = if !strings { floor((pixel.y - target.min_y) / pixel_size) } else if across { string } else { along };
+    let length = max(1.0, trunc(1.0 + tail_length * 0.99));
+    let tail = min(8191.0, max(1.0, if h < 10.0 { trunc(length / 10.0) } else { trunc(h * length / 100.0) }));
+    let n = max(1.0, trunc(1.0 + count * 1.99));
+    let center = speed * 2.0 * frame_interval_ms / 50.0;
+    let spread = speed_variation * 2.0 * frame_interval_ms / 50.0;
+    let min_speed = max(0.0, center - spread / 2.0);
+    let max_speed = min(200.0, center + spread / 2.0);
+    let x_offset = -trunc(w / 100.0);
+    let y_offset = trunc(h / 100.0);
+    let fixed = meteor_effect == Falling;
+    let explode = meteor_effect == Explode;
+    let random_starts = !explode && start_position != ZeroPosition;
+    let all_random = random_starts && start_position == Random;
+    let base = rand(random_seed);
+    -- Meteors enter at most n / 10 per frame (all at once from the zero position) until frame n.
+    let warm_up = if start_position == ZeroPosition || n < 10.0 { n } else { trunc(n / 10.0) };
+    -- The covering meteor as (slot * 8 + back) * 8192 + tail index; the highest slot wins.
+    let code = last for slot in 0..int(n) {
+      let key = vixen_hash(base, slot);
+      let p = max(0.001, vixen_slot_speed(vixen_hash(key, 1), min_speed, max_speed) / 20.0);
+      let d = vixen_direction(key, fixed, explode, direction, min_direction, max_direction);
+      let tx = vixen_tail_x(d);
+      let ty = vixen_tail_y(d);
+      let vx = tx * p;
+      let vy = ty * p;
+      let first_start = floor(slot / warm_up);
+      guard frame >= first_start;
+      let period = vixen_meteor_period(d, p, w, h, tail, x_offset, y_offset, explode, all_random);
+      let second_start = vixen_meteor_second(key, first_start, d, p, w, h, tail, x_offset, y_offset, explode, random_starts);
+      let current = if frame < second_start { 0.0 } else { 1.0 + floor((frame - second_start) / period) };
+      -- The far start's lifetime bounds how many of the slot's meteors are still out.
+      let far_x = if explode { trunc((w - 1.0) / 2.0) } else if tx > 0.0 { if random_starts { -1.0 } else { 0.0 } } else { w };
+      let far_y = if explode { trunc((h - 1.0) / 2.0) } else if ty > 0.0 { 0.0 } else { h };
+      let longest = vixen_lifetime(vixen_unit_exit(far_x, far_y, tx, ty, x_offset, y_offset, -tail, w + tail, -tail, h + tail), p);
+      let found = first for back in 0..int(min(8.0, ceil(longest / period))) {
+        let generation = current - back;
+        guard generation >= 0.0;
+        let start = if generation == 0.0 { first_start } else { second_start + (generation - 1.0) * period };
+        let gen_key = vixen_hash(key, if generation == 0.0 { 0.0 } else { generation + 16.0 });
+        let random = random_starts && (start_position == Random || start < n);
+        let head_x = vixen_meteor_start(gen_key, d, w, h, explode, random, true) + trunc((frame - start + 1.0) * vx) + x_offset;
+        let head_y = vixen_meteor_start(gen_key, d, w, h, explode, random, false) + trunc((frame - start + 1.0) * vy) + y_offset;
+        -- Explode stops a tail where it would cross the center lines.
+        let cut =
+          if explode { min(vixen_explode_cut(abs(tx), abs(head_x - trunc(w / 2.0))), vixen_explode_cut(abs(ty), abs(head_y - trunc(h / 2.0)))) }
+          else { 1000000000.0 };
+        let limit = min(tail, cut);
+        -- The tail's bounding box, across the strings first, then the exact tail pixel.
+        let end_x = head_x - round_even(tx * (tail - 1.0));
+        let end_y = head_y - round_even(ty * (tail - 1.0));
+        let inside = x >= min(head_x, end_x) && x <= max(head_x, end_x) && y >= min(head_y, end_y) && y <= max(head_y, end_y);
+        let index = if inside { vixen_tail_index(x - head_x, y - head_y, tx, ty, limit) } else { -1.0 };
+        guard index >= 0.0;
+        (slot * 8.0 + back) * 8192.0 + index
+      } else { -1.0 };
+      guard found >= 0.0;
+      found
+    } else { -1.0 };
+    guard code >= 0.0;
+    -- Recover the covering meteor's spawn frame and colors.
+    let slot = floor(code / 65536.0);
+    let back = floor(code / 8192.0) - slot * 8.0;
+    let index = code - floor(code / 8192.0) * 8192.0;
+    let key = vixen_hash(base, slot);
+    let p = max(0.001, vixen_slot_speed(vixen_hash(key, 1), min_speed, max_speed) / 20.0);
+    let d = vixen_direction(key, fixed, explode, direction, min_direction, max_direction);
+    let first_start = floor(slot / warm_up);
+    let period = vixen_meteor_period(d, p, w, h, tail, x_offset, y_offset, explode, all_random);
+    let second_start = vixen_meteor_second(key, first_start, d, p, w, h, tail, x_offset, y_offset, explode, random_starts);
+    let generation = (if frame < second_start { 0.0 } else { 1.0 + floor((frame - second_start) / period) }) - back;
+    let start = if generation == 0.0 { first_start } else { second_start + (generation - 1.0) * period };
+    let gen_key = vixen_hash(key, if generation == 0.0 { 0.0 } else { generation + 16.0 });
+    let spawn = start * frame_interval_ms / (duration * 1000.0);
+    let count_colors: float = len(colors);
+    let pick = int(floor(vixen_hash(gen_key, 2) * count_colors));
+    let brightness = if random_brightness { vixen_hash(gen_key, 10) * 0.8 + 0.2 } else { 1.0 };
+    let factor = brightness * value_or(tail_taper[index / tail], 100.0) / 100.0 * intensity / 100.0;
+    if color_type == Rainbow {
+      hsv(floor(rand(gen_key * 8388608.0 + frame * 1024.0 + index) * 1000.0) / 1000.0, 1.0, factor)
+    } else if color_type == Range {
+      let first = colors[pick][spawn];
+      let second = colors[int(floor(vixen_hash(gen_key, 3) * count_colors))][spawn];
+      hsv(mix(hue(first), hue(second), vixen_hash(gen_key, 8)), mix(saturation(first), saturation(second), vixen_hash(gen_key, 9)), factor)
+    } else if color_type == Gradient { colors[pick][index / tail] * factor }
+    else { colors[pick][spawn] * factor }
+  }
+}
+
+
+-- Whether offset (dx, dy) from a flake's center is one of its points. `kind` is Vixen's
+-- SnowflakeType index (0 Random acts as 1 Single: center only); `across` lays the
+-- 3-point flake horizontally.
+fn vixen_flake_point(kind: float, dx: float, dy: float, across: bool) -> bool {
+  let ax = abs(dx);
+  let ay = abs(dy);
+  if kind <= 1.0 { ax + ay == 0.0 }
+  else if kind == 2.0 { if across { ay == 0.0 && ax <= 1.0 } else { ax == 0.0 && ay <= 1.0 } }
+  else if kind == 3.0 { ax + ay <= 1.0 }
+  else if kind == 4.0 { (ay == 0.0 && ax <= 2.0) || (ax == 0.0 && ay <= 2.0) }
+  else if kind == 5.0 { ax + ay <= 1.0 || (ax == 1.0 && ay == 2.0) || (ax == 2.0 && ay == 1.0) }
+  else if kind == 6.0 { (ay == 0.0 && ax <= 3.0) || (ax == 0.0 && ay <= 3.0) }
+  else if kind == 7.0 { (ay == 0.0 && ax <= 3.0) || (ax == 0.0 && ay <= 3.0) || (ax == 1.0 && ay == 1.0) }
+  else if kind == 8.0 { (ax <= 1.0 && ay <= 2.0) || (ax == 2.0 && ay <= 1.0) || (ay == 0.0 && ax <= 4.0) || (ax == 0.0 && ay <= 4.0) }
+  else { (ax == ay && ax <= 4.0) || (ax == 2.0 && ay == 3.0) || (ax == 3.0 && ay == 2.0) || (ax == 0.0 && ay <= 5.0) || (ay == 0.0 && ax <= 5.0) }
+}
+
+-- Vixen's SnowflakeWidth for a flake type index; flakes expire twice it outside the grid.
+fn vixen_flake_width(kind: float) -> float {
+  if kind == 3.0 || kind == 4.0 { 2.0 } else if kind >= 5.0 && kind <= 7.0 { 3.0 } else if kind >= 8.0 { 5.0 } else { 1.0 }
+}
+
+-- A slot's flake type: Vixen picks any of its ten types, re-drawing 45 points unless allowed.
+fn vixen_flake_kind(key: float, fixed_kind: float, random: bool, kinds: float) -> float {
+  if random { vixen_rand_range(vixen_hash(key, 4), 0.0, kinds) } else { fixed_kind }
+}
+
+-- Vixen's falling direction is Rand(145, 215); the others are as for meteors.
+fn vixen_flake_direction(key: float, falling: bool, explode: bool, low: float, high: float) -> float {
+  if falling { vixen_rand_range(vixen_hash(key, 2), 145.0, 215.0) } else { vixen_direction(key, false, explode, 0.0, low, high) }
+}
+
+-- A flake's start: anywhere on frame 0, else the center (Explode) or its entry edge.
+fn vixen_flake_start(key: float, direction: float, w: float, h: float, explode: bool, anywhere: bool, want_x: bool) -> float {
+  if anywhere { if want_x { floor(vixen_hash(key, 4) * w) } else { floor(vixen_hash(key, 7) * h) } }
+  else if explode { if want_x { trunc(w / 2.0) } else { trunc(h / 2.0) } }
+  else { vixen_edge_start(direction, vixen_hash(key, 5), vixen_hash(key, 6), w, h, want_x) }
+}
+
+-- A flake slot's launch period in frames: its mean lifetime at speed `p`. Flakes live until
+-- twice their width outside the grid (or that far below the initial ground).
+fn vixen_flake_period(d: float, p: float, w: float, h: float, overshoot: float, ground: float, explode: bool) -> float {
+  let tx = vixen_tail_x(d);
+  let ty = vixen_tail_y(d);
+  let mean =
+    if explode { vixen_unit_exit(trunc(w / 2.0), trunc(h / 2.0), tx, ty, 0.0, 0.0, 1.0 - overshoot, w + overshoot, ground + 1.0 - overshoot, h + overshoot) }
+    else { vixen_edge_lifetime(d, tx, ty, w, h, 0.0, 0.0, 1.0 - overshoot, w + overshoot, ground + 1.0 - overshoot, h + overshoot) };
+  max(1.0, ceil(mean / p - 0.001))
+}
+
+-- The frame a slot's second flake enters: the frame after its first one leaves.
+fn vixen_flake_second(key: float, first_start: float, d: float, p: float, w: float, h: float, overshoot: float, ground: float, explode: bool) -> float {
+  let first_key = vixen_hash(key, 0);
+  let anywhere = first_start == 0.0;
+  let first_x = vixen_flake_start(first_key, d, w, h, explode, anywhere, true);
+  let first_y = vixen_flake_start(first_key, d, w, h, explode, anywhere, false);
+  first_start + vixen_lifetime(vixen_unit_exit(first_x, first_y, vixen_tail_x(d), vixen_tail_y(d), 0.0, 0.0, 1.0 - overshoot, w + overshoot, ground + 1.0 - overshoot, h + overshoot), p)
+}
+
+-- Mean build-up pile height after `frame` frames: the solution of dp/dframe = k / (depth - p).
+fn vixen_snow_pile(depth: float, k: float, frame: float) -> float {
+  depth - sqrt(max(0.0, depth * depth - 2.0 * k * frame))
+}
+
+-- The pile's top row at column x: the mean height, varied smoothly with knots every three
+-- columns by up to 0.8 times its square root.
+fn vixen_snow_surface(base: float, x: float, ground: float, pile: float) -> float {
+  let knot = floor(x / 3.0);
+  let bump = mix(vixen_hash(base + 0.25, knot), vixen_hash(base + 0.25, knot + 1.0), x / 3.0 - knot) * 2.0 - 1.0;
+  ground + max(0.0, round(pile + bump * 0.8 * sqrt(pile)))
+}
+
+-- PIXEL: Snowflakes, Movement None: Falling, Random and Explode effects, all ten flake
+-- types, Range/Palette/Rainbow/Alternate colors, random brightness, all fades with color
+-- cycling, and snow build-up. Positioning, slots and limits are as for VixenMeteors (whose
+-- helper functions this uses). Alternate outside the grid effects is Palette, as in Vixen.
+-- Default resources: white outer and blue inner gradients. Each slot keeps one flake type.
+-- Build-up reproduces the rising ground exactly. Vixen also stacks each landing flake on
+-- those below, which needs every earlier landing; the pile is instead the mean height
+-- those landings reach (each raising a flat top of 2 * width + 1 columns by one row, two
+-- for widths of 3 and up, at the falling directions' rate), varied smoothly across the
+-- width, in the first outer gradient. Flakes vanish where they reach it; extra slots keep
+-- the falling count. Grid and Grid Offset, and Bounce/Wrap/Speed/Wobble movement, are not
+-- exposed.
+effect VixenSnowflakes {
+  param outer_colors: array<gradient>;
+  param inner_colors: array<gradient>;
+  param flake_type: enum { Random, Single, Three, Five, Nine, Thirteen, ThirteenV2, Seventeen, TwentyNine, FortyFive } = Random;
+  param point_flake_45: bool = false;
+  param color_type: enum { Range, Palette, Rainbow, Alternate } = Palette;
+  param snowflake_effect: enum { Falling, RandomDirection, Explode } = Falling;
+  param min_direction: int in 0..360 = 145;
+  param max_direction: int in 0..360 = 215;
+  param speed: float in 0.0..100.0 = 11.0;
+  param speed_variation: float in 0.0..100.0 = 8.0;
+  param count: float in 0.0..100.0 = 10.0;
+  param random_brightness: bool = true;
+  param fade_type: enum { None, In, Out, InOut } = None;
+  param fade_speed: float in 0.0..100.0 = 40.0;
+  param cycle_color: bool = true;
+  param snow_build_up: bool = false;
+  param initial_build_up: int in 0..100 = 0;
+  param build_up_speed: float in 0.0..100.0 = 15.0;
+  param intensity: float in 0.0..100.0 = 100.0;
+  param random_seed: float in 0.0..1000000.0 = 0.0;
+  param positioning: enum { Locations, Strings } = Locations;
+  param orientation: enum { Vertical, Horizontal } = Vertical;
+  param string_count: int in 1..10000 = 1;
+  param string_length: int in 1..10000 = 1;
+  param pixel_size: float in 0.001..1000.0 = 1.0;
+  param frame_interval_ms: float in 1.0..1000.0 = 50.0;
+
+  sample {
+    let frame = floor(time * 1000.0 / frame_interval_ms);
+    let strings = positioning == Strings;
+    let across = orientation == Horizontal;
+    let string: float = pixel.index // string_length;
+    let along: float = pixel.index % string_length;
+    let w: float =
+      if !strings { floor((target.max_x - target.min_x) / pixel_size) + 1.0 }
+      else if across { string_length } else { string_count };
+    let h: float =
+      if !strings { floor((target.max_y - target.min_y) / pixel_size) + 1.0 }
+      else if across { string_count } else { string_length };
+    let x = if !strings { floor((pixel.x - target.min_x) / pixel_size) } else if across { along } else { string };
+    let y = if !strings { floor((pixel.y - target.min_y) / pixel_size) } else if across { string } else { along };
+    let level = intensity / 100.0;
+    let flakes = max(1.0, 1.0 + count * 0.99);
+    let n = ceil(flakes);
+    let center = max(1.0, (1.0 + speed * 0.59) * frame_interval_ms / 50.0);
+    let spread = max(1.0, (1.0 + speed_variation * 0.59) * frame_interval_ms / 50.0);
+    let min_speed = max(1.0, center - spread / 2.0);
+    let max_speed = min(60.0, center + spread / 2.0) + 1.0;
+    let falling = snowflake_effect == Falling;
+    let explode = snowflake_effect == Explode;
+    let random_kind = flake_type == Random;
+    let fixed_kind =
+      if flake_type == Single { 1.0 } else if flake_type == Three { 2.0 } else if flake_type == Five { 3.0 }
+      else if flake_type == Nine { 4.0 } else if flake_type == Thirteen { 5.0 } else if flake_type == ThirteenV2 { 6.0 }
+      else if flake_type == Seventeen { 7.0 } else if flake_type == TwentyNine { 8.0 } else if flake_type == FortyFive { 9.0 } else { 0.0 };
+    let kinds = if point_flake_45 { 10.0 } else { 9.0 };
+    let ground_start = trunc(initial_build_up * h / 100.0);
+    let ground = if snow_build_up { trunc(initial_build_up * h / 100.0 + (1.0 + build_up_speed * 0.79) * frame / 100.0) } else { 0.0 };
+    let base = rand(random_seed);
+    -- Build-up pile: landings arrive at count / (mean fall frames) and each raises its flat
+    -- top by `rise` rows over 2 * width + 1 of the w columns.
+    let piled = snow_build_up && !explode;
+    let mean_width = if random_kind { (21.0 + (if point_flake_45 { 5.0 } else { 0.0 })) / kinds } else { vixen_flake_width(fixed_kind) };
+    let mean_rise = if random_kind { (13.0 + (if point_flake_45 { 2.0 } else { 0.0 })) / kinds } else if vixen_flake_width(fixed_kind) < 3.0 { 1.0 } else { 2.0 };
+    -- 1 / speed averaged over Vixen's uniform speeds, and 1 / |vertical share| over the
+    -- falling directions 145..215 degrees.
+    let inverse_speed = if max_speed > min_speed { 5.0 * log(max_speed / min_speed) / (max_speed - min_speed) } else { 5.0 / min_speed };
+    let inverse_fall = 90.0 / 35.0 * log(90.0 / 55.0);
+    let depth = h + 2.0 * mean_width - ground_start;
+    let pile_rate = n * mean_rise * (2.0 * mean_width + 1.0) / w / (inverse_speed * inverse_fall);
+    let pile = vixen_snow_pile(depth, pile_rate, frame);
+    let surface = if piled { vixen_snow_surface(base, x, ground, pile) } else { ground };
+    let slots =
+      if piled { min(1000.0, ceil(n / max(0.1, 1.0 - vixen_snow_pile(depth, pile_rate, floor(duration * 1000.0 / frame_interval_ms)) / depth))) }
+      else { n };
+    -- The covering flake point as (slot * 8 + back) * 128 + offset; the highest slot wins.
+    let code = last for slot in 0..int(slots) {
+      let key = vixen_hash(base, slot);
+      let p = vixen_slot_speed(vixen_hash(key, 1), min_speed, max_speed) / 5.0;
+      let d = vixen_flake_direction(key, falling, explode, min_direction, max_direction);
+      let kind = vixen_flake_kind(key, fixed_kind, random_kind, kinds);
+      let overshoot = 2.0 * vixen_flake_width(kind);
+      let radius = if kind <= 1.0 { 0.0 } else if kind <= 3.0 { 1.0 } else if kind <= 5.0 { 2.0 } else if kind <= 7.0 { 3.0 } else if kind == 8.0 { 4.0 } else { 5.0 };
+      let vx = vixen_tail_x(d) * p;
+      let vy = vixen_tail_y(d) * p;
+      -- Frame 0 places floor(count) flakes anywhere; Explode adds one per frame until count.
+      let rank = floor(slot * n / slots);
+      let first_start = if explode { rank } else if rank < floor(flakes) { 0.0 } else { 1.0 };
+      guard frame >= first_start;
+      let period = vixen_flake_period(d, p, w, h, overshoot, ground_start, explode);
+      let second_start = vixen_flake_second(key, first_start, d, p, w, h, overshoot, ground_start, explode);
+      let current = if frame < second_start { 0.0 } else { 1.0 + floor((frame - second_start) / period) };
+      let far_x = if explode { trunc(w / 2.0) } else if vx > 0.0 { 0.0 } else { w };
+      let far_y = if explode { trunc(h / 2.0) } else if vy > 0.0 { 0.0 } else { h };
+      let longest = vixen_lifetime(vixen_unit_exit(far_x, far_y, vixen_tail_x(d), vixen_tail_y(d), 0.0, 0.0, 1.0 - overshoot, w + overshoot, ground_start + 1.0 - overshoot, h + overshoot), p);
+      let found = first for back in 0..int(min(8.0, ceil(longest / period))) {
+        let generation = current - back;
+        guard generation >= 0.0;
+        let start = if generation == 0.0 { first_start } else { second_start + (generation - 1.0) * period };
+        let gen_key = vixen_hash(key, if generation == 0.0 { 0.0 } else { generation + 16.0 });
+        -- Slots beyond count make up for the falls the pile cuts short.
+        guard !piled || vixen_hash(gen_key, 1) < n * depth / (slots * max(0.1 * depth, depth - vixen_snow_pile(depth, pile_rate, start)));
+        let anywhere = start == 0.0;
+        let head_x = vixen_flake_start(gen_key, d, w, h, explode, anywhere, true) + trunc((frame - start + 1.0) * vx);
+        let head_y = vixen_flake_start(gen_key, d, w, h, explode, anywhere, false) + trunc((frame - start + 1.0) * vy);
+        guard ground < h && head_y >= ground - overshoot;
+        guard !piled || head_y >= vixen_snow_surface(base, head_x, ground, pile);
+        let dx = x - head_x;
+        let dy = y - head_y;
+        let hit = if abs(dx) <= radius && abs(dy) <= radius { vixen_flake_point(kind, dx, dy, vixen_hash(gen_key, 11) < 0.5) } else { false };
+        guard hit;
+        (slot * 8.0 + back) * 128.0 + (dx + 5.0) * 11.0 + dy + 5.0
+      } else { -1.0 };
+      guard found >= 0.0;
+      found
+    } else { -1.0 };
+    guard code >= 0.0 else if y < surface { outer_colors[0][frame * frame_interval_ms / (duration * 1000.0)] * level } else { rgb(0.0, 0.0, 0.0) };
+    -- Recover the covering flake's spawn frame, fade state and colors.
+    let slot = floor(code / 1024.0);
+    let back = floor(code / 128.0) - slot * 8.0;
+    let point = code - floor(code / 128.0) * 128.0;
+    let key = vixen_hash(base, slot);
+    let p = vixen_slot_speed(vixen_hash(key, 1), min_speed, max_speed) / 5.0;
+    let d = vixen_flake_direction(key, falling, explode, min_direction, max_direction);
+    let overshoot = 2.0 * vixen_flake_width(vixen_flake_kind(key, fixed_kind, random_kind, kinds));
+    let rank = floor(slot * n / slots);
+    let first_start = if explode { rank } else if rank < floor(flakes) { 0.0 } else { 1.0 };
+    let period = vixen_flake_period(d, p, w, h, overshoot, ground_start, explode);
+    let second_start = vixen_flake_second(key, first_start, d, p, w, h, overshoot, ground_start, explode);
+    let generation = (if frame < second_start { 0.0 } else { 1.0 + floor((frame - second_start) / period) }) - back;
+    let start = if generation == 0.0 { first_start } else { second_start + (generation - 1.0) * period };
+    let gen_key = vixen_hash(key, if generation == 0.0 { 0.0 } else { generation + 16.0 });
+    -- Fade: after the first frame, brightness steps each frame and restarts at -0.7 on
+    -- reaching 1. Flakes from frame 0 take the fade type (In/Out at random for In/Out);
+    -- later ones have none, and In/Out alternates every flake's type at each restart.
+    let step = fade_speed * 0.001 * frame_interval_ms / 50.0 * (if fade_type == InOut { 2.0 } else { 1.0 });
+    let cycle = max(1.0, ceil(1.7 / step));
+    let initial = if random_brightness { vixen_hash(gen_key, 10) * 0.8 } else { 1.0 };
+    let updates = if frame >= 1.0 { frame - max(1.0, start) + 1.0 } else { 0.0 };
+    let first_reset = max(1.0, ceil((1.0 - initial) / step));
+    let resets = if fade_type == None || updates < first_reset { 0.0 } else { 1.0 + floor((updates - first_reset) / cycle) };
+    let brightness =
+      if fade_type == None || resets == 0.0 { initial + (if fade_type == None { 0.0 } else { updates * step }) }
+      else { -0.7 + ((updates - first_reset) % cycle) * step };
+    let own = if start != 0.0 { 0.0 } else if fade_type == InOut { if vixen_hash(gen_key, 12) < 0.5 { 1.0 } else { 2.0 } } else if fade_type == In { 1.0 } else if fade_type == Out { 2.0 } else { 0.0 };
+    let fading_in =
+      if fade_type != InOut || resets == 0.0 { own == 1.0 }
+      else if own == 1.0 { resets % 2.0 == 0.0 }
+      else { resets % 2.0 == 1.0 };
+    let fading_out = !fading_in && (if fade_type != InOut || resets == 0.0 { own == 2.0 } else { true });
+    -- Color cycling picks new colors at each restart that begins a fade in.
+    let last_in =
+      if fade_type == In { if own == 1.0 { resets } else { 0.0 } }
+      else if fade_type != InOut { 0.0 }
+      else if own == 1.0 { resets - resets % 2.0 } else { resets - (resets + 1.0) % 2.0 };
+    let color_round = if cycle_color && last_in > 0.0 { last_in } else { 0.0 };
+    let color_frame = if color_round == 0.0 { start } else { max(1.0, start) + first_reset + (color_round - 1.0) * cycle - 1.0 };
+    let color_key = vixen_hash(gen_key, 32.0 + color_round);
+    let spawn = color_frame * frame_interval_ms / (duration * 1000.0);
+    let outer_count: float = len(outer_colors);
+    let inner_count: float = len(inner_colors);
+    let outer = outer_colors[int(floor(vixen_hash(color_key, 2) * outer_count))][spawn];
+    let inner = inner_colors[int(floor(vixen_hash(color_key, 4) * inner_count))][spawn];
+    let outer_level = clamp((if fading_out { 1.0 - brightness } else { brightness }) * level, 0.0, 1.0);
+    let inner_level = if fading_in && brightness > -0.5 && brightness < -0.2 { 0.0 } else { level };
+    if point == 60.0 {
+      if color_type == Range {
+        let second = inner_colors[int(floor(vixen_hash(color_key, 5) * inner_count))][spawn];
+        hsv(mix(hue(inner), hue(second), vixen_hash(color_key, 8)), mix(saturation(inner), saturation(second), vixen_hash(color_key, 9)), inner_level)
+      } else { inner * inner_level }
+    } else if color_type == Rainbow {
+      hsv(floor(vixen_hash(gen_key, 64.0 + frame) * 1000.0) / 1000.0, 1.0, outer_level)
+    } else if color_type == Range {
+      let second = outer_colors[int(floor(vixen_hash(color_key, 3) * outer_count))][spawn];
+      hsv(mix(hue(outer), hue(second), vixen_hash(color_key, 6)), mix(saturation(outer), saturation(second), vixen_hash(color_key, 7)), outer_level)
+    } else { outer * outer_level }
   }
 }

@@ -1,7 +1,6 @@
 {
   "private": true,
   "scripts": {
-    "bindings": "cargo run -p donder-desktop --features export-bindings --bin export-bindings",
     "tauri": "tauri",
     "tauri:build": "tauri build"
   },

@@ -27,6 +27,19 @@ operator IntensityModulate {
   sample { source * intensity(mask) }
 }
 
+-- Vixen's Intensity Overlay: where `coverage` is lit, scale `source` by the
+-- brightness of `overlay`; elsewhere pass `source` through.
+operator IntensityOverlay {
+  input source;
+  input overlay;
+  input coverage;
+
+  sample {
+    let covered = intensity(coverage);
+    source * (1.0 - covered + covered * intensity(overlay))
+  }
+}
+
 operator Dim {
   input input;
   param amount: float in 0.0..1.0 = 0.5;

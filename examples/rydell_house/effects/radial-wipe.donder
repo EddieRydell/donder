@@ -1,0 +1,57 @@
+-- Vixen's Circle, Diamond and Burst wipes: a pulse that travels outward from a
+-- center point (or inward when reversed), reaching each pixel by its distance.
+effect RadialWipe {
+  param gradient: gradient;
+  -- Pass lights a pixel only while the pulse crosses it; On keeps it lit after,
+  -- Off lights it before.
+  param mode: enum { Pass, On, Off } = Pass;
+  -- Circle measures straight-line distance, Diamond the sum of the horizontal
+  -- and vertical distances, Burst the larger of the two.
+  param shape: enum { Circle, Diamond, Burst } = Circle;
+  -- The pulse's length as a percentage of the effect, before Vixen's
+  -- per-shape scaling.
+  param pulse_percent: float in 1.0..100.0 = 15.0;
+  param center_x: float in -100.0..100.0 = 0.0;
+  param center_y: float in -100.0..100.0 = 0.0;
+  param reverse: bool = false;
+  param pulse_shape: curve in 0.0..1.0;
+
+  sample {
+    let width = target.max_x - target.min_x;
+    let height = target.max_y - target.min_y;
+    let along_x = (center_x + 100.0) / 200.0;
+    let along_y = (center_y + 100.0) / 200.0;
+    let cx = target.min_x + along_x * width;
+    -- Vixen places Burst's center without flipping its downward y axis.
+    let cy = if shape == Burst { target.max_y - along_y * height } else { target.min_y + along_y * height };
+    let corner_x = max(abs(target.min_x - cx), abs(target.max_x - cx));
+    let corner_y = max(abs(target.min_y - cy), abs(target.max_y - cy));
+    let farthest = sqrt(corner_x * corner_x + corner_y * corner_y);
+    let dx = abs(pixel.x - cx);
+    let dy = abs(pixel.y - cy);
+    let diagonal = sqrt(width * width + height * height);
+    let distance =
+      if shape == Circle { sqrt(dx * dx + dy * dy) }
+      else if shape == Diamond { dx + dy }
+      else { max(dx, dy) };
+    let reach =
+      if shape == Circle { farthest }
+      else if shape == Diamond { farthest * 1.41 }
+      else { farthest };
+    -- Vixen scales the pulse by its nominal step count over the rings it renders.
+    let nominal =
+      if shape == Circle { diagonal / 2.0 }
+      else if shape == Diamond { diagonal / 1.5 }
+      else { max(width, height) / 2.0 };
+    let outward = if reach > 0.000000001 { clamp(distance / reach, 0.0, 1.0) } else { 0.0 };
+    let position = if reverse { 1.0 - outward } else { outward };
+    let pulse_width = clamp(pulse_percent / 100.0 * (if reach > 0.000000001 { nominal / reach } else { 1.0 }), 0.01, 1.0);
+    let hit = position * (1.0 - pulse_width);
+    let pulse_progress = (progress - hit) / pulse_width;
+    let level =
+      if pulse_progress < 0.0 { if mode == Off { pulse_shape[0.0] } else { 0.0 } }
+      else if pulse_progress > 1.0 { if mode == On { pulse_shape[1.0] } else { 0.0 } }
+      else { pulse_shape[pulse_progress] };
+    gradient_color_scaled(gradient, clamp(pulse_progress, 0.0, 1.0), level)
+  }
+}

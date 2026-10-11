@@ -20,7 +20,7 @@ standard library is not a Vixen compatibility library.
 ## Bundled library
 
 [`examples/starter/effects/vixen.donder`](../examples/starter/effects/vixen.donder)
-contains **18 procedural ports: 7 Basic and 11 Pixel effects**. The starter
+contains **24 procedural ports: 9 Basic and 15 Pixel effects**. The starter
 imports it as `vixen`; the desktop new-project template embeds that same source
 file. Definitions are prefixed `Vixen`, for example `vixen.VixenPinwheel`.
 This is partial coverage of the 46-effect inventory, with explicit mode limits.
@@ -36,7 +36,9 @@ It is not a sequence importer or a claim of complete interface/render parity.
 | `VixenSpin` | Revolution count/frequency/time, three pulse-length formats, reverse, four RGB color modes and default level. |
 | `VixenWipe` | Horizontal/vertical Count mode, pass count, pulse percentage, two color modes, reverse and wipe on/off. |
 | `VixenPinwheel` | Location geometry, both motion modes, all four blade/color modes, twist, hub, offsets and size basis. |
-| `VixenButterfly` | All five formulas, iteration motion, gradient/rainbow, direction, repeat, background chunks/skips and base color. |
+| `VixenTwinkle` | Poisson-plus-cap start scheduling, pulse time/variation, coverage, min/max level, individual or shared schedule and four color modes. |
+| `VixenDissolve` | Effect Duration timing in 25 ms steps, sequential/both-directions/random order, flip, group level, paired moves, random or cycled group colors and per-group gradient/level pulses. |
+| `VixenButterfly` | All five formulas, iteration or flat-speed motion, gradient/rainbow, direction, repeat, background chunks/skips and base color. |
 | `VixenColorwash` | Iteration motion, center/outer/invert fades and alternating-frame shimmer. |
 | `VixenPlasma` | Seven-term plasma formula, style/density, gradient blending and four RGB presets. |
 | `VixenBars` | Dense-grid flat bars, iteration motion, cardinal/alternate/compress/expand directions, highlight and 3D. |
@@ -46,6 +48,10 @@ It is not a sequence importer or a claim of complete interface/render parity.
 | `VixenGarlands` | Five dense-grid patterns, four directions and iteration motion with fixed spacing/iteration count. |
 | `VixenCurtain` | Location-based Position mode, open/close, six edges, swag and per-iteration intensity. |
 | `VixenSpirograph` | Sampled hypotrochoid, radii, distance animation, range and standard/random/rainbow colors. |
+| `VixenFire` | All four locations, height and hue-shift curves and the 200-entry palette; base row exact, upper rows statistically fitted noise rather than cell-for-cell propagation. |
+| `VixenFireworks` | Random and mark explosions, fixed/random velocity and particle counts, fade, gravity and all five color types; stratified explosion/particle sampling, faded particles do not occlude. |
+| `VixenMeteors` | Falling/Random/Explode, all directions and start positions, tails, four color types and random brightness on a Strings or Locations grid; Movement None and ground level 0 only. |
+| `VixenSnowflakes` | Falling/Random/Explode, all ten flake shapes, four color types, fade cycling and an average-height build-up pile on a Strings or Locations grid; Movement None only. |
 
 ### Authoring contract
 

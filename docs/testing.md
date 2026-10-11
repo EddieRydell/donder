@@ -7,9 +7,10 @@ cargo fmt
 pnpm check
 ```
 
-`pnpm check` regenerates TypeScript bindings and runs, in order:
-1. frontend typechecking, lint, unused-export analysis, tests and production build;
-2. `cargo fmt --check` and the workspace Rust tests;
+`pnpm check` runs, in order:
+1. `cargo fmt --check` and the workspace Rust tests, whose `generated_bindings`
+   tests write the committed TypeScript bindings;
+2. frontend typechecking, lint, unused-export analysis, tests and production build;
 3. the firmware-owned device-storage tests on the host (`pnpm storage:test`);
 4. strict workspace Clippy.
 
@@ -19,6 +20,11 @@ the root [development setup](../README.md#development). They build in
 commands in the [firmware README](../firmware/esp32/README.md#validation).
 
 Documentation and example-only changes do not need the gate.
+
+The gate's host Cargo commands all build the whole workspace, so they share one
+set of artifacts. A `-p` build resolves a different feature set (`donder-browser`
+adds `syn` and `donder-model` features), which changes most dependency artifacts
+and rebuilds them.
 
 The dev profile compiles workspace crates at opt-level 1 and dependencies at
 opt-level 2. Tests load and compile whole projects, and unoptimized builds made

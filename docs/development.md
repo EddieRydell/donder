@@ -31,9 +31,10 @@ cargo fmt
 pnpm check
 ```
 
-`pnpm check` regenerates the TypeScript bindings, then runs frontend typechecking,
-lint, unused-export analysis, tests and build, and Rust formatting, tests,
-device-storage tests and Clippy. The device-storage tests need a host C compiler
+`pnpm check` runs Rust formatting and the workspace tests, whose
+`generated_bindings` tests regenerate the TypeScript bindings, then frontend
+typechecking, lint, unused-export analysis, tests and build, device-storage tests
+and Clippy. The device-storage tests need a host C compiler
 and native libclang. Set `DONDER_HOST_LIBCLANG_PATH` to the library file or its
 directory:
 

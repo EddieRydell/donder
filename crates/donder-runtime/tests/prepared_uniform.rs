@@ -641,3 +641,48 @@ fn mixed_pixel_and_time_expressions_match_single_pixels() {
         }
     }
 }
+
+#[test]
+fn early_exit_reductions_match_single_pixels() {
+    // Pixels decide on different iterations, so later iterations run on
+    // fragmented selections that a decision can split further.
+    for source in [
+        "effect Early { sample {
+            let hit = any for j in 0..6 { rand(pixel.index * 7 + j + floor(time * 4.0) * 1000.0) < 0.3 };
+            if hit { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
+        } }",
+        "effect Early { sample {
+            let held = all for j in 0..6 { rand(pixel.index * 7 + j + floor(time * 4.0) * 1000.0) < 0.8 };
+            if held { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
+        } }",
+        "effect Early { sample {
+            let hit = any for j in 0..pixel.index % 7 { rand(pixel.index * 7 + j) < 0.3 };
+            if hit { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
+        } }",
+        "effect Early { sample {
+            let hit = any for j in 0..6 {
+                guard rand(pixel.index * 13 + j) < 0.7;
+                rand(pixel.index * 7 + j) < 0.3
+            };
+            if hit { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
+        } }",
+        "effect Early { sample {
+            let hit = any for k in 0..3 {
+                let key = rand(pixel.index * 3 + k);
+                any for j in 0..int(key * 4.0) { rand(key + 1.0 + j) < 0.5 }
+            };
+            if hit { rgb(1.0, progress, 0.0) } else { rgb(0.0, 0.0, 1.0) }
+        } }",
+    ] {
+        let effect = compile_effect(source).bind(std::iter::empty()).unwrap();
+        let invocation = playback::lower_sample(&effect);
+        for count in [STRIP, 2 * STRIP + 1] {
+            assert_matches_single_pixels(
+                workload::layered_show(count, &effect, 1),
+                count,
+                &invocation,
+                &format!("count={count} {source}"),
+            );
+        }
+    }
+}

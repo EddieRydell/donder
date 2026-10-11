@@ -12,6 +12,8 @@ donder-runtime-types.workspace = true
 donder-project-io.workspace = true
 donder-runtime.workspace = true
 serde.workspace = true
-specta-serde = "0.0.12"
 specta.workspace = true
+
+[dev-dependencies]
+specta-serde = "0.0.12"
 specta-typescript.workspace = true

@@ -1,14 +1,15 @@
-import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>;
+import effects from <effects/standard.donder>, <effects/impact-burst.donder>, <effects/mark-impact-burst.donder>, <effects/radial-wipe.donder>;
 import vixen from <effects/vixen.donder>;
 import operators from <operators/standard.donder>;
 import setups from <setups/main.data.donder>;
 import sequences from <sequences/empty.data.donder>;
 import ding_dong from <sequences/ding_dong.data.donder>;
+import most_wonderful_time from <sequences/most_wonderful_time.data.donder>;
 
 Project rydell_house {
   format: 1,
   id: "9ef79b9b-78ce-4cc3-b2dc-ac76193daa05",
   description: none,
   setup: setups.main,
-  sequences: [sequences.empty, ding_dong.ding_dong],
+  sequences: [sequences.empty, ding_dong.ding_dong, most_wonderful_time.most_wonderful_time],
 }

@@ -242,12 +242,12 @@ type Range = (u8, u8);
 #[derive(Clone, Copy)]
 struct Sel<'s>(&'s [Cell<Range>]);
 
-/// Selections open in one construct: a branch partitions into `first`; a
-/// reduction keeps its participating pixels in `first`, its contributing ones
-/// in `second`, and which pixels still run in `running`.
+/// Selections open in one construct: a branch partitions into `sets[0]`; a
+/// reduction keeps its participating pixels in `sets[0]`, its filtered
+/// contributing ones in `sets[1]`, an early exit's decided ones in the set its
+/// contributing pixels are not in, and which pixels still run in `running`.
 pub(super) struct Level {
-    first: [Cell<Range>; STRIP],
-    second: [Cell<Range>; STRIP],
+    sets: [[Cell<Range>; STRIP]; 2],
     running: Row<bool>,
 }
 
@@ -255,8 +255,7 @@ impl Default for Level {
     #[cfg_attr(feature = "iram", unsafe(link_section = ".rwtext"))]
     fn default() -> Self {
         Self {
-            first: row((0, 0)),
-            second: row((0, 0)),
+            sets: [row((0, 0)), row((0, 0))],
             running: row(false),
         }
     }
@@ -864,7 +863,7 @@ impl<'m> Machine<'m> {
         }
         let condition = condition.row;
         let (level, inner) = levels.split_at(1);
-        let buffer = &level[0].first;
+        let buffer = &level[0].sets[0];
         let holding = filter(sel, buffer, |i| condition[i].get());
         let failing = filter(sel, &buffer[holding..], |i| !condition[i].get());
         if failing == 0 {
@@ -987,10 +986,10 @@ impl<'m> Machine<'m> {
             let participating = if uniform_bounds && !early {
                 sel
             } else {
-                let kept = filter(sel, &level.first, |i| {
+                let kept = filter(sel, &level.sets[0], |i| {
                     (!early || level.running[i].get()) && takes_part(i, k)
                 });
-                Sel(&level.first[..kept])
+                Sel(&level.sets[0][..kept])
             };
             if participating.0.is_empty() {
                 continue;
@@ -1005,8 +1004,8 @@ impl<'m> Machine<'m> {
                 participating
             } else {
                 let condition = self.boolean(filter_slot);
-                let kept = filter(participating, &level.second, |i| condition.at(i));
-                Sel(&level.second[..kept])
+                let kept = filter(participating, &level.sets[1], |i| condition.at(i));
+                Sel(&level.sets[1][..kept])
             };
             if contributing.0.is_empty() {
                 continue;
@@ -1016,11 +1015,12 @@ impl<'m> Machine<'m> {
                 self.combine(reducer, bank, acc, value, contributing);
                 continue;
             }
-            // The participating ranges are done with, so decisions reuse them.
-            let decided = filter(contributing, &level.first, |i| {
-                self.decides(reducer, value, i)
-            });
-            let decided = Sel(&level.first[..decided]);
+            // Decisions can split a range into several runs, so they go to
+            // the set `contributing` is not read from. An index, not a branch,
+            // so the loop is not duplicated per case in instruction RAM.
+            let free = &level.sets[usize::from(filter_slot.is_none())];
+            let decided = filter(contributing, free, |i| self.decides(reducer, value, i));
+            let decided = Sel(&free[..decided]);
             self.assign(bank, acc, value, decided);
             each(decided, |i| {
                 level.running[i].set(false);
@@ -1307,9 +1307,18 @@ impl<'m> Machine<'m> {
             }
             Bank::Int => {
                 let (dst, a, b) = (self.int_dst(acc), self.int(acc), self.int(value));
+                // One loop for both orders keeps instruction RAM within budget.
+                let max = reducer == Reducer::Max;
                 match reducer {
-                    Reducer::Max => map2(sel, dst, a, b, |a, b| if b > a { b } else { a }),
-                    Reducer::Min => map2(sel, dst, a, b, |a, b| if b < a { b } else { a }),
+                    Reducer::Max | Reducer::Min => {
+                        map2(
+                            sel,
+                            dst,
+                            a,
+                            b,
+                            |a, b| if (b > a) == max && b != a { b } else { a },
+                        )
+                    }
                     _ => map2(sel, dst, a, b, i32::wrapping_add),
                 }
             }

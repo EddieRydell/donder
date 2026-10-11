@@ -2,6 +2,71 @@ Layout main {
   description: none,
   root: [house_and_trees, yard, mega_tree, star_rings, garage_matrix, arch_tunnel],
   items: [
+    Group {
+      name: star_point_5,
+      description: none,
+      members: [
+        star_rings_01_05,
+        star_rings_02_05,
+        star_rings_03_05,
+        star_rings_04_05,
+        star_rings_05_05,
+        star_rings_06_05,
+      ],
+    },
+    Group {
+      name: star_point_4,
+      description: none,
+      members: [
+        star_rings_01_04,
+        star_rings_02_04,
+        star_rings_03_04,
+        star_rings_04_04,
+        star_rings_05_04,
+        star_rings_06_04,
+      ],
+    },
+    Group {
+      name: star_point_3,
+      description: none,
+      members: [
+        star_rings_01_03,
+        star_rings_02_03,
+        star_rings_03_03,
+        star_rings_04_03,
+        star_rings_05_03,
+        star_rings_06_03,
+      ],
+    },
+    Group {
+      name: star_point_2,
+      description: none,
+      members: [
+        star_rings_01_02,
+        star_rings_02_02,
+        star_rings_03_02,
+        star_rings_04_02,
+        star_rings_05_02,
+        star_rings_06_02,
+      ],
+    },
+    Group {
+      name: star_point_1,
+      description: none,
+      members: [
+        star_rings_01_01,
+        star_rings_02_01,
+        star_rings_03_01,
+        star_rings_04_01,
+        star_rings_05_01,
+        star_rings_06_01,
+      ],
+    },
+    Group {
+      name: star_points,
+      description: none,
+      members: [star_point_1, star_point_2, star_point_3, star_point_4, star_point_5],
+    },
     Group { name: house_outline, description: none, members: [fletch_peak, house_lines] },
     Group {
       name: house_lines,
@@ -5239,6 +5304,7 @@ Layout main {
         star_rings_04,
         star_rings_05,
         star_rings_06,
+        star_points,
       ],
     },
     Group {

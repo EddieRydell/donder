@@ -4,7 +4,9 @@ use specta::Types;
 use specta_serde::Format;
 use specta_typescript::{Typescript, semantic};
 use std::path::PathBuf;
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Writes the committed TypeScript bindings; `pnpm generate:bindings` runs it.
+#[test]
+fn generated_bindings() -> Result<(), Box<dyn std::error::Error>> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bindings.ts");
     let types = Types::default()
         .register::<SequenceAutomationTarget>()
