@@ -63,7 +63,9 @@ export default tseslint.config(
       "@typescript-eslint/strict-boolean-expressions": "error",
       "@typescript-eslint/switch-exhaustiveness-check": "error",
       eqeqeq: ["error", "always"],
-      "no-debugger": "error"
+      "no-debugger": "error",
+      // Browser dialogs look like a web page; confirmations use the app's dialog.
+      "no-alert": "error"
     }
   },
   {

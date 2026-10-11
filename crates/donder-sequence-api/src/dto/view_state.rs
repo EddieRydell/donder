@@ -20,6 +20,9 @@ pub struct PersistedSequenceViewportState {
     #[serde(default = "default_mark_ruler_height_px")]
     pub mark_ruler_height_px: f32,
     pub row_heights: BTreeMap<String, f32>,
+    /// Group lanes whose members are hidden, by group fixture.
+    #[serde(default)]
+    pub collapsed_groups: Vec<u32>,
     pub scroll_x_seconds: f32,
     pub scroll_y: f32,
     pub active_mark_collection_key: Option<String>,

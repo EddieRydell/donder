@@ -2,7 +2,8 @@ import { focusedCodeEditor } from "./ui/source/monaco";
 
 export const isMac = navigator.userAgent.includes("Mac");
 
-export type Shortcut = { key: string; shift?: boolean };
+/** A key with the modifiers it needs. `primary` is Command on macOS and Control elsewhere; Shift is required, forbidden, or either. */
+export type Shortcut = { key: string; primary?: boolean; shift?: boolean | "either" };
 
 type ModifierState = { ctrlKey: boolean; metaKey: boolean };
 
@@ -26,18 +27,13 @@ export function editTarget(target: EventTarget | null): EditTarget {
   return "app";
 }
 
-export type EditShortcut = "cut" | "copy" | "paste" | "selectAll";
-
-export const EDIT_SHORTCUT_KEYS: Record<EditShortcut, string> = { cut: "x", copy: "c", paste: "v", selectAll: "a" };
-
-/** Declares the Edit shortcuts an element's keydown handler implements, so the macOS menu can enable them. */
-export function editShortcutTarget(shortcuts: EditShortcut[]) {
-  return { "data-edit-shortcuts": shortcuts.join(" ") };
-}
-
-export function handledEditShortcuts(target: Element | null): EditShortcut[] {
-  const declared = target?.closest("[data-edit-shortcuts]")?.getAttribute("data-edit-shortcuts") ?? "";
-  return (Object.keys(EDIT_SHORTCUT_KEYS) as EditShortcut[]).filter((shortcut) => declared.split(" ").includes(shortcut));
+export function matchesShortcut(event: KeyboardEvent, shortcut: Shortcut): boolean {
+  const key = shortcut.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const otherModifier = isMac ? event.ctrlKey : event.metaKey;
+  return key === shortcut.key
+    && hasPrimaryModifier(event) === (shortcut.primary === true)
+    && !otherModifier && !event.altKey
+    && (shortcut.shift === "either" || event.shiftKey === (shortcut.shift === true));
 }
 
 /** Control-click is a secondary click on macOS, so it must not act as a modified primary click. */
@@ -45,14 +41,18 @@ export function isSecondaryClick(event: { button: number; ctrlKey: boolean }): b
   return event.button === 2 || (isMac && event.button === 0 && event.ctrlKey);
 }
 
+function shortcutKeyName(key: string): string {
+  return key === " " ? "Space" : key.length === 1 ? key.toUpperCase() : key;
+}
+
 export function formatShortcut(shortcut: Shortcut): string {
-  const key = shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
-  if (isMac) return `${shortcut.shift === true ? "⇧" : ""}⌘${key}`;
-  return `Ctrl+${shortcut.shift === true ? "Shift+" : ""}${key}`;
+  const key = shortcutKeyName(shortcut.key);
+  const shift = shortcut.shift === true;
+  if (isMac) return `${shift ? "⇧" : ""}${shortcut.primary === true ? "⌘" : ""}${key}`;
+  return `${shortcut.primary === true ? "Ctrl+" : ""}${shift ? "Shift+" : ""}${key}`;
 }
 
 /** Tauri menu accelerator for a shortcut. */
 export function shortcutAccelerator(shortcut: Shortcut): string {
-  const key = shortcut.key.length === 1 ? shortcut.key.toUpperCase() : shortcut.key;
-  return `CmdOrCtrl+${shortcut.shift === true ? "Shift+" : ""}${key}`;
+  return `${shortcut.primary === true ? "CmdOrCtrl+" : ""}${shortcut.shift === true ? "Shift+" : ""}${shortcutKeyName(shortcut.key)}`;
 }

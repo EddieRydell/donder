@@ -497,6 +497,7 @@ mod tests {
                 ("1:row:0".into(), height * 2.0),
                 ("1:row:1".into(), height),
             ]),
+            collapsed_groups: Vec::new(),
             scroll_x_seconds: 0.0,
             scroll_y: 0.0,
             active_mark_collection_key: None,

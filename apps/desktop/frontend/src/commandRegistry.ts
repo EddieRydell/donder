@@ -5,7 +5,8 @@ import { openProjectDialog, runWorkspaceTransition, useTransitionStore } from ".
 import { navigateToText } from "./workspace/navigation";
 import { runSnapshotCommand, useAppStore } from "./store";
 import type { SidebarView } from "./types";
-import { editTarget, formatShortcut, hasPrimaryModifier, isMac, type Shortcut } from "./platform";
+import { editTarget, formatShortcut, isMac, matchesShortcut, type Shortcut } from "./platform";
+import { dispatchEditorShortcut } from "./shortcuts";
 import { requestOpenLayerGraph } from "./ui/uiEvents";
 
 import { GUI_HISTORY_CHANGED_EVENT } from "./editor/host";
@@ -69,10 +70,10 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   }, hasProject),
   "file.openProject": command("Open Project...", "File", ["folder", "workspace"], async () => {
     await openProjectDialog();
-  }, always, [{ key: "o" }]),
+  }, always, [{ key: "o", primary: true }]),
   "file.save": command("Save All", "File", ["write"], async () => {
     await runSnapshotCommand(commands.saveAll);
-  }, hasProject, [{ key: "s" }]),
+  }, hasProject, [{ key: "s", primary: true }]),
   "file.reloadFromDisk": command("Reload From Disk", "File", ["revert"], async () => {
     const path = useAppStore.getState().snapshot?.activeFile;
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "reloadFile", path });
@@ -81,23 +82,23 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "file.closeEditor": command("Close Editor", "File", ["tab", "file"], async () => {
     const path = useAppStore.getState().snapshot?.activeFile;
     if (path !== null && path !== undefined) await runWorkspaceTransition({ type: "closeFile", path });
-  }, () => (useAppStore.getState().snapshot?.activeFile ?? null) !== null, [{ key: "w" }]),
+  }, () => (useAppStore.getState().snapshot?.activeFile ?? null) !== null, [{ key: "w", primary: true }]),
   "file.closeWindow": command("Close Window", "File", ["quit", "exit"], async () => {
     await getCurrentWindow().close();
-  }, always, [{ key: "w", shift: true }]),
+  }, always, [{ key: "w", primary: true, shift: true }]),
   "file.settings": command("Settings...", "File", ["preferences"], () => {
     window.dispatchEvent(new CustomEvent("donder:settings"));
-  }, always, [{ key: "," }]),
+  }, always, [{ key: ",", primary: true }]),
   "edit.undo": command("Undo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.undoActiveEdit);
     window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
-  }, hasProject, [{ key: "z" }]),
+  }, hasProject, [{ key: "z", primary: true }]),
   "edit.redo": command("Redo", "Edit", ["history"], async () => {
     if (effectiveEditorViewMode(useAppStore.getState().snapshot) !== "gui") return;
     await runSnapshotCommand(commands.redoActiveEdit);
     window.dispatchEvent(new Event(GUI_HISTORY_CHANGED_EVENT));
-  }, hasProject, isMac ? [{ key: "z", shift: true }] : [{ key: "z", shift: true }, { key: "y" }]),
+  }, hasProject, isMac ? [{ key: "z", primary: true, shift: true }] : [{ key: "z", primary: true, shift: true }, { key: "y", primary: true }]),
   "view.toggleGuiMode": {
     ...command("Toggle GUI / Text Mode", "View", ["editor"], async () => {
       const mode = (settings()?.editorViewMode ?? "gui") === "gui" ? "text" : "gui";
@@ -135,19 +136,19 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "view.openLayerGraph": command("Layer Graph", "View", ["composition", "operators"], requestOpenLayerGraph, sequenceOpen),
   "view.toggleProjectTree": command("Toggle Side Bar", "View", ["collapse", "panel"], async () => {
     await runSnapshotCommand(commands.toggleProjectTree);
-  }, always, [{ key: "b" }]),
+  }, always, [{ key: "b", primary: true }]),
   "view.focusExplorer": command("Focus Explorer", "View", ["files", "sidebar"], focusSidebar("explorer")),
   "view.focusSearch": command("Focus Search", "View", ["find", "sidebar"], focusSidebar("search")),
   "view.focusProblems": command("Focus Problems", "View", ["diagnostics", "errors", "sidebar"], focusSidebar("problems")),
   "workbench.quickOpen": command("Quick Open...", "Workbench", ["file", "recent"], () => {
     window.dispatchEvent(new CustomEvent(OPEN_QUICK_OPEN_EVENT));
-  }, hasProject, [{ key: "p" }]),
+  }, hasProject, [{ key: "p", primary: true }]),
   "workbench.commandPalette": command("Command Palette...", "Workbench", ["commands"], () => {
     window.dispatchEvent(new CustomEvent(OPEN_COMMAND_PALETTE_EVENT));
-  }, always, [{ key: "p", shift: true }]),
+  }, always, [{ key: "p", primary: true, shift: true }]),
   "project.reload": command("Reload / Check Project", "Project", ["refresh", "diagnostics"], async () => {
     await runWorkspaceTransition({ type: "reloadProject" });
-  }, hasProject, [{ key: "r" }]),
+  }, hasProject, [{ key: "r", primary: true }]),
 };
 
 /** Runs a command unless a workspace transition is in progress or the command is disabled. */
@@ -164,13 +165,14 @@ export function shortcutLabel(id: CommandId): string | undefined {
   return shortcuts.length === 0 ? undefined : shortcuts.map(formatShortcut).join(" / ");
 }
 
-/** Keyboard shortcuts for platforms without a native app menu; on macOS the menu owns them. */
-export function installGlobalShortcuts() {
+/**
+ * The window's single key handler: editor surfaces first, then app commands. On macOS the native
+ * menu receives app shortcuts before the page, so only editor keys arrive here.
+ */
+export function installKeyboardShortcuts() {
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!hasPrimaryModifier(event) || event.altKey) return;
-    const key = event.key.toLowerCase();
-    const id = (Object.keys(commandRegistry) as CommandId[]).find((candidate) => commandRegistry[candidate].shortcuts.some((shortcut) =>
-      shortcut.key === key && (shortcut.shift === true) === event.shiftKey));
+    if (dispatchEditorShortcut(event) || isMac) return;
+    const id = (Object.keys(commandRegistry) as CommandId[]).find((candidate) => commandRegistry[candidate].shortcuts.some((shortcut) => matchesShortcut(event, shortcut)));
     if (id === undefined || !commandRegistry[id].enabled()) return;
     // Text fields and the code editor keep their own undo history.
     if ((id === "edit.undo" || id === "edit.redo") && editTarget(event.target) !== "app") return;
