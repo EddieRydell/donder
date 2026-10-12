@@ -101,6 +101,78 @@ pub(super) fn edit_sequence(
                 });
             }
         }
+        SequenceGuiEdit::SplitEffects { ids, time_seconds } => {
+            let at = super::checked_gui_time(time_seconds)?;
+            let sequence = &mut draft;
+            let mut next_id = sequence
+                .effects
+                .iter()
+                .map(|effect| effect.id.0)
+                .max()
+                .unwrap_or(0);
+            for id in ids {
+                let index = sequence
+                    .effects
+                    .iter()
+                    .position(|effect| effect.id.0 == id)
+                    .ok_or_else(|| GuiMutationError::Invalid("Effect was not found.".into()))?;
+                let left = &sequence.effects[index];
+                let end = left.start.0.saturating_add(left.duration.0);
+                if at.0 <= left.start.0 || at.0 >= end {
+                    return Err(GuiMutationError::Invalid(
+                        "Split time must fall inside the clip.".to_string(),
+                    ));
+                }
+                next_id = next_id
+                    .checked_add(1)
+                    .ok_or_else(|| GuiMutationError::Invalid("Effect IDs exhausted.".into()))?;
+                let mut right = EffectInst::clone(left);
+                right.id = EffectInstId(next_id);
+                right.name = donder_language::unique_name(left.name.as_str(), |name| {
+                    sequence
+                        .effects
+                        .iter()
+                        .any(|other| other.name.as_str() == name)
+                });
+                right.start = at.clone();
+                right.duration = DonderDuration(end - at.0);
+                let left = std::sync::Arc::make_mut(&mut sequence.effects[index]);
+                left.duration = DonderDuration(at.0 - left.start.0);
+                let left_id = left.id.clone();
+                let rebind = |target: &AutomationTarget| match target {
+                    AutomationTarget::EffectParam { effect_id, param } if *effect_id == left_id => {
+                        Some(AutomationTarget::EffectParam {
+                            effect_id: right.id.clone(),
+                            param: param.clone(),
+                        })
+                    }
+                    _ => None,
+                };
+                for clip in &mut sequence.automation_clips {
+                    let bindings = clip
+                        .bindings
+                        .iter()
+                        .filter_map(|binding| rebind(&binding.target))
+                        .map(|target| AutomationBinding { target })
+                        .collect::<Vec<_>>();
+                    let detached = clip
+                        .detached_bindings
+                        .iter()
+                        .filter_map(|binding| {
+                            rebind(&binding.target).map(|target| DetachedAutomationBinding {
+                                target,
+                                reason: binding.reason.clone(),
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    clip.bindings.extend(bindings);
+                    clip.detached_bindings.extend(detached);
+                }
+                sequence
+                    .effects
+                    .insert(index + 1, std::sync::Arc::new(right));
+            }
+        }
         SequenceGuiEdit::MoveMark {
             collection_key,
             index,
@@ -894,7 +966,7 @@ use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
     AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    GraphNodePosition, Mark, MarkCollection, MarkCollectionKey,
+    DetachedAutomationBinding, GraphNodePosition, Mark, MarkCollection, MarkCollectionKey,
     SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
     automation_curve_is_normalized,
 };

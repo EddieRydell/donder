@@ -2,9 +2,8 @@ use super::LoadedProject;
 use camino::Utf8PathBuf;
 use donder_sequence_api::{
     AppSettings, AppSnapshot, AudioTransportSnapshot, DocumentDescriptor, DocumentSaveState,
-    DocumentSaveStatus, DocumentViewId, DonderDeviceStatus, EditorBuffer, EditorTab,
-    EditorViewMode, LiveOutputSnapshot, ProjectDiagnostic, ProjectHealth, WorkspaceEntry,
-    WorkspaceExplorerState, WorkspaceLayoutState,
+    DocumentSaveStatus, DonderDeviceStatus, EditorBuffer, EditorTab, LiveOutputSnapshot,
+    ProjectDiagnostic, ProjectHealth, WorkspaceEntry, WorkspaceExplorerState, WorkspaceLayoutState,
 };
 use std::collections::BTreeMap;
 
@@ -107,27 +106,7 @@ impl WorkspaceState {
                 })
                 .collect(),
             active_buffer: active.map(|doc| EditorTab::from(&doc.buffer)),
-            active_text: active
-                .filter(|_| self.shows_active_as_text())
-                .map(|doc| doc.buffer.text.clone()),
         }
-    }
-
-    /// Whether the editor shows the active document as text rather than in a
-    /// GUI view. Matches the frontend's `effectiveEditorViewMode`.
-    fn shows_active_as_text(&self) -> bool {
-        self.view.project_health != ProjectHealth::Ready
-            || matches!(self.view.settings.editor_view_mode, EditorViewMode::Text)
-            || !self
-                .view
-                .active_document_descriptor
-                .as_ref()
-                .is_some_and(|descriptor| {
-                    descriptor
-                        .available_views
-                        .iter()
-                        .any(|view| *view != DocumentViewId::Text)
-                })
     }
 
     /// Adopt `snapshot`'s view state. Buffers belong to `documents`; a snapshot

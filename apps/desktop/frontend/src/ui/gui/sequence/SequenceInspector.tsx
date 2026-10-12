@@ -31,6 +31,7 @@ import { MarkSubdivision } from "./MarkSubdivision";
 import { selectedEffectId, selectionCompatibleWithFocusedItem, selectionCount } from "./sequenceSelection";
 import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 import { targetsEqual } from "./sequenceTargets";
+import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { useConfirmDialog } from "../../ConfirmDialog";
 import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
 
@@ -460,7 +461,7 @@ function EffectInspectorPanel({
         {automationClip.detachedBindings.map((binding, index) => (
           <div key={`${binding.target.type}-${index}`}>
             <span className="status-warning">Detached</span>
-            <p>{automationTargetLabel(binding.target)} · {detachmentReasonLabel(binding.reason)}</p>
+            <p>{detachedAutomationTargetLabel(binding.target)} · {detachmentReasonLabel(binding.reason)}</p>
             <div className="effect-param-actions">
               <button
                 type="button"
@@ -698,12 +699,6 @@ function EffectInspectorPanel({
       )}
     </>
   );
-}
-
-function automationTargetLabel(target: import("../../../editor/types").SequenceAutomationTarget): string {
-  return target.type === "effectParam"
-    ? `Effect ${target.effectId} · ${target.param}`
-    : `Node ${target.nodeId} · ${target.param}`;
 }
 
 const DETACHMENT_REASON_LABELS: Record<import("../../../editor/types").SequenceAutomationDetachmentReason, string> = {

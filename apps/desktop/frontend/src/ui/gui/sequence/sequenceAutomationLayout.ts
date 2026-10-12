@@ -1,4 +1,4 @@
-import type { FixtureTarget, SequenceLane, SequenceAutomationClip, PersistedSequenceViewportState } from "../../../editor/types";
+import type { FixtureTarget, SequenceLane, SequenceAutomationClip, SequenceAutomationTarget, PersistedSequenceViewportState } from "../../../editor/types";
 
 import { clamp, roundToNanosecond } from "../shared";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
@@ -162,6 +162,13 @@ export function buildAutomationClipLayout(clips: AutomationClipView[], rows: Seq
     }
   }
   return layouts;
+}
+
+/** Labels a target whose effect or operator no longer resolves, so it names only ids. */
+export function detachedAutomationTargetLabel(target: SequenceAutomationTarget): string {
+  return target.type === "effectParam"
+    ? `Effect ${target.effectId}: ${target.param}`
+    : `Operator ${target.nodeId}: ${target.param}`;
 }
 
 export function automationClipsWithDrafts(clips: SequenceAutomationClip[], drafts: AutomationDraft[], curveDraft: AutomationCurveDraft | null): AutomationClipView[] {

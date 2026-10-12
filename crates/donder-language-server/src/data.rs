@@ -1,15 +1,13 @@
 //! Data document features: hover, completion, outline and formatting, read
 //! from the syntax tree, the schema and the project index.
-use donder_language::analysis::{
-    Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind, analyze_script,
-    data_token_stream,
-};
+use donder_language::analysis::{Completion, CompletionKind, DataToken, DataTokenKind, SymbolKind};
 use donder_language::compiler::TextSpan;
-use donder_language::data::{DataDocument, DataField, DataValue, Spanned, is_pascal_case};
+use donder_language::data::{DataField, DataValue, Spanned, is_pascal_case};
 use donder_language::data::{Definition, Fields, Schema, Shape};
 use donder_project_io::{DECLARATION_TYPE_NAMES, LinkTarget, ScriptMember, document_schema};
 use donder_runtime_types::Type;
 
+use crate::document::Document;
 use crate::navigation::script_member;
 use crate::workspace::{Kind, Workspace, kind};
 
@@ -17,16 +15,12 @@ fn within(span: TextSpan, offset: usize) -> bool {
     span.start <= offset && offset <= span.end
 }
 
-fn parse(text: &str) -> DataDocument {
-    donder_language::data::parse(text).0
-}
-
 /// The canonical text, when the document parses without errors.
-pub fn format(text: &str) -> Option<String> {
-    let (document, diagnostics) = donder_language::data::parse(text);
+pub fn format(document: &Document) -> Option<String> {
+    let (tree, diagnostics) = document.parsed();
     diagnostics
         .is_empty()
-        .then(|| donder_language::data::print(&document))
+        .then(|| donder_language::data::print(tree))
 }
 
 fn description(fields: &[DataField]) -> Option<&str> {
@@ -48,7 +42,7 @@ fn named(ty: &str, name: &str, description: Option<&str>) -> String {
 }
 
 /// Markdown for the object whose name is at `span`.
-pub fn describe(text: &str, span: TextSpan) -> Option<String> {
+pub fn describe(document: &Document, span: TextSpan) -> Option<String> {
     fn search(value: &Spanned<DataValue>, span: TextSpan) -> Option<String> {
         match &value.value {
             DataValue::Record(ty, fields) => {
@@ -97,7 +91,7 @@ pub fn describe(text: &str, span: TextSpan) -> Option<String> {
             _ => None,
         }
     }
-    let document = parse(text);
+    let document = document.tree();
     if let Some(import) = document
         .imports
         .iter()
@@ -209,9 +203,10 @@ fn definition_text(schema: &Schema, ty: &str) -> Option<String> {
 }
 
 /// Hover on a field name or a type name.
-pub fn schema_hover(text: &str, offset: usize) -> Option<String> {
+pub fn schema_hover(document: &Document, offset: usize) -> Option<String> {
     let schema = document_schema();
-    let tokens = data_token_stream(text);
+    let text = document.text();
+    let tokens = document.stream();
     let index = tokens.iter().position(|token| within(token.span, offset))?;
     let token = tokens[index];
     let word = &text[token.span.start..token.span.end];
@@ -405,9 +400,9 @@ fn wanted(ty: &str, field: &str) -> Option<Wanted> {
 
 /// The declarations a document can name, as `name` or `alias.name`, with
 /// their type: `Layout`, `Effect` or `Operator` for scripts.
-fn visible(workspace: &Workspace, text: &str) -> Vec<(String, String)> {
+fn visible(workspace: &Workspace, document: &Document) -> Vec<(String, String)> {
     let mut names = Vec::new();
-    let local = parse(text);
+    let local = document.tree();
     for declaration in &local.declarations {
         names.push((
             declaration.name.value.as_str().to_string(),
@@ -419,13 +414,13 @@ fn visible(workspace: &Workspace, text: &str) -> Vec<(String, String)> {
             let Some(path_uri) = workspace.uri(camino::Utf8Path::new(&path.value)) else {
                 continue;
             };
-            let Some(source) = workspace.text(&path_uri) else {
+            let Some(source) = workspace.document(&path_uri) else {
                 continue;
             };
             let alias = import.alias.value.as_str();
             match kind(&path_uri) {
                 Kind::Data => {
-                    for declaration in parse(&source).declarations {
+                    for declaration in &source.tree().declarations {
                         names.push((
                             format!("{alias}.{}", declaration.name.value.as_str()),
                             declaration.ty.value.as_str().to_string(),
@@ -433,7 +428,7 @@ fn visible(workspace: &Workspace, text: &str) -> Vec<(String, String)> {
                     }
                 }
                 Kind::Script => {
-                    for symbol in analyze_script(&source).symbols {
+                    for symbol in &source.script().symbols {
                         let ty = match symbol.kind {
                             SymbolKind::Effect => "Effect",
                             SymbolKind::Operator => "Operator",
@@ -450,8 +445,9 @@ fn visible(workspace: &Workspace, text: &str) -> Vec<(String, String)> {
 }
 
 /// Names declared in this document by `Type { name: X` or `LayerNode { layer: X`.
-fn local_names(text: &str, ty: &str, field: &str) -> Vec<String> {
-    let tokens = data_token_stream(text);
+fn local_names(document: &Document, ty: &str, field: &str) -> Vec<String> {
+    let text = document.text();
+    let tokens = document.stream();
     let word = |token: &DataToken| &text[token.span.start..token.span.end];
     let mut names = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -469,7 +465,7 @@ fn local_names(text: &str, ty: &str, field: &str) -> Vec<String> {
 }
 
 /// The fixture and group names of the layout a reference names.
-fn layout_items(workspace: &Workspace, text: &str, prefix: &[&str]) -> Vec<String> {
+fn layout_items(workspace: &Workspace, document: &Document, prefix: &[&str]) -> Vec<String> {
     fn collect(value: &Spanned<DataValue>, names: &mut Vec<String>) {
         match &value.value {
             DataValue::Record(ty, fields) if matches!(ty.value.as_str(), "Group" | "Fixture") => {
@@ -486,9 +482,9 @@ fn layout_items(workspace: &Workspace, text: &str, prefix: &[&str]) -> Vec<Strin
             _ => {}
         }
     }
-    let layout = |source: &str, name: &str| {
+    let layout = |source: &Document, name: &str| {
         let mut names = Vec::new();
-        for declaration in parse(source).declarations {
+        for declaration in &source.tree().declarations {
             if declaration.name.value.as_str() == name {
                 for field in &declaration.fields.value {
                     if field.name.value.as_str() == "items" {
@@ -500,10 +496,10 @@ fn layout_items(workspace: &Workspace, text: &str, prefix: &[&str]) -> Vec<Strin
         names
     };
     match prefix {
-        [name] => layout(text, name),
+        [name] => layout(document, name),
         [alias, name] => {
-            let document = parse(text);
             let Some(import) = document
+                .tree()
                 .imports
                 .iter()
                 .find(|import| import.alias.value.as_str() == *alias)
@@ -514,7 +510,7 @@ fn layout_items(workspace: &Workspace, text: &str, prefix: &[&str]) -> Vec<Strin
                 .paths
                 .iter()
                 .filter_map(|path| workspace.uri(camino::Utf8Path::new(&path.value)))
-                .filter_map(|path| workspace.text(&path))
+                .filter_map(|path| workspace.document(&path))
                 .flat_map(|source| layout(&source, name))
                 .collect()
         }
@@ -604,10 +600,10 @@ fn definition_params(
     workspace: &Workspace,
     uri: &str,
     span: Option<TextSpan>,
-) -> Option<(donder_language::analysis::ScriptAnalysis, usize)> {
+) -> Option<(std::sync::Arc<Document>, usize)> {
     let document = workspace.document_id(uri)?;
-    let check = workspace.check.as_ref()?;
-    let link = check.report.index.link_at(&document, span?.start)?;
+    let check = workspace.current_check()?;
+    let link = check.index.link_at(&document, span?.start)?;
     let LinkTarget::Script {
         document,
         declaration,
@@ -616,14 +612,20 @@ fn definition_params(
     else {
         return None;
     };
-    let analysis = analyze_script(&workspace.document_text(document)?);
-    let symbol = script_member(&analysis, declaration, &ScriptMember::Declaration)?;
-    Some((analysis, symbol))
+    let script = workspace.project_document(document)?;
+    let symbol = script_member(script.script(), declaration, &ScriptMember::Declaration)?;
+    Some((script, symbol))
 }
 
-pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) -> Vec<Completion> {
+pub fn completions(
+    workspace: &Workspace,
+    uri: &str,
+    document: &Document,
+    offset: usize,
+) -> Vec<Completion> {
     let schema = document_schema();
-    let tokens = data_token_stream(text);
+    let text = document.text();
+    let tokens = document.stream();
     // Tokens before the cursor, without a partly typed name.
     let before = tokens
         .iter()
@@ -647,7 +649,7 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
     let stack = frames(text, &tokens[..index]);
     let names_for = |wanted: Wanted| -> Vec<String> {
         match wanted {
-            Wanted::Declaration(ty) => visible(workspace, text)
+            Wanted::Declaration(ty) => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == ty)
                 .map(|(name, _)| name)
@@ -658,23 +660,23 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
                 } else {
                     "Operator"
                 };
-                visible(workspace, text)
+                visible(workspace, document)
                     .into_iter()
                     .filter(|(_, kind)| kind == ty)
                     .map(|(name, _)| name)
                     .collect()
             }
-            Wanted::Fixture => visible(workspace, text)
+            Wanted::Fixture => visible(workspace, document)
                 .into_iter()
                 .filter(|(_, kind)| kind == "Layout")
                 .map(|(name, _)| format!("{name}."))
                 .collect(),
-            Wanted::Layer => local_names(text, "Layer", "name"),
-            Wanted::Clip => local_names(text, "Clip", "name"),
-            Wanted::Marks => local_names(text, "MarkCollection", "name"),
+            Wanted::Layer => local_names(document, "Layer", "name"),
+            Wanted::Clip => local_names(document, "Clip", "name"),
+            Wanted::Marks => local_names(document, "MarkCollection", "name"),
             Wanted::Node => {
-                let mut names = local_names(text, "OperatorNode", "name");
-                names.extend(local_names(text, "LayerNode", "layer"));
+                let mut names = local_names(document, "OperatorNode", "name");
+                names.extend(local_names(document, "LayerNode", "layer"));
                 names.push("output".into());
                 names
             }
@@ -694,18 +696,19 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
         if let Some((ty, field)) = &field_owner
             && wanted(ty, field) == Some(Wanted::Fixture)
             && !(prefix.len() == 1
-                && parse(text)
+                && document
+                    .tree()
                     .imports
                     .iter()
                     .any(|import| import.alias.value.as_str() == prefix[0]))
         {
-            return layout_items(workspace, text, &prefix)
+            return layout_items(workspace, document, &prefix)
                 .into_iter()
                 .map(|name| Completion::new(name, CompletionKind::Reference))
                 .collect();
         }
         let qualified = format!("{}.", prefix.join("."));
-        let mut names = visible(workspace, text);
+        let mut names = visible(workspace, document);
         if let Some((ty, field)) = &field_owner
             && let Some(wanted) = wanted(ty, field)
         {
@@ -788,10 +791,10 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
             field,
             seen,
         }) => {
-            let Some((analysis, declaration)) = definition_params(workspace, uri, *definition)
-            else {
+            let Some((script, declaration)) = definition_params(workspace, uri, *definition) else {
                 return Vec::new();
             };
+            let analysis = script.script();
             let params = analysis.symbols.iter().enumerate().filter(|(_, symbol)| {
                 symbol.kind == SymbolKind::Param && symbol.parent == Some(declaration)
             });
@@ -840,7 +843,7 @@ pub fn completions(workspace: &Workspace, uri: &str, text: &str, offset: usize) 
                         Some(Type::Gradient) => "Gradient",
                         _ => return Vec::new(),
                     };
-                    visible(workspace, text)
+                    visible(workspace, document)
                         .into_iter()
                         .filter(|(_, kind)| kind == wanted)
                         .map(|(name, _)| Completion::new(name, CompletionKind::Reference))
@@ -862,7 +865,7 @@ pub struct Outline {
     pub children: Vec<Outline>,
 }
 
-pub fn outline(text: &str) -> Vec<Outline> {
+pub fn outline(document: &Document) -> Vec<Outline> {
     fn items(value: &Spanned<DataValue>) -> Vec<Outline> {
         match &value.value {
             DataValue::Record(ty, fields) => {
@@ -909,7 +912,8 @@ pub fn outline(text: &str) -> Vec<Outline> {
             _ => Vec::new(),
         }
     }
-    parse(text)
+    document
+        .tree()
         .declarations
         .iter()
         .map(|declaration| Outline {

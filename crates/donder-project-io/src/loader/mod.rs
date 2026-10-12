@@ -26,8 +26,10 @@ use donder_model::{DonderProject, ProjectData, ProjectDefinitionStores, ProjectI
 use donder_model::{OperatorDefinitionId, custom_operator_definition};
 use indexmap::{IndexMap, IndexSet};
 
+use crate::ProjectCheckCache;
+use crate::check_cache::ReadDocument;
 use crate::diagnostics::{byte_range, data_diagnostic, dsl_diagnostic};
-use crate::document::{self, Declaration};
+use crate::document::Declaration;
 use crate::imports::ParsedImport;
 use crate::index::{Link, LinkTarget, ScriptMember};
 use crate::source::{
@@ -112,9 +114,33 @@ impl ResolvedObject {
 /// A data document's text and its declarations by name.
 pub(crate) struct DataDocument {
     pub(crate) text: String,
-    pub(crate) declarations: IndexMap<String, (TextSpan, Declaration)>,
+    read: Arc<ReadDocument>,
+    /// Each declaration's index in the reading.
+    declarations: IndexMap<String, usize>,
     /// Each declaration's name span.
     pub(crate) names: IndexMap<String, TextSpan>,
+}
+
+impl DataDocument {
+    /// The span and value of the declaration named `name`.
+    pub(crate) fn declaration(&self, name: &str) -> Option<(TextSpan, &Declaration)> {
+        let (_, span, declaration) =
+            &self.read.document.declarations[*self.declarations.get(name)?];
+        Some((*span, declaration))
+    }
+
+    /// A declaration [`Loader::declaration`] found in this document.
+    pub(crate) fn declared(&self, name: &str) -> (TextSpan, &Declaration) {
+        self.declaration(name)
+            .unwrap_or_else(|| unreachable!("the document declares `{name}`"))
+    }
+
+    pub(crate) fn declarations(&self) -> impl Iterator<Item = (&str, TextSpan, &Declaration)> {
+        self.declarations.iter().map(|(name, &index)| {
+            let (_, span, declaration) = &self.read.document.declarations[index];
+            (name.as_str(), *span, declaration)
+        })
+    }
 }
 
 pub(super) struct Loader {
@@ -130,8 +156,9 @@ pub(super) struct Loader {
     pub(crate) next_asset_id: u32,
     pub(crate) checked_scripts: IndexSet<Utf8PathBuf>,
     pub(crate) source_overrides: IndexMap<DocumentId, String>,
+    pub(crate) cache: ProjectCheckCache,
     /// Where each resolved name points, for the language server.
-    pub(crate) links: RefCell<Vec<Link>>,
+    pub(crate) links: RefCell<IndexSet<Link>>,
 }
 
 impl Loader {
@@ -161,7 +188,8 @@ impl Loader {
             next_asset_id: 1,
             checked_scripts: IndexSet::new(),
             source_overrides: IndexMap::new(),
-            links: RefCell::new(Vec::new()),
+            cache: ProjectCheckCache::default(),
+            links: RefCell::new(IndexSet::new()),
         })
     }
 
@@ -425,13 +453,15 @@ impl Loader {
     ) -> Result<(), LoadProjectError> {
         let relative = document_id.path();
         let text = self.read_source(document_id, absolute)?;
-        let (parsed, diagnostics) = document::read(&text);
-        if !diagnostics.is_empty() {
+        let read = self.cache.read(relative, &text);
+        let parsed = &read.document;
+        if !read.diagnostics.is_empty() {
             return Err(LoadProjectError::InvalidData {
                 path: relative.to_path_buf(),
-                diagnostics: diagnostics
-                    .into_iter()
-                    .map(|diagnostic| data_diagnostic(relative, &text, diagnostic))
+                diagnostics: read
+                    .diagnostics
+                    .iter()
+                    .map(|diagnostic| data_diagnostic(relative, &text, diagnostic.clone()))
                     .collect(),
             });
         }
@@ -467,7 +497,8 @@ impl Loader {
         let mut objects = Vec::new();
         let mut declarations = IndexMap::new();
         let mut names = IndexMap::new();
-        for (name, span, declaration) in parsed.declarations {
+        for (index, (name, span, declaration)) in parsed.declarations.iter().enumerate() {
+            let span = *span;
             names.insert(name.value.as_str().to_string(), name.span);
             let identity =
                 SourceIdentity::from_document(document_id.clone(), name.value.as_str().to_string());
@@ -514,13 +545,14 @@ impl Loader {
                 id: name.value.as_str().to_string(),
             });
             visible.insert(SourceReference::Local(name.value.clone()), object);
-            declarations.insert(name.value.as_str().to_string(), (span, declaration));
+            declarations.insert(name.value.as_str().to_string(), index);
         }
         self.visible_objects.insert(document_id.clone(), visible);
         self.data.insert(
             document_id.clone(),
             Arc::new(DataDocument {
                 text,
+                read: Arc::clone(&read),
                 declarations,
                 names,
             }),
@@ -539,7 +571,7 @@ impl Loader {
     /// Record that the name at `span` in `document` points at `target`.
     pub(crate) fn link(&self, document: &DocumentId, span: TextSpan, target: LinkTarget) {
         if span != NO_SPAN {
-            self.links.borrow_mut().push(Link {
+            self.links.borrow_mut().insert(Link {
                 document: document.clone(),
                 span,
                 target,
@@ -577,7 +609,7 @@ impl Loader {
     ) -> Option<LinkTarget> {
         let root = identity.root_source();
         let data = self.data.get(root.document_id())?;
-        let declaration = &data.declarations.get(root.object())?.1;
+        let (_, declaration) = data.declaration(root.object())?;
         resolve::member_name(declaration, identity.owned_path()).map(|span| LinkTarget::Data {
             document: root.document_id().clone(),
             span,
@@ -588,8 +620,8 @@ impl Loader {
     pub(crate) fn declaration_span(&self, identity: &SourceIdentity) -> TextSpan {
         self.data
             .get(identity.document_id())
-            .and_then(|data| data.declarations.get(identity.object()))
-            .map_or(NO_SPAN, |(span, _)| *span)
+            .and_then(|data| data.declaration(identity.object()))
+            .map_or(NO_SPAN, |(span, _)| span)
     }
 
     /// The data document holding a declared object.
@@ -599,7 +631,7 @@ impl Loader {
     ) -> Result<Arc<DataDocument>, LoadProjectError> {
         self.data
             .get(identity.document_id())
-            .filter(|data| data.declarations.contains_key(identity.object()))
+            .filter(|data| data.declaration(identity.object()).is_some())
             .cloned()
             .ok_or_else(|| LoadProjectError::InvalidReference {
                 path: identity.document().to_path_buf(),
@@ -619,13 +651,12 @@ impl Loader {
                 message: "the root document is not loaded".into(),
             }
         })?;
-        let mut projects = data
-            .declarations
-            .iter()
-            .filter_map(|(name, (span, declaration))| match declaration {
-                Declaration::Project(project) => Some((name, *span, project)),
-                _ => None,
-            });
+        let mut projects =
+            data.declarations()
+                .filter_map(|(name, span, declaration)| match declaration {
+                    Declaration::Project(project) => Some((name, span, project)),
+                    _ => None,
+                });
         let (name, _, root) = projects
             .next()
             .ok_or_else(|| LoadProjectError::InvalidDocument {
@@ -638,7 +669,7 @@ impl Loader {
         }
         let root_id = ProjectId(SourceIdentity::from_document(
             entrypoint.clone(),
-            name.clone(),
+            name.to_string(),
         ));
         let mut project = ProjectData {
             root: ProjectRoot {

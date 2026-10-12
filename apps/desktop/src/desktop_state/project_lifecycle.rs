@@ -25,13 +25,17 @@ impl DesktopState {
         self.invalidate_prepared_project();
         lock_unpoisoned(&self.gui_history).clear();
         let sources = match donder_project_io::project_source_texts(&root) {
-            Ok(sources) => sources,
+            Ok(sources) => Arc::new(sources),
             Err(error) => {
                 return self.snapshot_with_error("project.open", root.as_str(), &error.to_string());
             }
         };
         // Open from a single captured source input, including project configuration.
-        let report = donder_project_io::check_project_with_overrides(&root, &sources);
+        let report = donder_project_io::check_project_cached(
+            &root,
+            &sources,
+            &mut lock_unpoisoned(&self.check_cache),
+        );
         let valid_paths = report
             .recovery
             .documents
@@ -49,11 +53,8 @@ impl DesktopState {
             paths.push(donder_project_io::PROJECT_ROOT_FILE.into());
         }
         let mut documents = sources
-            .into_iter()
-            .map(|(path, text)| {
-                let document = WorkingDocument::new(&path, text);
-                (path, document)
-            })
+            .iter()
+            .map(|(path, text)| (path.clone(), WorkingDocument::new(path, text.clone())))
             .collect::<std::collections::BTreeMap<_, _>>();
         for path in &paths {
             if !documents.contains_key(Utf8Path::new(path))
@@ -94,7 +95,7 @@ impl DesktopState {
                 .map(|value| value.session.workspace_explorer.clone())
                 .unwrap_or_default();
         }
-        self.apply_analysis(report);
+        self.accept_check(&root, sources, report);
         self.start_filesystem_watcher(&root);
         if self.snapshot().project_health == ProjectHealth::Invalid {
             self.focus_first_diagnostic();

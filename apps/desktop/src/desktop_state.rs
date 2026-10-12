@@ -46,6 +46,10 @@ pub(crate) struct DesktopServices {
     gui_history: Mutex<GuiHistory>,
     /// Printed clips reused between the texts of successive GUI edits.
     document_texts: Mutex<donder_project_io::DocumentTextCache>,
+    /// Documents read by earlier project checks, reused by later ones.
+    check_cache: Mutex<donder_project_io::ProjectCheckCache>,
+    /// The latest project check, which the language server publishes.
+    project_check: Mutex<Option<Arc<donder_language_server::ProjectCheck>>>,
     working_copy: LatestScheduler<WorkingCopyPayload>,
     external_reconcile: LatestScheduler<(u32, Result<(), String>)>,
     render_refresh: LatestScheduler<RenderRefreshPayload>,
@@ -92,10 +96,16 @@ impl DesktopState {
                     weak: weak.clone(),
                     gui_history: Mutex::new(GuiHistory::new(100)),
                     document_texts: Mutex::new(donder_project_io::DocumentTextCache::default()),
+                    check_cache: Mutex::new(donder_project_io::ProjectCheckCache::default()),
+                    project_check: Mutex::new(None),
                     working_copy: LatestScheduler::new(move |request| {
-                        let result = crate::state_tasks::analyze_working_copy(&request);
                         if let Some(state) = analysis_state.upgrade() {
-                            DesktopState(state).complete_working_copy(request, result);
+                            let state = DesktopState(state);
+                            let result = crate::state_tasks::analyze_working_copy(
+                                &request,
+                                &mut lock_unpoisoned(&state.check_cache),
+                            );
+                            state.complete_working_copy(request, result);
                         }
                     }),
                     external_reconcile: LatestScheduler::new(
@@ -407,6 +417,8 @@ mod settings;
 pub(super) use settings::{sanitize_app_settings, sanitize_workspace_layout};
 mod transitions;
 mod working_copy;
+#[cfg(test)]
+pub(crate) use working_copy::whole_text;
 mod workspace;
 mod workspace_projection;
 mod workspace_state;
@@ -426,7 +438,6 @@ fn empty_snapshot() -> AppSnapshot {
         tabs: Vec::new(),
         active_file: None,
         active_buffer: None,
-        active_text: None,
         pending_saves: Vec::new(),
         active_document_descriptor: None,
         diagnostics: Vec::new(),

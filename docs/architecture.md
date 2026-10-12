@@ -74,22 +74,35 @@ signature help. Semantic tokens are the only highlighting; there is no
 TextMate or Monarch grammar.
 
 The server is a plain `Server::handle(message) -> replies` loop with no async
-runtime. The host calls `Server::idle` once messages pause for
-`IDLE_DELAY_MS`; that is when the project is checked again and diagnostics are
-published. Its features read:
-- the project check's `ProjectIndex`, which links each name in a data document
-  to what it resolved to, for navigation across documents;
+runtime. Requests answer at once from the current texts and the last project
+check; they never wait for a new check. Each document keeps what the server
+derives from its text (line index, syntax tree, tokens, script analysis) until
+the text changes, so requests on a very large document do not lex or parse it
+again. Clients sync documents incrementally, and data documents are colored
+through `semanticTokens/range`, only where they are shown. The host calls
+`Server::idle` once messages pause for `IDLE_DELAY_MS`; that is when the
+latest check is taken and its diagnostics published. Features read:
+- the check's `ProjectIndex`, which links each name in a data document to what
+  it resolved to, for navigation across documents. It is used only while every
+  open document still has the text the check read; definition, references and
+  rename first take a new check;
 - `donder_language::analysis`, which works from partial parses and tokens, so
   scripts and data documents keep completion and signature help while broken.
 
-Each host supplies a transport and a `DocumentSource`, which gives the server
-the host's unsaved text ahead of the disk:
+Who checks the project depends on the host:
 
-| Host | Server | Transport |
-| --- | --- | --- |
-| Desktop | A thread in the app process, reading `DesktopState`'s working copies | The `language_server_send` command and the `language_server_message` event |
-| Website | The WASM `LanguageServer` in a worker, with no project | Worker messages |
-| Other editors | `donder lsp` | stdio |
+| Host | Server | Checks | Transport |
+| --- | --- | --- | --- |
+| Desktop | `Server::with_source`, a thread in the app process | `DesktopState`, whose working-copy check the server publishes through its `DocumentSource` | The `language_server_send` command and the `language_server_message` event |
+| Website | The WASM `LanguageServer` in a worker, with no project | The server | Worker messages |
+| Other editors | `donder lsp` | The server | stdio |
+
+Every check goes through `check_project_cached` with a `ProjectCheckCache`
+that its owner keeps, so a check after an edit parses only the documents whose
+text changed. The desktop's text editor sends Monaco's edits to
+`update_document` as they happen, and snapshots carry no document text: the
+editor reads it with `document_text` when it opens a document and when the
+document's revision moves for another reason, such as a GUI edit or a reload.
 
 The frontend's `LanguageClient` (`ui/source/languageClient.ts`) maps the
 protocol onto Monaco's providers. Edits to documents Monaco has not opened,

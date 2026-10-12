@@ -12,8 +12,9 @@ pub(crate) struct LanguageServerHost {
     sender: Mutex<mpsc::Sender<serde_json::Value>>,
 }
 
-/// The desktop's working copies: the server sees unsaved buffers, not only
-/// the open editor.
+/// The desktop's working copies and their checks: the server sees unsaved
+/// buffers, not only the open editor, and publishes the desktop's checks
+/// instead of checking the project again.
 struct WorkingCopies(crate::desktop_state::DesktopState);
 
 impl donder_language_server::DocumentSource for WorkingCopies {
@@ -21,8 +22,8 @@ impl donder_language_server::DocumentSource for WorkingCopies {
         self.0.working_text(relative)
     }
 
-    fn overrides(&self) -> Vec<(camino::Utf8PathBuf, String)> {
-        self.0.working_texts()
+    fn check(&self) -> Option<std::sync::Arc<donder_language_server::ProjectCheck>> {
+        self.0.project_check()
     }
 }
 

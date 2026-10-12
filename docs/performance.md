@@ -90,6 +90,22 @@ became one `PerFixture` clip on a group. In interleaved runs that day, 60
 frames of controller output went from 88 ms to 58 ms and warm preparation from
 78 ms to 29 ms, while cold preparation rose from 205 ms to 236 ms.
 
+Opening and editing `rydell_house` text (30 documents, 36 MB; Carol of the Bells
+is 6 MB in 199k lines) on 2026-10-11 (Windows x64 release build on an
+i9-13980HX, pinned to logical CPU 2): a project check fell from 7.5 s to 1.7 s
+cold and 1.5–2.2 s after an edit, by reading each data document once per check
+(an analysis pass and the unreferenced-document warnings each parsed every
+document again), reusing unchanged documents' readings between checks, and
+mimalloc, which alone took parsing all 36 MB from 1.25 s to 0.7 s. The rest of a
+warm check is resolving every sequence (1.4 s, in proportion to its clips) and
+admission (0.5 s); only re-resolving the changed sequence would go lower. The
+language server had checked the project in `initialize` and again after
+`didOpen` before answering, about 16 s; it now answers at once: the first
+visible tokens of Carol of the Bells in 43 ms (1.9 KB instead of a 5.7 MB full
+token reply), hover 34 ms on first use and 0 ms after, an incremental change
+18 ms, and the first request after an edit 166 ms, which lexes the new text
+once.
+
 Most Wonderful Time in the same project is a denser import: 25,314 pixels,
 6,478 clips at 144 fps, about 64 clips active on average. On 2026-10-10
 (Windows x64 release build on an i9-13980HX, the timing thread pinned to logical

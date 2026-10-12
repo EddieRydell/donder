@@ -48,6 +48,8 @@ export const commands = {
     unwrapResult(await generatedCommands.applyWorkspacePathChange(request)),
   updateDocument: async (update: import("./types").DocumentUpdate) =>
     unwrapResult(await generatedCommands.updateDocument(update)),
+  documentText: async (projectEpoch: number, path: string) =>
+    unwrapResult(await generatedCommands.documentText(projectEpoch, path)),
   languageServerSend: async (message: string) =>
     unwrapResult(await generatedCommands.languageServerSend(message)),
   applyTextEdits: async (projectEpoch: number, edits: import("./types").DocumentTextEdits[]) =>

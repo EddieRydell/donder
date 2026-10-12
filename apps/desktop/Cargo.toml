@@ -31,6 +31,7 @@ ignore.workspace = true
 notify.workspace = true
 indexmap.workspace = true
 kira.workspace = true
+mimalloc.workspace = true
 reqwest.workspace = true
 rfd.workspace = true
 serde.workspace = true

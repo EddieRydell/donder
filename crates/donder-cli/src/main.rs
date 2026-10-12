@@ -1,3 +1,8 @@
+/// Project checks and language analysis allocate many small values; mimalloc
+/// serves them far faster than the system allocator on Windows.
+#[global_allocator]
+static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() {
     if let Err(error) = donder_cli::run(donder_cli::Cli::parse_args()) {
         eprintln!("donder: {error}");

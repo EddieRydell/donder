@@ -19,6 +19,8 @@ export const commands = {
 	resolveGuiSource: (moduleId: string, path: string, objectKey: string) => typedError<GuiDocumentRequest, string>(__TAURI_INVOKE("resolve_gui_source", { moduleId, path, objectKey })),
 	setActiveFile: (path: string) => __TAURI_INVOKE<AppSnapshot>("set_active_file", { path }).then((v) => (({...v,audioTransport:({...v.audioTransport,range:v.audioTransport.range==null?v.audioTransport.range:v.audioTransport.range})}) as typeof v)),
 	updateDocument: (update: DocumentUpdate) => typedError<AppSnapshot, string>(__TAURI_INVOKE("update_document", { update })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,audioTransport:({...v.data.audioTransport,range:v.data.audioTransport.range==null?v.data.audioTransport.range:v.data.audioTransport.range})}) } : v) as typeof v)),
+	/**  An open document's working text and revision. */
+	documentText: (projectEpoch: number, path: string) => typedError<DocumentText, string>(__TAURI_INVOKE("document_text", { projectEpoch, path })),
 	/**
 	 *  Send one JSON-RPC message to the language server; replies arrive as
 	 *  `language_server_message` events.
@@ -122,8 +124,6 @@ export type AppSnapshot = {
 	pendingSaves: DocumentSaveStatus[],
 	activeFile: string | null,
 	activeBuffer: EditorTab | null,
-	/**  The active document's text, present only while it is shown as text. */
-	activeText: string | null,
 	activeDocumentDescriptor: DocumentDescriptor | null,
 	diagnostics: ProjectDiagnostic[],
 	status: string,
@@ -223,6 +223,12 @@ export type DocumentSaveStatus = {
 	state: DocumentSaveState,
 };
 
+/**  A document's working text and the revision it is. */
+export type DocumentText = {
+	documentRevision: number,
+	text: string,
+};
+
 /**  A range replaced with text; positions count UTF-16 code units. */
 export type DocumentTextEdit = {
 	range: TextRange,
@@ -243,7 +249,11 @@ export type DocumentUpdate = {
 	projectEpoch: number,
 	path: string,
 	expectedDocumentRevision: number,
-	text: string,
+	/**
+	 *  The edits made since that revision, in order; each batch's ranges
+	 *  refer to the text the batches before it produced.
+	 */
+	changes: DocumentTextEdit[][],
 };
 
 export type DocumentViewId = "text" | "project" | "setup" | "layout" | "fixture" | "patch" | "controller" | "sequence" | "curve" | "gradient";
@@ -994,7 +1004,13 @@ export type SequenceGuiDocument = {
 
 export type SequenceGuiEdit = { type: "setDuration"; durationSeconds: number } | { type: "setAudio"; import: string | null } | { type: "addEffect"; initialColor: string; effect: SequenceEffectReference; target: FixtureTarget; scope: SequenceEffectScope; startSeconds: number } | { type: "createLayer"; name: string; color: string } | { type: "createLayerAt"; name: string; color: string; x: number; y: number } | { type: "renameLayer"; id: number; name: string } | { type: "renameClip"; id: number; name: string } | { type: "renameGraphNode"; nodeId: string; name: string } | 
 /**  Set an item's description; empty text removes it. */
-{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
+{ type: "setItemDescription"; item: SequenceDescribedItem; description: string | null } | { type: "setLayerColor"; id: number; color: string } | { type: "setLayerEnabled"; id: number; enabled: boolean } | { type: "setEffectLayer"; id: number; layerId: number } | { type: "moveEffect"; id: number; startSeconds: number; target: FixtureTarget | null } | { type: "resizeEffect"; id: number; startSeconds: number; durationSeconds: number } | { type: "changeEffectDefinition"; initialColor: string; id: number; effect: SequenceEffectReference } | { type: "deleteEffect"; id: number } | 
+/**
+ *  Cut each clip at `time_seconds` into two back-to-back clips. The right
+ *  half shares the left half's automation, so automation continues across
+ *  the cut.
+ */
+{ type: "splitEffects"; ids: number[]; timeSeconds: number } | { type: "retargetEffect"; id: number; target: FixtureTarget } | { type: "setEffectScope"; id: number; scope: SequenceEffectScope } | { type: "updateEffectParam"; id: number; name: string; value: SequenceEffectParamValue } | { type: "addGraphOperatorNode"; initialColor: string; operator: SequenceGraphOperator; x: number; y: number } | { type: "moveGraphNodes"; positions: SequenceGraphNodePosition[] } | { type: "deleteGraphItems"; nodeIds: string[]; layerIds: number[]; edges: SequenceGraphEdge[]; migrateToLayerId: number | null } | { type: "connectGraphNodes"; fromNode: string; fromPort: string; toNode: string; toPort: string } | { type: "reconnectGraphEdge"; previous: SequenceGraphEdge; connection: SequenceGraphEdge } | { type: "updateGraphOperatorParam"; nodeId: string; name: string; value: SequenceEffectParamValue } | { type: "addAutomationClip"; startSeconds: number; durationSeconds: number; rowTarget: FixtureTarget } | { type: "createAndBindAutomationClip"; target: SequenceAutomationTarget } | { type: "moveAutomationClip"; id: number; startSeconds: number; rowTarget: FixtureTarget } | { type: "splitAutomationClip"; id: number; timeSeconds: number } | { type: "updateAutomationCurve"; id: number; curve: SequenceCurvePoint[] } | { type: "deleteAutomationClip"; id: number } | { type: "bindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "unbindAutomationParam"; clipId: number; target: SequenceAutomationTarget } | { type: "rebindDetachedAutomation"; clipId: number; detachedIndex: number; target: SequenceAutomationTarget } | { type: "discardDetachedAutomation"; clipId: number; detachedIndex: number } | 
 /**  Each name becomes a unique `snake_case` name. */
 { type: "createMarkCollections"; collections: NewMarkCollection[] } | { type: "renameMarkCollection"; key: string; name: string } | { type: "deleteMarkCollection"; key: string } | { type: "setMarkCollectionColor"; key: string; color: string } | { type: "addMarks"; collectionKey: string; timesSeconds: number[] } | { type: "moveMark"; collectionKey: string; index: number; timeSeconds: number } | { type: "reassignMarkCollection"; collectionKey: string; index: number; targetCollectionKey: string } | { type: "deleteMark"; collectionKey: string; index: number } | 
 /**  Label a mark, or clear its label with `None` or a blank label. */

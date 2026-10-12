@@ -9,6 +9,17 @@ pub(crate) fn update_document(
     state.update_document(update)
 }
 
+/// An open document's working text and revision.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn document_text(
+    project_epoch: u32,
+    path: String,
+    state: State<'_, DesktopState>,
+) -> Result<donder_sequence_api::DocumentText, String> {
+    state.document_text(project_epoch, &path)
+}
+
 /// Send one JSON-RPC message to the language server; replies arrive as
 /// `language_server_message` events.
 #[tauri::command]

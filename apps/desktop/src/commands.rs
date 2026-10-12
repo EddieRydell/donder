@@ -55,6 +55,7 @@ pub(crate) fn register(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
         resolve_gui_source,
         set_active_file,
         update_document,
+        document_text,
         language_server_send,
         apply_text_edits,
         include_document,

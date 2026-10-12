@@ -56,6 +56,16 @@ function markdown(content: MarkupContent): monaco.IMarkdownString {
   return { value: typeof content === "string" ? content : content.value };
 }
 
+/**
+ * A content change's edits as ranges of the text before it, last first, so
+ * applying them in order is applying them at once.
+ */
+export function contentEdits(event: monaco.editor.IModelContentChangedEvent): { range: Range; text: string }[] {
+  return [...event.changes]
+    .sort((left, right) => right.rangeOffset - left.rangeOffset)
+    .map((change) => ({ range: fromRange(change.range), text: change.text }));
+}
+
 /** URIs as Monaco spells them, so the server's and the editor's compare equal. */
 function canonical(uri: string): string {
   return monaco.Uri.parse(uri).toString();
@@ -107,12 +117,11 @@ export class LanguageClient {
       this.showDiagnostics(uri);
     };
     void this.ready.then(open);
-    const changes = model.onDidChangeContent(() => {
+    const changes = model.onDidChangeContent((event) => {
+      const version = model.getVersionId();
+      const contentChanges = contentEdits(event);
       void this.ready.then(() => {
-        this.notify("textDocument/didChange", {
-          textDocument: { uri, version: model.getVersionId() },
-          contentChanges: [{ text: model.getValue() }]
-        });
+        this.notify("textDocument/didChange", { textDocument: { uri, version }, contentChanges });
       });
     });
     const disposal = model.onWillDispose(() => { this.detach(uri); });
@@ -331,17 +340,27 @@ export class LanguageClient {
           return (symbols ?? []).map(convert);
         }
       }),
-      languages.registerDocumentSemanticTokensProvider(language, {
-        getLegend: () => legend,
-        provideDocumentSemanticTokens: async (model) => {
-          const tokens = await this.request<{ data: number[] } | null>("textDocument/semanticTokens/full", { textDocument: document(model) });
-          const data = new Uint32Array(tokens?.data ?? []);
-          this.tokens.set(model.uri.toString(), { legend, data });
-          for (const listener of this.tokenListeners) listener(model.uri.toString());
-          return { data };
-        },
-        releaseDocumentSemanticTokens: () => {}
-      })
+      // Scripts are small and the website colors them whole; data documents
+      // can be very large, so only what is shown is colored.
+      language === SCRIPT_LANGUAGE
+        ? languages.registerDocumentSemanticTokensProvider(language, {
+          getLegend: () => legend,
+          provideDocumentSemanticTokens: async (model) => {
+            const tokens = await this.request<{ data: number[] } | null>("textDocument/semanticTokens/full", { textDocument: document(model) });
+            const data = new Uint32Array(tokens?.data ?? []);
+            this.tokens.set(model.uri.toString(), { legend, data });
+            for (const listener of this.tokenListeners) listener(model.uri.toString());
+            return { data };
+          },
+          releaseDocumentSemanticTokens: () => {}
+        })
+        : languages.registerDocumentRangeSemanticTokensProvider(language, {
+          getLegend: () => legend,
+          provideDocumentRangeSemanticTokens: async (model, range) => {
+            const tokens = await this.request<{ data: number[] } | null>("textDocument/semanticTokens/range", { textDocument: document(model), range: fromRange(range) });
+            return { data: new Uint32Array(tokens?.data ?? []) };
+          }
+        })
     );
   }
 

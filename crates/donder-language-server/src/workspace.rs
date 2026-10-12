@@ -1,15 +1,18 @@
 //! The documents the server knows: the client's open texts over the project's
 //! files on disk, and the last check of the project they form.
-use std::collections::BTreeSet;
+use std::cell::RefCell;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use donder_model::DocumentId;
 use donder_project_io::{
-    IoDiagnostic, PROJECT_ROOT_FILE, ProjectCheckReport, ProjectMetadata, SourceOverrides,
-    check_project_with_overrides,
+    IoDiagnostic, PROJECT_ROOT_FILE, ProjectCheckCache, ProjectCheckReport, ProjectIndex,
+    ProjectMetadata, SourceOverrides, check_project_cached,
 };
 use indexmap::IndexMap;
 
+use crate::document::Document;
 use crate::text::{file_uri, uri_path};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,34 +45,85 @@ fn normalized(path: &Utf8Path) -> String {
     }
 }
 
-/// The host's own copies of project documents, such as the desktop's unsaved
-/// buffers. Documents open in the client take precedence; the rest of the
-/// project is read from disk.
+/// A host that keeps its own copies of project documents and checks the
+/// project itself, as the desktop does with its working copies. The server
+/// then never checks: it publishes the host's latest check.
 pub trait DocumentSource: Send {
     /// A document's text, by project-relative path.
     fn text(&self, relative: &Utf8Path) -> Option<String>;
-    /// Every document whose text differs from disk.
-    fn overrides(&self) -> Vec<(Utf8PathBuf, String)>;
+    /// The host's latest project check.
+    fn check(&self) -> Option<Arc<ProjectCheck>>;
 }
 
-pub struct Check {
-    pub report: ProjectCheckReport,
-    pub module: Option<uuid::Uuid>,
+/// A project check and the document texts it read over disk.
+pub struct ProjectCheck {
+    pub root: Utf8PathBuf,
+    pub diagnostics: Vec<IoDiagnostic>,
+    pub index: ProjectIndex,
+    pub project_id: Option<uuid::Uuid>,
+    pub texts: Arc<SourceOverrides>,
+}
+
+impl ProjectCheck {
+    /// The check `report` of the project at `root` with `texts` over disk.
+    pub fn new(
+        root: &Utf8Path,
+        texts: Arc<SourceOverrides>,
+        diagnostics: Vec<IoDiagnostic>,
+        index: ProjectIndex,
+    ) -> Self {
+        let root_text = texts
+            .get(Utf8Path::new(PROJECT_ROOT_FILE))
+            .cloned()
+            .or_else(|| std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).ok());
+        Self {
+            root: root.to_path_buf(),
+            diagnostics,
+            index,
+            project_id: root_text
+                .and_then(|text| ProjectMetadata::parse(&text).ok())
+                .map(|metadata| metadata.project_id),
+            texts,
+        }
+    }
+}
+
+/// Who checks the project.
+pub enum Checker {
+    /// The server, after edits, reusing what earlier checks read.
+    Own(ProjectCheckCache),
+    /// The host, which also supplies the documents the client has not opened.
+    Host(Arc<dyn DocumentSource + Sync>),
+}
+
+impl Default for Checker {
+    fn default() -> Self {
+        Self::Own(ProjectCheckCache::default())
+    }
 }
 
 #[derive(Default)]
 pub struct Workspace {
-    pub source: Option<std::sync::Arc<dyn DocumentSource + Sync>>,
+    pub checker: Checker,
     pub root: Option<Utf8PathBuf>,
     /// Open documents by URI.
-    pub open: IndexMap<String, String>,
-    pub check: Option<Check>,
+    pub open: IndexMap<String, Arc<Document>>,
+    /// Documents read for requests, by URI, until the files may have changed.
+    read: RefCell<HashMap<String, Arc<Document>>>,
+    pub check: Option<Arc<ProjectCheck>>,
     pub stale: bool,
     /// Documents with published diagnostics, to clear when they have none.
     pub published: BTreeSet<String>,
 }
 
 impl Workspace {
+    pub fn with_checker(checker: Checker) -> Self {
+        Self {
+            checker,
+            ..Self::default()
+        }
+    }
+
     /// The project-relative path of a URI inside the project.
     pub fn relative(&self, uri: &str) -> Option<Utf8PathBuf> {
         let root = normalized(self.root.as_ref()?);
@@ -97,61 +151,125 @@ impl Workspace {
 
     pub fn document_id(&self, uri: &str) -> Option<DocumentId> {
         Some(DocumentId::new(
-            self.check.as_ref()?.module?,
+            self.check.as_ref()?.project_id?,
             self.relative(uri)?,
         ))
     }
 
-    /// A document's text: the client's when open, otherwise from disk.
-    pub fn text(&self, uri: &str) -> Option<String> {
-        if let Some(text) = self.open.get(uri) {
-            return Some(text.clone());
+    /// A document: the client's when open, otherwise the host's or the disk's.
+    pub fn document(&self, uri: &str) -> Option<Arc<Document>> {
+        if let Some(document) = self.open.get(uri) {
+            return Some(Arc::clone(document));
         }
-        if let (Some(source), Some(relative)) = (&self.source, self.relative(uri))
-            && let Some(text) = source.text(&relative)
-        {
-            return Some(text);
+        if let Some(document) = self.read.borrow().get(uri) {
+            return Some(Arc::clone(document));
         }
-        std::fs::read_to_string(uri_path(uri)?).ok()
-    }
-
-    pub fn document_text(&self, document: &DocumentId) -> Option<String> {
-        self.text(&self.document_uri(document)?)
-    }
-
-    /// Recheck the project with the open texts.
-    pub fn refresh(&mut self) {
-        self.stale = false;
-        let Some(root) = self.root.clone() else {
-            self.check = None;
-            return;
+        let host = match &self.checker {
+            Checker::Host(source) => self
+                .relative(uri)
+                .and_then(|relative| source.text(&relative)),
+            Checker::Own(_) => None,
         };
-        let mut overrides: SourceOverrides = self
-            .source
-            .as_ref()
-            .map(|source| source.overrides().into_iter().collect())
-            .unwrap_or_default();
-        overrides.extend(self.open.iter().filter_map(|(uri, text)| {
-            let relative = self.relative(uri)?;
-            (relative.extension() == Some("donder")).then(|| (relative, text.clone()))
-        }));
-        overrides.retain(|relative, _| relative.extension() == Some("donder"));
-        let report = check_project_with_overrides(&root, &overrides);
-        let root_text = overrides
-            .get(Utf8Path::new(PROJECT_ROOT_FILE))
-            .cloned()
-            .or_else(|| std::fs::read_to_string(root.join(PROJECT_ROOT_FILE)).ok());
-        let module = root_text
-            .and_then(|text| ProjectMetadata::parse(&text).ok())
-            .map(|metadata| metadata.project_id);
-        self.check = Some(Check { report, module });
+        let text = host.or_else(|| std::fs::read_to_string(uri_path(uri)?).ok())?;
+        let document = Arc::new(Document::new(kind(uri), text));
+        self.read
+            .borrow_mut()
+            .insert(uri.to_string(), Arc::clone(&document));
+        Some(document)
+    }
+
+    pub fn project_document(&self, document: &DocumentId) -> Option<Arc<Document>> {
+        self.document(&self.document_uri(document)?)
+    }
+
+    /// Files may have changed outside the client.
+    pub fn files_changed(&mut self) {
+        self.read.get_mut().clear();
+        self.stale = true;
+    }
+
+    /// Take the latest check: the host's, or a new one of the open texts
+    /// when edits made the last one stale. Returns whether it changed.
+    pub fn refresh(&mut self) -> bool {
+        let texts = matches!(self.checker, Checker::Own(_))
+            .then(|| self.open_texts())
+            .filter(|_| self.stale);
+        match &mut self.checker {
+            Checker::Host(source) => {
+                // A check of another project, such as the one being closed,
+                // is not this session's.
+                let latest = source.check().filter(|check| {
+                    self.root
+                        .as_deref()
+                        .is_some_and(|root| normalized(root) == normalized(&check.root))
+                });
+                let changed = match (&latest, &self.check) {
+                    (Some(latest), Some(current)) => !Arc::ptr_eq(latest, current),
+                    (latest, current) => latest.is_some() != current.is_some(),
+                };
+                self.check = latest;
+                if changed {
+                    self.read.get_mut().clear();
+                }
+                changed
+            }
+            Checker::Own(cache) => {
+                let Some(texts) = texts else {
+                    return false;
+                };
+                self.stale = false;
+                self.read.get_mut().clear();
+                let Some(root) = self.root.clone() else {
+                    self.check = None;
+                    return true;
+                };
+                let ProjectCheckReport {
+                    diagnostics, index, ..
+                } = check_project_cached(&root, &texts, cache);
+                self.check = Some(Arc::new(ProjectCheck::new(
+                    &root,
+                    Arc::new(texts),
+                    diagnostics,
+                    index,
+                )));
+                true
+            }
+        }
+    }
+
+    /// The open documents' texts, by project-relative path.
+    fn open_texts(&self) -> SourceOverrides {
+        self.open
+            .iter()
+            .filter_map(|(uri, document)| {
+                let relative = self.relative(uri)?;
+                (relative.extension() == Some("donder"))
+                    .then(|| (relative, document.text().to_string()))
+            })
+            .collect()
+    }
+
+    /// The last check, when every open document still has the text it
+    /// checked, so its index locates names in the current texts.
+    pub fn current_check(&self) -> Option<&ProjectCheck> {
+        let check = self.check.as_deref()?;
+        self.open
+            .iter()
+            .all(|(uri, document)| match self.relative(uri) {
+                Some(relative) if relative.extension() == Some("donder") => check
+                    .texts
+                    .get(&relative)
+                    .is_some_and(|text| text == document.text()),
+                _ => true,
+            })
+            .then_some(check)
     }
 
     /// The project's diagnostics, by URI.
     pub fn project_diagnostics(&self) -> IndexMap<String, Vec<IoDiagnostic>> {
         let mut grouped = IndexMap::<String, Vec<IoDiagnostic>>::new();
         if let Some(check) = &self.check {
-            for diagnostic in &check.report.diagnostics {
+            for diagnostic in &check.diagnostics {
                 if let Some(uri) = self.uri(&diagnostic.path) {
                     grouped.entry(uri).or_default().push(diagnostic.clone());
                 }

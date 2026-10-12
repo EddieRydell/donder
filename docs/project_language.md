@@ -499,6 +499,12 @@ In the editor:
   points outside the new window are dropped, and a cut edge gains a point at the
   value it cut through. Holding Ctrl while resizing stretches the curve instead.
   Splitting crops the clip into two clips with the same bindings.
+- The slice tool (C, or the scissors button) cuts effect clips: clicking cuts
+  the clip under the line, and dragging vertically cuts every clip the line
+  crosses, in one history entry. The right half is a fresh clip whose `time`
+  and `progress` start again at zero; it gains the same automation bindings as
+  the left half, so automation continues across the cut. Alt snaps the line to
+  marks, and Escape returns to selecting.
 - Curve points keep their authored order. Clicking the line adds a point,
   double-clicking a point removes it, and a dragged point stays between its
   neighbors, so a step (two points at one time) never reorders. Shift aligns

@@ -18,8 +18,6 @@ pub struct AppSnapshot {
     pub pending_saves: Vec<DocumentSaveStatus>,
     pub active_file: Option<String>,
     pub active_buffer: Option<EditorTab>,
-    /// The active document's text, present only while it is shown as text.
-    pub active_text: Option<String>,
     pub active_document_descriptor: Option<DocumentDescriptor>,
     pub diagnostics: Vec<ProjectDiagnostic>,
     pub status: String,

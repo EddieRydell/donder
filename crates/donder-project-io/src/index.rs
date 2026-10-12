@@ -11,7 +11,7 @@ pub struct ProjectIndex {
 }
 
 /// One name in a data document and the object it names.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Link {
     pub document: DocumentId,
     pub span: TextSpan,
