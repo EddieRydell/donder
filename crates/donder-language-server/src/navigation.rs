@@ -2,11 +2,12 @@
 //! renames across data documents and scripts.
 use donder_language::NameKind;
 use donder_language::analysis::TokenClass;
-use donder_language::analysis::{ScriptAnalysis, SymbolKind, analyze_script, data_tokens};
+use donder_language::analysis::{ScriptAnalysis, SymbolKind};
 use donder_language::compiler::TextSpan;
 use donder_project_io::{LinkTarget, ScriptMember};
 
-use crate::workspace::{Kind, Workspace, kind};
+use crate::document::Document;
+use crate::workspace::{Kind, Workspace};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target {
@@ -102,29 +103,32 @@ pub fn script_member(
 }
 
 /// The target named at `offset` in a document.
-pub fn target_at(workspace: &Workspace, uri: &str, text: &str, offset: usize) -> Option<Target> {
-    match kind(uri) {
+pub fn target_at(
+    workspace: &Workspace,
+    uri: &str,
+    text: &Document,
+    offset: usize,
+) -> Option<Target> {
+    match text.kind() {
         Kind::Script => {
-            let analysis = analyze_script(text);
+            let analysis = text.script();
             let (_, target) = analysis.target_at(offset)?;
             match target {
                 donder_language::analysis::ScriptTarget::Symbol(symbol) => {
-                    Some(script_symbol_target(workspace, uri, &analysis, symbol))
+                    Some(script_symbol_target(workspace, uri, analysis, symbol))
                 }
                 _ => None,
             }
         }
         Kind::Data => {
             let document = workspace.document_id(uri);
-            if let (Some(document), Some(check)) = (&document, &workspace.check)
-                && let Some(link) = check.report.index.link_at(document, offset)
+            if let (Some(document), Some(check)) = (&document, workspace.current_check())
+                && let Some(link) = check.index.link_at(document, offset)
             {
                 return Some(Target::Link(link.target.clone()));
             }
             // A declared name: a declaration, an item, an import alias.
-            let token = data_tokens(text).into_iter().find(|token| {
-                token.declaration && token.span.start <= offset && offset <= token.span.end
-            })?;
+            let token = text.token_at(offset).filter(|token| token.declaration)?;
             let document = document?;
             Some(Target::Link(if token.class == TokenClass::Namespace {
                 LinkTarget::Import {
@@ -156,8 +160,9 @@ pub fn definition(workspace: &Workspace, target: &Target) -> Option<(String, Tex
             member,
         }) => {
             let uri = workspace.document_uri(document)?;
-            let analysis = analyze_script(&workspace.text(&uri)?);
-            let symbol = script_member(&analysis, declaration, member)?;
+            let script = workspace.document(&uri)?;
+            let analysis = script.script();
+            let symbol = script_member(analysis, declaration, member)?;
             Some((uri, analysis.symbols[symbol].span))
         }
     }
@@ -168,8 +173,8 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
     let mut found = Vec::new();
     match target {
         Target::Local { uri, span, .. } => {
-            if let Some(text) = workspace.text(uri) {
-                let analysis = analyze_script(&text);
+            if let Some(script) = workspace.document(uri) {
+                let analysis = script.script();
                 if let Some(symbol) = analysis
                     .symbols
                     .iter()
@@ -191,10 +196,10 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
             member,
         }) => {
             if let Some(uri) = workspace.document_uri(document)
-                && let Some(text) = workspace.text(&uri)
+                && let Some(script) = workspace.document(&uri)
             {
-                let analysis = analyze_script(&text);
-                if let Some(symbol) = script_member(&analysis, declaration, member) {
+                let analysis = script.script();
+                if let Some(symbol) = script_member(analysis, declaration, member) {
                     found.extend(
                         analysis
                             .occurrences(symbol)
@@ -206,8 +211,8 @@ pub fn occurrences(workspace: &Workspace, target: &Target) -> Vec<(String, TextS
         }
         Target::Link(_) => found.extend(definition(workspace, target)),
     }
-    if let (Target::Link(link), Some(check)) = (target, &workspace.check) {
-        for use_ in check.report.index.links_to(link) {
+    if let (Target::Link(link), Some(check)) = (target, workspace.current_check()) {
+        for use_ in check.index.links_to(link) {
             if let Some(uri) = workspace.document_uri(&use_.document) {
                 found.push((uri, use_.span));
             }

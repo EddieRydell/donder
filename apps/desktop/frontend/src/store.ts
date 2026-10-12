@@ -26,8 +26,11 @@ type AppStore = {
   compositionGraphEditing: boolean;
   error: string | null;
   failedDocumentSync: { epoch: number; path: string } | null;
-  localText: string;
-  setSnapshot: (snapshot: AppSnapshot, source?: SnapshotApplySource, preserveLocalText?: boolean) => void;
+  /** Whether a text editor has edits the backend has not acknowledged. */
+  documentEditsPending: boolean;
+  /** Bumped when text editors must reload their documents' backend text. */
+  textReload: number;
+  setSnapshot: (snapshot: AppSnapshot, source?: SnapshotApplySource) => void;
   setAudioTransport: (transport: AudioTransportSnapshot) => void;
   setLiveOutput: (liveOutput: LiveOutputSnapshot) => void;
   setPreviewOpen: (previewOpen: boolean) => void;
@@ -37,7 +40,6 @@ type AppStore = {
   setCompositionGraphEditing: (editing: boolean) => void;
   applyGuiEditResult: (request: GuiDocumentRequest, result: GuiEditUpdate) => boolean;
   setError: (error: string | null) => void;
-  setLocalText: (text: string) => void;
   hydrate: () => Promise<void>;
 };
 
@@ -53,9 +55,10 @@ export const useAppStore = create<AppStore>((set) => ({
   compositionGraphEditing: false,
   error: null,
   failedDocumentSync: null,
-  localText: "",
-  setSnapshot: (snapshot, source = "command", preserveLocalText = false) => {
-    set((current) => snapshotUpdate(current, snapshot, source, preserveLocalText));
+  documentEditsPending: false,
+  textReload: 0,
+  setSnapshot: (snapshot, source = "command") => {
+    set((current) => snapshotUpdate(current, snapshot, source));
   },
   setAudioTransport: (audioTransport) => {
     set((current) => current.snapshot === null ? current : {
@@ -107,7 +110,7 @@ export const useAppStore = create<AppStore>((set) => ({
         || current.snapshot.projectRoot !== result.snapshot.projectRoot
         || result.snapshot.projectRevision < current.snapshot.projectRevision
       ) return current;
-      const update = snapshotUpdate(current, result.snapshot, "command", false);
+      const update = snapshotUpdate(current, result.snapshot, "command");
       const nextRequest = update.guiRequest === undefined ? current.guiRequest : update.guiRequest;
       if (!sameGuiDocument(nextRequest, request) || nextRequest?.projectRevision !== result.snapshot.projectRevision) return current;
       applied = true;
@@ -123,13 +126,6 @@ export const useAppStore = create<AppStore>((set) => ({
   setError: (error) => {
     set({ error });
   },
-  setLocalText: (localText) => {
-    const snapshot = useAppStore.getState().snapshot;
-    if (snapshot?.activeBuffer !== null && snapshot?.activeBuffer !== undefined) {
-      documentSync.queue(snapshot.projectEpoch, snapshot.activeBuffer.path, snapshot.activeBuffer.documentRevision, localText);
-    }
-    set({ localText });
-  },
   hydrate: async () => {
     await commands.setPreviewAppearance(PREVIEW_APPEARANCE);
     const snapshot = await commands.getSnapshot();
@@ -140,18 +136,13 @@ export const useAppStore = create<AppStore>((set) => ({
   }
 }));
 
-const documentSync = new DocumentSync(
+export const documentSync = new DocumentSync(
   commands.updateDocument,
-  (snapshot) => {
-    useAppStore.getState().setSnapshot(snapshot);
-    const current = useAppStore.getState().snapshot;
-    if (current?.activeBuffer !== null && current?.activeBuffer !== undefined && current.activeText !== null && documentSync.pendingText(current.projectEpoch, current.activeBuffer.path) === null) {
-      useAppStore.setState({ localText: current.activeText });
-    }
-  },
+  (snapshot) => { useAppStore.getState().setSnapshot(snapshot); },
   (error, epoch, path) => {
     useAppStore.setState({ error: String(error), failedDocumentSync: { epoch, path } });
-  }
+  },
+  (pending) => { useAppStore.setState({ documentEditsPending: pending }); }
 );
 
 export const flushDocumentSync = () => documentSync.flush();
@@ -173,7 +164,7 @@ export async function resolveDocumentSyncFailure(keepText: boolean) {
     useAppStore.getState().setSnapshot(snapshot);
     useAppStore.setState({ failedDocumentSync: null, error: null });
     if (keepText) await flushDocumentSync();
-    else useAppStore.setState({ localText: snapshot.activeText ?? "" });
+    else useAppStore.setState((store) => ({ textReload: store.textReload + 1 }));
   } catch (error) {
     useAppStore.getState().setError(String(error));
   }
@@ -261,7 +252,7 @@ function mergeTransport<T extends { generation: number }>(
   return incoming;
 }
 
-function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: SnapshotApplySource, preserveLocalText: boolean): Partial<AppStore> {
+function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: SnapshotApplySource): Partial<AppStore> {
   const previous = current.snapshot;
   if (!isNewerSnapshot(previous, incoming)) return {};
   const snapshot = {
@@ -282,9 +273,6 @@ function snapshotUpdate(current: AppStore, incoming: AppSnapshot, source: Snapsh
   if (!retainDocument) {
     update.guiDocument = null;
     update.guiDocumentRevision = null;
-  }
-  if (!preserveLocalText && snapshot.activeBuffer !== null && snapshot.activeText !== null && effectiveEditorViewMode(snapshot) === "text") {
-    update.localText = documentSync.pendingText(snapshot.projectEpoch, snapshot.activeBuffer.path) ?? snapshot.activeText;
   }
   return update;
 }

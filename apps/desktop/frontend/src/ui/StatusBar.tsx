@@ -9,10 +9,10 @@ import type { SidebarView } from "../types";
 import { displayedProjectHealth } from "../workspace/helpers";
 
 export function StatusBar({ snapshot }: { snapshot: AppStaticSnapshot }) {
-  const localText = useAppStore((store) => store.localText);
+  const editsPending = useAppStore((store) => store.documentEditsPending);
   const buffer = snapshot.activeBuffer;
   const pending = snapshot.pendingSaves;
-  const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && snapshot.activeText !== null && localText !== snapshot.activeText;
+  const localDirty = effectiveEditorViewMode(snapshot) === "text" && buffer !== null && editsPending;
   const saveLabel = pending.some((document) => document.state.type === "conflict") ? "File conflict"
     : pending.some((document) => document.state.type === "failed") ? "Save failed"
     : localDirty ? "Unsaved"

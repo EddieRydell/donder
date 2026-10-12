@@ -22,6 +22,16 @@ pub struct DocumentUpdate {
     pub project_epoch: u32,
     pub path: String,
     pub expected_document_revision: u32,
+    /// The edits made since that revision, in order; each batch's ranges
+    /// refer to the text the batches before it produced.
+    pub changes: Vec<Vec<DocumentTextEdit>>,
+}
+
+/// A document's working text and the revision it is.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentText {
+    pub document_revision: u32,
     pub text: String,
 }
 

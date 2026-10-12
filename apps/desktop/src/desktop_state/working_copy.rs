@@ -3,19 +3,47 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use camino::{Utf8Path, Utf8PathBuf};
-use donder_project_io::{ProjectCheckReport, ProjectSession, SourceTextWrite};
+use donder_project_io::{ProjectCheckReport, ProjectSession, SourceOverrides, SourceTextWrite};
 
 use super::workspace_state::WorkingDocument;
 use super::{DesktopState, LoadedProject, absolute_root_path, lock_unpoisoned};
 use crate::state_tasks::WorkingCopyPayload;
 use donder_sequence_api::{
-    AppSnapshot, BufferExternalState, DocumentInclusion, DocumentSaveState, DocumentTextEdits,
-    DocumentUpdate, EditorBuffer, EditorViewMode, ExternalConflictDecision, ProjectHealth,
-    SidebarView,
+    AppSnapshot, BufferExternalState, DocumentInclusion, DocumentSaveState, DocumentText,
+    DocumentTextEdit, DocumentTextEdits, DocumentUpdate, EditorBuffer, EditorViewMode,
+    ExternalConflictDecision, ProjectHealth, SidebarView,
 };
 
 /// A rewrite of one document's text.
 type DocumentChange = Box<dyn FnOnce(&str) -> Result<String, String>>;
+
+/// One edit replacing the whole text: a range past the last line ends at the
+/// text's end.
+#[cfg(test)]
+pub(crate) fn whole_text(text: impl Into<String>) -> Vec<Vec<DocumentTextEdit>> {
+    let position = |line| donder_sequence_api::TextPosition { line, character: 0 };
+    vec![vec![DocumentTextEdit {
+        range: donder_sequence_api::TextRange {
+            start: position(0),
+            end: position(u32::MAX),
+        },
+        text: text.into(),
+    }]]
+}
+
+/// Edits as the language server applies them.
+fn language_server_edits(edits: &[DocumentTextEdit]) -> Vec<lsp_types::TextEdit> {
+    let position = |position: &donder_sequence_api::TextPosition| {
+        lsp_types::Position::new(position.line, position.character)
+    };
+    edits
+        .iter()
+        .map(|edit| lsp_types::TextEdit {
+            range: lsp_types::Range::new(position(&edit.range.start), position(&edit.range.end)),
+            new_text: edit.text.clone(),
+        })
+        .collect()
+}
 
 impl WorkingDocument {
     pub(super) fn new(path: &Utf8Path, text: String) -> Self {
@@ -80,15 +108,21 @@ impl DesktopState {
                 .get_mut(Utf8Path::new(&update.path))
                 .ok_or("Document is not open")?;
             if document.buffer.document_revision != update.expected_document_revision {
-                return Err("The document changed before the text was received".into());
+                return Err("The document changed before the edits were received".into());
             }
             if document.buffer.read_only {
                 return Err("This source is not editable in the current project.".into());
             }
-            if document.buffer.text == update.text {
+            let text = update
+                .changes
+                .iter()
+                .fold(document.buffer.text.clone(), |text, batch| {
+                    donder_language_server::apply_edits(&text, &language_server_edits(batch))
+                });
+            if document.buffer.text == text {
                 return Ok(workspace.snapshot());
             }
-            document.edit(update.text);
+            document.edit(text);
             workspace.view.state_revision += 1;
             workspace.view.project_revision += 1;
             workspace.typed_revision = None;
@@ -117,20 +151,7 @@ impl DesktopState {
                     .ok_or("Edits name a document outside the project.")?;
                 let relative = super::project_relative(&root, &absolute)
                     .ok_or("Edits name a document outside the project.")?;
-                let edits = document_edits
-                    .edits
-                    .into_iter()
-                    .map(|edit| lsp_types::TextEdit {
-                        range: lsp_types::Range::new(
-                            lsp_types::Position::new(
-                                edit.range.start.line,
-                                edit.range.start.character,
-                            ),
-                            lsp_types::Position::new(edit.range.end.line, edit.range.end.character),
-                        ),
-                        new_text: edit.text,
-                    })
-                    .collect::<Vec<_>>();
+                let edits = language_server_edits(&document_edits.edits);
                 let change: DocumentChange =
                     Box::new(move |text| Ok(donder_language_server::apply_edits(text, &edits)));
                 Ok((relative, change))
@@ -217,13 +238,43 @@ impl DesktopState {
         Ok(self.update_snapshot(|snapshot| snapshot.status = "Checking project".into()))
     }
 
-    /// The text of every loaded document, by project-relative path.
-    pub fn working_texts(&self) -> Vec<(Utf8PathBuf, String)> {
-        lock_unpoisoned(&self.workspace)
+    /// An open document's working text, for an editor that shows it.
+    pub fn document_text(&self, project_epoch: u32, path: &str) -> Result<DocumentText, String> {
+        let workspace = lock_unpoisoned(&self.workspace);
+        if workspace.view.project_epoch != project_epoch {
+            return Err("The project changed before the text was read".into());
+        }
+        let document = workspace
             .documents
-            .iter()
-            .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
-            .collect()
+            .get(Utf8Path::new(path))
+            .ok_or("Document is not open")?;
+        Ok(DocumentText {
+            document_revision: document.buffer.document_revision,
+            text: document.buffer.text.clone(),
+        })
+    }
+
+    /// The latest project check, for the language server.
+    pub(crate) fn project_check(&self) -> Option<Arc<donder_language_server::ProjectCheck>> {
+        lock_unpoisoned(&self.project_check).clone()
+    }
+
+    /// Keep a check's diagnostics, index and texts for the language server,
+    /// then apply it.
+    pub(super) fn accept_check(
+        &self,
+        root: &Utf8Path,
+        sources: Arc<SourceOverrides>,
+        mut report: ProjectCheckReport,
+    ) {
+        let check = donder_language_server::ProjectCheck::new(
+            root,
+            sources,
+            report.diagnostics.clone(),
+            std::mem::take(&mut report.index),
+        );
+        *lock_unpoisoned(&self.project_check) = Some(Arc::new(check));
+        self.apply_analysis(report);
     }
 
     /// The working text of the active document.
@@ -257,12 +308,14 @@ impl DesktopState {
                 root: Utf8PathBuf::from(root),
                 epoch: workspace.view.project_epoch,
                 revision: workspace.view.project_revision,
-                sources: workspace
-                    .documents
-                    .iter()
-                    .filter(|(_, doc)| !doc.buffer.read_only)
-                    .map(|(path, doc)| (path.clone(), doc.buffer.text.clone()))
-                    .collect(),
+                sources: Arc::new(
+                    workspace
+                        .documents
+                        .iter()
+                        .filter(|(_, doc)| !doc.buffer.read_only)
+                        .map(|(path, doc)| (path.clone(), doc.buffer.text.clone()))
+                        .collect(),
+                ),
                 typed: match &workspace.project {
                     LoadedProject::Ready(session) => Some(Arc::clone(session)),
                     _ => None,
@@ -285,7 +338,7 @@ impl DesktopState {
             return;
         }
         if let Some(report) = report {
-            self.apply_analysis(report);
+            self.accept_check(&request.root, Arc::clone(&request.sources), report);
         }
         if request.save
             || (current.settings.autosave_project_edits
@@ -663,7 +716,7 @@ mod tests {
                 project_epoch: snapshot.project_epoch,
                 path: SEQUENCE.into(),
                 expected_document_revision: buffer.document_revision,
-                text,
+                changes: whole_text(text),
             })
             .unwrap()
     }
@@ -829,9 +882,11 @@ mod tests {
                 project_epoch: snapshot.project_epoch,
                 path: path.into(),
                 expected_document_revision: buffer.document_revision,
-                text: state
-                    .active_working_text()
-                    .replace("frame_rate: 60", "frame_rate: 30"),
+                changes: whole_text(
+                    state
+                        .active_working_text()
+                        .replace("frame_rate: 60", "frame_rate: 30"),
+                ),
             })
             .unwrap();
         state.working_copy.finish_pending();
@@ -856,12 +911,14 @@ mod tests {
             root: root.clone(),
             epoch: initial.project_epoch,
             revision: initial.project_revision,
-            sources: donder_project_io::project_source_texts(&root).unwrap(),
+            sources: donder_project_io::project_source_texts(&root)
+                .unwrap()
+                .into(),
             typed: None,
             save: true,
             autosave_generation: 0,
         };
-        let report = crate::state_tasks::analyze_working_copy(&old);
+        let report = crate::state_tasks::analyze_working_copy(&old, &mut Default::default());
         edit(&state, format!("{}\n# newest\n", initial_text));
         state.working_copy.finish_pending();
         state.complete_working_copy(old, report);
@@ -874,7 +931,7 @@ mod tests {
             project_epoch: initial.project_epoch,
             path: SEQUENCE.into(),
             expected_document_revision: 0,
-            text: "stale".into(),
+            changes: whole_text("stale"),
         });
         assert!(error.is_err());
         let before = state.snapshot().state_revision;
@@ -899,7 +956,7 @@ mod tests {
                     project_epoch: initial.project_epoch,
                     path: SEQUENCE.into(),
                     expected_document_revision: 0,
-                    text: "old project".into()
+                    changes: whole_text("old project")
                 })
                 .is_err()
         );
@@ -1092,11 +1149,13 @@ mod tests {
             let mut settings = state.snapshot().settings;
             settings.autosave_project_edits = true;
             let snapshot = state.update_app_settings_locked(settings.clone());
-            let sources = lock_unpoisoned(&state.workspace)
-                .documents
-                .iter()
-                .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
-                .collect();
+            let sources = Arc::new(
+                lock_unpoisoned(&state.workspace)
+                    .documents
+                    .iter()
+                    .map(|(path, document)| (path.clone(), document.buffer.text.clone()))
+                    .collect(),
+            );
             let request = WorkingCopyPayload {
                 root: root.clone(),
                 epoch: snapshot.project_epoch,

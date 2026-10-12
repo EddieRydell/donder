@@ -3,7 +3,7 @@
 use donder_language::analysis::{SemanticToken, TokenClass};
 use lsp_types::{SemanticTokenModifier, SemanticTokenType, SemanticTokens, SemanticTokensLegend};
 
-use crate::text::LineIndex;
+use crate::document::Document;
 
 const TYPES: [SemanticTokenType; 12] = [
     SemanticTokenType::COMMENT,
@@ -54,15 +54,14 @@ fn encoding(class: TokenClass) -> (u32, u32) {
     }
 }
 
-pub fn encode(text: &str, tokens: &[SemanticToken]) -> SemanticTokens {
-    let lines = LineIndex::new(text);
+/// `tokens`, in source order, as LSP encodes them: each relative to the one
+/// before, the first relative to the document start.
+pub fn encode(document: &Document, tokens: &[SemanticToken]) -> SemanticTokens {
     let mut data = Vec::with_capacity(tokens.len());
     let (mut previous_line, mut previous_start) = (0, 0);
-    let mut tokens = tokens.to_vec();
-    tokens.sort_by_key(|token| token.span.start);
     for token in tokens {
-        let start = lines.position(text, token.span.start);
-        let end = lines.position(text, token.span.end);
+        let start = document.position(token.span.start);
+        let end = document.position(token.span.end);
         // Tokens never span lines; a stray one is skipped rather than split.
         if end.line != start.line || end.character <= start.character {
             continue;

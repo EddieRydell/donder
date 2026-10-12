@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 camino.workspace = true
 clap.workspace = true
+mimalloc.workspace = true
 donder-elaboration.workspace = true
 donder-language.workspace = true
 donder-output.workspace = true

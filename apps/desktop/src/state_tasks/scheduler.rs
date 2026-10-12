@@ -104,17 +104,20 @@ pub(crate) struct WorkingCopyPayload {
     pub root: Utf8PathBuf,
     pub epoch: u32,
     pub revision: u32,
-    pub sources: SourceOverrides,
+    pub sources: Arc<SourceOverrides>,
     pub typed: Option<Arc<ProjectSession>>,
     pub save: bool,
     pub autosave_generation: u32,
 }
 
-pub(crate) fn analyze_working_copy(request: &WorkingCopyPayload) -> Option<ProjectCheckReport> {
+pub(crate) fn analyze_working_copy(
+    request: &WorkingCopyPayload,
+    cache: &mut donder_project_io::ProjectCheckCache,
+) -> Option<ProjectCheckReport> {
     request
         .typed
         .is_none()
-        .then(|| donder_project_io::check_project_with_overrides(&request.root, &request.sources))
+        .then(|| donder_project_io::check_project_cached(&request.root, &request.sources, cache))
 }
 
 pub(crate) struct RenderRefreshPayload {

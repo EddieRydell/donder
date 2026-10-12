@@ -215,7 +215,7 @@ impl DomainResolver<'_> {
         identity: &SourceIdentity,
     ) -> Result<(Arc<DataDocument>, TextSpan), LoadProjectError> {
         let data = self.loader.declaration(identity)?;
-        let span = data.declarations[identity.object()].0;
+        let (span, _) = data.declared(identity.object());
         Ok((data, span))
     }
 
@@ -377,7 +377,7 @@ impl DomainResolver<'_> {
         }
         let source = id.0.root_source();
         let (data, _) = self.declared(source)?;
-        let Declaration::Setup(setup) = &data.declarations[source.object()].1 else {
+        let Declaration::Setup(setup) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
         let value = self.setup(id, source.document_id(), setup)?;
@@ -391,7 +391,7 @@ impl DomainResolver<'_> {
         }
         let source = id.0.root_source();
         let (data, span) = self.declared(source)?;
-        let Declaration::Controller(controller) = &data.declarations[source.object()].1 else {
+        let Declaration::Controller(controller) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
         let value = self.controller(id, source.document_id(), span, controller)?;
@@ -405,7 +405,7 @@ impl DomainResolver<'_> {
         }
         let source = id.0.root_source();
         let (data, _) = self.declared(source)?;
-        let Declaration::Layout(layout) = &data.declarations[source.object()].1 else {
+        let Declaration::Layout(layout) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
         let value = self.layout(id, source.document_id(), layout)?;
@@ -419,7 +419,7 @@ impl DomainResolver<'_> {
         }
         let source = id.0.root_source();
         let (data, _) = self.declared(source)?;
-        let Declaration::Patch(patch) = &data.declarations[source.object()].1 else {
+        let Declaration::Patch(patch) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
         let value = self.patch(id, source.document_id(), patch)?;
@@ -441,7 +441,7 @@ impl DomainResolver<'_> {
             return Ok(());
         }
         let (data, span) = self.declared(&id.0)?;
-        let Declaration::FixtureDefinition(definition) = &data.declarations[id.0.object()].1 else {
+        let Declaration::FixtureDefinition(definition) = data.declared(id.0.object()).1 else {
             return Err(self.wrong_kind(&id.0));
         };
         let value = self.fixture_definition(id.0.document_id(), span, definition)?;
@@ -459,7 +459,7 @@ impl DomainResolver<'_> {
         }
         let source = id.0.root_source();
         let (data, span) = self.declared(source)?;
-        let Declaration::Sequence(sequence) = &data.declarations[source.object()].1 else {
+        let Declaration::Sequence(sequence) = data.declared(source.object()).1 else {
             return Err(self.wrong_kind(source));
         };
         let value = self.sequence(id, source.document_id(), span, sequence)?;
@@ -476,7 +476,7 @@ impl DomainResolver<'_> {
     ) -> Option<R> {
         let root = identity.root_source();
         let data = self.loader.declaration(root).ok()?;
-        let declaration = &data.declarations.get(root.object())?.1;
+        let (_, declaration) = data.declaration(root.object())?;
         read(owned(declaration, identity.owned_path())?)
     }
 

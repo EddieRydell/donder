@@ -76,7 +76,7 @@ struct Declared {
     first: Option<TextSpan>,
 }
 
-fn declared(path: &Utf8Path, text: &str) -> Declared {
+fn declared(path: &Utf8Path, text: &str, cache: &mut crate::ProjectCheckCache) -> Declared {
     match source_document_format(path) {
         SourceDocumentFormat::Script => {
             let names = partial_declaration_spans(text)
@@ -98,7 +98,8 @@ fn declared(path: &Utf8Path, text: &str) -> Declared {
             }
         }
         SourceDocumentFormat::Data => {
-            let (document, _) = crate::document::read(text);
+            let read = cache.read(path, text);
+            let document = &read.document;
             Declared {
                 first: document.declarations.first().map(|(name, _, _)| name.span),
                 names: document
@@ -164,6 +165,7 @@ pub(crate) fn unreferenced_documents(
     project_id: uuid::Uuid,
     paths: impl IntoIterator<Item = Utf8PathBuf>,
     text: impl Fn(&Utf8Path) -> Option<String>,
+    cache: &mut crate::ProjectCheckCache,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) {
     let root = DocumentId::new(project_id, Utf8PathBuf::from(PROJECT_ROOT_FILE));
@@ -179,7 +181,7 @@ pub(crate) fn unreferenced_documents(
         let Some(text) = text(&path) else {
             continue;
         };
-        let declared = declared(&path, &text);
+        let declared = declared(&path, &text, cache);
         let is_setup = declared
             .names
             .iter()

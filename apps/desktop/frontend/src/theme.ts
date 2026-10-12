@@ -130,6 +130,8 @@ export const THEME_COLORS = {
   markMarquee: cssColor("--donder-mark-marquee"),
   markMarqueeFill: cssColor("--donder-mark-marquee-fill"),
   effectMarqueeFill: cssColor("--donder-effect-marquee-fill"),
+  sequenceSliceLine: cssColor("--donder-sequence-slice-line"),
+  sequenceSliceGuide: cssColor("--donder-sequence-slice-guide"),
   rasterWarningOverlay: cssColor("--donder-raster-warning-overlay"),
   emptyGradient: cssColor("--donder-empty-gradient")
 } as const;

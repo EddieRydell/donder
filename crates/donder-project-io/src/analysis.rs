@@ -42,6 +42,7 @@ pub(crate) fn analyze_project_documents(
     overrides: &crate::SourceOverrides,
     checked_scripts: &indexmap::IndexSet<Utf8PathBuf>,
     active_documents: Option<&indexmap::IndexSet<Utf8PathBuf>>,
+    cache: &mut crate::ProjectCheckCache,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) -> ProjectRecovery {
     let mut documents = IndexMap::new();
@@ -98,7 +99,7 @@ pub(crate) fn analyze_project_documents(
                         objects: Vec::new(),
                     }
                 } else {
-                    analyze_data_text(&path, &text, diagnostics)
+                    analyze_data_text(&path, &text, cache, diagnostics)
                 }
             }
         };
@@ -139,12 +140,14 @@ pub(crate) fn project_file_inventory(root: &Utf8Path) -> Vec<Utf8PathBuf> {
 fn analyze_data_text(
     path: &Utf8Path,
     text: &str,
+    cache: &mut crate::ProjectCheckCache,
     diagnostics: &mut Vec<IoDiagnostic>,
 ) -> RecoveryDocument {
-    let (document, local) = crate::document::read(text);
-    for diagnostic in local {
-        push_diagnostic(diagnostics, data_diagnostic(path, text, diagnostic));
+    let read = cache.read(path, text);
+    for diagnostic in &read.diagnostics {
+        push_diagnostic(diagnostics, data_diagnostic(path, text, diagnostic.clone()));
     }
+    let document = &read.document;
     RecoveryDocument {
         kind: RecoveryDocumentKind::Data,
         objects: document

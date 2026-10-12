@@ -1,6 +1,7 @@
 import { useSequenceEditorHost, type SequenceEditorHost } from "../../../editor/host";
 import type { EditorCommands } from "../../../shortcuts";
-import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, SkipBack, Square, Workflow } from "lucide-react";
+import { ChevronLeft, ChevronRight, Locate, LocateFixed, LocateOff, Monitor, Music, Pause, Play, RadioTower, Repeat, Scissors, SkipBack, Square, Workflow } from "lucide-react";
+import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 
@@ -28,6 +29,7 @@ export function SequenceTransportControls({
   const transport = useAppStore((store) => store.snapshot?.audioTransport ?? null);
   const liveOutput = useAppStore((store) => store.snapshot?.liveOutput ?? null);
   const followMode = useAppStore((store) => store.snapshot?.settings.sequenceFollowMode ?? null);
+  const sliceTool = useSequenceTool((state) => state.tool === "slice");
   if (transport === null || liveOutput === null || followMode === null) return null;
   const FollowIcon = FOLLOW_MODES[followMode].Icon;
   const unsupported = isSequenceTransportUnsupported(document, transport);
@@ -118,6 +120,14 @@ export function SequenceTransportControls({
       </button>
       <button type="button" title="Open layer graph" onClick={requestOpenLayerGraph}>
         <Workflow size={THEME_METRICS.iconSizeCompact} />
+      </button>
+      <button
+        type="button"
+        className={sliceTool ? "active" : ""}
+        title={sliceTool ? "Stop slicing (C)" : "Slice clips (C)"}
+        onClick={toggleSliceTool}
+      >
+        <Scissors size={THEME_METRICS.iconSizeCompact} />
       </button>
       <button
         type="button"

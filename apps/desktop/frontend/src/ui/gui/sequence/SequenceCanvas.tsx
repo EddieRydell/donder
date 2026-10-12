@@ -59,11 +59,13 @@ import {
   type SequenceRowHeightMap,
   type AutomationCurveDraft,
   type AutomationDraft,
-  type AutomationHover
+  type AutomationHover,
+  detachedAutomationTargetLabel
 } from "./sequenceAutomationLayout";
 import { THEME_COLORS, THEME_METRICS, THEME_TYPOGRAPHY } from "../../../theme";
 import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
 import { markSnapTimes, snapDeltaToMarks, snapToMark } from "./sequenceSnap";
+import { toggleSliceTool, useSequenceTool } from "./sequenceTool";
 
 import { buildSequenceClipLayout, clipSelectionGesture, constrainMarkDelta, earliestStartSeconds, selectionStartSeconds,  hitSequence, hitSequenceMark, markMoveDrafts, markRefLookup, mergeSequenceSelection, nextEffectSelection, nextAutomationSelection, nextMarkSelection, normalizedRect, selectedEffectId, selectionCount, selectionFromMarqueeEffects, selectionFromMarqueeMarks, sequenceHoverEqual, setMarkDraft, singleEffectSelectionFocus, singleSelectionFocus, selectionFromSingle, type MarkDraftLookup, type MarqueeBox, type SequenceContextMenu, type SequenceHover, type SequenceMarquee, type SequenceDraft, type SequenceViewport } from "./sequenceSelection";
 
@@ -124,7 +126,9 @@ const SEQUENCE_COLORS = {
   warning: THEME_COLORS.warning,
   markMarquee: THEME_COLORS.markMarquee,
   markMarqueeFill: THEME_COLORS.markMarqueeFill,
-  effectMarqueeFill: THEME_COLORS.effectMarqueeFill
+  effectMarqueeFill: THEME_COLORS.effectMarqueeFill,
+  sliceLine: THEME_COLORS.sequenceSliceLine,
+  sliceGuide: THEME_COLORS.sequenceSliceGuide
 } as const;
 
 const SEQUENCE_DRAG_THRESHOLD_PX = THEME_METRICS.sequenceDragThreshold;
@@ -140,6 +144,7 @@ type SequenceDragState =
   | { kind: "mark"; collectionKey: string; index: number; startX: number; startY: number; active: boolean; originalTimeSeconds: number }
   | { kind: "marquee"; state: SequenceMarquee }
   | { kind: "playheadScrub" }
+  | { kind: "slice"; seconds: number; startY: number }
   // Dragging a range edge anchors the new range at the opposite edge.
   | { kind: "timeRange"; startX: number; anchorSeconds: number; fromEdge: boolean; active: boolean };
 
@@ -181,6 +186,9 @@ function stripResizeHit(y: number, audioStripBottom: number, markRulerBottom: nu
   if (y <= audioStripBottom && audioStripBottom - y <= SEQUENCE_CANVAS.audioResizeHitHeightPx) return "audio";
   return null;
 }
+
+/** The slice tool's cut line: a time, and the vertical span it cuts across. */
+type SliceGuide = { seconds: number; fromY: number; toY: number };
 
 /** A shared lane's "×N" badge, in canvas coordinates. */
 type SharedBadgeHover = { laneIndex: number; y: number; height: number; scrollY: number; left: number };
@@ -245,6 +253,10 @@ export function SequenceCanvas({
   const [dragCursor, setDragCursor] = useState<"grabbing" | null>(null);
   const [seekHover, setSeekHover] = useState<SeekHover | null>(null);
   const [rangeDraft, setRangeDraft] = useState<PlaybackRange | null>(null);
+  const tool = useSequenceTool((state) => state.tool);
+  const setTool = useSequenceTool((state) => state.setTool);
+  const [sliceGuide, setSlice] = useState<SliceGuide | null>(null);
+  const slice = tool === "slice" ? sliceGuide : null;
   // A target may have several lanes; the selection keeps the chosen lane, or its target's nearest
   // lane after the layout changes.
   const [selectedRow, setSelectedRow] = useState<{ target: FixtureTarget; lane: number } | null>(null);
@@ -316,7 +328,8 @@ export function SequenceCanvas({
   const badgeLane = badgeTooltip === null ? undefined : document.lanes[badgeTooltip.laneIndex];
   const canvasCursor =
     dragCursor ??
-    (seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
+    (slice !== null ? "crosshair" :
+    seekHover !== null ? SEEK_HOVER_CURSORS[seekHover.target] :
     stripResizeHover !== null || rowResizeHover !== null ? "ns-resize" :
     gutterResizeHover ? "ew-resize" :
     (automationClipChooser !== null && automationHover !== null
@@ -592,6 +605,15 @@ export function SequenceCanvas({
     [automationClipsForLayout, rows, canvasSize, left, top, viewport]
   );
   const clipRasters = useSequenceClipRasters(document, visibleRasterClips);
+  // The clips the cut line crosses, each strictly inside its span.
+  const sliceTargets = useMemo(() => {
+    if (slice === null) return [];
+    const fromY = Math.min(slice.fromY, slice.toY);
+    const toY = Math.max(slice.fromY, slice.toY);
+    return visibleClips.filter((clip) =>
+      clip.rect.y <= toY && clip.rect.y + clip.rect.height >= fromY
+      && clip.effect.startSeconds < slice.seconds && slice.seconds < clip.effect.startSeconds + clip.effect.durationSeconds);
+  }, [slice, visibleClips]);
   const selectedEffectIds = useMemo(() => new Set<number>(sequenceSelection?.type === "clips" ? sequenceSelection.effectIds : []), [sequenceSelection]);
   const activeAutomationTargetEffectIds = useMemo(() => {
     const clipIds = new Set<number>();
@@ -796,6 +818,25 @@ export function SequenceCanvas({
         markXs
       });
     }
+    if (slice !== null) {
+      const sliceX = left + (slice.seconds - scrollXSeconds) * viewport.pxPerSecond;
+      ctx.strokeStyle = SEQUENCE_COLORS.sliceGuide;
+      ctx.lineWidth = THEME_METRICS.visualLineWidth;
+      ctx.setLineDash([THEME_METRICS.sequenceMarkerDashSize, THEME_METRICS.sequenceMarkerDashSize]);
+      ctx.beginPath();
+      ctx.moveTo(sliceX + THEME_METRICS.visualHairlineOffset, top);
+      ctx.lineTo(sliceX + THEME_METRICS.visualHairlineOffset, rect.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = SEQUENCE_COLORS.sliceLine;
+      ctx.lineWidth = THEME_METRICS.visualLineWidthStrong;
+      ctx.beginPath();
+      for (const clip of sliceTargets) {
+        ctx.moveTo(sliceX, clip.rect.y);
+        ctx.lineTo(sliceX, clip.rect.y + clip.rect.height);
+      }
+      ctx.stroke();
+    }
     ctx.restore();
 
     if (selectedTimeSeconds !== null) {
@@ -832,7 +873,7 @@ export function SequenceCanvas({
       ctx.fillRect(left - indicatorWidth / 2, 0, indicatorWidth, rect.height);
     }
 
-  }, [activeAutomationTargetEffectIds, stripResizeHover, gutterResizeHover, automationCurveDraft, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
+  }, [slice, sliceTargets, activeAutomationTargetEffectIds, stripResizeHover, gutterResizeHover, automationCurveDraft, automationClipChooser, automationHover, markTimes, rows, document, rowResizeHover, left, top, audioStripTop, audioStripHeight, scrollbarHeight, settings, viewport, visibleClips, visibleAutomationClips, selected, sequenceSelection, selectedEffectIds, selectedMarks, selectedLaneIndex, selectedTimeSeconds, marquee, visibleMarkCollections, targetMarkCollectionKey, marksLaneOnly, audioStripBottom, markRulerHeight, markDrafts, hover, clipRasters]);
 
   const seekTimeFromCanvasX = (x: number) =>
     clamp(Math.round((viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond) / SEQUENCE_CANVAS.scrubStepSeconds) * SEQUENCE_CANVAS.scrubStepSeconds, 0, document.durationSeconds);
@@ -841,7 +882,7 @@ export function SequenceCanvas({
     void runSnapshotCommand(() => commands.audioSeek(positionSeconds));
   };
   const timeFromCanvasX = (x: number) => clamp(roundToNanosecond(viewport.scrollXSeconds + (x - left) / viewport.pxPerSecond), 0, document.durationSeconds);
-  /** Range edges snap to marks with Alt, like other timeline drags. */
+  /** Range edges and the cut line snap to marks with Alt, like other timeline drags. */
   const rangeTimeFromCanvasX = (x: number, snap: boolean) => {
     const seconds = timeFromCanvasX(x);
     return snap ? snapToMark(seconds, markTimes, viewport.pxPerSecond) ?? seconds : seconds;
@@ -959,6 +1000,10 @@ export function SequenceCanvas({
     await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "deleteAutomationClip", id: clipId }));
     setSelected(null);
     updateSequenceSelection(null);
+  };
+
+  const splitEffects = async (effectIds: number[], timeSeconds: number) => {
+    await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "splitEffects", ids: effectIds, timeSeconds }));
   };
 
   const splitAutomationClip = async (clipId: number, timeSeconds: number) => {
@@ -1117,9 +1162,10 @@ export function SequenceCanvas({
   useEditorCommands(canvas, {
     ...transportCommands,
     "edit.cancel": {
-      enabled: () => automationClipChooser !== null || (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null,
+      enabled: () => automationClipChooser !== null || tool === "slice" || (useAppStore.getState().snapshot?.audioTransport.range ?? null) !== null,
       run: () => {
         if (automationClipChooser !== null) setAutomationClipChooser(null);
+        else if (tool === "slice") setTool("select");
         else void runSnapshotCommand(() => commands.audioSetRange(null));
       }
     },
@@ -1128,7 +1174,8 @@ export function SequenceCanvas({
     "edit.paste": { enabled: editable, run: paste },
     "edit.delete": { enabled: editable, run: deleteSelection },
     "edit.moveLeft": arrowCommand(-1),
-    "edit.moveRight": arrowCommand(1)
+    "edit.moveRight": arrowCommand(1),
+    "sequence.toggleSliceTool": { run: toggleSliceTool }
   });
 
   return (
@@ -1202,6 +1249,7 @@ export function SequenceCanvas({
       onDoubleClick={(event) => {
         const x = event.nativeEvent.offsetX;
         const y = event.nativeEvent.offsetY;
+        if (tool === "slice" && y >= top) return;
         // Double-clicking empty mark ruler adds a mark to the active collection.
         if (inMarkRuler(y)) {
           if (x >= left && hitSequenceMark(visibleMarkCollections, targetMarkCollectionKey, x, left, viewport) === null) {
@@ -1350,6 +1398,13 @@ export function SequenceCanvas({
           setSelected(singleSelectionFocus({ type: "clips", effectIds, automationIds }));
           return;
         }
+        if (tool === "slice" && x >= left && y >= top) {
+          event.preventDefault();
+          const seconds = rangeTimeFromCanvasX(x, event.altKey);
+          drag.current = { kind: "slice", seconds, startY: y };
+          setSlice({ seconds, fromY: y, toY: y });
+          return;
+        }
         const automationHit = x >= left ? hitTimelineClip(visibleAutomationClips, x, y) : null;
         if (automationHit !== null) {
           const editsCurve = !event.shiftKey && !event.ctrlKey && !event.metaKey && (sequenceSelection?.type !== "clips" || selectionCount(sequenceSelection) <= 1);
@@ -1482,6 +1537,10 @@ export function SequenceCanvas({
           seekFromCanvas(event);
           return;
         }
+        if (current?.kind === "slice") {
+          setSlice({ seconds: current.seconds, fromY: current.startY, toY: event.nativeEvent.offsetY });
+          return;
+        }
         if (current?.kind === "timeRange") {
           if (!current.active) {
             if (Math.abs(event.nativeEvent.offsetX - current.startX) < SEQUENCE_DRAG_THRESHOLD_PX) return;
@@ -1537,6 +1596,7 @@ export function SequenceCanvas({
             previous?.target === nextSeekHover?.target && previous?.seconds === nextSeekHover?.seconds ? previous : nextSeekHover
           );
           if (stripResize !== null || gutterResize || nextSeekHover !== null) {
+            setSlice(null);
             setRowResizeHover(null);
             setHover(null);
             setAutomationHover(null);
@@ -1549,6 +1609,15 @@ export function SequenceCanvas({
             ? rowResizeHit(y, top, viewport.scrollY, rows)
             : null;
           setRowResizeHover(resizeHit === null ? null : { laneIndex: resizeHit.laneIndex, rowKind: resizeHit.rowKind });
+          if (tool === "slice") {
+            const inLanes = x >= left && y >= top;
+            setSlice(inLanes ? { seconds: rangeTimeFromCanvasX(x, event.altKey), fromY: y, toY: y } : null);
+            if (inLanes) {
+              setHover(null);
+              setAutomationHover(null);
+              return;
+            }
+          }
           const automationHit = x >= left && y >= top ? hitTimelineClip(visibleAutomationClips, x, y) : null;
           const choosingAutomation = automationClipChooser !== null;
           const hit = x >= left && y >= top && automationHit === null && !choosingAutomation ? hitSequence(visibleClips, x, y) : null;
@@ -1631,6 +1700,12 @@ export function SequenceCanvas({
           return;
         }
         if (current?.kind === "marquee") return;
+        if (current?.kind === "slice") {
+          const effectIds = sliceTargets.map((clip) => clip.effect.id);
+          setSlice({ seconds: current.seconds, fromY: event.nativeEvent.offsetY, toY: event.nativeEvent.offsetY });
+          if (effectIds.length > 0) void splitEffects(effectIds, current.seconds);
+          return;
+        }
         if (current?.kind === "mark") {
           if (!current.active) {
             setMarkDrafts(new Map());
@@ -1714,6 +1789,7 @@ export function SequenceCanvas({
         setDragCursor(null);
         setMarquee(null);
         setRangeDraft(null);
+        setSlice(null);
       }}
       onPointerLeave={() => {
         if (drag.current === null) {
@@ -1724,6 +1800,7 @@ export function SequenceCanvas({
           setStripResizeHover(null);
           setGutterResizeHover(false);
           setBadgeHover(null);
+          setSlice(null);
         }
       }}
           />
@@ -1808,6 +1885,9 @@ export function SequenceCanvas({
                       </ContextMenu.SubContent>
                     </ContextMenu.Portal>
                   </ContextMenu.Sub>
+                  <ContextMenu.Item className="menu-item" onSelect={() => void splitEffects([sequenceContextMenu.effectId], sequenceContextMenu.startSeconds)}>
+                    <Scissors size={THEME_METRICS.iconSizeSmall} /> Split Effect Here
+                  </ContextMenu.Item>
                   <ContextMenu.Item className="menu-item danger" onSelect={() => void deleteSelectedEffect(sequenceContextMenu.effectId)}>
                     <Trash2 size={THEME_METRICS.iconSizeSmall} /> Delete Effect
                   </ContextMenu.Item>
@@ -2064,12 +2144,6 @@ function automationTargetLabel(document: SequenceEditorDocument, target: Sequenc
     throw new Error(`Automation target operator ${target.nodeId} is missing`);
   }
   return `${graphOperatorDefinition(document.compositionGraph.operatorCatalog, node.kind.operator).displayName}: ${target.param}`;
-}
-
-function detachedAutomationTargetLabel(target: SequenceAutomationTarget) {
-  return target.type === "effectParam"
-    ? `Effect ${target.effectId}: ${target.param}`
-    : `Operator ${target.nodeId}: ${target.param}`;
 }
 
 function scheduleSequenceViewportStateSave(host: SequenceEditorHost, reference: GuiObjectRef, state: PersistedSequenceViewportState) {

@@ -64,9 +64,9 @@ pub use dto::setup::{
     SetupControllerPort, SetupGuiDocument, SetupGuiEdit,
 };
 pub use dto::synchronization::{
-    DocumentSaveState, DocumentSaveStatus, DocumentTextEdit, DocumentTextEdits, DocumentUpdate,
-    ExternalConflictDecision, GuiDocumentResult, TransitionDecision, TransitionRequest,
-    TransitionResult, WorkspaceTransition,
+    DocumentSaveState, DocumentSaveStatus, DocumentText, DocumentTextEdit, DocumentTextEdits,
+    DocumentUpdate, ExternalConflictDecision, GuiDocumentResult, TransitionDecision,
+    TransitionRequest, TransitionResult, WorkspaceTransition,
 };
 pub use dto::view_state::{
     PersistedEditorViewState, PersistedEditorViewStateUpdate, PersistedGraphNodeSize,
@@ -191,6 +191,13 @@ pub enum SequenceGuiEdit {
     },
     DeleteEffect {
         id: u32,
+    },
+    /// Cut each clip at `time_seconds` into two back-to-back clips. The right
+    /// half shares the left half's automation, so automation continues across
+    /// the cut.
+    SplitEffects {
+        ids: Vec<u32>,
+        time_seconds: f32,
     },
     RetargetEffect {
         id: u32,

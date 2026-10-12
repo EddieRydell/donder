@@ -56,7 +56,6 @@ function EditorPaneContent({
   };
   const parentDocument = inlineEditorOpen ? guiParents[0]?.document ?? null : guiDocument;
   const guiResetRevision = useAppStore((store) => store.guiResetRevision);
-  const localText = useAppStore((store) => store.localText);
   const failedDocumentSync = useAppStore((store) => store.failedDocumentSync);
   const restoreState = useAppStore((store) => store.restoreState);
   const setGuiDocument = useAppStore((store) => store.setGuiDocument);
@@ -65,7 +64,6 @@ function EditorPaneContent({
   const guiEditPending = useAppStore((store) => store.guiEditPending);
   const projectionPending = activeGuiRequest !== null && guiDocumentRevision !== activeGuiRequest.projectRevision;
   const interactionPending = projectionPending || guiEditPending;
-  const setLocalText = useAppStore((store) => store.setLocalText);
   const [pathSelection, setPathSelection] = useState<PathSelection>({ path: null, resetRevision: 0, selection: null });
   const [pendingTextNavigation, setPendingTextNavigation] = useState<TextNavigation | null>(null);
   const activeBuffer = snapshot.activeBuffer;
@@ -285,14 +283,14 @@ function EditorPaneContent({
           {activePath !== null && snapshot.projectRoot !== null && (
             <TextEditor
               root={snapshot.projectRoot}
+              epoch={snapshot.projectEpoch}
               path={activePath}
+              revision={activeBuffer?.documentRevision ?? 0}
               openPaths={snapshot.tabs.map((tab) => tab.path)}
               syntax={activeSyntax}
-              text={localText}
               readOnly={activeConflicted || activeReadOnly}
               restore={restoreState?.editorStates[activePath]}
               navigation={pendingTextNavigation}
-              onChange={setLocalText}
               onViewState={scheduleEditorViewStateSave}
             />
           )}

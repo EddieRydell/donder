@@ -3,9 +3,9 @@ use crate::diagnostics::{
 };
 use crate::loader::Loader;
 use crate::{
-    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, ProjectCheckReport,
-    ProjectMetadata, ProjectSession, ProjectWorkspace, SourceDocumentFormat, analysis,
-    source_document_format,
+    IoDiagnostic, IoDiagnosticCode, IoDiagnosticSeverity, PROJECT_ROOT_FILE, ProjectCheckCache,
+    ProjectCheckReport, ProjectMetadata, ProjectSession, ProjectWorkspace, SourceDocumentFormat,
+    analysis, source_document_format,
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use indexmap::IndexSet;
@@ -44,6 +44,17 @@ pub fn check_project_with_overrides(
     root: &Utf8Path,
     overrides: &SourceOverrides,
 ) -> ProjectCheckReport {
+    check_project_cached(root, overrides, &mut ProjectCheckCache::default())
+}
+
+/// [`check_project_with_overrides`], reusing the documents `cache` read in
+/// earlier checks. A caller that checks repeatedly, as an editor does after
+/// each edit, keeps one cache so unchanged documents are not parsed again.
+pub fn check_project_cached(
+    root: &Utf8Path,
+    overrides: &SourceOverrides,
+    cache: &mut ProjectCheckCache,
+) -> ProjectCheckReport {
     let mut diagnostics = Vec::new();
     let config = overrides.get(Utf8Path::new(PROJECT_ROOT_FILE)).map_or_else(
         || ProjectMetadata::read(root),
@@ -76,6 +87,7 @@ pub fn check_project_with_overrides(
             }
         };
         let result = Loader::new(workspace).and_then(|mut loader| {
+            loader.cache = std::mem::take(cache);
             for (path, text) in overrides {
                 if path.extension() == Some("donder") {
                     loader.source_overrides.insert(
@@ -85,11 +97,9 @@ pub fn check_project_with_overrides(
                 }
             }
             let result = loader.load();
+            *cache = std::mem::take(&mut loader.cache);
             checked_scripts = loader.checked_scripts;
-            let mut links = loader.links.into_inner();
-            links.sort_by_key(|link| (link.span.start, link.span.end));
-            links.dedup();
-            index.links = links;
+            index.links = loader.links.into_inner().into_iter().collect();
             result
         });
         match result {
@@ -113,6 +123,7 @@ pub fn check_project_with_overrides(
         overrides,
         &checked_scripts,
         active_documents.as_ref(),
+        cache,
         &mut diagnostics,
     );
     if let (Some(compiled), Some(config)) = (&compiled, &config) {
@@ -126,9 +137,11 @@ pub fn check_project_with_overrides(
                     .cloned()
                     .or_else(|| fs::read_to_string(root.join(path)).ok())
             },
+            cache,
             &mut diagnostics,
         );
     }
+    cache.finish();
     analysis::sort_diagnostics(&mut diagnostics);
     let session = compiled.filter(|_| {
         !diagnostics
