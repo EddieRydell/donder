@@ -56,6 +56,11 @@ pub(crate) fn project_diagnostic(diagnostic: &IoDiagnostic) -> ProjectDiagnostic
                     .iter()
                     .map(|sequence| sequence.as_str().to_string())
                     .collect(),
+                rigs: inclusion
+                    .rigs
+                    .iter()
+                    .map(|rig| rig.as_str().to_string())
+                    .collect(),
             }),
             Some(IoFix::Replace(_)) | None => None,
         },

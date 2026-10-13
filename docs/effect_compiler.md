@@ -110,6 +110,14 @@ but whose result still varies at playback, is decided and only its taken arm is
 kept. A choice fixed as a whole is left for preparation to evaluate, so it does
 not multiply programs. Fixed reduction bounds become constants.
 
+A rig's invocations (`Definition::invoke_live`) also name *live* marks
+parameters: collections that playback rebinds as marks arrive. They are `TIME`
+leaves like automated parameters, so nothing reads their contents or length at
+preparation; a reduction bounded by a live collection's length is rejected when
+the invocation is made. `Instance::sample_live` reports each live parameter's
+slot in the lowered program, and an instance with live parameters never fuses.
+A rig's controls are ordinary automation bindings whose value playback sets.
+
 ## Global signal graph
 
 Preparation (`donder-elaboration/src/sequence/composition.rs`) builds one graph

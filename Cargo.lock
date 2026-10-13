@@ -1633,6 +1633,7 @@ dependencies = [
  "openh264",
  "reqwest",
  "rfd",
+ "rkyv",
  "serde",
  "serde_json",
  "serialport",

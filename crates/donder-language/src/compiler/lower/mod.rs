@@ -23,6 +23,8 @@ pub(crate) struct Lowered {
     pub(crate) bytecode: BytecodeProgram,
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
+    /// The program's indices of the instance's live marks parameters.
+    pub(crate) live: Vec<u16>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,6 +66,7 @@ impl Instance {
             bytecode,
             values: prepared.values,
             automation: prepared.automation,
+            live: prepared.live,
         })
     }
 }
@@ -74,6 +77,7 @@ pub(crate) struct Prepared {
     pub(crate) root: Node,
     pub(crate) values: Vec<Value>,
     pub(crate) automation: Vec<PreparedAutomation>,
+    pub(crate) live: Vec<u16>,
 }
 
 /// Evaluate every value fixed for the instance. Those that a playback-time
@@ -85,6 +89,7 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         .automation
         .iter()
         .map(|binding| u32::from(binding.param_index))
+        .chain(instance.live.iter().map(|&param| u32::from(param)))
         .collect();
     let known: Vec<Option<Value>> = instance
         .values
@@ -186,9 +191,12 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
             _ => None,
         })
         .collect();
+    // Automated and live slots change during playback, and so may their lengths.
     let lengths: Vec<Option<usize>> = values
         .iter()
-        .map(|value| match value {
+        .enumerate()
+        .map(|(slot, value)| match value {
+            _ if slot < remap.len() => None,
             Value::Array(items) => Some(items.len()),
             Value::Marks(marks) => Some(marks.len()),
             _ => None,
@@ -203,11 +211,17 @@ pub(crate) fn prepare(instance: &Instance) -> Result<Prepared, TooManyLoops> {
         lengths,
     };
     let root = Rebuild::new(graph).node(&mut target, instance.root, &mut substitute)?;
+    let live = instance
+        .live
+        .iter()
+        .map(|param| substitute.remap[&u32::from(*param)] as u16)
+        .collect();
     Ok(Prepared {
         graph: target,
         root,
         values,
         automation,
+        live,
     })
 }
 

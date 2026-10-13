@@ -5,6 +5,7 @@ use donder_runtime_types::{Color, SampleDuration, SampleTime};
 
 mod builder;
 pub(crate) mod programs;
+mod rig;
 mod schedule;
 pub use builder::{
     EffectHandle, FixtureHandle, LookupHandle, OutputHandle, SequenceBuilder, SequenceRoot,
@@ -12,6 +13,8 @@ pub use builder::{
 };
 use donder_runtime_types::SequenceTiming;
 use programs::AdmittedPrograms;
+pub(crate) use rig::RigArchiveData;
+pub use rig::{LIVE_MARK_CAPACITY, PreparedRig, RigPlayback, VoiceLength};
 
 /// Frozen playback data; authoring, elaboration, networking, and pin timing are external.
 /// Construction derives valid graph addresses. Archive decoding trusts the

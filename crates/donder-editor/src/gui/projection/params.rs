@@ -3,12 +3,37 @@ pub(in crate::gui) fn effect_params(
     sequence: &donder_model::Sequence,
     effect: &donder_model::EffectInst,
 ) -> Vec<SequenceEffectParam> {
-    let Some(definition) = session
-        .project
-        .definitions()
-        .effects
-        .resolve(&effect.definition)
-    else {
+    invocation_params(
+        session,
+        &effect.definition,
+        &effect.param_overrides,
+        |name, value| {
+            param_automation(
+                sequence,
+                &AutomationTarget::EffectParam {
+                    effect_id: effect.id.clone(),
+                    param: name.clone(),
+                },
+                &effect.start,
+                &effect.duration,
+                value,
+            )
+        },
+    )
+}
+
+/// An effect invocation's parameters: each declared parameter with its
+/// override, else its default, and the automation `automation` finds for it.
+pub(in crate::gui) fn invocation_params(
+    session: &ProjectSession,
+    definition: &donder_model::EffectRef,
+    overrides: &indexmap::IndexMap<Identifier, EffectParamValue>,
+    mut automation: impl FnMut(
+        &Identifier,
+        &mut SequenceEffectParamValue,
+    ) -> Option<SequenceParamAutomation>,
+) -> Vec<SequenceEffectParam> {
+    let Some(definition) = session.project.definitions().effects.resolve(definition) else {
         return Vec::new();
     };
     definition
@@ -16,7 +41,7 @@ pub(in crate::gui) fn effect_params(
         .iter()
         .filter_map(|param| {
             let kind = param_kind(&param.ty)?;
-            let override_value = effect.param_overrides.get(&param.name);
+            let override_value = overrides.get(&param.name);
             let mut value = override_value
                 .map(|value| effect_param_value(session, value, &param.ty))
                 .or_else(|| {
@@ -26,16 +51,7 @@ pub(in crate::gui) fn effect_params(
                         .and_then(|value| default_param_value(value, &param.ty))
                 })
                 .or_else(|| default_value_for_type(&param.ty))?;
-            let automation = param_automation(
-                sequence,
-                &AutomationTarget::EffectParam {
-                    effect_id: effect.id.clone(),
-                    param: param.name.clone(),
-                },
-                &effect.start,
-                &effect.duration,
-                &mut value,
-            );
+            let automation = automation(&param.name, &mut value);
             Some(SequenceEffectParam {
                 supports_automation: param.supports_automation(),
                 name: param.name.as_str().to_string(),
@@ -51,9 +67,63 @@ pub(in crate::gui) fn effect_params(
         .collect()
 }
 
-pub(in crate::gui) fn sequence_composition_graph_node(
+/// A composition's graph as the graph editor shows it. A sequence passes
+/// itself for its operators' automation.
+pub(in crate::gui) fn composition_graph(
     session: &ProjectSession,
-    sequence: &donder_model::Sequence,
+    layers: &[donder_model::SequenceLayer],
+    graph: &donder_model::SequenceCompositionGraph,
+    sequence: Option<&donder_model::Sequence>,
+) -> SequenceCompositionGraph {
+    SequenceCompositionGraph {
+        id: 0,
+        operator_catalog: session
+            .project
+            .definitions()
+            .operators
+            .definitions
+            .iter()
+            .filter(|(id, _)| session.source.is_project_owned(id.0.document_id()))
+            .map(|(id, definition)| {
+                graph_operator_definition_to_gui(OperatorRef::Custom(id.clone()), definition)
+            })
+            .collect(),
+        nodes: graph
+            .nodes
+            .iter()
+            .map(|node| composition_graph_node(session, layers, sequence, node))
+            .collect(),
+        edges: graph
+            .edges
+            .iter()
+            .map(|edge| SequenceGraphEdge {
+                from_node: graph_node_id(&edge.from),
+                from_port: edge.from_port.0.clone(),
+                to_node: graph_node_id(&edge.to),
+                to_port: edge.to_port.0.clone(),
+            })
+            .collect(),
+    }
+}
+
+pub(in crate::gui) fn layers_to_gui(layers: &[donder_model::SequenceLayer]) -> Vec<SequenceLayer> {
+    layers
+        .iter()
+        .map(|layer| SequenceLayer {
+            id: layer.id.0,
+            name: layer.name.as_str().to_string(),
+            description: layer.description.clone(),
+            color: layer.color.to_hex(),
+            enabled: layer.enabled,
+            is_default: layer.id.0 == 0,
+        })
+        .collect()
+}
+
+fn composition_graph_node(
+    session: &ProjectSession,
+    layers: &[donder_model::SequenceLayer],
+    sequence: Option<&donder_model::Sequence>,
     node: &CompositionGraphNode,
 ) -> SequenceGraphNode {
     SequenceGraphNode {
@@ -64,7 +134,7 @@ pub(in crate::gui) fn sequence_composition_graph_node(
         outputs: graph_node_outputs(session, &node.kind),
         kind: match &node.kind {
             CompositionGraphNodeKind::Layer { layer_id } => {
-                let layer = sequence.layers.iter().find(|layer| layer.id == *layer_id);
+                let layer = layers.iter().find(|layer| layer.id == *layer_id);
                 SequenceGraphNodeKind::Layer {
                     layer_id: layer_id.0,
                     layer_name: layer
@@ -92,7 +162,7 @@ pub(in crate::gui) fn graph_node_id(node_id: &CompositionGraphNodeId) -> String 
 
 fn graph_operator_params(
     session: &ProjectSession,
-    sequence: &donder_model::Sequence,
+    sequence: Option<&donder_model::Sequence>,
     node_id: &CompositionGraphNodeId,
     operator: &GraphOperatorNode,
 ) -> Vec<SequenceEffectParam> {
@@ -118,16 +188,18 @@ fn graph_operator_params(
                         .as_ref()
                         .and_then(|value| default_param_value(value, &declaration.ty))
                 })?;
-            let automation = param_automation(
-                sequence,
-                &AutomationTarget::CompositionNodeParam {
-                    node_id: node_id.clone(),
-                    param: declaration.name.clone(),
-                },
-                &donder_language::DonderTime::from_nanos(0),
-                &sequence.duration,
-                &mut value,
-            );
+            let automation = sequence.and_then(|sequence| {
+                param_automation(
+                    sequence,
+                    &AutomationTarget::CompositionNodeParam {
+                        node_id: node_id.clone(),
+                        param: declaration.name.clone(),
+                    },
+                    &donder_language::DonderTime::from_nanos(0),
+                    &sequence.duration,
+                    &mut value,
+                )
+            });
             Some(SequenceEffectParam {
                 supports_automation: declaration.supports_automation(),
                 name: declaration.name.as_str().to_string(),
@@ -559,12 +631,13 @@ use donder_model::{
     OperatorRef,
 };
 use donder_project_io::ProjectSession;
-use donder_runtime_types::{Type, Value as EffectValue};
+use donder_runtime_types::{Identifier, Type, Value as EffectValue};
 
 use donder_sequence_api::{
-    SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam, SequenceEffectParamKind,
-    SequenceEffectParamValue, SequenceGradientLibraryItem, SequenceGradientValue,
-    SequenceGraphNode, SequenceGraphNodeKind, SequenceGraphOperator,
-    SequenceGraphOperatorDefinition, SequenceGraphPortCardinality, SequenceGraphPortDefinition,
-    SequenceLibrarySource, SequenceParamAutomation, SequenceParamRange,
+    SequenceCompositionGraph, SequenceCurveLibraryItem, SequenceCurveValue, SequenceEffectParam,
+    SequenceEffectParamKind, SequenceEffectParamValue, SequenceGradientLibraryItem,
+    SequenceGradientValue, SequenceGraphEdge, SequenceGraphNode, SequenceGraphNodeKind,
+    SequenceGraphOperator, SequenceGraphOperatorDefinition, SequenceGraphPortCardinality,
+    SequenceGraphPortDefinition, SequenceLayer, SequenceLibrarySource, SequenceParamAutomation,
+    SequenceParamRange,
 };

@@ -13,8 +13,10 @@ use donder_language::data::NO_SPAN;
 use donder_language::{ImportAlias, ImportDeclaration, ImportSource, SourceReference};
 use donder_model::ControllerId;
 use donder_model::FixtureDefinitionId;
+use donder_model::InputDeviceId;
 use donder_model::LayoutId;
 use donder_model::PatchId;
+use donder_model::RigId;
 use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::ValueSource;
@@ -44,12 +46,14 @@ pub(crate) enum ResolvedObject {
     Project(ProjectId),
     Setup(SetupId),
     Controller(ControllerId),
+    InputDevice(InputDeviceId),
     Layout(LayoutId),
     Patch(PatchId),
     FixtureDefinition(FixtureDefinitionId),
     Curve(CurveId),
     Gradient(GradientId),
     Sequence(SequenceId),
+    Rig(RigId),
     EffectDefinition(EffectDefinitionId),
     OperatorDefinition(OperatorDefinitionId),
 }
@@ -60,6 +64,7 @@ impl ResolvedObject {
             SourceObjectKind::Project => Self::Project(ProjectId(identity)),
             SourceObjectKind::Setup => Self::Setup(SetupId(identity.into())),
             SourceObjectKind::Controller => Self::Controller(ControllerId(identity.into())),
+            SourceObjectKind::InputDevice => Self::InputDevice(InputDeviceId(identity.into())),
             SourceObjectKind::Layout => Self::Layout(LayoutId(identity.into())),
             SourceObjectKind::Patch => Self::Patch(PatchId(identity.into())),
             SourceObjectKind::FixtureDefinition => {
@@ -68,6 +73,7 @@ impl ResolvedObject {
             SourceObjectKind::Curve => Self::Curve(CurveId(identity)),
             SourceObjectKind::Gradient => Self::Gradient(GradientId(identity)),
             SourceObjectKind::Sequence => Self::Sequence(SequenceId(identity.into())),
+            SourceObjectKind::Rig => Self::Rig(RigId(identity.into())),
             SourceObjectKind::EffectDefinition => {
                 Self::EffectDefinition(EffectDefinitionId(identity))
             }
@@ -83,12 +89,14 @@ impl ResolvedObject {
             Self::Project(id) => &id.0,
             Self::Setup(id) => id.0.root_source(),
             Self::Controller(id) => id.0.root_source(),
+            Self::InputDevice(id) => id.0.root_source(),
             Self::Layout(id) => id.0.root_source(),
             Self::Patch(id) => id.0.root_source(),
             Self::FixtureDefinition(id) => &id.0,
             Self::Curve(id) => &id.0,
             Self::Gradient(id) => &id.0,
             Self::Sequence(id) => id.0.root_source(),
+            Self::Rig(id) => id.0.root_source(),
             Self::EffectDefinition(id) => &id.0,
             Self::OperatorDefinition(id) => &id.0,
         }
@@ -99,12 +107,14 @@ impl ResolvedObject {
             Self::Project(_) => SourceObjectKind::Project,
             Self::Setup(_) => SourceObjectKind::Setup,
             Self::Controller(_) => SourceObjectKind::Controller,
+            Self::InputDevice(_) => SourceObjectKind::InputDevice,
             Self::Layout(_) => SourceObjectKind::Layout,
             Self::Patch(_) => SourceObjectKind::Patch,
             Self::FixtureDefinition(_) => SourceObjectKind::FixtureDefinition,
             Self::Curve(_) => SourceObjectKind::Curve,
             Self::Gradient(_) => SourceObjectKind::Gradient,
             Self::Sequence(_) => SourceObjectKind::Sequence,
+            Self::Rig(_) => SourceObjectKind::Rig,
             Self::EffectDefinition(_) => SourceObjectKind::EffectDefinition,
             Self::OperatorDefinition(_) => SourceObjectKind::OperatorDefinition,
         }
@@ -272,10 +282,12 @@ impl Loader {
                 }
                 ResolvedObject::Setup(id) => resolver.resolve_setup(&id)?,
                 ResolvedObject::Controller(id) => resolver.resolve_controller(&id)?,
+                ResolvedObject::InputDevice(id) => resolver.resolve_input_device(&id)?,
                 ResolvedObject::Layout(id) => resolver.resolve_layout(&id)?,
                 ResolvedObject::Patch(id) => resolver.resolve_patch(&id)?,
                 ResolvedObject::FixtureDefinition(id) => resolver.resolve_fixture(&id)?,
                 ResolvedObject::Sequence(id) => resolver.resolve_sequence(&id)?,
+                ResolvedObject::Rig(id) => resolver.resolve_rig(&id, None)?,
                 ResolvedObject::Curve(_)
                 | ResolvedObject::Gradient(_)
                 | ResolvedObject::EffectDefinition(_)
@@ -677,12 +689,15 @@ impl Loader {
                 description: root.description.clone(),
                 setup: ValueSource::Reference(SetupId(root_id.0.clone().into())),
                 sequences: Vec::new(),
+                rigs: Vec::new(),
             },
             setups: IndexMap::new(),
             layouts: IndexMap::new(),
             patches: IndexMap::new(),
             controllers: IndexMap::new(),
+            input_devices: IndexMap::new(),
             sequences: IndexMap::new(),
+            rigs: IndexMap::new(),
             definitions: self.definitions.clone(),
         };
         let owner = donder_model::ObjectIdentity::from(root_id.0.clone());
@@ -696,8 +711,28 @@ impl Loader {
             .iter()
             .map(|source| resolver.sequence_source(entrypoint, &owner, source))
             .collect::<Result<_, _>>()?;
+        // The project's rigs play from the project setup's input devices.
+        let setup_devices = match &setup {
+            ValueSource::Inline(setup) => Some(setup.as_ref()),
+            ValueSource::Reference(id) => resolver.project.setups.get(id),
+        }
+        .ok_or_else(|| LoadProjectError::InvalidDocument {
+            path: entrypoint.path().to_path_buf(),
+            range: None,
+            message: "the project setup is not resolved".into(),
+        })?
+        .input_devices
+        .iter()
+        .map(|source| source.id().clone())
+        .collect::<Vec<_>>();
+        let rigs = root
+            .rigs
+            .iter()
+            .map(|source| resolver.rig_source(entrypoint, &owner, source, &setup_devices))
+            .collect::<Result<_, _>>()?;
         project.root.setup = setup;
         project.root.sequences = sequences;
+        project.root.rigs = rigs;
         Ok(project)
     }
 }

@@ -1,9 +1,10 @@
 use std::time::{Duration, Instant};
 
-use donder_runtime::{LoadError, LoadLimits, decode_sequence};
-use donder_runtime::{PlaybackRate, SequencePlayback};
-use donder_runtime_types::sample_time_from_seconds_f32;
+use donder_runtime::{LoadError, LoadLimits, decode_rig, decode_sequence};
+use donder_runtime::{PlaybackRate, PreparedSequence, RigPlayback, SequencePlayback};
+use donder_runtime_types::{RigEvent, SampleTime, sample_time_from_seconds_f32};
 
+use super::protocol::PreviewArchive;
 use super::scene::PreviewColor;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,18 +57,48 @@ impl ClockAnchor {
     }
 }
 
+/// What the Preview evaluates: a sequence, or a rig and the commands it has
+/// received.
+enum PreviewContent {
+    Sequence(Box<SequencePlayback>),
+    Rig(Box<RigPlayback>),
+}
+
+impl PreviewContent {
+    fn sequence(&self) -> &PreparedSequence {
+        match self {
+            Self::Sequence(playback) => playback.sequence(),
+            Self::Rig(playback) => playback.sequence(),
+        }
+    }
+
+    fn evaluate(&mut self, sample_time: SampleTime) -> donder_runtime::SequenceFrame<'_> {
+        match self {
+            Self::Sequence(playback) => playback.evaluate(sample_time),
+            Self::Rig(playback) => playback.evaluate(sample_time),
+        }
+    }
+}
+
+/// The frame last evaluated: the clock generation, the rig commands applied
+/// before it and its frame index.
+type FrameKey = (u32, u64, u64);
+
 pub(crate) struct PreviewPlayback {
-    sequence: Option<SequencePlayback>,
+    content: Option<PreviewContent>,
     colors: Vec<PreviewColor>,
     unlit: PreviewColor,
     clock: ClockAnchor,
-    last_frame: Option<(u32, u64)>,
+    /// Counts the rig command batches applied, so a command changes the frame
+    /// without changing the time.
+    commands: u64,
+    last_frame: Option<FrameKey>,
 }
 
 impl PreviewPlayback {
     pub(crate) fn new(unlit: PreviewColor) -> Self {
         Self {
-            sequence: None,
+            content: None,
             colors: Vec::new(),
             unlit,
             clock: ClockAnchor {
@@ -80,6 +111,7 @@ impl PreviewPlayback {
                 },
                 received_at: Instant::now(),
             },
+            commands: 0,
             last_frame: None,
         }
     }
@@ -89,32 +121,56 @@ impl PreviewPlayback {
             return;
         }
         self.unlit = unlit;
-        if self.sequence.is_none() {
+        if self.content.is_none() {
             self.colors.fill(unlit);
         }
     }
 
     pub(crate) fn replace_content(
         &mut self,
-        sequence_bytes: Option<&[u8]>,
+        archive: Option<&PreviewArchive>,
         instance_count: usize,
     ) -> Result<(), PreviewPlaybackError> {
-        let sequence = sequence_bytes
-            .map(|bytes| decode_sequence(bytes, preview_load_limits()))
-            .transpose()
-            .map_err(PreviewPlaybackError::Decode)?;
-        if let Some(sequence) = sequence.as_ref()
-            && sequence.pixel_count() != instance_count
+        let content = match archive {
+            None => None,
+            Some(PreviewArchive::Sequence(bytes)) => Some(PreviewContent::Sequence(Box::new(
+                decode_sequence(bytes, preview_load_limits())
+                    .map_err(PreviewPlaybackError::Decode)?
+                    .into_playback(),
+            ))),
+            Some(PreviewArchive::Rig(bytes)) => Some(PreviewContent::Rig(Box::new(
+                decode_rig(bytes, preview_load_limits())
+                    .map_err(PreviewPlaybackError::Decode)?
+                    .into_playback(),
+            ))),
+        };
+        if let Some(content) = content.as_ref()
+            && content.sequence().pixel_count() != instance_count
         {
             return Err(PreviewPlaybackError::PixelCount {
-                sequence: sequence.pixel_count(),
+                sequence: content.sequence().pixel_count(),
                 scene: instance_count,
             });
         }
-        self.sequence = sequence.map(|sequence| sequence.into_playback());
+        self.content = content;
         self.colors.clear();
         self.colors.resize(instance_count, self.unlit);
         self.last_frame = None;
+        Ok(())
+    }
+
+    /// Apply a performance's commands, in order, to the rig the Preview plays.
+    pub(crate) fn apply_rig_events(
+        &mut self,
+        events: &[RigEvent],
+    ) -> Result<(), PreviewPlaybackError> {
+        let Some(PreviewContent::Rig(playback)) = self.content.as_mut() else {
+            return Err(PreviewPlaybackError::NoRig);
+        };
+        for event in events {
+            playback.apply(*event);
+        }
+        self.commands = self.commands.wrapping_add(1);
         Ok(())
     }
 
@@ -141,7 +197,7 @@ impl PreviewPlayback {
     }
 
     pub(crate) fn evaluate(&mut self, now: Instant) -> Result<bool, PreviewPlaybackError> {
-        let Some(sequence) = self.sequence.as_mut() else {
+        let Some(content) = self.content.as_mut() else {
             return Ok(self.last_frame.take().is_some());
         };
         if self.clock.snapshot.state == PreviewPlaybackState::Unavailable {
@@ -155,13 +211,13 @@ impl PreviewPlayback {
             .map_err(|_| PreviewPlaybackError::ClockPosition)?;
         let frame = self.clock.snapshot.rate.frame_at(
             u64::from(sample_time.as_ticks()),
-            sequence.sequence().frame_rate(),
+            content.sequence().frame_rate(),
         );
-        let key = (self.clock.snapshot.generation, frame);
+        let key = (self.clock.snapshot.generation, self.commands, frame);
         if self.last_frame == Some(key) {
             return Ok(false);
         }
-        let evaluated = sequence.evaluate(sample_time);
+        let evaluated = content.evaluate(sample_time);
         for (target, color) in self.colors.iter_mut().zip(evaluated.colors()) {
             *target = PreviewColor::opaque([color.red, color.green, color.blue]);
         }
@@ -174,11 +230,11 @@ impl PreviewPlayback {
     }
 
     pub(crate) fn next_deadline(&self, now: Instant) -> Option<Instant> {
-        let sequence = self.sequence.as_ref()?;
+        let content = self.content.as_ref()?;
         if self.clock.snapshot.state != PreviewPlaybackState::Playing {
             return None;
         }
-        let frame_rate = sequence.sequence().frame_rate();
+        let frame_rate = content.sequence().frame_rate();
         if frame_rate == 0 {
             return None;
         }
@@ -202,6 +258,11 @@ fn preview_load_limits() -> LoadLimits {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PreviewPlaybackError {
     Decode(LoadError),
-    PixelCount { sequence: usize, scene: usize },
+    PixelCount {
+        sequence: usize,
+        scene: usize,
+    },
     ClockPosition,
+    /// Rig commands arrived while the Preview plays no rig.
+    NoRig,
 }

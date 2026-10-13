@@ -31,6 +31,7 @@ Project {project} {{
     layout: Layout {{ description: none, root: [], items: [] }},
     patch: Patch {{ description: none, routes: [] }},
     controllers: [],
+    input_devices: [],
   }},
   sequences: [
     Sequence main {{
@@ -48,6 +49,7 @@ Project {project} {{
       automation: [],
     }},
   ],
+  rigs: [],
 }}
 "#,
         format = config.format_version,

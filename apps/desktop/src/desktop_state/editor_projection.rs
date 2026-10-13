@@ -63,14 +63,16 @@ pub(crate) fn descriptor_for_path(
     default_object_keys.sort_by_key(|object| match object.view {
         DocumentViewId::Project => 0,
         DocumentViewId::Sequence => 1,
-        DocumentViewId::Setup => 2,
-        DocumentViewId::Layout => 3,
-        DocumentViewId::Fixture => 4,
-        DocumentViewId::Patch => 5,
-        DocumentViewId::Controller => 6,
-        DocumentViewId::Curve => 7,
-        DocumentViewId::Gradient => 8,
-        DocumentViewId::Text => 9,
+        DocumentViewId::Rig => 2,
+        DocumentViewId::Setup => 3,
+        DocumentViewId::Layout => 4,
+        DocumentViewId::Fixture => 5,
+        DocumentViewId::Patch => 6,
+        DocumentViewId::Controller => 7,
+        DocumentViewId::InputDevice => 8,
+        DocumentViewId::Curve => 9,
+        DocumentViewId::Gradient => 10,
+        DocumentViewId::Text => 11,
     });
     let mut available_views = vec![DocumentViewId::Text];
     for object in &default_object_keys {

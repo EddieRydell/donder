@@ -3,7 +3,8 @@ import { OverlayPortal } from "../../OverlayPortal";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useCallback, useRef, useState, useContext } from "react";
 import { THEME_COLORS } from "../../../theme";
-import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
+import type { GuiDocumentRequest, SequenceGraphEdge, SequenceLayer } from "../../../editor/types";
+import type { CompositionDocument, CompositionEditing } from "./composition";
 import { ColorPicker } from "../../ColorPicker";
 import { graphEdgeId } from "./graphEdge";
 
@@ -35,7 +36,7 @@ export function nextLayerName(layers: SequenceLayer[]) {
   return `Layer ${number}`;
 }
 
-export function deletableGraphNodes(document: SequenceEditorDocument, nodeIds: string[]) {
+export function deletableGraphNodes(document: CompositionDocument, nodeIds: string[]) {
   return document.compositionGraph.nodes.filter((node) => {
     if (!nodeIds.includes(node.id)) return false;
     if (node.kind.type === "operator") return true;
@@ -45,20 +46,16 @@ export function deletableGraphNodes(document: SequenceEditorDocument, nodeIds: s
   });
 }
 
-export function LayerProperties({ layer, onDelete }: { layer: SequenceLayer; onDelete?: () => void }) {
-  const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
+export function LayerProperties({ layer, composition, onDelete }: { layer: SequenceLayer; composition: CompositionEditing; onDelete?: () => void }) {
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
   const editable = useSequenceEditable();
   return <fieldset className="sequence-layer-row" disabled={!editable}>
     <input type="checkbox" checked={layer.enabled} aria-label={`${layer.name} enabled`} onChange={(event) => {
-      void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
-        type: "setLayerEnabled", id: layer.id, enabled: event.currentTarget.checked
-      })).catch(reportSequenceEditError);
+      void composition.apply({ type: "setLayerEnabled", id: layer.id, enabled: event.currentTarget.checked }).catch(reportSequenceEditError);
     }} />
     <ColorPicker value={layer.color} label={`${layer.name} color`} commit={(color) =>
-      runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "setLayerColor", id: layer.id, color })).then(() => undefined).catch(reportSequenceEditError)
+      composition.apply({ type: "setLayerColor", id: layer.id, color }).then(() => undefined).catch(reportSequenceEditError)
     } />
     <input key={`${layer.id}:${layer.name}`} defaultValue={layer.name} aria-label="Layer name" required
       onKeyDown={(event) => {
@@ -73,7 +70,7 @@ export function LayerProperties({ layer, onDelete }: { layer: SequenceLayer; onD
         const name = input.value.trim();
         if (name === "") { input.value = layer.name; return; }
         if (name === layer.name) return;
-        void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "renameLayer", id: layer.id, name }))
+        void composition.apply({ type: "renameLayer", id: layer.id, name })
           .catch((error: unknown) => { input.value = layer.name; reportSequenceEditError(error); });
       }} />
     {!layer.isDefault && onDelete !== undefined && <button type="button" onClick={onDelete}>Delete</button>}
@@ -88,10 +85,11 @@ type Deletion = {
   origin: GuiDocumentRequest;
 };
 
-export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: () => void) {
+export function useGraphDeletion(composition: CompositionEditing, onDeleted?: () => void) {
   const host = useSequenceEditorHost();
   const overlayContainer = useContext(OverlayPortal);
-  const { commands, store: useAppStore, runGuiEditCommand } = host;
+  const { store: useAppStore } = host;
+  const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -102,9 +100,9 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
   const busy = useAppStore((state) => state.guiEditPending);
   const commit = useCallback(async (deletion: Deletion, migrateToLayerId: number | null) => {
     try {
-      await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+      await composition.apply({
         type: "deleteGraphItems", nodeIds: deletion.nodeIds, layerIds: deletion.layerIds, edges: deletion.edges, migrateToLayerId
-      }), deletion.origin);
+      }, deletion.origin);
       setPending(null);
       setError(null);
       onDeleted?.();
@@ -112,7 +110,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
       setError(String(error));
       reportSequenceEditError(error);
     }
-  }, [commands, reportSequenceEditError, runGuiEditCommand, onDeleted]);
+  }, [composition, reportSequenceEditError, onDeleted]);
   const requestDelete = useCallback((nodeIds: string[], edgeIds: string[] = [], explicitLayerIds: number[] = []) => {
     if (!editable) return;
     const origin = useAppStore.getState().guiRequest;
@@ -127,7 +125,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
     const defaultLayer = document.layers.find((layer) => layer.isDefault);
     const deletion: Deletion = {
       nodeIds: nodes.map((node) => node.id), edges, layerIds, origin,
-      effectCount: document.effects.filter((effect) => layerIds.includes(effect.layerId)).length
+      effectCount: layerIds.reduce((count, layerId) => count + composition.layerUses(layerId), 0)
     };
     setError(null);
     if (deletion.effectCount === 0) {
@@ -138,7 +136,7 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
       setDestination(defaultLayer?.id ?? null);
       setPending(deletion);
     }
-  }, [commit, document, editable, useAppStore]);
+  }, [commit, composition, document, editable, useAppStore]);
   const dialog = <Dialog.Root open={pending !== null} onOpenChange={(open) => { if (!open && !busy) setPending(null); }}>
     <Dialog.Portal container={overlayContainer}>
       <Dialog.Overlay className="dialog-overlay graph-delete-overlay" />
@@ -166,4 +164,25 @@ export function useGraphDeletion(document: SequenceEditorDocument, onDeleted?: (
     </Dialog.Portal>
   </Dialog.Root>;
   return { requestDelete, dialog };
+}
+
+/** A sequence's or rig's layers, with adding, editing and deleting. */
+export function LayerList({ composition }: { composition: CompositionEditing }) {
+  const { document } = composition;
+  const reportSequenceEditError = useSequenceEditErrorReporter();
+  const editable = useSequenceEditable();
+  const { requestDelete, dialog } = useGraphDeletion(composition);
+  return <>
+    <button type="button" className="neutral-button" disabled={!editable} onClick={() => {
+      void composition.apply({
+        type: "createLayer", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length)
+      }).catch(reportSequenceEditError);
+    }}>Add layer</button>
+    <div className="sequence-layer-list">
+      {document.layers.map((layer) => <LayerProperties key={layer.id} layer={layer} composition={composition} onDelete={() => {
+        requestDelete([], [], [layer.id]);
+      }} />)}
+    </div>
+    {dialog}
+  </>;
 }

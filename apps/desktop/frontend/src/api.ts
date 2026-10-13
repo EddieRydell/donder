@@ -4,6 +4,7 @@ import type {
   FixtureGuiEdit,
   GuiDocumentRequest,
   LayoutGuiEdit,
+  RigGuiEdit,
   SetupGuiEdit,
   SequenceGuiEdit
 } from "./types";
@@ -26,6 +27,8 @@ export const commands = {
     unwrapResult(await generatedCommands.setPreviewAppearance(appearance)),
   resolveGuiSource: async (moduleId: string, path: string, objectKey: string) =>
     unwrapResult(await generatedCommands.resolveGuiSource(moduleId, path, objectKey)),
+  startPerforming: async (projectRevision: number, rig: number) =>
+    unwrapResult(await generatedCommands.startPerforming(projectRevision, rig)),
   setLiveOutputActive: async (active: boolean) =>
     unwrapResult(await generatedCommands.setLiveOutputActive(active)),
   getSequenceEffectDetails: async (request: GuiDocumentRequest, effectIds: number[]) =>
@@ -65,6 +68,8 @@ export const commands = {
     generatedCommands.applyGuiEdit(request, { type: "sequence", edit }),
   applySetupGuiEdit: (request: GuiDocumentRequest, edit: SetupGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "setup", edit }),
+  applyRigGuiEdit: (request: GuiDocumentRequest, edit: RigGuiEdit) =>
+    generatedCommands.applyGuiEdit(request, { type: "rig", edit }),
   applyLayoutGuiEdit: (request: GuiDocumentRequest, edit: LayoutGuiEdit) =>
     generatedCommands.applyGuiEdit(request, { type: "layout", edit }),
   applyFixtureGuiEdit: (request: GuiDocumentRequest, edit: FixtureGuiEdit) =>

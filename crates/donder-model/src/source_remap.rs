@@ -40,8 +40,14 @@ pub fn remap_document_paths(
         for controller in project.controllers() {
             documents.insert(controller.id.0.document_id().clone());
         }
+        for device in project.input_devices() {
+            documents.insert(device.id.0.document_id().clone());
+        }
         for sequence in project.sequences() {
             documents.insert(sequence.id.0.document_id().clone());
+        }
+        for rig in project.rigs() {
+            documents.insert(rig.id.0.document_id().clone());
         }
         for id in project.definitions.effects.definitions.keys() {
             documents.insert(id.0.document_id().clone());
@@ -83,6 +89,11 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
             id.0 = remap_object_identity(&id.0, remaps);
         }
     }
+    for source in &mut project.root.rigs {
+        if let ValueSource::Reference(id) = source {
+            id.0 = remap_object_identity(&id.0, remaps);
+        }
+    }
 
     project.setups = remap_index_map(&project.setups, |id| {
         SetupId(remap_object_identity(&id.0, remaps))
@@ -97,6 +108,11 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
             id.0 = remap_object_identity(&id.0, remaps);
         }
         for source in &mut setup.controllers {
+            if let ValueSource::Reference(id) = source {
+                id.0 = remap_object_identity(&id.0, remaps);
+            }
+        }
+        for source in &mut setup.input_devices {
             if let ValueSource::Reference(id) = source {
                 id.0 = remap_object_identity(&id.0, remaps);
             }
@@ -131,6 +147,31 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
     for controller in project.controllers_mut() {
         controller.id.0 = remap_object_identity(&controller.id.0, remaps);
     }
+    project.input_devices = remap_index_map(&project.input_devices, |id| {
+        crate::input_device::InputDeviceId(remap_object_identity(&id.0, remaps))
+    })
+    .into();
+    for device in project.input_devices_mut() {
+        device.id.0 = remap_object_identity(&device.id.0, remaps);
+    }
+    project.rigs = remap_index_map(&project.rigs, |id| {
+        crate::rig::RigId(remap_object_identity(&id.0, remaps))
+    })
+    .into();
+    for rig in project.rigs_mut() {
+        rig.id.0 = remap_object_identity(&rig.id.0, remaps);
+        for input in rig.inputs_mut() {
+            input.device.0 = remap_object_identity(&input.device.0, remaps);
+        }
+        for effect in rig.effects_mut() {
+            remap_target(&mut effect.target, remaps);
+            remap_effect_ref(&mut effect.definition, remaps);
+            for value in effect.param_overrides.values_mut() {
+                remap_param(value, remaps);
+            }
+        }
+        remap_graph(&mut rig.composition_graph, remaps);
+    }
     project.sequences = remap_index_map(&project.sequences, |id| {
         crate::sequence::SequenceId(remap_object_identity(&id.0, remaps))
     })
@@ -148,14 +189,7 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
                 remap_param(value, remaps);
             }
         }
-        for node in &mut sequence.composition_graph.nodes {
-            if let CompositionGraphNodeKind::Operator(operator) = &mut node.kind {
-                remap_operator_ref(&mut operator.operator, remaps);
-                for value in operator.params.values_mut() {
-                    remap_param(value, remaps);
-                }
-            }
-        }
+        remap_graph(&mut sequence.composition_graph, remaps);
     }
 
     project.definitions.effects.definitions =
@@ -186,6 +220,20 @@ fn remap_candidate(project: &mut DonderProject, remaps: &BTreeMap<DocumentId, Do
         });
     for definition in project.definitions.operators.definitions.values_mut() {
         remap_operator_ref(&mut definition.id, remaps);
+    }
+}
+
+fn remap_graph(
+    graph: &mut crate::sequence::SequenceCompositionGraph,
+    remaps: &BTreeMap<DocumentId, DocumentId>,
+) {
+    for node in &mut graph.nodes {
+        if let CompositionGraphNodeKind::Operator(operator) = &mut node.kind {
+            remap_operator_ref(&mut operator.operator, remaps);
+            for value in operator.params.values_mut() {
+                remap_param(value, remaps);
+            }
+        }
     }
 }
 

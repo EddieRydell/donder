@@ -3,8 +3,8 @@
 //! an operator consumed once is fused into its consumer, so the boundary
 //! between them disappears from the prepared programs.
 use donder_language::compiler::Instance;
-use donder_model::AcceptedSequence;
 use donder_model::composition_graph_output_dependencies;
+use donder_model::{AcceptedOperatorInputs, SequenceCompositionGraph};
 use donder_model::{CompositionGraphNodeKind, SequenceLayerId};
 use donder_runtime::{SequenceBuilder, SequenceRoot, SignalHandle};
 use donder_runtime_types::Color;
@@ -16,28 +16,28 @@ enum Pending<'id> {
     Black,
     Layer(SignalHandle<'id>),
     Operator {
-        instance: Instance,
+        instance: Box<Instance>,
         inputs: Vec<usize>,
     },
     Output(Vec<usize>),
 }
 
-pub(super) fn prepare<'id>(
+pub(crate) fn prepare<'id, 'a>(
     builder: &mut SequenceBuilder<'id>,
-    accepted: AcceptedSequence<'_>,
+    graph: &SequenceCompositionGraph,
+    operators: impl Iterator<Item = AcceptedOperatorInputs<'a>>,
+    duration: donder_runtime_types::SampleDuration,
     layers: &IndexMap<&SequenceLayerId, SignalHandle<'id>>,
     black: &HashSet<&SequenceLayerId>,
     programs: &mut super::programs::Programs,
 ) -> SequenceRoot<'id> {
-    let graph = &accepted.sequence().composition_graph;
     let indexes = graph
         .nodes
         .iter()
         .enumerate()
         .map(|(index, node)| (&node.id, index))
         .collect::<IndexMap<_, _>>();
-    let operators = accepted
-        .operators()
+    let operators = operators
         .map(|operator| (&operator.node().id, operator))
         .collect::<IndexMap<_, _>>();
     let dependencies = composition_graph_output_dependencies(graph);
@@ -62,7 +62,7 @@ pub(super) fn prepare<'id>(
         .collect::<Vec<_>>();
     let mut pending: Vec<Option<Pending<'id>>> = (0..graph.nodes.len()).map(|_| None).collect();
     let mut order = Vec::new();
-    let duration = donder_runtime_types::sample_duration_seconds_f32(accepted.timing().duration());
+    let duration = donder_runtime_types::sample_duration_seconds_f32(duration);
     // Admission guarantees one output, connected operator ports and an acyclic graph.
     while let Some(index) = ready.pop() {
         let node = &graph.nodes[index];
@@ -166,6 +166,9 @@ fn simplify<'id>(
     if instance.constant_color() == Some(Color::BLACK) {
         Pending::Black
     } else {
-        Pending::Operator { instance, inputs }
+        Pending::Operator {
+            instance: Box::new(instance),
+            inputs,
+        }
     }
 }

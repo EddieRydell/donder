@@ -31,6 +31,7 @@ pub mod bytecode;
 mod invocation;
 mod operator;
 mod prepared;
+mod rig;
 mod sample;
 pub mod sampling;
 mod types;
@@ -48,6 +49,7 @@ pub use prepared::{
     RgbOrder, SequenceTiming, SequenceWindow, SpatialContext, TargetGeometry, TargetPixel,
     TargetScope, WhitePosition,
 };
+pub use rig::{RigCommand, RigEvent};
 pub use sample::SampleProgram;
 pub use types::{Identifier, IdentifierError, Type, Value};
 pub use values::{

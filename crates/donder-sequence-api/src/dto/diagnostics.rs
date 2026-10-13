@@ -24,6 +24,8 @@ pub struct DocumentInclusion {
     pub alias: String,
     /// Sequences the document declares, added to the project's sequences.
     pub sequences: Vec<String>,
+    /// Rigs the document declares, added to the project's rigs.
+    pub rigs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]

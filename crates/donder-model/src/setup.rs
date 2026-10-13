@@ -12,6 +12,7 @@ pub struct Setup {
     pub layout: crate::layout::LayoutSource,
     pub patch: crate::patch::PatchSource,
     pub controllers: Vec<crate::controller::ControllerSource>,
+    pub input_devices: Vec<crate::input_device::InputDeviceSource>,
 }
 
 impl crate::ownership::Identified for Setup {

@@ -7,6 +7,7 @@ use donder_model::ProjectEdit;
 use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{CurveId, GradientId};
+use donder_model::{InputDeviceId, RigId};
 use donder_project_io::ProjectSession;
 
 use super::{GuiMutationError, ResolvedGuiObject};
@@ -59,6 +60,18 @@ pub(super) fn edit(
             let mut value = project.controller(&id).cloned().ok_or_else(missing)?;
             value.description = description;
             ProjectEdit::ReplaceController { id, value }
+        }
+        DocumentViewId::InputDevice => {
+            let id = InputDeviceId(identity);
+            let mut value = project.input_device(&id).cloned().ok_or_else(missing)?;
+            value.description = description;
+            ProjectEdit::ReplaceInputDevice { id, value }
+        }
+        DocumentViewId::Rig => {
+            let id = RigId(identity);
+            let mut value = project.rig(&id).cloned().ok_or_else(missing)?;
+            value.description = description;
+            ProjectEdit::ReplaceRig { id, value }
         }
         DocumentViewId::Sequence => {
             let id = SequenceId(identity);

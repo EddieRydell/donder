@@ -244,6 +244,27 @@ pub(crate) struct EffectAutomationWorkspace {
     pub(crate) sample_time: Option<SampleTime>,
 }
 
+impl EvaluationWorkspace {
+    /// Drop every cached sample, for a graph whose parameters or effect
+    /// windows changed without the time changing.
+    pub(crate) fn forget_samples(&mut self) {
+        for state in self
+            .operator_automation
+            .iter_mut()
+            .chain(self.sampling.effect_automation.iter_mut())
+        {
+            state.sample_time = None;
+        }
+        for frame in self.sampling.operator_frames.iter_mut().flatten() {
+            frame.key = None;
+        }
+        for window in &mut self.sampling.operator_windows {
+            window.key = None;
+        }
+        self.sampling.gather.key = None;
+    }
+}
+
 impl EffectAutomationWorkspace {
     pub(crate) fn params_at(&mut self, time: SampleTime) -> &BoundParams {
         if self.sample_time != Some(time) {

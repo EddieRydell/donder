@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::persistence::PersistedWindowState;
+use donder_runtime_types::RigEvent;
 use donder_sequence_api::{AudioTransportState, PlaybackSpeed, PreviewAppearance};
 
 pub(crate) const PREVIEW_HOST_ARGUMENT: &str = "--donder-preview-host";
@@ -46,6 +47,13 @@ impl From<PreviewWindowState> for PersistedWindowState {
     }
 }
 
+/// What the Preview plays: an encoded sequence or rig archive.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum PreviewArchive {
+    Sequence(Vec<u8>),
+    Rig(Vec<u8>),
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(
     tag = "type",
@@ -60,7 +68,13 @@ pub(crate) enum PreviewCommand {
         #[serde(skip)]
         instances: Vec<[f32; 4]>,
         #[serde(skip)]
-        sequence: Option<Vec<u8>>,
+        archive: Option<PreviewArchive>,
+    },
+    /// Commands for the rig the content plays, in the order they apply. They
+    /// travel as the frame's binary payload.
+    RigEvents {
+        #[serde(skip)]
+        events: Vec<RigEvent>,
     },
     SetClock {
         generation: u32,
@@ -84,10 +98,23 @@ pub(crate) enum PreviewCommand {
 )]
 pub(crate) enum PreviewEvent {
     Ready,
-    GeometryChanged { window: PreviewWindowState },
-    Closed { window: PreviewWindowState },
+    GeometryChanged {
+        window: PreviewWindowState,
+    },
+    Closed {
+        window: PreviewWindowState,
+    },
     QuitRequested,
-    Error { message: String },
+    /// A key pressed or released in the Preview, by its `KeyboardEvent.code` name.
+    Key {
+        code: String,
+        pressed: bool,
+    },
+    /// The Preview lost focus, so every key it held is up.
+    KeysReleased,
+    Error {
+        message: String,
+    },
 }
 
 // Each message is one frame: a little-endian u32 length and a JSON header,
@@ -99,10 +126,11 @@ pub(crate) fn write_command(
 ) -> Result<(), String> {
     let payload = match command {
         PreviewCommand::ReplaceContent {
-            instances,
-            sequence,
-            ..
-        } => content_payload(instances, sequence.as_deref())?,
+            instances, archive, ..
+        } => content_payload(instances, archive.as_ref())?,
+        PreviewCommand::RigEvents { events } => rkyv::to_bytes::<rkyv::rancor::Error>(events)
+            .map_err(|error| format!("Cannot encode rig events: {error}"))?
+            .to_vec(),
         _ => Vec::new(),
     };
     write_frame(writer, command, &payload)
@@ -114,13 +142,15 @@ pub(crate) fn read_command(
     let Some((mut command, payload)) = read_frame::<PreviewCommand>(reader)? else {
         return Ok(None);
     };
-    if let PreviewCommand::ReplaceContent {
-        instances,
-        sequence,
-        ..
-    } = &mut command
-    {
-        (*instances, *sequence) = read_content_payload(&payload)?;
+    match &mut command {
+        PreviewCommand::ReplaceContent {
+            instances, archive, ..
+        } => (*instances, *archive) = read_content_payload(&payload)?,
+        PreviewCommand::RigEvents { events } => {
+            *events = rkyv::from_bytes::<Vec<RigEvent>, rkyv::rancor::Error>(&payload)
+                .map_err(|error| format!("Cannot decode rig events: {error}"))?;
+        }
+        _ => {}
     }
     Ok(Some(command))
 }
@@ -184,22 +214,33 @@ fn frame_length(length: usize) -> std::io::Result<u32> {
     u32::try_from(length).map_err(|_| std::io::Error::other("Preview message is too large"))
 }
 
-/// Instance count, the instances' f32 components, a sequence flag, then the archive.
-fn content_payload(instances: &[[f32; 4]], sequence: Option<&[u8]>) -> Result<Vec<u8>, String> {
+const NO_ARCHIVE: u8 = 0;
+const SEQUENCE_ARCHIVE: u8 = 1;
+const RIG_ARCHIVE: u8 = 2;
+
+/// Instance count, the instances' f32 components, the archive's kind, then the archive.
+fn content_payload(
+    instances: &[[f32; 4]],
+    archive: Option<&PreviewArchive>,
+) -> Result<Vec<u8>, String> {
     let count = frame_length(instances.len()).map_err(|error| error.to_string())?;
-    let mut payload =
-        Vec::with_capacity(5 + instances.len() * 16 + sequence.map_or(0, <[u8]>::len));
+    let (kind, bytes) = match archive {
+        None => (NO_ARCHIVE, &[][..]),
+        Some(PreviewArchive::Sequence(bytes)) => (SEQUENCE_ARCHIVE, bytes.as_slice()),
+        Some(PreviewArchive::Rig(bytes)) => (RIG_ARCHIVE, bytes.as_slice()),
+    };
+    let mut payload = Vec::with_capacity(5 + instances.len() * 16 + bytes.len());
     payload.extend_from_slice(&count.to_le_bytes());
     for component in instances.iter().flatten() {
         payload.extend_from_slice(&component.to_le_bytes());
     }
-    payload.push(u8::from(sequence.is_some()));
-    payload.extend_from_slice(sequence.unwrap_or_default());
+    payload.push(kind);
+    payload.extend_from_slice(bytes);
     Ok(payload)
 }
 
 /// Fixture instances and the encoded archive, if any.
-type PreviewContent = (Vec<[f32; 4]>, Option<Vec<u8>>);
+type PreviewContent = (Vec<[f32; 4]>, Option<PreviewArchive>);
 
 fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
     let invalid = || "Preview content payload is malformed.".to_string();
@@ -217,28 +258,39 @@ fn read_content_payload(payload: &[u8]) -> Result<PreviewContent, String> {
             core::array::from_fn(|index| f32::from_le_bytes(components[index]))
         })
         .collect();
-    let sequence = match rest.split_first().ok_or_else(invalid)? {
-        (0, []) => None,
-        (1, archive) => Some(archive.to_vec()),
+    let archive = match rest.split_first().ok_or_else(invalid)? {
+        (&NO_ARCHIVE, []) => None,
+        (&SEQUENCE_ARCHIVE, archive) => Some(PreviewArchive::Sequence(archive.to_vec())),
+        (&RIG_ARCHIVE, archive) => Some(PreviewArchive::Rig(archive.to_vec())),
         _ => return Err(invalid()),
     };
-    Ok((instances, sequence))
+    Ok((instances, archive))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PreviewCommand, read_command, write_command};
+    use super::{
+        PreviewArchive, PreviewCommand, PreviewEvent, read_command, read_event, write_command,
+        write_event,
+    };
+    use donder_runtime_types::{RigCommand, RigEvent, SampleTime};
 
     #[test]
     fn content_round_trips_through_a_binary_frame() {
         let mut bytes = Vec::new();
-        for sequence in [None, Some(vec![]), Some(vec![7, 0, 255])] {
+        for archive in [
+            None,
+            Some(PreviewArchive::Sequence(vec![])),
+            Some(PreviewArchive::Sequence(vec![7, 0, 255])),
+            Some(PreviewArchive::Rig(vec![])),
+            Some(PreviewArchive::Rig(vec![3, 1, 4])),
+        ] {
             write_command(
                 &mut bytes,
                 &PreviewCommand::ReplaceContent {
                     revision: 3,
                     instances: vec![[1.0, -2.5, 0.0, 4.25], [5.0, 6.0, 7.0, 8.0]],
-                    sequence: sequence.clone(),
+                    archive: archive.clone(),
                 },
             )
             .unwrap();
@@ -247,14 +299,14 @@ mod tests {
             let Some(PreviewCommand::ReplaceContent {
                 revision,
                 instances,
-                sequence: decoded,
+                archive: decoded,
             }) = read_command(&mut reader).unwrap()
             else {
                 panic!("expected content");
             };
             assert_eq!(revision, 3);
             assert_eq!(instances, [[1.0, -2.5, 0.0, 4.25], [5.0, 6.0, 7.0, 8.0]]);
-            assert_eq!(decoded, sequence);
+            assert_eq!(decoded, archive);
             assert!(matches!(
                 read_command(&mut reader),
                 Ok(Some(PreviewCommand::Focus))
@@ -262,5 +314,66 @@ mod tests {
             assert!(matches!(read_command(&mut reader), Ok(None)));
             bytes.clear();
         }
+    }
+
+    #[test]
+    fn rig_events_and_preview_keys_round_trip() {
+        let events = vec![
+            RigEvent {
+                time: SampleTime::from_ticks(1_250_000),
+                command: RigCommand::Start { voice: 2 },
+            },
+            RigEvent {
+                time: SampleTime::from_ticks(1_250_000),
+                command: RigCommand::Control {
+                    control: 1,
+                    value: 0.5,
+                },
+            },
+            RigEvent {
+                time: SampleTime::from_ticks(u32::MAX),
+                command: RigCommand::Mark { collection: 0 },
+            },
+        ];
+        let mut bytes = Vec::new();
+        write_command(
+            &mut bytes,
+            &PreviewCommand::RigEvents {
+                events: events.clone(),
+            },
+        )
+        .unwrap();
+        write_command(&mut bytes, &PreviewCommand::RigEvents { events: vec![] }).unwrap();
+        let mut reader = bytes.as_slice();
+        let Some(PreviewCommand::RigEvents { events: decoded }) =
+            read_command(&mut reader).unwrap()
+        else {
+            panic!("expected rig events");
+        };
+        assert_eq!(decoded, events);
+        assert!(matches!(
+            read_command(&mut reader),
+            Ok(Some(PreviewCommand::RigEvents { events })) if events.is_empty()
+        ));
+
+        let mut bytes = Vec::new();
+        write_event(
+            &mut bytes,
+            &PreviewEvent::Key {
+                code: "KeyA".into(),
+                pressed: true,
+            },
+        )
+        .unwrap();
+        write_event(&mut bytes, &PreviewEvent::KeysReleased).unwrap();
+        let mut reader = bytes.as_slice();
+        assert!(matches!(
+            read_event(&mut reader),
+            Ok(Some(PreviewEvent::Key { code, pressed: true })) if code == "KeyA"
+        ));
+        assert!(matches!(
+            read_event(&mut reader),
+            Ok(Some(PreviewEvent::KeysReleased))
+        ));
     }
 }

@@ -2709,6 +2709,82 @@ html.donder-app-shell body {
   font-size: var(--donder-font-size-md);
 }
 
+.perform-bar {
+  position: absolute;
+  bottom: calc(var(--donder-statusbar-height) + var(--donder-space-6));
+  left: 50%;
+  z-index: var(--donder-z-notification);
+  display: flex;
+  align-items: center;
+  max-width: calc(100% - 2 * var(--donder-space-8));
+  height: var(--donder-toolbar-height);
+  overflow: hidden;
+  transform: translateX(-50%);
+  border: var(--donder-border-width) solid var(--donder-border);
+  border-radius: var(--donder-radius-lg);
+  background: var(--donder-bg-panel);
+  box-shadow: var(--donder-shadow-popover);
+  color: var(--donder-text);
+  font-size: var(--donder-font-size-md);
+  white-space: nowrap;
+}
+
+.perform-bar > span {
+  padding-inline: var(--donder-space-6);
+}
+
+.perform-bar-rig {
+  color: var(--donder-text-strong);
+  font-weight: var(--donder-font-weight-semibold);
+}
+
+.perform-bar-clock {
+  font-family: var(--donder-font-code);
+}
+
+.perform-bar-switch {
+  color: var(--donder-text-muted);
+}
+
+.perform-bar-switch.on {
+  color: var(--donder-accent);
+  font-weight: var(--donder-font-weight-semibold);
+}
+
+.perform-bar-held {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--donder-text-soft);
+  font-family: var(--donder-font-code);
+  text-overflow: ellipsis;
+}
+
+.perform-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+  height: 100%;
+  padding-inline: var(--donder-space-6);
+  border: 0;
+  border-left: var(--donder-border-width) solid var(--donder-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--donder-text);
+}
+
+.perform-bar button:hover:not(:disabled) {
+  background: var(--donder-hover);
+}
+
+.perform-bar button.active {
+  background: var(--donder-surface-accent-active);
+  color: var(--donder-text-accent-strong);
+}
+
+.perform-bar button:disabled {
+  opacity: var(--donder-opacity-overlay);
+}
+
 .empty-project {
   position: absolute;
   inset: 38px 0 26px 0;
@@ -4744,4 +4820,33 @@ button.status-chip:hover {
   cursor: pointer;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Project rigs: Perform sits left of the row's source actions. */
+.object-overview-row-perform {
+  position: absolute;
+  top: var(--donder-space-5);
+  right: calc(var(--donder-icon-button-size) + var(--donder-space-4));
+  display: flex;
+  align-items: center;
+  gap: var(--donder-space-3);
+}
+
+.object-overview-row-perform svg,
+.setup-editor > .object-overview-header button svg {
+  width: var(--donder-object-overview-icon-glyph-size);
+  height: var(--donder-object-overview-icon-glyph-size);
+}
+
+/* Rig editor: each voice, switch, mapping and live mark collection. */
+.rig-item {
+  display: grid;
+  gap: var(--donder-space-6);
+  padding: var(--donder-space-6) 0;
+  border-bottom: var(--donder-border-width) solid var(--donder-border-soft);
+}
+
+.setup-section.rig-item {
+  padding: var(--donder-space-8);
+  margin-bottom: var(--donder-space-6);
 }

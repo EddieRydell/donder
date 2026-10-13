@@ -179,6 +179,11 @@ impl DesktopState {
                 .into_iter()
                 .map(identifier)
                 .collect::<Result<_, _>>()?,
+            rigs: inclusion
+                .rigs
+                .into_iter()
+                .map(identifier)
+                .collect::<Result<_, _>>()?,
         };
         let change: DocumentChange =
             Box::new(move |text| donder_project_io::include_document(text, &inclusion));

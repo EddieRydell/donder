@@ -27,7 +27,9 @@ enum ExpectedSlot {
     Layout,
     Patch,
     Controller,
+    InputDevice,
     Sequence,
+    Rig,
 }
 
 impl ExpectedSlot {
@@ -38,7 +40,9 @@ impl ExpectedSlot {
                 | (Self::Layout, OwnedObjectSlot::Layout)
                 | (Self::Patch, OwnedObjectSlot::Patch)
                 | (Self::Controller, OwnedObjectSlot::Controller(_))
+                | (Self::InputDevice, OwnedObjectSlot::InputDevice(_))
                 | (Self::Sequence, OwnedObjectSlot::Sequence(_))
+                | (Self::Rig, OwnedObjectSlot::Rig(_))
         )
     }
 }
@@ -78,7 +82,9 @@ pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectV
     validate_named(&project.layouts)?;
     validate_named(&project.patches)?;
     validate_named(&project.controllers)?;
+    validate_named(&project.input_devices)?;
     validate_named(&project.sequences)?;
+    validate_named(&project.rigs)?;
     let root = ObjectIdentity::from(project.root.id.0.clone());
     validate_source(&project.root.setup, &root, ExpectedSlot::Setup, |id| {
         project.setups.contains_key(id)
@@ -90,6 +96,15 @@ pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectV
         })?;
         if !sequences.insert(source.id()) {
             return Err(invalid("Sequence appears more than once in the project."));
+        }
+    }
+    let mut rigs = HashSet::new();
+    for source in &project.root.rigs {
+        validate_source(source, &root, ExpectedSlot::Rig, |id| {
+            project.rigs.contains_key(id)
+        })?;
+        if !rigs.insert(source.id()) {
+            return Err(invalid("Rig appears more than once in the project."));
         }
     }
     for setup in project.setups() {
@@ -106,6 +121,15 @@ pub(crate) fn validate_ownership(project: &DonderProject) -> Result<(), ProjectV
             })?;
             if !controllers.insert(source.id()) {
                 return Err(invalid("Controller appears more than once in the setup."));
+            }
+        }
+        let mut devices = HashSet::new();
+        for source in &setup.input_devices {
+            validate_source(source, &setup.id.0, ExpectedSlot::InputDevice, |id| {
+                project.input_devices.contains_key(id)
+            })?;
+            if !devices.insert(source.id()) {
+                return Err(invalid("Input device appears more than once in the setup."));
             }
         }
     }

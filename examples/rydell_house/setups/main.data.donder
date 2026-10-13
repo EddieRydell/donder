@@ -28,6 +28,7 @@ Setup main {
     garage_door_matrix,
     left_magnolia,
   ],
+  input_devices: [],
 }
 
 Controller nativity {

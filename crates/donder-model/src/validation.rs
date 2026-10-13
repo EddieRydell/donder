@@ -5,7 +5,11 @@ use crate::fixture::{FixtureDefinitionError, FixtureDefinitionId};
 use crate::layout::LayoutError;
 use crate::operator::{effect_param_matches_type, validate_composition_graph};
 use crate::project::DonderProject;
-use crate::sequence::{AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence};
+use crate::rig::{MAX_STACKED_VOICES, MappingAction, Rig, TriggerLength, VoicePolicy, When};
+use crate::sequence::{
+    AutomationTarget, CompositionGraphNodeKind, MarkCollectionKey, Sequence,
+    SequenceCompositionGraph, SequenceLayer, SequenceLayerId,
+};
 use donder_language::compiler::ParamDecl;
 use donder_language::{
     DonderDuration, DonderTime, sample_duration_from_donder_duration, sample_time_from_donder_time,
@@ -22,11 +26,14 @@ pub enum ProjectValidationError {
     MissingLayout,
     MissingPatch,
     MissingController,
+    MissingInputDevice,
     InvalidRelationship(String),
     Fixture(FixtureDefinitionError),
     Layout(LayoutError),
     Controller(crate::controller::ControllerValidationError),
+    InputDevice(crate::input_device::InputDeviceValidationError),
     Sequence(SequenceValidationError),
+    Rig(SequenceValidationError),
 }
 
 impl std::fmt::Display for ProjectValidationError {
@@ -36,11 +43,13 @@ impl std::fmt::Display for ProjectValidationError {
             Self::MissingLayout => write!(f, "The referenced layout is missing."),
             Self::MissingPatch => write!(f, "The setup patch is missing."),
             Self::MissingController => write!(f, "A referenced controller is missing."),
+            Self::MissingInputDevice => write!(f, "A referenced input device is missing."),
             Self::InvalidRelationship(message) => f.write_str(message),
-            Self::Sequence(error) => f.write_str(&error.message),
+            Self::Sequence(error) | Self::Rig(error) => f.write_str(&error.message),
             Self::Fixture(error) => write!(f, "Invalid fixture definition: {error:?}"),
             Self::Layout(error) => write!(f, "Invalid layout: {error:?}"),
             Self::Controller(error) => write!(f, "Invalid controller: {error:?}"),
+            Self::InputDevice(error) => write!(f, "Invalid input device: {error}"),
         }
     }
 }
@@ -101,6 +110,11 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
             .validate()
             .map_err(ProjectValidationError::Controller)?;
     }
+    for device in project.input_devices() {
+        device
+            .validate()
+            .map_err(ProjectValidationError::InputDevice)?;
+    }
     for layout in project.layouts() {
         layout
             .validate(&project.definitions.fixtures.definitions)
@@ -114,6 +128,9 @@ pub fn validate_project(project: &DonderProject) -> Result<(), ProjectValidation
     }
     for sequence in project.sequences() {
         validate_sequence(project, sequence).map_err(ProjectValidationError::Sequence)?;
+    }
+    for rig in project.rigs() {
+        validate_rig(project, rig).map_err(ProjectValidationError::Rig)?;
     }
     Ok(())
 }
@@ -280,6 +297,17 @@ fn validate_setup(
             ));
         }
     }
+    let mut devices = HashSet::new();
+    for device in &setup.input_devices {
+        if project.input_device(device.id()).is_none() {
+            return Err(ProjectValidationError::MissingInputDevice);
+        }
+        if !devices.insert(device.id()) {
+            return Err(ProjectValidationError::InvalidRelationship(
+                "Input device appears more than once in the setup.".into(),
+            ));
+        }
+    }
     for route in &patch.routes {
         if &route.target.layout != setup.layout.id() {
             return Err(ProjectValidationError::InvalidRelationship(
@@ -358,34 +386,35 @@ fn validate_sequence_since(
             "sequence exceeds the frame budget of {MAX_SEQUENCE_FRAME_COUNT} frames"
         )));
     }
-    ensure_unique(sequence.layers.iter().map(|layer| layer.id.0), "layer ids")?;
     ensure_unique(
         sequence.effects.iter().map(|effect| effect.id.0),
-        "effect ids",
+        "sequence effect ids",
     )?;
     ensure_unique(
         sequence
             .mark_collections
             .iter()
             .map(|collection| collection.key.name.as_str()),
-        "mark collection keys",
+        "sequence mark collection keys",
     )?;
     ensure_unique(
         sequence.automation_clips.iter().map(|clip| clip.id.0),
-        "automation clip ids",
+        "sequence automation clip ids",
     )?;
     validate_sequence_names(sequence, &unchanged)?;
 
-    let layer_ids = sequence
-        .layers
-        .iter()
-        .map(|layer| &layer.id)
-        .collect::<HashSet<_>>();
     let mark_keys = sequence
         .mark_collections
         .iter()
         .map(|collection| &collection.key)
         .collect::<HashSet<_>>();
+    let layer_ids = validate_layers_and_graph(
+        project,
+        "sequence",
+        &sequence.layers,
+        &sequence.composition_graph,
+        &mark_keys,
+    )?;
     for collection in &sequence.mark_collections {
         if collection
             .marks
@@ -454,82 +483,15 @@ fn validate_sequence_since(
         if is_unchanged(effect) {
             continue;
         }
-        let layout = project
-            .layout(&effect.target.layout)
-            .ok_or_else(|| sequence_error("Effect target layout is missing."))?;
-        if layout.fixture(effect.target.fixture).is_none() {
-            return Err(sequence_error(
-                "Effect target is not present in the active layout.",
-            ));
-        }
-        let definition = project
-            .definitions
-            .effects
-            .resolve(&effect.definition)
-            .ok_or_else(|| {
-                sequence_error(format!("effect {} definition is missing", effect.id.0))
-            })?;
-        for declaration in &definition.params {
-            match effect.param_overrides.get(&declaration.name) {
-                Some(value) if effect_param_matches_type(value, &declaration.ty) => {
-                    validate_param_references(project, value, &mark_keys)?;
-                }
-                Some(_) => {
-                    return Err(sequence_error(format!(
-                        "effect {} parameter `{}` has the wrong type",
-                        effect.id.0,
-                        declaration.name.as_str()
-                    )));
-                }
-                None if declaration.default.is_none() => {
-                    return Err(sequence_error(format!(
-                        "effect {} is missing required parameter `{}`",
-                        effect.id.0,
-                        declaration.name.as_str()
-                    )));
-                }
-                None => {}
-            }
-        }
-        if effect
-            .param_overrides
-            .keys()
-            .any(|name| !definition.params.iter().any(|param| &param.name == name))
-        {
-            return Err(sequence_error(format!(
-                "effect {} contains an undeclared parameter",
-                effect.id.0
-            )));
-        }
+        validate_target(project, &effect.target)?;
+        validate_effect_params(
+            project,
+            &effect.definition,
+            &effect.param_overrides,
+            &mark_keys,
+            &format!("effect {}", effect.id.0),
+        )?;
     }
-
-    validate_composition_graph(&sequence.composition_graph, &project.definitions.operators)
-        .map_err(|error| sequence_error(error.message))?;
-    for node in &sequence.composition_graph.nodes {
-        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
-            for value in operator.params.values() {
-                validate_param_references(project, value, &mark_keys)?;
-            }
-        }
-    }
-    let mut graph_layers = HashSet::new();
-    for node in &sequence.composition_graph.nodes {
-        if let CompositionGraphNodeKind::Layer { layer_id } = &node.kind {
-            if !layer_ids.contains(layer_id) {
-                return Err(sequence_error(format!(
-                    "composition graph references missing layer {}",
-                    layer_id.0
-                )));
-            }
-            if !graph_layers.insert(layer_id) {
-                return Err(sequence_error(format!(
-                    "composition graph contains layer {} more than once",
-                    layer_id.0
-                )));
-            }
-        }
-    }
-
     let mut automation_targets = HashMap::<_, Vec<_>>::new();
     let sequence_layout = sequence
         .effects
@@ -607,42 +569,349 @@ fn validate_sequence_since(
     Ok(())
 }
 
-/// Layers, clips, mark collections and graph nodes are referred to by name,
-/// so each name is valid and unique among its kind. A layer node is named by
-/// its layer and the output node is `output`, so operator nodes share that
-/// namespace with layers.
+/// Clips and mark collections are referred to by name, so each name is valid
+/// and unique among its kind.
 fn validate_sequence_names(
     sequence: &Sequence,
     unchanged: &HashMap<&crate::effect::EffectInstId, &std::sync::Arc<crate::effect::EffectInst>>,
 ) -> Result<(), SequenceValidationError> {
-    use crate::sequence::CompositionGraphNodeKind;
     // An unchanged clip's name was accepted when it was admitted.
     let changed_effects = sequence.effects.iter().filter(|effect| {
         !unchanged
             .get(&effect.id)
             .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, effect))
     });
-    let names = sequence
-        .layers
-        .iter()
-        .map(|layer| &layer.name)
-        .chain(changed_effects.map(|effect| &effect.name))
-        .chain(
+    ensure_names(
+        changed_effects.map(|effect| &effect.name).chain(
             sequence
                 .mark_collections
                 .iter()
                 .map(|collection| &collection.key.name),
-        )
-        .chain(
-            sequence
-                .composition_graph
-                .nodes
-                .iter()
-                .filter_map(|node| match &node.kind {
-                    CompositionGraphNodeKind::Operator(operator) => Some(&operator.name),
-                    _ => None,
-                }),
-        );
+        ),
+    )?;
+    ensure_unique(
+        sequence.effects.iter().map(|effect| &effect.name),
+        "sequence clip names",
+    )
+}
+
+/// The layers and composition graph of a sequence or rig, `owner`: layers
+/// and graph nodes are referred to by name, so each name is valid and unique.
+/// A layer node is named by its layer and the output node is `output`, so
+/// operator nodes share that namespace with layers. Returns the layer ids.
+fn validate_layers_and_graph<'a>(
+    project: &DonderProject,
+    owner: &str,
+    layers: &'a [SequenceLayer],
+    graph: &SequenceCompositionGraph,
+    mark_keys: &HashSet<&MarkCollectionKey>,
+) -> Result<HashSet<&'a SequenceLayerId>, SequenceValidationError> {
+    let operators = || {
+        graph.nodes.iter().filter_map(|node| match &node.kind {
+            CompositionGraphNodeKind::Operator(operator) => Some(operator),
+            _ => None,
+        })
+    };
+    ensure_unique(
+        layers.iter().map(|layer| layer.id.0),
+        &format!("{owner} layer ids"),
+    )?;
+    ensure_names(
+        layers
+            .iter()
+            .map(|layer| &layer.name)
+            .chain(operators().map(|operator| &operator.name)),
+    )?;
+    ensure_unique(
+        layers.iter().map(|layer| &layer.name),
+        &format!("{owner} layer names"),
+    )?;
+    ensure_unique(
+        layers
+            .iter()
+            .map(|layer| layer.name.as_str())
+            .chain(core::iter::once("output"))
+            .chain(operators().map(|operator| operator.name.as_str())),
+        &format!("{owner} graph node names"),
+    )?;
+    validate_composition_graph(graph, &project.definitions.operators)
+        .map_err(|error| sequence_error(error.message))?;
+    for operator in operators() {
+        for value in operator.params.values() {
+            validate_param_references(project, value, mark_keys)?;
+        }
+    }
+    let layer_ids = layers.iter().map(|layer| &layer.id).collect::<HashSet<_>>();
+    let mut graph_layers = HashSet::new();
+    for node in &graph.nodes {
+        if let CompositionGraphNodeKind::Layer { layer_id } = &node.kind {
+            if !layer_ids.contains(layer_id) {
+                return Err(sequence_error(format!(
+                    "composition graph references missing layer {}",
+                    layer_id.0
+                )));
+            }
+            if !graph_layers.insert(layer_id) {
+                return Err(sequence_error(format!(
+                    "composition graph contains layer {} more than once",
+                    layer_id.0
+                )));
+            }
+        }
+    }
+    Ok(layer_ids)
+}
+
+/// A clip's or rig effect's target names an existing fixture or group.
+fn validate_target(
+    project: &DonderProject,
+    target: &crate::layout::FixtureTarget,
+) -> Result<(), SequenceValidationError> {
+    let layout = project
+        .layout(&target.layout)
+        .ok_or_else(|| sequence_error("Effect target layout is missing."))?;
+    if layout.fixture(target.fixture).is_none() {
+        return Err(sequence_error(
+            "Effect target is not present in the active layout.",
+        ));
+    }
+    Ok(())
+}
+
+/// An effect's parameter overrides, of the effect `label` names: each
+/// declared, typed by its declaration, and every parameter without a default
+/// supplied.
+fn validate_effect_params(
+    project: &DonderProject,
+    definition: &crate::effect::EffectRef,
+    overrides: &IndexMap<donder_runtime_types::Identifier, EffectParamValue>,
+    mark_keys: &HashSet<&MarkCollectionKey>,
+    label: &str,
+) -> Result<(), SequenceValidationError> {
+    let definition = project
+        .definitions
+        .effects
+        .resolve(definition)
+        .ok_or_else(|| sequence_error(format!("{label} definition is missing")))?;
+    for declaration in &definition.params {
+        match overrides.get(&declaration.name) {
+            Some(value) if effect_param_matches_type(value, &declaration.ty) => {
+                validate_param_references(project, value, mark_keys)?;
+            }
+            Some(_) => {
+                return Err(sequence_error(format!(
+                    "{label} parameter `{}` has the wrong type",
+                    declaration.name.as_str()
+                )));
+            }
+            None if declaration.default.is_none() => {
+                return Err(sequence_error(format!(
+                    "{label} is missing required parameter `{}`",
+                    declaration.name.as_str()
+                )));
+            }
+            None => {}
+        }
+    }
+    if overrides
+        .keys()
+        .any(|name| !definition.params.iter().any(|param| &param.name == name))
+    {
+        return Err(sequence_error(format!(
+            "{label} contains an undeclared parameter"
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_rig(project: &DonderProject, rig: &Rig) -> Result<(), SequenceValidationError> {
+    let rig_name = rig
+        .id
+        .0
+        .owned_path()
+        .last()
+        .and_then(|slot| match slot {
+            crate::identity::OwnedObjectSlot::Rig(name) => Some(name.as_str()),
+            _ => None,
+        })
+        .unwrap_or_else(|| rig.id.0.root_source().object());
+    let error = |message: String| sequence_error(format!("rig `{rig_name}`: {message}"));
+    let setup = project
+        .setup(project.root.setup.id())
+        .ok_or_else(|| error("active setup is missing".into()))?;
+    let active = project
+        .root
+        .rigs
+        .iter()
+        .any(|source| source.id() == &rig.id);
+    if rig.frame_rate == 0 {
+        return Err(error("frame rate must be greater than zero".into()));
+    }
+    if rig.frame_rate > MAX_SEQUENCE_FRAME_RATE {
+        return Err(error(format!(
+            "frame rate exceeds the limit of {MAX_SEQUENCE_FRAME_RATE} frames per second"
+        )));
+    }
+    let named =
+        |result: Result<(), SequenceValidationError>| result.map_err(|inner| error(inner.message));
+    named(ensure_names(
+        rig.live_marks
+            .iter()
+            .map(|marks| &marks.key.name)
+            .chain(rig.voices.iter().map(|voice| &voice.name))
+            .chain(rig.switches.iter().map(|switch| &switch.name))
+            .chain(rig.mappings.iter().map(|mapping| &mapping.name)),
+    ))?;
+    named(ensure_unique(
+        rig.live_marks.iter().map(|marks| &marks.key.name),
+        "live mark collection names",
+    ))?;
+    named(ensure_unique(
+        rig.voices
+            .iter()
+            .map(|voice| &voice.name)
+            .chain(rig.mappings.iter().map(|mapping| &mapping.name)),
+        "voice and mapping names",
+    ))?;
+    named(ensure_unique(
+        rig.switches.iter().map(|switch| &switch.name),
+        "switch names",
+    ))?;
+    named(ensure_unique(
+        rig.voices.iter().map(|voice| voice.id),
+        "voice ids",
+    ))?;
+    named(ensure_unique(
+        rig.switches.iter().map(|switch| switch.id),
+        "switch ids",
+    ))?;
+    named(ensure_unique(
+        rig.mappings.iter().map(|mapping| mapping.id),
+        "mapping ids",
+    ))?;
+    let mark_keys = rig
+        .live_marks
+        .iter()
+        .map(|marks| &marks.key)
+        .collect::<HashSet<_>>();
+    let layer_ids = validate_layers_and_graph(
+        project,
+        "rig",
+        &rig.layers,
+        &rig.composition_graph,
+        &mark_keys,
+    )
+    .map_err(|inner| error(inner.message))?;
+    let rig_layout = rig.effects().next().map(|effect| &effect.target.layout);
+    for (index, effect) in rig.effects().enumerate() {
+        if !layer_ids.contains(&effect.layer_id) {
+            return Err(error(format!(
+                "effect {} references a missing layer",
+                index + 1
+            )));
+        }
+        if active && &effect.target.layout != setup.layout.id() {
+            return Err(error(
+                "an effect target is not present in the active layout".into(),
+            ));
+        }
+        if rig_layout.is_some_and(|layout| layout != &effect.target.layout) {
+            return Err(error("all effect targets must use the same layout".into()));
+        }
+        named(validate_target(project, &effect.target))?;
+        named(validate_effect_params(
+            project,
+            &effect.definition,
+            &effect.param_overrides,
+            &mark_keys,
+            &format!("effect {}", index + 1),
+        ))?;
+    }
+    let setup_devices = setup
+        .input_devices
+        .iter()
+        .map(|source| source.id())
+        .collect::<HashSet<_>>();
+    for input in rig.inputs() {
+        let device = project
+            .input_device(&input.device)
+            .ok_or_else(|| error("an input device is missing".into()))?;
+        if !matches!(
+            device.control(input.control).map(|control| &control.kind),
+            Some(crate::input_device::InputControlKind::Button(_))
+        ) {
+            return Err(error("an input is not a button of its device".into()));
+        }
+        if active && !setup_devices.contains(&input.device) {
+            return Err(error(
+                "an input device is not in the project's setup".into(),
+            ));
+        }
+    }
+    for mapping in &rig.mappings {
+        let mapping_error =
+            |message: &str| error(format!("mapping `{}` {message}", mapping.name.as_str()));
+        if let Some(When::On(switch) | When::Off(switch)) = mapping.when
+            && !rig.switches.iter().any(|candidate| candidate.id == switch)
+        {
+            return Err(mapping_error("depends on a missing switch"));
+        }
+        match &mapping.action {
+            MappingAction::Trigger(trigger) => {
+                if let TriggerLength::Fixed(duration) = &trigger.length {
+                    let sampled = sample_duration_from_donder_duration(duration).map_err(|_| {
+                        mapping_error("has a duration beyond the runtime clock range")
+                    })?;
+                    if duration.0.is_zero() || sampled.as_ticks() == 0 {
+                        return Err(mapping_error("has a `Fixed` duration that is not positive"));
+                    }
+                }
+                if let VoicePolicy::Stack { count } = trigger.voices
+                    && !(1..=MAX_STACKED_VOICES).contains(&count)
+                {
+                    return Err(mapping_error(&format!(
+                        "stacks {count} voices; a stack has 1 to {MAX_STACKED_VOICES}"
+                    )));
+                }
+            }
+            MappingAction::Mark(key) => {
+                if !mark_keys.contains(key) {
+                    return Err(mapping_error(
+                        "adds marks to a missing live mark collection",
+                    ));
+                }
+            }
+            MappingAction::Control { target, param } => {
+                let effect = rig
+                    .control_effect(*target)
+                    .ok_or_else(|| mapping_error("controls a missing voice or trigger"))?;
+                let declaration = project
+                    .definitions
+                    .effects
+                    .resolve(&effect.definition)
+                    .and_then(|definition| {
+                        definition
+                            .params
+                            .iter()
+                            .find(|declaration| &declaration.name == param)
+                    })
+                    .ok_or_else(|| mapping_error("controls a missing parameter"))?;
+                if declaration.automation_mapping().is_none() {
+                    return Err(mapping_error(&format!(
+                        "controls `{}`, which cannot be automated",
+                        param.as_str()
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Names others refer to are `snake_case`.
+fn ensure_names<'a>(
+    names: impl Iterator<Item = &'a donder_runtime_types::Identifier>,
+) -> Result<(), SequenceValidationError> {
     for name in names {
         if !donder_language::NameKind::Object.accepts(name.as_str()) {
             return Err(sequence_error(format!(
@@ -651,34 +920,7 @@ fn validate_sequence_names(
             )));
         }
     }
-    ensure_unique(
-        sequence.layers.iter().map(|layer| &layer.name),
-        "layer names",
-    )?;
-    ensure_unique(
-        sequence.effects.iter().map(|effect| &effect.name),
-        "clip names",
-    )?;
-    ensure_unique(
-        sequence
-            .layers
-            .iter()
-            .map(|layer| layer.name.as_str())
-            .chain(core::iter::once("output"))
-            .chain(
-                sequence
-                    .composition_graph
-                    .nodes
-                    .iter()
-                    .filter_map(|node| match &node.kind {
-                        CompositionGraphNodeKind::Operator(operator) => {
-                            Some(operator.name.as_str())
-                        }
-                        _ => None,
-                    }),
-            ),
-        "graph node names",
-    )
+    Ok(())
 }
 
 fn ensure_unique<T>(
@@ -691,7 +933,7 @@ where
     let mut seen = HashSet::new();
     for value in values {
         if !seen.insert(value) {
-            return Err(sequence_error(format!("sequence {label} must be unique")));
+            return Err(sequence_error(format!("{label} must be unique")));
         }
     }
     Ok(())

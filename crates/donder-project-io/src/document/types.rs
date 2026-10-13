@@ -17,6 +17,7 @@ pub struct Project {
     pub description: Option<String>,
     pub setup: Source<Setup>,
     pub sequences: Vec<NamedSource<Sequence>>,
+    pub rigs: Vec<NamedSource<Rig>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -25,6 +26,7 @@ pub struct Setup {
     pub layout: Source<Layout>,
     pub patch: Source<Patch>,
     pub controllers: Vec<NamedSource<Controller>>,
+    pub input_devices: Vec<NamedSource<InputDevice>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -76,6 +78,71 @@ pub enum PortAddress {
     Universe { universe: u16 },
     ArtNetPort { port_address: u16 },
     Output { output: u8 },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct InputDevice {
+    pub description: Option<String>,
+    pub driver: InputDriver,
+    pub controls: Vec<InputControl>,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum InputDriver {
+    Keyboard,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum InputControl {
+    Button {
+        name: Name,
+        description: Option<String>,
+        input: ButtonInput,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum ButtonInput {
+    Key { code: KeyCode },
+}
+
+/// A key by its `KeyboardEvent.code` name; the names are the model's.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeyCode(pub donder_model::KeyCode);
+
+impl Data for KeyCode {
+    fn decode(value: &Spanned<DataValue>, decoder: &mut Decoder) -> Option<Self> {
+        match &value.value {
+            DataValue::Variant(name) => match donder_model::KeyCode::from_name(name.value.as_str())
+            {
+                Some(code) => Some(Self(code)),
+                None => {
+                    decoder.error(
+                        name.span,
+                        format!(
+                            "`{}` is not a key code; use a `KeyboardEvent.code` name such as `KeyA`, `Digit1` or `Space`",
+                            name.value.as_str()
+                        ),
+                    );
+                    None
+                }
+            },
+            _ => decoder.mismatch(value, "a key code such as `KeyA`"),
+        }
+    }
+    fn encode(&self) -> DataValue {
+        donder_language::data::variant(self.0.name())
+    }
+    fn shape(schema: &mut Schema) -> donder_language::data::Shape {
+        schema.named("KeyCode", |_| {
+            donder_language::data::Definition::Variants(
+                donder_model::KeyCode::ALL
+                    .iter()
+                    .map(|code| (code.name(), None))
+                    .collect(),
+            )
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]
@@ -347,6 +414,96 @@ pub struct Detached {
 #[derive(Clone, Debug, PartialEq, Data)]
 pub enum DetachReason {
     DefinitionChanged,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct Rig {
+    pub description: Option<String>,
+    pub frame_rate: u32,
+    pub marks: Vec<LiveMarks>,
+    pub layers: Vec<Layer>,
+    pub scene: Vec<Voice>,
+    pub switches: Vec<Switch>,
+    pub mappings: Vec<Mapping>,
+    pub graph: Graph,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct LiveMarks {
+    pub name: Name,
+    pub description: Option<String>,
+    pub color: Color,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct Voice {
+    pub name: Name,
+    pub description: Option<String>,
+    pub layer: Name,
+    /// A fixture or group: `layout.fixture`.
+    pub target: Reference,
+    pub scope: Scope,
+    pub effect: Reference,
+    pub params: Params,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct Switch {
+    pub name: Name,
+    pub description: Option<String>,
+    /// A button of an input device: `device.control`.
+    pub input: Reference,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub struct Mapping {
+    pub name: Name,
+    pub description: Option<String>,
+    /// A button of an input device: `device.control`.
+    pub input: Reference,
+    pub when: Option<When>,
+    pub action: MappingAction,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum When {
+    On { switch: Name },
+    Off { switch: Name },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum MappingAction {
+    Trigger {
+        layer: Name,
+        target: Reference,
+        scope: Scope,
+        effect: Reference,
+        params: Params,
+        length: TriggerLength,
+        voices: VoicePolicy,
+    },
+    Mark {
+        marks: Name,
+    },
+    /// `voice` names a scene voice or a `Trigger` mapping.
+    Control {
+        voice: Name,
+        param: Name,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum TriggerLength {
+    Fixed { duration: Duration },
+    Held,
+    Latched,
+}
+
+#[derive(Clone, Debug, PartialEq, Data)]
+pub enum VoicePolicy {
+    Retrigger,
+    Stack { count: u8 },
+    Mono,
 }
 
 #[derive(Clone, Debug, PartialEq, Data)]

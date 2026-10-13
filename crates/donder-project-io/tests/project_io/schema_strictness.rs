@@ -112,7 +112,7 @@ fn every_starter_record_type_rejects_extra_fields_at_the_source_location() {
 }
 
 const SMALL_PROJECT: &str = r#"
-Setup setup { description: none, layout: layout, patch: patch, controllers: [] }
+Setup setup { description: none, layout: layout, patch: patch, controllers: [], input_devices: [] }
 
 Layout layout {
   description: none,

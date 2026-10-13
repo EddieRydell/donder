@@ -200,12 +200,14 @@ pub enum SourceObjectKind {
     Project,
     Setup,
     Controller,
+    InputDevice,
     Layout,
     Patch,
     FixtureDefinition,
     Curve,
     Gradient,
     Sequence,
+    Rig,
     EffectDefinition,
     OperatorDefinition,
     EffectInstance,
@@ -350,9 +352,11 @@ impl SourceObjectKind {
         match (self, slot) {
             (Self::Project, OwnedObjectSlot::Setup) => Some(Self::Setup),
             (Self::Project, OwnedObjectSlot::Sequence(_)) => Some(Self::Sequence),
+            (Self::Project, OwnedObjectSlot::Rig(_)) => Some(Self::Rig),
             (Self::Setup, OwnedObjectSlot::Layout) => Some(Self::Layout),
             (Self::Setup, OwnedObjectSlot::Patch) => Some(Self::Patch),
             (Self::Setup, OwnedObjectSlot::Controller(_)) => Some(Self::Controller),
+            (Self::Setup, OwnedObjectSlot::InputDevice(_)) => Some(Self::InputDevice),
             (Self::Layout, OwnedObjectSlot::Fixture(_)) => Some(Self::FixtureDefinition),
             _ => None,
         }
@@ -382,8 +386,8 @@ impl ProjectSession {
         identity: &donder_model::ObjectIdentity,
     ) -> bool {
         use donder_model::{
-            ControllerId, FixtureInstanceId, FixtureSource, LayoutFixtureKind, LayoutId,
-            OwnedObjectSlot, PatchId, SequenceId, SetupId,
+            ControllerId, FixtureInstanceId, FixtureSource, InputDeviceId, LayoutFixtureKind,
+            LayoutId, OwnedObjectSlot, PatchId, RigId, SequenceId, SetupId,
         };
         if identity.source().is_some() {
             return false;
@@ -396,10 +400,15 @@ impl ProjectSession {
                 .project
                 .controller(&ControllerId(identity.clone()))
                 .is_some(),
+            SourceObjectKind::InputDevice => self
+                .project
+                .input_device(&InputDeviceId(identity.clone()))
+                .is_some(),
             SourceObjectKind::Sequence => self
                 .project
                 .sequence(&SequenceId(identity.clone()))
                 .is_some(),
+            SourceObjectKind::Rig => self.project.rig(&RigId(identity.clone())).is_some(),
             SourceObjectKind::FixtureDefinition => {
                 let Some(OwnedObjectSlot::Fixture(id)) = identity.owned_path().last() else {
                     return false;

@@ -20,7 +20,7 @@ has one owner:
 | --- | --- |
 | `donder-runtime-types` | What playback accepts and what it means, `no_std + alloc`: colors, curves, gradients, marks and sample time; the strip bytecode (`bytecode`); program, invocation and parameter-binding descriptions; prepared inputs such as sequence timing, fixture and target geometry and output encodings; and the sampling math (`sampling`) shared by constant folding and evaluation. An item belongs here only if the runtime consumes it and an upstream crate produces it. |
 | `donder-language` | The text language. `data`: the data-document syntax tree, parser, printer, literal rules and schema traits. `compiler`: the [effect language](effect_language.md) and its [compiler](effect_compiler.md) (dataflow IR, specialization, scheduling, bytecode emission). `analysis`: semantic tokens, symbols, hover and completion for editors. The root holds import syntax, naming rules and authored quantities (times, distances, transforms). It does not depend on the model or the runtime. |
-| `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, setups, sequences, effect and operator definitions, ownership, identity, geometry preparation, validation, and the validated `ProjectEdit` batches and ownership edits that change it. |
+| `donder-model` | The typed domain model: fixtures, layouts, patches, controllers, input devices, setups, sequences, rigs, effect and operator definitions, ownership, identity, geometry preparation, validation, and the validated `ProjectEdit` batches and ownership edits that change it. |
 | `donder-project-io` | Source documents, imports, linking, diagnostics, the data-document schema (`document/types.rs`, derived by `donder-data-derive`), loading declarations into typed state, printing them back, saving and project copies. See [project language](project_language.md). |
 | `donder-elaboration` | Resolving a sequence and an output selection into a `PreparedSequence`: targets, fixture geometry, bound invocations, automation, the global signal graph (black-signal folding, operator fusion), retention. See [output selection](output_selection.md). |
 | `donder-runtime` | `no_std` prepared-sequence playback, the private strip interpreter, and the prepared archive format (`archive.rs`). |
@@ -140,6 +140,18 @@ everywhere:
   blacks out active ports and terminates E1.31 streams.
 - **Controllers.** Exported archives, prepared for a controller's ports, are
   uploaded to the ESP32 loader.
+
+Perform mode plays a rig instead of a sequence (`desktop_state/perform.rs`).
+Starting arms the rig on the active setup and starts a session clock; sequence
+playback stops until the performance ends. Keys from the main window and from
+the Preview (forwarded over its event pipe) are stamped on the session clock
+when the desktop receives them, routed by the rig's `RigRouter`, and the
+resulting `RigEvent`s fan out in order to every evaluator: the live output
+worker plays its own `RigPlayback` on the session clock, and the Preview
+receives the rig archive as its content, then the events as they arrive, with
+the session time as its clock anchor. An evaluator that joins mid-performance
+replays the performance's events from the start. Frame caches include the
+events applied, since an event changes a frame without changing its time.
 
 Archive decoding checks the envelope, checksum, archive structure and resource
 budgets. It trusts a compatible Donder producer for graph and bytecode

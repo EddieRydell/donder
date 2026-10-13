@@ -34,6 +34,9 @@ pub(super) fn edit_sequence(
         .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
     }
     match edit {
+        SequenceGuiEdit::Composition { edit } => {
+            super::graph::edit_composition(session, &resolved.identity, &mut draft, edit)?;
+        }
         SequenceGuiEdit::SetDuration { duration_seconds } => {
             if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
                 return Err(GuiMutationError::Invalid(
@@ -308,16 +311,9 @@ pub(super) fn edit_sequence(
             scope,
             start_seconds,
         } => {
-            let initial_color = parse_color(&initial_color)?;
             let definition = effect_ref_from_gui(session, effect_reference)?;
-            let Some(effect_definition) =
-                session.project.definitions().effects.resolve(&definition)
-            else {
-                return Err(GuiMutationError::Invalid(
-                    "Effect was not found.".to_string(),
-                ));
-            };
-            let params = effect_definition.params().to_vec();
+            let param_overrides =
+                required_param_values(session, &definition, parse_color(&initial_color)?)?;
             let EffectRef::Custom(definition_id) = &definition;
             ensure_document_can_reference_source(
                 session,
@@ -343,17 +339,6 @@ pub(super) fn edit_sequence(
                 .max()
                 .unwrap_or(0)
                 + 1;
-            let mut param_overrides = IndexMap::new();
-            for param in params.iter().filter(|param| param.default.is_none()) {
-                let value = EffectParamValue::initial_for_type(&param.ty, initial_color)
-                    .ok_or_else(|| {
-                        GuiMutationError::Invalid(format!(
-                            "Effect parameter `{}` requires an explicit value.",
-                            param.name.as_str()
-                        ))
-                    })?;
-                param_overrides.insert(param.name.clone(), value);
-            }
             let donder_model::EffectRef::Custom(effect) = &definition;
             let name = super::model::fresh_name(effect.0.object(), |candidate| {
                 sequence
@@ -374,20 +359,6 @@ pub(super) fn edit_sequence(
                 param_overrides,
             }));
         }
-        SequenceGuiEdit::CreateLayer { name, color } => {
-            create_sequence_layer(&mut draft, name, color, None, true)?;
-        }
-        SequenceGuiEdit::CreateLayerAt { name, color, x, y } => {
-            create_sequence_layer(&mut draft, name, color, Some((x, y)), false)?;
-        }
-        SequenceGuiEdit::RenameLayer { id, name } => {
-            let layer = draft
-                .layers
-                .iter_mut()
-                .find(|layer| layer.id.0 == id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layer was not found.".to_string()))?;
-            layer.name = super::model::typed_name(&name)?;
-        }
         SequenceGuiEdit::RenameClip { id, name } => {
             let clip = draft
                 .effects
@@ -397,35 +368,10 @@ pub(super) fn edit_sequence(
                 .ok_or_else(|| GuiMutationError::Invalid("Clip was not found.".to_string()))?;
             clip.name = super::model::typed_name(&name)?;
         }
-        SequenceGuiEdit::RenameGraphNode { node_id, name } => {
-            let node_id = parse_graph_node_id(&node_id)?;
-            let node = draft
-                .composition_graph
-                .nodes
-                .iter_mut()
-                .find(|node| node.id == node_id)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Graph node was not found.".to_string())
-                })?;
-            let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
-                return Err(GuiMutationError::Invalid(
-                    "Layer and output nodes are named by what they show.".to_string(),
-                ));
-            };
-            operator.name = super::model::typed_name(&name)?;
-        }
         SequenceGuiEdit::SetItemDescription { item, description } => {
             let description = super::description::normalized(description);
             let missing = || GuiMutationError::Invalid("The item was not found.".to_string());
             match item {
-                donder_sequence_api::SequenceDescribedItem::Layer { id } => {
-                    draft
-                        .layers
-                        .iter_mut()
-                        .find(|layer| layer.id.0 == id)
-                        .ok_or_else(missing)?
-                        .description = description;
-                }
                 donder_sequence_api::SequenceDescribedItem::MarkCollection { key } => {
                     mark_collection_mut(&mut draft, &key)?.description = description;
                 }
@@ -439,22 +385,6 @@ pub(super) fn edit_sequence(
                         .description = description;
                 }
             }
-        }
-        SequenceGuiEdit::SetLayerColor { id, color } => {
-            let layer = draft
-                .layers
-                .iter_mut()
-                .find(|layer| layer.id.0 == id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layer was not found.".to_string()))?;
-            layer.color = parse_color(&color)?;
-        }
-        SequenceGuiEdit::SetLayerEnabled { id, enabled } => {
-            let layer = draft
-                .layers
-                .iter_mut()
-                .find(|layer| layer.id.0 == id)
-                .ok_or_else(|| GuiMutationError::Invalid("Layer was not found.".to_string()))?;
-            layer.enabled = enabled;
         }
         SequenceGuiEdit::SetEffectLayer { id, layer_id } => {
             let sequence = &mut draft;
@@ -476,26 +406,9 @@ pub(super) fn edit_sequence(
             effect: effect_reference,
             initial_color,
         } => {
-            let initial_color = parse_color(&initial_color)?;
             let definition = effect_ref_from_gui(session, effect_reference)?;
-            let Some(effect_definition) =
-                session.project.definitions().effects.resolve(&definition)
-            else {
-                return Err(GuiMutationError::Invalid(
-                    "Effect was not found.".to_string(),
-                ));
-            };
-            let params = effect_definition.params().to_vec();
-            let mut param_overrides = IndexMap::new();
-            for param in params.iter().filter(|param| param.default.is_none()) {
-                let value = EffectParamValue::initial_for_type(&param.ty, initial_color).ok_or_else(|| {
-                    GuiMutationError::Invalid(format!(
-                        "Effect parameter `{}` requires an explicit value before changing scripts.",
-                        param.name.as_str()
-                    ))
-                })?;
-                param_overrides.insert(param.name.clone(), value);
-            }
+            let param_overrides =
+                required_param_values(session, &definition, parse_color(&initial_color)?)?;
             let EffectRef::Custom(definition_id) = &definition;
             ensure_document_can_reference_source(
                 session,
@@ -513,130 +426,6 @@ pub(super) fn edit_sequence(
                     matches!(target, AutomationTarget::EffectParam { effect_id, .. } if effect_id.0 == id)
                 });
             }
-        }
-        SequenceGuiEdit::AddGraphOperatorNode {
-            operator,
-            x,
-            y,
-            initial_color,
-        } => {
-            let initial_color = parse_color(&initial_color)?;
-            let operator = graph_operator_from_gui(session, &operator)?;
-            let definition = session
-                .project
-                .definitions()
-                .operators
-                .resolve(&operator)
-                .cloned()
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Operator definition was not found.".to_string())
-                })?;
-            let OperatorRef::Custom(id) = &operator;
-            ensure_document_can_reference_source(
-                session,
-                resolved.identity.document_id(),
-                SourceObjectKind::OperatorDefinition,
-                &id.0,
-            )
-            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
-            let sequence = &mut draft;
-            let mut params = IndexMap::new();
-            for declaration in definition.params() {
-                if declaration.default.is_none() {
-                    let value = EffectParamValue::initial_for_type(&declaration.ty, initial_color)
-                        .ok_or_else(|| {
-                            GuiMutationError::Invalid(
-                                "A valid required operator parameter could not be created."
-                                    .to_string(),
-                            )
-                        })?;
-                    params.insert(declaration.name.clone(), value);
-                }
-            }
-            let next_id = next_composition_node_id(sequence);
-            let donder_model::OperatorRef::Custom(definition) = &operator;
-            let name = super::model::fresh_name(definition.0.object(), |candidate| {
-                super::model::sequence_name_taken(sequence, candidate)
-            });
-            sequence.composition_graph.nodes.push(CompositionGraphNode {
-                id: CompositionGraphNodeId(next_id),
-                position: GraphNodePosition { x, y },
-                kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
-                    name,
-                    operator,
-                    params,
-                }),
-            });
-        }
-        SequenceGuiEdit::MoveGraphNodes { positions } => {
-            super::graph::move_nodes(&mut draft, positions)?;
-        }
-        SequenceGuiEdit::DeleteGraphItems {
-            node_ids,
-            layer_ids,
-            edges,
-            migrate_to_layer_id,
-        } => {
-            super::graph::delete_items(
-                &mut draft,
-                node_ids,
-                layer_ids,
-                edges,
-                migrate_to_layer_id,
-            )?;
-        }
-        SequenceGuiEdit::ConnectGraphNodes {
-            from_node,
-            from_port,
-            to_node,
-            to_port,
-        } => {
-            let definitions = session.project.definitions().operators.clone();
-            super::graph::connect_nodes(
-                &mut draft,
-                &definitions,
-                donder_sequence_api::SequenceGraphEdge {
-                    from_node,
-                    from_port,
-                    to_node,
-                    to_port,
-                },
-                None,
-            )?;
-        }
-        SequenceGuiEdit::ReconnectGraphEdge {
-            previous,
-            connection,
-        } => {
-            let definitions = session.project.definitions().operators.clone();
-            super::graph::connect_nodes(&mut draft, &definitions, connection, Some(previous))?;
-        }
-        SequenceGuiEdit::UpdateGraphOperatorParam {
-            node_id,
-            name,
-            value,
-        } => {
-            let value = effect_param_value_from_gui(session, &resolved.identity, value)?;
-            let definitions = session.project.definitions().operators.clone();
-            let sequence = &mut draft;
-            let node_id = parse_graph_node_id(&node_id)?;
-            let mut graph = sequence.composition_graph.clone();
-            let node = graph
-                .nodes
-                .iter_mut()
-                .find(|node| node.id == node_id)
-                .ok_or_else(|| {
-                    GuiMutationError::Invalid("Graph node was not found.".to_string())
-                })?;
-            let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
-                return Err(GuiMutationError::Invalid(
-                    "Graph node is not an operator.".to_string(),
-                ));
-            };
-            operator.params.insert(identifier(&name)?, value);
-            validate_composition_graph(&graph, &definitions)
-                .map_err(|error| GuiMutationError::Invalid(error.message))?;
-            sequence.composition_graph = graph;
         }
         SequenceGuiEdit::AddAutomationClip {
             start_seconds,
@@ -785,7 +574,7 @@ pub(super) fn edit_sequence(
                         .insert(param.clone(), value);
                 }
                 AutomationTarget::CompositionNodeParam { node_id, param } => {
-                    let node = composition_graph_node_mut(sequence, node_id)?;
+                    let node = super::graph::node_mut(sequence, node_id)?;
                     let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
                         return Err(GuiMutationError::Invalid(
                             "Automation graph node is not an operator.".to_string(),
@@ -941,50 +730,25 @@ fn require_available_automation_target(
     Ok(())
 }
 
-fn effect_ref_from_gui(
-    session: &ProjectSession,
-    reference: SequenceEffectReference,
-) -> Result<EffectRef, GuiMutationError> {
-    Ok(match reference {
-        SequenceEffectReference::Custom {
-            module_id,
-            path,
-            effect_name,
-        } => {
-            let identity = source_identity_from_gui(&module_id, &path, &effect_name)?;
-            if !session.source.is_project_owned(identity.document_id()) {
-                return Err(GuiMutationError::Invalid(
-                    "Effect source module was not found.".to_string(),
-                ));
-            }
-            EffectRef::Custom(EffectDefinitionId(identity))
-        }
-    })
-}
-
 use donder_language::{DonderDuration, DonderTime};
 use donder_model::{
     AutomationBinding, AutomationClip, AutomationClipId, AutomationDetachmentReason,
-    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
-    DetachedAutomationBinding, GraphNodePosition, Mark, MarkCollection, MarkCollectionKey,
-    SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
+    AutomationTarget, CompositionGraphNodeKind, DetachedAutomationBinding, Mark, MarkCollection,
+    MarkCollectionKey, SequenceAudio as DomainSequenceAudio, SequenceId, SequenceLayerId,
     automation_curve_is_normalized,
 };
-use donder_model::{EffectDefinitionId, EffectInst, EffectInstId, EffectParamValue, EffectRef};
-use donder_model::{GraphOperatorNode, OperatorRef, validate_composition_graph};
+use donder_model::{EffectInst, EffectInstId, EffectRef};
 use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
 use donder_runtime_types::AutomationMapping;
-use indexmap::IndexMap;
 
 use super::model::{
-    automation_binding_value_at, automation_clip_mut, composition_graph_node_mut,
-    create_sequence_layer, curve_from_points, default_automation_curve, effect_mut,
-    effect_param_value_from_gui, effect_scope, graph_operator_from_gui, identifier,
-    layout_target_to_effect_target, mark_collection_mut, next_composition_node_id, parse_color,
-    parse_graph_node_id, register_sequence_audio_asset, source_identity_from_gui,
+    automation_binding_value_at, automation_clip_mut, curve_from_points, default_automation_curve,
+    effect_mut, effect_param_value_from_gui, effect_ref_from_gui, effect_scope, identifier,
+    layout_target_to_effect_target, mark_collection_mut, parse_color, parse_graph_node_id,
+    register_sequence_audio_asset, required_param_values,
 };
 use super::{GuiMutationError, ResolvedGuiObject};
-use donder_sequence_api::{SequenceAutomationTarget, SequenceEffectReference, SequenceGuiEdit};
+use donder_sequence_api::{SequenceAutomationTarget, SequenceGuiEdit};
 
 /// Visit every marks parameter value in a sequence's effects and operator
 /// nodes, including the elements of marks arrays.
@@ -992,20 +756,6 @@ fn mark_references_mut(
     sequence: &mut donder_model::Sequence,
     mut visit: impl FnMut(&mut Option<MarkCollectionKey>),
 ) {
-    fn visit_value(
-        value: &mut EffectParamValue,
-        visit: &mut impl FnMut(&mut Option<MarkCollectionKey>),
-    ) {
-        match value {
-            EffectParamValue::Marks(reference) => visit(reference),
-            EffectParamValue::Array(values) => {
-                for value in values {
-                    visit_value(value, visit);
-                }
-            }
-            _ => {}
-        }
-    }
     let effects = sequence.effects.iter_mut().flat_map(|effect| {
         std::sync::Arc::make_mut(effect)
             .param_overrides
@@ -1021,6 +771,6 @@ fn mark_references_mut(
         })
         .flatten();
     for value in effects.chain(operators) {
-        visit_value(value, &mut visit);
+        super::model::visit_marks(value, &mut visit);
     }
 }

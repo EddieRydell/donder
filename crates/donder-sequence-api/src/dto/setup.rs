@@ -36,6 +36,12 @@ pub enum GuiDocument {
     Controller {
         document: ControllerGuiDocument,
     },
+    InputDevice {
+        document: InputDeviceGuiDocument,
+    },
+    Rig {
+        document: RigGuiDocument,
+    },
     Blocked {
         reason: String,
         diagnostics: Vec<ProjectDiagnostic>,
@@ -98,6 +104,16 @@ pub enum GuiEditCommand {
     Controller {
         config: SetupControllerConfig,
         ports: Vec<SetupControllerPort>,
+    },
+    InputDevice {
+        driver: GuiInputDriver,
+        controls: Vec<GuiInputControl>,
+    },
+    Rig {
+        edit: RigGuiEdit,
+    },
+    Project {
+        edit: ProjectGuiEdit,
     },
     /// Set the open object's description; empty text removes it.
     Description {
@@ -164,7 +180,9 @@ pub enum DocumentViewId {
     Fixture,
     Patch,
     Controller,
+    InputDevice,
     Sequence,
+    Rig,
     Curve,
     Gradient,
 }
@@ -199,6 +217,7 @@ pub struct ProjectGuiDocument {
     pub object_key: String,
     pub setup: GuiObjectRef,
     pub sequences: Vec<GuiObjectRef>,
+    pub rigs: Vec<GuiObjectRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -216,6 +235,10 @@ pub struct SetupGuiDocument {
     pub patch_read_only: bool,
     pub controllers: Vec<SetupController>,
     pub available_controllers: Vec<SetupController>,
+    pub input_devices: Vec<SetupInputDevice>,
+    pub available_input_devices: Vec<SetupInputDevice>,
+    /// Every key a new input device's control can read, in the language's order.
+    pub key_codes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -265,6 +288,16 @@ pub enum SetupGuiEdit {
     DetachController {
         controller: GuiObjectRef,
         remove_outputs: bool,
+    },
+    AddInputDevice {
+        driver: GuiInputDriver,
+        controls: Vec<GuiInputControl>,
+    },
+    AttachInputDevice {
+        device: GuiObjectRef,
+    },
+    DetachInputDevice {
+        device: GuiObjectRef,
     },
 }
 
@@ -322,11 +355,17 @@ pub enum GuiOwnedStep {
     Setup,
     Layout,
     Patch,
-    /// Owned controllers and sequences are named.
+    /// Owned controllers, input devices, sequences and rigs are named.
     Controller {
         name: String,
     },
+    InputDevice {
+        name: String,
+    },
     Sequence {
+        name: String,
+    },
+    Rig {
         name: String,
     },
     Fixture {
@@ -344,7 +383,13 @@ impl From<&donder_model::OwnedObjectSlot> for GuiOwnedStep {
             OwnedObjectSlot::Controller(name) => Self::Controller {
                 name: name.as_str().to_string(),
             },
+            OwnedObjectSlot::InputDevice(name) => Self::InputDevice {
+                name: name.as_str().to_string(),
+            },
             OwnedObjectSlot::Sequence(name) => Self::Sequence {
+                name: name.as_str().to_string(),
+            },
+            OwnedObjectSlot::Rig(name) => Self::Rig {
                 name: name.as_str().to_string(),
             },
             OwnedObjectSlot::Fixture(id) => Self::Fixture { id: *id },
@@ -364,7 +409,9 @@ impl TryFrom<&GuiOwnedStep> for donder_model::OwnedObjectSlot {
             GuiOwnedStep::Layout => Self::Layout,
             GuiOwnedStep::Patch => Self::Patch,
             GuiOwnedStep::Controller { name: text } => Self::Controller(name(text)?),
+            GuiOwnedStep::InputDevice { name: text } => Self::InputDevice(name(text)?),
             GuiOwnedStep::Sequence { name: text } => Self::Sequence(name(text)?),
+            GuiOwnedStep::Rig { name: text } => Self::Rig(name(text)?),
             GuiOwnedStep::Fixture { id } => Self::Fixture(*id),
         })
     }
@@ -379,9 +426,11 @@ impl TryFrom<&GuiOwnedStep> for donder_model::OwnedObjectSlot {
 pub enum GuiOwnershipSlot {
     Setup,
     Sequence { index: u32 },
+    Rig { index: u32 },
     Layout,
     Patch,
     Controller { index: u32 },
+    InputDevice { index: u32 },
     Fixture { id: u32 },
 }
 

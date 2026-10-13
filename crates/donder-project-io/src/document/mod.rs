@@ -18,10 +18,12 @@ pub(crate) enum Declaration {
     Project(types::Project),
     Setup(types::Setup),
     Controller(types::Controller),
+    InputDevice(types::InputDevice),
     Layout(types::Layout),
     Patch(types::Patch),
     FixtureDefinition(types::FixtureDefinition),
     Sequence(types::Sequence),
+    Rig(types::Rig),
     Curve(types::Curve),
     Gradient(types::Gradient),
 }
@@ -32,10 +34,12 @@ impl Declaration {
             Self::Project(_) => SourceObjectKind::Project,
             Self::Setup(_) => SourceObjectKind::Setup,
             Self::Controller(_) => SourceObjectKind::Controller,
+            Self::InputDevice(_) => SourceObjectKind::InputDevice,
             Self::Layout(_) => SourceObjectKind::Layout,
             Self::Patch(_) => SourceObjectKind::Patch,
             Self::FixtureDefinition(_) => SourceObjectKind::FixtureDefinition,
             Self::Sequence(_) => SourceObjectKind::Sequence,
+            Self::Rig(_) => SourceObjectKind::Rig,
             Self::Curve(_) => SourceObjectKind::Curve,
             Self::Gradient(_) => SourceObjectKind::Gradient,
         }
@@ -46,10 +50,12 @@ impl Declaration {
             Self::Project(value) => declaration(name, value),
             Self::Setup(value) => declaration(name, value),
             Self::Controller(value) => declaration(name, value),
+            Self::InputDevice(value) => declaration(name, value),
             Self::Layout(value) => declaration(name, value),
             Self::Patch(value) => declaration(name, value),
             Self::FixtureDefinition(value) => declaration(name, value),
             Self::Sequence(value) => declaration(name, value),
+            Self::Rig(value) => declaration(name, value),
             Self::Curve(value) => declaration(name, value),
             Self::Gradient(value) => declaration(name, value),
         }
@@ -62,29 +68,33 @@ pub fn document_schema() -> Schema {
     types::Project::shape(&mut schema);
     types::Setup::shape(&mut schema);
     types::Controller::shape(&mut schema);
+    types::InputDevice::shape(&mut schema);
     types::Layout::shape(&mut schema);
     types::Patch::shape(&mut schema);
     types::FixtureDefinition::shape(&mut schema);
     types::Sequence::shape(&mut schema);
+    types::Rig::shape(&mut schema);
     types::Curve::shape(&mut schema);
     types::Gradient::shape(&mut schema);
     schema
 }
 
 /// The types a data document declares at its top level.
-pub const DECLARATION_TYPE_NAMES: [&str; 9] = [
+pub const DECLARATION_TYPE_NAMES: [&str; 11] = [
     "Project",
     "Setup",
     "Controller",
+    "InputDevice",
     "Layout",
     "Patch",
     "FixtureDefinition",
     "Sequence",
+    "Rig",
     "Curve",
     "Gradient",
 ];
 
-const DECLARATION_TYPES: &str = "`Project`, `Setup`, `Controller`, `Layout`, `Patch`, `FixtureDefinition`, `Sequence`, `Curve` or `Gradient`";
+const DECLARATION_TYPES: &str = "`Project`, `Setup`, `Controller`, `InputDevice`, `Layout`, `Patch`, `FixtureDefinition`, `Sequence`, `Rig`, `Curve` or `Gradient`";
 
 /// A parsed data document: its imports and declarations by name, in order.
 #[derive(Clone, Debug, Default)]
@@ -113,6 +123,11 @@ pub(crate) fn read(source: &str) -> (ParsedDocument, Vec<Diagnostic>) {
             }
             types::Controller::TYPE => {
                 types::Controller::decode_fields(fields, &mut decoder).map(Declaration::Controller)
+            }
+            types::InputDevice::TYPE => types::InputDevice::decode_fields(fields, &mut decoder)
+                .map(Declaration::InputDevice),
+            types::Rig::TYPE => {
+                types::Rig::decode_fields(fields, &mut decoder).map(Declaration::Rig)
             }
             types::Layout::TYPE => {
                 types::Layout::decode_fields(fields, &mut decoder).map(Declaration::Layout)

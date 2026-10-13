@@ -1,6 +1,6 @@
 use crate::effect::{CurveSource, EffectParamValue, GradientSource};
 use crate::project::DonderProject;
-use crate::sequence::{MarkCollection, MarkCollectionKey, Sequence};
+use crate::sequence::{MarkCollection, MarkCollectionKey};
 use donder_language::compiler::ParamDecl;
 use donder_runtime_types::{Identifier, Value};
 use donder_runtime_types::{Marks, SampleDuration, SampleTime};
@@ -13,18 +13,30 @@ pub(crate) struct EffectParamTiming {
     pub(crate) duration: SampleDuration,
 }
 
+/// Where a marks parameter's collection comes from.
+#[derive(Clone, Copy)]
+pub(crate) enum MarkSource<'a> {
+    /// A sequence's authored collections.
+    Authored(&'a [MarkCollection]),
+    /// A rig's live collections, which start empty; playback rebinds them.
+    Live,
+}
+
 pub(crate) fn prepare_params(
     project: &DonderProject,
-    sequence: &Sequence,
+    marks: MarkSource<'_>,
     declarations: &[ParamDecl],
     overrides: &IndexMap<Identifier, EffectParamValue>,
     timing: EffectParamTiming,
 ) -> IndexMap<Identifier, Value> {
-    let collections = sequence
-        .mark_collections
-        .iter()
-        .map(|collection| (&collection.key, collection))
-        .collect();
+    let collections = match marks {
+        MarkSource::Authored(collections) => collections
+            .iter()
+            .map(|collection| (&collection.key, collection))
+            .collect(),
+        MarkSource::Live => IndexMap::new(),
+    };
+    let live = matches!(marks, MarkSource::Live);
     let mut params = declarations
         .iter()
         .filter_map(|param| {
@@ -37,7 +49,7 @@ pub(crate) fn prepare_params(
     params.extend(overrides.iter().map(|(key, value)| {
         (
             key.clone(),
-            prepare_param_value(project, &collections, value, timing),
+            prepare_param_value(project, &collections, live, value, timing),
         )
     }));
     params
@@ -46,6 +58,7 @@ pub(crate) fn prepare_params(
 fn prepare_param_value(
     project: &DonderProject,
     collections: &IndexMap<&MarkCollectionKey, &MarkCollection>,
+    live: bool,
     value: &EffectParamValue,
     timing: EffectParamTiming,
 ) -> Value {
@@ -58,6 +71,7 @@ fn prepare_param_value(
         EffectParamValue::Color(value) => Value::Color(*value),
         EffectParamValue::Enum(value) => Value::Enum(value.clone()),
         EffectParamValue::Marks(None) => Value::Marks(Arc::new(Marks::empty())),
+        EffectParamValue::Marks(Some(_)) if live => Value::Marks(Arc::new(Marks::empty())),
         EffectParamValue::Marks(Some(key)) => {
             // The collection's whole track; preparation shares equal tracks.
             let mut track: Vec<u32> = collections[key]
@@ -85,7 +99,7 @@ fn prepare_param_value(
         EffectParamValue::Array(values) => Value::Array(
             values
                 .iter()
-                .map(|value| prepare_param_value(project, collections, value, timing))
+                .map(|value| prepare_param_value(project, collections, live, value, timing))
                 .collect::<Vec<_>>()
                 .into(),
         ),

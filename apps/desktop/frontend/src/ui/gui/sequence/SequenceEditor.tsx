@@ -1,5 +1,5 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { SequenceEditorDocument } from "../../../editor/types";
 
@@ -7,6 +7,7 @@ import type { AutomationClipChooser, GuiFocus, SequenceSelection } from "../shar
 
 import { SequenceCanvas } from "./SequenceCanvas";
 import { GraphEditorModal } from "./GraphEditorModal";
+import { sequenceComposition } from "./composition";
 
 export function SequenceEditor({
   document,
@@ -59,6 +60,9 @@ export function SequenceEditor({
     setSelected(null);
     void runSnapshotCommand(commands.finishCompositionGraphEditing);
   }, [commands.finishCompositionGraphEditing, runSnapshotCommand, setCompositionGraphOpen, setSelected]);
+  const composition = useMemo(() => sequenceComposition(host, document, {
+    automationClips: document.automationClips, automationClipChooser, setAutomationClipChooser
+  }), [host, document, automationClipChooser, setAutomationClipChooser]);
   return (
     <div className="sequence-editor">
       <SequenceCanvas
@@ -76,10 +80,9 @@ export function SequenceEditor({
       />
       {compositionGraphOpen && (
         <GraphEditorModal
-          document={document}
+          composition={composition}
+          description="Sequence layers and operators"
           setSelectedItem={setSelectedGraphItem}
-          automationClipChooser={automationClipChooser}
-          setAutomationClipChooser={setAutomationClipChooser}
           onClose={closeCompositionGraph}
         />
       )}

@@ -1,23 +1,386 @@
+//! Layers and the composition graph, which sequences and rigs share.
 use std::collections::BTreeSet;
 
 use donder_model::{
-    AutomationTarget, CompositionGraphNodeKind, GraphNodePosition, Sequence, SequenceLayerId,
+    AutomationTarget, CompositionGraphNode, CompositionGraphNodeId, CompositionGraphNodeKind,
+    EffectGraphEdge, EffectParamValue, GraphNodePosition, GraphOperatorNode, GraphPortId,
+    OperatorPortCardinality, OperatorRef, Rig, Sequence, SequenceCompositionGraph, SequenceLayer,
+    SequenceLayerId, SourceIdentity, validate_composition_graph,
 };
+use donder_project_io::{ProjectSession, SourceObjectKind, ensure_document_can_reference_source};
+use indexmap::IndexMap;
 
 use super::GuiMutationError;
-use super::model::{composition_graph_node_mut, parse_graph_node_id};
-use donder_sequence_api::{SequenceGraphEdge, SequenceGraphNodePosition};
+use super::model::{
+    effect_param_value_from_gui, fresh_name, graph_operator_from_gui, identifier, parse_color,
+    parse_graph_node_id, typed_name,
+};
+use donder_sequence_api::{CompositionGuiEdit, SequenceGraphEdge, SequenceGraphNodePosition};
 
-pub(super) fn connect_nodes(
-    sequence: &mut Sequence,
+/// An object that composes its layers through a graph.
+pub(super) trait Composition {
+    fn layers(&self) -> &[SequenceLayer];
+    fn layers_mut(&mut self) -> &mut Vec<SequenceLayer>;
+    fn graph(&self) -> &SequenceCompositionGraph;
+    fn graph_mut(&mut self) -> &mut SequenceCompositionGraph;
+    /// Move what plays on the `removed` layers to `destination`.
+    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId);
+    /// Forget what refers to the removed graph nodes.
+    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>);
+}
+
+impl Composition for Sequence {
+    fn layers(&self) -> &[SequenceLayer] {
+        &self.layers
+    }
+    fn layers_mut(&mut self) -> &mut Vec<SequenceLayer> {
+        &mut self.layers
+    }
+    fn graph(&self) -> &SequenceCompositionGraph {
+        &self.composition_graph
+    }
+    fn graph_mut(&mut self) -> &mut SequenceCompositionGraph {
+        &mut self.composition_graph
+    }
+    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
+        for effect in &mut self.effects {
+            if removed.contains(&effect.layer_id.0) {
+                std::sync::Arc::make_mut(effect).layer_id = destination.clone();
+            }
+        }
+    }
+    fn forget_nodes(&mut self, removed: &BTreeSet<CompositionGraphNodeId>) {
+        for clip in &mut self.automation_clips {
+            clip.remove_bindings(|target| {
+                matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if removed.contains(node_id))
+            });
+        }
+    }
+}
+
+impl Composition for Rig {
+    fn layers(&self) -> &[SequenceLayer] {
+        &self.layers
+    }
+    fn layers_mut(&mut self) -> &mut Vec<SequenceLayer> {
+        &mut self.layers
+    }
+    fn graph(&self) -> &SequenceCompositionGraph {
+        &self.composition_graph
+    }
+    fn graph_mut(&mut self) -> &mut SequenceCompositionGraph {
+        &mut self.composition_graph
+    }
+    fn move_layer_contents(&mut self, removed: &BTreeSet<u32>, destination: SequenceLayerId) {
+        for effect in self.effects_mut() {
+            if removed.contains(&effect.layer_id.0) {
+                effect.layer_id = destination.clone();
+            }
+        }
+    }
+    fn forget_nodes(&mut self, _removed: &BTreeSet<CompositionGraphNodeId>) {}
+}
+
+/// Apply a layer or graph edit to `composition`, which `owner` declares.
+pub(super) fn edit_composition(
+    session: &mut ProjectSession,
+    owner: &SourceIdentity,
+    composition: &mut impl Composition,
+    edit: CompositionGuiEdit,
+) -> Result<(), GuiMutationError> {
+    match edit {
+        CompositionGuiEdit::CreateLayer { name, color } => {
+            create_layer(composition, name, color, None, true)?;
+        }
+        CompositionGuiEdit::CreateLayerAt { name, color, x, y } => {
+            create_layer(composition, name, color, Some((x, y)), false)?;
+        }
+        CompositionGuiEdit::RenameLayer { id, name } => {
+            layer_mut(composition, id)?.name = typed_name(&name)?;
+        }
+        CompositionGuiEdit::SetLayerColor { id, color } => {
+            layer_mut(composition, id)?.color = parse_color(&color)?;
+        }
+        CompositionGuiEdit::SetLayerEnabled { id, enabled } => {
+            layer_mut(composition, id)?.enabled = enabled;
+        }
+        CompositionGuiEdit::SetLayerDescription { id, description } => {
+            layer_mut(composition, id)?.description = super::description::normalized(description);
+        }
+        CompositionGuiEdit::RenameGraphNode { node_id, name } => {
+            let node_id = parse_graph_node_id(&node_id)?;
+            let CompositionGraphNodeKind::Operator(operator) =
+                &mut node_mut(composition, &node_id)?.kind
+            else {
+                return Err(GuiMutationError::Invalid(
+                    "Layer and output nodes are named by what they show.".to_string(),
+                ));
+            };
+            operator.name = typed_name(&name)?;
+        }
+        CompositionGuiEdit::AddGraphOperatorNode {
+            operator,
+            x,
+            y,
+            initial_color,
+        } => {
+            let initial_color = parse_color(&initial_color)?;
+            let operator = graph_operator_from_gui(session, &operator)?;
+            let definition = session
+                .project
+                .definitions()
+                .operators
+                .resolve(&operator)
+                .cloned()
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Operator definition was not found.".to_string())
+                })?;
+            let OperatorRef::Custom(id) = &operator;
+            ensure_document_can_reference_source(
+                session,
+                owner.document_id(),
+                SourceObjectKind::OperatorDefinition,
+                &id.0,
+            )
+            .map_err(|error| GuiMutationError::Blocked(error.to_string()))?;
+            let mut params = IndexMap::new();
+            for declaration in definition.params() {
+                if declaration.default.is_none() {
+                    let value = EffectParamValue::initial_for_type(&declaration.ty, initial_color)
+                        .ok_or_else(|| {
+                            GuiMutationError::Invalid(
+                                "A valid required operator parameter could not be created."
+                                    .to_string(),
+                            )
+                        })?;
+                    params.insert(declaration.name.clone(), value);
+                }
+            }
+            let next_id = next_node_id(composition);
+            let OperatorRef::Custom(definition) = &operator;
+            let name = fresh_name(definition.0.object(), |candidate| {
+                name_taken(composition, candidate)
+            });
+            composition.graph_mut().nodes.push(CompositionGraphNode {
+                id: CompositionGraphNodeId(next_id),
+                position: GraphNodePosition { x, y },
+                kind: CompositionGraphNodeKind::Operator(GraphOperatorNode {
+                    name,
+                    operator,
+                    params,
+                }),
+            });
+        }
+        CompositionGuiEdit::MoveGraphNodes { positions } => {
+            move_nodes(composition, positions)?;
+        }
+        CompositionGuiEdit::DeleteGraphItems {
+            node_ids,
+            layer_ids,
+            edges,
+            migrate_to_layer_id,
+        } => {
+            delete_items(composition, node_ids, layer_ids, edges, migrate_to_layer_id)?;
+        }
+        CompositionGuiEdit::ConnectGraphNodes {
+            from_node,
+            from_port,
+            to_node,
+            to_port,
+        } => {
+            let definitions = session.project.definitions().operators.clone();
+            connect_nodes(
+                composition,
+                &definitions,
+                SequenceGraphEdge {
+                    from_node,
+                    from_port,
+                    to_node,
+                    to_port,
+                },
+                None,
+            )?;
+        }
+        CompositionGuiEdit::ReconnectGraphEdge {
+            previous,
+            connection,
+        } => {
+            let definitions = session.project.definitions().operators.clone();
+            connect_nodes(composition, &definitions, connection, Some(previous))?;
+        }
+        CompositionGuiEdit::UpdateGraphOperatorParam {
+            node_id,
+            name,
+            value,
+        } => {
+            let value = effect_param_value_from_gui(session, owner, value)?;
+            let definitions = session.project.definitions().operators.clone();
+            let node_id = parse_graph_node_id(&node_id)?;
+            let mut graph = composition.graph().clone();
+            let node = graph
+                .nodes
+                .iter_mut()
+                .find(|node| node.id == node_id)
+                .ok_or_else(|| {
+                    GuiMutationError::Invalid("Graph node was not found.".to_string())
+                })?;
+            let CompositionGraphNodeKind::Operator(operator) = &mut node.kind else {
+                return Err(GuiMutationError::Invalid(
+                    "Graph node is not an operator.".to_string(),
+                ));
+            };
+            operator.params.insert(identifier(&name)?, value);
+            validate_composition_graph(&graph, &definitions)
+                .map_err(|error| GuiMutationError::Invalid(error.message))?;
+            *composition.graph_mut() = graph;
+        }
+    }
+    Ok(())
+}
+
+fn layer_mut(
+    composition: &mut impl Composition,
+    id: u32,
+) -> Result<&mut SequenceLayer, GuiMutationError> {
+    composition
+        .layers_mut()
+        .iter_mut()
+        .find(|layer| layer.id.0 == id)
+        .ok_or_else(|| GuiMutationError::Invalid("Layer was not found.".to_string()))
+}
+
+pub(super) fn node_mut<'a>(
+    composition: &'a mut impl Composition,
+    id: &CompositionGraphNodeId,
+) -> Result<&'a mut CompositionGraphNode, GuiMutationError> {
+    composition
+        .graph_mut()
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == *id)
+        .ok_or_else(|| GuiMutationError::Invalid("Graph node was not found.".to_string()))
+}
+
+fn ensure_node_exists(
+    composition: &impl Composition,
+    node_id: &CompositionGraphNodeId,
+) -> Result<(), GuiMutationError> {
+    if composition
+        .graph()
+        .nodes
+        .iter()
+        .any(|node| node.id == *node_id)
+    {
+        Ok(())
+    } else {
+        Err(GuiMutationError::Invalid(
+            "Graph node was not found.".to_string(),
+        ))
+    }
+}
+
+fn input_cardinality(
+    definitions: &donder_model::OperatorDefinitionStore,
+    kind: &CompositionGraphNodeKind,
+    source_name: &str,
+) -> Option<OperatorPortCardinality> {
+    match kind {
+        CompositionGraphNodeKind::Layer { .. } => None,
+        CompositionGraphNodeKind::Operator(operator) => definitions
+            .resolve(&operator.operator)?
+            .inputs()
+            .iter()
+            .find(|port| port.source_name == source_name)
+            .map(|port| port.cardinality.clone()),
+        CompositionGraphNodeKind::Output => {
+            (source_name == "input").then_some(OperatorPortCardinality::Many)
+        }
+    }
+}
+
+fn next_node_id(composition: &impl Composition) -> u32 {
+    composition
+        .graph()
+        .nodes
+        .iter()
+        .map(|node| node.id.0)
+        .max()
+        .unwrap_or(0)
+        + 1
+}
+
+/// Whether a name is used by a layer, graph node or the output node: they
+/// share the graph's namespace.
+pub(super) fn name_taken(composition: &impl Composition, name: &str) -> bool {
+    name == "output"
+        || composition
+            .layers()
+            .iter()
+            .any(|layer| layer.name.as_str() == name)
+        || composition.graph().nodes.iter().any(|node| {
+            matches!(&node.kind, CompositionGraphNodeKind::Operator(operator) if operator.name.as_str() == name)
+        })
+}
+
+fn create_layer(
+    composition: &mut impl Composition,
+    name: String,
+    color: String,
+    position: Option<(f32, f32)>,
+    connect_to_output: bool,
+) -> Result<(), GuiMutationError> {
+    let next_layer_id = composition
+        .layers()
+        .iter()
+        .map(|layer| layer.id.0)
+        .max()
+        .unwrap_or(0)
+        + 1;
+    let output_node_id = composition
+        .graph()
+        .nodes
+        .iter()
+        .find(|node| matches!(node.kind, CompositionGraphNodeKind::Output))
+        .map(|node| node.id.clone())
+        .ok_or_else(|| {
+            GuiMutationError::Invalid("Composition graph output was not found.".to_string())
+        })?;
+    let layer_node_id = CompositionGraphNodeId(next_node_id(composition));
+    typed_name(&name)?;
+    let name = fresh_name(&name, |candidate| name_taken(composition, candidate));
+    composition.layers_mut().push(SequenceLayer {
+        id: SequenceLayerId(next_layer_id),
+        name,
+        description: None,
+        color: parse_color(&color)?,
+        enabled: true,
+    });
+    let (x, y) = position.unwrap_or((80.0, 120.0 + next_layer_id as f32 * 80.0));
+    let graph = composition.graph_mut();
+    graph.nodes.push(CompositionGraphNode {
+        id: layer_node_id.clone(),
+        position: GraphNodePosition { x, y },
+        kind: CompositionGraphNodeKind::Layer {
+            layer_id: SequenceLayerId(next_layer_id),
+        },
+    });
+    if connect_to_output {
+        graph.edges.push(EffectGraphEdge {
+            from: layer_node_id,
+            from_port: GraphPortId("output".to_string()),
+            to: output_node_id,
+            to_port: GraphPortId("input".to_string()),
+        });
+    }
+    Ok(())
+}
+
+fn connect_nodes(
+    composition: &mut impl Composition,
     definitions: &donder_model::OperatorDefinitionStore,
     connection: SequenceGraphEdge,
     previous: Option<SequenceGraphEdge>,
 ) -> Result<(), GuiMutationError> {
-    use super::model::{ensure_graph_node_exists, graph_input_cardinality};
-    use donder_model::{EffectGraphEdge, GraphPortId};
-    use donder_model::{OperatorPortCardinality, validate_composition_graph};
-
     let from = parse_graph_node_id(&connection.from_node)?;
     let to = parse_graph_node_id(&connection.to_node)?;
     if from == to {
@@ -25,9 +388,9 @@ pub(super) fn connect_nodes(
             "Graph node cannot connect to itself.".into(),
         ));
     }
-    ensure_graph_node_exists(sequence, &from)?;
-    ensure_graph_node_exists(sequence, &to)?;
-    let graph = &mut sequence.composition_graph;
+    ensure_node_exists(composition, &from)?;
+    ensure_node_exists(composition, &to)?;
+    let graph = composition.graph_mut();
     if let Some(previous) = previous {
         let old_from = parse_graph_node_id(&previous.from_node)?;
         let old_to = parse_graph_node_id(&previous.to_node)?;
@@ -54,7 +417,7 @@ pub(super) fn connect_nodes(
             .nodes
             .iter()
             .find(|node| node.id == edge.to)
-            .and_then(|node| graph_input_cardinality(definitions, &node.kind, &edge.to_port.0))
+            .and_then(|node| input_cardinality(definitions, &node.kind, &edge.to_port.0))
             == Some(OperatorPortCardinality::One);
         if single_input {
             graph
@@ -68,8 +431,8 @@ pub(super) fn connect_nodes(
         .map_err(|error| GuiMutationError::Invalid(error.message))
 }
 
-pub(super) fn move_nodes(
-    sequence: &mut Sequence,
+fn move_nodes(
+    composition: &mut impl Composition,
     positions: Vec<SequenceGraphNodePosition>,
 ) -> Result<(), GuiMutationError> {
     for position in positions {
@@ -79,7 +442,7 @@ pub(super) fn move_nodes(
             ));
         }
         let id = parse_graph_node_id(&position.node_id)?;
-        composition_graph_node_mut(sequence, &id)?.position = GraphNodePosition {
+        node_mut(composition, &id)?.position = GraphNodePosition {
             x: position.x,
             y: position.y,
         };
@@ -88,8 +451,8 @@ pub(super) fn move_nodes(
 }
 
 // The caller owns the candidate session and commits the whole selection as one history entry.
-pub(super) fn delete_items(
-    sequence: &mut Sequence,
+fn delete_items(
+    composition: &mut impl Composition,
     node_ids: Vec<String>,
     layer_ids: Vec<u32>,
     edges: Vec<SequenceGraphEdge>,
@@ -101,7 +464,7 @@ pub(super) fn delete_items(
         .collect::<Result<BTreeSet<_>, _>>()?;
     let mut layer_ids = layer_ids.into_iter().collect::<BTreeSet<_>>();
     for id in &ids {
-        let node = composition_graph_node_mut(sequence, id)?;
+        let node = node_mut(composition, id)?;
         match &node.kind {
             CompositionGraphNodeKind::Output => {
                 return Err(GuiMutationError::Invalid(
@@ -121,15 +484,15 @@ pub(super) fn delete_items(
     }
     if !layer_ids.is_empty() {
         for id in &layer_ids {
-            if *id == 0 || !sequence.layers.iter().any(|layer| layer.id.0 == *id) {
+            if *id == 0 || !composition.layers().iter().any(|layer| layer.id.0 == *id) {
                 return Err(GuiMutationError::Invalid(
                     "Layer is missing or protected.".into(),
                 ));
             }
         }
         ids.extend(
-            sequence
-                .composition_graph
+            composition
+                .graph()
                 .nodes
                 .iter()
                 .filter_map(|node| match &node.kind {
@@ -143,18 +506,15 @@ pub(super) fn delete_items(
         );
         let destination = migrate_to_layer_id
             .filter(|id| {
-                !layer_ids.contains(id) && sequence.layers.iter().any(|layer| layer.id.0 == *id)
+                !layer_ids.contains(id)
+                    && composition.layers().iter().any(|layer| layer.id.0 == *id)
             })
             .ok_or_else(|| {
                 GuiMutationError::Invalid("Choose a surviving layer for the effects.".into())
             })?;
-        for effect in &mut sequence.effects {
-            if layer_ids.contains(&effect.layer_id.0) {
-                std::sync::Arc::make_mut(effect).layer_id = SequenceLayerId(destination);
-            }
-        }
-        sequence
-            .layers
+        composition.move_layer_contents(&layer_ids, SequenceLayerId(destination));
+        composition
+            .layers_mut()
             .retain(|layer| !layer_ids.contains(&layer.id.0));
     }
     let removed_edges = edges
@@ -168,11 +528,9 @@ pub(super) fn delete_items(
             ))
         })
         .collect::<Result<BTreeSet<_>, GuiMutationError>>()?;
-    sequence
-        .composition_graph
-        .nodes
-        .retain(|node| !ids.contains(&node.id));
-    sequence.composition_graph.edges.retain(|edge| {
+    let graph = composition.graph_mut();
+    graph.nodes.retain(|node| !ids.contains(&node.id));
+    graph.edges.retain(|edge| {
         !ids.contains(&edge.from)
             && !ids.contains(&edge.to)
             && !removed_edges.contains(&(
@@ -182,10 +540,6 @@ pub(super) fn delete_items(
                 edge.to_port.0.as_str(),
             ))
     });
-    for clip in &mut sequence.automation_clips {
-        clip.remove_bindings(|target| {
-            matches!(target, AutomationTarget::CompositionNodeParam { node_id, .. } if ids.contains(node_id))
-        });
-    }
+    composition.forget_nodes(&ids);
     Ok(())
 }

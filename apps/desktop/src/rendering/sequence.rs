@@ -4,7 +4,7 @@ use donder_model::SequenceId;
 use donder_model::SetupId;
 use donder_model::{ControllerId, ControllerPortId};
 use donder_output::ControllerPortFrame;
-use donder_runtime::{PlaybackRate, SequencePlayback};
+use donder_runtime::{PlaybackRate, SequenceFrame, SequencePlayback};
 use donder_runtime_types::{Color, SampleTime, SampleTimeError, sample_time_from_seconds_f32};
 use std::time::Duration;
 
@@ -168,15 +168,7 @@ impl SequenceRenderService {
                         pixels: fixture.pixels.to_vec(),
                     })
                     .collect(),
-                controller_frames: rendered
-                    .outputs()
-                    .map(|output| ControllerPortFrame {
-                        controller: session.controllers[output.output.controller_index as usize]
-                            .clone(),
-                        port: ControllerPortId(output.output.port),
-                        slots: output.bytes.to_vec(),
-                    })
-                    .collect(),
+                controller_frames: controller_frames(&rendered, &session.controllers),
             },
         };
         session.cached = Some(frame.clone());
@@ -266,11 +258,7 @@ pub(crate) fn prepare_render_session_cached(
     let setup = project
         .setup(project.root().setup.id())
         .ok_or(RenderSessionPrepareError::SelectionUnavailable)?;
-    let controllers = setup
-        .controllers
-        .iter()
-        .map(|source| source.id().clone())
-        .collect();
+    let controllers = setup_controllers(setup);
     Ok(PreparedRenderSession {
         setup_id: setup.id.clone(),
         sequence_id: sequence_id.clone(),
@@ -278,6 +266,31 @@ pub(crate) fn prepare_render_session_cached(
         controllers,
         cached: None,
     })
+}
+
+/// A frame's controller output: each output's controller index names a
+/// controller of the setup it was prepared on, in the setup's order.
+pub(crate) fn controller_frames(
+    frame: &SequenceFrame<'_>,
+    controllers: &[ControllerId],
+) -> Vec<ControllerPortFrame> {
+    frame
+        .outputs()
+        .map(|output| ControllerPortFrame {
+            controller: controllers[output.output.controller_index as usize].clone(),
+            port: ControllerPortId(output.output.port),
+            slots: output.bytes.to_vec(),
+        })
+        .collect()
+}
+
+/// The setup's controllers, in the order prepared output indexes them.
+pub(crate) fn setup_controllers(setup: &donder_model::Setup) -> Vec<ControllerId> {
+    setup
+        .controllers
+        .iter()
+        .map(|source| source.id().clone())
+        .collect()
 }
 
 fn require_audio_clock(audio: &AudioTransportSnapshot) -> Result<(), SequenceRenderError> {

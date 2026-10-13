@@ -2,7 +2,7 @@
 use crate::{ExportProjectError, ProjectSession, ensure_document_can_reference_object};
 use donder_model::{
     CompositionGraphNodeKind, DocumentId, EffectParamValue, EffectRef, LayoutFixtureKind,
-    ObjectIdentity, OperatorRef, SequenceAudio, ValueSource,
+    ObjectIdentity, OperatorRef, SequenceAudio, SequenceCompositionGraph, ValueSource,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,11 +21,17 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
     for source in &project.root().sequences {
         add(owner, source.id().0.clone());
     }
+    for source in &project.root().rigs {
+        add(owner, source.id().0.clone());
+    }
     for setup in project.setups() {
         let owner = setup.id.0.document_id();
         add(owner, setup.layout.id().0.clone());
         add(owner, setup.patch.id().0.clone());
         for source in &setup.controllers {
+            add(owner, source.id().0.clone());
+        }
+        for source in &setup.input_devices {
             add(owner, source.id().0.clone());
         }
     }
@@ -59,15 +65,22 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
                 param_references(value, &mut |id| add(owner, id));
             }
         }
-        for node in &sequence.composition_graph.nodes {
-            if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
-                let OperatorRef::Custom(id) = &operator.operator;
-                add(owner, id.0.clone().into());
-                for value in operator.params.values() {
-                    param_references(value, &mut |id| add(owner, id));
-                }
+        graph_references(&sequence.composition_graph, &mut |id| add(owner, id));
+    }
+    for rig in project.rigs() {
+        let owner = rig.id.0.document_id();
+        for effect in rig.effects() {
+            add(owner, effect.target.layout.0.clone());
+            let EffectRef::Custom(id) = &effect.definition;
+            add(owner, id.0.clone().into());
+            for value in effect.param_overrides.values() {
+                param_references(value, &mut |id| add(owner, id));
             }
         }
+        for input in rig.inputs() {
+            add(owner, input.device.0.clone());
+        }
+        graph_references(&rig.composition_graph, &mut |id| add(owner, id));
     }
     for (from, targets) in references {
         for target in targets {
@@ -104,6 +117,18 @@ pub fn maintain_ownership_sources(session: &mut ProjectSession) -> Result<(), Ex
         }
     }
     Ok(())
+}
+
+fn graph_references(graph: &SequenceCompositionGraph, add: &mut impl FnMut(ObjectIdentity)) {
+    for node in &graph.nodes {
+        if let CompositionGraphNodeKind::Operator(operator) = &node.kind {
+            let OperatorRef::Custom(id) = &operator.operator;
+            add(id.0.clone().into());
+            for value in operator.params.values() {
+                param_references(value, add);
+            }
+        }
+    }
 }
 
 fn param_references(value: &EffectParamValue, add: &mut impl FnMut(ObjectIdentity)) {

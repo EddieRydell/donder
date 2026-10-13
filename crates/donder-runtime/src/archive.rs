@@ -1,14 +1,17 @@
-﻿//! Portable prepared-sequence archives. The format uses 32-bit little-endian
-//! fields; rkyv owns pointer relocation, sharing, and structural archive
-//! validation, and program admission checks every program's slots and
-//! structure. The rest of the graph's meaning is trusted to the Donder producer.
+﻿//! Portable prepared-sequence and prepared-rig archives. The format uses
+//! 32-bit little-endian fields; rkyv owns pointer relocation, sharing, and
+//! structural archive validation, and program admission checks every
+//! program's slots and structure. The rest of the graph's meaning is trusted
+//! to the Donder producer.
 
-use crate::sequence::{PreparedSequence, SequenceData};
+use crate::sequence::{PreparedRig, PreparedSequence, RigArchiveData, SequenceData};
 use alloc::{boxed::Box, vec, vec::Vec};
 use rkyv::Archived;
 
 pub const HEADER_BYTES: usize = 16;
 const MAGIC: [u8; 4] = *b"DOND";
+/// A rig's archive frames its sequence data and command tables the same way.
+const RIG_MAGIC: [u8; 4] = *b"DRIG";
 /// Current prepared-sequence format accepted by this runtime.
 pub const FORMAT_VERSION: u32 = 61;
 
@@ -47,20 +50,34 @@ impl Default for LoadLimits {
 pub fn encode_sequence(sequence: &PreparedSequence) -> Result<Vec<u8>, LoadError> {
     let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(&sequence.archive_data())
         .map_err(|_| LoadError::Archive)?;
+    frame(MAGIC, &payload)
+}
+
+pub fn encode_rig(rig: &PreparedRig) -> Result<Vec<u8>, LoadError> {
+    let payload = rkyv::to_bytes::<rkyv::rancor::Failure>(&rig.archive_data())
+        .map_err(|_| LoadError::Archive)?;
+    frame(RIG_MAGIC, &payload)
+}
+
+fn frame(magic: [u8; 4], payload: &[u8]) -> Result<Vec<u8>, LoadError> {
     let length = u32::try_from(payload.len()).map_err(|_| LoadError::Limit)?;
     let mut bytes = Vec::with_capacity(HEADER_BYTES + payload.len());
-    bytes.extend_from_slice(&MAGIC);
+    bytes.extend_from_slice(&magic);
     bytes.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
     bytes.extend_from_slice(&length.to_le_bytes());
-    bytes.extend_from_slice(&crc32fast::hash(&payload).to_le_bytes());
-    bytes.extend_from_slice(&payload);
+    bytes.extend_from_slice(&crc32fast::hash(payload).to_le_bytes());
+    bytes.extend_from_slice(payload);
     Ok(bytes)
 }
 
 /// Reads only the fixed header, so transports can limit an upload before allocating it.
 pub fn payload_length(header: &[u8], limits: LoadLimits) -> Result<usize, LoadError> {
+    framed_length(MAGIC, header, limits)
+}
+
+fn framed_length(magic: [u8; 4], header: &[u8], limits: LoadLimits) -> Result<usize, LoadError> {
     let header: &[u8; HEADER_BYTES] = header.try_into().map_err(|_| LoadError::Header)?;
-    if header[..4] != MAGIC {
+    if header[..4] != magic {
         return Err(LoadError::Header);
     }
     let word = |offset| {
@@ -86,9 +103,37 @@ fn validate_archive(
     bytes: &[u8],
     limits: LoadLimits,
 ) -> Result<&Archived<SequenceData>, LoadError> {
+    let archived = validate_framed::<SequenceData>(MAGIC, bytes, limits)?;
+    check_graph_limits(archived, limits)?;
+    Ok(archived)
+}
+
+fn check_graph_limits(
+    archived: &Archived<SequenceData>,
+    limits: LoadLimits,
+) -> Result<(), LoadError> {
+    if archived.signals.pixel_count.to_native() as usize > limits.pixels
+        || archived.signals.plan.nodes.len() > limits.graph_nodes
+    {
+        return Err(LoadError::Limit);
+    }
+    Ok(())
+}
+
+fn validate_framed<T>(
+    magic: [u8; 4],
+    bytes: &[u8],
+    limits: LoadLimits,
+) -> Result<&Archived<T>, LoadError>
+where
+    T: rkyv::Archive,
+    Archived<T>: for<'a> rkyv::bytecheck::CheckBytes<
+            rkyv::api::high::HighValidator<'a, rkyv::rancor::Failure>,
+        > + rkyv::Portable,
+{
     use rkyv::validation::{Validator, archive::ArchiveValidator, shared::SharedValidator};
     let header = bytes.get(..HEADER_BYTES).ok_or(LoadError::Header)?;
-    let length = payload_length(header, limits)?;
+    let length = framed_length(magic, header, limits)?;
     let payload = bytes.get(HEADER_BYTES..).ok_or(LoadError::Header)?;
     if payload.len() != length {
         return Err(LoadError::Header);
@@ -100,17 +145,11 @@ fn validate_archive(
         ArchiveValidator::with_max_depth(payload, core::num::NonZeroUsize::new(64)),
         SharedValidator::new(),
     );
-    let archived =
-        rkyv::api::access_with_context::<Archived<SequenceData>, _, rkyv::rancor::Failure>(
-            payload,
-            &mut validator,
-        )
-        .map_err(|_| LoadError::Archive)?;
-    if archived.signals.pixel_count.to_native() as usize > limits.pixels
-        || archived.signals.plan.nodes.len() > limits.graph_nodes
-    {
-        return Err(LoadError::Limit);
-    }
+    let archived = rkyv::api::access_with_context::<Archived<T>, _, rkyv::rancor::Failure>(
+        payload,
+        &mut validator,
+    )
+    .map_err(|_| LoadError::Archive)?;
     drop(validator);
     Ok(archived)
 }
@@ -121,6 +160,15 @@ pub fn decode_sequence(bytes: &[u8], limits: LoadLimits) -> Result<PreparedSeque
         .map_err(|_| LoadError::Archive)?;
     check_resource_limits(&data, limits)?;
     PreparedSequence::from_archive(data)
+}
+
+pub fn decode_rig(bytes: &[u8], limits: LoadLimits) -> Result<PreparedRig, LoadError> {
+    let archived = validate_framed::<RigArchiveData>(RIG_MAGIC, bytes, limits)?;
+    check_graph_limits(&archived.sequence, limits)?;
+    let data = rkyv::deserialize::<RigArchiveData, rkyv::rancor::Failure>(archived)
+        .map_err(|_| LoadError::Archive)?;
+    check_resource_limits(&data.sequence, limits)?;
+    PreparedRig::from_archive(data)
 }
 
 /// Estimate playback storage using references and layouts supplied by the trusted

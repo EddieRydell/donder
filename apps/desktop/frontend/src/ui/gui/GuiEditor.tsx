@@ -28,6 +28,8 @@ import { ProjectEditor } from "./project/ProjectEditor";
 import { LibraryEditor } from "./library/LibraryEditor";
 import { ControllerEditor } from "./controller/ControllerEditor";
 import { PatchEditor } from "./patch/PatchEditor";
+import { InputDeviceEditor } from "./inputDevice/InputDeviceEditor";
+import { RigEditor } from "./rig/RigEditor";
 
 const INSPECTOR_MIN_WIDTH_PX = THEME_METRICS.inspectorMinWidth;
 const INSPECTOR_MAX_WIDTH_PX = THEME_METRICS.inspectorMaxWidth;
@@ -90,6 +92,12 @@ function ResourceEditor({
   }
   if (gui.type === "patch") {
     return <PatchEditor document={gui.document} />;
+  }
+  if (gui.type === "inputDevice") {
+    return <InputDeviceEditor document={gui.document} />;
+  }
+  if (gui.type === "rig") {
+    return <RigEditor document={gui.document} />;
   }
 
 
@@ -225,5 +233,5 @@ function GuiEditorInner({
 }
 
 function guiEditorKey(activeFile: string | null, gui: ReadyGuiDocument) {
-  return JSON.stringify([activeFile, gui.type, "sourceRef" in gui.document ? guiObjectKey(gui.document.sourceRef) : gui.type === "controller" ? guiObjectKey(gui.document.controller.sourceRef) : [gui.document.path, gui.document.objectKey]]);
+  return JSON.stringify([activeFile, gui.type, "sourceRef" in gui.document ? guiObjectKey(gui.document.sourceRef) : gui.type === "controller" ? guiObjectKey(gui.document.controller.sourceRef) : gui.type === "inputDevice" ? guiObjectKey(gui.document.device.sourceRef) : [gui.document.path, gui.document.objectKey]]);
 }

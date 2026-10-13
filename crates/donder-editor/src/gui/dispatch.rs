@@ -37,6 +37,15 @@ pub fn apply_edit(
             super::controller::edit(session, &resolved, config, ports)?;
         }
 
+        (DocumentViewId::InputDevice, GuiEditCommand::InputDevice { driver, controls }) => {
+            super::input_device::edit(session, &resolved, driver, controls)?;
+        }
+        (DocumentViewId::Rig, GuiEditCommand::Rig { edit }) => {
+            super::rig::edit_rig(session, &resolved, edit)?;
+        }
+        (DocumentViewId::Project, GuiEditCommand::Project { edit }) => {
+            super::project::edit_project(session, &resolved, edit)?;
+        }
         (DocumentViewId::Patch, GuiEditCommand::Patch { routes }) => {
             super::patch::replace(
                 session,

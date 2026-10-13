@@ -86,6 +86,7 @@ pub struct SequenceBuilder<'id> {
     outputs: Vec<Output>,
     routes: Vec<PreparedPixelRoute>,
     lookups: Vec<[u8; 256]>,
+    rig: super::rig::RigData,
     brand: PhantomData<fn(&'id ()) -> &'id ()>,
 }
 
@@ -112,6 +113,7 @@ impl<'id> SequenceBuilder<'id> {
             outputs: Vec::new(),
             routes: Vec::new(),
             lookups: Vec::new(),
+            rig: super::rig::RigData::default(),
             brand: PhantomData,
         }
     }
@@ -292,6 +294,57 @@ impl<'id> SequenceBuilder<'id> {
             automation,
         });
         EffectHandle::new(index)
+    }
+
+    /// Make `effect` a rig voice that commands start and stop; returns its
+    /// index in the rig's voices.
+    pub fn voice(&mut self, effect: EffectHandle<'id>, length: super::VoiceLength) -> u16 {
+        let mut voices = core::mem::take(&mut self.rig.voices).into_vec();
+        voices.push(super::rig::PreparedVoice {
+            effect: effect.index as u32,
+            length,
+        });
+        self.rig.voices = voices.into();
+        (self.rig.voices.len() - 1) as u16
+    }
+
+    /// A live mark collection read by the given marks parameters of effects
+    /// (their program's parameter indices); returns its index.
+    pub fn live_marks(
+        &mut self,
+        readers: impl IntoIterator<Item = (EffectHandle<'id>, u16)>,
+    ) -> u16 {
+        let readers = readers
+            .into_iter()
+            .map(|(effect, param)| super::rig::MarksReader {
+                effect: effect.index as u32,
+                param,
+            })
+            .collect();
+        let mut collections = core::mem::take(&mut self.rig.collections).into_vec();
+        collections.push(readers);
+        self.rig.collections = collections.into();
+        (self.rig.collections.len() - 1) as u16
+    }
+
+    /// A control that sets the given automation bindings of effects (indices
+    /// in each effect's bindings); returns its index.
+    pub fn control(&mut self, targets: impl IntoIterator<Item = (EffectHandle<'id>, u16)>) -> u16 {
+        let targets = targets
+            .into_iter()
+            .map(|(effect, binding)| super::rig::ControlTarget {
+                effect: effect.index as u32,
+                binding,
+            })
+            .collect();
+        let mut controls = core::mem::take(&mut self.rig.controls).into_vec();
+        controls.push(targets);
+        self.rig.controls = controls.into();
+        (self.rig.controls.len() - 1) as u16
+    }
+
+    pub(super) fn take_rig(&mut self) -> super::rig::RigData {
+        core::mem::take(&mut self.rig)
     }
 
     /// Register authored clip identity independently from storage order.

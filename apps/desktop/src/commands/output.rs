@@ -27,7 +27,7 @@ pub(crate) fn set_live_output_active(
     Ok(snapshot)
 }
 
-fn start_live_output_poll(app: AppHandle) {
+pub(crate) fn start_live_output_poll(app: AppHandle) {
     if !app.state::<DesktopState>().claim_live_output_poll() {
         return;
     }

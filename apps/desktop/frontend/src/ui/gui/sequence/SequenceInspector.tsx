@@ -1,8 +1,7 @@
 import { useSequenceEditorHost } from "../../../editor/host";
-import { useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 
 import type {
@@ -14,15 +13,14 @@ import type {
   SequenceMarkCollection,
   SequenceMarkRef,
   SequenceEffectScope,
-  SequenceEffectDefinition,
   SequenceEffectCommonEdit
 } from "../../../editor/types";
 import { ColorPicker } from "../../ColorPicker";
-import { OverlayPortal } from "../../OverlayPortal";
-import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
+import { EffectDefinitionPicker, effectReferencesEqual } from "./definitionMenu";
 import { InspectorScrollArea, Readout } from "../InspectorScrollArea";
 import { roundToNanosecond, type AutomationClipChooser, type GuiFocus, type SequenceSelection } from "../shared";
 import { TypedParamInput } from "./params/TypedParamInput";
+import { sequenceComposition } from "./composition";
 import { NameField } from "./NameField";
 import { DescriptionField } from "../DescriptionField";
 import { activeMarkCollection, defaultMarkColor, nextCollectionKey } from "./marks";
@@ -33,7 +31,7 @@ import { useSequenceEffectDetails } from "./sequenceEffectDetails";
 import { targetsEqual } from "./sequenceTargets";
 import { detachedAutomationTargetLabel } from "./sequenceAutomationLayout";
 import { useConfirmDialog } from "../../ConfirmDialog";
-import { defaultLayerColor, LayerProperties, nextLayerName, useSequenceEditErrorReporter, useGraphDeletion, useSequenceEditable } from "./sequenceLayers";
+import { LayerList } from "./sequenceLayers";
 
 type SequenceInspectorTab = "effect" | "layers" | "marks";
 
@@ -49,16 +47,6 @@ const SEQUENCE_INSPECTOR_TABS: { id: SequenceInspectorTab; label: string }[] = [
   { id: "layers", label: "Layers" },
   { id: "marks", label: "Marks" },
 ];
-
-function effectReferencesEqual(left: SequenceEffectDefinition["effect"], right: SequenceEffectDefinition["effect"]) {
-  return left.moduleId === right.moduleId
-    && left.path === right.path
-    && left.effectName === right.effectName;
-}
-
-function effectReferenceKey(reference: SequenceEffectDefinition["effect"]) {
-  return `${reference.moduleId}:${reference.path}:${reference.effectName}`;
-}
 
 function supportsAutomation(document: SequenceEditorDocument, details: Map<number, SequenceEffectDetails> | null, target: SequenceAutomationTarget) {
   if (target.type === "effectParam") {
@@ -388,7 +376,6 @@ function EffectInspectorPanel({
 }) {
   const host = useSequenceEditorHost();
   const { commands, runGuiEditCommand } = host;
-  const overlayContainer = useContext(OverlayPortal);
   const inspectedAutomationClip = selected?.type === "automationClip"
     ? document.automationClips.find((clip) => clip.id === selected.id) ?? null
     : null;
@@ -396,10 +383,6 @@ function EffectInspectorPanel({
     ? inspectedAutomationClip.detachedBindings.flatMap((binding) => binding.target.type === "effectParam" ? [binding.target.effectId] : [])
     : [selectedEffectId(selected)].filter((id) => id !== null);
   const details = useSequenceEffectDetails(document, inspectedEffectIds);
-  const effectTree = useMemo(
-    () => definitionTree(document.effectDefinitions, (definition) => definition.effect.path),
-    [document.effectDefinitions]
-  );
 
   if (sequenceSelection !== null && selectionCount(sequenceSelection) > 1 && selectionCompatibleWithFocusedItem(sequenceSelection, selected)) {
     if (sequenceSelection.type !== "clips") {
@@ -609,33 +592,20 @@ function EffectInspectorPanel({
         </div>
         <label>
           Effect type
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger className="definition-picker" disabled={document.effectDefinitions.length === 0}>
-              <span>{currentDefinition?.name ?? effect.effect}</span>
-              <ChevronDown size={THEME_METRICS.iconSizeSmall} aria-hidden />
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal container={overlayContainer}>
-              <DropdownMenu.Content className="menu-content" align="start" sideOffset={THEME_METRICS.menuOffset}>
-                <DefinitionMenuItems
-                  menu={DropdownMenu}
-                  tree={effectTree}
-                  label={(definition) => definition.name}
-                  itemKey={(definition) => effectReferenceKey(definition.effect)}
-                  onSelect={(definition) =>
-                    void runGuiEditCommand((request) =>
-                      commands.applySequenceGuiEdit(request, {
-                        type: "changeEffectDefinition",
-                        initialColor: THEME_COLORS.white,
-                        id: effect.id,
-                        effect: definition.effect
-                      })
-                    )
-                  }
-                  empty="No effects"
-                />
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+          <EffectDefinitionPicker
+            definitions={document.effectDefinitions}
+            label={currentDefinition?.name ?? effect.effect}
+            onSelect={(definition) =>
+              void runGuiEditCommand((request) =>
+                commands.applySequenceGuiEdit(request, {
+                  type: "changeEffectDefinition",
+                  initialColor: THEME_COLORS.white,
+                  id: effect.id,
+                  effect: definition.effect
+                })
+              )
+            }
+          />
         </label>
         {currentDefinition !== undefined && currentDefinition.description !== null && (
           <p className="effect-param-description">{currentDefinition.description}</p>
@@ -711,25 +681,8 @@ function detachmentReasonLabel(reason: import("../../../editor/types").SequenceA
 
 function LayerInspectorPanel({ document }: { document: SequenceEditorDocument }) {
   const host = useSequenceEditorHost();
-  const { commands, runGuiEditCommand } = host;
-  const reportSequenceEditError = useSequenceEditErrorReporter();
-
-  const editable = useSequenceEditable();
-  const { requestDelete, dialog } = useGraphDeletion(document);
-  return <>
-    <h2>Layers</h2>
-    <button type="button" className="neutral-button" disabled={!editable} onClick={() => {
-      void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
-        type: "createLayer", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length)
-      })).catch(reportSequenceEditError);
-    }}>Add layer</button>
-    <div className="sequence-layer-list">
-      {document.layers.map((layer) => <LayerProperties key={layer.id} layer={layer} onDelete={() => {
-        requestDelete([], [], [layer.id]);
-      }} />)}
-    </div>
-    {dialog}
-  </>;
+  const composition = useMemo(() => sequenceComposition(host, document, null), [host, document]);
+  return <><h2>Layers</h2><LayerList composition={composition} /></>;
 }
 
 function MarkInspectorPanel({

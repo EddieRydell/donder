@@ -67,9 +67,12 @@ pub enum OwnedObjectSlot {
     Setup,
     Layout,
     Patch,
-    /// An owned controller or sequence is named like a declaration.
+    /// An owned controller, input device, sequence or rig is named like a
+    /// declaration.
     Controller(donder_runtime_types::Identifier),
+    InputDevice(donder_runtime_types::Identifier),
     Sequence(donder_runtime_types::Identifier),
+    Rig(donder_runtime_types::Identifier),
     Fixture(u32),
 }
 
@@ -122,6 +125,19 @@ impl ObjectIdentity {
 
     pub fn owned_path(&self) -> &[OwnedObjectSlot] {
         &self.owned_path
+    }
+    /// The name a controller, input device, sequence or rig is declared or
+    /// stored under: its owned slot's name, else its source object's.
+    pub fn declared_name(&self) -> &str {
+        match self.owned_path.last() {
+            Some(
+                OwnedObjectSlot::Controller(name)
+                | OwnedObjectSlot::InputDevice(name)
+                | OwnedObjectSlot::Sequence(name)
+                | OwnedObjectSlot::Rig(name),
+            ) => name.as_str(),
+            _ => self.root.object(),
+        }
     }
     pub fn document(&self) -> &Utf8Path {
         self.root.document()

@@ -1,13 +1,13 @@
 //! Selected output cells and the additional input domain reachable operators need.
-use crate::selection::Selection;
+use donder_model::AcceptedOperatorInputs;
 use donder_model::CompositionGraphNodeId;
 use donder_model::PixelRouteId;
 use donder_runtime_types::{FixtureGeometry, TargetGeometry};
 use indexmap::IndexMap;
 use std::collections::{BTreeSet, HashSet};
 
-pub(super) fn cells(
-    selected: &Selection<'_>,
+pub(crate) fn cells<'a>(
+    operators: impl Iterator<Item = AcceptedOperatorInputs<'a>>,
     geometry: &[FixtureGeometry],
     routes: &IndexMap<PixelRouteId, TargetGeometry>,
     dependencies: &HashSet<CompositionGraphNodeId>,
@@ -27,11 +27,7 @@ pub(super) fn cells(
     }
     let mut local = false;
     let mut global = false;
-    for operator in selected
-        .sequence
-        .operators()
-        .filter(|operator| dependencies.contains(&operator.node().id))
-    {
+    for operator in operators.filter(|operator| dependencies.contains(&operator.node().id)) {
         let addressing = operator.invocation().addressing();
         local |= addressing.local;
         global |= addressing.global;

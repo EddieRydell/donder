@@ -7,7 +7,8 @@ use donder_output::OutputTransports;
 use indexmap::IndexMap;
 
 use crate::audio::AudioEngine;
-use crate::rendering::SequenceRenderService;
+use crate::rendering::{RigOutput, SequenceRenderService};
+use donder_runtime_types::RigEvent;
 use donder_sequence_api::{
     AudioTransportState, LiveOutputControllerSnapshot, LiveOutputControllerState,
     LiveOutputSnapshot, LiveOutputState,
@@ -23,6 +24,8 @@ const OUTPUT_TEST_DURATION: Duration = Duration::from_millis(500);
 
 enum OutputSource {
     Sequence,
+    /// A performance, rendered on its own session clock.
+    Rig(Box<RigOutput>),
     Test {
         frames: Vec<donder_output::ControllerPortFrame>,
         started: Instant,
@@ -37,6 +40,11 @@ enum Command {
         controllers: IndexMap<ControllerId, Controller>,
         active: Vec<ControllerId>,
         source: OutputSource,
+    },
+    /// Commands for the performance a rig output plays, in arrival order.
+    RigEvents {
+        generation: u32,
+        events: Vec<RigEvent>,
     },
     Disable {
         generation: u32,
@@ -58,6 +66,8 @@ pub(crate) struct LiveOutputService {
     snapshot: LiveOutputSnapshot,
     resume_after_prepare: bool,
     resume_ready: bool,
+    /// Whether the active output plays a performance.
+    rig: bool,
     worker: Option<JoinHandle<()>>,
 }
 
@@ -76,6 +86,7 @@ impl LiveOutputService {
             snapshot: disabled_snapshot(0),
             resume_after_prepare: false,
             resume_ready: false,
+            rig: false,
             worker: Some(worker),
         }
     }
@@ -86,6 +97,36 @@ impl LiveOutputService {
         active: Vec<ControllerId>,
     ) -> LiveOutputSnapshot {
         self.start(controllers, active, OutputSource::Sequence)
+    }
+
+    /// Play a performance to the controllers.
+    pub(crate) fn perform(
+        &mut self,
+        controllers: IndexMap<ControllerId, Controller>,
+        active: Vec<ControllerId>,
+        output: RigOutput,
+    ) -> LiveOutputSnapshot {
+        self.start(controllers, active, OutputSource::Rig(Box::new(output)))
+    }
+
+    /// Send a performance's new commands to the output that plays it.
+    pub(crate) fn rig_events(&mut self, events: &[RigEvent]) {
+        if !self.rig {
+            return;
+        }
+        if self
+            .sender
+            .send(Command::RigEvents {
+                generation: self.generation,
+                events: events.to_vec(),
+            })
+            .is_err()
+        {
+            fail_snapshot(
+                &mut self.snapshot,
+                "Live output worker is unavailable.".into(),
+            );
+        }
     }
 
     pub(crate) fn test(
@@ -112,6 +153,7 @@ impl LiveOutputService {
     ) -> LiveOutputSnapshot {
         self.resume_after_prepare = false;
         self.resume_ready = false;
+        self.rig = matches!(source, OutputSource::Rig(_));
         self.generation = self.generation.saturating_add(1);
         self.snapshot = preparing_snapshot(self.generation, &controllers, &active);
         if matches!(source, OutputSource::Test { .. }) {
@@ -140,6 +182,7 @@ impl LiveOutputService {
     }
 
     fn disable_preserving_resume(&mut self) -> LiveOutputSnapshot {
+        self.rig = false;
         self.snapshot();
         if matches!(
             self.snapshot.state,
@@ -272,6 +315,7 @@ fn worker(
                     Ok(transports) => {
                         snapshot.state = match source {
                             OutputSource::Sequence => LiveOutputState::Holding,
+                            OutputSource::Rig(_) => LiveOutputState::Streaming,
                             OutputSource::Test { .. } => LiveOutputState::Testing,
                         };
                         for controller in &mut snapshot.controllers {
@@ -290,6 +334,13 @@ fn worker(
                             snapshot,
                         });
                     }
+                }
+            }
+            Ok(Command::RigEvents { generation, events }) => {
+                if let Some((active_generation, _, _, OutputSource::Rig(output))) = active.as_mut()
+                    && *active_generation == generation
+                {
+                    output.apply(&events);
                 }
             }
             Ok(Command::Disable { generation }) => {
@@ -344,6 +395,23 @@ fn worker(
                 });
             }
             tick_interval = INITIAL_TICK_INTERVAL;
+            continue;
+        }
+        if let OutputSource::Rig(output) = source {
+            tick_interval = output.frame_interval();
+            if let Err(error) = transports.send(output.render()) {
+                let generation = *generation;
+                let failed = stop_output(
+                    &mut active,
+                    &mut stop_error,
+                    generation,
+                    Some(format!("Output failed: {error:?}")),
+                );
+                let _ = updates.send(Update {
+                    generation,
+                    snapshot: failed,
+                });
+            }
             continue;
         }
         let audio = audio
@@ -578,6 +646,7 @@ mod tests {
                 snapshot,
                 resume_after_prepare: false,
                 resume_ready: false,
+                rig: false,
                 worker: None,
             };
             let mut completed = disabled_snapshot(9);

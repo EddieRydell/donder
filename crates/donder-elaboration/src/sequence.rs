@@ -1,78 +1,34 @@
 //! Resolve selected sampling domains before assembling owner-branded playback storage.
-mod composition;
-mod programs;
+pub(crate) mod composition;
+pub(crate) mod programs;
 pub use programs::PreparationCache;
 mod retention;
 mod routing;
 
 use crate::selection::Selection;
-use donder_model::CompositionGraphNodeKind;
-use donder_model::EffectScope;
-use donder_model::FixtureInstanceId;
-use donder_model::composition_graph_output_dependencies;
+use crate::stage::{Stage, Targets};
 use donder_runtime::PreparedSequence;
-use donder_runtime_types::TargetScope;
 use indexmap::IndexMap;
+
+pub(crate) use retention::cells as retained_cells;
+pub(crate) use routing::{prepare as prepare_routes, targets as route_targets};
 
 pub(crate) fn prepare(
     selected: Selection<'_>,
     compact: bool,
     cache: &mut PreparationCache,
 ) -> PreparedSequence {
-    let geometry = selected
-        .geometry
-        .iter()
-        .map(|(_, geometry)| geometry.clone())
-        .collect::<Vec<_>>();
-    let indexes = selected
-        .geometry
-        .iter()
-        .enumerate()
-        .map(|(index, (id, _))| (*id, index))
-        .collect::<IndexMap<_, _>>();
-    // Every group denotes its ordered member fixtures, including empty groups.
-    let targets = selected
-        .layout
-        .iter_fixtures()
-        .map(|item| {
-            let members = selected.layout.members(item.id);
-            (item.id, members.iter().map(|id| indexes[id]).collect())
-        })
-        .collect::<IndexMap<FixtureInstanceId, Vec<usize>>>();
-    let routes = routing::targets(&selected, &geometry, &targets);
-    let sequence = selected.sequence.sequence();
-    let dependencies = composition_graph_output_dependencies(&sequence.composition_graph);
+    let sequence = selected.show.sequence();
+    let stage = Stage::new(
+        &selected,
+        &sequence.composition_graph,
+        selected.show.operators(),
+        compact,
+    );
     let mut programs = programs::Programs::new(cache);
-    let cells = retention::cells(&selected, &geometry, &routes, &dependencies, compact);
-    let has_pixels = cells.iter().any(|cells| !cells.is_empty());
-    let required_layers = sequence
-        .composition_graph
-        .nodes
-        .iter()
-        .filter_map(|node| {
-            if dependencies.contains(&node.id)
-                && let CompositionGraphNodeKind::Layer { layer_id } = &node.kind
-            {
-                Some(layer_id)
-            } else {
-                None
-            }
-        })
-        .collect::<std::collections::HashSet<_>>();
-    PreparedSequence::build(selected.sequence.timing().clone(), |builder| {
-        let fixtures = selected
-            .geometry
-            .iter()
-            .enumerate()
-            .map(|(index, (id, geometry))| {
-                let geometry = if compact {
-                    geometry.select(|cell| cells[index].binary_search(&cell).is_ok())
-                } else {
-                    geometry.clone()
-                };
-                (index, builder.fixture(id.0, geometry))
-            })
-            .collect::<IndexMap<_, _>>();
+    let required_layers = stage.required_layers(&sequence.composition_graph);
+    PreparedSequence::build(selected.show.timing().clone(), |builder| {
+        let fixtures = stage.fixtures(builder, &selected);
         let mut layer_effects = sequence
             .layers
             .iter()
@@ -84,48 +40,27 @@ pub(crate) fn prepare(
             .filter(|layer| layer.enabled)
             .map(|layer| &layer.id)
             .collect::<std::collections::HashSet<_>>();
-        // Clips on one target share its prepared geometry.
-        let mut prepared_targets = std::collections::HashMap::new();
+        let mut targets = Targets::default();
         let windows = builder.windows().collect::<Vec<_>>();
         for ((accepted, window), timing) in selected
-            .sequence
+            .show
             .effects()
             .zip(windows)
-            .zip(selected.sequence.timing().windows())
+            .zip(selected.show.timing().windows())
         {
             let effect = accepted.instance();
             if compact
-                && (!has_pixels
+                && (!stage.has_pixels
                     || !enabled_layers.contains(&effect.layer_id)
                     || !required_layers.contains(&effect.layer_id))
             {
                 continue;
             }
-            let scope = match effect.scope {
-                EffectScope::PerFixture => TargetScope::PerFixture,
-                EffectScope::WholeTarget => TargetScope::WholeTarget,
-            };
-            let members = &targets[&effect.target.fixture];
-            if compact && members.iter().all(|&index| cells[index].is_empty()) {
+            if stage.drops(&effect.target) {
                 continue;
             }
-            let target = *prepared_targets
-                .entry((
-                    effect.target.fixture,
-                    effect.scope == EffectScope::PerFixture,
-                ))
-                .or_insert_with(|| {
-                    builder.target(members.iter().map(|index| fixtures[index]), scope)
-                });
-            let mut counts = members
-                .iter()
-                .map(|&index| geometry[index].positions().len() as i32);
-            let pixel_count = match scope {
-                TargetScope::WholeTarget => Some(counts.sum()),
-                TargetScope::PerFixture => counts
-                    .next()
-                    .filter(|first| counts.all(|count| count == *first)),
-            };
+            let (target, pixel_count) =
+                targets.get(builder, &stage, &fixtures, &effect.target, &effect.scope);
             let invocation = programs.sample(
                 accepted.execution(),
                 donder_language::compiler::ProgramConstants {
@@ -142,7 +77,7 @@ pub(crate) fn prepare(
         let layers = sequence
             .layers
             .iter()
-            .filter(|layer| !compact || has_pixels && required_layers.contains(&layer.id))
+            .filter(|layer| !compact || stage.has_pixels && required_layers.contains(&layer.id))
             .map(|layer| {
                 (
                     &layer.id,
@@ -157,12 +92,27 @@ pub(crate) fn prepare(
             .filter(|layer| !layer.enabled || layer_effects[&layer.id].is_empty())
             .map(|layer| &layer.id)
             .collect::<std::collections::HashSet<_>>();
-        let root = if compact && !has_pixels {
+        let root = if compact && !stage.has_pixels {
             builder.output([])
         } else {
-            composition::prepare(builder, selected.sequence, &layers, &black, &mut programs)
+            composition::prepare(
+                builder,
+                &sequence.composition_graph,
+                selected.show.operators(),
+                selected.show.timing().duration(),
+                &layers,
+                &black,
+                &mut programs,
+            )
         };
-        routing::prepare(builder, &selected, &geometry, &targets, &cells, &fixtures);
+        prepare_routes(
+            builder,
+            &selected,
+            &stage.geometry,
+            &stage.targets,
+            &stage.cells,
+            &fixtures,
+        );
         root
     })
 }

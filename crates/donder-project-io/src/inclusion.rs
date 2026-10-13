@@ -24,6 +24,8 @@ pub struct Inclusion {
     pub alias: Identifier,
     /// The sequences the document declares, added to the project's `sequences`.
     pub sequences: Vec<Identifier>,
+    /// The rigs the document declares, added to the project's `rigs`.
+    pub rigs: Vec<Identifier>,
 }
 
 /// The root document's text with `inclusion` applied.
@@ -45,22 +47,30 @@ pub fn include_document(root_text: &str, inclusion: &Inclusion) -> Result<String
             paths: vec![path],
         }),
     }
-    if !inclusion.sequences.is_empty() {
-        let sequences = document
+    for (field, names) in [
+        ("sequences", &inclusion.sequences),
+        ("rigs", &inclusion.rigs),
+    ] {
+        if names.is_empty() {
+            continue;
+        }
+        let list = document
             .declarations
             .iter_mut()
             .filter(|declaration| declaration.ty.value.as_str() == "Project")
             .flat_map(|declaration| declaration.fields.value.iter_mut())
-            .find(|field| field.name.value.as_str() == "sequences")
-            .map(|field| &mut field.value.value);
-        let Some(DataValue::List(items)) = sequences else {
-            return Err(format!("{PROJECT_ROOT_FILE} has no project sequence list."));
+            .find(|candidate| candidate.name.value.as_str() == field)
+            .map(|candidate| &mut candidate.value.value);
+        let Some(DataValue::List(items)) = list else {
+            return Err(format!(
+                "{PROJECT_ROOT_FILE} has no project `{field}` list."
+            ));
         };
-        for sequence in &inclusion.sequences {
+        for name in names {
             items.push(Spanned::new(
                 DataValue::Reference(vec![
                     Spanned::new(inclusion.alias.clone(), nowhere),
-                    Spanned::new(sequence.clone(), nowhere),
+                    Spanned::new(name.clone(), nowhere),
                 ]),
                 nowhere,
             ));
@@ -186,18 +196,22 @@ pub(crate) fn unreferenced_documents(
             .names
             .iter()
             .any(|(kind, _)| *kind == SourceObjectKind::Setup);
+        let declared_of = |wanted: SourceObjectKind| {
+            declared
+                .names
+                .iter()
+                .filter(|(kind, _)| *kind == wanted)
+                .map(|(_, name)| name.clone())
+                .collect()
+        };
         let fix = alias_base(&declared.names)
             .and_then(|base| inclusion_alias(session, &root, base, &declared.names))
             .map(|alias| {
                 IoFix::Include(Inclusion {
                     document: path.clone(),
                     alias,
-                    sequences: declared
-                        .names
-                        .iter()
-                        .filter(|(kind, _)| *kind == SourceObjectKind::Sequence)
-                        .map(|(_, name)| name.clone())
-                        .collect(),
+                    sequences: declared_of(SourceObjectKind::Sequence),
+                    rigs: declared_of(SourceObjectKind::Rig),
                 })
             });
         diagnostics.push(IoDiagnostic {

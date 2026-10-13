@@ -42,6 +42,8 @@ pub fn project_gui_document(
         DocumentViewId::Sequence => project_sequence(session, &resolved),
         DocumentViewId::Setup => project_setup(session, &resolved),
         DocumentViewId::Controller => super::controller::project_document(session, &resolved),
+        DocumentViewId::InputDevice => super::input_device::project_document(session, &resolved),
+        DocumentViewId::Rig => super::rig::project_rig(session, &resolved),
         DocumentViewId::Patch => super::patch::project_document(session, &resolved),
         DocumentViewId::Layout => project_layout(session, &resolved),
         DocumentViewId::Fixture => project_fixture(session, &resolved),
@@ -66,6 +68,8 @@ pub fn project_gui_document(
         GuiDocument::Gradient { document } => document.path.clone_from(&request.path),
         GuiDocument::Controller { document } => document.path.clone_from(&request.path),
         GuiDocument::Patch { document } => document.path.clone_from(&request.path),
+        GuiDocument::InputDevice { document } => document.path.clone_from(&request.path),
+        GuiDocument::Rig { document } => document.path.clone_from(&request.path),
         GuiDocument::Blocked { .. } => {}
     }
     gui
@@ -138,6 +142,7 @@ pub fn affected_paths(
             | DocumentViewId::Setup
             | DocumentViewId::Patch
             | DocumentViewId::Controller
+            | DocumentViewId::InputDevice
             | DocumentViewId::Fixture
             | DocumentViewId::Layout
     ) {

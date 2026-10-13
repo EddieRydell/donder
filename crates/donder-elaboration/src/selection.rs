@@ -14,8 +14,10 @@ pub(crate) struct SelectedPort<'a> {
     pub(crate) port: &'a ControllerPort,
 }
 
-pub(crate) struct Selection<'a> {
-    pub(crate) sequence: AcceptedSequence<'a>,
+/// What plays, a sequence or a rig, and the parts of the active setup it
+/// plays on.
+pub(crate) struct Selection<'a, S = AcceptedSequence<'a>> {
+    pub(crate) show: S,
     pub(crate) layout: &'a Layout,
     pub(crate) geometry: &'a [(
         donder_model::FixtureInstanceId,
@@ -34,22 +36,48 @@ pub(crate) fn resolve<'a>(
 ) -> Option<Selection<'a>> {
     let accepted = project.accepted_sequence(sequence)?;
     let sequence = accepted.sequence();
+    // Reusable sequences may belong to another layout. They remain authorable,
+    // but cannot be played against this project's active setup.
+    resolve_show(project, accepted, outputs, |layout| {
+        sequence
+            .effects
+            .iter()
+            .all(|effect| &effect.target.layout == layout)
+            && sequence
+                .automation_clips
+                .iter()
+                .all(|clip| &clip.row_target.layout == layout)
+    })
+}
+
+pub(crate) fn resolve_rig<'a>(
+    project: &'a DonderProject,
+    rig: &donder_model::RigId,
+    outputs: PrepareOutputs<'_>,
+) -> Option<Selection<'a, donder_model::AcceptedRig<'a>>> {
+    let accepted = project.accepted_rig(rig)?;
+    resolve_show(project, accepted, outputs, |layout| {
+        accepted
+            .rig()
+            .effects()
+            .all(|effect| &effect.target.layout == layout)
+    })
+}
+
+/// `show` on the project's active setup, when it targets only the setup's
+/// layout.
+fn resolve_show<'a, S>(
+    project: &'a DonderProject,
+    show: S,
+    outputs: PrepareOutputs<'_>,
+    targets_only: impl FnOnce(&donder_model::LayoutId) -> bool,
+) -> Option<Selection<'a, S>> {
     let setup = project.setup(project.root().setup.id())?;
     let layout = project.layout(setup.layout.id())?;
     let geometry = project.playback_geometry(&layout.id)?;
     let patch = project.patch(setup.patch.id())?;
     let encodings = project.playback_patch_encodings(&patch.id)?;
-    // Reusable sequences may belong to another layout. They remain authorable,
-    // but cannot be played against this project's active setup.
-    if sequence
-        .effects
-        .iter()
-        .any(|effect| effect.target.layout != layout.id)
-        || sequence
-            .automation_clips
-            .iter()
-            .any(|clip| clip.row_target.layout != layout.id)
-    {
+    if !targets_only(&layout.id) {
         return None;
     }
     let controllers = setup
@@ -111,7 +139,7 @@ pub(crate) fn resolve<'a>(
         }
     }
     Some(Selection {
-        sequence: accepted,
+        show,
         layout,
         geometry,
         patch,

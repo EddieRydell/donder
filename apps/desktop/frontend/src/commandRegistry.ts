@@ -8,6 +8,7 @@ import type { SidebarView } from "./types";
 import { editTarget, formatShortcut, isMac, matchesShortcut, type Shortcut } from "./platform";
 import { dispatchEditorShortcut } from "./shortcuts";
 import { requestOpenLayerGraph } from "./ui/uiEvents";
+import { isPerforming, stopPerforming } from "./perform";
 
 import { GUI_HISTORY_CHANGED_EVENT } from "./editor/host";
 
@@ -37,11 +38,12 @@ export type CommandId =
   | "view.focusProblems"
   | "workbench.quickOpen"
   | "workbench.commandPalette"
-  | "project.reload";
+  | "project.reload"
+  | "perform.stop";
 
 export type CommandDefinition = {
   label: string;
-  category: "File" | "Edit" | "View" | "Project" | "Workbench";
+  category: "File" | "Edit" | "View" | "Project" | "Perform" | "Workbench";
   keywords: string[];
   shortcuts: Shortcut[];
   enabled: () => boolean;
@@ -149,6 +151,7 @@ export const commandRegistry: Record<CommandId, CommandDefinition> = {
   "project.reload": command("Reload / Check Project", "Project", ["refresh", "diagnostics"], async () => {
     await runWorkspaceTransition({ type: "reloadProject" });
   }, hasProject, [{ key: "r", primary: true }]),
+  "perform.stop": command("Stop Performing", "Perform", ["rig", "live", "keyboard"], stopPerforming, isPerforming),
 };
 
 /** Runs a command unless a workspace transition is in progress or the command is disabled. */

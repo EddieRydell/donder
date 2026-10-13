@@ -11,13 +11,13 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, useContext } from "react";
 import { THEME_COLORS, THEME_METRICS } from "../../../theme";
 import { DefinitionMenuItems, definitionTree } from "./definitionMenu";
-import type { GuiDocumentRequest, SequenceEditorDocument, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
+import type { GuiDocumentRequest, SequenceGraphNode, SequenceGraphOperator } from "../../../editor/types";
+import type { CompositionEditing } from "./composition";
 import { GRAPH_NEUTRAL_EDGE_COLOR, graphEdgeId, graphEdgeLineages } from "./graphEdge";
 import { graphOperatorDefinition, graphOperatorKey } from "./graphOperator";
 import { useGraphViewState } from "./graphViewState";
 import { GraphFlowEdge } from "./GraphFlowEdge";
 import { GraphNodeControls } from "./GraphNodeControls";
-import type { AutomationClipChooser } from "../shared";
 import { defaultLayerColor, deletableGraphNodes, nextLayerName, useSequenceEditErrorReporter, useSequenceEditable } from "./sequenceLayers";
 
 export type SelectedGraphItem = { type: "node"; id: string } | { type: "edge"; id: string } | null;
@@ -39,16 +39,15 @@ type ContextTarget = { type: "pane"; position: { x: number; y: number } } | { ty
 const NODE_TYPES = { donder: GraphNodeView };
 const EDGE_TYPES = { donder: GraphFlowEdge };
 
-export function GraphCanvas({ document, setSelectedItem, requestDelete, automationClipChooser, setAutomationClipChooser }: {
-  document: SequenceEditorDocument;
+export function GraphCanvas({ composition, setSelectedItem, requestDelete }: {
+  composition: CompositionEditing;
   setSelectedItem: (item: SelectedGraphItem) => void;
   requestDelete: (nodeIds: string[], edgeIds?: string[]) => void;
-  automationClipChooser: AutomationClipChooser;
-  setAutomationClipChooser: (chooser: AutomationClipChooser) => void;
 }) {
   const host = useSequenceEditorHost();
   const overlayContainer = useContext(OverlayPortal);
-  const { commands, store: useAppStore, runGuiEditCommand } = host;
+  const { store: useAppStore } = host;
+  const { document } = composition;
   const reportSequenceEditError = useSequenceEditErrorReporter();
 
   const editable = useSequenceEditable();
@@ -88,12 +87,11 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
         color: node.kind.type === "layer" ? node.kind.layerColor : null,
         enabled: node.kind.type !== "layer" || node.kind.enabled,
         minHeight, minWidth,
-        controls: hasControls ? <GraphNodeControls node={node} document={document}
-          automationClipChooser={automationClipChooser} setAutomationClipChooser={setAutomationClipChooser} /> : null,
+        controls: hasControls ? <GraphNodeControls node={node} composition={composition} /> : null,
         inputs: node.inputs, outputs: node.outputs, saveSize
       }
     };
-  }), [editable, graph, saveSize, view.nodeSizes, document, automationClipChooser, setAutomationClipChooser]);
+  }), [editable, graph, saveSize, view.nodeSizes, composition]);
   const edges = useMemo<Edge[]>(() => {
     const lineages = graphEdgeLineages(graph);
     return graph.edges.map((edge) => {
@@ -145,14 +143,14 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
       return original !== undefined && (node.position.x !== original.position.x || node.position.y !== original.position.y);
     }).map((node) => ({ nodeId: node.id, ...node.position }));
     try {
-      if (positions.length > 0) await runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, { type: "moveGraphNodes", positions }), active.origin);
+      if (positions.length > 0) await composition.apply({ type: "moveGraphNodes", positions }, active.origin);
     } catch (error: unknown) {
       reportSequenceEditError(error);
     } finally {
       gesture.current = null;
       // A failed/stale gesture must restore the document, even when no new projection arrived.
       const latest = useAppStore.getState().guiDocument;
-      const latestNodes = new Map((latest?.type === "sequence" ? latest.document.compositionGraph.nodes : []).map((node) => [node.id, node]));
+      const latestNodes = new Map((latest?.type === "sequence" || latest?.type === "rig" ? latest.document.compositionGraph.nodes : []).map((node) => [node.id, node]));
       setFlowNodes((current) => {
         const localNodes = new Map(current.map((node) => [node.id, node]));
         return authoritativeNodes.current.map((node) => {
@@ -165,9 +163,9 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
     }
   };
   const add = (operator: SequenceGraphOperator | null, position: { x: number; y: number }) => {
-    void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, operator === null ? {
+    void composition.apply(operator === null ? {
       type: "createLayerAt", name: nextLayerName(document.layers), color: defaultLayerColor(document.layers.length), ...position
-    } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position })).catch(reportSequenceEditError);
+    } : { type: "addGraphOperatorNode", operator, initialColor: THEME_COLORS.white, ...position }).catch(reportSequenceEditError);
   };
   const removable = (items: Selection) => items.edges.length > 0 || deletableGraphNodes(document, items.nodes).length > 0;
   const deleteSelection = (items: Selection) => { requestDelete(items.nodes, items.edges); };
@@ -233,22 +231,22 @@ export function GraphCanvas({ document, setSelectedItem, requestDelete, automati
               const fromPort = connection.sourceHandle;
               const toPort = connection.targetHandle;
               if (previous === undefined || fromPort === null || toPort === null) return;
-              void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+              void composition.apply({
                 type: "reconnectGraphEdge", previous, connection: {
                   fromNode: connection.source, fromPort,
                   toNode: connection.target, toPort
                 }
-              }), connectionOrigin.current).catch(reportSequenceEditError);
+              }, connectionOrigin.current).catch(reportSequenceEditError);
             }}
             onConnect={(connection) => {
               if (!editable) return;
               const fromPort = connection.sourceHandle;
               const toPort = connection.targetHandle;
               if (fromPort === null || toPort === null) return;
-              void runGuiEditCommand((request) => commands.applySequenceGuiEdit(request, {
+              void composition.apply({
                 type: "connectGraphNodes", fromNode: connection.source, toNode: connection.target,
                 fromPort, toPort
-              }), connectionOrigin.current).catch(reportSequenceEditError);
+              }, connectionOrigin.current).catch(reportSequenceEditError);
             }}>
             <Background color={THEME_COLORS.graphGrid} gap={THEME_METRICS.graphGridGap} />
             <MiniMap className="graph-flow-minimap" nodeStrokeWidth={THEME_METRICS.graphNodeStrokeWidth} pannable zoomable />
