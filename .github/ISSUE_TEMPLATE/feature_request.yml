@@ -1,0 +1,16 @@
+name: Feature request
+description: Something Donder should do that it doesn't yet.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The show or workflow you have in mind, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like
+      description: How you picture it working. Mention the xLights, Vixen or FPP feature it resembles, if any.

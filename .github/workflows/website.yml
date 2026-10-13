@@ -1,0 +1,25 @@
+name: Website
+
+# The website renders docs/ and links the latest release's installers, so a
+# published release or a docs change redeploys it. The website's deploy bumps
+# its donder submodule to main.
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths: ["docs/**"]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      # WEBSITE_DISPATCH_TOKEN: fine-grained token with Contents read/write on
+      # EddieRydell/donder_website.
+      - uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+          repository: EddieRydell/donder_website
+          event-type: donder-updated

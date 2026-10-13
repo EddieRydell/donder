@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and show help
+    url: https://github.com/EddieRydell/donder/discussions
+    about: Ask how to do something, share a show, or discuss an idea.

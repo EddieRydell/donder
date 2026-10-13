@@ -55,9 +55,12 @@ the library doesn't have, you can write it yourself.
 
 ## Installation
 
-<!-- TODO: prebuilt installers and the browser editor, once available. -->
+Download the installer for Windows, macOS or Linux from
+[donder.eddierydell.com/download](https://donder.eddierydell.com/download), or
+[try the sequencer in your browser](https://donder.eddierydell.com/demo). The
+preview builds are unsigned, so the download page explains how to open them.
 
-Donder currently builds from source. Install the Rust toolchain from
+To build from source, install the Rust toolchain from
 `rust-toolchain.toml`, the Node.js and pnpm versions required by `package.json`,
 and the [Tauri 2 system dependencies](https://tauri.app/start/prerequisites/)
 for your platform. Then:
@@ -80,6 +83,9 @@ cargo run -p donder-cli -- --path examples/starter export-fseq layer_test show.f
 
 ## Learn more
 
+The user guides are also published at
+[donder.eddierydell.com/docs](https://donder.eddierydell.com/docs).
+
 - [Create your first LED show](docs/first_show.md)
 - [Write an effect](docs/effect_tutorial.md)
 - [Fixture authoring](docs/fixture_authoring.md): lines, arcs, grids and
@@ -99,13 +105,15 @@ QuinLED Dig-Quad, with up to 1,600 pixels on four outputs per controller. Larger
 displays use live E1.31/Art-Net output or FSEQ export.
 
 Not yet supported:
-- Prebuilt installers and the browser editor
+- Code-signed installers
 - Importing xLights models and layouts
 - Non-pixel DMX fixtures such as moving heads
 - Live input (MIDI, OSC, audio). Parameters are evaluated live every frame, so
   live input will drive them through the same path automation uses today.
 
-<!-- TODO: license and community links. -->
+## License
+
+Donder is released under the [MIT License](LICENSE).
 
 ## Contributing
 

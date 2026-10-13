@@ -3,6 +3,7 @@ name = "donder-device-storage"
 edition = "2024"
 version = "0.1.0"
 publish = false
+license = "MIT"
 
 [dependencies]
 littlefs2 = { version = "0.8.1", default-features = false }
