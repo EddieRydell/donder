@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in Donder doesn't work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Attach or paste the smallest project, effect or sequence that shows the problem, and any `donder check` output.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - Desktop editor
+        - Browser demo
+        - Project or effect language
+        - Live output (E1.31 / Art-Net)
+        - FSEQ export
+        - ESP32 controller
+        - CLI or language server
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      placeholder: Donder 0.1.0 on Windows 11
+    validations:
+      required: true

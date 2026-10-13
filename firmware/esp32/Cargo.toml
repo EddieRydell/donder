@@ -3,6 +3,7 @@ name = "donder-esp32"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license = "MIT"
 
 [features]
 loader = ["dep:esp-radio", "dep:esp-rtos", "dep:esp-radio-rtos-driver", "dep:embassy-executor", "dep:embassy-net", "dep:embassy-sync", "dep:embassy-time", "dep:embedded-io-async", "dep:heapless", "dep:picoserve", "dep:static_cell", "dep:serde", "dep:donder-device-storage", "dep:esp-storage", "dep:tinyrlibc", "dep:edge-dhcp", "dep:edge-mdns", "dep:edge-nal", "dep:edge-nal-embassy"]

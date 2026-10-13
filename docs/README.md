@@ -4,6 +4,12 @@ These pages are for people working on Donder and for anyone who wants a quick
 picture of how it works. They describe current behavior; plans, journals and
 superseded measurements don't belong here.
 
+The pages a show's author needs are also published at
+[donder.eddierydell.com/docs](https://donder.eddierydell.com/docs), rendered from
+this directory; the website's `src/features/docs/pages.json` lists them. Links
+between published pages stay on the site and other links open GitHub, so link
+pages with relative paths.
+
 **How it fits together**
 - [Architecture](architecture.md): the pipeline from documents to LED frames,
   crate ownership, editing and playback.

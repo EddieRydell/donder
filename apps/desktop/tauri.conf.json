@@ -33,6 +33,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Eddie Rydell",
+    "homepage": "https://donder.eddierydell.com",
+    "copyright": "Copyright (c) 2026 Eddie Rydell",
+    "license": "MIT",
+    "category": "Utility",
+    "shortDescription": "Light-show sequencer where every effect is a program",
+    "longDescription": "Donder is a light-show sequencer that compiles effects to bytecode and evaluates every frame live, on a computer or standalone on an ESP32 controller.",
     "icon": [
       "assets/icons/icon.png",
       "assets/icons/icon.icns",
