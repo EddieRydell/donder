@@ -1,8 +1,8 @@
 name: Release
 
-# Builds unsigned desktop installers for every platform and attaches them to a
-# draft GitHub release tagged with the app version from tauri.conf.json.
-# Publishing the draft triggers the website redeploy (website.yml).
+# Builds unsigned desktop installers for every platform, attaches them to a
+# draft GitHub release tagged with the app version from tauri.conf.json, then
+# publishes it once every platform has uploaded and redeploys the website.
 on:
   workflow_dispatch:
 
@@ -69,5 +69,25 @@ jobs:
           releaseName: Donder v__VERSION__
           releaseBody: Unsigned preview build. See https://donder.eddierydell.com/download for install notes.
           releaseDraft: true
-          prerelease: true
+          prerelease: false
           args: --target ${{ matrix.target }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: apps/desktop/tauri.conf.json
+          sparse-checkout-cone-mode: false
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "v$(jq -r .version apps/desktop/tauri.conf.json)" --draft=false --latest
+
+  # A release published with GITHUB_TOKEN triggers no workflows, so the website
+  # redeploy is called directly.
+  website:
+    needs: publish
+    uses: ./.github/workflows/website.yml
+    secrets: inherit

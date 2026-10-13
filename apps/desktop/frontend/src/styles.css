@@ -17,6 +17,7 @@
   --donder-text-soft: #c7c0b6;
   --donder-hover: #2c3036;
   --donder-accent: #aeb4bc;
+  --donder-brand-cloud: #646b75;
   --donder-editor-cursor: #d3d3d3;
   --donder-accent-bg: #3b4149;
   --donder-warning: #f0c46b;
@@ -286,7 +287,10 @@
   --donder-resize-handle-width: 8px;
   --donder-gui-grid-template-collapsed: minmax(0, 1fr) var(--donder-resize-handle-width);
   --donder-titlebar-control-width: 46px;
-  --donder-titlebar-brand-width: 108px;
+  --donder-titlebar-brand-height: 22px;
+  --donder-titlebar-brand-height-mac: 18px;
+  /* The gap cut around the wordmark, in logo units. */
+  --donder-brand-gap-width: 7px;
   --donder-titlebar-actions-width: 138px;
   --donder-titlebar-traffic-light-inset: 78px;
   --donder-panel-shell-max-width: 528px;
@@ -669,7 +673,7 @@ html.donder-app-shell body {
   position: relative;
   z-index: var(--donder-z-titlebar);
   display: grid;
-  grid-template-columns: var(--donder-titlebar-brand-width) auto minmax(0, 1fr) var(--donder-titlebar-actions-width);
+  grid-template-columns: auto auto minmax(0, 1fr) var(--donder-titlebar-actions-width);
   align-items: center;
   border-bottom: var(--donder-border-width) solid var(--donder-border);
   background: var(--donder-bg-panel);
@@ -689,13 +693,35 @@ html.donder-app-shell body {
 
 .titlebar-mac .brand {
   padding-left: var(--donder-space-0);
-  font-size: var(--donder-font-size-md);
+}
+
+.titlebar-mac .brand-logo {
+  height: var(--donder-titlebar-brand-height-mac);
 }
 
 .brand {
+  display: flex;
+  align-items: center;
   padding-left: var(--donder-space-10);
-  font-size: var(--donder-font-size-lg);
-  font-weight: var(--donder-font-weight-bold);
+  padding-right: var(--donder-space-4);
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: var(--donder-titlebar-brand-height);
+}
+
+.brand-cloud {
+  fill: var(--donder-brand-cloud);
+}
+
+.brand-wordmark {
+  fill: var(--donder-text);
+  stroke: var(--donder-bg-panel);
+  stroke-width: var(--donder-brand-gap-width);
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
 .menu-row,
